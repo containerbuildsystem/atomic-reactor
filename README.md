@@ -19,7 +19,7 @@ pip install ./setup.py
 First, you have to built docker image for building other docker images, we call it build image.
 
 ```bash
-$ make build-image  # or quicker method q-build-image -- it caches steps
+$ make build-buildimage  # or quicker method q-build-image -- it caches steps
 
 $ py.test tests/test_dock.py::test_privileged_build
 ```
