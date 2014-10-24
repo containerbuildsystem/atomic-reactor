@@ -11,6 +11,8 @@ import docker
 
 DOCKER_SOCKET_PATH = '/var/run/docker.sock'
 
+logger = logging.getLogger(__name__)
+
 
 def split_image_repo_name(image_name):
     """ registry.com/image -> (registry, image) """
@@ -34,7 +36,11 @@ def get_baseimage_from_dockerfile(url, path=None):
     try:
         git.Repo.clone_from(url, temp_dir)
         # lets be naive for now
-        with open(os.path.join(temp_dir, 'Dockerfile'), 'r') as dockerfile:
+        if path:
+            dockerfile_path = os.path.join(temp_dir, path, 'Dockerfile')
+        else:
+            dockerfile_path = os.path.join(temp_dir, 'Dockerfile')
+        with open(dockerfile_path, 'r') as dockerfile:
             for line in dockerfile:
                 if line.startswith("FROM"):
                     return line.split()[1]
@@ -76,7 +82,16 @@ class DockerTasker(object):
     def __init__(self):
         self.d = docker.Client(base_url='unix:/%s' % DOCKER_SOCKET_PATH, version='1.12', timeout=30)
 
-    def build_image(self, build_image, url, tag):
+    def build_image_dockerhost(self, build_image, url, tag):
+        """
+        Build docker image within a build image using docker from host (mount docker socket inside container).
+        There are possible races here. Use wisely.
+
+        :param build_image:
+        :param url:
+        :param tag:
+        :return:
+        """
         print "build_image: build_image = '%s', url = '%s', tag = '%s'" % (build_image, url, tag)
         container_dict = self.d.create_container(
             build_image,
@@ -87,22 +102,40 @@ class DockerTasker(object):
             volumes=[DOCKER_SOCKET_PATH]
         )
         container_id = container_dict['Id']
+
         volume_bindings = {
             DOCKER_SOCKET_PATH: {
                 'bind': DOCKER_SOCKET_PATH,
                 'ro': True,
             }
         }
-        response = self.d.start(container_id, binds=volume_bindings)
+        response = self.d.start(
+            container_id,
+            binds=volume_bindings,
+        )
         print "response = '%s'" % response
         return container_id
 
-    def run(self, image_id, command=None):
-        print "run: image = '%s', command = '%s'" % (image_id, command)
-        container_dict = self.d.create_container(image_id, command=command)
+    def build_image(self, tag, path=None):
+        if not path:
+            path = os.environ['PWD']
+        logger.debug("build: tag = '%s', path = '%s'", tag, path)
+        response = self.d.build(path=path, tag=tag)  # returns generator
+        logger.debug("build finished")
+        return response
+
+    def run(self, image_id, command=None, create_kwargs=None, start_kwargs=None):
+        logger.debug("run: image = '%s', command = '%s'", image_id, command)
+        if create_kwargs:
+            container_dict = self.d.create_container(image_id, command=command, **create_kwargs)
+        else:
+            container_dict = self.d.create_container(image_id, command=command)
         container_id = container_dict['Id']
-        print "container_id = '%s'" % container_id
-        self.d.start(container_id)  # returns None
+        logger.debug("container_id = '%s'", container_id)
+        if start_kwargs:
+            self.d.start(container_id, **start_kwargs)  # returns None
+        else:
+            self.d.start(container_id)
         return container_id
 
     def commit_container(self, container_id, message):
@@ -148,6 +181,12 @@ class DockerTasker(object):
         stream = self.d.logs(container_id, stdout=True, stderr=True, stream=True)
         response = list(stream)
         print response
+        return response
+
+    def wait(self, container_id):
+        logger.debug("wait: container = '%s'", container_id)
+        response = self.d.wait(container_id)
+        logger.debug("response = '%s'", response)
         return response
 
 
@@ -196,9 +235,30 @@ class DockerBuilder(object):
             self.tasker.pull_image(base_image, source_registry)
             self.tasker.tag_image(base_image, base_image_name)
 
-    def build(self, build_image):
+    def build(self):
+        """
+        build image inside current environment
+        :return:
+        """
+        logger.debug("build")
         assert not self.is_built
-        self.build_container_id = self.tasker.build_image(
+        response = self.tasker.build_image(
+            self.local_tag,
+            self.git_url,
+        )
+        self.is_built = True
+        logger.debug("response = '%s'", response)
+        return response
+
+    def build_hostdocker(self, build_image):
+        """
+        build image inside build image using host's docker
+
+        :param build_image:
+        :return:
+        """
+        assert not self.is_built
+        self.build_container_id = self.tasker.build_image_dockerhost(
             build_image,
             self.git_url,
             self.local_tag
@@ -240,6 +300,3 @@ class DockerBuilder(object):
             result[plugin.name] = plugin.run()
         return result
 
-
-if __name__ == '__main__':
-    print get_baseimage_from_dockerfile('https://github.com/TomasTomecek/docker-hello-world.git')

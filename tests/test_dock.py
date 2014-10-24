@@ -1,17 +1,19 @@
-from dock.core import split_image_repo_name, create_image_repo_name
+from dock.core import DockerBuilder
+from dock.outer import PrivilegedDockerBuilder
 
 
-def test_split_image_repo_name():
-    result = split_image_repo_name("repository.com/image-name")
-    assert result == ["repository.com", "image-name"]
-    result = split_image_repo_name("repository.com/prefix/image-name")
-    assert result == ["repository.com", "prefix/image-name"]
-    result = split_image_repo_name("image-name")
-    assert result == ["", "image-name"]
+def test_hostdocker_build():
+    db = DockerBuilder(
+        "https://github.com/TomasTomecek/docker-hello-world.git",
+        "dock-test-image",
+    )
+    db.build_hostdocker("buildroot-fedora")
 
 
-def test_create_image_repo_name():
-    result = create_image_repo_name("image-name", "repository.com")
-    assert result == "repository.com/image-name"
-    result = create_image_repo_name("prefix/image-name", "repository.com/")
-    assert result == "repository.com/prefix/image-name"
+def test_privileged_build():
+    db = PrivilegedDockerBuilder("buildroot-fedora", {
+        #"git_url": "https://github.com/TomasTomecek/docker-hello-world.git",
+        "git_url": "github.com/TomasTomecek/docker-hello-world.git",
+        "local_tag": "dock-test-image",
+    })
+    db.build()

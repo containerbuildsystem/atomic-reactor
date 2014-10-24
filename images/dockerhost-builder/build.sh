@@ -1,5 +1,5 @@
 #!/bin/bash
-set -uo pipefail
+set -xuo pipefail
 IFS=$'\n\t'
 
 DOCKER_SOCKET=/var/run/docker.sock
