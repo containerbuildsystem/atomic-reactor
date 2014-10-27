@@ -50,7 +50,8 @@ class DockerBuildWorkflow(object):
             for target_registry in self.target_registries:
                 db.push_built_image(target_registry, self.tag)
 
-        return self.local_tag
+        inspect_data = db.inspect_built_image()
+        return inspect_data
 
 
 if __name__ == '__main__':
