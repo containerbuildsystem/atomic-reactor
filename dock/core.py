@@ -118,6 +118,7 @@ class DockerTasker(object):
 
     def build_image(self, tag, path, git_path=None):
         temp_dir = tempfile.mkdtemp()
+        response = None
         try:
             git.Repo.clone_from(path, temp_dir)
             if git_path:
@@ -131,7 +132,11 @@ class DockerTasker(object):
             logger.debug("build (git): tag = '%s', path = '%s'", tag, df_path)
             response = self.d.build(path=df_path, tag=tag)  # returns generator
         finally:
-            shutil.rmtree(temp_dir)
+            try:
+                shutil.rmtree(temp_dir)
+            except (IOError, OSError) as ex:
+                # no idea why this's happening
+                logger.warning("Failed to remove dir '%s': '%s'", temp_dir, repr(ex))
         logger.debug("build finished")
         return response
 
