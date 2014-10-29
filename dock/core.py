@@ -123,9 +123,9 @@ class DockerTasker(object):
             if git_path:
                 if git_path.endswith('Dockerfile'):
                     git_df_dir = os.path.dirname(git_path)
-                    df_path = os.path.join(temp_dir, git_df_dir)
+                    df_path = os.path.abspath(os.path.join(temp_dir, git_df_dir))
                 else:
-                    df_path = os.path.join(temp_dir, git_path)
+                    df_path = os.path.abspath(os.path.join(temp_dir, git_path))
             else:
                 df_path = temp_dir
             logger.debug("build (git): tag = '%s', path = '%s'", tag, df_path)
