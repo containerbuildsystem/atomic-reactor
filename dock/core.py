@@ -116,23 +116,22 @@ class DockerTasker(object):
         print "response = '%s'" % response
         return container_id
 
-    def build_image(self, tag, path=None, git_path=None):
-        if not path:
-            path = os.environ['PWD']
-        if git_path:
-            temp_dir = tempfile.mkdtemp()
-            try:
-                git.Repo.clone_from(path, temp_dir)
+    def build_image(self, tag, path, git_path=None):
+        temp_dir = tempfile.mkdtemp()
+        try:
+            git.Repo.clone_from(path, temp_dir)
+            if git_path:
                 if git_path.endswith('Dockerfile'):
-                    git_path = os.path.dirname(git_path)
-                git_path = os.path.join(temp_dir, git_path)
-                logger.debug("build (git): tag = '%s', path = '%s'", tag, git_path)
-                response = self.d.build(path=git_path, tag=tag)  # returns generator
-            finally:
-                shutil.rmtree(temp_dir)
-        else:
-            logger.debug("build: tag = '%s', path = '%s'", tag, path)
-            response = self.d.build(path=path, tag=tag)  # returns generator
+                    git_df_dir = os.path.dirname(git_path)
+                    df_path = os.path.join(temp_dir, git_df_dir)
+                else:
+                    df_path = os.path.join(temp_dir, git_path)
+            else:
+                df_path = temp_dir
+            logger.debug("build (git): tag = '%s', path = '%s'", tag, df_path)
+            response = self.d.build(path=df_path, tag=tag)  # returns generator
+        finally:
+            shutil.rmtree(temp_dir)
         logger.debug("build finished")
         return response
 
