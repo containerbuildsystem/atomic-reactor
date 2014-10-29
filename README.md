@@ -11,8 +11,10 @@ It supports to building modes:
 ## Installation
 
 ```bash
-pip install ./setup.py
+pip install setup.py
 ```
+
+`pip install ./setup.py` won't work.
 
 ## Usage
 
