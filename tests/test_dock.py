@@ -17,3 +17,12 @@ def test_privileged_build():
         "local_tag": "dock-test-image",
     })
     db.build()
+
+
+def test_gitrepo_build():
+    db = PrivilegedDockerBuilder("buildroot-fedora", {
+        "git_url": "https://github.com/fedora-cloud/Fedora-Dockerfiles.git",
+        "git_dockerfile_path": "ssh/",
+        "local_tag": "dock-test-ssh-image",
+    })
+    db.build()
