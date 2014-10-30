@@ -164,7 +164,11 @@ class DockerTasker(object):
         """ pull image from registry """
         print "pull: image = '%s', registry = '%s'" % (image, registry)
         registry_uri = create_image_repo_name(image, registry)
-        print self.d.pull(registry_uri, insecure_registry=True)
+        try:
+            print self.d.pull(registry_uri, insecure_registry=True)
+        except TypeError:
+            # because changing api is fun
+            print self.d.pull(registry_uri)
         return registry_uri
 
     def tag_image(self, image, tag, registry=None, version=None):
