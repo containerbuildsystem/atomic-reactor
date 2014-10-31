@@ -29,6 +29,11 @@ def create_image_repo_name(image_name, registry):
         registry += '/'
     return registry + image_name
 
+def get_baseimage_from_dockerfile_path(path):
+    with open(path, 'r') as dockerfile:
+        for line in dockerfile:
+            if line.startswith("FROM"):
+                return line.split()[1]
 
 def get_baseimage_from_dockerfile(url, path=None):
     """ return name of base image from provided gitrepo """
@@ -40,10 +45,7 @@ def get_baseimage_from_dockerfile(url, path=None):
             dockerfile_path = os.path.join(temp_dir, path, 'Dockerfile')
         else:
             dockerfile_path = os.path.join(temp_dir, 'Dockerfile')
-        with open(dockerfile_path, 'r') as dockerfile:
-            for line in dockerfile:
-                if line.startswith("FROM"):
-                    return line.split()[1]
+        return get_baseimage_from_dockerfile_path(dockerfile_path)
     finally:
         shutil.rmtree(temp_dir)
 
@@ -130,6 +132,7 @@ class DockerTasker(object):
             else:
                 df_path = temp_dir
             logger.debug("build (git): tag = '%s', path = '%s'", tag, df_path)
+            base_image = get_baseimage_from_dockerfile_path(os.path.join(df_path, "Dockerfile"))
             response = self.d.build(path=df_path, tag=tag)  # returns generator
         finally:
             try:
@@ -138,7 +141,7 @@ class DockerTasker(object):
                 # no idea why this's happening
                 logger.warning("Failed to remove dir '%s': '%s'", temp_dir, repr(ex))
         logger.debug("build finished")
-        return response
+        return response, base_image
 
     def run(self, image_id, command=None, create_kwargs=None, start_kwargs=None):
         logger.debug("run: image = '%s', command = '%s'", image_id, command)
@@ -160,15 +163,54 @@ class DockerTasker(object):
         print "response = %s" % response
         return response['Id']
 
+    def get_image_info(self, image_id=None, name=None):
+        """
+        using `docker images` provide information about an image
+
+        :param image_id: hash of image to get info
+        :param name: image name ([repository/][namespace/]image_name:tag)
+        :return: dict or None
+        """
+        logger.debug("get image info: image_id = '%s', name = '%s'", image_id, name)
+        if not image_id and not name:
+            raise RuntimeError("you have to specify either name or image_id")
+        # returns list of
+        # {u'Created': 1414577076,
+        #  u'Id': u'3ab9a7ed8a169ab89b09fb3e12a14a390d3c662703b65b4541c0c7bde0ee97eb',
+        #  u'ParentId': u'a79ad4dac406fcf85b9c7315fe08de5b620c1f7a12f45c8185c843f4b4a49c4e',
+        #  u'RepoTags': [u'buildroot-fedora:latest'],
+        #  u'Size': 0,
+        #  u'VirtualSize': 856564160}
+        if name:
+            name = name.split(":")[0]  # if there is version in here, docker doesnt output anything
+            try:
+                return self.d.images(name=name)[0]
+            except IndexError:
+                return None
+        else:
+            images = self.d.images()
+            try:
+                image_dict = [i for i in images if i['Id'] == image_id][0]
+            except IndexError:
+                return None
+            else:
+                return image_dict
+
     def pull_image(self, image, registry):
         """ pull image from registry """
-        print "pull: image = '%s', registry = '%s'" % (image, registry)
+        logger.debug("pull: image = '%s', registry = '%s'", image, registry)
         registry_uri = create_image_repo_name(image, registry)
         try:
-            print self.d.pull(registry_uri, insecure_registry=True)
+            logs_gen = self.d.pull(registry_uri, insecure_registry=True, stream=True)
         except TypeError:
             # because changing api is fun
-            print self.d.pull(registry_uri)
+            logs_gen = self.d.pull(registry_uri, stream=True)
+        while True:
+            try:
+                logger.debug(logs_gen.next())  # wait for pull to finish
+                # send logs to server
+            except StopIteration:
+                break
         return registry_uri
 
     def tag_image(self, image, tag, registry=None, version=None):
@@ -181,7 +223,7 @@ class DockerTasker(object):
 
     def tag_and_push_image(self, image, tag, registry, version=None):
         """ tag and push specified image to registry """
-        print "tag&push: image = '%s', tag = '%s', registry = '%s'" % (image, tag, registry)
+        logger.debug("tag&push: image = '%s', tag = '%s', registry = '%s'", image, tag, registry)
         final_tag = self.tag_image(image, tag, registry=registry, version=version)
         try:
             self.d.push(final_tag, insecure_registry=True)  # prints shitload of stuff
@@ -239,21 +281,23 @@ class DockerBuilder(object):
     def pull_base_image(self, source_registry):
         """ pull base image
 
-        :param image_id: tag or image id of image to pull
         :param source_registry: registry to pull from
         :return:
         """
+        logger.debug("pull base image")
         assert not self.is_built
-        base_image = get_baseimage_from_dockerfile(self.git_url)
-        if not base_image.startswith(source_registry):
-            df_registry, base_image_name = split_image_repo_name(base_image)
-            if df_registry:
-                if df_registry != source_registry:
-                    raise RuntimeError(
-                        "Registry specified in dockerfile doesn't match provided one. Dockerfile: %s, Provided: %s"
-                        % (df_registry, source_registry))
-            self.tasker.pull_image(base_image, source_registry)
-            self.tasker.tag_image(base_image, base_image_name)
+        self.base_image = get_baseimage_from_dockerfile(self.git_url)
+        logger.debug("base image = '%s'", self.base_image)
+        df_registry, base_image_name = split_image_repo_name(self.base_image)
+        if df_registry:
+            if df_registry != source_registry:
+                raise RuntimeError(
+                    "Registry specified in dockerfile doesn't match provided one. Dockerfile: %s, Provided: %s"
+                    % (df_registry, source_registry))
+        self.tasker.pull_image(self.base_image, source_registry)
+        # FIXME: this fails
+        # if not self.base_image.startswith(source_registry):
+        #    self.tasker.tag_image(self.base_image, base_image_name)
 
     def build(self):
         """
@@ -262,18 +306,28 @@ class DockerBuilder(object):
         """
         logger.debug("build")
         assert not self.is_built
-        response = self.tasker.build_image(
+        logs_gen, self.base_image = self.tasker.build_image(
             self.local_tag,
             self.git_url,
             git_path=self.git_dockerfile_path,
         )
         self.is_built = True
-        logger.debug("response = '%s'", response)
-        return response
+        logger.debug("waiting for build to finish...")
+        # you have to wait for logs_gen to raise StopIter so you know the build has finished
+        while True:
+            try:
+                logger.debug(logs_gen.next())  # wait for build to finish
+                # send logs to server
+            except StopIteration:
+                break
+        logger.debug("base_image = '%s'", self.base_image)
+        return logs_gen
 
     def build_hostdocker(self, build_image):
         """
         build image inside build image using host's docker
+
+        TODO: this should be part of different class
 
         :param build_image:
         :return:
@@ -295,6 +349,7 @@ class DockerBuilder(object):
             self.build_container_id, commit_message)
 
     def push_buildroot(self, registry):
+        # FIXME: this should be part of different class, since it is related to dockerhost method
         assert self.is_built
         self.tasker.tag_and_push_image(
             self.build_image_id,
@@ -312,6 +367,16 @@ class DockerBuilder(object):
         assert self.is_built
         inspect_data = self.tasker.inspect_image(self.local_tag)  # dict with lots of data, see man docker-inspect
         return inspect_data
+
+    def get_base_image_info(self):
+        assert self.is_built
+        image_info = self.tasker.get_image_info(name=self.base_image)
+        return image_info
+
+    def get_built_image_info(self):
+        assert self.is_built
+        image_info = self.tasker.get_image_info(name=self.local_tag)
+        return image_info
 
     def run_postbuild_plugins(self, *plugins):
         assert self.is_built
