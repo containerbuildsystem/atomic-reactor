@@ -1,0 +1,13 @@
+[copr]
+releaser = tito.release.CoprReleaser
+project_name = jdornak/DBuildService
+upload_command = chmod 0644 %(srpm)s; rsync -p %(srpm)s fedorapeople.org:public_html/
+remote_location = http://<USERNAME>.fedorapeople.org/
+
+[copr-test]
+releaser = tito.release.CoprReleaser
+builder.test = 1
+project_name = jdornak/DBuildService
+upload_command = chmod 0644 %(srpm)s; rsync -p %(srpm)s fedorapeople.org:public_html/
+remote_location = http://<USERNAME>.fedorapeople.org/
+

@@ -1,1 +1,3 @@
+rel-eng/releasers.conf
 *.py[co]
+*.swp

@@ -1,7 +1,7 @@
 dock
 ====
 
-Simple python library for building docker images. It is written on top of [https://github.com/docker/docker-py](docker-py).
+Simple python library for building docker images. It is written on top of [docker-py](https://github.com/docker/docker-py).
 
 It supports to building modes:
 
@@ -42,8 +42,50 @@ db = PrivilegedDockerBuilder("buildroot-fedora", {
 db.build()
 ```
 
+## RPM build
+
+Install tito and mock:
+
+```bash
+dnf install tito mock
+```
+
+Build RPM locally:
+
+```bash
+# build from the latest tagged release
+tito build --rpm
+# or build from the latest commit
+tito build --rpm --test
+```
+
+Build RPM using mock:
+
+```bash
+SRPM=`tito build --srpm --test | egrep -o '/tmp/tito/dbs-server-.*\.src\.rpm'`
+sudo mock -r fedora-21-x86_64 $SRPM
+```
+
+## Submit Build in Copr
+
+First you need to set up rel-eng/releasers.conf:
+
+```bash
+sed "s/<USERNAME>/$USERNAME/" < rel-eng/releasers.conf.template > rel-eng/releasers.conf
+```
+
+Now you may submit build:
+
+```bash
+# submit build from latest commit
+tito release copr-test
+# or submit build from the latest tag
+tito release copr
+```
+
 ## TODO
 
 * CLI client
 * Implement plugin system
 * Enable managing yum repos within build image
+
