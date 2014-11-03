@@ -42,6 +42,9 @@ Improved builder for Docker images
 
 
 %changelog
+* Mon Nov 03 2014 Jakub Dorňák <jdornak@redhat.com> 0.0.1-1
+- new package built with tito
+
 * Sun Nov  2 2014 Jakub Dorňák <jdornak@redhat.com> - 0.0.1-1
 - Initial package
 
