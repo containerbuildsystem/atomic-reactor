@@ -45,8 +45,11 @@ class PrivilegedDockerBuilder(object):
         """
         if self.temp_dir:
             results_path = os.path.join(self.temp_dir, RESULTS_JSON)
+            df_path = os.path.join(self.temp_dir, 'Dockerfile')
             # FIXME: race
             if not os.path.isfile(results_path):
                 return None
             with open(results_path, 'r') as results_fp:
-                return json.load(results_fp)
+                results = json.load(results_fp)
+            df = open(df_path, 'r').readall()
+            return results, df
