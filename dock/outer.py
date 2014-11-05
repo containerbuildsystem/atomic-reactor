@@ -51,5 +51,5 @@ class PrivilegedDockerBuilder(object):
                 return None
             with open(results_path, 'r') as results_fp:
                 results = json.load(results_fp)
-            df = open(df_path, 'r').readall()
+            df = open(df_path, 'r').read()
             return results, df
