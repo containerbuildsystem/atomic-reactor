@@ -240,11 +240,14 @@ class DockerTasker(object):
     def remove_image(self, image_id):
         return self.d.remove_image(image_id)
 
-    def stdout_of_container(self, container_id):
+    def stdout_of_container(self, container_id, stream=True):
         print 'stdout: container = %s' % container_id
-        stream = self.d.logs(container_id, stdout=True, stderr=True, stream=True)
-        response = list(stream)
-        print response
+        if stream:
+            stream = self.d.logs(container_id, stdout=True, stderr=True, stream=stream)
+            response = list(stream)
+        else:
+            response = self.d.logs(container_id, stdout=True, stderr=True, stream=stream)
+            response = [line for line in response.split('\n') if line]
         return response
 
     def wait(self, container_id):
