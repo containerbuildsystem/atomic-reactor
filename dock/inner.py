@@ -6,6 +6,7 @@ import logging
 import json
 from dock import CONTAINER_BUILD_JSON_PATH
 from dock.core import DockerBuilder
+from dock.plugin import PostBuildPluginsRunner
 
 logger = logging.getLogger(__name__)
 
@@ -68,10 +69,13 @@ class DockerBuildWorkflow(object):
     def _prepare_response(self):
         """ prepare response for build: gather info about images """
         assert self.db is not None
+        runner = PostBuildPluginsRunner(self.db.tasker)
         response = {
             'built_img_inspect': self.db.inspect_built_image(),
             'built_img_info': self.db.get_built_image_info(),
             'base_img_info': self.db.get_base_image_info(),
+            'base_plugins_output': runner.run(self.db.base_image),
+            'built_img_plugins_output': runner.run(self.db.local_tag),
         }
         return response
 

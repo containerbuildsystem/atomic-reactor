@@ -51,36 +51,6 @@ def get_baseimage_from_dockerfile(url, path=None):
         shutil.rmtree(temp_dir)
 
 
-class PostBuildPlugin(object):
-    def __init__(self):
-        """ """
-
-
-class PostBuildRPMqaPlugin(object):
-    def __init__(self):
-        """ """
-
-    @property
-    def key(self):
-        return "all_packages"
-
-    @property
-    def command(self):
-        """ command to run in image """
-        return "/bin/rpm -qa"
-
-
-def run_postbuild_plugins(dt, image):
-    """ dt = instance of dockertasker """
-    # FIXME: load all class which subclass PostBuildPlugin
-    p = PostBuildRPMqaPlugin()
-    container_id = dt.run(image, p.command)
-    result = dt.stdout_of_container(container_id)
-    response_dict = {p.key: result}
-    print response_dict
-    return response_dict
-
-
 class DockerTasker(object):
     def __init__(self):
         self.d = docker.Client(base_url='unix:/%s' % DOCKER_SOCKET_PATH, version='1.12', timeout=30)

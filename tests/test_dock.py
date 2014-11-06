@@ -18,6 +18,15 @@ def test_privileged_build():
     db.build()
 
 
+def test_cached_privileged_build():
+    db = PrivilegedDockerBuilder("buildroot-fedora", {
+        "git_url": "https://github.com/TomasTomecek/docker-hello-world.git",
+        "local_tag": "dock-test-image",
+        "parent_registry": "172.17.42.1:5000",  # faster
+    })
+    db.build()
+
+
 def test_gitrepo_build():
     db = PrivilegedDockerBuilder("buildroot-fedora", {
         "git_url": "https://github.com/fedora-cloud/Fedora-Dockerfiles.git",
