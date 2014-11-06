@@ -128,12 +128,11 @@ class DockerTasker(object):
                 if git_path.endswith('Dockerfile'):
                     git_df_dir = os.path.dirname(git_path)
                     df_path = os.path.abspath(os.path.join(temp_dir, git_df_dir))
-                    shutil.copyfile(os.path.join(temp_dir, git_path), CONTAINER_DOCKERFILE_PATH)
                 else:
                     df_path = os.path.abspath(os.path.join(temp_dir, git_path))
-                    shutil.copyfile(os.path.join(df_path, "Dockerfile"), CONTAINER_DOCKERFILE_PATH)
             else:
                 df_path = temp_dir
+            shutil.copyfile(os.path.join(df_path, "Dockerfile"), CONTAINER_DOCKERFILE_PATH)
             logger.debug("build (git): tag = '%s', path = '%s'", tag, df_path)
             base_image = get_baseimage_from_dockerfile_path(os.path.join(df_path, "Dockerfile"))
             response = self.d.build(path=df_path, tag=tag)  # returns generator
