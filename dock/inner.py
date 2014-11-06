@@ -14,7 +14,12 @@ class DockerBuildWorkflow(object):
     """
     This class defines a workflow for building images:
 
-    TBD
+    1. pull image from registry
+    2. tag it properly if needed
+    3. clone git repo
+    4. build image
+    5. tag it
+    6. push it to registries
     """
 
     def __init__(self, git_url, local_tag, git_dockerfile_path=None,
@@ -35,7 +40,12 @@ class DockerBuildWorkflow(object):
         """
         build docker image
 
-        :return:
+        :return: dict (see _prepare_response):
+        {
+            'built_img_inspect': <inspect dict>,
+            'built_img_info': <`docker images` dict>,
+            'base_img_info': <`docker images` dict>,
+        }
         """
         self.db = DockerBuilder(self.git_url, self.local_tag, self.git_dockerfile_path, self.git_commit, self.repos)
         if self.parent_registry:
@@ -56,6 +66,7 @@ class DockerBuildWorkflow(object):
         return response
 
     def _prepare_response(self):
+        """ prepare response for build: gather info about images """
         assert self.db is not None
         response = {
             'built_img_inspect': self.db.inspect_built_image(),
