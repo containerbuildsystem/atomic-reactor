@@ -22,8 +22,6 @@ First, you have to built docker image for building other docker images, we call 
 
 ```bash
 $ make build-buildimage  # or quicker method q-build-image -- it caches steps
-
-$ py.test tests/test_dock.py::test_privileged_build
 ```
 
 And now can either run test suite...
@@ -35,6 +33,7 @@ py.test tests/test_dock.py::test_privileged_build
 ...or build whatever image you want:
 
 ```python
+from dock.outer import PrivilegedDockerBuilder
 db = PrivilegedDockerBuilder("buildroot-fedora", {
     "git_url": "github.com/TomasTomecek/docker-hello-world.git",
     "local_tag": "dock-test-image",
