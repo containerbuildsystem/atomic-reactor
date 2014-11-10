@@ -1,5 +1,5 @@
 Name:           dock
-Version:        0.0.1
+Version:        0.0.2
 Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
@@ -42,6 +42,15 @@ Improved builder for Docker images
 
 
 %changelog
+* Mon Nov 10 2014 Tomas Tomecek <ttomecek@redhat.com> 0.0.2-1
+- more friendly error msg when build img doesnt exist (ttomecek@redhat.com)
+- implement postbuild plugin system; do rpm -qa plugin (ttomecek@redhat.com)
+- core, logs: wait for container to finish and then gather output
+  (ttomecek@redhat.com)
+- core, df copying: df was not copied when path wasn't provided
+  (ttomecek@redhat.com)
+- store dockerfile in results dir (ttomecek@redhat.com)
+
 * Mon Nov 03 2014 Jakub Dorňák <jdornak@redhat.com> 0.0.1-1
 - new package built with tito
 

@@ -3,7 +3,7 @@
 from setuptools import setup, find_packages
 
 setup(name='dock',
-      version='0.0.1',
+      version='0.0.2',
       description='improved builder for docker images',
       author='Tomas Tomecek',
       author_email='ttomecek@redhat.com',
