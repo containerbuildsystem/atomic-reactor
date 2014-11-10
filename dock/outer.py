@@ -27,6 +27,10 @@ class PrivilegedDockerBuilder(object):
             with open(os.path.join(self.temp_dir, BUILD_JSON), 'w') as build_json:
                 json.dump(self.build_args, build_json)
             dt = DockerTasker()
+            if not dt.image_exists(self.build_image_id):
+                raise RuntimeError("Image '%s' does not exist! "
+                                   "You have to create it prior to build, "
+                                   "see README of dock project.")
             container_id = dt.run(
                 self.build_image_id,
                 create_kwargs={'volumes': [self.temp_dir]},

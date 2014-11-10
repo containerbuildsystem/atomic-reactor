@@ -7,6 +7,7 @@ import datetime
 
 import git
 import docker
+from docker.errors import APIError
 from dock import CONTAINER_DOCKERFILE_PATH
 
 
@@ -225,6 +226,12 @@ class DockerTasker(object):
         response = self.d.wait(container_id)
         logger.debug("response = '%s'", response)
         return response
+
+    def image_exists(self, image_id):
+        try:
+            return self.d.get_image(image_id) is not None
+        except APIError:
+            return False
 
 
 class DockerBuilder(object):
