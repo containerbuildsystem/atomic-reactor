@@ -28,7 +28,7 @@ class PrivilegedDockerBuilder(object):
                 json.dump(self.build_args, build_json)
             dt = DockerTasker()
             if not dt.image_exists(self.build_image_id):
-                raise RuntimeError("Image '%s' does not exist! "
+                raise RuntimeError("Image '%s' does not exist! " % self.build_image_id,
                                    "You have to create it prior to build, "
                                    "see README of dock project.")
             container_id = dt.run(
