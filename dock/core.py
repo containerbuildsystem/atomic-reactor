@@ -44,7 +44,10 @@ def get_baseimage_from_dockerfile(url, path=None):
         git.Repo.clone_from(url, temp_dir)
         # lets be naive for now
         if path:
-            dockerfile_path = os.path.join(temp_dir, path, 'Dockerfile')
+            if path.endswith('Dockerfile'):
+                dockerfile_path = os.path.join(temp_dir, path)
+            else:
+                dockerfile_path = os.path.join(temp_dir, path, 'Dockerfile')
         else:
             dockerfile_path = os.path.join(temp_dir, 'Dockerfile')
         return get_baseimage_from_dockerfile_path(dockerfile_path)
@@ -268,7 +271,7 @@ class DockerBuilder(object):
         """
         logger.debug("pull base image")
         assert not self.is_built
-        self.base_image = get_baseimage_from_dockerfile(self.git_url)
+        self.base_image = get_baseimage_from_dockerfile(self.git_url, path=self.git_dockerfile_path)
         logger.debug("base image = '%s'", self.base_image)
         df_registry, base_image_name = split_image_repo_name(self.base_image)
         if df_registry:
