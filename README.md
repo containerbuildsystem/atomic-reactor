@@ -21,7 +21,7 @@ pip install setup.py
 First, you have to built docker image for building other docker images, we call it build image.
 
 ```bash
-$ make build-buildimage  # or quicker method q-build-image -- it caches steps
+$ make build-buildimage  # or quicker method q-build-buildimage -- it caches steps
 ```
 
 And now can either run test suite...
