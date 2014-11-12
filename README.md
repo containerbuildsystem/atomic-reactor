@@ -61,7 +61,7 @@ tito build --rpm --test
 Build RPM using mock:
 
 ```bash
-SRPM=`tito build --srpm --test | egrep -o '/tmp/tito/dbs-server-.*\.src\.rpm'`
+SRPM=`tito build --srpm --test | egrep -o '/tmp/tito/dock-.*\.src\.rpm'`
 sudo mock -r fedora-21-x86_64 $SRPM
 ```
 
