@@ -232,7 +232,7 @@ class DockerTasker(object):
 
     def image_exists(self, image_id):
         try:
-            return self.d.get_image(image_id) is not None
+            return self.d.inspect_image(image_id) is not None
         except APIError:
             return False
 
