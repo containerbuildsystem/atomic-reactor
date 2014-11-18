@@ -362,12 +362,3 @@ class DockerBuilder(object):
         assert self.is_built
         image_info = self.tasker.get_image_info(name=self.local_tag)
         return image_info
-
-    def run_postbuild_plugins(self, *plugins):
-        assert self.is_built
-        result = {}
-        for plugin_const in plugins:
-            plugin = get_postbuild_plugin(plugin_const)
-            result[plugin.name] = plugin.run()
-        return result
-
