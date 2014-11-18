@@ -38,16 +38,17 @@ class PrivilegedDockerBuilder(object):
                               'privileged': True}
             )
             dt.wait(container_id)
-            return self.load_results()
+            return self.load_results(container_id)
         finally:
             shutil.rmtree(self.temp_dir)
 
-    def load_results(self):
+    def load_results(self, container_id):
         """
 
         :return:
         """
         if self.temp_dir:
+            dt = DockerTasker()
             results_path = os.path.join(self.temp_dir, RESULTS_JSON)
             df_path = os.path.join(self.temp_dir, 'Dockerfile')
             # FIXME: race
@@ -56,4 +57,5 @@ class PrivilegedDockerBuilder(object):
             with open(results_path, 'r') as results_fp:
                 results = json.load(results_fp)
             df = open(df_path, 'r').read()
-            return results, df
+            build_log = dt.stdout_of_container(container_id, stream=False)
+            return results, df, build_log
