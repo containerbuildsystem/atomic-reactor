@@ -1,6 +1,8 @@
 dock
 ====
 
+### This is still a Proof of Concept. Implementation is not very nice. There are no docs. CLI is absent.
+
 Simple python library for building docker images. It is written on top of [docker-py](https://github.com/docker/docker-py).
 
 It supports to building modes:
