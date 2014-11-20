@@ -30,8 +30,10 @@ Improved builder for Docker images
 
 
 %install
+mkdir -vp %{buildroot}/%{_datadir}/%{name}
 # install python package
 %{__python} setup.py install --skip-build --root %{buildroot}
+cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 
 
 %files
@@ -39,6 +41,9 @@ Improved builder for Docker images
 %{_bindir}/dock
 %{python_sitelib}/dock
 %{python_sitelib}/dock-%{version}-py2.*.egg-info
+%dir %{_datadir}/%{name}
+%{_datadir}/%{name}/dock.tar.gz
+%{_datadir}/%{name}/images
 
 
 %changelog

@@ -1,5 +1,6 @@
 FROM fedora:latest
-RUN yum -y install docker-io git
-ADD ./build.sh /tmp/build.sh
-RUN chmod a+x /tmp/build.sh
-CMD ["/tmp/build.sh"]
+# e2fsprogs -- docker @ F20 wants it
+RUN yum -y install docker-io git python-docker-py python-setuptools GitPython e2fsprogs
+ADD ./dock.tar.gz /tmp/
+RUN cd /tmp/dock-*/ && python setup.py install
+CMD ["dock", "-v", "inside-build"]

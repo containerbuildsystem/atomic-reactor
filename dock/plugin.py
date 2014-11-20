@@ -3,10 +3,11 @@ definition of plugin system
 
 plugins are supposed to be run when image is built and we need to extract some information
 """
-import imp
 import importlib
 import os
-import dock.plugins
+
+import dock
+
 
 MODULE_EXTENSIONS = ('.py', '.pyc', '.pyo')
 
@@ -75,10 +76,23 @@ class PostBuildPluginsRunner(object):
         result = {}
         for plugin_class in self.plugin_classes:
             plugin_instance = plugin_class()
-            container_id = self.dt.run(image_id, plugin_instance.command)
+
+            command = plugin_instance.command
+            try:
+                create_kwargs = plugin_instance.create_container_kwargs
+            except AttributeError:
+                create_kwargs = {}
+            try:
+                start_kwargs = plugin_instance.start_container_kwargs
+            except AttributeError:
+                start_kwargs = {}
+
+            container_id = self.dt.run(image_id, command=plugin_instance.command,
+                                       create_kwargs=create_kwargs, start_kwargs=start_kwargs)
             self.dt.wait(container_id)
-            plugin_output = self.dt.stdout_of_container(container_id, stream=False)
+            plugin_output = self.dt.logs(container_id, stream=False)
             result[plugin_instance.key] = plugin_output
+            self.dt.remove_container(container_id)
         return result
 
 

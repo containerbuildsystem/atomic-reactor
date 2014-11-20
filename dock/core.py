@@ -1,4 +1,19 @@
-import re
+"""
+Naming Conventions
+==================
+
+registry.somewhere/image_name:tag
+|-----------------|               registry, reg_uri
+|----------------------------|    repository
+                  |----------|    image name
+                             |--| tag
+                  |-------------| image
+|-------------------------------| image
+
+I've tried to be as much consistent (man pages were source) with docker as possible
+
+
+"""
 import os
 import shutil
 import logging
@@ -8,7 +23,10 @@ import datetime
 import git
 import docker
 from docker.errors import APIError
-from dock import CONTAINER_DOCKERFILE_PATH
+
+from dock.constants import CONTAINER_SHARE_PATH, BUILD_JSON
+from dock.util import join_repo_img_name_tag, \
+    join_repo_img_name, join_img_name_tag, wait_for_command
 
 
 DOCKER_SOCKET_PATH = '/var/run/docker.sock'
@@ -16,140 +34,242 @@ DOCKER_SOCKET_PATH = '/var/run/docker.sock'
 logger = logging.getLogger(__name__)
 
 
-def split_image_repo_name(image_name):
-    """ registry.com/image -> (registry, image) """
-    result = image_name.split('/', 1)
-    if len(result) == 1:
-        return [""] + result
-    else:
-        return result
+class LastLogger(object):
+    """
+    provide method for getting last log
+    """
+
+    def __init__(self, *args, **kwargs):
+        self._last_logs = []
+
+    @property
+    def last_logs(self):
+        return self._last_logs
+
+    @last_logs.setter
+    def last_logs(self, value):
+        self._last_logs = value
 
 
-def create_image_repo_name(image_name, registry):
-    """ (image_name, registry) -> "registry/image_name" """
-    if not registry.endswith('/'):
-        registry += '/'
-    return registry + image_name
+class BuildContainerWarlock(object):
+    """
+    set of methods for building images inside containers
+    """
 
-def get_baseimage_from_dockerfile_path(path):
-    with open(path, 'r') as dockerfile:
-        for line in dockerfile:
-            if line.startswith("FROM"):
-                return line.split()[1]
-
-def get_baseimage_from_dockerfile(url, path=None):
-    """ return name of base image from provided gitrepo """
-    temp_dir = tempfile.mkdtemp()
-    try:
-        git.Repo.clone_from(url, temp_dir)
-        # lets be naive for now
-        if path:
-            if path.endswith('Dockerfile'):
-                dockerfile_path = os.path.join(temp_dir, path)
-            else:
-                dockerfile_path = os.path.join(temp_dir, path, 'Dockerfile')
-        else:
-            dockerfile_path = os.path.join(temp_dir, 'Dockerfile')
-        return get_baseimage_from_dockerfile_path(dockerfile_path)
-    finally:
-        shutil.rmtree(temp_dir)
-
-
-class DockerTasker(object):
     def __init__(self):
-        self.d = docker.Client(base_url='unix:/%s' % DOCKER_SOCKET_PATH, version='1.12', timeout=30)
+        self.tasker = DockerTasker()
 
-    def build_image_dockerhost(self, build_image, url, tag):
+    def _check_build_input(self, image, args_path):
+        """
+        Internal method, validate provided args.
+
+        :param image: str
+        :param args_path: str, path dir which is mounter inside container
+        :return: None
+        :raises RuntimeError
+        """
+        try:
+            with open(os.path.join(args_path, BUILD_JSON)) as json_args:
+                logger.debug("build image = '%s', args = '%s'", image, json_args.read())
+        except (IOError, OSError) as ex:
+            logger.error("Unable to open json arguments: '%s'", repr(ex))
+            raise RuntimeError("Unable to open json arguments: '%s'" % repr(ex))
+
+        if not self.tasker.image_exists(image):
+            logger.error("Provided build image doesn't exist: '%s'", image)
+            raise RuntimeError("Provided build image doesn't exist: '%s'" % image)
+
+    def build_image_dockerhost(self, build_image, json_args_path):
         """
         Build docker image within a build image using docker from host (mount docker socket inside container).
         There are possible races here. Use wisely.
 
-        :param build_image:
-        :param url:
-        :param tag:
-        :return:
+        This operation is asynchronous and you should wait for container to finish.
+
+        :param build_image: str, name of image where build is performed
+        :param json_args_path: str, this dir is mounted inside build container and used
+                               as a way to transport data between host and buildroot; there
+                               has to be a file inside this dir with name dock.BUILD_JSON which
+                               is used to feed build
+        :return: str, container id
         """
-        print "build_image: build_image = '%s', url = '%s', tag = '%s'" % (build_image, url, tag)
-        container_dict = self.d.create_container(
-            build_image,
-            environment={
-                "DOCKER_CONTEXT_URL": url,
-                "BUILD_TAG": tag,
-            },
-            volumes=[DOCKER_SOCKET_PATH]
-        )
-        container_id = container_dict['Id']
+        logger.info("build image in container using docker from host")
+
+        self._check_build_input(build_image, json_args_path)
 
         volume_bindings = {
             DOCKER_SOCKET_PATH: {
                 'bind': DOCKER_SOCKET_PATH,
                 'ro': True,
-            }
+            },
+            json_args_path: {
+                'bind': CONTAINER_SHARE_PATH,
+                'rw': True,
+            },
         }
-        response = self.d.start(
-            container_id,
-            binds=volume_bindings,
+
+        container_id = self.tasker.run(
+            build_image,
+            create_kwargs={'volumes': [DOCKER_SOCKET_PATH, json_args_path]},
+            start_kwargs={'binds': volume_bindings},
         )
-        print "response = '%s'" % response
+
         return container_id
 
-    def build_image(self, tag, path, git_path=None):
+    def build_image_privileged_container(self, build_image, json_args_path):
+        """
+        build image inside privileged container: this will run another docker instance inside
+
+        This operation is asynchronous and you should wait for container to finish.
+
+        :param build_image: str, name of image where build is performed
+        :param json_args_path: str, this dir is mounted inside build container and used
+                               as a way to transport data between host and buildroot; there
+                               has to be a file inside this dir with name dock.BUILD_JSON which
+                               is used to feed build
+        :return: dict, keys container_id and stream
+        """
+        logger.info("build image inside privileged container")
+
+        self._check_build_input(build_image, json_args_path)
+
+        container_id = self.tasker.run(
+            build_image,
+            create_kwargs={'volumes': [json_args_path]},
+            start_kwargs={'binds': {json_args_path: {'bind': CONTAINER_SHARE_PATH, 'rw': True}},
+                          'privileged': True}
+        )
+
+        return container_id
+
+
+class DockerTasker(LastLogger):
+    def __init__(self, *args, **kwargs):
+        super(DockerTasker, self).__init__(*args, **kwargs)
+        self.d = docker.Client(base_url='unix:/%s' % DOCKER_SOCKET_PATH, version='1.12', timeout=30)
+
+    def build_image_from_path(self, path, image, stream=False, use_cache=False):
+        """
+        build image from provided path and tag it
+
+        this operation is asynchronous and you should consume returned generator in order to wait
+        for build to finish
+
+        :param path: str
+        :param image: str, repository[:tag]
+        :param stream: bool, True returns generator, False returns str
+        :param use_cache: bool, True if you want to use cache
+        :return: generator
+        """
+        logger.info("build image from provided path")
+        logger.debug("image = '%s', path = '%s'", image, path)
+        prior_to_build = datetime.datetime.now()
+        response = self.d.build(path=path, tag=image, stream=stream, nocache=not use_cache,
+                                rm=True)  # returns generator
+        logger.info("build finished")
+        logger.debug("build time = %s", datetime.datetime.now() - prior_to_build)
+        return response
+
+    def build_image_from_git(self, url, image, git_path=None, git_commit=None, copy_dockerfile_to=None,
+                             stream=False, use_cache=False):
+        """
+        build image from provided url and tag it
+
+        this operation is asynchronous and you should consume returned generator in order to wait
+        for build to finish
+
+        :param url: str
+        :param image: str, repository[:tag]
+        :param git_path: str, path to dockerfile within gitrepo
+        :param copy_dockerfile_to: str, copy dockerfile to provided path
+        :param stream: bool, True returns generator, False returns str
+        :param use_cache: bool, True if you want to use cache
+        :return: generator
+        """
+        logger.info("build image from provided git repo specified as URL")
+        logger.debug("url = '%s', image = '%s', git_path = '%s', copy_df_to='%s'",
+                     url, image, git_path, copy_dockerfile_to)
         temp_dir = tempfile.mkdtemp()
         response = None
         try:
-            git.Repo.clone_from(path, temp_dir)
+            repo = git.Repo.clone_from(url, temp_dir)
+            if git_commit:
+                repo.git.checkout(git_commit)
             if git_path:
                 if git_path.endswith('Dockerfile'):
                     git_df_dir = os.path.dirname(git_path)
-                    df_path = os.path.abspath(os.path.join(temp_dir, git_df_dir))
+                    df_dir = os.path.abspath(os.path.join(temp_dir, git_df_dir))
                 else:
-                    df_path = os.path.abspath(os.path.join(temp_dir, git_path))
+                    df_dir = os.path.abspath(os.path.join(temp_dir, git_path))
             else:
-                df_path = temp_dir
-            shutil.copyfile(os.path.join(df_path, "Dockerfile"), CONTAINER_DOCKERFILE_PATH)
-            logger.debug("build (git): tag = '%s', path = '%s'", tag, df_path)
-            base_image = get_baseimage_from_dockerfile_path(os.path.join(df_path, "Dockerfile"))
-            response = self.d.build(path=df_path, tag=tag)  # returns generator
+                df_dir = temp_dir
+            if copy_dockerfile_to:
+                shutil.copyfile(os.path.join(df_dir, "Dockerfile"), copy_dockerfile_to)
+            #base_image = get_baseimage_from_dockerfile_path(os.path.join(df_path, "Dockerfile"))
+            response = self.build_image_from_path(df_dir, image, stream=stream, use_cache=use_cache)
         finally:
             try:
                 shutil.rmtree(temp_dir)
             except (IOError, OSError) as ex:
-                # no idea why this's happening
+                # no idea why this is happening
                 logger.warning("Failed to remove dir '%s': '%s'", temp_dir, repr(ex))
-        logger.debug("build finished")
-        return response, base_image
+        logger.info("build finished")
+        return response
 
-    def run(self, image_id, command=None, create_kwargs=None, start_kwargs=None):
-        logger.debug("run: image = '%s', command = '%s'", image_id, command)
-        if create_kwargs:
-            container_dict = self.d.create_container(image_id, command=command, **create_kwargs)
-        else:
-            container_dict = self.d.create_container(image_id, command=command)
+    def run(self, image, command=None, create_kwargs=None, start_kwargs=None):
+        """
+        create container from provided image and start it
+
+        for more info, see documentation of REST API calls:
+         * containers/{}/start
+         * container/create
+
+        :param image: str
+        :param command: str
+        :param create_kwargs: dict, kwargs for docker.create_container
+        :param start_kwargs: dict, kwargs for docker.start
+        :return: str, container id
+        """
+        logger.info("create container from image and run it")
+        create_kwargs = create_kwargs or {}
+        start_kwargs = start_kwargs or {}
+        logger.debug("image = '%s', command = '%s', create_kwargs = '%s', start_kwargs = '%s'",
+                     image, command, create_kwargs, start_kwargs)
+        container_dict = self.d.create_container(image, command=command, **create_kwargs)
         container_id = container_dict['Id']
         logger.debug("container_id = '%s'", container_id)
-        if start_kwargs:
-            self.d.start(container_id, **start_kwargs)  # returns None
-        else:
-            self.d.start(container_id)
+        self.d.start(container_id, **start_kwargs)  # returns None
         return container_id
 
-    def commit_container(self, container_id, message):
-        print "commit: id = '%s', message = '%s'" % (container_id, message)
-        response = self.d.commit(container_id, message=message)
-        print "response = %s" % response
-        return response['Id']
-
-    def get_image_info(self, image_id=None, name=None):
+    def commit_container(self, container_id, repository=None, message=None):
         """
-        using `docker images` provide information about an image
+        create image from provided container
 
-        :param image_id: hash of image to get info
-        :param name: image name ([repository/][namespace/]image_name:tag)
-        :return: dict or None
+        :param container_id: str
+        :param repository: str (repo/image_name)
+        :param message: str
+        :return: image_id
         """
-        logger.debug("get image info: image_id = '%s', name = '%s'", image_id, name)
-        if not image_id and not name:
-            raise RuntimeError("you have to specify either name or image_id")
+        logger.info("commit container")
+        logger.debug("container_id = '%s', repository = '%s', message = '%s'",
+                     container_id, repository, message)
+        response = self.d.commit(container_id, repository=repository, message=message)
+        logger.debug("response = '%s'", response)
+        try:
+            return response['Id']
+        except KeyError:
+            logger.error("ID missing from commit response")
+            raise RuntimeError("ID missing from commit response")
+
+    def get_image_info_by_image_id(self, image_id):
+        """
+        using `docker images`, provide information about an image
+
+        :param image_id: str, hash of image to get info
+        :return: str or None
+        """
+        logger.info("get info about provided image specified by image_id")
+        logger.debug("image_id = '%s'", image_id)
         # returns list of
         # {u'Created': 1414577076,
         #  u'Id': u'3ab9a7ed8a169ab89b09fb3e12a14a390d3c662703b65b4541c0c7bde0ee97eb',
@@ -157,208 +277,198 @@ class DockerTasker(object):
         #  u'RepoTags': [u'buildroot-fedora:latest'],
         #  u'Size': 0,
         #  u'VirtualSize': 856564160}
-        if name:
-            name = name.split(":")[0]  # if there is version in here, docker doesnt output anything
-            try:
-                return self.d.images(name=name)[0]
-            except IndexError:
-                return None
+        images = self.d.images()
+        try:
+            image_dict = [i for i in images if i['Id'] == image_id][0]
+        except IndexError:
+            logger.info("image not found")
+            return None
         else:
-            images = self.d.images()
-            try:
-                image_dict = [i for i in images if i['Id'] == image_id][0]
-            except IndexError:
-                return None
-            else:
-                return image_dict
+            return image_dict
 
-    def pull_image(self, image, registry):
-        """ pull image from registry """
-        logger.debug("pull: image = '%s', registry = '%s'", image, registry)
-        registry_uri = create_image_repo_name(image, registry)
+    def get_image_info_by_image_name(self, image_name, reg_uri='', tag=None):
+        """
+        using `docker images`, provide information about an image
+
+        :param image_name: str, name of image (without tag!)
+        :param reg_uri: str, optional registry
+        :return: list of dicts
+        """
+        logger.info("get info about provided image specified by name")
+        logger.debug("image_name = '%s', registry = '%s', tag = '%s'", image_name, reg_uri, tag)
+        # returns list of
+        # {u'Created': 1414577076,
+        #  u'Id': u'3ab9a7ed8a169ab89b09fb3e12a14a390d3c662703b65b4541c0c7bde0ee97eb',
+        #  u'ParentId': u'a79ad4dac406fcf85b9c7315fe08de5b620c1f7a12f45c8185c843f4b4a49c4e',
+        #  u'RepoTags': [u'buildroot-fedora:latest'],
+        #  u'Size': 0,
+        #  u'VirtualSize': 856564160}
+        repository = join_repo_img_name(reg_uri, image_name)
+        images = self.d.images(name=repository)
+        if tag:
+            # tag is specified, we are looking for the exact image
+            image = join_repo_img_name_tag(reg_uri, image_name, tag)
+            for found_image in images:
+                if image in found_image['RepoTags']:
+                    logger.debug("image '%s' found", image)
+                    return [found_image]
+            images = []  # image not found
+
+        logger.debug("%d matching images found", len(images))
+        return images
+
+    def pull_image(self, image_name, reg_uri, tag=''):
+        """
+        pull provided image from registry
+
+        :param image_name: str, image name
+        :param reg_uri: str, reg.com
+        :param tag: str, v1
+        :return: str, image (reg.om/img:v1)
+        """
+        logger.info("pull image from registry")
+        logger.debug("image = '%s', registry = '%s', tag = '%s'", image_name, reg_uri, tag)
+        image = join_repo_img_name_tag(reg_uri, image_name, tag)  # e.g. registry.com/image_name:1
         try:
-            logs_gen = self.d.pull(registry_uri, insecure_registry=True, stream=True)
+            logs_gen = self.d.pull(image, insecure_registry=True, stream=True)
         except TypeError:
             # because changing api is fun
-            logs_gen = self.d.pull(registry_uri, stream=True)
-        while True:
-            try:
-                logger.debug(logs_gen.next())  # wait for pull to finish
-                # send logs to server
-            except StopIteration:
-                break
-        return registry_uri
+            logs_gen = self.d.pull(image, stream=True)
+        self.last_logs = wait_for_command(logs_gen)
+        return image
 
-    def tag_image(self, image, tag, registry=None, version=None):
-        """ tag image with provided tag """
-        final_tag = tag
-        if registry:
-            final_tag = create_image_repo_name(tag, registry)
-        print self.d.tag(image, final_tag, tag=version)
-        return final_tag
+    def tag_image(self, image, target_image_name, reg_uri='', tag=''):
+        """
+        tag provided image with specified image_name, registry and tag
 
-    def tag_and_push_image(self, image, tag, registry, version=None):
-        """ tag and push specified image to registry """
-        logger.debug("tag&push: image = '%s', tag = '%s', registry = '%s'", image, tag, registry)
-        final_tag = self.tag_image(image, tag, registry=registry, version=version)
+        :param image: str (reg.com/img:v1)
+        :param target_image_name: str, img
+        :param reg_uri: str, reg.com
+        :param tag: str, v1
+        :return: str, image (reg.om/img:v1)
+        """
+        logger.info("tag image")
+        logger.debug("image = '%s', target_image_name = '%s', reg_uri = '%s', tag = '%s'",
+                     image, target_image_name, reg_uri, tag)
+        repository = join_repo_img_name(reg_uri, target_image_name)
+        response = self.d.tag(image, repository, tag=tag)  # returns True/False
+        if not response:
+            logger.error("failed to tag image")
+            raise RuntimeError("Failed to tag image '%s': repository = '%s', tag = '%s'" %
+                               image, repository, tag)
+        return join_img_name_tag(repository, tag)  # this will be the proper name, not just repo/img
+
+    def push_image(self, image):
+        """
+        push provided image to registry
+
+        :param image: str
+        :return: str, logs from push
+        """
+        logger.info("push image")
+        logger.debug("image: '%s'", image)
         try:
-            self.d.push(final_tag, insecure_registry=True)  # prints shitload of stuff
+            # push returns string composed of newline separated jsons; exactly what 'docker push' outputs
+            logs = self.d.push(image, insecure_registry=True, stream=False)
         except TypeError:
             # because changing api is fun
-            self.d.push(final_tag)
+            logs = self.d.push(image, stream=False)
+        return logs
+
+    def tag_and_push_image(self, image, target_image_name, reg_uri='', tag=''):
+        """
+        tag provided image and push it to registry
+
+        :param image: str (reg.com/img:v1)
+        :param target_image_name: str, img
+        :param reg_uri: str, reg.com
+        :param tag: str, v1
+        :return: str, image (reg.om/img:v1)
+        """
+        logger.info("tag image")
+        logger.debug("image = '%s', target_image_name = '%s', reg_uri = '%s', tag = '%s'",
+                     image, target_image_name, reg_uri, tag)
+        final_tag = self.tag_image(image, target_image_name, reg_uri=reg_uri, tag=tag)
+        return self.push_image(final_tag)
 
     def inspect_image(self, image_id):
-        """ return json with detailed information about image """
-        return self.d.inspect_image(image_id)
+        """
+        return detailed metadata about provided image (see 'man docker-inspect')
+
+        :param image_id: str
+        :return: dict
+        """
+        logger.info("inspect image")
+        logger.debug("image_id = '%s'", image_id)
+        image_metadata = self.d.inspect_image(image_id)
+        return image_metadata
 
     def remove_image(self, image_id):
-        return self.d.remove_image(image_id)
+        """
+        remove provided image from filesystem
 
-    def stdout_of_container(self, container_id, stream=True):
-        print 'stdout: container = %s' % container_id
+        :param image_id: str
+        :return: None
+        """
+        logger.info("remove image from filesystem")
+        logger.debug("image_id = '%s'", image_id)
+        self.d.remove_image(image_id)  # returns None
+
+    def remove_container(self, container_id):
+        """
+        remove provided container from filesystem
+
+        :param container_id: str
+        :return: None
+        """
+        logger.info("remove container from filesystem")
+        logger.debug("container_id = '%s'", container_id)
+        self.d.remove_container(container_id)  # returns None
+
+    def logs(self, container_id, stderr=True, stream=True):
+        """
+        acquire output (stdout, stderr) from provided container
+
+        :param container_id: str
+        :param stderr: True, False
+        :param stream: if True, return as generator
+        :return: either generator, or list of strings
+        """
+        logger.info("get stdout of container")
+        logger.debug("container_id = '%s', stream = '%s'", container_id, stream)
         if stream:
-            stream = self.d.logs(container_id, stdout=True, stderr=True, stream=stream)
-            response = list(stream)
+            stream = self.d.logs(container_id, stdout=True, stderr=stderr, stream=stream)
+            response = stream
         else:
-            response = self.d.logs(container_id, stdout=True, stderr=True, stream=stream)
+            response = self.d.logs(container_id, stdout=True, stderr=stderr, stream=stream)
             response = [line for line in response.split('\n') if line]
         return response
 
     def wait(self, container_id):
-        logger.debug("wait: container = '%s'", container_id)
-        response = self.d.wait(container_id)
-        logger.debug("response = '%s'", response)
+        """
+        wait for container to finish the job (may run infinitely)
+
+        :param container_id: str
+        :return: int, exit code
+        """
+        logger.info("wait for container to finish")
+        logger.debug("container = '%s'", container_id)
+        response = self.d.wait(container_id)  # returns exit code as int
+        logger.debug("container finished with exit code %s", response)
         return response
 
     def image_exists(self, image_id):
+        """
+        does provided image exists?
+
+        :param image_id: str
+        :return: True if exists, False if not
+        """
+        logger.info("does image exists?")
+        logger.debug("image_id = '%s'", image_id)
         try:
-            return self.d.inspect_image(image_id) is not None
+            response = self.d.inspect_image(image_id) is not None
         except APIError:
-            return False
-
-
-class DockerBuilder(object):
-    """
-    extremely simple state machine for building docker images
-
-    state is controlled with variable 'is_built'
-
-    """
-    def __init__(self, git_url, local_tag, git_dockerfile_path=None, git_commit=None, repos=None):
-        self.tasker = DockerTasker()
-
-        # arguments for build
-        self.git_url = git_url
-        self.base_image = None
-        self.local_tag = local_tag
-        self.git_dockerfile_path = git_dockerfile_path
-        self.git_commit = git_commit
-        self.repos = repos
-
-        # build artefacts
-        self.build_container_id = None
-        self.build_image_id = None
-        self.build_image_tag = None
-        self.buildimage_version = None
-
-        self.is_built = False
-
-    def pull_base_image(self, source_registry):
-        """ pull base image
-
-        :param source_registry: registry to pull from
-        :return:
-        """
-        logger.debug("pull base image")
-        assert not self.is_built
-        self.base_image = get_baseimage_from_dockerfile(self.git_url, path=self.git_dockerfile_path)
-        logger.debug("base image = '%s'", self.base_image)
-        df_registry, base_image_name = split_image_repo_name(self.base_image)
-        if df_registry:
-            if df_registry != source_registry:
-                raise RuntimeError(
-                    "Registry specified in dockerfile doesn't match provided one. Dockerfile: %s, Provided: %s"
-                    % (df_registry, source_registry))
-        self.tasker.pull_image(self.base_image, source_registry)
-        # FIXME: this fails
-        # if not self.base_image.startswith(source_registry):
-        #    self.tasker.tag_image(self.base_image, base_image_name)
-
-    def build(self):
-        """
-        build image inside current environment
-        :return:
-        """
-        logger.debug("build")
-        assert not self.is_built
-        logs_gen, self.base_image = self.tasker.build_image(
-            self.local_tag,
-            self.git_url,
-            git_path=self.git_dockerfile_path,
-        )
-        self.is_built = True
-        logger.debug("waiting for build to finish...")
-        # you have to wait for logs_gen to raise StopIter so you know the build has finished
-        while True:
-            try:
-                logger.debug(logs_gen.next())  # wait for build to finish
-                # send logs to server
-            except StopIteration:
-                break
-        logger.debug("base_image = '%s'", self.base_image)
-        return logs_gen
-
-    def build_hostdocker(self, build_image):
-        """
-        build image inside build image using host's docker
-
-        TODO: this should be part of different class
-
-        :param build_image:
-        :return:
-        """
-        assert not self.is_built
-        self.build_container_id = self.tasker.build_image_dockerhost(
-            build_image,
-            self.git_url,
-            self.local_tag
-        )
-        self.is_built = True
-        # save the time when image was built
-        self.buildimage_version = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-        if self.base_image:
-            self.tasker.remove_image(self.base_image)
-        commit_message = "docker build of '%s' (%s)" % (self.local_tag, self.git_url)
-        self.build_image_tag = "buildroot-%s" % self.local_tag
-        self.build_image_id = self.tasker.commit_container(
-            self.build_container_id, commit_message)
-
-    def push_buildroot(self, registry):
-        # FIXME: this should be part of different class, since it is related to dockerhost method
-        assert self.is_built
-        self.tasker.tag_and_push_image(
-            self.build_image_id,
-            self.build_image_tag,
-            registry=registry,
-            version=self.buildimage_version)
-
-    def push_built_image(self, registry, tag=None):
-        assert self.is_built
-        self.tasker.tag_and_push_image(self.local_tag,
-                                       tag or self.local_tag,
-                                       registry)
-
-    def inspect_built_image(self):
-        assert self.is_built
-        inspect_data = self.tasker.inspect_image(self.local_tag)  # dict with lots of data, see man docker-inspect
-        return inspect_data
-
-    def get_base_image_info(self):
-        assert self.is_built
-        image_info = self.tasker.get_image_info(name=self.base_image)
-        return image_info
-
-    def get_built_image_info(self):
-        assert self.is_built
-        image_info = self.tasker.get_image_info(name=self.local_tag)
-        return image_info
+            response = False
+        logger.debug("image exists: %s", response)
+        return response

@@ -112,6 +112,6 @@ ensure_loop $LOOP_A
 ensure_loop $LOOP_B
 
 
-docker -d &
+docker -d --insecure-registry 172.17.42.1:5000 &
 
-exec dock
+exec dock -v inside-build

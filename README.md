@@ -1,46 +1,61 @@
 dock
 ====
 
-### This is still a Proof of Concept. Implementation is not very nice. There are no docs. CLI is absent.
+Simple python library with command line interface for building docker images. It is written on top of [docker-py](https://github.com/docker/docker-py).
 
-Simple python library for building docker images. It is written on top of [docker-py](https://github.com/docker/docker-py).
-
-It supports to building modes:
+It supports several building modes:
 
  * building within a docker container using docker from host by mounting docker.sock inside container
- * building within a privileged docker container
+ * building within a privileged docker container (new instance of docker is running inside)
+ * building images in current environemt
 
 ## Installation
 
-```bash
-pip install setup.py
-```
+Clone this git repo and install it using python installer:
 
-`pip install ./setup.py` won't work.
+```bash
+$ git clone https://github.com/DBuildService/dock.git
+$ cd dock
+$ sudo pip install .
+```
 
 ## Usage
 
-First, you have to built docker image for building other docker images, we call it build image.
+If you would like to build your images within containers, you need to obtain images for those containers. We call them build images. dock is installed inside and used to take care of build itself.
+
+At some point, these will be available on docker hub, but right now, you need to build them yourself. Here's how:
 
 ```bash
-$ make build-buildimage  # or quicker method q-build-buildimage -- it caches steps
+$ dock create-build-image --dock-local-path ${PATH_TO_DOCK_GIT} ${PATH_TO_DOCK_GIT}/images/privileged-build privileged-buildroot
 ```
 
-And now can either run test suite...
+Why is it so long? Okay, let's get through. First thing is that dock needs to install itself inside the build image. You can pick several sources for dock: you local copy, (this) official upstream repo, your forked repo or even distribution tarball. In the example above, we are using our locally cloned git repo (`--dock-local-path ${PATH_TO_DOCK_GIT}`).
 
-```
-py.test tests/test_dock.py::test_privileged_build
+You have to provide dockerfile too. Luckily these are part of upstream repo (see folder images). It's the first argument: `${PATH_TO_DOCK_GIT}/images/privileged-build`.
+
+And finally, you need to name the image: `privileged-buildroot`.
+
+
+As soon as our build image is built, we can start building stuff in it:
+
+```bash
+$ dock build --method privileged --build-image privileged-buildroot --image test-image --git-url "github.com/TomasTomecek/docker-hello-world.git"
 ```
 
-...or build whatever image you want:
+Bear in mind that you shouldn't mix build methods: if you use _hostdocker_ method with build image for _privileged_ method, it won't work.
+
+## API
+
+dock has proper python API. You can use it in your scripts or service without invoking shell:
 
 ```python
-from dock.outer import PrivilegedDockerBuilder
-db = PrivilegedDockerBuilder("buildroot-fedora", {
-    "git_url": "github.com/TomasTomecek/docker-hello-world.git",
-    "local_tag": "dock-test-image",
-})
-db.build()
+from dock.api import build_image_in_privileged_container
+response = build_image_in_privileged_container(
+    "privileged-buildroot",
+    git_url="github.com/TomasTomecek/docker-hello-world.git",
+    image="dock-test-image",
+)
+# response contains a lot of useful information: logs, information about images, plugin results
 ```
 
 ## RPM build
@@ -86,7 +101,6 @@ tito release copr
 
 ## TODO
 
-* CLI client
-* Implement plugin system
-* Enable managing yum repos within build image
+* Enable managing repositories within built image (changing source of packages during build without dockerfile modification)
+* Add support for different registries
 
