@@ -6,7 +6,7 @@ plugins are supposed to be run when image is built and we need to extract some i
 import importlib
 import os
 
-import dock
+import dock.plugins
 
 
 MODULE_EXTENSIONS = ('.py', '.pyc', '.pyo')
