@@ -87,6 +87,7 @@ def wait_for_command(logs_generator):
     while True:
         try:
             item = logs_generator.next()
+            item = item.strip()
             logger.debug(item)
             logs.append(item)
         except StopIteration:
