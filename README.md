@@ -11,6 +11,15 @@ It supports several building modes:
 
 ## Installation
 
+### via COPR
+
+```bash
+$ dnf copr enable jdornak/DBuildService
+$ dnf install dock
+```
+
+### from git
+
 Clone this git repo and install it using python installer:
 
 ```bash
@@ -23,7 +32,9 @@ $ sudo pip install .
 
 If you would like to build your images within containers, you need to obtain images for those containers. We call them build images. dock is installed inside and used to take care of build itself.
 
-At some point, these will be available on docker hub, but right now, you need to build them yourself. Here's how:
+At some point, these will be available on docker hub, but right now, you need to build them yourself.
+
+### installation from git
 
 ```bash
 $ dock create-build-image --dock-local-path ${PATH_TO_DOCK_GIT} ${PATH_TO_DOCK_GIT}/images/privileged-build privileged-buildroot
@@ -35,6 +46,19 @@ You have to provide dockerfile too. Luckily these are part of upstream repo (see
 
 And finally, you need to name the image: `privileged-buildroot`.
 
+### installation from RPM
+
+```bash
+$ dock create-build-image --dock-tarball-path /usr/share/dock/dock.tar.gz /usr/share/dock/images/privileged-builder buildroot-fedora
+```
+
+Section above contains detailed description. Let's make this short.
+
+1. `--dock-tarball-path` — dock needs to install itself into build image: this is how you specify where dock gets its own sources (when installed via RPM, dock provide itself packaged as tarball at `/usr/share/dock/dock.tar.gz`)
+2. first argument is path do _dockerfile_ — dockerfiles for both methods are available at `/usr/share/dock/images/`, just pick one
+3. and finally, second argument names the build image
+
+#### And now you can build your images!
 
 As soon as our build image is built, we can start building stuff in it:
 
