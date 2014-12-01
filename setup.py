@@ -13,7 +13,7 @@ data_files = {
 }
 
 setup(name='dock',
-      version='0.0.2',
+      version='1.0.0.a',
       description='improved builder for docker images',
       author='Tomas Tomecek',
       author_email='ttomecek@redhat.com',

@@ -1,5 +1,5 @@
 Name:           dock
-Version:        0.0.2
+Version:        1.0.0.a
 Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
@@ -47,6 +47,11 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 
 
 %changelog
+* Mon Dec 01 2014 Tomas Tomecek <ttomecek@redhat.com> 1.0.0.a-1
+- complete rewrite (ttomecek@redhat.com)
+- Use inspect_image() instead of get_image() when checking for existence (#4).
+  (twaugh@redhat.com)
+
 * Mon Nov 10 2014 Tomas Tomecek <ttomecek@redhat.com> 0.0.2-1
 - more friendly error msg when build img doesnt exist (ttomecek@redhat.com)
 - implement postbuild plugin system; do rpm -qa plugin (ttomecek@redhat.com)
