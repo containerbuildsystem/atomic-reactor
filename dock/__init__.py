@@ -10,6 +10,7 @@ from dock.api import *
 def set_logging(level=logging.DEBUG):
     # create logger
     logger = logging.getLogger('dock')
+    logger.handlers = []
     logger.setLevel(level)
 
     # create console handler and set level to debug
