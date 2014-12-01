@@ -48,14 +48,19 @@ class BuildImageBuilder(object):
         :param image:
         :return:
         """
+        logger.debug("df_dir_path = '%s', image = '%s'", df_dir_path, image)
         tmpdir = tempfile.mkdtemp()
         df_tmpdir = os.path.join(tmpdir, 'df-%s' % uuid.uuid4())
         git_tmpdir = os.path.join(tmpdir, 'git-%s' % uuid.uuid4())
         os.mkdir(df_tmpdir)
+        logger.debug("tmp dir with dockerfile '%s' created", df_tmpdir)
         os.mkdir(git_tmpdir)
+        logger.debug("tmp dir with dock '%s' created", git_tmpdir)
         try:
             for f in glob(os.path.join(df_dir_path, '*')):
                 shutil.copy(f, df_tmpdir)
+                logger.debug("cp '%s' -> '%s'", f, df_tmpdir)
+            logger.debug("df dir: %s", os.listdir(df_tmpdir))
             dock_tarball = self.get_dock_tarball_path(tmpdir=git_tmpdir)
             dock_tb_path = os.path.join(df_tmpdir, DOCKERFILE_DOCK_TARBALL_NAME)
             shutil.copy(dock_tarball, dock_tb_path)
