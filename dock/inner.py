@@ -4,6 +4,7 @@ Script for building docker image. This is expected to run inside container.
 
 import json
 import logging
+import os
 import shutil
 import tempfile
 
@@ -131,14 +132,50 @@ class DockerBuildWorkflow(object):
         return results
 
 
+def get_build_config_from_path(path=None):
+    """
+    get json with build config from environment variable
+    """
+    path = path or CONTAINER_BUILD_JSON_PATH
+    try:
+        with open(path, 'r') as build_cfg_fd:
+            build_cfg_json = json.load(build_cfg_fd)
+    except ValueError:
+        logger.error("couldn't decode json from file '%s'", path)
+        return None
+    except IOError:
+        logger.error("couldn't read json from file '%s'", path)
+        return None
+    else:
+        return build_cfg_json
+
+
+def get_build_config_from_env(env_name=None):
+    """
+    get json with build config from environment variable
+    """
+    env_name = env_name or "BUILD_CONFIG"
+    try:
+        build_cfg_json = os.environ[env_name]
+    except KeyError:
+        logger.info("build config was not specified via environment variable")
+        return None
+    else:
+        return json.loads(build_cfg_json)
+
+
 def build_inside():
     """
     load configuration from CONTAINER_BUILD_JSON_PATH, build image
     from the provided conf and store results to CONTAINER_RESULTS_JSON_PATH
     """
-    with open(CONTAINER_BUILD_JSON_PATH, 'r') as build_json_fd:
-        # TODO: validate json
-        build_json = json.load(build_json_fd)
+    # env > file
+    build_json = get_build_config_from_env()
+    if not build_json:
+        build_json = get_build_config_from_path()
+    if not build_json:
+        raise RuntimeError("No valid build json!")
+    # TODO: validate json
     dbw = DockerBuildWorkflow(**build_json)
     results = dbw.build_docker_image(copy_df_to_share_dir=True)
     with open(CONTAINER_RESULTS_JSON_PATH, 'w') as results_json_fd:
