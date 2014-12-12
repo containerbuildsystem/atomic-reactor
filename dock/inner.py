@@ -8,7 +8,7 @@ import os
 import shutil
 import tempfile
 
-from dock.constants import CONTAINER_BUILD_JSON_PATH, CONTAINER_RESULTS_JSON_PATH
+from dock.constants import CONTAINER_BUILD_JSON_PATH, CONTAINER_RESULTS_JSON_PATH, BUILD_JSON_ENV
 from dock.build import InsideBuilder
 from dock.plugin import PostBuildPluginsRunner, PreBuildPluginsRunner
 
@@ -170,7 +170,7 @@ def get_build_config_from_env(env_name=None):
     """
     get json with build config from environment variable
     """
-    env_name = env_name or "BUILD_CONFIG"
+    env_name = env_name or BUILD_JSON_ENV
     try:
         build_cfg_json = os.environ[env_name]
     except KeyError:
