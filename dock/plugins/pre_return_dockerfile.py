@@ -7,7 +7,7 @@ from dock.plugin import PreBuildPlugin
 class CpDockerfilePlugin(PreBuildPlugin):
     key = "dockerfile_content"
 
-    def __init__(self, tasker, workflow, path):
+    def __init__(self, tasker, workflow):
         """
         constructor
 
