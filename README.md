@@ -82,6 +82,28 @@ response = build_image_in_privileged_container(
 # response contains a lot of useful information: logs, information about images, plugin results
 ```
 
+## build.json
+
+If you want to take advantage of _inner_ part logic of dock, you can do that pretty easily. All you need to know, is the structure of json, which is used within build container. Here it is:
+
+```json
+{
+    'git_url': 'http://...',  # string, path to git repo with Dockerfile
+    'image': 'my-test-image',  # string, tag for built image
+    'git_dockerfile_path': 'django/',  # string, optional, path to dockerfile within git repo
+    'git_commit': 'devel',  # string, optional, git commit to checkout
+    'parent_registry': 'registry.example.com:5000',  # string, optional, registry to pull base image from
+    'target_registries': ['registry.example2.com:5000'],  # list of strings, optional, registries where built image should be pushed
+    'prebuild_plugins': {'dockerfile_content': nil},  # dict, arguments for pre-build plugins
+    'postbuild_plugins': {'all_rpm_packages': 'my-test-image'}  # dict, arguments for post-build plugins
+}
+```
+
+It is read from two places at the moment:
+
+1. environemtn variable `BUILD_JSON`
+2. `/run/share/build.json`
+
 ## RPM build
 
 Install tito and mock:
