@@ -88,14 +88,14 @@ If you want to take advantage of _inner_ part logic of dock, you can do that pre
 
 ```json
 {
-    'git_url': 'http://...',  # string, path to git repo with Dockerfile
-    'image': 'my-test-image',  # string, tag for built image
-    'git_dockerfile_path': 'django/',  # string, optional, path to dockerfile within git repo
-    'git_commit': 'devel',  # string, optional, git commit to checkout
-    'parent_registry': 'registry.example.com:5000',  # string, optional, registry to pull base image from
-    'target_registries': ['registry.example2.com:5000'],  # list of strings, optional, registries where built image should be pushed
-    'prebuild_plugins': {'dockerfile_content': nil},  # dict, arguments for pre-build plugins
-    'postbuild_plugins': {'all_rpm_packages': 'my-test-image'}  # dict, arguments for post-build plugins
+    "git_url": "http://...",  # string, path to git repo with Dockerfile
+    "image": "my-test-image",  # string, tag for built image
+    "git_dockerfile_path": "django/",  # string, optional, path to dockerfile within git repo
+    "git_commit": "devel",  # string, optional, git commit to checkout
+    "parent_registry": "registry.example.com:5000",  # string, optional, registry to pull base image from
+    "target_registries": ["registry.example2.com:5000"],  # list of strings, optional, registries where built image should be pushed
+    "prebuild_plugins": {"dockerfile_content": nil},  # dict, arguments for pre-build plugins
+    "postbuild_plugins": {"all_rpm_packages": "my-test-image"}  # dict, arguments for post-build plugins
 }
 ```
 
