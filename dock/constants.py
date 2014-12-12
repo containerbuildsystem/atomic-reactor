@@ -1,6 +1,7 @@
 import os
 
 
+DOCKERFILE_FILENAME = 'Dockerfile'
 BUILD_JSON = 'build.json'
 RESULTS_JSON = 'results.json'
 

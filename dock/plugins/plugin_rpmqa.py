@@ -5,28 +5,30 @@ __all__ = ('PostBuildRPMqaPlugin', )
 
 
 class PostBuildRPMqaPlugin(PostBuildPlugin):
-    def __init__(self):
-        """ """
+    key = "all_rpm_packages"
 
-    @property
-    def key(self):
-        """ result of plugin will be under this key in response dict """
-        return "all_rpm_packages"
+    def __init__(self, tasker, workflow, image_id):
+        """
+        constructor
 
-    @property
-    def command(self):
-        """ command to run in image """
-        return "-qa"
+        :param tasker: DockerTasker instance
+        :param workflow: DockerBuildWorkflow instance
+        """
+        # call parent constructor
+        super(PostBuildRPMqaPlugin, self).__init__(tasker, workflow)
+        self.image_id = image_id
 
-    @property
-    def create_container_kwargs(self):
-        """ keyword arguments for create_container """
-        return {"entrypoint": "/bin/rpm"}
-
-    @property
-    def start_container_kwargs(self):
-        """ keyword arguments for start_container """
-        return {}
+    def run(self):
+        container_id = self.tasker.run(
+            self.image_id,
+            command='-qa',
+            create_kwargs={"entrypoint": "/bin/rpm"},
+            start_kwargs={},
+        )
+        self.tasker.wait(container_id)
+        plugin_output = self.tasker.logs(container_id, stream=False)
+        self.tasker.remove_container(container_id)
+        return plugin_output
 
     def __str__(self):
-        return "%s: `%s`" % (self.key, self.command)
+        return "%s" % self.key

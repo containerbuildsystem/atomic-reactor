@@ -3,40 +3,68 @@ definition of plugin system
 
 plugins are supposed to be run when image is built and we need to extract some information
 """
+import copy
 import importlib
+import logging
 import os
 
 import dock.plugins
+from dock.util import join_img_name_tag
 
 
 MODULE_EXTENSIONS = ('.py', '.pyc', '.pyo')
+logger = logging.getLogger(__name__)
 
 
-class PostBuildPlugin(object):
-    def __init__(self):
-        """ """
+class Plugin(object):
+    """ abstract plugin class """
 
-    @property
-    def key(self):
-        """ result of plugin will be under this key in response dict """
-        raise NotImplemented()
+    # unique plugin identification
+    # output of this plugin can be found in results specified with this key,
+    # same thing goes for input: use this key for providing input for this plugin
+    key = None
 
-    @property
-    def command(self):
-        """ command to run in image """
-        raise NotImplemented()
-
-
-class PostBuildPluginsRunner(object):
-
-    def __init__(self, dt):
+    def __init__(self, tasker, workflow, *args, **kwargs):
         """
-        :param dt -- DockerTasker instance
+        constructor
+
+        :param tasker: DockerTasker instance
+        :param workflow: DockerBuildWorkflow instance
+        :param args: arguments from user input
+        :param kwargs: keyword arguments from user input
+        """
+        self.tasker = tasker
+        self.workflow = workflow
+        self.log = logging.getLogger("dock.plugins." + self.key)
+
+    def run(self):
+        """
+        each plugin has to implement this method -- it is used to run the plugin actually
+
+        response from plugin is kept and used in json result response like this:
+
+          results[plugin.key] = plugin.run()
+
+        """
+        raise NotImplemented()
+
+
+class PluginsRunner(object):
+
+    def __init__(self, dt, workflow, plugin_class_name, plugins_conf):
+        """
+        constructor
+
+        :param dt: DockerTasker instance
+        :param workflow: DockerBuildWorkflow instance
+        :param plugins_conf: dict, configuration for plugins
         """
         self.dt = dt
-        self.plugin_classes = self.load_plugins()
+        self.workflow = workflow
+        self.plugins_conf = plugins_conf or {}
+        self.plugin_classes = self.load_plugins(plugin_class_name)
 
-    def load_plugins(self):
+    def load_plugins(self, plugin_class_name):
         """
         load plugins
         """
@@ -47,8 +75,8 @@ class PostBuildPluginsRunner(object):
                        for module in os.listdir(plugins_dir)
                        if module.endswith(MODULE_EXTENSIONS) and
                        not module.startswith('__init__.py')])
-        x = importlib.import_module('dock.plugin')
-        absolutely_imported_plugin_class = getattr(x, 'PostBuildPlugin')
+        this_module = importlib.import_module('dock.plugin')
+        absolutely_imported_plugin_class = getattr(this_module, plugin_class_name)
         plugin_classes = []
         for plugin_name in plugins:
             plugin = importlib.import_module(plugin_name)
@@ -67,37 +95,63 @@ class PostBuildPluginsRunner(object):
                     plugin_classes.append(binding)
         return plugin_classes
 
-    def run(self, image_id):
+    def _translate_special_values(self, dict_to_translate):
         """
-        run all postbuild plugins
+        you may want to write plugins for values which are not known before build:
+        e.g. id of built image, base image name,... this method will therefore
+        translate some reserved values to the runtime values
+        """
+        translation_dict = {
+            'BUILT_IMAGE_ID': self.workflow.builder.image_id,
+            'BASE_IMAGE': join_img_name_tag(self.workflow.builder.base_image_name,
+                                            self.workflow.builder.base_image_tag)
+        }
+        translated_dict = copy.deepcopy(dict_to_translate)
+        for key, value in dict_to_translate:
+            if value in translation_dict:
+                translated_dict[key] = translation_dict[value]
+        return translated_dict
 
-        :param image_id -- run plugins in this image
+    def run(self):
+        """
+        run all requested plugins
         """
         result = {}
         for plugin_class in self.plugin_classes:
-            plugin_instance = plugin_class()
+            plugin_name = plugin_class.key
+            if plugin_name not in self.plugins_conf:
+                logger.debug("skipping plugin '%s', it is not requested", plugin_name)
+                continue
+            plugin_conf = self.plugins_conf[plugin_name]
+            translated_conf = self._translate_special_values(plugin_conf)
+            plugin_instance = plugin_class(self.dt, self.workflow, **translated_conf)
 
-            command = plugin_instance.command
             try:
-                create_kwargs = plugin_instance.create_container_kwargs
-            except AttributeError:
-                create_kwargs = {}
-            try:
-                start_kwargs = plugin_instance.start_container_kwargs
-            except AttributeError:
-                start_kwargs = {}
+                plugin_response = plugin_instance.run()
+            except Exception as ex:
+                msg = "Plugin '%s' raised an exception: '%s'" % (plugin_instance.key, repr(ex))
+                logger.error(msg)
+                plugin_response = msg
 
-            container_id = self.dt.run(image_id, command=plugin_instance.command,
-                                       create_kwargs=create_kwargs, start_kwargs=start_kwargs)
-            self.dt.wait(container_id)
-            plugin_output = self.dt.logs(container_id, stream=False)
-            result[plugin_instance.key] = plugin_output
-            self.dt.remove_container(container_id)
+            result[plugin_instance.key] = plugin_response
         return result
 
 
-if __name__ == '__main__':
-    from dock.core import DockerTasker
-    dt = DockerTasker()
-    r = PostBuildPluginsRunner(dt)
-    print r.run('fedora:latest')
+class PreBuildPlugin(Plugin):
+    pass
+
+
+class PreBuildPluginsRunner(PluginsRunner):
+
+    def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
+        super(PreBuildPluginsRunner, self).__init__(dt, workflow, 'PreBuildPlugin', plugins_conf, *args, **kwargs)
+
+
+class PostBuildPlugin(Plugin):
+    pass
+
+
+class PostBuildPluginsRunner(PluginsRunner):
+
+    def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
+        super(PostBuildPluginsRunner, self).__init__(dt, workflow, 'PostBuildPlugin', plugins_conf, *args, **kwargs)

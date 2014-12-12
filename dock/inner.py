@@ -10,7 +10,7 @@ import tempfile
 
 from dock.constants import CONTAINER_BUILD_JSON_PATH, CONTAINER_RESULTS_JSON_PATH
 from dock.build import InsideBuilder
-from dock.plugin import PostBuildPluginsRunner
+from dock.plugin import PostBuildPluginsRunner, PreBuildPluginsRunner
 
 
 logger = logging.getLogger(__name__)
@@ -69,7 +69,7 @@ class DockerBuildWorkflow(object):
 
     def __init__(self, git_url, image, git_dockerfile_path=None,
                  git_commit=None, parent_registry=None, target_registries=None,
-                 repos=None):
+                 prebuild_plugins=None, postbuild_plugins=None):
         """
         :param git_url: str, URL to git repo
         :param image: str, tag for built image ([registry/]image_name[:tag])
@@ -77,7 +77,8 @@ class DockerBuildWorkflow(object):
         :param git_commit: str, git commit to check out
         :param parent_registry: str, registry to pull base image from
         :param target_registries: list of str, list of registries to push image to (might change in future)
-        :param repos: override package manager repositories (not implemented)
+        :param prebuild_plugins: dict, arguments for pre-build plugins
+        :param postbuild_plugins: dict, arguments for post-build plugins
         """
         self.git_url = git_url
         self.image = image
@@ -85,31 +86,45 @@ class DockerBuildWorkflow(object):
         self.git_commit = git_commit
         self.parent_registry = parent_registry
         self.target_registries = target_registries
-        self.repos = repos
-        self.db = None
+        self.prebuild_plugins_conf = prebuild_plugins
+        self.postbuild_plugins_conf = postbuild_plugins
 
-    def build_docker_image(self, copy_df_to_share_dir=False):
+        self.builder = None
+        self.build_logs = None
+
+    def build_docker_image(self):
         """
         build docker image
 
         :return: BuildResults
         """
         tmpdir = tempfile.mkdtemp()
-        self.db = InsideBuilder(self.git_url, self.image, git_dockerfile_path=self.git_dockerfile_path,
-                                git_commit=self.git_commit, repos=self.repos, tmpdir=tmpdir)
+        self.builder = InsideBuilder(self.git_url, self.image, git_dockerfile_path=self.git_dockerfile_path,
+                                     git_commit=self.git_commit, tmpdir=tmpdir)
         try:
             if self.parent_registry:
-                self.db.pull_base_image(self.parent_registry)
+                self.builder.pull_base_image(self.parent_registry)
 
-            image = self.db.build(copy_df_to_share_dir=copy_df_to_share_dir)
+            # time to run pre-build plugins, so they can access cloned repo,
+            # base image
+            prebuild_runner = PreBuildPluginsRunner(self.builder.tasker, self, self.prebuild_plugins_conf)
+            prebuild_results = prebuild_runner.run()
+
+            image = self.builder.build()
             # TODO: in case of docker host build, remove image
-            build_logs = self.db.last_logs
+            self.build_logs = self.builder.last_logs
             if self.target_registries:
                 for target_registry in self.target_registries:
-                    self.db.push_built_image(target_registry)
+                    self.builder.push_built_image(target_registry)
 
-            results = self._prepare_response()
-            results.build_logs = build_logs
+            postbuild_runner = PostBuildPluginsRunner(self.builder.tasker, self, self.postbuild_plugins_conf)
+            postbuild_results = postbuild_runner.run()
+
+            results = {
+                'prebuild_plugins': prebuild_results,
+                'postbuild_plugins': postbuild_results,
+            }
+
             return results
         finally:
             shutil.rmtree(tmpdir)
@@ -120,15 +135,16 @@ class DockerBuildWorkflow(object):
 
         :return BuildResults
         """
-        assert self.db is not None
-        runner = PostBuildPluginsRunner(self.db.tasker)
+        # FIXME: everything in here should be in separate postbuild plugin
+        assert self.builder is not None
+        runner = PostBuildPluginsRunner(self.builder.tasker)
         results = BuildResults()
-        results.built_img_inspect = self.db.inspect_built_image()
-        results.built_img_info = self.db.get_built_image_info()
-        results.base_img_inspect = self.db.inspect_base_image()
-        results.base_img_info = self.db.get_base_image_info()
-        results.base_plugins_output = runner.run(self.db.base_image_name)
-        results.built_img_plugins_output = runner.run(self.db.image)
+        results.built_img_inspect = self.builder.inspect_built_image()
+        results.built_img_info = self.builder.get_built_image_info()
+        results.base_img_inspect = self.builder.inspect_base_image()
+        results.base_img_info = self.builder.get_base_image_info()
+        results.base_plugins_output = runner.run(self.builder.base_image_name)
+        results.built_img_plugins_output = runner.run(self.builder.image)
         return results
 
 
@@ -177,6 +193,6 @@ def build_inside():
         raise RuntimeError("No valid build json!")
     # TODO: validate json
     dbw = DockerBuildWorkflow(**build_json)
-    results = dbw.build_docker_image(copy_df_to_share_dir=True)
+    results = dbw.build_docker_image()
     with open(CONTAINER_RESULTS_JSON_PATH, 'w') as results_json_fd:
         json.dump(results, results_json_fd, cls=BuildResultsEncoder)

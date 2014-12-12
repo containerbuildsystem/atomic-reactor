@@ -5,10 +5,9 @@ Logic above these classes has to set the workflow itself.
 
 import logging
 
-from dock.constants import CONTAINER_DOCKERFILE_PATH
 from dock.core import DockerTasker, LastLogger
 from dock.util import get_baseimage_from_dockerfile, split_repo_img_name_tag, LazyGit, wait_for_command, \
-    join_img_name_tag
+    join_img_name_tag, figure_out_dockerfile
 
 
 logger = logging.getLogger(__name__)
@@ -61,7 +60,7 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
         """
         """
         LastLogger.__init__(self)
-        LazyGit.__init__(self, git_url, tmpdir=tmpdir)
+        LazyGit.__init__(self, git_url, git_commit, tmpdir=tmpdir)
         BuilderStateMachine.__init__(self)
 
         self.tasker = DockerTasker()
@@ -76,15 +75,10 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
         self.reg_uri, self.image_name, self.tag = split_repo_img_name_tag(image)
         self.git_dockerfile_path = git_dockerfile_path
         self.git_commit = git_commit
-        # override repositories inside built image so you can change
-        # source of packages
-        # FIXME: not implemented yet
-        if repos:
-            logger.warning("Overriding repositories is not implemented yet!")
-        self.repos = repos
 
         # get info about base image from dockerfile
-        df_image = get_baseimage_from_dockerfile(self.git_path, path=self.git_dockerfile_path)
+        self.df_path, self.df_dir = figure_out_dockerfile(self.git_path, self.git_dockerfile_path)
+        df_image = get_baseimage_from_dockerfile(self.df_path)
         logger.debug("image specified in dockerfile = '%s'", df_image)
         self.df_registry, self.base_image_name, self.base_tag = split_repo_img_name_tag(df_image)
         if not self.base_tag:
@@ -122,21 +116,18 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
         logger.debug("image'%s' is available", response)
         return response
 
-    def build(self, copy_df_to_share_dir=False):
+    def build(self):
         """
         build image inside current environment;
-        it's expected this may run within privileged docker container
+        it's expected this may run within (privileged) docker container
 
         :return: image string (e.g. fedora-python:34)
         """
         logger.info("build image inside current environment")
         self._ensure_not_built()
-        logs_gen = self.tasker.build_image_from_git(
-            self.git_url,
+        logs_gen = self.tasker.build_image_from_path(
+            self.df_dir,
             self.image,
-            git_path=self.git_dockerfile_path,
-            git_commit=self.git_commit,
-            copy_dockerfile_to=CONTAINER_DOCKERFILE_PATH if copy_df_to_share_dir is True else None,
         )
         logger.debug("build is submitted, waiting for it to finish")
         self.last_logs = wait_for_command(logs_gen)  # wait for build to finish

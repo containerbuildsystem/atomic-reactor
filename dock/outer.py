@@ -65,7 +65,7 @@ class BuildManager(BuilderStateMachine):
         if self.temp_dir:
             dt = DockerTasker()
             results_path = os.path.join(self.temp_dir, RESULTS_JSON)
-            df_path = os.path.join(self.temp_dir, 'Dockerfile')
+            #df_path = os.path.join(self.temp_dir, 'Dockerfile')
             try:
                 with open(results_path, 'r') as results_fp:
                     results = json.load(results_fp, cls=BuildResultsJSONDecoder)
@@ -74,7 +74,7 @@ class BuildManager(BuilderStateMachine):
                 for l in self.dt.logs(self.build_container_id, stream=False):
                     logger.debug(l.strip())
                 raise RuntimeError("Can't open results: '%s'" % repr(ex))
-            results.dockerfile = open(df_path, 'r').read()
+            #results.dockerfile = open(df_path, 'r').read()
             results.build_logs = dt.logs(container_id, stream=False)
             results.container_id = container_id
             return results

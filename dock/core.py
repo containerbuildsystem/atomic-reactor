@@ -26,7 +26,7 @@ from docker.errors import APIError
 
 from dock.constants import CONTAINER_SHARE_PATH, BUILD_JSON
 from dock.util import join_repo_img_name_tag, \
-    join_repo_img_name, join_img_name_tag, wait_for_command
+    join_repo_img_name, join_img_name_tag, wait_for_command, clone_git_repo, figure_out_dockerfile
 
 
 DOCKER_SOCKET_PATH = '/var/run/docker.sock'
@@ -192,20 +192,10 @@ class DockerTasker(LastLogger):
         temp_dir = tempfile.mkdtemp()
         response = None
         try:
-            repo = git.Repo.clone_from(url, temp_dir)
-            if git_commit:
-                repo.git.checkout(git_commit)
-            if git_path:
-                if git_path.endswith('Dockerfile'):
-                    git_df_dir = os.path.dirname(git_path)
-                    df_dir = os.path.abspath(os.path.join(temp_dir, git_df_dir))
-                else:
-                    df_dir = os.path.abspath(os.path.join(temp_dir, git_path))
-            else:
-                df_dir = temp_dir
-            if copy_dockerfile_to:
+            clone_git_repo(url, temp_dir, git_commit)
+            df_path, df_dir = figure_out_dockerfile(temp_dir, git_path)
+            if copy_dockerfile_to:  # TODO: pre build plugin
                 shutil.copyfile(os.path.join(df_dir, "Dockerfile"), copy_dockerfile_to)
-            #base_image = get_baseimage_from_dockerfile_path(os.path.join(df_path, "Dockerfile"))
             response = self.build_image_from_path(df_dir, image, stream=stream, use_cache=use_cache)
         finally:
             try:

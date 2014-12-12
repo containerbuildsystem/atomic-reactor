@@ -3,6 +3,7 @@ import shutil
 import tempfile
 import logging
 import git
+from dock.constants import DOCKERFILE_FILENAME
 
 __author__ = 'ttomecek'
 
@@ -64,15 +65,15 @@ def get_baseimage_from_dockerfile_path(path):
                 return line.split()[1]
 
 
-def get_baseimage_from_dockerfile(git_path, path=None):
+def get_baseimage_from_dockerfile(git_path, path=''):
     """ return name of base image from provided gitrepo """
-    if path:
-        if path.endswith('Dockerfile'):
+    if git_path.endswith(DOCKERFILE_FILENAME):
+        dockerfile_path = git_path
+    else:
+        if path.endswith(DOCKERFILE_FILENAME):
             dockerfile_path = os.path.join(git_path, path)
         else:
-            dockerfile_path = os.path.join(git_path, path, 'Dockerfile')
-    else:
-        dockerfile_path = os.path.join(git_path, 'Dockerfile')
+            dockerfile_path = os.path.join(git_path, path, DOCKERFILE_FILENAME)
     return get_baseimage_from_dockerfile_path(dockerfile_path)
 
 
@@ -95,9 +96,56 @@ def wait_for_command(logs_generator):
     return logs
 
 
+def clone_git_repo(git_url, target_dir, commit=None):
+    """
+    clone provided git repo to target_dir, optionally checkout provided commit
+
+    :param git_url: str, git repo to clone
+    :param target_dir: str, filesystem path where the repo should be cloned
+    :param commit: str, commit to checkout
+    :return:
+    """
+    logger.info("clone git repo")
+    logger.debug("url = '%s', dir = '%s', commit = '%s'",
+                 git_url, target_dir, commit)
+    repo = git.Repo.clone_from(git_url, target_dir)
+    if commit:
+        repo.git.checkout(commit)
+
+
+def figure_out_dockerfile(absolute_path, local_path=None):
+    """
+    try to figure out dockerfile from provided path and optionally from relative local path
+    this is meant to be used with git repo: absolute_path is path to git repo,
+    local_path is path to dockerfile within git repo
+
+    :param absolute_path:
+    :param local_path:
+    :return: tuple, (dockerfile_path, dir_with_dockerfile_path)
+    """
+    logger.info("find dockerfile")
+    logger.debug("abs path = '%s', local path = '%s'", absolute_path, local_path)
+    if local_path:
+        if local_path.endswith(DOCKERFILE_FILENAME):
+            git_df_dir = os.path.dirname(local_path)
+            df_dir = os.path.abspath(os.path.join(absolute_path, git_df_dir))
+        else:
+            df_dir = os.path.abspath(os.path.join(absolute_path, local_path))
+    else:
+        df_dir = os.path.abspath(absolute_path)
+    if not os.path.isdir(df_dir):
+        raise IOError("Directory '%s' doesn't exist." % df_dir)
+    df_path = os.path.join(df_dir, DOCKERFILE_FILENAME)
+    if not os.path.isfile(df_path):
+        raise IOError("Dockerfile '%s' doesn't exist." % df_path)
+    logger.debug("dockerfile found: '%s'", df_path)
+    return df_path, df_dir
+
+
 class LazyGit(object):
-    def __init__(self, git_url, tmpdir=None):
+    def __init__(self, git_url, commit=None, tmpdir=None):
         self.git_url = git_url
+        self.commit = commit
         self.provided_tmpdir = tmpdir
         self._git_path = None
 
@@ -108,7 +156,7 @@ class LazyGit(object):
     @property
     def git_path(self):
         if self._git_path is None:
-            git.Repo.clone_from(self.git_url, self._tmpdir)
+            clone_git_repo(self.git_url, self._tmpdir, self.commit)
         return self._tmpdir
 
     def __enter__(self):

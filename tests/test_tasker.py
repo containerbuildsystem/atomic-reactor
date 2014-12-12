@@ -156,16 +156,3 @@ def test_build_image_from_git():
     print list(response)
     assert t.image_exists(TEST_IMAGE)
     t.remove_image(TEST_IMAGE)
-
-
-def test_build_image_from_git_with_df_copy(tmpdir):
-    target_df = tmpdir.mkdir('dir_to_cp_df').join("Dockerfile")
-    target_df_path = str(target_df)
-    t = DockerTasker()
-    response = t.build_image_from_git(GIT_URL, TEST_IMAGE, stream=False, use_cache=True,
-                                      copy_dockerfile_to=target_df_path)
-    assert response is not None
-    print list(response)
-    assert target_df.check()
-    assert t.image_exists(TEST_IMAGE)
-    t.remove_image(TEST_IMAGE)
