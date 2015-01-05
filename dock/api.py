@@ -14,7 +14,7 @@ __all__ = (
 
 def build_image_in_privileged_container(build_image, git_url, image,
         git_dockerfile_path=None, git_commit=None, parent_registry=None,
-        target_registries=None, repos=None, push_buildroot_to=None):
+        target_registries=None, push_buildroot_to=None):
     """
     build image from provided dockerfile (specified as git url) in privileged image
     
@@ -25,7 +25,6 @@ def build_image_in_privileged_container(build_image, git_url, image,
     :param git_commit: str, git commit to check out
     :param parent_registry: str, registry to pull base image from
     :param target_registries: list of str, list of registries to push image to (might change in future)
-    :param repos: override package manager repositories (not implemented)
     :param push_buildroot_to: str, repository where buildroot should be pushed
  
     :return: BuildResults
@@ -37,7 +36,6 @@ def build_image_in_privileged_container(build_image, git_url, image,
         "git_commit": git_commit,
         "parent_registry": parent_registry,
         "target_registries": target_registries,
-        "repos": repos,
     })
     build_response = m.build()
     if push_buildroot_to:
@@ -48,7 +46,7 @@ def build_image_in_privileged_container(build_image, git_url, image,
 
 def build_image_using_hosts_docker(build_image, git_url, image,
         git_dockerfile_path=None, git_commit=None, parent_registry=None,
-        target_registries=None, repos=None, push_buildroot_to=None):
+        target_registries=None, push_buildroot_to=None):
     """
     build image from provided dockerfile (specified as git url) in container
     using docker from host
@@ -60,7 +58,6 @@ def build_image_using_hosts_docker(build_image, git_url, image,
     :param git_commit: str, git commit to check out
     :param parent_registry: str, registry to pull base image from
     :param target_registries: list of str, list of registries to push image to (might change in future)
-    :param repos: override package manager repositories (not implemented)
     :param push_buildroot_to: str, repository where buildroot should be pushed
 
     :return: BuildResults
@@ -72,7 +69,6 @@ def build_image_using_hosts_docker(build_image, git_url, image,
         "git_commit": git_commit,
         "parent_registry": parent_registry,
         "target_registries": target_registries,
-        "repos": repos,
     })
     build_response = m.build()
     if push_buildroot_to:
@@ -83,7 +79,7 @@ def build_image_using_hosts_docker(build_image, git_url, image,
 
 def build_image_here(git_url, image,
         git_dockerfile_path=None, git_commit=None, parent_registry=None,
-        target_registries=None, repos=None):
+        target_registries=None):
     """
     build image from provided dockerfile (specified as git url) in current environment
 
@@ -93,7 +89,6 @@ def build_image_here(git_url, image,
     :param git_commit: str, git commit to check out
     :param parent_registry: str, registry to pull base image from
     :param target_registries: list of str, list of registries to push image to (might change in future)
-    :param repos: override package manager repositories (not implemented)
 
     :return: BuildResults
     """
@@ -104,7 +99,6 @@ def build_image_here(git_url, image,
         "git_commit": git_commit,
         "parent_registry": parent_registry,
         "target_registries": target_registries,
-        "repos": repos,
     })
     return m.build_docker_image()
 

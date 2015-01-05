@@ -69,7 +69,7 @@ class DockerBuildWorkflow(object):
 
     def __init__(self, git_url, image, git_dockerfile_path=None,
                  git_commit=None, parent_registry=None, target_registries=None,
-                 prebuild_plugins=None, postbuild_plugins=None):
+                 prebuild_plugins=None, postbuild_plugins=None, **kwargs):
         """
         :param git_url: str, URL to git repo
         :param image: str, tag for built image ([registry/]image_name[:tag])
@@ -88,6 +88,8 @@ class DockerBuildWorkflow(object):
         self.target_registries = target_registries
         self.prebuild_plugins_conf = prebuild_plugins
         self.postbuild_plugins_conf = postbuild_plugins
+
+        self.kwargs = kwargs
 
         self.builder = None
         self.build_logs = None
