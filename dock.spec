@@ -14,6 +14,7 @@ BuildRequires:  python-devel
 BuildRequires:  python-setuptools
 
 Requires:       python-docker-py
+Requires:       GitPython
 
 
 %description

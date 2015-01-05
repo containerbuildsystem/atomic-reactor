@@ -28,6 +28,8 @@ $ cd dock
 $ sudo pip install .
 ```
 
+dock requires `GitPython` and `docker-py`; pip should install those.
+
 ## Usage
 
 If you would like to build your images within containers, you need to obtain images for those containers. We call them build images. dock is installed inside and used to take care of build itself.
