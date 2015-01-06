@@ -68,6 +68,19 @@ As soon as our build image is built, we can start building stuff in it:
 $ dock build --method privileged --build-image privileged-buildroot --image test-image --git-url "https://github.com/TomasTomecek/docker-hello-world.git"
 ```
 
+Built image will be in the build container. Therefore this example doesn't make much sense. If you would like to access the built image, you should probably push it to your registry and build it like this:
+
+```bash
+$ dock build --method privileged \
+             --build-image privileged-buildroot \
+             --image test-image \
+             --target-registries 172.17.42.1:5000 \
+             --git-url "https://github.com/TomasTomecek/docker-hello-world.git"
+```
+
+IP address `172.17.42.1` should be address of docker0 interface. Update it if yours is different. Also, don't forget to start registry.
+
+
 Bear in mind that you shouldn't mix build methods: if you use _hostdocker_ method with build image for _privileged_ method, it won't work.
 
 ## API
