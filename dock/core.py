@@ -97,6 +97,10 @@ class BuildContainerWarlock(object):
 
         self._check_build_input(build_image, json_args_path)
 
+        if not os.path.exists(DOCKER_SOCKET_PATH):
+            logger.error("Looks like docker is not running because there is no socket at: %s", DOCKER_SOCKET_PATH)
+            raise RuntimeError("docker socket not found: %s" % DOCKER_SOCKET_PATH)
+
         volume_bindings = {
             DOCKER_SOCKET_PATH: {
                 'bind': DOCKER_SOCKET_PATH,
