@@ -65,7 +65,7 @@ Section above contains detailed description. Let's make this short.
 As soon as our build image is built, we can start building stuff in it:
 
 ```bash
-$ dock build --method privileged --build-image privileged-buildroot --image test-image --git-url "github.com/TomasTomecek/docker-hello-world.git"
+$ dock build --method privileged --build-image privileged-buildroot --image test-image --git-url "https://github.com/TomasTomecek/docker-hello-world.git"
 ```
 
 Bear in mind that you shouldn't mix build methods: if you use _hostdocker_ method with build image for _privileged_ method, it won't work.
@@ -78,7 +78,7 @@ dock has proper python API. You can use it in your scripts or service without in
 from dock.api import build_image_in_privileged_container
 response = build_image_in_privileged_container(
     "privileged-buildroot",
-    git_url="github.com/TomasTomecek/docker-hello-world.git",
+    git_url="https://github.com/TomasTomecek/docker-hello-world.git",
     image="dock-test-image",
 )
 # response contains a lot of useful information: logs, information about images, plugin results
