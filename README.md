@@ -39,7 +39,7 @@ At some point, these will be available on docker hub, but right now, you need to
 ### installation from git
 
 ```bash
-$ dock create-build-image --dock-local-path ${PATH_TO_DOCK_GIT} ${PATH_TO_DOCK_GIT}/images/privileged-build privileged-buildroot
+$ dock create-build-image --dock-local-path ${PATH_TO_DOCK_GIT} ${PATH_TO_DOCK_GIT}/images/privileged-builder privileged-buildroot
 ```
 
 Why is it so long? Okay, let's get through. First thing is that dock needs to install itself inside the build image. You can pick several sources for dock: you local copy, (this) official upstream repo, your forked repo or even distribution tarball. In the example above, we are using our locally cloned git repo (`--dock-local-path ${PATH_TO_DOCK_GIT}`).
