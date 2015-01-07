@@ -146,6 +146,9 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
         """
         logger.info("push built image to registry")
         self._ensure_is_built()
+        if not registry:
+            logger.warning("no registry specified; skipping")
+            return
         return self.tasker.tag_and_push_image(self.image, self.image, registry, tag=self.tag)
 
     def inspect_base_image(self):
