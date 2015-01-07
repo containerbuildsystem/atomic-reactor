@@ -14,7 +14,7 @@ __all__ = (
 
 def build_image_in_privileged_container(build_image, git_url, image,
         git_dockerfile_path=None, git_commit=None, parent_registry=None,
-        target_registries=None, push_buildroot_to=None):
+        target_registries=None, push_buildroot_to=None, **kwargs):
     """
     build image from provided dockerfile (specified as git url) in privileged image
     
@@ -29,14 +29,16 @@ def build_image_in_privileged_container(build_image, git_url, image,
  
     :return: BuildResults
     """
-    m = PrivilegedBuildManager(build_image, {
+    build_json = {
         "git_url": git_url,
         "image": image,
         "git_dockerfile_path": git_dockerfile_path,
         "git_commit": git_commit,
         "parent_registry": parent_registry,
         "target_registries": target_registries,
-    })
+    }
+    build_json.update(kwargs)
+    m = PrivilegedBuildManager(build_image, build_json)
     build_response = m.build()
     if push_buildroot_to:
         m.commit_buildroot()
@@ -46,7 +48,7 @@ def build_image_in_privileged_container(build_image, git_url, image,
 
 def build_image_using_hosts_docker(build_image, git_url, image,
         git_dockerfile_path=None, git_commit=None, parent_registry=None,
-        target_registries=None, push_buildroot_to=None):
+        target_registries=None, push_buildroot_to=None, **kwargs):
     """
     build image from provided dockerfile (specified as git url) in container
     using docker from host
@@ -62,14 +64,16 @@ def build_image_using_hosts_docker(build_image, git_url, image,
 
     :return: BuildResults
     """
-    m = DockerhostBuildManager(build_image, {
+    build_json = {
         "git_url": git_url,
         "image": image,
         "git_dockerfile_path": git_dockerfile_path,
         "git_commit": git_commit,
         "parent_registry": parent_registry,
         "target_registries": target_registries,
-    })
+    }
+    build_json.update(kwargs)
+    m = DockerhostBuildManager(build_image, build_json)
     build_response = m.build()
     if push_buildroot_to:
         m.commit_buildroot()
@@ -79,7 +83,7 @@ def build_image_using_hosts_docker(build_image, git_url, image,
 
 def build_image_here(git_url, image,
         git_dockerfile_path=None, git_commit=None, parent_registry=None,
-        target_registries=None):
+        target_registries=None, **kwargs):
     """
     build image from provided dockerfile (specified as git url) in current environment
 
@@ -92,14 +96,16 @@ def build_image_here(git_url, image,
 
     :return: BuildResults
     """
-    m = DockerBuildWorkflow(**{
+    build_json = {
         "git_url": git_url,
         "image": image,
         "git_dockerfile_path": git_dockerfile_path,
         "git_commit": git_commit,
         "parent_registry": parent_registry,
         "target_registries": target_registries,
-    })
+    }
+    build_json.update(kwargs)
+    m = DockerBuildWorkflow(**build_json)
     return m.build_docker_image()
 
 

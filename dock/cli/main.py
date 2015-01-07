@@ -20,14 +20,18 @@ def cli_create_build_image(args):
 
 
 def cli_build_image(args):
-    common_kwargs = {
-        "git_url": args.git_url,
-        "image": args.image,
-        "git_dockerfile_path": args.git_path,
-        "git_commit": args.git_commit,
-        "parent_registry": args.source_registry,
-        "target_registries": args.target_registries,
-    }
+    if args.json:
+        with open(args.json) as json_fp:
+            common_kwargs = json.load(json_fp)
+    else:
+        common_kwargs = {
+            "git_url": args.git_url,
+            "image": args.image,
+            "git_dockerfile_path": args.git_path,
+            "git_commit": args.git_commit,
+            "parent_registry": args.source_registry,
+            "target_registries": args.target_registries,
+        }
     if args.method == "hostdocker":
         build_image_using_hosts_docker(args.build_image, **common_kwargs)
     elif args.method == "privileged":
@@ -63,6 +67,7 @@ class CLI(object):
 
         build_parser = subparsers.add_parser('build', help='build image')
         build_parser.set_defaults(func=cli_build_image)
+        build_parser.add_argument("--json", action="store", help="path to build json")
         build_parser.add_argument("--build-image", action='store', help="name of build image to use "
                                   "(build image type has to match method)")
         build_parser.add_argument("--image", action='store', help="name under the image will be accessible")
