@@ -37,7 +37,7 @@ def cli_build_image(args):
 
 
 def cli_inside_build(args):
-    build_inside()
+    build_inside(input=args.input)
 
 
 def store_result(results):
@@ -110,6 +110,7 @@ class CLI(object):
             help="we do expect we are inside container, therefore we'll read "
                  "build configuration from json at '%s' and when the build is done, " % CONTAINER_BUILD_JSON_PATH +
                  "results are written in that dir so dock from host may read those")
+        ib_parser.add_argument("--input", action='store', help="input plugin")
         ib_parser.set_defaults(func=cli_inside_build)
 
     def run(self):

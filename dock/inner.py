@@ -10,7 +10,7 @@ import tempfile
 
 from dock.constants import CONTAINER_BUILD_JSON_PATH, CONTAINER_RESULTS_JSON_PATH, BUILD_JSON_ENV
 from dock.build import InsideBuilder
-from dock.plugin import PostBuildPluginsRunner, PreBuildPluginsRunner
+from dock.plugin import PostBuildPluginsRunner, PreBuildPluginsRunner, InputPluginsRunner
 
 
 logger = logging.getLogger(__name__)
@@ -182,15 +182,18 @@ def get_build_config_from_env(env_name=None):
         return json.loads(build_cfg_json)
 
 
-def build_inside():
+def build_inside(input=None):
     """
     load configuration from CONTAINER_BUILD_JSON_PATH, build image
     from the provided conf and store results to CONTAINER_RESULTS_JSON_PATH
     """
-    # env > file
-    build_json = get_build_config_from_env()
-    if not build_json:
+    # build_json = get_build_config_from_env()
+    if not input:
         build_json = get_build_config_from_path()
+    else:
+        logger.debug("getting build json from input %s", input)
+        input_runner = InputPluginsRunner({input: {}})
+        build_json = input_runner.run()[input]
     if not build_json:
         raise RuntimeError("No valid build json!")
     # TODO: validate json
