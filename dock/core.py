@@ -379,7 +379,7 @@ class DockerTasker(LastLogger):
         :param tag: str, v1
         :return: str, image (reg.om/img:v1)
         """
-        logger.info("tag image")
+        logger.info("tag and push image")
         logger.debug("image = '%s', target_image_name = '%s', reg_uri = '%s', tag = '%s'",
                      image, target_image_name, reg_uri, tag)
         final_tag = self.tag_image(image, target_image_name, reg_uri=reg_uri, tag=tag)
