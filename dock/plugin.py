@@ -24,6 +24,31 @@ class Plugin(object):
     # same thing goes for input: use this key for providing input for this plugin
     key = None
 
+    def __init__(self, *args, **kwargs):
+        """
+        constructor
+        """
+        self.log = logging.getLogger("dock.plugins." + self.key)
+
+    def run(self):
+        """
+        each plugin has to implement this method -- it is used to run the plugin actually
+
+        response from a build plugin is kept and used in json result response like this:
+
+          results[plugin.key] = plugin.run()
+
+        input plugins should emit build json with this method
+        """
+        raise NotImplemented()
+
+
+class BuildPlugin(Plugin):
+    """
+    abstract plugin class: base for build plugins, it is
+    flavored with DockerTasker and BuildWorkflow instances
+    """
+
     def __init__(self, tasker, workflow, *args, **kwargs):
         """
         constructor
@@ -35,38 +60,24 @@ class Plugin(object):
         """
         self.tasker = tasker
         self.workflow = workflow
-        self.log = logging.getLogger("dock.plugins." + self.key)
-
-    def run(self):
-        """
-        each plugin has to implement this method -- it is used to run the plugin actually
-
-        response from plugin is kept and used in json result response like this:
-
-          results[plugin.key] = plugin.run()
-
-        """
-        raise NotImplemented()
+        super(BuildPlugin, self).__init__(*args, **kwargs)
 
 
 class PluginsRunner(object):
 
-    def __init__(self, dt, workflow, plugin_class_name, plugins_conf):
+    def __init__(self, plugin_class_name, plugins_conf, *args, **kwargs):
         """
         constructor
 
-        :param dt: DockerTasker instance
-        :param workflow: DockerBuildWorkflow instance
+        :param plugin_class_name: str, name of plugin class to filter (e.g. 'PreBuildPlugin')
         :param plugins_conf: dict, configuration for plugins
         """
-        self.dt = dt
-        self.workflow = workflow
         self.plugins_conf = plugins_conf or {}
         self.plugin_classes = self.load_plugins(plugin_class_name)
 
     def load_plugins(self, plugin_class_name):
         """
-        load plugins
+        load all available plugins
         """
         # imp.findmodule('dock') doesn't work
         file = dock.plugins.__file__
@@ -95,6 +106,57 @@ class PluginsRunner(object):
                     plugin_classes.append(binding)
         return plugin_classes
 
+    def create_instance_from_plugin(self, plugin_class, plugin_conf):
+        """
+        create instance from plugin using the plugin class and configuration passed to for it
+
+        input plugins and build plugins initialize differently
+
+        :param plugin_class: plugin class
+        :param plugin_conf: dict, configuration for plugin
+        :return:
+        """
+        plugin_instance = plugin_class(**plugin_conf)
+        return plugin_instance
+
+    def run(self):
+        """
+        run all requested plugins
+        """
+        result = {}
+        for plugin_class in self.plugin_classes:
+            plugin_name = plugin_class.key
+            if plugin_name not in self.plugins_conf:
+                logger.debug("skipping plugin '%s', it is not requested", plugin_name)
+                continue
+            plugin_conf = self.plugins_conf[plugin_name] or {}
+            plugin_instance = self.create_instance_from_plugin(plugin_class, plugin_conf)
+
+            try:
+                plugin_response = plugin_instance.run()
+            except Exception as ex:
+                msg = "Plugin '%s' raised an exception: '%s'" % (plugin_instance.key, repr(ex))
+                logger.error(msg)
+                plugin_response = msg
+
+            result[plugin_instance.key] = plugin_response
+        return result
+
+
+class BuildPluginsRunner(PluginsRunner):
+    def __init__(self, dt, workflow, plugin_class_name, plugins_conf, *args, **kwargs):
+        """
+        constructor
+
+        :param dt: DockerTasker instance
+        :param workflow: DockerBuildWorkflow instance
+        :param plugin_class_name: str, name of plugin class to filter (e.g. 'PreBuildPlugin')
+        :param plugins_conf: dict, configuration for plugins
+        """
+        self.dt = dt
+        self.workflow = workflow
+        super(BuildPluginsRunner, self).__init__(plugin_class_name, plugins_conf, *args, **kwargs)
+
     def _translate_special_values(self, dict_to_translate):
         """
         you may want to write plugins for values which are not known before build:
@@ -112,46 +174,37 @@ class PluginsRunner(object):
                 translated_dict[key] = translation_dict[value]
         return translated_dict
 
-    def run(self):
-        """
-        run all requested plugins
-        """
-        result = {}
-        for plugin_class in self.plugin_classes:
-            plugin_name = plugin_class.key
-            if plugin_name not in self.plugins_conf:
-                logger.debug("skipping plugin '%s', it is not requested", plugin_name)
-                continue
-            plugin_conf = self.plugins_conf[plugin_name]
-            translated_conf = self._translate_special_values(plugin_conf)
-            plugin_instance = plugin_class(self.dt, self.workflow, **translated_conf)
-
-            try:
-                plugin_response = plugin_instance.run()
-            except Exception as ex:
-                msg = "Plugin '%s' raised an exception: '%s'" % (plugin_instance.key, repr(ex))
-                logger.error(msg)
-                plugin_response = msg
-
-            result[plugin_instance.key] = plugin_response
-        return result
+    def create_instance_from_plugin(self, plugin_class, plugin_conf):
+        translated_conf = self._translate_special_values(plugin_conf)
+        plugin_instance = plugin_class(self.dt, self.workflow, **translated_conf)
+        return plugin_instance
 
 
-class PreBuildPlugin(Plugin):
+class PreBuildPlugin(BuildPlugin):
     pass
 
 
-class PreBuildPluginsRunner(PluginsRunner):
+class PreBuildPluginsRunner(BuildPluginsRunner):
 
     def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
         super(PreBuildPluginsRunner, self).__init__(dt, workflow, 'PreBuildPlugin', plugins_conf, *args, **kwargs)
 
 
-class PostBuildPlugin(Plugin):
+class PostBuildPlugin(BuildPlugin):
     pass
 
 
-class PostBuildPluginsRunner(PluginsRunner):
+class PostBuildPluginsRunner(BuildPluginsRunner):
 
     def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
         super(PostBuildPluginsRunner, self).__init__(dt, workflow, 'PostBuildPlugin', plugins_conf, *args, **kwargs)
+
+
+class InputPlugin(Plugin):
+    pass
+
+
+class InputPluginsRunner(PluginsRunner):
+
+    def __init__(self, plugins_conf, *args, **kwargs):
+        super(InputPluginsRunner, self).__init__('InputPlugin', plugins_conf, *args, **kwargs)
