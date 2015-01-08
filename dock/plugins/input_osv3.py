@@ -26,13 +26,16 @@ class OSv3InputPlugin(InputPlugin):
         build_json_str = os.environ['BUILD']
         build_json = json.loads(build_json_str)
         git_url = os.environ['SOURCE_URI']
-        git_ref = os.environ['SOURCE_REF']
+        git_ref = os.environ.get('SOURCE_REF', None)
         image = os.environ['OUTPUT_IMAGE']
-        target_registry = os.environ['OUTPUT_REGISTRY']
+        target_registry = os.environ.get('OUTPUT_REGISTRY', None)
+        plugins_json = os.environ.get('DOCK_PLUGINS', {})
 
         return {
             'git_url': git_url,
             'image': image,
             'git_commit': git_ref,
-            'target_registries': [target_registry]
+            'target_registries': [target_registry] if target_registry is not None else None,
+            'prebuild_plugins': plugins_json.get('prebuild_plugins', None),
+            'postbuild_plugins': plugins_json.get('postbuild_plugins', None),
         }
