@@ -166,7 +166,7 @@ class BuildPluginsRunner(PluginsRunner):
         translation_dict = {
             'BUILT_IMAGE_ID': self.workflow.builder.image_id,
             'BASE_IMAGE': join_img_name_tag(self.workflow.builder.base_image_name,
-                                            self.workflow.builder.base_image_tag)
+                                            self.workflow.builder.base_tag)
         }
         translated_dict = copy.deepcopy(dict_to_translate)
         for key, value in dict_to_translate.items():
