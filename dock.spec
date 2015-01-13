@@ -15,6 +15,7 @@ BuildRequires:  python-setuptools
 
 Requires:       python-docker-py
 Requires:       GitPython
+Requires:       koji
 
 
 %description
