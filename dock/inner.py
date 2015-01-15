@@ -94,6 +94,8 @@ class DockerBuildWorkflow(object):
         self.builder = None
         self.build_logs = None
 
+        self.repos = {}  # this should be filled by plugins
+
     def build_docker_image(self):
         """
         build docker image

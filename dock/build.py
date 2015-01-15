@@ -54,7 +54,6 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
     def __init__(self, git_url, image,
                  git_dockerfile_path=None,
                  git_commit=None,
-                 repos=None,
                  tmpdir=None,
                  **kwargs):
         """
