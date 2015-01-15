@@ -7,6 +7,8 @@ import copy
 import importlib
 import logging
 import os
+import sys
+import traceback
 
 import dock.plugins
 from dock.util import join_img_name_tag
@@ -88,7 +90,7 @@ class PluginsRunner(object):
                        not module.startswith('__init__.py')])
         this_module = importlib.import_module('dock.plugin')
         absolutely_imported_plugin_class = getattr(this_module, plugin_class_name)
-        plugin_classes = []
+        plugin_classes = {}
         for plugin_name in plugins:
             plugin = importlib.import_module(plugin_name)
             for name in dir(plugin):
@@ -103,7 +105,7 @@ class PluginsRunner(object):
                 except TypeError:
                     is_sub = False
                 if binding and is_sub and absolutely_imported_plugin_class.__name__ != binding.__name__:
-                    plugin_classes.append(binding)
+                    plugin_classes[binding.key] = binding
         return plugin_classes
 
     def create_instance_from_plugin(self, plugin_class, plugin_conf):
@@ -124,12 +126,25 @@ class PluginsRunner(object):
         run all requested plugins
         """
         result = {}
-        for plugin_class in self.plugin_classes:
-            plugin_name = plugin_class.key
-            if plugin_name not in self.plugins_conf:
-                logger.debug("skipping plugin '%s', it is not requested", plugin_name)
+        for plugin_request in self.plugins_conf:
+            try:
+                plugin_name = plugin_request['name']
+            except (TypeError, KeyError):
+                logger.error("Invalid plugin reuqest, no key 'name': %s", plugin_request)
                 continue
-            plugin_conf = self.plugins_conf[plugin_name] or {}
+            try:
+                plugin_conf = plugin_request.get("args", {})
+            except AttributeError:
+                logger.error("Invalid plugin reuqest, no key 'args': %s", plugin_request)
+                continue
+            try:
+                plugin_class = self.plugin_classes[plugin_name]
+            except KeyError:
+                logger.error("No such plugin: '%s'", plugin_name)
+                continue
+
+            logger.debug("running plugin '%s' with args: '%s'", plugin_name, plugin_conf)
+
             plugin_instance = self.create_instance_from_plugin(plugin_class, plugin_conf)
 
             try:
@@ -137,6 +152,7 @@ class PluginsRunner(object):
             except Exception as ex:
                 msg = "Plugin '%s' raised an exception: '%s'" % (plugin_instance.key, repr(ex))
                 logger.error(msg)
+                logger.debug(traceback.format_exc())
                 plugin_response = msg
 
             result[plugin_instance.key] = plugin_response
