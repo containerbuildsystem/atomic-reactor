@@ -194,7 +194,7 @@ def build_inside(input=None):
         build_json = get_build_config_from_path()
     else:
         logger.debug("getting build json from input %s", input)
-        input_runner = InputPluginsRunner({input: {}})
+        input_runner = InputPluginsRunner([{'name': input}])
         build_json = input_runner.run()[input]
     if not build_json:
         raise RuntimeError("No valid build json!")
