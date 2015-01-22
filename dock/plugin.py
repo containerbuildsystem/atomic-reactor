@@ -32,6 +32,9 @@ class Plugin(object):
         """
         self.log = logging.getLogger("dock.plugins." + self.key)
 
+    def __str__(self):
+        return "%s" % self.key
+
     def run(self):
         """
         each plugin has to implement this method -- it is used to run the plugin actually

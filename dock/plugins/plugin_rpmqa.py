@@ -29,6 +29,3 @@ class PostBuildRPMqaPlugin(PostBuildPlugin):
         plugin_output = self.tasker.logs(container_id, stream=False)
         self.tasker.remove_container(container_id)
         return plugin_output
-
-    def __str__(self):
-        return "%s" % self.key
