@@ -23,7 +23,7 @@ Improved builder for Docker images
 %package koji
 Summary:        Koji plugin for Dock
 Group:          Development Tools
-Requires:       %{name}
+Requires:       %{name} = %{version}-%{release}
 Requires:       koji
 
 %description koji
