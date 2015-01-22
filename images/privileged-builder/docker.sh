@@ -116,4 +116,5 @@ docker -d --insecure-registry 172.17.42.1:5000 &
 
 dock -v inside-build --input path
 
-killall docker
+kill -15 %1
+
