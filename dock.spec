@@ -15,11 +15,19 @@ BuildRequires:  python-setuptools
 
 Requires:       python-docker-py
 Requires:       GitPython
-Requires:       koji
-
 
 %description
 Improved builder for Docker images
+
+
+%package koji
+Summary:        Koji plugin for Dock
+Group:          Development Tools
+Requires:       %{name}
+Requires:       koji
+
+%description koji
+Koji plugin for Dock
 
 
 %prep
@@ -41,11 +49,22 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 %files
 %doc README.md
 %{_bindir}/dock
-%{python_sitelib}/dock
+%{python_sitelib}/dock/*.*
+%{python_sitelib}/dock/cli
+%{python_sitelib}/dock/plugins/__init__.py*
+%{python_sitelib}/dock/plugins/input_osv3.py*
+%{python_sitelib}/dock/plugins/plugin_rpmqa.py*
+%{python_sitelib}/dock/plugins/pre_cp_dockerfile.py*
+%{python_sitelib}/dock/plugins/pre_inject_yum_repo.py*
+%{python_sitelib}/dock/plugins/pre_return_dockerfile.py*
 %{python_sitelib}/dock-%{version}-py2.*.egg-info
 %dir %{_datadir}/%{name}
 %{_datadir}/%{name}/dock.tar.gz
 %{_datadir}/%{name}/images
+
+
+%files koji
+%{python_sitelib}/dock/plugins/pre_koji.py*
 
 
 %changelog
