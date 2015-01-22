@@ -11,8 +11,8 @@ import logging
 
 from dock.constants import BUILD_JSON, RESULTS_JSON
 from dock.build import BuilderStateMachine
-from dock.core import DockerTasker, BuildContainerWarlock
-from dock.inner import BuildResultsJSONDecoder
+from dock.core import DockerTasker, BuildContainerFactory
+from dock.inner import BuildResultsJSONDecoder, BuildResults
 
 
 logger = logging.getLogger(__name__)
@@ -107,13 +107,13 @@ class BuildManager(BuilderStateMachine):
 
 class PrivilegedBuildManager(BuildManager):
     def build(self):
-        w = BuildContainerWarlock()
+        w = BuildContainerFactory()
         return super(PrivilegedBuildManager, self)._build(
-            partial(BuildContainerWarlock.build_image_privileged_container, w))
+            partial(BuildContainerFactory.build_image_privileged_container, w))
 
 
 class DockerhostBuildManager(BuildManager):
     def build(self):
-        w = BuildContainerWarlock()
+        w = BuildContainerFactory()
         return super(DockerhostBuildManager, self)._build(
-            partial(BuildContainerWarlock.build_image_dockerhost, w))
+            partial(BuildContainerFactory.build_image_dockerhost, w))

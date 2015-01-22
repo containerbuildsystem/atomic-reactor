@@ -51,7 +51,7 @@ class LastLogger(object):
         self._last_logs = value
 
 
-class BuildContainerWarlock(object):
+class BuildContainerFactory(object):
     """
     set of methods for building images inside containers
     """
