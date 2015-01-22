@@ -108,7 +108,7 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
         base_image = self.tasker.pull_image(self.base_image_name, source_registry, tag=self.base_tag)
 
         if not self.df_registry:
-            response = self.tasker.tag_image(base_image, self.base_image_name, tag=self.base_tag)
+            response = self.tasker.tag_image(base_image, self.base_image_name, tag=self.base_tag, force=True)
         else:
             response = base_image
 

@@ -331,7 +331,7 @@ class DockerTasker(LastLogger):
         self.last_logs = wait_for_command(logs_gen)
         return image
 
-    def tag_image(self, image, target_image_name, reg_uri='', tag=''):
+    def tag_image(self, image, target_image_name, reg_uri='', tag='', force=False):
         """
         tag provided image with specified image_name, registry and tag
 
@@ -339,13 +339,14 @@ class DockerTasker(LastLogger):
         :param target_image_name: str, img
         :param reg_uri: str, reg.com
         :param tag: str, v1
+        :param force: bool, force tag the image?
         :return: str, image (reg.om/img:v1)
         """
         logger.info("tag image")
         logger.debug("image = '%s', target_image_name = '%s', reg_uri = '%s', tag = '%s'",
                      image, target_image_name, reg_uri, tag)
         repository = join_repo_img_name(reg_uri, target_image_name)
-        response = self.d.tag(image, repository, tag=tag)  # returns True/False
+        response = self.d.tag(image, repository, tag=tag, force=force)  # returns True/False
         if not response:
             logger.error("failed to tag image")
             raise RuntimeError("Failed to tag image '%s': repository = '%s', tag = '%s'" %
