@@ -1,7 +1,20 @@
 dock
 ====
 
-Simple python library with command line interface for building docker images. It is written on top of [docker-py](https://github.com/docker/docker-py).
+Simple python library with command line interface for building docker images. It contains a lot of helpful functions which you would probably implement if you started hooking docker into your infrastrucutre. Highlights:
+
+ * push image to registry when it's built
+ * build inside a docker container (so your builds are separated between each other)
+ * git as a source to your dockerfile (you can checkout whatever you want, you may specify path to your dockerfile within the repo)
+ * collect build logs
+ * plugin system
+  * plugin for koji build system
+  * plugin for fedora packaging system (dist-git)
+  * inject arbitrary yum repo inside dockerfile (change source of your packages)
+  * retag base image so it matches `FROM` in dockerfile
+  * change base image (FROM) in your dockerfile
+
+It is written on top of [docker-py](https://github.com/docker/docker-py).
 
 It supports several building modes:
 
@@ -18,7 +31,7 @@ $ dnf copr enable jdornak/DBuildService
 $ dnf install dock
 ```
 
-### from git
+### from git (preferred -- most up-to-date)
 
 Clone this git repo and install it using python installer:
 
@@ -78,7 +91,7 @@ $ dock build --method privileged \
              --git-url "https://github.com/TomasTomecek/docker-hello-world.git"
 ```
 
-IP address `172.17.42.1` should be address of docker0 interface. Update it if yours is different. Also, don't forget to start registry.
+IP address `172.17.42.1` should be address of docker0 interface. Update it if yours is different. Also, don't forget to start the registry.
 
 
 Bear in mind that you shouldn't mix build methods: if you use _hostdocker_ method with build image for _privileged_ method, it won't work.
