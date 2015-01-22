@@ -398,16 +398,17 @@ class DockerTasker(LastLogger):
         image_metadata = self.d.inspect_image(image_id)
         return image_metadata
 
-    def remove_image(self, image_id):
+    def remove_image(self, image_id, noprune=False):
         """
         remove provided image from filesystem
 
         :param image_id: str
+        :param noprune: bool, keep untagged parents?
         :return: None
         """
         logger.info("remove image from filesystem")
         logger.debug("image_id = '%s'", image_id)
-        self.d.remove_image(image_id)  # returns None
+        self.d.remove_image(image_id, noprune=noprune)  # returns None
 
     def remove_container(self, container_id):
         """
