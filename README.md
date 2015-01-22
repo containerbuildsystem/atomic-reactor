@@ -94,7 +94,6 @@ response = build_image_in_privileged_container(
     git_url="https://github.com/TomasTomecek/docker-hello-world.git",
     image="dock-test-image",
 )
-# response contains a lot of useful information: logs, information about images, plugin results
 ```
 
 ## build.json
@@ -109,8 +108,16 @@ If you want to take advantage of _inner_ part logic of dock, you can do that pre
     "git_commit": "devel",
     "parent_registry": "registry.example.com:5000",
     "target_registries": ["registry.example2.com:5000"],
-    "prebuild_plugins": {"dockerfile_content": null},
-    "postbuild_plugins": {"all_rpm_packages": "my-test-image"}
+    "prebuild_plugins": [{
+        "name": "koji",
+        "args": {
+            "target": "f22",
+            "hub": "http://koji.fedoraproject.org/kojihub",
+            "root": "https://kojipkgs.fedoraproject.org/"
+        }}, {
+            "name": "inject_yum_repo",
+            "args": {}
+        }
 }
 ```
 
@@ -120,13 +127,15 @@ If you want to take advantage of _inner_ part logic of dock, you can do that pre
  * git_commit - string, optional, git commit to checkout
  * parent_registry - string, optional, registry to pull base image from
  * target_registries - list of strings, optional, registries where built image should be pushed
- * prebuild_plugins - dict, arguments for pre-build plugins
- * postbuild_plugins - dict, arguments for post-build plugins
+ * prebuild_plugins - list of dicts
+  * list of plugins which are executed prior to build, order _matters_! In this case, first there is generated yum repo for koji f22 tag and then it is injected into dockerfile
 
-It is read from two places at the moment:
 
-1. environemtn variable `BUILD_JSON`
-2. `/run/share/build.json`
+dock is able to read this build json from various places (see input plugins in source code). There is argument for command `inside-build` called `--input`. Currently there are 3 available inputs:
+
+ 1. `--input path` load build json from arbitrary path (if not specified, it tries to load it from `/run/share/build.json`). You can specify the path like this: `--input-arg path=/my/cool/path/with/build.json`.
+ 2. `--input env` load it from environment variable: `--input-arg env_name=HERE_IS_THE_JSON`
+ 3. `--input osv3` import input from OpenShift v3 environment (check github.com/openshift/origin/ for more info)
 
 ## RPM build
 

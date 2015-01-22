@@ -4,11 +4,9 @@ Script for building docker image. This is expected to run inside container.
 
 import json
 import logging
-import os
 import shutil
 import tempfile
 
-from dock.constants import CONTAINER_BUILD_JSON_PATH, CONTAINER_RESULTS_JSON_PATH, BUILD_JSON_ENV
 from dock.build import InsideBuilder
 from dock.plugin import PostBuildPluginsRunner, PreBuildPluginsRunner, InputPluginsRunner
 
@@ -86,8 +84,11 @@ class DockerBuildWorkflow(object):
         self.git_commit = git_commit
         self.parent_registry = parent_registry
         self.target_registries = target_registries
+
         self.prebuild_plugins_conf = prebuild_plugins
         self.postbuild_plugins_conf = postbuild_plugins
+        self.prebuild_results = None
+        self.postbuild_results = None
 
         self.kwargs = kwargs
 
@@ -112,7 +113,7 @@ class DockerBuildWorkflow(object):
             # time to run pre-build plugins, so they can access cloned repo,
             # base image
             prebuild_runner = PreBuildPluginsRunner(self.builder.tasker, self, self.prebuild_plugins_conf)
-            prebuild_results = prebuild_runner.run()
+            self.prebuild_results = prebuild_runner.run()
 
             image = self.builder.build()
             # TODO: in case of docker host build, remove image
@@ -122,14 +123,7 @@ class DockerBuildWorkflow(object):
                     self.builder.push_built_image(target_registry)
 
             postbuild_runner = PostBuildPluginsRunner(self.builder.tasker, self, self.postbuild_plugins_conf)
-            postbuild_results = postbuild_runner.run()
-
-            results = {
-                'prebuild_plugins': prebuild_results,
-                'postbuild_plugins': postbuild_results,
-            }
-
-            return results
+            self.postbuild_results = postbuild_runner.run()
         finally:
             shutil.rmtree(tmpdir)
 
@@ -152,54 +146,25 @@ class DockerBuildWorkflow(object):
         return results
 
 
-def get_build_config_from_path(path=None):
+def build_inside(input, input_args=None):
     """
-    get json with build config from environment variable
+    use requested input plugin to load configuration and then initiate build
     """
-    path = path or CONTAINER_BUILD_JSON_PATH
-    try:
-        with open(path, 'r') as build_cfg_fd:
-            build_cfg_json = json.load(build_cfg_fd)
-    except ValueError:
-        logger.error("couldn't decode json from file '%s'", path)
-        return None
-    except IOError:
-        logger.error("couldn't read json from file '%s'", path)
-        return None
-    else:
-        return build_cfg_json
-
-
-def get_build_config_from_env(env_name=None):
-    """
-    get json with build config from environment variable
-    """
-    env_name = env_name or BUILD_JSON_ENV
-    try:
-        build_cfg_json = os.environ[env_name]
-    except KeyError:
-        logger.info("build config was not specified via environment variable")
-        return None
-    else:
-        return json.loads(build_cfg_json)
-
-
-def build_inside(input=None):
-    """
-    load configuration from CONTAINER_BUILD_JSON_PATH, build image
-    from the provided conf and store results to CONTAINER_RESULTS_JSON_PATH
-    """
-    # build_json = get_build_config_from_env()
     if not input:
-        build_json = get_build_config_from_path()
+        raise RuntimeError("No input method specified!")
     else:
         logger.debug("getting build json from input %s", input)
-        input_runner = InputPluginsRunner([{'name': input}])
+
+        input_args = input_args or []
+        cleaned_input_args = {}
+        for arg in input_args:
+            key, value = arg.split("=", 1)
+            cleaned_input_args[key] = value
+
+        input_runner = InputPluginsRunner([{'name': input, 'args': cleaned_input_args}])
         build_json = input_runner.run()[input]
     if not build_json:
         raise RuntimeError("No valid build json!")
     # TODO: validate json
     dbw = DockerBuildWorkflow(**build_json)
-    results = dbw.build_docker_image()
-    with open(CONTAINER_RESULTS_JSON_PATH, 'w') as results_json_fd:
-        json.dump(results, results_json_fd, cls=BuildResultsEncoder)
+    dbw.build_docker_image()

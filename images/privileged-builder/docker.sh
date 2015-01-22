@@ -114,4 +114,6 @@ ensure_loop $LOOP_B
 
 docker -d --insecure-registry 172.17.42.1:5000 &
 
-exec dock -v inside-build
+dock -v inside-build --input path
+
+killall docker
