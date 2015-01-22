@@ -28,7 +28,7 @@ $ cd dock
 $ sudo pip install .
 ```
 
-dock requires `GitPython` and `docker-py`; pip should install those.
+dock requires `GitPython` and `docker-py` (koji plugin requires `koji` package, you have to install it manually: `yum install koji`); pip should install those.
 
 ## Usage
 
