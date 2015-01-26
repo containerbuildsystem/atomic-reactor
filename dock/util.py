@@ -157,7 +157,8 @@ class LazyGit(object):
     def git_path(self):
         if self._git_path is None:
             clone_git_repo(self.git_url, self._tmpdir, self.commit)
-        return self._tmpdir
+            self._git_path = self._tmpdir
+        return self._git_path
 
     def __enter__(self):
         if not self.provided_tmpdir:
