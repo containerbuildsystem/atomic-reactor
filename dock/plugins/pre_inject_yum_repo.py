@@ -43,7 +43,7 @@ class InjectYumRepoPlugin(PreBuildPlugin):
                     ' >%(repo_path)s && %%(yum_command)s && yum clean all && rm -f %(repo_path)s' \
                     % {'repo_path': self.repo_path}
         for line in fileinput.input(self.workflow.builder.df_path, inplace=1):
-            re_match = re.match(r"RUN (?P<yum_command>yum (install|update).+$)", line)
+            re_match = re.match(r"^RUN (?P<yum_command>yum (install|update).+$)", line)
             if re_match:
                 re_match_dict = re_match.groupdict()
                 sys.stdout.write(line.replace(re_match_dict['yum_command'], shell_cmd % re_match_dict))
