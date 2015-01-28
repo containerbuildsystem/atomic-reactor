@@ -35,6 +35,9 @@ class Plugin(object):
     def __str__(self):
         return "%s" % self.key
 
+    def __repr__(self):
+        return "Plugin(key='%s')" % self.key
+
     def run(self):
         """
         each plugin has to implement this method -- it is used to run the plugin actually
