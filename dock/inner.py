@@ -112,15 +112,17 @@ class DockerBuildWorkflow(object):
 
             # time to run pre-build plugins, so they can access cloned repo,
             # base image
+            logger.info("running pre-build plugins")
             prebuild_runner = PreBuildPluginsRunner(self.builder.tasker, self, self.prebuild_plugins_conf)
             self.prebuild_results = prebuild_runner.run()
 
             image = self.builder.build()
             # TODO: in case of docker host build, remove image
             self.build_logs = self.builder.last_logs
-            if self.target_registries:
-                for target_registry in self.target_registries:
-                    self.builder.push_built_image(target_registry)
+            if image:
+                if self.target_registries:
+                    for target_registry in self.target_registries:
+                        self.builder.push_built_image(target_registry)
 
             postbuild_runner = PostBuildPluginsRunner(self.builder.tasker, self, self.postbuild_plugins_conf)
             self.postbuild_results = postbuild_runner.run()

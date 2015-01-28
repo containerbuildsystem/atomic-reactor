@@ -129,7 +129,11 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
             self.image,
         )
         logger.debug("build is submitted, waiting for it to finish")
-        self.last_logs = wait_for_command(logs_gen)  # wait for build to finish
+        try:
+            self.last_logs = wait_for_command(logs_gen)  # wait for build to finish
+        except RuntimeError as ex:
+            logger.error("Build failed: '%s'", repr(ex))
+            return
         self.is_built = True
         self.built_image_info = self.get_built_image_info()
         # self.base_image_id = self.built_image_info['ParentId']  # parent id is not base image!

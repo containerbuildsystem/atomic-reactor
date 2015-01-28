@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import tempfile
@@ -88,9 +89,17 @@ def wait_for_command(logs_generator):
     while True:
         try:
             item = logs_generator.next()
-            item = item.strip()
-            logger.debug(item)
+            parsed_item = json.loads(item)
+            line = parsed_item.get("stream", "")
+            line = line.replace("\r\n", " ").replace("\n", " ").strip()
+            if line:
+                logger.debug(line)
             logs.append(item)
+            error = parsed_item.get("error", None)
+            error_message = parsed_item.get("errorDetail", None)
+            if error:
+                logger.error(item.strip())
+                raise RuntimeError("Error in container processing: %s (%s)" % (error, error_message))
         except StopIteration:
             break
     return logs
