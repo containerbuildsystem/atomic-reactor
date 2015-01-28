@@ -77,9 +77,9 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
 
         # get info about base image from dockerfile
         self.df_path, self.df_dir = figure_out_dockerfile(self.git_path, self.git_dockerfile_path)
-        df_image = get_baseimage_from_dockerfile(self.df_path)
-        logger.debug("image specified in dockerfile = '%s'", df_image)
-        self.df_registry, self.base_image_name, self.base_tag = split_repo_img_name_tag(df_image)
+        self.df_base_image = get_baseimage_from_dockerfile(self.df_path)
+        logger.debug("image specified in dockerfile = '%s'", self.df_base_image)
+        self.df_registry, self.base_image_name, self.base_tag = split_repo_img_name_tag(self.df_base_image)
         if not self.base_tag:
             self.base_tag = 'latest'
 
