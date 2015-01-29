@@ -54,5 +54,6 @@ def test_join_img_tag():
         assert result == chain
 
 
-def test_get_baseimg_from_df():
-    assert 'fedora:latest' == get_baseimage_from_dockerfile('https://github.com/TomasTomecek/docker-hello-world.git')
+# FIXME
+# def test_get_baseimg_from_df():
+#     assert 'fedora:latest' == get_baseimage_from_dockerfile('https://github.com/TomasTomecek/docker-hello-world.git')
