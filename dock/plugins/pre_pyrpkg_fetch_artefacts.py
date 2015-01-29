@@ -3,6 +3,7 @@ To have everything for a build in dist-git you need to fetch artefacts using 'fe
 
 This plugin should do it.
 """
+import os
 import subprocess
 
 from dock.plugin import PreBuildPlugin
@@ -27,4 +28,14 @@ class DistgitFetchArtefactsPlugin(PreBuildPlugin):
         """
         fetch artefacts
         """
+        sources_file_path = os.path.join(self.workflow.builder.git_path, 'sources')
+        try:
+            with open(sources_file_path, 'r') as f:
+                self.log.info('Sources file:\n', f.read())
+        except IOError as ex:
+            if ex.errno == 2:
+                self.log.info("no sources file")
+            else:
+                raise
+
         subprocess.check_call([self.binary, "--path", self.workflow.builder.git_path, "sources"])
