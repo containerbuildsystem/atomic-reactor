@@ -119,7 +119,7 @@ class DockerBuildWorkflow(object):
 
             image = self.builder.build()
             # TODO: in case of docker host build, remove image
-            self.build_logs = self.builder.last_logs
+            self.build_logs = self.builder.last_logs[:]
             if image:
                 if self.target_registries:
                     for target_registry in self.target_registries:
