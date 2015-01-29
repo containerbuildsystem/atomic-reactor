@@ -24,6 +24,7 @@ class BuildResults(object):
     base_plugins_output = None
     built_img_plugins_output = None
     container_id = None
+    return_code = None
 
 
 class BuildResultsEncoder(json.JSONEncoder):
@@ -126,6 +127,7 @@ class DockerBuildWorkflow(object):
 
             postbuild_runner = PostBuildPluginsRunner(self.builder.tasker, self, self.postbuild_plugins_conf)
             self.postbuild_results = postbuild_runner.run()
+            return image
         finally:
             shutil.rmtree(tmpdir)
 

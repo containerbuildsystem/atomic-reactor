@@ -1,11 +1,13 @@
 import json
 import argparse
 import logging
+import sys
 
-from dock import *
+from dock import build_image_here, build_image_in_privileged_container, \
+    build_image_using_hosts_docker, set_logging
 from dock.constants import CONTAINER_BUILD_JSON_PATH, CONTAINER_RESULTS_JSON_PATH
 from dock.buildimage import BuildImageBuilder
-from dock.inner import BuildResultsEncoder, build_inside
+from dock.inner import BuildResultsEncoder, build_inside, BuildResults
 
 
 logger = logging.getLogger('dock')
@@ -16,7 +18,11 @@ def cli_create_build_image(args):
                           dock_local_path=args.dock_local_path,
                           dock_remote_path=args.dock_remote_git,
                           use_official_dock_git=args.dock_latest)
-    b.create_image(args.dockerfile_dir_path, args.image, use_cache=args.use_cache)
+    try:
+        b.create_image(args.dockerfile_dir_path, args.image, use_cache=args.use_cache)
+    except RuntimeError:
+        logger.error("Build failed.")
+        sys.exit(1)
 
 
 def cli_build_image(args):
@@ -32,12 +38,18 @@ def cli_build_image(args):
             "parent_registry": args.source_registry,
             "target_registries": args.target_registries,
         }
+    response = BuildResults()
     if args.method == "hostdocker":
-        build_image_using_hosts_docker(args.build_image, **common_kwargs)
+        response = build_image_using_hosts_docker(args.build_image, **common_kwargs)
     elif args.method == "privileged":
-        build_image_in_privileged_container(args.build_image, **common_kwargs)
+        response = build_image_in_privileged_container(args.build_image, **common_kwargs)
     elif args.method == 'here':
-        build_image_here(**common_kwargs)
+        image = build_image_here(**common_kwargs)
+        if not image:
+            response.return_code = -1
+        else:
+            response.return_code = 0
+    sys.exit(response.return_code)
 
 
 def cli_inside_build(args):

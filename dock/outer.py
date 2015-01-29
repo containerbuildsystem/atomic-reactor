@@ -50,8 +50,10 @@ class BuildManager(BuilderStateMachine):
             with open(temp_path, 'w') as build_json:
                 json.dump(self.build_args, build_json)
             self.build_container_id = build_method(self.build_image, self.temp_dir)
-            self.dt.wait(self.build_container_id)
-            return self._load_results(self.build_container_id)
+            return_code = self.dt.wait(self.build_container_id)
+            results = self._load_results(self.build_container_id)
+            results.return_code = return_code
+            return results
         finally:
             shutil.rmtree(self.temp_dir)
 
