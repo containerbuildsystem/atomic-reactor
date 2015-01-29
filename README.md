@@ -41,6 +41,13 @@ $ cd dock
 $ sudo pip install .
 ```
 
+You don't even need to install it. You may use it straight from git:
+
+```bash
+export PYTHONPATH="${DOCK_PATH}:${PYTHONPATH}"
+alias dock="python2 ${DOCK_PATH}/dock/cli/main.py"
+```
+
 dock requires `GitPython` and `docker-py` (koji plugin requires `koji` package, you have to install it manually: `yum install koji`); pip should install those.
 
 ## Usage
