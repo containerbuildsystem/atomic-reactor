@@ -80,10 +80,13 @@ class CLI(object):
         build_parser = subparsers.add_parser('build', help='build image')
         build_parser.set_defaults(func=cli_build_image)
         build_parser.add_argument("--json", action="store", help="path to build json")
-        build_parser.add_argument("--build-image", action='store', help="name of build image to use "
+        build_parser.add_argument("--build-image", action='store', required=True,
+                                  help="name of build image to use "
                                   "(build image type has to match method)")
-        build_parser.add_argument("--image", action='store', help="name under the image will be accessible")
-        build_parser.add_argument("--git-url", action='store', metavar="URL", help="URL to git repo")
+        build_parser.add_argument("--image", action='store', required=True,
+                                  help="name under the image will be accessible")
+        build_parser.add_argument("--git-url", action='store', metavar="URL",
+                                  required=True, help="URL to git repo")
         build_parser.add_argument("--git-path", action='store',
                                   help="path to Dockerfile within git repo (default is ./)")
         build_parser.add_argument("--git-commit", action='store',
@@ -95,6 +98,7 @@ class CLI(object):
                                   metavar="REGISTRY",
                                   help="list of registries to push image to")
         build_parser.add_argument("--method", action='store', choices=["hostdocker", "privileged", "here"],
+                                  required=True,
                                   help="choose method for building image: 'hostdocker' mounts socket "
                                        "inside container, 'privileged' spawns privileged container and "
                                        "runs separate docker instance inside and finally 'here' executes"
