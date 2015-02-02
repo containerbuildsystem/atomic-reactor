@@ -4,7 +4,7 @@ from dock.inner import BuildResultsEncoder
 from dock.plugin import PostBuildPlugin
 
 
-__all__ = ('PostBuildRPMqaPlugin', )
+__all__ = ('StoreLogsToFilePlugin', )
 
 
 class StoreLogsToFilePlugin(PostBuildPlugin):
