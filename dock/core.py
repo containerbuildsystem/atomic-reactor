@@ -152,7 +152,7 @@ class DockerTasker(LastLogger):
         super(DockerTasker, self).__init__(*args, **kwargs)
         self.d = docker.Client(base_url='unix:/%s' % DOCKER_SOCKET_PATH)
 
-    def build_image_from_path(self, path, image, stream=False, use_cache=False):
+    def build_image_from_path(self, path, image, stream=False, use_cache=False, remove_im=True):
         """
         build image from provided path and tag it
 
@@ -163,13 +163,14 @@ class DockerTasker(LastLogger):
         :param image: str, repository[:tag]
         :param stream: bool, True returns generator, False returns str
         :param use_cache: bool, True if you want to use cache
+        :param remove_im: bool, remove intermediate containers produced during docker build
         :return: generator
         """
         logger.info("build image from provided path")
         logger.debug("image = '%s', path = '%s'", image, path)
         prior_to_build = datetime.datetime.now()
         response = self.d.build(path=path, tag=image, stream=stream, nocache=not use_cache,
-                                rm=True)  # returns generator
+                                rm=remove_im)  # returns generator
         logger.info("build finished")
         logger.debug("build time = %s", datetime.datetime.now() - prior_to_build)
         return response
