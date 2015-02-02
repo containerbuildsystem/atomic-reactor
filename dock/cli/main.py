@@ -144,6 +144,8 @@ class CLI(object):
             set_logging(logging.INFO)
         try:
             args.func(args)
+        except AttributeError:
+            self.parser.print_help()
         except KeyboardInterrupt:
             pass
         except Exception as ex:
