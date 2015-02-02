@@ -150,7 +150,7 @@ class BuildContainerFactory(object):
 class DockerTasker(LastLogger):
     def __init__(self, *args, **kwargs):
         super(DockerTasker, self).__init__(*args, **kwargs)
-        self.d = docker.Client(base_url='unix:/%s' % DOCKER_SOCKET_PATH, version='1.12', timeout=30)
+        self.d = docker.Client(base_url='unix:/%s' % DOCKER_SOCKET_PATH)
 
     def build_image_from_path(self, path, image, stream=False, use_cache=False):
         """
