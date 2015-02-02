@@ -88,7 +88,8 @@ def wait_for_command(logs_generator):
     logs = []
     while True:
         try:
-            item = logs_generator.next()
+            item = next(logs_generator)  # py2 & 3 compat
+            item = item.decode("utf-8")
             parsed_item = json.loads(item)
             line = parsed_item.get("stream", "")
             line = line.replace("\r\n", " ").replace("\n", " ").strip()

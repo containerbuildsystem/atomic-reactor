@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import git
 from docker.errors import APIError
 import pytest
@@ -60,7 +62,7 @@ def test_remove_image():
     t.wait(container_id)
     image_id = t.commit_container(container_id, repository=TEST_IMAGE)
     t.remove_container(container_id)
-    t.remove_image(TEST_IMAGE)
+    t.remove_image(image_id)
     assert not t.image_exists(TEST_IMAGE)
 
 
@@ -71,7 +73,7 @@ def test_commit_container():
     image_id = t.commit_container(container_id, message="test message", repository=TEST_IMAGE)
     assert t.image_exists(image_id)
     t.remove_container(container_id)
-    t.remove_image(TEST_IMAGE)
+    t.remove_image(image_id)
 
 
 def test_inspect_image():
@@ -143,7 +145,7 @@ def test_build_image_from_path(tmpdir):
     assert df.check()
     t = DockerTasker()
     response = t.build_image_from_path(tmpdir_path, TEST_IMAGE, stream=False, use_cache=True)
-    print list(response)
+    print(list(response))
     assert response is not None
     assert t.image_exists(TEST_IMAGE)
     t.remove_image(TEST_IMAGE)
@@ -153,6 +155,6 @@ def test_build_image_from_git():
     t = DockerTasker()
     response = t.build_image_from_git(GIT_URL, TEST_IMAGE, stream=False, use_cache=True)
     assert response is not None
-    print list(response)
+    print(list(response))
     assert t.image_exists(TEST_IMAGE)
     t.remove_image(TEST_IMAGE)
