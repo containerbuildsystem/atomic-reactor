@@ -14,6 +14,7 @@ logger = logging.getLogger('dock')
 
 
 def cli_create_build_image(args):
+    print args.use_cache
     b = BuildImageBuilder(dock_tarball_path=args.dock_tarball_path,
                           dock_local_path=args.dock_local_path,
                           dock_remote_path=args.dock_remote_git,
@@ -122,7 +123,7 @@ class CLI(object):
                                help="path to directory with Dockerfile")
         bi_parser.add_argument("image", action='store', metavar="IMAGE",
                                help="name under the image will be accessible")
-        bi_parser.add_argument("--use-cache", action='store_true', default="store_false",
+        bi_parser.add_argument("--use-cache", action='store_true', default=False,
                                help="use cache to build image (may be faster, but not up to date)")
 
         # inside build
