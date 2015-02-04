@@ -21,4 +21,8 @@ class GarbageCollectionPlugin(PostBuildPlugin):
         super(GarbageCollectionPlugin, self).__init__(tasker, workflow)
 
     def run(self):
-        self.tasker.remove_image(self.workflow.builder.image_id, force=True)
+        image = self.workflow.builder.image_id
+        if not image:
+            self.log.error("no built image, nothing to remove")
+            return
+        self.tasker.remove_image(image, force=True)
