@@ -29,7 +29,7 @@ def _install_requirements():
     return requirements
 
 setup(name='dock',
-      version='1.0.0.a',
+      version='1.0.0.b',
       description='improved builder for docker images',
       author='Tomas Tomecek',
       author_email='ttomecek@redhat.com',

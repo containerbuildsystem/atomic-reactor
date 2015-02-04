@@ -1,5 +1,5 @@
 Name:           dock
-Version:        1.0.0.a
+Version:        1.0.0.b
 Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
@@ -68,6 +68,9 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 
 
 %changelog
+* Wed Feb 04 2015 Tomas Tomecek <ttomecek@redhat.com> 1.0.0.b-1
+- new upstream release: beta
+
 * Mon Dec 01 2014 Tomas Tomecek <ttomecek@redhat.com> 1.0.0.a-1
 - complete rewrite (ttomecek@redhat.com)
 - Use inspect_image() instead of get_image() when checking for existence (#4).
