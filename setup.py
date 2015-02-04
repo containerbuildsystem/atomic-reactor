@@ -37,7 +37,7 @@ setup(name='dock',
       entry_points={
           'console_scripts': ['dock=dock.cli.main:run'],
       },
-      packages=find_packages(exclude=["tests"]),
+      packages=find_packages(exclude=["tests", "tests.plugins"]),
       install_requires=_install_requirements(),
       data_files=data_files.items(),
 )
