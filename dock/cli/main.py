@@ -149,7 +149,10 @@ class CLI(object):
         try:
             args.func(args)
         except AttributeError:
-            self.parser.print_help()
+            if hasattr(args, 'func'):
+                raise
+            else:
+                self.parser.print_help()
         except KeyboardInterrupt:
             pass
         except Exception as ex:
