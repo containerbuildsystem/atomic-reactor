@@ -203,7 +203,7 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
         """
         logger.info("get information about built image")
         self._ensure_is_built()
-        image_info = self.tasker.get_image_info_by_image_name(self.image_name)
+        image_info = self.tasker.get_image_info_by_image_name(self.image_name, self.reg_uri, self.tag)
         items_count = len(image_info)
         if items_count == 1:
             return image_info[0]
