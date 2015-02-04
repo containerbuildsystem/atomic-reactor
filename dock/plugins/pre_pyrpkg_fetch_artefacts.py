@@ -38,5 +38,5 @@ class DistgitFetchArtefactsPlugin(PreBuildPlugin):
             else:
                 raise
 
-        subprocess.check_call([self.binary, "--path", self.workflow.builder.git_path,
-                               "--outdir", self.workflow.builder.git_path, "sources"])
+        subprocess.check_call([self.binary, "--path", self.workflow.builder.git_path, "sources",
+                               "--outdir", self.workflow.builder.git_path])
