@@ -1,12 +1,18 @@
+%global owner DBuildService
+%global project dock
+
+%global commit 0160939c05f8fa77bf8df167770d597e3ed4be98
+%global shortcommit %(c=%{commit}; echo ${c:0:7})
+
 Name:           dock
-Version:        1.0.0.b
+Version:        1.0.0
 Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
-Group:          Development Tools
+Group:          Development/Tools
 License:        BSD
-URL:            https://github.com/orgs/DBuildService/dock
-Source0:        http://github.srcurl.net/DBuildService/%{name}/%{version}/%{name}-%{version}.tar.gz
+URL:            https://github.com/DBuildService/dock
+Source0:        https://github.com/%{owner}/%{project}/archive/%{commit}/%{project}-%{commit}.tar.gz
 
 BuildArch:      noarch
 
@@ -15,6 +21,7 @@ BuildRequires:  python-setuptools
 
 Requires:       python-docker-py
 Requires:       GitPython
+Requires:       python-requests
 
 %description
 Improved builder for Docker images
@@ -22,7 +29,7 @@ Improved builder for Docker images
 
 %package koji
 Summary:        Koji plugin for Dock
-Group:          Development Tools
+Group:          Development/Tools
 Requires:       %{name} = %{version}-%{release}
 Requires:       koji
 
@@ -31,7 +38,7 @@ Koji plugin for Dock
 
 
 %prep
-%setup -q
+%setup -qn %{name}-%{commit}
 
 
 %build
