@@ -7,9 +7,9 @@ import logging
 from dock.api import *
 
 
-def set_logging(level=logging.DEBUG):
+def set_logging(name="dock", level=logging.DEBUG):
     # create logger
-    logger = logging.getLogger('dock')
+    logger = logging.getLogger(name)
     logger.handlers = []
     logger.setLevel(level)
 
