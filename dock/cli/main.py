@@ -142,11 +142,11 @@ class CLI(object):
         self.set_arguments()
         args = self.parser.parse_args()
         if args.verbose:
-            set_logging(logging.DEBUG)
+            set_logging(level=logging.DEBUG)
         elif args.quiet:
-            set_logging(logging.WARNING)
+            set_logging(level=logging.WARNING)
         else:
-            set_logging(logging.INFO)
+            set_logging(level=logging.INFO)
         try:
             args.func(args)
         except AttributeError:
