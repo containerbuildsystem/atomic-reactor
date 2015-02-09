@@ -13,6 +13,7 @@ from dock.constants import BUILD_JSON, RESULTS_JSON
 from dock.build import BuilderStateMachine
 from dock.core import DockerTasker, BuildContainerFactory
 from dock.inner import BuildResultsJSONDecoder, BuildResults
+from dock.util import wait_for_command
 
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,8 @@ class BuildManager(BuilderStateMachine):
             with open(temp_path, 'w') as build_json:
                 json.dump(self.build_args, build_json)
             self.build_container_id = build_method(self.build_image, self.temp_dir)
+            logs_gen = self.dt.logs(self.build_container_id)
+            wait_for_command(logs_gen)
             return_code = self.dt.wait(self.build_container_id)
             results = self._load_results(self.build_container_id)
             results.return_code = return_code
