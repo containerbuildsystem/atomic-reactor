@@ -91,19 +91,25 @@ def wait_for_command(logs_generator):
     logs = []
     while True:
         try:
+            parsed_item = None
             item = next(logs_generator)  # py2 & 3 compat
             item = item.decode("utf-8")
-            parsed_item = json.loads(item)
-            line = parsed_item.get("stream", "")
+            try:
+                parsed_item = json.loads(item)
+            except ValueError:
+                line = item
+            else:
+                line = parsed_item.get("stream", "")
             line = line.replace("\r\n", " ").replace("\n", " ").strip()
             if line:
                 logger.debug(line)
             logs.append(item)
-            error = parsed_item.get("error", None)
-            error_message = parsed_item.get("errorDetail", None)
-            if error:
-                logger.error(item.strip())
-                raise RuntimeError("Error in container processing: %s (%s)" % (error, error_message))
+            if parsed_item is not None:
+                error = parsed_item.get("error", None)
+                error_message = parsed_item.get("errorDetail", None)
+                if error:
+                    logger.error(item.strip())
+                    raise RuntimeError("Error in container processing: %s (%s)" % (error, error_message))
         except StopIteration:
             break
     return logs
