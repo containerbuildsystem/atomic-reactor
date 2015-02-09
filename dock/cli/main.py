@@ -14,7 +14,6 @@ logger = logging.getLogger('dock')
 
 
 def cli_create_build_image(args):
-    print args.use_cache
     b = BuildImageBuilder(dock_tarball_path=args.dock_tarball_path,
                           dock_local_path=args.dock_local_path,
                           dock_remote_path=args.dock_remote_git,
