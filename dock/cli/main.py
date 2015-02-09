@@ -23,6 +23,7 @@ def cli_create_build_image(args):
     except RuntimeError:
         logger.error("Build failed.")
         sys.exit(1)
+    sys.exit(0)
 
 
 def cli_build_image(args):
