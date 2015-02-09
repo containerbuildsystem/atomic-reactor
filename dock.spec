@@ -24,7 +24,7 @@ Requires:       GitPython
 Requires:       python-requests
 
 %description
-Improved builder for Docker images
+Simple python library with command line interface for building docker images. It contains a lot of helpful functions which you would probably implement if you started hooking docker into your infrastrucutre.
 
 
 %package koji
