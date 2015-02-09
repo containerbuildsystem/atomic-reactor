@@ -40,8 +40,8 @@ def setup_module(module):
 
 
 def teardown_module(module):
-    dt.remove_image(PRIV_BUILD_IMAGE)
-    dt.remove_image(DH_BUILD_IMAGE)
+    dt.remove_image(PRIV_BUILD_IMAGE, force=True)
+    dt.remove_image(DH_BUILD_IMAGE, force=True)
 
 
 # TESTS
