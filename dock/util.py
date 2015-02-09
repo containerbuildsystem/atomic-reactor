@@ -1,3 +1,5 @@
+from __future__ import print_function, unicode_literals
+
 import json
 import os
 import shutil
@@ -85,6 +87,7 @@ def wait_for_command(logs_generator):
 
     :return: list of str, logs
     """
+    logger.info("wait_for_command")
     logs = []
     while True:
         try:
