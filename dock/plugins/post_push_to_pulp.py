@@ -209,8 +209,23 @@ class PulpServer(object):
         if 'error_message' in r_json:
             raise Exception('Unable to import pulp content into {0}'.format(repo_id))
 
+    def _publish_repo(self, repo_id):
+        """Publish pulp repository to pulp web server"""
+        url = '{0}/pulp/api/v2/repositories/{1}/actions/publish/'.format(self._server_url, repo_id)
+        payload = {
+          "id": self._web_distributor,
+          "override_config": {}
+        }
+        self.logger.info('Publishing pulp repository "{0}"'.format(repo_id))
+        r_json = self._call_pulp(url, "post", payload)
+        if 'error_message' in r_json:
+            raise Exception('Unable to publish pulp repo "{0}"'.format(repo_id))
+
     def export_repo(self, repo_id):
-        """Export pulp repository"""
+        """Export pulp repository to pulp web server as tar
+
+        The tarball is split into the layer components and crane metadata.
+        It is for the purpose of uploading to remote crane server"""
         url = '{0}/pulp/api/v2/repositories/{1}/actions/publish/'.format(self._server_url, repo_id)
         payload = {
           "id": self._export_distributor,
@@ -218,10 +233,10 @@ class PulpServer(object):
             "export_file": '{0}{1}.tar'.format(self._export_dir, repo_id),
           }
         }
-        self.logger.info('Publishing pulp repository "{0}"'.format(repo_id))
+        self.logger.info('Exporting pulp repository "{0}"'.format(repo_id))
         r_json = self._call_pulp(url, "post", payload)
         if 'error_message' in r_json:
-            raise Exception('Unable to publish pulp repo "{0}"'.format(repo_id))
+            raise Exception('Unable to export pulp repo "{0}"'.format(repo_id))
 
 
 def push_image_to_pulp(repo, image, server_url, username, password, verify_ssl, tasker, logger):
@@ -244,6 +259,8 @@ def push_image_to_pulp(repo, image, server_url, username, password, verify_ssl, 
         except Exception as e:
             logger.error('Failed to upload image to Pulp: {0}'.format(e))
             raise
+        else:
+            pulp.export_repo(repo)
 
 
 class PulpPushPlugin(PostBuildPlugin):
