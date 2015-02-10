@@ -148,9 +148,14 @@ class BuildContainerFactory(object):
 
 
 class DockerTasker(LastLogger):
-    def __init__(self, *args, **kwargs):
-        super(DockerTasker, self).__init__(*args, **kwargs)
-        self.d = docker.Client(base_url='unix:/%s' % DOCKER_SOCKET_PATH)
+    def __init__(self, base_url=None, **kwargs):
+        super(DockerTasker, self).__init__(**kwargs)
+        if base_url:
+            self.d = docker.Client(base_url=base_url)
+        elif os.environ.get('DOCKER_CONNECTION'):
+            self.d = docker.Client(base_url=os.environ['DOCKER_CONNECTION'])
+        else:
+            self.d = docker.Client()
 
     def build_image_from_path(self, path, image, stream=False, use_cache=False, remove_im=True):
         """
