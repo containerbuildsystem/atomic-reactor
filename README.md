@@ -1,7 +1,7 @@
 dock
 ====
 
-Simple python library with command line interface for building docker images. It contains a lot of helpful functions which you would probably implement if you started hooking docker into your infrastrucutre. Highlights:
+Simple python library with command line interface for building docker images. It contains a lot of helpful functions which you would probably implement if you started hooking docker into your infrastructure. Highlights:
 
  * push image to registry when it's built
  * build inside a docker container (so your builds are separated between each other)
