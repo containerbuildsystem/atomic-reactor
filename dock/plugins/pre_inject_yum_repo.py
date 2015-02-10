@@ -38,17 +38,11 @@ class InjectYumRepoPlugin(PreBuildPlugin):
             rendered_repo = r'[%(name)s]\n' % repo + rendered_repo
             rendered_repos += rendered_repo
 
-
-        shell_cmd = 'printf "%s"' % rendered_repos + \
+        shell_cmd = lambda match: 'RUN printf "%s"' % rendered_repos + \
                     ' >%(repo_path)s && %%(yum_command)s && yum clean all && rm -f %(repo_path)s' \
-                    % {'repo_path': self.repo_path}
-        for line in fileinput.input(self.workflow.builder.df_path, inplace=1):
-            # FIXME: won't work for multiline commands
-            re_match = re.match(r"^RUN (?P<yum_command>yum.+$)", line)
-            if re_match:
-                re_match_dict = re_match.groupdict()
-                sys.stdout.write(line.replace(re_match_dict['yum_command'], shell_cmd % re_match_dict))
-            else:
-                sys.stdout.write(line)
+                    % {'repo_path': self.repo_path, 'yum_command': match.group('yum_command').rstrip() }
 
 
+        dockerfile_content = "".join([line for line in fileinput.input(self.workflow.builder.df_path, inplace=1)])
+        rege = re.compile(r"RUN (?P<yum_command>yum((\s.+\\\n)+)?(.+))")
+        sys.stdout.write(rege.sub(shell_cmd, dockerfile_content))
