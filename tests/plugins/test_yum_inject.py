@@ -43,4 +43,41 @@ def test_yuminject_plugin(tmpdir):
     assert InjectYumRepoPlugin.key is not None
     with open(tmp_df, 'r') as fd:
         altered_df = fd.read()
+    print(altered_df)
+    assert metalink in altered_df
+
+
+def test_yuminject_multiline(tmpdir):
+    df = """\
+FROM fedora
+RUN yum install -y httpd \
+                   uwsgi
+CMD blabla"""
+    tmp_df = os.path.join(str(tmpdir), 'Dockerfile')
+    with open(tmp_df, mode="w") as fd:
+        fd.write(df)
+
+    tasker = DockerTasker()
+    workflow = DockerBuildWorkflow(git_url, "test-image")
+    setattr(workflow, 'builder', X)
+
+    metalink = r'https://mirrors.fedoraproject.org/metalink?repo=fedora-\$releasever&arch=\$basearch'
+
+    workflow.repos['yum'] = [{
+                             'name': 'my-repo',
+                             'metalink': metalink,
+                             'enabled': 1,
+                             'gpgcheck': 0,
+    }]
+    setattr(workflow.builder, 'image_id', "asd123")
+    setattr(workflow.builder, 'df_path', tmp_df)
+    setattr(workflow.builder, 'base_image_name', "fedora")
+    setattr(workflow.builder, 'base_tag', "21")
+    runner = PreBuildPluginsRunner(tasker, workflow,
+                                   [{'name': InjectYumRepoPlugin.key, 'args': {}}])
+    runner.run()
+    assert InjectYumRepoPlugin.key is not None
+    with open(tmp_df, 'r') as fd:
+        altered_df = fd.read()
+    print(altered_df)
     assert metalink in altered_df
