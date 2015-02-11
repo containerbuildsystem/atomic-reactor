@@ -1,9 +1,11 @@
+from __future__ import print_function
+
 import os
-import shutil
+from collections import OrderedDict
 from dock.core import DockerTasker
 from dock.inner import DockerBuildWorkflow
 from dock.plugin import PreBuildPluginsRunner, PostBuildPluginsRunner
-from dock.plugins.pre_inject_yum_repo import InjectYumRepoPlugin
+from dock.plugins.pre_inject_yum_repo import InjectYumRepoPlugin, alter_yum_commands
 
 
 git_url = "https://github.com/TomasTomecek/docker-hello-world.git"
@@ -15,9 +17,13 @@ class X(object):
 
 
 def test_yuminject_plugin(tmpdir):
-    this_dir = os.path.dirname(os.path.abspath(__file__))
+    df = """\
+FROM fedora
+RUN yum install -y python-django
+CMD blabla"""
     tmp_df = os.path.join(str(tmpdir), 'Dockerfile')
-    shutil.copy2(os.path.join(this_dir, 'Dockerfile'), tmp_df)
+    with open(tmp_df, mode="w") as fd:
+        fd.write(df)
 
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(git_url, "test-image")
@@ -25,12 +31,13 @@ def test_yuminject_plugin(tmpdir):
 
     metalink = 'https://mirrors.fedoraproject.org/metalink?repo=fedora-\$releasever&arch=\$basearch'
 
-    workflow.repos['yum'] = [{
-        'name': 'my-repo',
-        'metalink': metalink,
-        'enabled': 1,
-        'gpgcheck': 0,
-    }]
+    workflow.repos['yum'] = [OrderedDict(
+        (('name', 'my-repo'),
+        ('metalink', metalink),
+        ('enabled', 1),
+        ('gpgcheck', 0)),
+    )]
+
     setattr(workflow.builder, 'image_id', "asd123")
     setattr(workflow.builder, 'df_path', tmp_df)
     setattr(workflow.builder, 'base_image_name', "fedora")
@@ -43,8 +50,10 @@ def test_yuminject_plugin(tmpdir):
     assert InjectYumRepoPlugin.key is not None
     with open(tmp_df, 'r') as fd:
         altered_df = fd.read()
-    print(altered_df)
-    assert metalink in altered_df
+    expected_output = r"""FROM fedora
+RUN printf "[my-repo]\nname=my-repo\nmetalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-\$releasever&arch=\$basearch\nenabled=1\ngpgcheck=0\n" >/etc/yum.repos.d/dock-injected.repo && yum install -y python-django && yum clean all && rm -f /etc/yum.repos.d/dock-injected.repo
+CMD blabla"""
+    assert expected_output == altered_df
 
 
 def test_yuminject_multiline(tmpdir):
@@ -63,12 +72,12 @@ CMD blabla"""
 
     metalink = r'https://mirrors.fedoraproject.org/metalink?repo=fedora-\$releasever&arch=\$basearch'
 
-    workflow.repos['yum'] = [{
-                             'name': 'my-repo',
-                             'metalink': metalink,
-                             'enabled': 1,
-                             'gpgcheck': 0,
-    }]
+    workflow.repos['yum'] = [OrderedDict(
+        (('name', 'my-repo'),
+        ('metalink', metalink),
+        ('enabled', 1),
+        ('gpgcheck', 0)),
+    )]
     setattr(workflow.builder, 'image_id', "asd123")
     setattr(workflow.builder, 'df_path', tmp_df)
     setattr(workflow.builder, 'base_image_name', "fedora")
@@ -79,5 +88,30 @@ CMD blabla"""
     assert InjectYumRepoPlugin.key is not None
     with open(tmp_df, 'r') as fd:
         altered_df = fd.read()
-    print(altered_df)
-    assert metalink in altered_df
+    expected_output = r"""FROM fedora
+RUN printf "[my-repo]\nname=my-repo\nmetalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-\$releasever&arch=\$basearch\nenabled=1\ngpgcheck=0\n" >/etc/yum.repos.d/dock-injected.repo && yum install -y httpd                    uwsgi && yum clean all && rm -f /etc/yum.repos.d/dock-injected.repo
+CMD blabla"""
+    assert altered_df == expected_output
+
+
+def test_complex_df():
+    df = """\
+FROM fedora
+RUN asd
+RUN yum install x
+ENV x=y
+RUN yum install \
+    x \
+    y \
+    && something else
+CMD asd"""
+    wrap_cmd = "RUN test && %(yum_command)s && asd"
+    out = alter_yum_commands(df, wrap_cmd)
+    expected_output = """\
+FROM fedora
+RUN asd
+RUN test && yum install x && asd
+ENV x=y
+RUN test && yum install     x     y     && something else && asd
+CMD asd"""
+    assert out == expected_output

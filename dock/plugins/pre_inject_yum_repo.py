@@ -1,12 +1,17 @@
 """
 Pre build plugin which injects custom yum repository in dockerfile.
 """
-import fileinput
 import os
 import re
 import uuid
 import sys
 from dock.plugin import PreBuildPlugin
+
+
+def alter_yum_commands(df, wrap_str):
+    regex = re.compile(r"RUN (?P<yum_command>yum((\s.+\\\n)+)?(.+))", re.MULTILINE)
+    sub_func = lambda match: wrap_str % {'yum_command': match.group('yum_command').rstrip()}
+    return regex.sub(sub_func, df)
 
 
 class InjectYumRepoPlugin(PreBuildPlugin):
@@ -38,11 +43,13 @@ class InjectYumRepoPlugin(PreBuildPlugin):
             rendered_repo = r'[%(name)s]\n' % repo + rendered_repo
             rendered_repos += rendered_repo
 
-        shell_cmd = lambda match: 'RUN printf "%s"' % rendered_repos + \
-                    ' >%(repo_path)s && %%(yum_command)s && yum clean all && rm -f %(repo_path)s' \
-                    % {'repo_path': self.repo_path, 'yum_command': match.group('yum_command').rstrip() }
+        wrap_cmd = 'RUN printf "%s"' % rendered_repos + \
+            ' >%(repo_path)s && %%(yum_command)s && yum clean all && rm -f %(repo_path)s' \
+            % {'repo_path': self.repo_path}
 
-
-        dockerfile_content = "".join([line for line in fileinput.input(self.workflow.builder.df_path, inplace=1)])
-        rege = re.compile(r"RUN (?P<yum_command>yum((\s.+\\\n)+)?(.+))")
-        sys.stdout.write(rege.sub(shell_cmd, dockerfile_content))
+        with open(self.workflow.builder.df_path, "r+") as fd:
+            df = fd.read()
+            out = alter_yum_commands(df, wrap_cmd)
+            fd.seek(0)
+            fd.truncate()
+            fd.write(out)
