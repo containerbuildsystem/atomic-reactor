@@ -88,8 +88,8 @@ class DockerBuildWorkflow(object):
 
         self.prebuild_plugins_conf = prebuild_plugins
         self.postbuild_plugins_conf = postbuild_plugins
-        self.prebuild_results = None
-        self.postbuild_results = None
+        self.prebuild_results = {}
+        self.postbuild_results = {}
 
         self.kwargs = kwargs
 
@@ -115,7 +115,7 @@ class DockerBuildWorkflow(object):
             # base image
             logger.info("running pre-build plugins")
             prebuild_runner = PreBuildPluginsRunner(self.builder.tasker, self, self.prebuild_plugins_conf)
-            self.prebuild_results = prebuild_runner.run()
+            prebuild_runner.run()
 
             image = self.builder.build()
             # TODO: in case of docker host build, remove image
@@ -126,7 +126,7 @@ class DockerBuildWorkflow(object):
                         self.builder.push_built_image(target_registry)
 
             postbuild_runner = PostBuildPluginsRunner(self.builder.tasker, self, self.postbuild_plugins_conf)
-            self.postbuild_results = postbuild_runner.run()
+            postbuild_runner.run()
             return image
         finally:
             shutil.rmtree(tmpdir)

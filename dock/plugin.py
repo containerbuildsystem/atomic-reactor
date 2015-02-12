@@ -80,6 +80,7 @@ class PluginsRunner(object):
         :param plugin_class_name: str, name of plugin class to filter (e.g. 'PreBuildPlugin')
         :param plugins_conf: dict, configuration for plugins
         """
+        self.plugins_results = getattr(self, "plugins_results", {})
         self.plugins_conf = plugins_conf or {}
         self.plugin_classes = self.load_plugins(plugin_class_name)
 
@@ -131,7 +132,6 @@ class PluginsRunner(object):
         """
         run all requested plugins
         """
-        result = {}
         for plugin_request in self.plugins_conf:
             try:
                 plugin_name = plugin_request['name']
@@ -161,8 +161,8 @@ class PluginsRunner(object):
                 logger.debug(traceback.format_exc())
                 plugin_response = msg
 
-            result[plugin_instance.key] = plugin_response
-        return result
+            self.plugins_results[plugin_instance.key] = plugin_response
+        return self.plugins_results
 
 
 class BuildPluginsRunner(PluginsRunner):
@@ -209,6 +209,7 @@ class PreBuildPlugin(BuildPlugin):
 class PreBuildPluginsRunner(BuildPluginsRunner):
 
     def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
+        self.plugins_results = workflow.prebuild_results
         super(PreBuildPluginsRunner, self).__init__(dt, workflow, 'PreBuildPlugin', plugins_conf, *args, **kwargs)
 
 
@@ -219,6 +220,7 @@ class PostBuildPlugin(BuildPlugin):
 class PostBuildPluginsRunner(BuildPluginsRunner):
 
     def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
+        self.plugins_results = workflow.postbuild_results
         super(PostBuildPluginsRunner, self).__init__(dt, workflow, 'PostBuildPlugin', plugins_conf, *args, **kwargs)
 
 
@@ -229,4 +231,5 @@ class InputPlugin(Plugin):
 class InputPluginsRunner(PluginsRunner):
 
     def __init__(self, plugins_conf, *args, **kwargs):
+        self.plugins_results = {}
         super(InputPluginsRunner, self).__init__('InputPlugin', plugins_conf, *args, **kwargs)
