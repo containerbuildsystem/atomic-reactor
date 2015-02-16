@@ -39,6 +39,8 @@ class OSV3(object):
 
     def store_build_json(self):
         r = requests.put(self._builds_url(), json=self.build_json)
+        if not r.ok:
+            raise RuntimeError("failed to update build json: [%d]: %s", r.status_code, r.content)
 
 
 class StoreMetadataInOSv3Plugin(PostBuildPlugin):
@@ -74,7 +76,7 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
         o.update_labels({
             "dockerfile": self.workflow.prebuild_results.get("dockerfile_content", ""),
             "artefacts": self.workflow.prebuild_results.get("distgit_fetch_artefacts", ""),
-            "logs": self.workflow.build_logs,
-            "rpm_packages": self.workflow.postbuild_results.get("all_rpm_packages", ""),
+            "logs": "\n".join(self.workflow.build_logs),
+            "rpm_packages": "\n".join(self.workflow.postbuild_results.get("all_rpm_packages", "")),
         })
         o.store_build_json()
