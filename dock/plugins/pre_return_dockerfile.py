@@ -26,6 +26,6 @@ class CpDockerfilePlugin(PreBuildPlugin):
             with open(self.workflow.builder.df_path, 'r') as fd:
                 return fd.read()
         except (IOError, OSError) as ex:
-            msg = "Couldn't copy dockerfile: %s" % repr(ex)
+            msg = "Couldn't retrieve dockerfile: %s" % repr(ex)
             self.log.error(msg)
             return msg

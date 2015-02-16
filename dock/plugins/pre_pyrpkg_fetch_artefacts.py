@@ -29,9 +29,11 @@ class DistgitFetchArtefactsPlugin(PreBuildPlugin):
         fetch artefacts
         """
         sources_file_path = os.path.join(self.workflow.builder.git_path, 'sources')
+        artefacts = ""
         try:
             with open(sources_file_path, 'r') as f:
-                self.log.info('Sources file:\n%s', f.read())
+                artefacts = f.read()
+                self.log.info('Sources file:\n%s', artefacts)
         except IOError as ex:
             if ex.errno == 2:
                 self.log.info("no sources file")
@@ -40,3 +42,4 @@ class DistgitFetchArtefactsPlugin(PreBuildPlugin):
 
         subprocess.check_call([self.binary, "--path", self.workflow.builder.git_path, "sources",
                                "--outdir", self.workflow.builder.git_path])
+        return artefacts
