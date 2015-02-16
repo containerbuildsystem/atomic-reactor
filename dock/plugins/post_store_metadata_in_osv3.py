@@ -77,6 +77,6 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
             "dockerfile": self.workflow.prebuild_results.get("dockerfile_content", ""),
             "artefacts": self.workflow.prebuild_results.get("distgit_fetch_artefacts", ""),
             "logs": "\n".join(self.workflow.build_logs),
-            "rpm_packages": "\n".join(self.workflow.postbuild_results.get("all_rpm_packages", "")),
+            "rpm-packages": "\n".join(self.workflow.postbuild_results.get("all_rpm_packages", "")),
         })
         o.store_build_json()
