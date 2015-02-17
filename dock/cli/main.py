@@ -1,6 +1,7 @@
 import json
 import argparse
 import logging
+import os
 import sys
 
 from dock import build_image_here, build_image_in_privileged_container, \
@@ -27,6 +28,8 @@ def cli_create_build_image(args):
 
 
 def cli_build_image(args):
+    if args.plugin_files:
+        args.plugin_files = [os.path.abspath(f) for f in args.plugin_files]
     if args.json:
         with open(args.json) as json_fp:
             common_kwargs = json.load(json_fp)
@@ -45,7 +48,7 @@ def cli_build_image(args):
     elif args.method == "privileged":
         response = build_image_in_privileged_container(args.build_image, **common_kwargs)
     elif args.method == 'here':
-        image = build_image_here(**common_kwargs)
+        image = build_image_here(plugin_files=args.plugin_files, **common_kwargs)
         if not image:
             response.return_code = -1
         else:
@@ -98,6 +101,8 @@ class CLI(object):
         build_parser.add_argument("--target-registries", action='store', nargs="*",
                                   metavar="REGISTRY",
                                   help="list of registries to push image to")
+        build_parser.add_argument("--load-plugin", action="store", nargs="*", metavar="PLUGIN_FILE",
+                                  dest="plugin_files", help="list of files where plugins live")
         build_parser.add_argument("--method", action='store', choices=["hostdocker", "privileged", "here"],
                                   required=True,
                                   help="choose method for building image: 'hostdocker' mounts socket "

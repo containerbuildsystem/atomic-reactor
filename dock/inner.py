@@ -68,7 +68,7 @@ class DockerBuildWorkflow(object):
 
     def __init__(self, git_url, image, git_dockerfile_path=None,
                  git_commit=None, parent_registry=None, target_registries=None,
-                 prebuild_plugins=None, postbuild_plugins=None, **kwargs):
+                 prebuild_plugins=None, postbuild_plugins=None, plugin_files=None, **kwargs):
         """
         :param git_url: str, URL to git repo
         :param image: str, tag for built image ([registry/]image_name[:tag])
@@ -78,6 +78,7 @@ class DockerBuildWorkflow(object):
         :param target_registries: list of str, list of registries to push image to (might change in future)
         :param prebuild_plugins: dict, arguments for pre-build plugins
         :param postbuild_plugins: dict, arguments for post-build plugins
+        :param plugin_files: list of str, load plugins also from these files
         """
         self.git_url = git_url
         self.image = image
@@ -90,6 +91,7 @@ class DockerBuildWorkflow(object):
         self.postbuild_plugins_conf = postbuild_plugins
         self.prebuild_results = {}
         self.postbuild_results = {}
+        self.plugin_files = plugin_files
 
         self.kwargs = kwargs
 
@@ -114,7 +116,8 @@ class DockerBuildWorkflow(object):
             # time to run pre-build plugins, so they can access cloned repo,
             # base image
             logger.info("running pre-build plugins")
-            prebuild_runner = PreBuildPluginsRunner(self.builder.tasker, self, self.prebuild_plugins_conf)
+            prebuild_runner = PreBuildPluginsRunner(self.builder.tasker, self, self.prebuild_plugins_conf,
+                                                    plugin_files=self.plugin_files)
             prebuild_runner.run()
 
             image = self.builder.build()
@@ -125,7 +128,8 @@ class DockerBuildWorkflow(object):
                     for target_registry in self.target_registries:
                         self.builder.push_built_image(target_registry)
 
-            postbuild_runner = PostBuildPluginsRunner(self.builder.tasker, self, self.postbuild_plugins_conf)
+            postbuild_runner = PostBuildPluginsRunner(self.builder.tasker, self, self.postbuild_plugins_conf,
+                                                      plugin_files=self.plugin_files)
             postbuild_runner.run()
             return image
         finally:

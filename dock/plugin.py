@@ -9,6 +9,7 @@ import logging
 import os
 import sys
 import traceback
+import imp
 
 import dock.plugins
 from dock.util import join_img_name_tag
@@ -82,6 +83,7 @@ class PluginsRunner(object):
         """
         self.plugins_results = getattr(self, "plugins_results", {})
         self.plugins_conf = plugins_conf or {}
+        self.plugin_files = kwargs.get("plugin_files", [])
         self.plugin_classes = self.load_plugins(plugin_class_name)
 
     def load_plugins(self, plugin_class_name):
@@ -89,29 +91,35 @@ class PluginsRunner(object):
         load all available plugins
         """
         # imp.findmodule('dock') doesn't work
-        file = dock.plugins.__file__
-        plugins_dir = os.path.dirname(file)
-        plugins = set(['dock.plugins.' + os.path.splitext(module)[0]
-                       for module in os.listdir(plugins_dir)
-                       if module.endswith(MODULE_EXTENSIONS) and
-                       not module.startswith('__init__.py')])
-        this_module = importlib.import_module('dock.plugin')
-        absolutely_imported_plugin_class = getattr(this_module, plugin_class_name)
+        plugins_dir = os.path.join(os.path.dirname(__file__), 'plugins')
+        logger.debug("loading plugins from dir '%s'", plugins_dir)
+        files = [os.path.join(plugins_dir, f) \
+                 for f in os.listdir(plugins_dir) \
+                 if f.endswith(".py")]
+        if self.plugin_files:
+            logger.debug("loading additional plugins from files '%s'", self.plugin_files)
+            files += self.plugin_files
+        plugin_class = globals()[plugin_class_name]
         plugin_classes = {}
-        for plugin_name in plugins:
-            plugin = importlib.import_module(plugin_name)
-            for name in dir(plugin):
-                binding = getattr(plugin, name, None)
+        for f in files:
+            logger.debug("load file '%s'", f)
+            try:
+                f_module = imp.load_source("", f)
+            except (IOError, OSError, ImportError) as ex:
+                logger.warning("can't load module '%s': %s", f, repr(ex))
+                continue
+            for name in dir(f_module):
+                binding = getattr(f_module, name, None)
                 try:
                     # if you try to compare binding and PostBuildPlugin, python won't match them if you call
                     # this script directly b/c:
                     # ! <class 'plugins.plugin_rpmqa.PostBuildRPMqaPlugin'> <= <class '__main__.PostBuildPlugin'>
                     # but
                     # <class 'plugins.plugin_rpmqa.PostBuildRPMqaPlugin'> <= <class 'dock.plugin.PostBuildPlugin'>
-                    is_sub = issubclass(binding, absolutely_imported_plugin_class)
+                    is_sub = issubclass(binding, plugin_class)
                 except TypeError:
                     is_sub = False
-                if binding and is_sub and absolutely_imported_plugin_class.__name__ != binding.__name__:
+                if binding and is_sub and plugin_class.__name__ != binding.__name__:
                     plugin_classes[binding.key] = binding
         return plugin_classes
 
