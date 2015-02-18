@@ -1,7 +1,7 @@
 %global owner DBuildService
 %global project dock
 
-%global commit b08141fab67c5c602f6f02340677c92af6fe5bfb
+%global commit 4bd2f17017a62184d43da1bb689110c9562b0956
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 
 Name:           dock
