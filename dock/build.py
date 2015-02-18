@@ -7,7 +7,7 @@ import logging
 
 from dock.core import DockerTasker, LastLogger
 from dock.util import get_baseimage_from_dockerfile, split_repo_img_name_tag, LazyGit, wait_for_command, \
-    join_img_name_tag, figure_out_dockerfile
+    join_img_name_tag, figure_out_dockerfile, join_repo_img_name
 
 
 logger = logging.getLogger(__name__)
@@ -152,7 +152,8 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
         if not registry:
             logger.warning("no registry specified; skipping")
             return
-        return self.tasker.tag_and_push_image(self.image, self.image_name, registry, tag=self.tag)
+        local_registry = join_repo_img_name(self.reg_uri, self.image_name)
+        return self.tasker.tag_and_push_image(self.image, local_registry, registry, tag=self.tag)
 
     def inspect_base_image(self):
         """
