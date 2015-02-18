@@ -176,8 +176,6 @@ class DockerTasker(LastLogger):
         prior_to_build = datetime.datetime.now()
         response = self.d.build(path=path, tag=image, stream=stream, nocache=not use_cache,
                                 rm=remove_im)  # returns generator
-        logger.info("build finished")
-        logger.debug("build time = %s", datetime.datetime.now() - prior_to_build)
         return response
 
     def build_image_from_git(self, url, image, git_path=None, git_commit=None, copy_dockerfile_to=None,
