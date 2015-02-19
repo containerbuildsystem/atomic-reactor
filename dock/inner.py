@@ -8,7 +8,7 @@ import shutil
 import tempfile
 
 from dock.build import InsideBuilder
-from dock.plugin import PostBuildPluginsRunner, PreBuildPluginsRunner, InputPluginsRunner
+from dock.plugin import PostBuildPluginsRunner, PreBuildPluginsRunner, InputPluginsRunner, PrePublishPluginsRunner
 
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,8 @@ class DockerBuildWorkflow(object):
 
     def __init__(self, git_url, image, git_dockerfile_path=None,
                  git_commit=None, parent_registry=None, target_registries=None,
-                 prebuild_plugins=None, postbuild_plugins=None, plugin_files=None, **kwargs):
+                 prebuild_plugins=None, prepublish_plugins=None ,postbuild_plugins=None,
+                 plugin_files=None, **kwargs):
         """
         :param git_url: str, URL to git repo
         :param image: str, tag for built image ([registry/]image_name[:tag])
@@ -77,6 +78,7 @@ class DockerBuildWorkflow(object):
         :param parent_registry: str, registry to pull base image from
         :param target_registries: list of str, list of registries to push image to (might change in future)
         :param prebuild_plugins: dict, arguments for pre-build plugins
+        :param prepublish_plugins: dict, arguments for test-build plugins
         :param postbuild_plugins: dict, arguments for post-build plugins
         :param plugin_files: list of str, load plugins also from these files
         """
@@ -88,6 +90,7 @@ class DockerBuildWorkflow(object):
         self.target_registries = target_registries
 
         self.prebuild_plugins_conf = prebuild_plugins
+        self.prepublish_plugins_conf = prepublish_plugins
         self.postbuild_plugins_conf = postbuild_plugins
         self.prebuild_results = {}
         self.postbuild_results = {}
@@ -119,8 +122,10 @@ class DockerBuildWorkflow(object):
             prebuild_runner = PreBuildPluginsRunner(self.builder.tasker, self, self.prebuild_plugins_conf,
                                                     plugin_files=self.plugin_files)
             prebuild_runner.run()
-
             image = self.builder.build()
+            # run prepublish plugins
+            prepublish_runner = PrePublishPluginsRunner(self.builder.tasker, self, self.prepublish_plugins_conf)
+            prepublish_runner.run()
             # TODO: in case of docker host build, remove image
             self.build_logs = self.builder.last_logs[:]
             if image:
