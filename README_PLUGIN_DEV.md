@@ -7,9 +7,9 @@ This is a guide for writing plugins for dock.
 
 There are 3 types of plugins:
 
-1. ''Input'' — when running dock inside a build container, input plugin fetches build input (it can live in [path](https://github.com/DBuildService/dock/blob/master/dock/plugins/input_path.py), [environment variable](https://github.com/DBuildService/dock/blob/master/dock/plugins/input_env.py), ...)
-2. ''Pre-build'' — this plugin is executed after clonning a git repo (so you can edit sources, Dockerfile, ...), prior to build
-3. ''Post-build'' — these are run as a last thing of build process (when build is finished and image was pushed to registries)
+1. **Input** — when running dock inside a build container, input plugin fetches build input (it can live in [path](https://github.com/DBuildService/dock/blob/master/dock/plugins/input_path.py), [environment variable](https://github.com/DBuildService/dock/blob/master/dock/plugins/input_env.py), ...)
+2. **Pre-build** — this plugin is executed after clonning a git repo (so you can edit sources, Dockerfile, ...), prior to build
+3. **Post-build** — these are run as a last thing of build process (when build is finished and image was pushed to registries)
 
 ### Plugin configuration
 
@@ -87,7 +87,7 @@ class LogSubmitter(PostBuildPlugin):
 
     def run(self):
         """
-        each plugin has to implement this method -- it is used to run the plugin actually
+        each plugin has to implement this method — it is used to run the plugin actually
 
         response from this method is stored in `workflow.postbuild_results[self.key]`
         """
@@ -97,16 +97,16 @@ class LogSubmitter(PostBuildPlugin):
 
 There are two objects which enable you access to all the dock's magic:
 
-1. ''self.tasker'' -- instance of `dock.core.DockerTasker`: it is a thin wrapper on top of [docker-py](https://github.com/docker/docker-py) -- this is your access to docker
-2. ''self.workflow'' -- instance of `dock.inner.DockerBuildWorkflow`: also contains a link, `self.workflow.builder`, to instance of `dock.build.InsideBuilder` -- these instances contain whole configuration, go ahead and change it however you want
+1. **self.tasker** — instance of `dock.core.DockerTasker`: it is a thin wrapper on top of [docker-py](https://github.com/docker/docker-py) — this is your access to docker
+2. **self.workflow** — instance of `dock.inner.DockerBuildWorkflow`: also contains a link, `self.workflow.builder`, to instance of `dock.build.InsideBuilder` — these instances contain whole configuration, go ahead and change it however you want
 
-Neat! Let's try our plugin. We'll have a simple webserver in terminal 1:
+Neat! Let's try our plugin. We'll have a webserver in terminal 1:
 
 ```
 terminal1 $ ncat -kl localhost 9099
 ```
 
-We also need a simple json for the build itself (let's my [hello world dockerfile](http://github.com/TomasTomecek/docker-hello-world)), the name of the file will be `build.json`:
+We also need an input json for the build itself (let's use my [hello world dockerfile](http://github.com/TomasTomecek/docker-hello-world)), the name of the file will be `build.json`:
 
 ```
 {
@@ -121,7 +121,7 @@ We also need a simple json for the build itself (let's my [hello world dockerfil
 }
 ```
 
-Time to run the build (we'll build an image, ''test-image'', in current environment (not inside a build container), getting data from `./build.json` and finally, we'll tell dock to load our plugin):
+Time to run the build (we'll build an image, `test-image`, in current environment (not inside a build container), getting data from `./build.json` and finally, we'll tell dock to load our plugin):
 
 ```
 terminal2 $ dock -v build --method here --json ./build.json --load-plugin ./post_logs_submitter.py
@@ -146,9 +146,9 @@ Content-Type: application/json
 {"logs": ["{\"stream\":\"Step 0 : FROM fedora:latest\\n\"}\r\n", "{\"stream\":\" ---\\u003e 834629358fe2\\n\"}\r\n", "{\"stream\":\"Step 1 : RUN uname -a\\n\"}\r\n", "{\"stream\":\" ---\\u003e Running in b9207945f6fd\\n\"}\r\n", "{\"stream\":\"Linux c4e263145f81 3.18.6-200.fc21.x86_64 #1 SMP Fri Feb 6 22:59:42 UTC 2015 x86_64 x86_64 x86_64 GNU/Linux\\n\"}\r\n", "{\"stream\":\" ---\\u003e 48c3bcd190b1\\n\"}\r\n", "{\"stream\":\"Removing intermediate container b9207945f6fd\\n\"}\r\n", "{\"stream\":\"Successfully built 48c3bcd190b1\\n\"}\r\n"]}
 ```
 
-As you can see, dock posted the json.
+As you can see, dock posted the json to the provided URL. Sweet!
 
-'...now's ncat waiting with response -- it may actually look stuck. Just hit enter or `ctrl+c`.'
+'...now's ncat waiting with response — it may actually look stuck. Just hit enter or `ctrl+c`.'
 
 
 And that's it.
