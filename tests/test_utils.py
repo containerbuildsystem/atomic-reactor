@@ -1,7 +1,8 @@
 import os
 import docker
 from dock.util import split_repo_img_name_tag, join_repo_img_name_tag, get_baseimage_from_dockerfile, \
-    join_repo_img_name, join_img_name_tag, wait_for_command, clone_git_repo
+    join_repo_img_name, join_img_name_tag, wait_for_command, clone_git_repo, LazyGit
+from tests.constants import DOCKERFILE_GIT
 
 
 TEST_DATA = [
@@ -73,3 +74,16 @@ def test_get_baseimg_from_df(tmpdir):
     clone_git_repo('https://github.com/TomasTomecek/docker-hello-world.git', tmpdir_path)
     base_img = get_baseimage_from_dockerfile(tmpdir_path)
     assert base_img.startswith('fedora')
+
+
+def test_lazy_git():
+    lazy_git = LazyGit(git_url=DOCKERFILE_GIT)
+    with lazy_git:
+        assert lazy_git.git_path is not None
+
+
+def test_lazy_git_with_tmpdir(tmpdir):
+    t = str(tmpdir.realpath())
+    lazy_git = LazyGit(git_url=DOCKERFILE_GIT, tmpdir=t)
+    assert lazy_git._tmpdir == t
+    assert lazy_git.git_path is not None
