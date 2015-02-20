@@ -19,6 +19,10 @@ MODULE_EXTENSIONS = ('.py', '.pyc', '.pyo')
 logger = logging.getLogger(__name__)
 
 
+class PluginFailedException(Exception):
+    """ There was an error during plugin execution """
+
+
 class Plugin(object):
     """ abstract plugin class """
 
@@ -144,17 +148,21 @@ class PluginsRunner(object):
             try:
                 plugin_name = plugin_request['name']
             except (TypeError, KeyError):
-                logger.error("Invalid plugin reuqest, no key 'name': %s", plugin_request)
+                logger.error("Invalid plugin request, no key 'name': %s", plugin_request)
                 continue
+            try:
+                plugin_can_fail = plugin_request['can_fail']
+            except (TypeError, KeyError):
+                plugin_can_fail = True
             try:
                 plugin_conf = plugin_request.get("args", {})
             except AttributeError:
-                logger.error("Invalid plugin reuqest, no key 'args': %s", plugin_request)
+                logger.error("Invalid plugin request, no key 'args': %s", plugin_request)
                 continue
             try:
                 plugin_class = self.plugin_classes[plugin_name]
             except KeyError:
-                logger.error("No such plugin: '%s'", plugin_name)
+                logger.error("No such plugin: '%s', did you set the correct plugin type?", plugin_name)
                 continue
 
             logger.debug("running plugin '%s' with args: '%s'", plugin_name, plugin_conf)
@@ -165,8 +173,10 @@ class PluginsRunner(object):
                 plugin_response = plugin_instance.run()
             except Exception as ex:
                 msg = "Plugin '%s' raised an exception: '%s'" % (plugin_instance.key, repr(ex))
-                logger.error(msg)
+                logger.warning(msg)
                 logger.debug(traceback.format_exc())
+                if not plugin_can_fail:
+                    raise PluginFailedException(msg)
                 plugin_response = msg
 
             self.plugins_results[plugin_instance.key] = plugin_response

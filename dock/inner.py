@@ -8,7 +8,8 @@ import shutil
 import tempfile
 
 from dock.build import InsideBuilder
-from dock.plugin import PostBuildPluginsRunner, PreBuildPluginsRunner, InputPluginsRunner, PrePublishPluginsRunner
+from dock.plugin import PostBuildPluginsRunner, PreBuildPluginsRunner, InputPluginsRunner, PrePublishPluginsRunner, \
+    PluginFailedException
 
 
 logger = logging.getLogger(__name__)
@@ -121,11 +122,22 @@ class DockerBuildWorkflow(object):
             logger.info("running pre-build plugins")
             prebuild_runner = PreBuildPluginsRunner(self.builder.tasker, self, self.prebuild_plugins_conf,
                                                     plugin_files=self.plugin_files)
-            prebuild_runner.run()
+            try:
+                prebuild_runner.run()
+            except PluginFailedException as ex:
+                logger.error("Plugin failed, aborting execution.")
+                return
             image = self.builder.build()
+
             # run prepublish plugins
-            prepublish_runner = PrePublishPluginsRunner(self.builder.tasker, self, self.prepublish_plugins_conf)
-            prepublish_runner.run()
+            prepublish_runner = PrePublishPluginsRunner(self.builder.tasker, self, self.prepublish_plugins_conf,
+                                                        plugin_files=self.plugin_files)
+            try:
+                prepublish_runner.run()
+            except PluginFailedException as ex:
+                logger.error("Plugin failed, aborting execution.")
+                return
+
             # TODO: in case of docker host build, remove image
             self.build_logs = self.builder.last_logs[:]
             if image:
@@ -135,7 +147,12 @@ class DockerBuildWorkflow(object):
 
             postbuild_runner = PostBuildPluginsRunner(self.builder.tasker, self, self.postbuild_plugins_conf,
                                                       plugin_files=self.plugin_files)
-            postbuild_runner.run()
+            try:
+                postbuild_runner.run()
+            except PluginFailedException as ex:
+                logger.error("Plugin failed, aborting execution.")
+                return
+
             return image
         finally:
             shutil.rmtree(tmpdir)
