@@ -1,49 +1,74 @@
-import json
-import sys
+"""
+Plugin which runs arbitrary test suite.
+
+The test suite is executed from provided git repo (git_uri). You have to provide image ID,
+this image will be tested. Python source file with tests is loaded from the git repo, specify
+name or name it tests.py. Tests accept configuration file config_file (default value is
+config.json). You can also specify arbitrary keyword arguments which will be passed to the
+test module.
+
+The test module has to satisfy two conditions:
+
+1. it has to have function with prototype
+
+    def run(config_file, image_id, logger=None, **kwargs):
+        ...
+        return results, passed
+
+2. it has to return two values:
+
+    1. first value is results
+    2. second value is bool, whether test suite passed
+
+third optional argument of run function is logger (if not specified, all logs are 'print'ed to stdout)
+"""
+
 import os
-from dock.constants import CONTAINER_RESULTS_JSON_PATH
-from dock.inner import BuildResultsEncoder
+import imp
+
 from dock.plugin import PrePublishPlugin
+from dock.util import LazyGit
 
 
-__all__ = ('StoreLogsToFilePlugin', )
+__all__ = ('ImageTestPlugin', )
 
 
-class RunTestForContainer(PrePublishPlugin):
-    key = "run_test_for_container"
-    image = None
-    path = None
-    class_name = None
-    git_repo = None
+class ImageTestPlugin(PrePublishPlugin):
+    key = "test_built_image"
 
-    def __init__(self, tasker, workflow, test_class_name, image_dir, git_repo_path, image_id):
+    def __init__(self, tasker, workflow, git_uri, image_id, tests_git_path="tests.py",
+                 config_file="config.json", **kwargs):
         """
         constructor
 
         :param tasker: DockerTasker instance
-        :param workflow: DockerBuildWorkflow instance
-        :param file_path: str, path to file where logs should be stored
+        :param workflow: DockurBuildWorkflow instance
+        :param git_uri: str, URI to git repo (URL, path -- this is passed to 'git clone')
+        :param image_id: str, ID of image to process
+        :param tests_git_path: str, relative path within git repo to file with tests (default=tests.py)
+        :param config_file: str, relative path within git to config file for tests (default=config.json)
+        :param kwargs: dict, additional arguments for tests
         """
         # call parent constructor
-        super(RunTestForContainer, self).__init__(tasker, workflow)
+        super(ImageTestPlugin, self).__init__(tasker, workflow)
+        self.git_uri = git_uri
         self.image_id = image_id
-        self.image_dir = image_dir
-        self.class_name = test_class_name
-        self.git_repo = git_repo_path
+        self.tests_git_path = tests_git_path
+        self.config_file = config_file
+        self.kwargs = kwargs
 
     def run(self):
-        if self.image_dir is None:
-            dir = self.git_repo + "/"
-        else:
-            dir = self.git_repo + "/" + self.image_dir + "/"
-        self.exec_test_from_dir(dir)
-
-    def exec_test_from_dir(self, dir):
-        dir = os.path.abspath(dir)
-        sys.path.insert(0, dir)
-        module = __import__("mw_docker_smoke_tests")
-        obj = getattr(module, self.class_name)
-        test = obj()
-        test.setup(image=self.image, config_file=dir+'/config.json' )
-        test.run()
-        test.teardown()
+        if not self.image_id:
+            self.log.warning("no image_id specified (build probably failed)")
+            return
+        g = LazyGit(git_url=self.git_uri)
+        with g:
+            tests_file = os.path.abspath(os.path.join(g.git_path, self.tests_git_path))
+            self.log.debug("loading file with tests: '%s'", tests_file)
+            tests_module = imp.load_source("", tests_file)
+            results, passed = tests_module.run(config_file=self.config_file, image_id=self.image_id,
+                                               logger=self.log, **self.kwargs)
+            if not passed:
+                self.log.error("tests failed: %s", results)
+                raise RuntimeError("Tests didn't pass!")
+            return results
