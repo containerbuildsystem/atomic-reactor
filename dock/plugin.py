@@ -195,6 +195,8 @@ class BuildPluginsRunner(PluginsRunner):
         """
         translation_dict = {
             'BUILT_IMAGE_ID': self.workflow.builder.image_id,
+            'BUILD_DOCKERFILE_PATH' : self.workflow.builder.git_dockerfile_path,
+            'BUILD_GIT_PATH' :  self.workflow.builder.git_path,
             'BASE_IMAGE': join_img_name_tag(self.workflow.builder.base_image_name,
                                             self.workflow.builder.base_tag)
         }
@@ -206,6 +208,7 @@ class BuildPluginsRunner(PluginsRunner):
 
     def create_instance_from_plugin(self, plugin_class, plugin_conf):
         translated_conf = self._translate_special_values(plugin_conf)
+        print (translated_conf)
         plugin_instance = plugin_class(self.dt, self.workflow, **translated_conf)
         return plugin_instance
 
@@ -219,6 +222,16 @@ class PreBuildPluginsRunner(BuildPluginsRunner):
     def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
         self.plugins_results = workflow.prebuild_results
         super(PreBuildPluginsRunner, self).__init__(dt, workflow, 'PreBuildPlugin', plugins_conf, *args, **kwargs)
+
+class PrePublishPlugin(BuildPlugin):
+    pass
+
+
+class PrePublishPluginsRunner(BuildPluginsRunner):
+
+    def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
+        self.plugins_results = workflow.postbuild_results
+        super(PrePublishPluginsRunner, self).__init__(dt, workflow, 'PrePublishPlugin', plugins_conf, *args, **kwargs)
 
 
 class PostBuildPlugin(BuildPlugin):
