@@ -165,7 +165,7 @@ class PluginsRunner(object):
                 logger.error("No such plugin: '%s', did you set the correct plugin type?", plugin_name)
                 continue
 
-            logger.debug("running plugin '%s' with args: '%s'", plugin_name, plugin_conf)
+            logger.debug("running plugin '%s'", plugin_name)
 
             plugin_instance = self.create_instance_from_plugin(plugin_class, plugin_conf)
 
@@ -218,7 +218,7 @@ class BuildPluginsRunner(PluginsRunner):
 
     def create_instance_from_plugin(self, plugin_class, plugin_conf):
         translated_conf = self._translate_special_values(plugin_conf)
-        print (translated_conf)
+        logger.info("running plugin instance with args: '%s'", translated_conf)
         plugin_instance = plugin_class(self.dt, self.workflow, **translated_conf)
         return plugin_instance
 

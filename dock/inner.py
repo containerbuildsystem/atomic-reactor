@@ -69,7 +69,7 @@ class DockerBuildWorkflow(object):
 
     def __init__(self, git_url, image, git_dockerfile_path=None,
                  git_commit=None, parent_registry=None, target_registries=None,
-                 prebuild_plugins=None, prepublish_plugins=None ,postbuild_plugins=None,
+                 prebuild_plugins=None, prepublish_plugins=None, postbuild_plugins=None,
                  plugin_files=None, **kwargs):
         """
         :param git_url: str, URL to git repo
