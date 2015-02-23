@@ -38,7 +38,8 @@ class OSV3(object):
         self.build_json['metadata']['labels'].update(d)
 
     def store_build_json(self):
-        r = requests.put(self._builds_url(), json=self.build_json)
+        r = requests.put(self._builds_url(), data=json.dumps(self.build_json),
+                         headers={'content-type': 'application/json'})
         if not r.ok:
             raise RuntimeError("failed to update build json: [%d]: %s", r.status_code, r.content)
 
