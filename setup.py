@@ -5,11 +5,11 @@ import re
 from setuptools import setup, find_packages
 
 data_files = {
-    "/usr/share/dock/images/privileged-builder": [
+    "share/dock/images/privileged-builder": [
         "images/privileged-builder/Dockerfile",
         "images/privileged-builder/docker.sh",
     ],
-    "/usr/share/dock/images/dockerhost-builder": [
+    "share/dock/images/dockerhost-builder": [
         "images/dockerhost-builder/Dockerfile",
     ],
 }
