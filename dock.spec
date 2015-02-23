@@ -1,3 +1,5 @@
+%global with_python3 0
+
 %global owner DBuildService
 %global project dock
 
@@ -16,15 +18,23 @@ Source0:        https://github.com/%{owner}/%{project}/archive/%{commit}/%{proje
 
 BuildArch:      noarch
 
-BuildRequires:  python-devel
+BuildRequires:  python2-devel
 BuildRequires:  python-setuptools
+
+%if 0%{?with_python3}
+BuildRequires:  python3-devel
+BuildRequires:  python3-setuptools
+%endif
 
 Requires:       python-docker-py
 Requires:       GitPython
 Requires:       python-requests
 
 %description
-Simple python library with command line interface for building docker images. It contains a lot of helpful functions which you would probably implement if you started hooking docker into your infrastrucutre.
+Simple python library with command line interface for building docker
+images. It contains a lot of helpful functions which you would
+probably implement if you started hooking docker into your
+infrastructure.
 
 
 %package koji
@@ -37,42 +47,116 @@ Requires:       koji
 Koji plugin for Dock
 
 
+%if 0%{?with_python3}
+%package -n python3-dock
+Summary:        Improved builder for Docker images
+Group:          Development/Tools
+License:        BSD
+Requires:       python3-docker-py
+Requires:       python3-requests
+# python3 build is missing for GitPython
+Requires:       GitPython
+
+%description -n python3-dock
+Simple python library with command line interface for building docker
+images. It contains a lot of helpful functions which you would
+probably implement if you started hooking docker into your
+infrastructure.
+
+
+%package -n python3-dock-koji
+Summary:        Koji plugin for Dock
+Group:          Development/Tools
+Requires:       python3-dock = %{version}-%{release}
+Requires:       koji
+
+%description -n python3-dock-koji
+Koji plugin for Dock
+%endif # with_python3
+
+
 %prep
 %setup -qn %{name}-%{commit}
+%if 0%{?with_python3}
+rm -rf %{py3dir}
+cp -a . %{py3dir}
+find %{py3dir} -name '*.py' | xargs sed -i '1s|^#!python|#!%{__python3}|'
+%endif # with_python3
 
 
 %build
 # build python package
 %{__python} setup.py build
-
+%if 0%{?with_python3}
+pushd %{py3dir}
+%{__python3} setup.py build
+popd
+%endif # with_python3
 
 %install
 mkdir -vp %{buildroot}/%{_datadir}/%{name}
 # install python package
 %{__python} setup.py install --skip-build --root %{buildroot}
+# ship dock in form of tarball so it can be installed within build image
 cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
-
+%if 0%{?with_python3}
+pushd %{py3dir}
+%{__python3} setup.py install --skip-build --root %{buildroot}
+popd
+%endif # with_python3
 
 %files
 %doc README.md
+%license LICENSE
 %{_bindir}/dock
-%{python_sitelib}/dock/*.*
-%{python_sitelib}/dock/cli
-%{python_sitelib}/dock/plugins
-%exclude %{python_sitelib}/dock/plugins/pre_koji.py*
-%{python_sitelib}/dock-%{version}-py2.*.egg-info
+%dir %{python2_sitelib}/dock
+%{python2_sitelib}/dock/*.*
+%{python2_sitelib}/dock/cli
+%{python2_sitelib}/dock/plugins
+%exclude %{python2_sitelib}/dock/plugins/pre_koji.py*
+%{python2_sitelib}/dock-%{version}-py2.*.egg-info
 %dir %{_datadir}/%{name}
 %{_datadir}/%{name}/dock.tar.gz
 %{_datadir}/%{name}/images
 
 
 %files koji
-%{python_sitelib}/dock/plugins/pre_koji.py*
+%{python2_sitelib}/dock/plugins/pre_koji.py*
+
+
+%if 0%{?with_python3}
+%files -n python3-dock
+%doc README.md
+%license LICENSE
+%{_bindir}/dock
+%dir %{python3_sitelib}/dock
+%{python3_sitelib}/dock/*.*
+%{python3_sitelib}/dock/cli
+%{python3_sitelib}/dock/plugins
+%exclude %{python3_sitelib}/dock/plugins/pre_koji.py*
+%{python3_sitelib}/dock-%{version}-py2.*.egg-info
+%dir %{_datadir}/%{name}
+# ship dock in form of tarball so it can be installed within build image
+%{_datadir}/%{name}/dock.tar.gz
+# dockerfiles for build images
+# there is also a script which starts docker in privileged container
+# (is not executable, because it's meant to be used within provileged containers, not on a host system)
+%{_datadir}/%{name}/images
+
+
+%files -n python3-dock-koji
+%{python3_sitelib}/dock/plugins/pre_koji.py*
+%endif  # with_python3
 
 
 %changelog
-* Wed Feb 18 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.1.0-1
+* Fri Feb 20 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.1.0-1
 - new upstream release 1.1.0
+
+* Wed Feb 11 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.0.0-2
+- spec: fix python 3 packaging
+- fix license in %%files
+- comment on weird stuff (dock.tar.gz, docker.sh)
 
 * Thu Feb 05 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.0.0-1
 - initial 1.0.0 upstream release
