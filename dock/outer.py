@@ -51,7 +51,7 @@ class BuildManager(BuilderStateMachine):
             with open(temp_path, 'w') as build_json:
                 json.dump(self.build_args, build_json)
             self.build_container_id = build_method(self.build_image, self.temp_dir)
-            logs_gen = self.dt.logs(self.build_container_id)
+            logs_gen = self.dt.logs(self.build_container_id, stream=True)
             wait_for_command(logs_gen)
             return_code = self.dt.wait(self.build_container_id)
             results = self._load_results(self.build_container_id)
