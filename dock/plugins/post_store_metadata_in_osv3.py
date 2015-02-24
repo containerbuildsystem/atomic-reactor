@@ -13,7 +13,6 @@ from dock.plugin import PostBuildPlugin
 import requests
 
 
-
 class OSV3(object):
     def __init__(self, url, build_id):
         self.url = url
