@@ -1,6 +1,6 @@
 # API
 
-dock has proper python API. You can use it in your scripts or service without invoking shell:
+dock has proper python API. You can use it in your scripts or services without invoking shell:
 
 ```python
 from dock.api import build_image_in_privileged_container
