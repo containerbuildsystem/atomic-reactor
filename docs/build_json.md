@@ -20,6 +20,7 @@ If you want to take advantage of _inner_ part logic of dock, you can do that pre
             "name": "inject_yum_repo",
             "args": {}
         }
+    ]
 }
 ```
 
