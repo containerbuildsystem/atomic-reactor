@@ -1,40 +1,11 @@
 Writing plugins for dock
 ========================
 
-This is a guide for writing plugins for dock.
-
-### Plugin types
-
-There are 3 types of plugins:
-
-1. **Input** — when running dock inside a build container, input plugin fetches build input (it can live in [path](https://github.com/DBuildService/dock/blob/master/dock/plugins/input_path.py), [environment variable](https://github.com/DBuildService/dock/blob/master/dock/plugins/input_env.py), ...)
-2. **Pre-build** — this plugin is executed after clonning a git repo (so you can edit sources, Dockerfile, ...), prior to build
-3. **Post-build** — these are run as a last thing of build process (when build is finished and image was pushed to registries)
-
-### Plugin configuration
-
-Build plugins are requested and configured via input json: key `prebuild_plugins` and `postbuild_plugins`. Each field is an array of following items:
-
-```
-{
-    "name": "plugin_name",
-    "args": {
-        "args1": "value"
-    }
-}
-```
-
-Order is important, because plugins are executed in the order as they are specified (one plugin can use input from another plugin). `args` are directly passed to a plugin in constructor.
-
-
-Input plugin is requested via command line: command `inside-build`, option `--input`.
-
-
-## Plugin development
+For more information about plugins, see [plugins](https://github.com/DBuildService/dock/blob/master/docs/plugins.md) document.
 
 Let's create a plugin, which sends build log to provided URL.
 
-### Clone dock
+## Clone dock
 
 We'll use dock from git (you can also get it from your distribution, once it's there):
 
@@ -148,7 +119,7 @@ Content-Type: application/json
 
 As you can see, dock posted the json to the provided URL. Sweet!
 
-'...now's ncat waiting with response — it may actually look stuck. Just hit enter or `ctrl+c`.'
+'...now's ncat waiting with response — it may actually look stuck. Just hit "enter" or `ctrl+c`.'
 
 
 And that's it.
