@@ -7,7 +7,7 @@ Python library with command line interface for building docker images.
 
  * push image to registry when it's built
  * build inside a docker container (so your builds are separated between each other)
- * git as a source to your dockerfile (you may specify commit/branch and path to Dockerfile within a git repo)
+ * git as a source to your dockerfile (you may specify commit/branch and path to Dockerfile within the git repo)
  * collect build logs
  * integration with [koji](http://koji.fedoraproject.org/koji/) build system
  * integration with [fedora packaging system](http://fedoraproject.org/wiki/Package_maintenance_guide)
@@ -44,15 +44,18 @@ $ sudo pip install .
 You don't even need to install it. You may use it straight from git:
 
 ```bash
-export PYTHONPATH="${DOCK_PATH}:${PYTHONPATH}"
-alias dock="python ${DOCK_PATH}/dock/cli/main.py"
+$ export PYTHONPATH="${DOCK_PATH}:${PYTHONPATH}"
+$ alias dock="python ${DOCK_PATH}/dock/cli/main.py"
 ```
 
 ### Dependencies
 
  * [GitPython](https://github.com/gitpython-developers/GitPython/)
  * [docker-py](https://github.com/docker/docker-py).
- * koji plugin requires `koji` package, which is not available on PyPI: you have to install it manually: `yum install koji`)
+ * [koji](https://github.com/DBuildService/dock/blob/master/dock/plugins/pre_koji.py) plugin requires `koji` package, which is not available on PyPI: you have to install it manually:
+```
+$ yum install koji
+```
 
 ## Usage
 
@@ -124,7 +127,7 @@ IP address `172.17.42.1` should be address of docker0 network interface. Update 
 Bear in mind that you shouldn't mix build methods: if you use _hostdocker_ method with build image for _privileged_ method, it won't work.
 
 
-## further reading
+## Further reading
 
  * [plugins](https://github.com/DBuildService/dock/blob/master/docs/plugins.md)
  * [plugin development](https://github.com/DBuildService/dock/blob/master/docs/plugin_development.md)
