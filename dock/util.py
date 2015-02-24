@@ -111,6 +111,7 @@ def wait_for_command(logs_generator):
                     logger.error(item.strip())
                     raise RuntimeError("Error in container processing: %s (%s)" % (error, error_message))
         except StopIteration:
+            logger.info("no more logs")
             break
     return logs
 
