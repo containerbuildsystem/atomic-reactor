@@ -163,6 +163,18 @@ def figure_out_dockerfile(absolute_path, local_path=None):
 
 
 class LazyGit(object):
+    """
+    usage:
+
+        lazy_git = LazyGit(git_url="...")
+        with lazy_git:
+            laze_git.git_path
+
+    or
+
+        lazy_git = LazyGit(git_url="...", tmpdir=tmp_dir)
+        lazy_git.git_path
+    """
     def __init__(self, git_url, commit=None, tmpdir=None):
         self.git_url = git_url
         self.commit = commit
