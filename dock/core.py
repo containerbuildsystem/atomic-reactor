@@ -467,8 +467,11 @@ class DockerTasker(LastLogger):
         logger.info("does image exists?")
         logger.debug("image_id = '%s'", image_id)
         try:
-            response = self.d.inspect_image(image_id) is not None
-        except APIError:
+            response = self.d.inspect_image(image_id)
+        except APIError as ex:
+            logger.warning(repr(ex))
             response = False
+        else:
+            response = response is not None
         logger.debug("image exists: %s", response)
         return response
