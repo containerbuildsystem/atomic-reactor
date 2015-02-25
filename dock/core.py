@@ -415,16 +415,17 @@ class DockerTasker(LastLogger):
         logger.debug("image_id = '%s'", image_id)
         self.d.remove_image(image_id, force=force, noprune=noprune)  # returns None
 
-    def remove_container(self, container_id):
+    def remove_container(self, container_id, force=False):
         """
         remove provided container from filesystem
 
         :param container_id: str
+        :param force: bool, remove forcefully?
         :return: None
         """
         logger.info("remove container from filesystem")
         logger.debug("container_id = '%s'", container_id)
-        self.d.remove_container(container_id)  # returns None
+        self.d.remove_container(container_id, force=force)  # returns None
 
     def logs(self, container_id, stderr=True, stream=True):
         """
