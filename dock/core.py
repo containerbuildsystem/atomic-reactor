@@ -44,6 +44,7 @@ class LastLogger(object):
 
     @property
     def last_logs(self):
+        """ logs from last operation """
         return self._last_logs
 
     @last_logs.setter
