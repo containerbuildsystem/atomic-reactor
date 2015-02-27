@@ -3,6 +3,7 @@ import argparse
 import logging
 import os
 import sys
+import pkg_resources
 
 from dock import build_image_here, build_image_in_privileged_container, \
     build_image_using_hosts_docker, set_logging
@@ -69,12 +70,13 @@ def store_result(results):
 class CLI(object):
     def __init__(self):
         self.parser = argparse.ArgumentParser(
-            description="dock, tool for building images"
+            description="dock, tool for building images",
+            version=pkg_resources.get_distribution("dock").version
         )
 
     def set_arguments(self):
         exclusive_group = self.parser.add_mutually_exclusive_group()
-        exclusive_group.add_argument("-v", "--verbose", action="store_true")
+        exclusive_group.add_argument("--verbose", action="store_true")
         exclusive_group.add_argument("-q", "--quiet", action="store_true")
 
         subparsers = self.parser.add_subparsers(help='commands')
