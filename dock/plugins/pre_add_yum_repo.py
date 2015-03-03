@@ -8,6 +8,7 @@ from dock.plugin import PreBuildPlugin
 
 class AddYumRepoPlugin(PreBuildPlugin):
     key = "add_yum_repo"
+    can_fail = False
 
     def __init__(self, tasker, workflow, repo_name, baseurl):
         """

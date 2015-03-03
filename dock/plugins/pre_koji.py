@@ -8,6 +8,7 @@ from dock.plugin import PreBuildPlugin
 
 class KojiPlugin(PreBuildPlugin):
     key = "koji"
+    can_fail = False
 
     def __init__(self, tasker, workflow, target, hub, root):
         """

@@ -151,10 +151,6 @@ class PluginsRunner(object):
                 logger.error("Invalid plugin request, no key 'name': %s", plugin_request)
                 continue
             try:
-                plugin_can_fail = plugin_request['can_fail']
-            except (TypeError, KeyError):
-                plugin_can_fail = True
-            try:
                 plugin_conf = plugin_request.get("args", {})
             except AttributeError:
                 logger.error("Invalid plugin request, no key 'args': %s", plugin_request)
@@ -164,6 +160,10 @@ class PluginsRunner(object):
             except KeyError:
                 logger.error("No such plugin: '%s', did you set the correct plugin type?", plugin_name)
                 continue
+            try:
+                plugin_can_fail = plugin_request['can_fail']
+            except (TypeError, KeyError):
+                plugin_can_fail = getattr(plugin_class, "can_fail", True)
 
             logger.debug("running plugin '%s'", plugin_name)
 

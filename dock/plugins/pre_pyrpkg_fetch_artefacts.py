@@ -11,6 +11,7 @@ from dock.plugin import PreBuildPlugin
 
 class DistgitFetchArtefactsPlugin(PreBuildPlugin):
     key = "distgit_fetch_artefacts"
+    can_fail = False
 
     def __init__(self, tasker, workflow, binary):
         """
