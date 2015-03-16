@@ -30,9 +30,6 @@ from dock.plugin import PrePublishPlugin
 from dock.util import LazyGit
 
 
-__all__ = ('ImageTestPlugin', )
-
-
 class ImageTestPlugin(PrePublishPlugin):
     key = "test_built_image"
 
@@ -65,9 +62,14 @@ class ImageTestPlugin(PrePublishPlugin):
         with g:
             tests_file = os.path.abspath(os.path.join(g.git_path, self.tests_git_path))
             self.log.debug("loading file with tests: '%s'", tests_file)
-            tests_module = imp.load_source("", tests_file)
+            module_name, module_ext = os.path.splitext(self.tests_git_path)
+            tests_module = imp.load_source(module_name, tests_file)
+
+            orig_path = os.getcwd()
+            os.chdir(g.git_path)
             results, passed = tests_module.run(config_file=self.config_file, image_id=self.image_id,
                                                logger=self.log, **self.kwargs)
+            os.chdir(orig_path)
             if not passed:
                 self.log.error("tests failed: %s", results)
                 raise RuntimeError("Tests didn't pass!")
