@@ -28,7 +28,7 @@ class OSV3(object):
         return url
 
     def fetch_build_json(self):
-        r = requests.get(self._builds_url())
+        r = requests.get(self._builds_url(), verify=self.verify_ssl)
         self.build_json = r.json()
         return self.build_json
 
