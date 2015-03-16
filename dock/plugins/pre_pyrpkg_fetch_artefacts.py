@@ -40,7 +40,7 @@ class DistgitFetchArtefactsPlugin(PreBuildPlugin):
                 self.log.info("no sources file")
             else:
                 raise
-
-        subprocess.check_call([self.binary, "--path", self.workflow.builder.git_path, "sources",
-                               "--outdir", self.workflow.builder.git_path])
+        else:
+            subprocess.check_call([self.binary, "--path", self.workflow.builder.git_path, "sources",
+                                   "--outdir", self.workflow.builder.git_path])
         return artefacts
