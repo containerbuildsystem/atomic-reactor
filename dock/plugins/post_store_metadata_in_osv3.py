@@ -14,9 +14,10 @@ import requests
 
 
 class OSV3(object):
-    def __init__(self, url, build_id):
+    def __init__(self, url, build_id, verify_ssl=True):
         self.url = url
         self.build_id = build_id
+        self.verify_ssl = verify_ssl
         self.build_json = {}
 
     def _build_url(self, suffix):
@@ -38,7 +39,7 @@ class OSV3(object):
 
     def store_build_json(self):
         r = requests.put(self._builds_url(), data=json.dumps(self.build_json),
-                         headers={'content-type': 'application/json'})
+                         headers={'content-type': 'application/json'}, verify=self.verify_ssl)
         if not r.ok:
             raise RuntimeError("failed to update build json: [%d]: %s", r.status_code, r.content)
 
@@ -46,7 +47,7 @@ class OSV3(object):
 class StoreMetadataInOSv3Plugin(PostBuildPlugin):
     key = "store_metadata_in_osv3"
 
-    def __init__(self, tasker, workflow, url):
+    def __init__(self, tasker, workflow, url, verify_ssl=True):
         """
         constructor
 
@@ -57,6 +58,7 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
         # call parent constructor
         super(StoreMetadataInOSv3Plugin, self).__init__(tasker, workflow)
         self.url = url
+        self.verify_ssl = verify_ssl
 
     def run(self):
         try:
@@ -71,7 +73,7 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
             return
         self.log.info("build id = %s", build_id)
 
-        o = OSV3(self.url, build_id)
+        o = OSV3(self.url, build_id, verify_ssl=self.verify_ssl)
         o.fetch_build_json()
         o.update_labels({
             "dockerfile": self.workflow.prebuild_results.get("dockerfile_content", ""),
