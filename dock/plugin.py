@@ -107,8 +107,9 @@ class PluginsRunner(object):
         plugin_classes = {}
         for f in files:
             logger.debug("load file '%s'", f)
+            module_name = os.path.basename(f).rsplit('.', 1)[0]
             try:
-                f_module = imp.load_source("", f)
+                f_module = imp.load_source("dock.plugins.%s" % module_name, f)
             except (IOError, OSError, ImportError) as ex:
                 logger.warning("can't load module '%s': %s", f, repr(ex))
                 continue
