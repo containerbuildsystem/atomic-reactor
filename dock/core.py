@@ -174,7 +174,6 @@ class DockerTasker(LastLogger):
         """
         logger.info("build image from provided path")
         logger.debug("image = '%s', path = '%s'", image, path)
-        prior_to_build = datetime.datetime.now()
         response = self.d.build(path=path, tag=image, stream=stream, nocache=not use_cache,
                                 rm=remove_im)  # returns generator
         return response
