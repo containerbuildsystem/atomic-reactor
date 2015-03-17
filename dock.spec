@@ -7,7 +7,7 @@
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 
 Name:           dock
-Version:        1.1.0
+Version:        1.1.1
 Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
@@ -150,6 +150,9 @@ popd
 
 
 %changelog
+* Tue Mar 17 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.1.1-1
+- new upstream release 1.1.1
+
 * Fri Feb 20 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.1.0-1
 - new upstream release 1.1.0
 
