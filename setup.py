@@ -34,6 +34,7 @@ setup(name='dock',
       author='Tomas Tomecek',
       author_email='ttomecek@redhat.com',
       url='https://github.com/DBuildService/dock',
+      license="BSD",
       entry_points={
           'console_scripts': ['dock=dock.cli.main:run'],
       },
