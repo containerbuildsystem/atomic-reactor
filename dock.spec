@@ -8,7 +8,7 @@
 
 Name:           dock
 Version:        1.1.1
-Release:        1%{?dist}
+Release:        2%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -93,17 +93,20 @@ pushd %{py3dir}
 popd
 %endif # with_python3
 
+
 %install
-mkdir -vp %{buildroot}/%{_datadir}/%{name}
-# install python package
-%{__python} setup.py install --skip-build --root %{buildroot}
-# ship dock in form of tarball so it can be installed within build image
-cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 %if 0%{?with_python3}
 pushd %{py3dir}
 %{__python3} setup.py install --skip-build --root %{buildroot}
+mv %{buildroot}%{_bindir}/dock %{buildroot}%{_bindir}/dock3
 popd
 %endif # with_python3
+
+%{__python} setup.py install --skip-build --root %{buildroot}
+
+# ship dock in form of tarball so it can be installed within build image
+cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
+
 
 %files
 %doc README.md
@@ -128,7 +131,7 @@ popd
 %files -n python3-dock
 %doc README.md
 %license LICENSE
-%{_bindir}/dock
+%{_bindir}/dock3
 %dir %{python3_sitelib}/dock
 %{python3_sitelib}/dock/*.*
 %{python3_sitelib}/dock/cli
@@ -150,6 +153,9 @@ popd
 
 
 %changelog
+* Thu Mar 19 2015 Jiri Popelka <jpopelka@redhat.com> - 1.1.1-2
+- separate executable for python 3
+
 * Tue Mar 17 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.1.1-1
 - new upstream release 1.1.1
 
