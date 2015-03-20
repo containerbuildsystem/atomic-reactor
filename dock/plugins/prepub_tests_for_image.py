@@ -25,6 +25,9 @@ third optional argument of run function is logger (if not specified, all logs ar
 
 import os
 import imp
+import shutil
+import tempfile
+
 
 from dock.plugin import PrePublishPlugin
 from dock.util import LazyGit
@@ -33,8 +36,8 @@ from dock.util import LazyGit
 class ImageTestPlugin(PrePublishPlugin):
     key = "test_built_image"
 
-    def __init__(self, tasker, workflow, git_uri, image_id, tests_git_path="tests.py",
-                 config_file="config.json", **kwargs):
+    def __init__(self, tasker, workflow, git_uri, git_commit, image_id, tests_git_path="tests.py",
+                 tests = None, results_dir="results", **kwargs):
         """
         constructor
 
@@ -49,28 +52,38 @@ class ImageTestPlugin(PrePublishPlugin):
         # call parent constructor
         super(ImageTestPlugin, self).__init__(tasker, workflow)
         self.git_uri = git_uri
+        self.git_commit = git_commit
         self.image_id = image_id
         self.tests_git_path = tests_git_path
-        self.config_file = config_file
+        self.tests = tests
+        self.results_dir = results_dir
         self.kwargs = kwargs
 
     def run(self):
+        """
+        this method will:
+        1) clone git repository with test files into temp location
+        2) execute tests
+        3) clear repository
+
+        """
         if not self.image_id:
             self.log.warning("no image_id specified (build probably failed)")
             return
-        g = LazyGit(git_url=self.git_uri)
+        tmpdir = tempfile.mkdtemp()
+        g = LazyGit(self.git_uri, self.git_commit, tmpdir)
         with g:
             tests_file = os.path.abspath(os.path.join(g.git_path, self.tests_git_path))
             self.log.debug("loading file with tests: '%s'", tests_file)
             module_name, module_ext = os.path.splitext(self.tests_git_path)
             tests_module = imp.load_source(module_name, tests_file)
 
-            orig_path = os.getcwd()
-            os.chdir(g.git_path)
-            results, passed = tests_module.run(config_file=self.config_file, image_id=self.image_id,
-                                               logger=self.log, **self.kwargs)
-            os.chdir(orig_path)
-            if not passed:
-                self.log.error("tests failed: %s", results)
-                raise RuntimeError("Tests didn't pass!")
-            return results
+            results, passed = tests_module.run(image_id=self.image_id, tests=self.tests,
+                                               git_repo_path = tmpdir, logger=self.log,
+                                               results_dir=self.results_dir, **self.kwargs)
+
+        shutil.rmtree(tmpdir)
+        if not passed:
+            self.log.error("tests failed: %s", results)
+            raise RuntimeError("Tests didn't pass!")
+        return results
