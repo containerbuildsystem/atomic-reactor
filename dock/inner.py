@@ -70,7 +70,8 @@ class DockerBuildWorkflow(object):
     def __init__(self, git_url, image, git_dockerfile_path=None,
                  git_commit=None, parent_registry=None, target_registries=None,
                  prebuild_plugins=None, prepublish_plugins=None, postbuild_plugins=None,
-                 plugin_files=None, **kwargs):
+                 plugin_files=None, parent_registry_insecure=False,
+                 target_registries_insecure=False, **kwargs):
         """
         :param git_url: str, URL to git repo
         :param image: str, tag for built image ([registry/]image_name[:tag])
@@ -82,13 +83,18 @@ class DockerBuildWorkflow(object):
         :param prepublish_plugins: dict, arguments for test-build plugins
         :param postbuild_plugins: dict, arguments for post-build plugins
         :param plugin_files: list of str, load plugins also from these files
+        :param parent_registry_insecure: bool, allow connecting to parent registry over plain http
+        :param target_registries_insecure: bool, allow connecting to target registries over plain http
         """
         self.git_url = git_url
         self.image = image
         self.git_dockerfile_path = git_dockerfile_path
         self.git_commit = git_commit
+
         self.parent_registry = parent_registry
+        self.parent_registry_insecure = parent_registry_insecure
         self.target_registries = target_registries
+        self.target_registries_insecure = target_registries_insecure
 
         self.prebuild_plugins_conf = prebuild_plugins
         self.prepublish_plugins_conf = prepublish_plugins
@@ -115,7 +121,7 @@ class DockerBuildWorkflow(object):
                                      git_commit=self.git_commit, tmpdir=tmpdir)
         try:
             if self.parent_registry:
-                self.builder.pull_base_image(self.parent_registry)
+                self.builder.pull_base_image(self.parent_registry, insecure=self.parent_registry_insecure)
 
             # time to run pre-build plugins, so they can access cloned repo,
             # base image
@@ -143,7 +149,7 @@ class DockerBuildWorkflow(object):
             if image:
                 if self.target_registries:
                     for target_registry in self.target_registries:
-                        self.builder.push_built_image(target_registry)
+                        self.builder.push_built_image(target_registry, insecure=self.target_registries_insecure)
 
             postbuild_runner = PostBuildPluginsRunner(self.builder.tasker, self, self.postbuild_plugins_conf,
                                                       plugin_files=self.plugin_files)
