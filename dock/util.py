@@ -97,9 +97,15 @@ def wait_for_command(logs_generator):
             try:
                 parsed_item = json.loads(item)
             except ValueError:
-                line = item
-            else:
+                pass
+
+            # make sure the json is an object
+            if isinstance(parsed_item, dict):
                 line = parsed_item.get("stream", "")
+            else:
+                parsed_item = None
+                line = item
+
             line = line.replace("\r\n", " ").replace("\n", " ").strip()
             if line:
                 logger.debug(line)
