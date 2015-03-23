@@ -315,20 +315,21 @@ class DockerTasker(LastLogger):
         logger.debug("%d matching images found", len(images))
         return images
 
-    def pull_image(self, image_name, reg_uri, tag=''):
+    def pull_image(self, image_name, reg_uri, tag='', insecure=False):
         """
         pull provided image from registry
 
         :param image_name: str, image name
         :param reg_uri: str, reg.com
         :param tag: str, v1
+        :param insecure: bool, allow connecting to registry over plain http
         :return: str, image (reg.om/img:v1)
         """
         logger.info("pull image from registry")
         logger.debug("image = '%s', registry = '%s', tag = '%s'", image_name, reg_uri, tag)
         image = join_repo_img_name_tag(reg_uri, image_name, tag)  # e.g. registry.com/image_name:1
         try:
-            logs_gen = self.d.pull(image, insecure_registry=True, stream=True)
+            logs_gen = self.d.pull(image, insecure_registry=insecure, stream=True)
         except TypeError:
             # because changing api is fun
             logs_gen = self.d.pull(image, stream=True)
@@ -357,24 +358,25 @@ class DockerTasker(LastLogger):
                                image, repository, tag)
         return join_img_name_tag(repository, tag)  # this will be the proper name, not just repo/img
 
-    def push_image(self, image):
+    def push_image(self, image, insecure=False):
         """
         push provided image to registry
 
         :param image: str
+        :param insecure: bool, allow connecting to registry over plain http
         :return: str, logs from push
         """
         logger.info("push image")
         logger.debug("image: '%s'", image)
         try:
             # push returns string composed of newline separated jsons; exactly what 'docker push' outputs
-            logs = self.d.push(image, insecure_registry=True, stream=False)
+            logs = self.d.push(image, insecure_registry=insecure, stream=False)
         except TypeError:
             # because changing api is fun
             logs = self.d.push(image, stream=False)
         return logs
 
-    def tag_and_push_image(self, image, target_image_name, reg_uri='', tag=''):
+    def tag_and_push_image(self, image, target_image_name, reg_uri='', tag='', insecure=False):
         """
         tag provided image and push it to registry
 
@@ -382,13 +384,14 @@ class DockerTasker(LastLogger):
         :param target_image_name: str, img
         :param reg_uri: str, reg.com
         :param tag: str, v1
-        :return: str, image (reg.om/img:v1)
+        :param insecure: bool, allow connecting to registry over plain http
+        :return: str, image (reg.com/img:v1)
         """
         logger.info("tag and push image")
         logger.debug("image = '%s', target_image_name = '%s', reg_uri = '%s', tag = '%s'",
                      image, target_image_name, reg_uri, tag)
         final_tag = self.tag_image(image, target_image_name, reg_uri=reg_uri, tag=tag)
-        return self.push_image(final_tag)
+        return self.push_image(final_tag, insecure=insecure)
 
     def inspect_image(self, image_id):
         """

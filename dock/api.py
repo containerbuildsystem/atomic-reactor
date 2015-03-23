@@ -14,7 +14,9 @@ __all__ = (
 
 def build_image_in_privileged_container(build_image, git_url, image,
         git_dockerfile_path=None, git_commit=None, parent_registry=None,
-        target_registries=None, push_buildroot_to=None, **kwargs):
+        target_registries=None, push_buildroot_to=None,
+        parent_registry_insecure=False, target_registries_insecure=False,
+        **kwargs):
     """
     build image from provided dockerfile (specified as git url) in privileged image
     
@@ -26,7 +28,9 @@ def build_image_in_privileged_container(build_image, git_url, image,
     :param parent_registry: str, registry to pull base image from
     :param target_registries: list of str, list of registries to push image to (might change in future)
     :param push_buildroot_to: str, repository where buildroot should be pushed
- 
+    :param parent_registry_insecure: bool, allow connecting to parent registry over plain http
+    :param target_registries_insecure: bool, allow connecting to target registries over plain http
+
     :return: BuildResults
     """
     build_json = {
@@ -36,6 +40,8 @@ def build_image_in_privileged_container(build_image, git_url, image,
         "git_commit": git_commit,
         "parent_registry": parent_registry,
         "target_registries": target_registries,
+        "parent_registry_insecure": parent_registry_insecure,
+        "target_registries_insecure": target_registries_insecure,
     }
     build_json.update(kwargs)
     m = PrivilegedBuildManager(build_image, build_json)
@@ -48,7 +54,9 @@ def build_image_in_privileged_container(build_image, git_url, image,
 
 def build_image_using_hosts_docker(build_image, git_url, image,
         git_dockerfile_path=None, git_commit=None, parent_registry=None,
-        target_registries=None, push_buildroot_to=None, **kwargs):
+        target_registries=None, push_buildroot_to=None,
+        parent_registry_insecure=False, target_registries_insecure=False,
+        **kwargs):
     """
     build image from provided dockerfile (specified as git url) in container
     using docker from host
@@ -61,6 +69,8 @@ def build_image_using_hosts_docker(build_image, git_url, image,
     :param parent_registry: str, registry to pull base image from
     :param target_registries: list of str, list of registries to push image to (might change in future)
     :param push_buildroot_to: str, repository where buildroot should be pushed
+    :param parent_registry_insecure: bool, allow connecting to parent registry over plain http
+    :param target_registries_insecure: bool, allow connecting to target registries over plain http
 
     :return: BuildResults
     """
@@ -71,6 +81,8 @@ def build_image_using_hosts_docker(build_image, git_url, image,
         "git_commit": git_commit,
         "parent_registry": parent_registry,
         "target_registries": target_registries,
+        "parent_registry_insecure": parent_registry_insecure,
+        "target_registries_insecure": target_registries_insecure,
     }
     build_json.update(kwargs)
     m = DockerhostBuildManager(build_image, build_json)
@@ -83,7 +95,8 @@ def build_image_using_hosts_docker(build_image, git_url, image,
 
 def build_image_here(git_url, image,
         git_dockerfile_path=None, git_commit=None, parent_registry=None,
-        target_registries=None, **kwargs):
+        target_registries=None, parent_registry_insecure=False,
+        target_registries_insecure=False, **kwargs):
     """
     build image from provided dockerfile (specified as git url) in current environment
 
@@ -93,6 +106,8 @@ def build_image_here(git_url, image,
     :param git_commit: str, git commit to check out
     :param parent_registry: str, registry to pull base image from
     :param target_registries: list of str, list of registries to push image to (might change in future)
+    :param parent_registry_insecure: bool, allow connecting to parent registry over plain http
+    :param target_registries_insecure: bool, allow connecting to target registries over plain http
 
     :return: BuildResults
     """
@@ -103,6 +118,8 @@ def build_image_here(git_url, image,
         "git_commit": git_commit,
         "parent_registry": parent_registry,
         "target_registries": target_registries,
+        "parent_registry_insecure": parent_registry_insecure,
+        "target_registries_insecure": target_registries_insecure,
     }
     build_json.update(kwargs)
     m = DockerBuildWorkflow(**build_json)

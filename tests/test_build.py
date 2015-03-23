@@ -13,7 +13,7 @@ git_base_image = "fedora:latest"
 def test_pull_base_image(tmpdir):
     t = DockerTasker()
     b = InsideBuilder(git_url, "", tmpdir=str(tmpdir))
-    reg_img_name = b.pull_base_image(local_registry)
+    reg_img_name = b.pull_base_image(local_registry, insecure=True)
     assert t.inspect_image(reg_img_name) is not None
     assert reg_img_name == git_base_image
     # clean

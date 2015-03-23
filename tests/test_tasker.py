@@ -127,7 +127,7 @@ def test_push_image(temp_image_name):
     t = DockerTasker()
     expected_img = "localhost:5000/%s:1" % temp_image_name
     t.tag_image(INPUT_IMAGE, temp_image_name, reg_uri="localhost:5000", tag='1')
-    output = t.push_image(expected_img)
+    output = t.push_image(expected_img, insecure=True)
     assert output is not None
     t.remove_image(expected_img)
 
@@ -135,7 +135,7 @@ def test_push_image(temp_image_name):
 def test_tag_and_push(temp_image_name):
     t = DockerTasker()
     expected_img = "localhost:5000/%s:1" % temp_image_name
-    output = t.tag_and_push_image(INPUT_IMAGE, temp_image_name, reg_uri="localhost:5000", tag='1')
+    output = t.tag_and_push_image(INPUT_IMAGE, temp_image_name, reg_uri="localhost:5000", tag='1', insecure=True)
     assert output is not None
     assert t.image_exists(expected_img)
     t.remove_image(expected_img)
@@ -144,8 +144,8 @@ def test_tag_and_push(temp_image_name):
 def test_pull_image():
     t = DockerTasker()
     expected_img = "localhost:5000/busybox"
-    t.tag_and_push_image('busybox', 'busybox', 'localhost:5000')
-    got_image = t.pull_image('busybox', 'localhost:5000')
+    t.tag_and_push_image('busybox', 'busybox', 'localhost:5000', insecure=True)
+    got_image = t.pull_image('busybox', 'localhost:5000', insecure=True)
     assert expected_img == got_image
     assert len(t.last_logs) > 0
     t.remove_image(got_image)

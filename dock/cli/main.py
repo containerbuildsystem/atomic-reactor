@@ -41,7 +41,9 @@ def cli_build_image(args):
             "git_dockerfile_path": args.git_path,
             "git_commit": args.git_commit,
             "parent_registry": args.source_registry,
+            "parent_registry_insecure": args.source_registry_insecure,
             "target_registries": args.target_registries,
+            "target_registries_insecure": args.target_registries_insecure,
         }
     response = BuildResults()
     if args.method == "hostdocker":
@@ -100,9 +102,13 @@ class CLI(object):
         build_parser.add_argument("--source-registry", action='store',
                                   metavar="REGISTRY",
                                   help="registry to pull base image from")
+        build_parser.add_argument("--source-registry-insecure", action='store_true',
+                                  help="allow connecting to source registry over plain http")
         build_parser.add_argument("--target-registries", action='store', nargs="*",
                                   metavar="REGISTRY",
                                   help="list of registries to push image to")
+        build_parser.add_argument("--target-registries-insecure", action='store_true',
+                                  help="allow connecting to target registries over plain http")
         build_parser.add_argument("--load-plugin", action="store", nargs="*", metavar="PLUGIN_FILE",
                                   dest="plugin_files", help="list of files where plugins live")
         build_parser.add_argument("--method", action='store', choices=["hostdocker", "privileged", "here"],

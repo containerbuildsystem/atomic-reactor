@@ -83,11 +83,12 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
         if not self.base_tag:
             self.base_tag = 'latest'
 
-    def pull_base_image(self, source_registry):
+    def pull_base_image(self, source_registry, insecure=False):
         """
         pull base image
 
         :param source_registry: str, registry to pull from
+        :param insecure: bool, allow connecting to registry over plain http
         :return:
         """
         logger.info("pull base image from registry")
@@ -105,7 +106,8 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
 
         # this may seem odd; we could pull using registry_img_name, but since registry may be empty
         # let's don't branch here and rather construct reg_uri/img_name again
-        base_image = self.tasker.pull_image(self.base_image_name, source_registry, tag=self.base_tag)
+        base_image = self.tasker.pull_image(self.base_image_name, source_registry, tag=self.base_tag,
+                                            insecure=insecure)
 
         if not self.df_registry:
             response = self.tasker.tag_image(base_image, self.base_image_name, tag=self.base_tag, force=True)
@@ -140,11 +142,12 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
         self.image_id = self.built_image_info['Id']
         return self.image
 
-    def push_built_image(self, registry):
+    def push_built_image(self, registry, insecure=False):
         """
         push built image to provided registry
 
         :param registry: str
+        :param insecure: bool, allow connecting to registry over plain http
         :return: str, image
         """
         logger.info("push built image to registry")
@@ -153,7 +156,7 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
             logger.warning("no registry specified; skipping")
             return
         local_registry = join_repo_img_name(self.reg_uri, self.image_name)
-        response = self.tasker.tag_and_push_image(self.image, local_registry, registry, tag=self.tag)
+        response = self.tasker.tag_and_push_image(self.image, local_registry, registry, tag=self.tag, insecure=insecure)
         # untag image
         # url/namespace/image:tag
         repo_image = join_repo_img_name_tag(registry, local_registry, self.tag)
