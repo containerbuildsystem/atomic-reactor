@@ -66,19 +66,19 @@ At some point, these will be available on docker hub, but right now, you need to
 ### installation from git
 
 ```bash
-$ dock create-build-image --dock-local-path ${PATH_TO_DOCK_GIT} ${PATH_TO_DOCK_GIT}/images/privileged-builder privileged-buildroot
+$ dock create-build-image --dock-local-path ${PATH_TO_DOCK_GIT} ${PATH_TO_DOCK_GIT}/images/dockerhost-builder buildroot
 ```
 
 Why is it so long? Okay, let's get through. First thing is that dock needs to install itself inside the build image. You can pick several sources for dock: your local copy, (this) official upstream repo, your forked repo or even distribution tarball. In the example above, we are using our locally cloned git repo (`--dock-local-path ${PATH_TO_DOCK_GIT}`).
 
-You have to provide dockerfile too. Luckily these are part of upstream repo (see folder [images](https://github.com/DBuildService/dock/tree/master/images)). It's the first argument: `${PATH_TO_DOCK_GIT}/images/privileged-build`.
+You have to provide dockerfile too. Luckily these are part of upstream repo (see folder [images](https://github.com/DBuildService/dock/tree/master/images)). It's the first argument: `${PATH_TO_DOCK_GIT}/images/dockerhost-builder`.
 
-And finally, you need to name the image: `privileged-buildroot`.
+And finally, you need to name the image: `buildroot`.
 
 ### installation from RPM
 
 ```bash
-$ dock create-build-image --dock-tarball-path /usr/share/dock/dock.tar.gz /usr/share/dock/images/privileged-builder buildroot-fedora
+$ dock create-build-image --dock-tarball-path /usr/share/dock/dock.tar.gz /usr/share/dock/images/dockerhost-builder buildroot-fedora
 ```
 
 Section above contains detailed description. Let's make this short.
@@ -108,14 +108,14 @@ $ docker build -t buildroot-hostdocker .
 As soon as our build image is built, we can start building stuff in it:
 
 ```bash
-$ dock build --method privileged --build-image privileged-buildroot --image test-image --git-url "https://github.com/TomasTomecek/docker-hello-world.git"
+$ dock build --method hostdocker --build-image buildroot --image test-image --git-url "https://github.com/TomasTomecek/docker-hello-world.git"
 ```
 
 Built image will be in the build container. Therefore this example doesn't make much sense. If you would like to access the built image, you should probably push it to your registry and build it like this:
 
 ```bash
-$ dock build --method privileged \
-             --build-image privileged-buildroot \
+$ dock build --method hostdocker \
+             --build-image buildroot \
              --image test-image \
              --target-registries 172.17.42.1:5000 \
              --git-url "https://github.com/TomasTomecek/docker-hello-world.git"
