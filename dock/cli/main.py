@@ -56,6 +56,9 @@ def cli_build_image(args):
             response.return_code = -1
         else:
             response.return_code = 0
+
+    if response.return_code != 0:
+        logger.error("build failed")
     sys.exit(response.return_code)
 
 
