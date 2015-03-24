@@ -326,7 +326,8 @@ class DockerTasker(LastLogger):
         :return: str, image (reg.om/img:v1)
         """
         logger.info("pull image from registry")
-        logger.debug("image = '%s', registry = '%s', tag = '%s'", image_name, reg_uri, tag)
+        logger.debug("image = '%s', registry = '%s', tag = '%s', insecure = '%s'",
+                     image_name, reg_uri, tag, insecure)
         image = join_repo_img_name_tag(reg_uri, image_name, tag)  # e.g. registry.com/image_name:1
         try:
             logs_gen = self.d.pull(image, insecure_registry=insecure, stream=True)
@@ -367,7 +368,7 @@ class DockerTasker(LastLogger):
         :return: str, logs from push
         """
         logger.info("push image")
-        logger.debug("image: '%s'", image)
+        logger.debug("image: '%s', insecure: '%s'", image, insecure)
         try:
             # push returns string composed of newline separated jsons; exactly what 'docker push' outputs
             logs = self.d.push(image, insecure_registry=insecure, stream=False)
