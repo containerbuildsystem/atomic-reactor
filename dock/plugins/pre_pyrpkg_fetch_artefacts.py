@@ -13,17 +13,18 @@ class DistgitFetchArtefactsPlugin(PreBuildPlugin):
     key = "distgit_fetch_artefacts"
     can_fail = False
 
-    def __init__(self, tasker, workflow, binary):
+    def __init__(self, tasker, workflow, command):
         """
         constructor
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param binary: str, name of binary to use (e.g. fedpkg)
+        :param command: str, command to use to get artefacts (e.g. 'make sources')
+                             it is executed in cloned git repo
         """
         # call parent constructor
         super(DistgitFetchArtefactsPlugin, self).__init__(tasker, workflow)
-        self.binary = binary
+        self.command = command
 
     def run(self):
         """
@@ -41,6 +42,8 @@ class DistgitFetchArtefactsPlugin(PreBuildPlugin):
             else:
                 raise
         else:
-            subprocess.check_call([self.binary, "--path", self.workflow.builder.git_path, "sources",
-                                   "--outdir", self.workflow.builder.git_path])
+            cur_dir = os.getcwd()
+            os.chdir(self.workflow.builder.git_path)
+            subprocess.check_call(self.command.split())
+            os.chdir(cur_dir)
         return artefacts
