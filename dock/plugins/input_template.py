@@ -1,7 +1,7 @@
 """
 Reads the template from template paths and replace stuff in it
 Usage:
-dock --input template --input-arg template_path=/tmp/template.json --input-arg replace=key1=value1,key2=value2,key3=value3
+dock --input template --input-arg template_path=/tmp/template.json --input-arg key1=value1 --input-arg key2=value2 
 
 """
 import json
@@ -21,14 +21,14 @@ def replace_dict(adict, rkey, rvalue):
 class TemplateInputPlugin(InputPlugin):
     key = "template"
 
-    def __init__(self, template_path=None, replace=None):
+    def __init__(self, template_path=None, **kwargs):
         """
         constructor
         """
         # call parent constructor
         super(TemplateInputPlugin, self).__init__()
         self.template_path = template_path
-        self.replace = replace
+        self.kwargs = kwargs
 
     def run(self):
         """
@@ -44,8 +44,7 @@ class TemplateInputPlugin(InputPlugin):
             self.log.error("couldn't read json from file '%s'", self.template_path)
             return None
         else:
-            for change in self.replace.split(','):
-                key, value = change.split('=')
+            for key, value in self.kwargs.iteritems():
                 replace_dict(build_cfg_json, key, value)
             self.log.debug(build_cfg_json)
             return build_cfg_json
