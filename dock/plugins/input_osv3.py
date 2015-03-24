@@ -39,6 +39,7 @@ class OSv3InputPlugin(InputPlugin):
             'target_registries': [target_registry] if target_registry is not None else None,
             'prebuild_plugins': plugins_json.get('prebuild_plugins', None),
             'postbuild_plugins': plugins_json.get('postbuild_plugins', None),
+            'target_registries_insecure': True,  # FIXME: create plugin for this
         }
 
         self.log.debug("build json: %s", input_json)
