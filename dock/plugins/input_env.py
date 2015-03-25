@@ -11,12 +11,12 @@ from dock.plugin import InputPlugin
 class EnvInputPlugin(InputPlugin):
     key = "env"
 
-    def __init__(self, env_name=None):
+    def __init__(self, env_name=None, **kwargs):
         """
         constructor
         """
         # call parent constructor
-        super(EnvInputPlugin, self).__init__()
+        super(EnvInputPlugin, self).__init__(**kwargs)
         self.env_name = env_name
 
     def run(self):
@@ -31,7 +31,7 @@ class EnvInputPlugin(InputPlugin):
             return None
         else:
             try:
-                return json.loads(build_cfg_json)
+                return self.substitute_configuration(json.loads(build_cfg_json))
             except ValueError:
                 self.log.error("Couldn't load build config: invalid json")
                 return None

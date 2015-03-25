@@ -182,23 +182,32 @@ class DockerBuildWorkflow(object):
         return results
 
 
-def build_inside(input, input_args=None):
+def build_inside(input, input_args=None, substitutions=None):
     """
     use requested input plugin to load configuration and then initiate build
     """
+    def process_keyvals(keyvals):
+        """ ["key=val", "x=y"] -> {"key": "val", "x": "y"} """
+        keyvals = keyvals or []
+        processed_keyvals = {}
+        for arg in keyvals:
+            key, value = arg.split("=", 1)
+            processed_keyvals[key] = value
+        return processed_keyvals
+
     if not input:
         raise RuntimeError("No input method specified!")
     else:
         logger.debug("getting build json from input %s", input)
 
-        input_args = input_args or []
-        cleaned_input_args = {}
-        for arg in input_args:
-            key, value = arg.split("=", 1)
-            cleaned_input_args[key] = value
+        cleaned_input_args = process_keyvals(input_args)
+        cleaned_subs = process_keyvals(substitutions)
+
+        cleaned_input_args['substitutions'] = cleaned_subs
 
         input_runner = InputPluginsRunner([{'name': input, 'args': cleaned_input_args}])
         build_json = input_runner.run()[input]
+        logger.debug("Build json: %s", build_json)
     if not build_json:
         raise RuntimeError("No valid build json!")
     # TODO: validate json

@@ -10,12 +10,12 @@ from dock.plugin import InputPlugin
 class PathInputPlugin(InputPlugin):
     key = "path"
 
-    def __init__(self, path=None):
+    def __init__(self, path=None, **kwargs):
         """
         constructor
         """
         # call parent constructor
-        super(PathInputPlugin, self).__init__()
+        super(PathInputPlugin, self).__init__(**kwargs)
         self.path = path
 
     def run(self):
@@ -33,4 +33,4 @@ class PathInputPlugin(InputPlugin):
             self.log.error("couldn't read json from file '%s'", path)
             return None
         else:
-            return build_cfg_json
+            return self.substitute_configuration(build_cfg_json)

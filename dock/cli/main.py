@@ -63,7 +63,7 @@ def cli_build_image(args):
 
 
 def cli_inside_build(args):
-    build_inside(input=args.input, input_args=args.input_arg)
+    build_inside(input=args.input, input_args=args.input_arg, substitutions=args.substitute)
 
 
 def store_result(results):
@@ -152,6 +152,9 @@ class CLI(object):
         ib_parser.add_argument("--input-arg", action='append',
                                help="argument for input plugin (in form of 'key=value'), see input plugins "
                                     " to know what arguments they accept (can be specified multiple times)")
+        ib_parser.add_argument("--substitute", action='append',
+                               help="substitute values in build json (key=value, or "
+                                    "plugin_type.plugin_name.key=value)")
         ib_parser.set_defaults(func=cli_inside_build)
 
     def run(self):

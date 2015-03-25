@@ -29,5 +29,31 @@ Build plugins are requested and configured via input json: key `prebuild_plugins
 Order is important, because plugins are executed in the order as they are specified (one plugin can use input from another plugin). `args` are directly passed to a plugin in constructor. If `can_fail` is set to `false`, once the plugin raises an exception, build process is halted.
 
 
-Input plugin is requested via command line: command `inside-build`, option `--input`.
+## Input plugins
+
+Input plugin is requested via command line: command `inside-build`, option `--input`. Some input plugins require configuration, e.g. path plugins requires a file path to the file with build json. This is done via argument `--input-arg`. It has special syntax: `--input-arg key=value`.
+
+### path input plugin
+
+This input plugin reads specified file from filesystem and uses it as build json. Sample usage:
+```
+--input path --input-arg path=path/to/the/build.json
+```
+
+### env input plugin
+
+Loads specified environment variable as build json. Sample usage:
+```
+--input env --input-arg env_name=MY_BUILD_JSON
+```
+
+### Configuration substitution
+
+You may substitute configuration in your provided build json. This is really handy if you have a template with build json and don't want to change it yourself.
+
+All you need to do to accomplish this is to pass argument `--substitute` with value:
+ * `argument_name=argument_value`
+ * `plugin_type.plugin_name.argument_name=argument_value`
+
+E.g. `--substitute image=my-nice-image --substitute prebuild_plugins.koji.target=f22`.
 

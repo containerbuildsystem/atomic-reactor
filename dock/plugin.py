@@ -19,6 +19,36 @@ MODULE_EXTENSIONS = ('.py', '.pyc', '.pyo')
 logger = logging.getLogger(__name__)
 
 
+def get_plugin_conf(build_json, plugin_type, plugin_name):
+    """
+    return dict with configuration of a plugin from provided build json
+
+    :param plugin_type: str, type of plugin (prebuild_plugins, postbuild_plugins, ...)
+    :param plugin_name: str, unique name of the plugin
+    :return: dict
+    """
+    logger.debug("getting plugin conf for '%s' with type '%s'",
+                 plugin_name, plugin_type)
+    plugins_of_a_type = build_json.get(plugin_type, None)
+    if plugins_of_a_type is None:
+        logger.warning("there are no plugins with type '%s'",
+                       plugin_type)
+        return
+    plugin_conf = [x for x in plugins_of_a_type if x['name'] == plugin_name]
+    plugins_num = len(plugin_conf)
+    if plugins_num == 1:
+        return plugin_conf[0]
+    elif plugins_num <= 0:
+        logger.warning("there is no configuration for plugin '%s'",
+                       plugin_name)
+        return
+    else:
+        logger.error("there is no configuration for plugin '%s'",
+                     plugin_name)
+        raise RuntimeError("plugin '%s' was specified multiple (%d) times, can't pick one",
+                           plugin_name, plugins_num)
+
+
 class PluginFailedException(Exception):
     """ There was an error during plugin execution """
 
@@ -36,6 +66,8 @@ class Plugin(object):
         constructor
         """
         self.log = logging.getLogger("dock.plugins." + self.key)
+        self.args = args
+        self.kwargs = kwargs
 
     def __str__(self):
         return "%s" % self.key
@@ -86,7 +118,7 @@ class PluginsRunner(object):
         :param plugins_conf: dict, configuration for plugins
         """
         self.plugins_results = getattr(self, "plugins_results", {})
-        self.plugins_conf = plugins_conf or {}
+        self.plugins_conf = plugins_conf or []
         self.plugin_files = kwargs.get("plugin_files", [])
         self.plugin_classes = self.load_plugins(plugin_class_name)
 
@@ -257,7 +289,57 @@ class PostBuildPluginsRunner(BuildPluginsRunner):
 
 
 class InputPlugin(Plugin):
-    pass
+
+    def __init__(self, substitutions=None, **kwargs):
+        """
+        constructor
+        """
+        # call parent constructor
+        super(InputPlugin, self).__init__(**kwargs)
+        self.substitutions = substitutions
+
+    def substitute_configuration(self, build_json):
+        """
+        replace values of provided build json according to self.substitutions
+
+        path to values can be specified in two ways:
+
+         * single key value for root arguments, e.g. 'image'
+         * plugin configuration: you following convention:
+
+             plugin_type.plugin_name.argument_name
+
+           hence
+
+             prebuild_plugins.koji.target
+
+        :param build_json: dict, build json
+        :return: dict, substituted build json
+        """
+        # key: image, git_uri, prebuildplugins.koji.target, ...
+        for key, value in self.substitutions.items():
+            key_fragments = key.split(".")
+            if len(key_fragments) == 1:
+                logger.info("changing value '%s': '%s' -> '%s'",
+                            key, build_json[key], value)
+                build_json[key] = value
+            else:
+                try:
+                    plugin_type, plugin_name, arg_name = key_fragments
+                except ValueError:
+                    logger.error("invalid absolute path: it requires exactly three parts: "
+                                 "plugin type, plugin name, argument name separated be dot")
+                    raise ValueError("invalid absolute path to plugin, it should be "
+                                     "plugin_type.plugin_name.argument_name")
+                else:
+                    plugin_conf = get_plugin_conf(build_json, plugin_type, plugin_name)
+                    if plugin_conf is None:
+                        logger.warning("no plugin conf found, skipping...")
+                    else:
+                        logger.info("changing value '%s' of plugin '%s': '%s' -> '%s'",
+                                    arg_name, plugin_name, plugin_conf['args'][arg_name], value)
+                        plugin_conf['args'][arg_name] = value
+        return build_json
 
 
 class InputPluginsRunner(PluginsRunner):

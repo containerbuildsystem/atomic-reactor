@@ -10,12 +10,12 @@ from dock.plugin import InputPlugin
 class OSv3InputPlugin(InputPlugin):
     key = "osv3"
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         """
         constructor
         """
         # call parent constructor
-        super(OSv3InputPlugin, self).__init__()
+        super(OSv3InputPlugin, self).__init__(**kwargs)
 
     def run(self):
         """
