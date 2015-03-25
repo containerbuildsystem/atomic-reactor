@@ -35,6 +35,7 @@ from dock.util import LazyGit
 
 class ImageTestPlugin(PrePublishPlugin):
     key = "test_built_image"
+    can_fail = False
 
     def __init__(self, tasker, workflow, git_uri, git_commit, image_id, tests_git_path="tests.py",
                  tests = None, results_dir="results", **kwargs):
