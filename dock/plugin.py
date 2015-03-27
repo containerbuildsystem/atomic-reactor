@@ -245,7 +245,7 @@ class BuildPluginsRunner(PluginsRunner):
         }
         translated_dict = copy.deepcopy(dict_to_translate)
         for key, value in dict_to_translate.items():
-            if value in translation_dict:
+            if (not (type(value) is dict)) and value in translation_dict:
                 translated_dict[key] = translation_dict[value]
         return translated_dict
 
