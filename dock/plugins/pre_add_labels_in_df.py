@@ -65,7 +65,7 @@ class AddLabelsPlugin(PreBuildPlugin):
             content += " " + label
 
         # put it before last instruction
-        lines.insert(-1, content)
+        lines.insert(-1, content + '\n')
 
         with open(self.workflow.builder.df_path, 'w') as fp:
             fp.writelines(lines)
