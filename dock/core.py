@@ -294,6 +294,12 @@ class DockerTasker(LastLogger):
         """
         logger.info("get info about provided image specified by name")
         logger.debug("image_name = '%s', registry = '%s', tag = '%s'", image_name, reg_uri, tag)
+        # Even 'library' is implicit namespace, 'docker images library/<name>' doesn't show
+        # any <name> image. Therefore treat 'library' namespace as no namespace here.
+        if reg_uri == 'library':
+            logger.debug("registry 'library' -> ''")
+            reg_uri = ''
+
         # returns list of
         # {u'Created': 1414577076,
         #  u'Id': u'3ab9a7ed8a169ab89b09fb3e12a14a390d3c662703b65b4541c0c7bde0ee97eb',
