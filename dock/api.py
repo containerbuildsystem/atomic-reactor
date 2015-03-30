@@ -19,7 +19,7 @@ def build_image_in_privileged_container(build_image, git_url, image,
         **kwargs):
     """
     build image from provided dockerfile (specified as git url) in privileged image
-    
+
     :param build_image: str, image where target image should be built
     :param git_url: str, URL to git repo
     :param image: str, tag for built image ([registry/]image_name[:tag])
