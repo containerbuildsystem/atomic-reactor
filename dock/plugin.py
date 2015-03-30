@@ -230,7 +230,7 @@ class BuildPluginsRunner(PluginsRunner):
         self.workflow = workflow
         super(BuildPluginsRunner, self).__init__(plugin_class_name, plugins_conf, *args, **kwargs)
 
-    def _translate_special_values(self, dict_to_translate):
+    def _translate_special_values(self, obj_to_translate):
         """
         you may want to write plugins for values which are not known before build:
         e.g. id of built image, base image name,... this method will therefore
@@ -243,11 +243,19 @@ class BuildPluginsRunner(PluginsRunner):
             'BASE_IMAGE': join_img_name_tag(self.workflow.builder.base_image_name,
                                             self.workflow.builder.base_tag)
         }
-        translated_dict = copy.deepcopy(dict_to_translate)
-        for key, value in dict_to_translate.items():
-            if (not (type(value) is dict)) and value in translation_dict:
-                translated_dict[key] = translation_dict[value]
-        return translated_dict
+        if type(obj_to_translate) is dict:
+            # Recurse into dicts
+            translated_dict = copy.deepcopy(obj_to_translate)
+            for key, value in obj_to_translate.items():
+                translated_dict[key] = self._translate_special_values (value)
+
+            return translated_dict
+        elif type(obj_to_translate) is list:
+            # Iterate over lists
+            return [self._translate_special_values(elem)
+                    for elem in obj_to_translate]
+        else:
+            return translation_dict.get(obj_to_translate, obj_to_translate)
 
     def create_instance_from_plugin(self, plugin_class, plugin_conf):
         translated_conf = self._translate_special_values(plugin_conf)
