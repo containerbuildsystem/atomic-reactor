@@ -243,14 +243,14 @@ class BuildPluginsRunner(PluginsRunner):
             'BASE_IMAGE': join_img_name_tag(self.workflow.builder.base_image_name,
                                             self.workflow.builder.base_tag)
         }
-        if type(obj_to_translate) is dict:
+        if isinstance(obj_to_translate, dict):
             # Recurse into dicts
             translated_dict = copy.deepcopy(obj_to_translate)
             for key, value in obj_to_translate.items():
                 translated_dict[key] = self._translate_special_values (value)
 
             return translated_dict
-        elif type(obj_to_translate) is list:
+        elif isinstance(obj_to_translate, list):
             # Iterate over lists
             return [self._translate_special_values(elem)
                     for elem in obj_to_translate]
