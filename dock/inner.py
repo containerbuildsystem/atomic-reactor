@@ -131,9 +131,11 @@ class DockerBuildWorkflow(object):
             try:
                 prebuild_runner.run()
             except PluginFailedException as ex:
-                logger.error("Plugin failed, aborting execution.")
+                logger.error("One or more prebuild plugins failed: %s", ex)
                 return
             image = self.builder.build()
+
+            self.build_logs = self.builder.last_logs[:]
 
             # run prepublish plugins
             prepublish_runner = PrePublishPluginsRunner(self.builder.tasker, self, self.prepublish_plugins_conf,
@@ -141,10 +143,9 @@ class DockerBuildWorkflow(object):
             try:
                 prepublish_runner.run()
             except PluginFailedException as ex:
-                logger.error("Plugin failed, aborting execution.")
+                logger.error("One or more prepublish plugins failed: %s", ex)
                 return
 
-            self.build_logs = self.builder.last_logs[:]
             if image:
                 if self.target_registries:
                     for target_registry in self.target_registries:
@@ -155,7 +156,7 @@ class DockerBuildWorkflow(object):
             try:
                 postbuild_runner.run()
             except PluginFailedException as ex:
-                logger.error("Plugin failed, aborting execution.")
+                logger.error("One or more postbuild plugins failed: %s", ex)
                 return
 
             return image

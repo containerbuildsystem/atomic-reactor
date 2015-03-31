@@ -179,6 +179,7 @@ class PluginsRunner(object):
         """
         run all requested plugins
         """
+        failed_msgs = []
         for plugin_request in self.plugins_conf:
             try:
                 plugin_name = plugin_request['name']
@@ -211,10 +212,14 @@ class PluginsRunner(object):
                 logger.warning(msg)
                 logger.debug(traceback.format_exc())
                 if not plugin_can_fail:
-                    raise PluginFailedException(msg)
+                    failed_msgs.append(msg)
                 plugin_response = msg
 
             self.plugins_results[plugin_instance.key] = plugin_response
+        if len(failed_msgs) == 1:
+            raise PluginFailedException(failed_msgs[0])
+        elif len(failed_msgs) > 1:
+            raise PluginFailedException("Multiple plugins raised an exception: " + str(failed_msgs))
         return self.plugins_results
 
 
