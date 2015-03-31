@@ -33,6 +33,23 @@ def test_hostdocker_build():
     dt.remove_image(image_name)
 
 
+def test_hostdocker_error_build():
+    image_name = TEST_IMAGE
+    m = DockerhostBuildManager("buildroot-dh-fedora", {
+        "git_url": "https://github.com/TomasTomecek/docker-hello-world.git",
+        "git_commit": "error-build",
+        "image": image_name,
+        "parent_registry": LOCAL_REGISTRY,  # faster
+        "target_registries_insecure": True,
+        "parent_registry_insecure": True,
+        })
+    results = m.build()
+    dt = DockerTasker()
+    assert len(results.build_logs) > 0
+    assert results.return_code != 0
+    dt.remove_container(results.container_id)
+
+
 def test_privileged_gitrepo_build():
     image_name = "dock-test-ssh-image"
     m = PrivilegedBuildManager("buildroot-fedora", {

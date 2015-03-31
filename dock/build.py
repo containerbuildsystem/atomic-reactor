@@ -46,6 +46,24 @@ class BuilderStateMachine(object):
             raise ImageAlreadyBuilt()
 
 
+class BuildResult(object):
+    def __init__(self, command_result, image_id=None):
+        """ when build fails, image_id is None """
+        self.command_result = command_result
+        self._image_id = image_id
+
+    @property
+    def image_id(self):
+        return self._image_id
+
+    def is_failed(self):
+        return self.command_result.is_failed()
+
+    @property
+    def logs(self):
+        return self.command_result.logs
+
+
 class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
     """
     This is expected to run within container
@@ -131,16 +149,15 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
             self.image,
         )
         logger.debug("build is submitted, waiting for it to finish")
-        try:
-            self.last_logs = wait_for_command(logs_gen)  # wait for build to finish
-        except RuntimeError as ex:
-            logger.error("Build failed: '%s'", repr(ex))
-            return
+        command_result = wait_for_command(logs_gen)  # wait for build to finish
+        logger.info("was build successful? %s", not command_result.is_failed())
         self.is_built = True
-        self.built_image_info = self.get_built_image_info()
-        # self.base_image_id = self.built_image_info['ParentId']  # parent id is not base image!
-        self.image_id = self.built_image_info['Id']
-        return self.image
+        if not command_result.is_failed():
+            self.built_image_info = self.get_built_image_info()
+            # self.base_image_id = self.built_image_info['ParentId']  # parent id is not base image!
+            self.image_id = self.built_image_info['Id']
+        build_result = BuildResult(command_result, self.image_id)
+        return build_result
 
     def push_built_image(self, registry, insecure=False):
         """

@@ -24,18 +24,25 @@ def test_build_image(tmpdir):
     t = DockerTasker()
     provided_image = "test-build:test_tag"
     b = InsideBuilder(git_url, provided_image, tmpdir=str(tmpdir))
-    received_image = b.build()
-    assert provided_image == received_image
-    assert t.inspect_image(provided_image)
+    build_result = b.build()
+    assert t.inspect_image(build_result.image_id)
     # clean
-    t.remove_image(received_image)
+    t.remove_image(build_result.image_id)
+
+
+def test_build_error_dockerfile(tmpdir):
+    t = DockerTasker()
+    provided_image = "test-build:test_tag"
+    b = InsideBuilder(git_url, provided_image, git_commit="error-build", tmpdir=str(tmpdir))
+    build_result = b.build()
+    assert build_result.is_failed()
 
 
 def test_inspect_built_image(tmpdir):
     t = DockerTasker()
     provided_image = "test-build:test_tag"
     b = InsideBuilder(git_url, provided_image, tmpdir=str(tmpdir))
-    received_image = b.build()
+    build_result = b.build()
 
     built_inspect = b.inspect_built_image()
 
@@ -43,7 +50,7 @@ def test_inspect_built_image(tmpdir):
     assert built_inspect["Id"] is not None
 
     # clean
-    t.remove_image(received_image)
+    t.remove_image(build_result.image_id)
 
 
 def test_inspect_base_image(tmpdir):

@@ -2,6 +2,7 @@ from __future__ import print_function, unicode_literals
 
 import json
 import os
+import re
 import shutil
 import tempfile
 import logging
@@ -80,6 +81,32 @@ def get_baseimage_from_dockerfile(git_path, path=''):
     return get_baseimage_from_dockerfile_path(dockerfile_path)
 
 
+class CommandResult(object):
+    logs = None
+    error = None
+    error_detail = None
+
+    def __init__(self, logs, error=None, error_detail=None):
+        self._logs = logs
+        self._error = error
+        self._error_detail = error_detail
+
+    @property
+    def logs(self):
+        return self._logs
+
+    @property
+    def error(self):
+        return self._error
+
+    @property
+    def error_detail(self):
+        return self._error_detail
+
+    def is_failed(self):
+        return bool(self.error) or bool(self.error_detail)
+
+
 def wait_for_command(logs_generator):
     """
     using given generator, wait for it to raise StopIteration, which
@@ -89,6 +116,8 @@ def wait_for_command(logs_generator):
     """
     logger.info("wait_for_command")
     logs = []
+    error = None
+    error_message = None
     while True:
         try:
             parsed_item = None
@@ -106,20 +135,22 @@ def wait_for_command(logs_generator):
                 parsed_item = None
                 line = item
 
-            line = line.replace("\r\n", " ").replace("\n", " ").strip()
-            if line:
-                logger.debug(line)
+            for l in re.split(r"\r?\n", line, re.MULTILINE):
+                # line = line.replace("\r\n", " ").replace("\n", " ").strip()
+                l = l.strip()
+                if l:
+                    logger.debug(l)
             logs.append(item)
             if parsed_item is not None:
                 error = parsed_item.get("error", None)
                 error_message = parsed_item.get("errorDetail", None)
                 if error:
                     logger.error(item.strip())
-                    raise RuntimeError("Error in container processing: %s (%s)" % (error, error_message))
         except StopIteration:
             logger.info("no more logs")
             break
-    return logs
+    cr = CommandResult(logs=logs, error=error, error_detail=error_message)
+    return cr
 
 
 def clone_git_repo(git_url, target_dir, commit=None):

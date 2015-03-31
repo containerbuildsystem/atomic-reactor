@@ -133,9 +133,9 @@ class DockerBuildWorkflow(object):
             except PluginFailedException as ex:
                 logger.error("One or more prebuild plugins failed: %s", ex)
                 return
-            image = self.builder.build()
 
-            self.build_logs = self.builder.last_logs[:]
+            build_result = self.builder.build()
+            self.build_logs = build_result.logs
 
             # run prepublish plugins
             prepublish_runner = PrePublishPluginsRunner(self.builder.tasker, self, self.prepublish_plugins_conf,
@@ -146,7 +146,7 @@ class DockerBuildWorkflow(object):
                 logger.error("One or more prepublish plugins failed: %s", ex)
                 return
 
-            if image:
+            if not build_result.is_failed():
                 if self.target_registries:
                     for target_registry in self.target_registries:
                         self.builder.push_built_image(target_registry, insecure=self.target_registries_insecure)
@@ -159,7 +159,7 @@ class DockerBuildWorkflow(object):
                 logger.error("One or more postbuild plugins failed: %s", ex)
                 return
 
-            return image
+            return build_result
         finally:
             shutil.rmtree(tmpdir)
 
@@ -212,6 +212,6 @@ def build_inside(input, input_args=None, substitutions=None):
         raise RuntimeError("No valid build json!")
     # TODO: validate json
     dbw = DockerBuildWorkflow(**build_json)
-    image = dbw.build_docker_image()
-    if not image:
+    build_result = dbw.build_docker_image()
+    if build_result.is_failed():
         raise RuntimeError("no image built")

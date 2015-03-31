@@ -334,7 +334,8 @@ class DockerTasker(LastLogger):
         except TypeError:
             # because changing api is fun
             logs_gen = self.d.pull(image, stream=True)
-        self.last_logs = wait_for_command(logs_gen)
+        command_result = wait_for_command(logs_gen)
+        self.last_logs = command_result.logs
         return image
 
     def tag_image(self, image, target_image_name, reg_uri='', tag='', force=False):

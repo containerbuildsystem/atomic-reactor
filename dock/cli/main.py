@@ -51,8 +51,8 @@ def cli_build_image(args):
     elif args.method == "privileged":
         response = build_image_in_privileged_container(args.build_image, **common_kwargs)
     elif args.method == 'here':
-        image = build_image_here(plugin_files=args.plugin_files, **common_kwargs)
-        if not image:
+        build_result = build_image_here(plugin_files=args.plugin_files, **common_kwargs)
+        if build_result.is_failed():
             response.return_code = -1
         else:
             response.return_code = 0
