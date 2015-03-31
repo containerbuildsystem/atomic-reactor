@@ -26,7 +26,7 @@ LABEL "label1"="value1" "label 2"="some value"
 CMD date
 ```
 
-If you want to use quotes within keys or values, you have to escape those yourself.
+Keys and values are quoted as necessary.
 """
 from dock.plugin import PreBuildPlugin
 
