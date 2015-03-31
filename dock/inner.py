@@ -144,7 +144,6 @@ class DockerBuildWorkflow(object):
                 logger.error("Plugin failed, aborting execution.")
                 return
 
-            # TODO: in case of docker host build, remove image
             self.build_logs = self.builder.last_logs[:]
             if image:
                 if self.target_registries:
