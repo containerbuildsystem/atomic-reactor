@@ -60,6 +60,8 @@ class Plugin(object):
     # output of this plugin can be found in results specified with this key,
     # same thing goes for input: use this key for providing input for this plugin
     key = None
+    # by default, if plugin fails (raises exc), execution continues
+    can_fail = True
 
     def __init__(self, *args, **kwargs):
         """
