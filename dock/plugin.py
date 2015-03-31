@@ -1,4 +1,11 @@
 """
+Copyright (c) 2015 Red Hat, Inc
+All rights reserved.
+
+This software may be modified and distributed under the terms
+of the BSD license. See the LICENSE file for details.
+
+
 definition of plugin system
 
 plugins are supposed to be run when image is built and we need to extract some information

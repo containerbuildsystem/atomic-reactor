@@ -1,4 +1,11 @@
 """
+Copyright (c) 2015 Red Hat, Inc
+All rights reserved.
+
+This software may be modified and distributed under the terms
+of the BSD license. See the LICENSE file for details.
+
+
 Pre build plugin which injects custom yum repository in dockerfile.
 """
 import os

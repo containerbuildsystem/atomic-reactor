@@ -1,4 +1,11 @@
 """
+Copyright (c) 2015 Red Hat, Inc
+All rights reserved.
+
+This software may be modified and distributed under the terms
+of the BSD license. See the LICENSE file for details.
+
+
 Python API for dock. This is the official way of interacting with dock.
 """
 from dock.inner import DockerBuildWorkflow
