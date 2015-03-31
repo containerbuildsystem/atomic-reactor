@@ -114,6 +114,8 @@ def wait_for_command(logs_generator):
 
     :return: list of str, logs
     """
+    # FIXME: this function is getting pretty big, let's break it down a bit
+    #        and merge it into CommandResult
     logger.info("wait_for_command")
     logs = []
     error = None
