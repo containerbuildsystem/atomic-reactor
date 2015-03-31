@@ -13,10 +13,12 @@ def test_hostdocker_build():
         "git_dockerfile_path": "ssh/",
         "image": image_name,
         "parent_registry": LOCAL_REGISTRY,  # faster
+        "target_registries_insecure": True,
+        "parent_registry_insecure": True,
     })
     results = m.build()
     dt = DockerTasker()
-    img = dt.pull_image(image_name, LOCAL_REGISTRY)
+    img = dt.pull_image(image_name, LOCAL_REGISTRY, insecure=True)
     assert len(results.build_logs) > 0
     # assert isinstance(results.built_img_inspect, dict)
     # assert len(results.built_img_inspect.items()) > 0
@@ -38,10 +40,12 @@ def test_privileged_gitrepo_build():
         "git_dockerfile_path": "ssh/",
         "image": image_name,
         "parent_registry": LOCAL_REGISTRY,  # faster
+        "target_registries_insecure": True,
+        "parent_registry_insecure": True,
     })
     results = m.build()
     dt = DockerTasker()
-    img = dt.pull_image(image_name, LOCAL_REGISTRY)
+    img = dt.pull_image(image_name, LOCAL_REGISTRY, insecure=True)
     dt.remove_image(img)
     assert len(results.build_logs) > 0
     # assert isinstance(results.built_img_inspect, dict)
@@ -61,10 +65,12 @@ def test_privileged_build():
         "git_url": "https://github.com/TomasTomecek/docker-hello-world.git",
         "image": TEST_IMAGE,
         "parent_registry": LOCAL_REGISTRY,  # faster
+        "target_registries_insecure": True,
+        "parent_registry_insecure": True,
     })
     results = m.build()
     dt = DockerTasker()
-    img = dt.pull_image(TEST_IMAGE, LOCAL_REGISTRY)
+    img = dt.pull_image(TEST_IMAGE, LOCAL_REGISTRY, insecure=True)
     assert len(results.build_logs) > 0
     # assert isinstance(results.built_img_inspect, dict)
     # assert len(results.built_img_inspect.items()) > 0
