@@ -26,10 +26,9 @@ LABEL "label1"="value1" "label 2"="some value"
 CMD date
 ```
 
-If you want to use quotes within keys or values, you have to escape those yourself.
+Keys and values are quoted as necessary.
 """
 from dock.plugin import PreBuildPlugin
-
 
 class AddLabelsPlugin(PreBuildPlugin):
     key = "add_labels_in_dockerfile"
@@ -55,12 +54,26 @@ class AddLabelsPlugin(PreBuildPlugin):
         with open(self.workflow.builder.df_path, 'r') as fp:
             lines = fp.readlines()
 
-        # FIXME: should we escape quotes?
         # correct syntax is:
         #   LABEL "key"="value" "key2"="value2"
+
+        # Make sure to escape '\' and '"' characters.
+        try:
+            # py3
+            env_trans = str.maketrans({'\\': '\\\\',
+                                       '"': '\\"'})
+        except AttributeError:
+            # py2
+            env_trans = None
+
+        def escape(s):
+            if env_trans:
+                return s.translate(env_trans)
+            return s.replace('\\', '\\\\').replace('"', '\\"')
+
         content = 'LABEL'
         for key, value in self.labels.items():
-            label = '"%s"="%s"' % (key, value)
+            label = '"%s"="%s"' % (escape(key), escape(value))
             self.log.info("setting label %s", label)
             content += " " + label
 
