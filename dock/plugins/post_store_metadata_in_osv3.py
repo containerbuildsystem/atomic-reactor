@@ -41,9 +41,12 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
             return
         self.log.info("build id = %s", build_id)
 
+        api_url = urljoin(self.url, "/osapi/v1beta1/")
+        oauth_url = urljoin(self.url, "/oauth/authorize")  # MUST NOT END WITH SLASH
+
         # initial setup will use host based auth: apache will be set to accept everything
         # from specific IP and will set specific X-Remote-User for such requests
-        o = Openshift(self.url, use_auth=True, verify_ssl=self.verify_ssl)
+        o = Openshift(api_url, oauth_url, None, use_auth=True, verify_ssl=self.verify_ssl)
 
         labels = {
             "dockerfile": self.workflow.prebuild_results.get("dockerfile_content", ""),
