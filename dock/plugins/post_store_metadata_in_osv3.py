@@ -1,5 +1,6 @@
 import json
 import os
+from osbs.core import Openshift
 
 try:
     # py2
@@ -9,39 +10,6 @@ except Exception:
     from urllib.parse import urljoin
 
 from dock.plugin import PostBuildPlugin
-
-import requests
-
-
-class OSV3(object):
-    def __init__(self, url, build_id, verify_ssl=True):
-        self.url = url
-        self.build_id = build_id
-        self.verify_ssl = verify_ssl
-        self.build_json = {}
-
-    def _build_url(self, suffix):
-        return urljoin(self.url, suffix)
-
-    def _builds_url(self):
-        url = self._build_url("builds/%s" % self.build_id)
-        return url
-
-    def fetch_build_json(self):
-        r = requests.get(self._builds_url(), verify=self.verify_ssl)
-        self.build_json = r.json()
-        return self.build_json
-
-    def update_labels(self, d):
-        assert self.build_json != {}
-        self.build_json['metadata'].setdefault('labels', {})
-        self.build_json['metadata']['labels'].update(d)
-
-    def store_build_json(self):
-        r = requests.put(self._builds_url(), data=json.dumps(self.build_json),
-                         headers={'content-type': 'application/json'}, verify=self.verify_ssl)
-        if not r.ok:
-            raise RuntimeError("failed to update build json: [%d]: %s", r.status_code, r.content)
 
 
 class StoreMetadataInOSv3Plugin(PostBuildPlugin):
@@ -73,12 +41,15 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
             return
         self.log.info("build id = %s", build_id)
 
-        o = OSV3(self.url, build_id, verify_ssl=self.verify_ssl)
-        o.fetch_build_json()
-        o.update_labels({
+        # initial setup will use host based auth: apache will be set to accept everything
+        # from specific IP and will set specific X-Remote-User for such requests
+        o = Openshift(self.url, use_auth=True, verify_ssl=self.verify_ssl)
+
+        labels = {
             "dockerfile": self.workflow.prebuild_results.get("dockerfile_content", ""),
             "artefacts": self.workflow.prebuild_results.get("distgit_fetch_artefacts", ""),
             "logs": "\n".join(self.workflow.build_logs),
             "rpm-packages": "\n".join(self.workflow.postbuild_results.get("all_rpm_packages", "")),
-        })
+        }
         o.store_build_json()
+        o.set_labels_on_build(build_id, labels)
