@@ -54,5 +54,4 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
             "logs": "\n".join(self.workflow.build_logs),
             "rpm-packages": "\n".join(self.workflow.postbuild_results.get("all_rpm_packages", "")),
         }
-        o.store_build_json()
         o.set_labels_on_build(build_id, labels)
