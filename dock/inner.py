@@ -215,3 +215,5 @@ def build_inside(input, input_args=None, substitutions=None):
     build_result = dbw.build_docker_image()
     if not build_result or build_result.is_failed():
         raise RuntimeError("no image built")
+    else:
+        logger.info("Build has finished successfully \o/")
