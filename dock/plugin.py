@@ -213,6 +213,8 @@ class PluginsRunner(object):
                 logger.debug(traceback.format_exc())
                 if not plugin_can_fail:
                     failed_msgs.append(msg)
+                else:
+                    logger.info("Error is not fatal. Continuing...")
                 plugin_response = msg
 
             self.plugins_results[plugin_instance.key] = plugin_response
