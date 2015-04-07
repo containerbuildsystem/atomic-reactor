@@ -32,6 +32,15 @@ class OSv3InputPlugin(InputPlugin):
         plugins_json = os.environ.get('DOCK_PLUGINS', '{}')
         plugins_json = json.loads(plugins_json)
 
+        source_registry = None
+        source_registry_insecure = None
+        try:
+            match = [x for x in plugins_json['prebuild_plugins'] if x.get('name', None) == 'change_source_registry']
+            source_registry = match[0]['args']['registry_uri']
+            source_registry_insecure = match[0]['args'].get('insecure_registry', False)
+        except (IndexError, KeyError) as ex:
+            self.log.error("source registry is not configured: '%s'", repr(ex))
+
         input_json = {
             'git_url': git_url,
             'image': image,
@@ -40,6 +49,8 @@ class OSv3InputPlugin(InputPlugin):
             'prebuild_plugins': plugins_json.get('prebuild_plugins', None),
             'postbuild_plugins': plugins_json.get('postbuild_plugins', None),
             'target_registries_insecure': True,  # FIXME: create plugin for this
+            'parent_registry': source_registry,
+            'parent_registry_insecure': source_registry_insecure,
         }
 
         self.log.debug("build json: %s", input_json)
