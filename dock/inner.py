@@ -213,5 +213,5 @@ def build_inside(input, input_args=None, substitutions=None):
     # TODO: validate json
     dbw = DockerBuildWorkflow(**build_json)
     build_result = dbw.build_docker_image()
-    if build_result.is_failed():
+    if not build_result or build_result.is_failed():
         raise RuntimeError("no image built")
