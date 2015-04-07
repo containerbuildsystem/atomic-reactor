@@ -7,7 +7,7 @@
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 
 Name:           dock
-Version:        1.1.2
+Version:        1.1.3
 Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
@@ -47,6 +47,16 @@ Requires:       koji
 Koji plugin for Dock
 
 
+%package metadata
+Summary:        Plugin for submitting metada to OSBS
+Group:          Development/Tools
+Requires:       %{name} = %{version}-%{release}
+Requires:       osbs
+
+%description metadata
+Plugin for submitting metada to OSBS
+
+
 %if 0%{?with_python3}
 %package -n python3-dock
 Summary:        Improved builder for Docker images
@@ -72,6 +82,16 @@ Requires:       koji
 
 %description -n python3-dock-koji
 Koji plugin for Dock
+
+
+%package -n python3-dock-metadata
+Summary:        Plugin for submitting metada to OSBS
+Group:          Development/Tools
+Requires:       %{name} = %{version}-%{release}
+Requires:       osbs
+
+%description python3-dock-metadata
+Plugin for submitting metada to OSBS
 %endif # with_python3
 
 
@@ -127,6 +147,10 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 %{python2_sitelib}/dock/plugins/pre_koji.py*
 
 
+%files metadata
+%{python2_sitelib}/dock/plugins/post_store_metadata_in_osv3.py*
+
+
 %if 0%{?with_python3}
 %files -n python3-dock
 %doc README.md
@@ -149,10 +173,17 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 
 %files -n python3-dock-koji
 %{python3_sitelib}/dock/plugins/pre_koji.py*
+
+
+%files -n python3-dock-metadata
+%{python3_sitelib}/dock/plugins/post_store_metadata_in_osv3.py*
 %endif  # with_python3
 
 
 %changelog
+* Tue Apr 07 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.1.3-1
+- new upstream release 1.1.3
+
 * Thu Apr 02 2015 Martin Milata <mmilata@redhat.com> - 1.1.2-1
 - new upstream release 1.1.2
 
