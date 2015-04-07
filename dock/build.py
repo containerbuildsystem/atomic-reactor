@@ -97,6 +97,7 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
         self.df_path, self.df_dir = figure_out_dockerfile(self.git_path, self.git_dockerfile_path)
         self.df_base_image = get_baseimage_from_dockerfile(self.df_path)
         logger.debug("image specified in dockerfile = '%s'", self.df_base_image)
+        # FIXME: this should be: registry, namespace, image_name, tag
         self.df_registry, self.base_image_name, self.base_tag = split_repo_img_name_tag(self.df_base_image)
         if not self.base_tag:
             self.base_tag = 'latest'
@@ -112,19 +113,22 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
         logger.info("pull base image from registry")
         self._ensure_not_built()
 
-        if self.df_registry:
-            # registry in dockerfile doesn't match provided source registry
-            if self.df_registry != source_registry:
-                logger.error("registry in dockerfile doesn't match provided source registry, "
-                             "dockerfile = '%s', provided = '%s'",
-                             self.df_registry, source_registry)
-                raise RuntimeError(
-                    "Registry specified in dockerfile doesn't match provided one. Dockerfile: '%s', Provided: '%s'"
-                    % (self.df_registry, source_registry))
+        # FIXME: if there is namespace in image name, this fails; fix it!
+        # if self.df_registry:
+        #     # registry in dockerfile doesn't match provided source registry
+        #     if self.df_registry != source_registry:
+        #         logger.error("registry in dockerfile doesn't match provided source registry, "
+        #                      "dockerfile = '%s', provided = '%s'",
+        #                      self.df_registry, source_registry)
+        #         raise RuntimeError(
+        #             "Registry specified in dockerfile doesn't match provided one. Dockerfile: '%s', Provided: '%s'"
+        #             % (self.df_registry, source_registry))
 
         # this may seem odd; we could pull using registry_img_name, but since registry may be empty
         # let's don't branch here and rather construct reg_uri/img_name again
-        base_image = self.tasker.pull_image(self.base_image_name, source_registry, tag=self.base_tag,
+        # FIXME: join namespace and image name, not whole registry
+        base_image = self.tasker.pull_image(join_repo_img_name(self.df_registry, self.base_image_name),
+                                            source_registry, tag=self.base_tag,
                                             insecure=insecure)
 
         if not self.df_registry:
