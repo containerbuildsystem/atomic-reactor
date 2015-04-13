@@ -15,18 +15,20 @@ from dock.plugin import PostBuildPlugin
 class StoreMetadataInOSv3Plugin(PostBuildPlugin):
     key = "store_metadata_in_osv3"
 
-    def __init__(self, tasker, workflow, url, verify_ssl=True):
+    def __init__(self, tasker, workflow, url, verify_ssl=True, use_auth=True):
         """
         constructor
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param url: str, URL to OSv3 instance
+        :param use_auth: bool, initiate authentication with openshift?
         """
         # call parent constructor
         super(StoreMetadataInOSv3Plugin, self).__init__(tasker, workflow)
         self.url = url
         self.verify_ssl = verify_ssl
+        self.use_auth = use_auth
 
     def run(self):
         try:
@@ -46,7 +48,7 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
 
         # initial setup will use host based auth: apache will be set to accept everything
         # from specific IP and will set specific X-Remote-User for such requests
-        o = Openshift(api_url, oauth_url, None, use_auth=True, verify_ssl=self.verify_ssl)
+        o = Openshift(api_url, oauth_url, None, use_auth=self.use_auth, verify_ssl=self.verify_ssl)
 
         labels = {
             "dockerfile": self.workflow.prebuild_results.get("dockerfile_content", ""),
