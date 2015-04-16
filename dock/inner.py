@@ -55,6 +55,57 @@ class BuildResultsJSONDecoder(json.JSONDecoder):
         return results
 
 
+class TagAndPushConf(object):
+    """
+    mapping =
+      {
+        "<registry_uri>": {
+          "insecure": false,
+          "image_names": [
+            "image-name1",
+            "prefix/image-name2",
+          ],
+        }
+        "...": {...}
+      }
+    """
+
+    def __init__(self, mapping=None):
+        self.mapping = mapping or {}
+
+    @property
+    def registries(self):
+        return self.mapping.keys()
+
+    def __getitem__(self, item):
+        return self.mapping[item]
+
+    def init_registry_conf(self, registry, insecure=False):
+        """ initialize new registry in mapping (do nothing if it's already there) """
+        self.mapping.setdefault(registry, {})
+        self.mapping[registry].setdefault("insecure", insecure)
+        self.mapping[registry].setdefault("image_names", [])
+
+    def add_image(self, registry, image, insecure=False):
+        self.init_registry_conf(registry, insecure)
+        self.mapping[registry]['image_names'].append(image)
+
+    def add_images(self, registry, images, insecure=False):
+        self.init_registry_conf(registry, insecure)
+        self.mapping[registry]['image_names'] += images
+
+    def merge_with_mapping(self, mapping):
+        if not isinstance(mapping, dict):
+            return
+        for registry_uri, registry_conf in mapping.items():
+            insecure = registry_conf.get("insecure", None)
+            if insecure is None:
+                self.init_registry_conf(registry_uri)
+            else:
+                self.init_registry_conf(registry_uri, insecure)
+            self.add_images(registry_uri, registry_conf.get("image_names", []))
+
+
 class DockerBuildWorkflow(object):
     """
     This class defines a workflow for building images:
@@ -107,6 +158,10 @@ class DockerBuildWorkflow(object):
 
         self.builder = None
         self.build_logs = None
+
+        # TODO: ensure this is the only way to tag and push images,
+        #       get rid of target_reg*, push_built_img
+        self.tag_and_push_conf = TagAndPushConf()
 
         self.repos = {}  # this should be filled by plugins
 

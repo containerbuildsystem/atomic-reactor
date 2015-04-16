@@ -7,8 +7,9 @@ __all__ = ('TagAndPushPlugin', )
 
 class TagAndPushPlugin(PostBuildPlugin):
     key = "tag_and_push"
+    can_fail = False
 
-    def __init__(self, tasker, workflow, mapping, insecure=False):
+    def __init__(self, tasker, workflow, mapping=None, insecure=False):
         """
         constructor
 
@@ -35,7 +36,9 @@ class TagAndPushPlugin(PostBuildPlugin):
 
     def run(self):
         pushed_images = []
-        for registry_uri, registry_conf in self.mapping.items():
+        self.workflow.tag_and_push_conf.merge_with_mapping(self.mapping)
+        for registry_uri in self.workflow.tag_and_push_conf.registries:
+            registry_conf = self.workflow.tag_and_push_conf[registry_uri]
             insecure = registry_conf.get("insecure", self.insecure)
             try:
                 image_names = registry_conf['image_names']
