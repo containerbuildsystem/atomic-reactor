@@ -158,6 +158,7 @@ class DockerBuildWorkflow(object):
 
         self.builder = None
         self.build_logs = None
+        self.built_image_inspect = None
 
         # TODO: ensure this is the only way to tag and push images,
         #       get rid of target_reg*, push_built_img
@@ -191,6 +192,9 @@ class DockerBuildWorkflow(object):
 
             build_result = self.builder.build()
             self.build_logs = build_result.logs
+
+            if not build_result.is_failed():
+                self.built_image_inspect = self.builder.inspect_built_image()
 
             # run prepublish plugins
             prepublish_runner = PrePublishPluginsRunner(self.builder.tasker, self, self.prepublish_plugins_conf,
