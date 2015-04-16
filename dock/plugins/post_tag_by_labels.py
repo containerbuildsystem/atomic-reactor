@@ -8,18 +8,18 @@ class TagByLabelsPlugin(PostBuildPlugin):
     key = "tag_by_labels"
     can_fail = False
 
-    def __init__(self, tasker, workflow, registry, insecure=False):
+    def __init__(self, tasker, workflow, registry_uri, insecure=False):
         """
         constructor
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param registry: str, registry URI where the image should be pushed
+        :param registry_uri: str, registry URI where the image should be pushed
         :param insecure: bool, allow connection to registry to be insecure
         """
         # call parent constructor
         super(TagByLabelsPlugin, self).__init__(tasker, workflow)
-        self.registry = registry
+        self.registry_uri = registry_uri
         self.insecure = insecure
 
     def run(self):
@@ -31,4 +31,4 @@ class TagByLabelsPlugin(PostBuildPlugin):
 
         target_registries_insecure = self.insecure or self.workflow.target_registries_insecure
 
-        self.workflow.tag_and_push_conf.add_image(self.registry, image, target_registries_insecure)
+        self.workflow.tag_and_push_conf.add_image(self.registry_uri, image, target_registries_insecure)

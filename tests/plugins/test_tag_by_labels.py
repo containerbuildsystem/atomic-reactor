@@ -40,7 +40,7 @@ def test_tag_by_labels_plugin(tmpdir):
         [{
             'name': TagByLabelsPlugin.key,
             'args': {
-                "registry": LOCALHOST_REGISTRY,
+                "registry_uri": LOCALHOST_REGISTRY,
                 "insecure": True,
             }
         }, {
