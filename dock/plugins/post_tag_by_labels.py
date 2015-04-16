@@ -23,9 +23,21 @@ class TagByLabelsPlugin(PostBuildPlugin):
         self.insecure = insecure
 
     def run(self):
-        name = self.workflow.built_image_inspect["ContainerConfig"]["Labels"]['Name']
-        version = self.workflow.built_image_inspect["ContainerConfig"]["Labels"]['Version']
-        release = self.workflow.built_image_inspect["ContainerConfig"]["Labels"]['Release']
+        if not self.workflow.built_image_inspect:
+            raise RuntimeError("There are no inspect data of built image. "
+                               "Have the build succeeded?")
+        if "Labels" not in self.workflow.built_image_inspect["ContainerConfig"]:
+            raise RuntimeError("No labels specified.")
+
+        def get_label(label_name):
+            try:
+                return self.workflow.built_image_inspect["ContainerConfig"]["Labels"]['Name']
+            except KeyError:
+                raise RuntimeError("Missing label '%s'.", label_name)
+
+        name = get_label("Name")
+        version = get_label("Version")
+        release = get_label("Release")
 
         image = "%s:%s_%s" % (name, version, release)
 
