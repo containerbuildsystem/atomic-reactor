@@ -136,7 +136,7 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
         else:
             response = base_image
 
-        logger.debug("image'%s' is available", response)
+        logger.debug("image '%s' is available", response)
         return response
 
     def build(self):
