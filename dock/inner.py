@@ -160,6 +160,8 @@ class DockerBuildWorkflow(object):
         self.build_logs = None
         self.built_image_inspect = None
 
+        self.pulled_base_image = None
+
         # TODO: ensure this is the only way to tag and push images,
         #       get rid of target_reg*, push_built_img
         self.tag_and_push_conf = TagAndPushConf()
@@ -177,7 +179,8 @@ class DockerBuildWorkflow(object):
                                      git_commit=self.git_commit, tmpdir=tmpdir)
         try:
             if self.parent_registry:
-                self.builder.pull_base_image(self.parent_registry, insecure=self.parent_registry_insecure)
+                self.pulled_base_image = self.builder.pull_base_image(
+                    self.parent_registry, insecure=self.parent_registry_insecure)
 
             # time to run pre-build plugins, so they can access cloned repo,
             # base image
