@@ -6,6 +6,8 @@ import requests
 import requests.exceptions
 from tests.constants import LOCALHOST_REGISTRY_HTTP, DOCKER0_REGISTRY_HTTP
 
+from dock.util import ImageName
+
 
 def get_uuid():
     u = uuid.uuid4()
@@ -17,7 +19,7 @@ def get_uuid():
 
 @pytest.fixture()
 def temp_image_name():
-    return get_uuid()
+    return ImageName(repo=("dock-tests-%s" % get_uuid()))
 
 
 @pytest.fixture()

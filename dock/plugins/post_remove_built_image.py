@@ -2,6 +2,7 @@
 Remove built image (this only makes sense if you store the image in some registry first)
 """
 from dock.plugin import PostBuildPlugin
+from dock.util import ImageName
 
 
 __all__ = ('GarbageCollectionPlugin', )
@@ -31,4 +32,4 @@ class GarbageCollectionPlugin(PostBuildPlugin):
         self.tasker.remove_image(image, force=True)
         if self.remove_base_image and self.workflow.pulled_base_image:
             # FIXME: we may need to add force here, let's try it like this for now
-            self.tasker.remove_image(self.workflow.pulled_base_image)
+            self.tasker.remove_image(ImageName.parse(self.workflow.pulled_base_image))

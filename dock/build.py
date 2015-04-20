@@ -6,8 +6,8 @@ Logic above these classes has to set the workflow itself.
 import logging
 
 from dock.core import DockerTasker, LastLogger
-from dock.util import get_baseimage_from_dockerfile, split_repo_img_name_tag, LazyGit, wait_for_command, \
-    join_img_name_tag, figure_out_dockerfile, join_repo_img_name, join_repo_img_name_tag
+from dock.util import get_baseimage_from_dockerfile, LazyGit, wait_for_command, \
+    figure_out_dockerfile, ImageName
 
 
 logger = logging.getLogger(__name__)
@@ -87,20 +87,16 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
         self.base_image_id = None
         self.image_id = None
         self.built_image_info = None
-        self.base_image_info = None
-        self.image = image
-        self.reg_uri, self.image_name, self.tag = split_repo_img_name_tag(image)
+        self.image = ImageName.parse(image)
         self.git_dockerfile_path = git_dockerfile_path
         self.git_commit = git_commit
 
         # get info about base image from dockerfile
         self.df_path, self.df_dir = figure_out_dockerfile(self.git_path, self.git_dockerfile_path)
-        self.df_base_image = get_baseimage_from_dockerfile(self.df_path)
-        logger.debug("image specified in dockerfile = '%s'", self.df_base_image)
-        # FIXME: this should be: registry, namespace, image_name, tag
-        self.df_registry, self.base_image_name, self.base_tag = split_repo_img_name_tag(self.df_base_image)
-        if not self.base_tag:
-            self.base_tag = 'latest'
+        self.base_image = ImageName.parse(get_baseimage_from_dockerfile(self.df_path))
+        logger.debug("image specified in dockerfile = '%s'", self.base_image)
+        if not self.base_image.tag:
+            self.base_image.tag = 'latest'
 
     def pull_base_image(self, source_registry, insecure=False):
         """
@@ -113,26 +109,22 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
         logger.info("pull base image from registry")
         self._ensure_not_built()
 
-        # FIXME: if there is namespace in image name, this fails; fix it!
-        # if self.df_registry:
-        #     # registry in dockerfile doesn't match provided source registry
-        #     if self.df_registry != source_registry:
-        #         logger.error("registry in dockerfile doesn't match provided source registry, "
-        #                      "dockerfile = '%s', provided = '%s'",
-        #                      self.df_registry, source_registry)
-        #         raise RuntimeError(
-        #             "Registry specified in dockerfile doesn't match provided one. Dockerfile: '%s', Provided: '%s'"
-        #             % (self.df_registry, source_registry))
+        # registry in dockerfile doesn't match provided source registry
+        if self.base_image.registry and self.base_image.registry != source_registry:
+            logger.error("registry in dockerfile doesn't match provided source registry, "
+                         "dockerfile = '%s', provided = '%s'",
+                         self.base_image.registry, source_registry)
+            raise RuntimeError(
+                "Registry specified in dockerfile doesn't match provided one. Dockerfile: '%s', Provided: '%s'"
+                % (self.base_image.registry, source_registry))
 
-        # this may seem odd; we could pull using registry_img_name, but since registry may be empty
-        # let's don't branch here and rather construct reg_uri/img_name again
-        # FIXME: join namespace and image name, not whole registry
-        base_image = self.tasker.pull_image(join_repo_img_name(self.df_registry, self.base_image_name),
-                                            source_registry, tag=self.base_tag,
-                                            insecure=insecure)
+        base_image_with_registry = self.base_image.copy()
+        base_image_with_registry.registry = source_registry
 
-        if not self.df_registry:
-            response = self.tasker.tag_image(base_image, self.base_image_name, tag=self.base_tag, force=True)
+        base_image = self.tasker.pull_image(base_image_with_registry, insecure=insecure)
+
+        if not self.base_image.registry:
+            response = self.tasker.tag_image(base_image_with_registry, self.base_image, force=True)
         else:
             response = base_image
 
@@ -176,12 +168,20 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
         if not registry:
             logger.warning("no registry specified; skipping")
             return
-        local_registry = join_repo_img_name(self.reg_uri, self.image_name)
-        response = self.tasker.tag_and_push_image(self.image, local_registry, registry, tag=self.tag, insecure=insecure)
-        # untag image
-        # url/namespace/image:tag
-        repo_image = join_repo_img_name_tag(registry, local_registry, self.tag)
-        self.tasker.remove_image(repo_image)
+
+        if self.image.registry and self.image.registry != registry:
+            logger.error("registry in image name doesn't match provided target registry, "
+                         "image registry = '%s', target = '%s'",
+                         self.image.registry, registry)
+            raise RuntimeError(
+                "Registry in image name doesn't match target registry. Image: '%s', Target: '%s'"
+                % (self.image.registry, registry))
+
+        target_image = self.image.copy()
+        target_image.registry = registry
+
+        response = self.tasker.tag_and_push_image(self.image, target_image, insecure=insecure)
+        self.tasker.remove_image(target_image)
         return response
 
     def inspect_base_image(self):
@@ -191,7 +191,7 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
         :return: dict
         """
         logger.info("inspect base image")
-        inspect_data = self.tasker.inspect_image(join_img_name_tag(self.base_image_name, self.base_tag))
+        inspect_data = self.tasker.inspect_image(self.base_image)
         return inspect_data
 
     def inspect_built_image(self):
@@ -211,19 +211,17 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
 
         :return dict
         """
-        if self.base_image_info is not None:
-            return self.base_image_info
         logger.info("get information about base image")
-        image_info = self.tasker.get_image_info_by_image_name(self.base_image_name, tag=self.base_tag)
+        image_info = self.tasker.get_image_info_by_image_name(self.base_image)
         items_count = len(image_info)
         if items_count == 1:
             return image_info[0]
         elif items_count <= 0:
-            logger.error("image '%s' not found", self.base_image_name)
-            raise RuntimeError("image '%s' not found", self.base_image_name)
+            logger.error("image '%s' not found", self.base_image)
+            raise RuntimeError("image '%s' not found", self.base_image)
         else:
-            logger.error("multiple (%d) images found for image '%s'", items_count, self.base_image_name)
-            raise RuntimeError("multiple (%d) images found for image '%s'" % (items_count, self.base_image_name))
+            logger.error("multiple (%d) images found for image '%s'", items_count, self.base_image)
+            raise RuntimeError("multiple (%d) images found for image '%s'" % (items_count, self.base_image))
 
     def get_built_image_info(self):
         """
@@ -233,13 +231,13 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
         """
         logger.info("get information about built image")
         self._ensure_is_built()
-        image_info = self.tasker.get_image_info_by_image_name(self.image_name, self.reg_uri, self.tag)
+        image_info = self.tasker.get_image_info_by_image_name(self.image)
         items_count = len(image_info)
         if items_count == 1:
             return image_info[0]
         elif items_count <= 0:
-            logger.error("image '%s' not found", self.image_name)
-            raise RuntimeError("image '%s' not found" % self.image_name)
+            logger.error("image '%s' not found", self.image)
+            raise RuntimeError("image '%s' not found" % self.image)
         else:
-            logger.error("multiple (%d) images found for image '%s'", items_count, self.image_name)
-            raise RuntimeError("multiple (%d) images found for image '%s'" % (items_count, self.image_name))
+            logger.error("multiple (%d) images found for image '%s'", items_count, self.image)
+            raise RuntimeError("multiple (%d) images found for image '%s'" % (items_count, self.image))

@@ -3,12 +3,14 @@ from __future__ import print_function
 from fixtures import temp_image_name
 
 from dock.core import DockerTasker
+from dock.util import ImageName
 from tests.constants import INPUT_IMAGE, DOCKERFILE_GIT
 
 import git
 import docker, docker.errors
 import pytest
 
+input_image_name = ImageName.parse(INPUT_IMAGE)
 
 # TEST-SUITE SETUP
 
@@ -32,7 +34,7 @@ def teardown_module(module):
 
 def test_run():
     t = DockerTasker()
-    container_id = t.run(INPUT_IMAGE, command="id")
+    container_id = t.run(input_image_name, command="id")
     try:
         t.wait(container_id)
     finally:
@@ -44,7 +46,7 @@ def test_run_invalid_command():
     command = "eporeporjgpeorjgpeorjgpeorjgpeorjgpeorjg"  # I hope this doesn't exist
     try:
         with pytest.raises(docker.errors.APIError):
-            t.run(INPUT_IMAGE, command=command)
+            t.run(input_image_name, command=command)
     finally:
         # remove the container
         containers = t.d.containers(all=True)
@@ -54,7 +56,7 @@ def test_run_invalid_command():
 
 def test_image_exists():
     t = DockerTasker()
-    assert t.image_exists(INPUT_IMAGE) is True
+    assert t.image_exists(input_image_name) is True
 
 
 def test_image_doesnt_exist():
@@ -64,7 +66,7 @@ def test_image_doesnt_exist():
 
 def test_logs():
     t = DockerTasker()
-    container_id = t.run(INPUT_IMAGE, command="id")
+    container_id = t.run(input_image_name, command="id")
     try:
         t.wait(container_id)
         output = t.logs(container_id, stderr=True, stream=False)
@@ -75,7 +77,7 @@ def test_logs():
 
 def test_remove_container():
     t = DockerTasker()
-    container_id = t.run(INPUT_IMAGE, command="id")
+    container_id = t.run(input_image_name, command="id")
     try:
         t.wait(container_id)
     finally:
@@ -84,9 +86,9 @@ def test_remove_container():
 
 def test_remove_image(temp_image_name):
     t = DockerTasker()
-    container_id = t.run(INPUT_IMAGE, command="id")
+    container_id = t.run(input_image_name, command="id")
     t.wait(container_id)
-    image_id = t.commit_container(container_id, repository=temp_image_name)
+    image_id = t.commit_container(container_id, image=temp_image_name)
     try:
         t.remove_container(container_id)
     finally:
@@ -98,7 +100,7 @@ def test_commit_container(temp_image_name):
     t = DockerTasker()
     container_id = t.run(INPUT_IMAGE, command="id")
     t.wait(container_id)
-    image_id = t.commit_container(container_id, message="test message", repository=temp_image_name)
+    image_id = t.commit_container(container_id, message="test message", image=temp_image_name)
     try:
         assert t.image_exists(image_id)
     finally:
@@ -108,47 +110,51 @@ def test_commit_container(temp_image_name):
 
 def test_inspect_image():
     t = DockerTasker()
-    inspect_data = t.inspect_image(INPUT_IMAGE)
+    inspect_data = t.inspect_image(input_image_name)
     assert isinstance(inspect_data, dict)
 
 
 def test_tag_image(temp_image_name):
     t = DockerTasker()
-    expected_img = "somewhere.example.com/%s:1" % temp_image_name
-    img = t.tag_image(INPUT_IMAGE, temp_image_name, reg_uri="somewhere.example.com", tag='1')
+    temp_image_name.registry = "somewhere.example.com"
+    temp_image_name.tag = "1"
+    img = t.tag_image(INPUT_IMAGE, temp_image_name)
     try:
-        assert t.image_exists(expected_img)
-        assert img == expected_img
+        assert t.image_exists(temp_image_name)
+        assert img == temp_image_name.to_str()
     finally:
-        t.remove_image(expected_img)
+        t.remove_image(temp_image_name)
 
 
 def test_push_image(temp_image_name):
     t = DockerTasker()
-    expected_img = "localhost:5000/%s:1" % temp_image_name
-    t.tag_image(INPUT_IMAGE, temp_image_name, reg_uri="localhost:5000", tag='1')
-    output = t.push_image(expected_img, insecure=True)
+    temp_image_name.registry = "localhost:5000"
+    temp_image_name.tag = "1"
+    t.tag_image(INPUT_IMAGE, temp_image_name)
+    output = t.push_image(temp_image_name, insecure=True)
     assert output is not None
-    t.remove_image(expected_img)
+    t.remove_image(temp_image_name)
 
 
 def test_tag_and_push(temp_image_name):
     t = DockerTasker()
-    expected_img = "localhost:5000/%s:1" % temp_image_name
-    output = t.tag_and_push_image(INPUT_IMAGE, temp_image_name, reg_uri="localhost:5000", tag='1', insecure=True)
+    temp_image_name.registry = "localhost:5000"
+    temp_image_name.tag = "1"
+    output = t.tag_and_push_image(INPUT_IMAGE, temp_image_name, insecure=True)
     assert output is not None
-    assert t.image_exists(expected_img)
-    t.remove_image(expected_img)
+    assert t.image_exists(temp_image_name)
+    t.remove_image(temp_image_name)
 
 
 def test_pull_image():
     t = DockerTasker()
-    expected_img = "localhost:5000/busybox"
-    t.tag_and_push_image('busybox', 'busybox', 'localhost:5000', insecure=True)
-    got_image = t.pull_image('busybox', 'localhost:5000', insecure=True)
-    assert expected_img == got_image
+    remote_img = ImageName(registry="localhost:5000", repo="busybox")
+    local_img = ImageName(repo="busybox")
+    t.tag_and_push_image(local_img, remote_img, insecure=True)
+    got_image = t.pull_image(remote_img, insecure=True)
+    assert remote_img.to_str() == got_image
     assert len(t.last_logs) > 0
-    t.remove_image(got_image)
+    t.remove_image(remote_img)
 
 
 def test_get_image_info_by_id_nonexistent():
@@ -159,14 +165,20 @@ def test_get_image_info_by_id_nonexistent():
 
 def test_get_image_info_by_id():
     t = DockerTasker()
-    image_id = t.get_image_info_by_image_name("busybox")[0]['Id']
+    image_id = t.get_image_info_by_image_name(ImageName(repo="busybox"))[0]['Id']
     response = t.get_image_info_by_image_id(image_id)
     assert isinstance(response, dict)
 
 
 def test_get_image_info_by_name_tag_in_name():
     t = DockerTasker()
-    response = t.get_image_info_by_image_name(image_name=INPUT_IMAGE)
+    response = t.get_image_info_by_image_name(input_image_name)
+    assert len(response) == 1
+
+
+def test_get_image_info_by_name_tag_in_name_nonexisten(temp_image_name):
+    t = DockerTasker()
+    response = t.get_image_info_by_image_name(temp_image_name)
     assert len(response) == 0
 
 

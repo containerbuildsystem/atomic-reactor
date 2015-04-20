@@ -12,7 +12,6 @@ import traceback
 import imp
 
 import dock.plugins
-from dock.util import join_img_name_tag
 
 
 MODULE_EXTENSIONS = ('.py', '.pyc', '.pyo')
@@ -249,8 +248,7 @@ class BuildPluginsRunner(PluginsRunner):
             'BUILT_IMAGE_ID': self.workflow.builder.image_id,
             'BUILD_DOCKERFILE_PATH' : self.workflow.builder.git_dockerfile_path,
             'BUILD_GIT_PATH' :  self.workflow.builder.git_path,
-            'BASE_IMAGE': join_img_name_tag(self.workflow.builder.base_image_name,
-                                            self.workflow.builder.base_tag)
+            'BASE_IMAGE': self.workflow.builder.base_image.to_str(),
         }
         if isinstance(obj_to_translate, dict):
             # Recurse into dicts

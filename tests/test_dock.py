@@ -1,5 +1,6 @@
 from dock.core import DockerTasker
 from dock.outer import PrivilegedBuildManager, DockerhostBuildManager
+from dock.util import ImageName
 
 
 TEST_IMAGE = "dock-test-image"
@@ -7,18 +8,20 @@ LOCAL_REGISTRY = "172.17.42.1:5000"
 
 
 def test_hostdocker_build():
-    image_name = "dock-test-ssh-image"
+    image_name = ImageName(repo="dock-test-ssh-image")
+    remote_image = image_name.copy()
+    remote_image.registry = LOCAL_REGISTRY
     m = DockerhostBuildManager("buildroot-dh-fedora", {
         "git_url": "https://github.com/fedora-cloud/Fedora-Dockerfiles.git",
         "git_dockerfile_path": "ssh/",
-        "image": image_name,
+        "image": image_name.to_str(),
         "parent_registry": LOCAL_REGISTRY,  # faster
         "target_registries_insecure": True,
         "parent_registry_insecure": True,
     })
     results = m.build()
     dt = DockerTasker()
-    img = dt.pull_image(image_name, LOCAL_REGISTRY, insecure=True)
+    img = dt.pull_image(remote_image, insecure=True)
     assert len(results.build_logs) > 0
     # assert isinstance(results.built_img_inspect, dict)
     # assert len(results.built_img_inspect.items()) > 0
@@ -29,7 +32,7 @@ def test_hostdocker_build():
     # assert len(results.base_plugins_output) > 0
     # assert len(results.built_img_plugins_output) > 0
     dt.remove_container(results.container_id)
-    dt.remove_image(img)
+    dt.remove_image(remote_image)
     dt.remove_image(image_name)
 
 

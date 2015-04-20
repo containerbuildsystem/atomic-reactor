@@ -2,13 +2,14 @@
 Naming Conventions
 ==================
 
-registry.somewhere/image_name:tag
-|-----------------|               registry, reg_uri
-|----------------------------|    repository
-                  |----------|    image name
-                             |--| tag
-                  |-------------| image
-|-------------------------------| image
+registry.somewhere/namespace/image_name:tag
+|-----------------|                          registry, reg_uri
+                  |---------|                namespace
+|--------------------------------------|     repository
+                  |--------------------|     image name
+                                        |--| tag
+                  |------------------------| image
+|------------------------------------------| image
 
 I've tried to be as much consistent (man pages were source) with docker as possible
 
@@ -25,8 +26,7 @@ import docker
 from docker.errors import APIError
 
 from dock.constants import CONTAINER_SHARE_PATH, BUILD_JSON
-from dock.util import join_repo_img_name_tag, \
-    join_repo_img_name, join_img_name_tag, wait_for_command, clone_git_repo, figure_out_dockerfile
+from dock.util import ImageName, wait_for_command, clone_git_repo, figure_out_dockerfile
 
 
 DOCKER_SOCKET_PATH = '/var/run/docker.sock'
@@ -114,7 +114,7 @@ class BuildContainerFactory(object):
         }
 
         container_id = self.tasker.run(
-            build_image,
+            ImageName.parse(build_image),
             create_kwargs={'volumes': [DOCKER_SOCKET_PATH, json_args_path]},
             start_kwargs={'binds': volume_bindings},
         )
@@ -139,7 +139,7 @@ class BuildContainerFactory(object):
         self._check_build_input(build_image, json_args_path)
 
         container_id = self.tasker.run(
-            build_image,
+            ImageName.parse(build_image),
             create_kwargs={'volumes': [json_args_path]},
             start_kwargs={'binds': {json_args_path: {'bind': CONTAINER_SHARE_PATH, 'rw': True}},
                           'privileged': True}
@@ -166,7 +166,7 @@ class DockerTasker(LastLogger):
         for build to finish
 
         :param path: str
-        :param image: str, repository[:tag]
+        :param image: ImageName, name of the resulting image
         :param stream: bool, True returns generator, False returns str
         :param use_cache: bool, True if you want to use cache
         :param remove_im: bool, remove intermediate containers produced during docker build
@@ -174,7 +174,7 @@ class DockerTasker(LastLogger):
         """
         logger.info("build image from provided path")
         logger.debug("image = '%s', path = '%s'", image, path)
-        response = self.d.build(path=path, tag=image, stream=stream, nocache=not use_cache,
+        response = self.d.build(path=path, tag=image.to_str(), stream=stream, nocache=not use_cache,
                                 rm=remove_im)  # returns generator
         return response
 
@@ -187,7 +187,7 @@ class DockerTasker(LastLogger):
         for build to finish
 
         :param url: str
-        :param image: str, repository[:tag]
+        :param image: ImageName, name of the resulting image
         :param git_path: str, path to dockerfile within gitrepo
         :param copy_dockerfile_to: str, copy dockerfile to provided path
         :param stream: bool, True returns generator, False returns str
@@ -222,7 +222,7 @@ class DockerTasker(LastLogger):
          * containers/{}/start
          * container/create
 
-        :param image: str
+        :param image: ImageName or string, name or id of the image
         :param command: str
         :param create_kwargs: dict, kwargs for docker.create_container
         :param start_kwargs: dict, kwargs for docker.start
@@ -233,25 +233,31 @@ class DockerTasker(LastLogger):
         start_kwargs = start_kwargs or {}
         logger.debug("image = '%s', command = '%s', create_kwargs = '%s', start_kwargs = '%s'",
                      image, command, create_kwargs, start_kwargs)
+        if isinstance(image, ImageName):
+            image = image.to_str()
         container_dict = self.d.create_container(image, command=command, **create_kwargs)
         container_id = container_dict['Id']
         logger.debug("container_id = '%s'", container_id)
         self.d.start(container_id, **start_kwargs)  # returns None
         return container_id
 
-    def commit_container(self, container_id, repository=None, message=None):
+    def commit_container(self, container_id, image=None, message=None):
         """
         create image from provided container
 
         :param container_id: str
-        :param repository: str (repo/image_name)
+        :param image: ImageName
         :param message: str
         :return: image_id
         """
         logger.info("commit container")
-        logger.debug("container_id = '%s', repository = '%s', message = '%s'",
-                     container_id, repository, message)
-        response = self.d.commit(container_id, repository=repository, message=message)
+        logger.debug("container_id = '%s', image = '%s', message = '%s'",
+                     container_id, image, message)
+        tag = None
+        if image:
+            tag = image.tag
+            image = image.to_str(tag=False)
+        response = self.d.commit(container_id, repository=image, tag=tag, message=message)
         logger.debug("response = '%s'", response)
         try:
             return response['Id']
@@ -284,21 +290,17 @@ class DockerTasker(LastLogger):
         else:
             return image_dict
 
-    def get_image_info_by_image_name(self, image_name, reg_uri='', tag=None):
+    def get_image_info_by_image_name(self, image, exact_tag=True):
         """
         using `docker images`, provide information about an image
 
-        :param image_name: str, name of image (without tag!)
-        :param reg_uri: str, optional registry
+        :param image: ImageName, name of image
+        :param exact_tag: bool, if false then return info for all images of the 
+                          given name regardless what their tag is
         :return: list of dicts
         """
         logger.info("get info about provided image specified by name")
-        logger.debug("image_name = '%s', registry = '%s', tag = '%s'", image_name, reg_uri, tag)
-        # Even 'library' is implicit namespace, 'docker images library/<name>' doesn't show
-        # any <name> image. Therefore treat 'library' namespace as no namespace here.
-        if reg_uri == 'library':
-            logger.debug("registry 'library' -> ''")
-            reg_uri = ''
+        logger.debug("image_name = '%s'", image)
 
         # returns list of
         # {u'Created': 1414577076,
@@ -307,13 +309,11 @@ class DockerTasker(LastLogger):
         #  u'RepoTags': [u'buildroot-fedora:latest'],
         #  u'Size': 0,
         #  u'VirtualSize': 856564160}
-        repository = join_repo_img_name(reg_uri, image_name)
-        images = self.d.images(name=repository)
-        if tag:
+        images = self.d.images(name=image.to_str(tag=False))
+        if exact_tag:
             # tag is specified, we are looking for the exact image
-            image = join_repo_img_name_tag(reg_uri, image_name, tag)
             for found_image in images:
-                if image in found_image['RepoTags']:
+                if image.to_str(explicit_tag=True) in found_image['RepoTags']:
                     logger.debug("image '%s' found", image)
                     return [found_image]
             images = []  # image not found
@@ -321,56 +321,49 @@ class DockerTasker(LastLogger):
         logger.debug("%d matching images found", len(images))
         return images
 
-    def pull_image(self, image_name, reg_uri, tag='', insecure=False):
+    def pull_image(self, image, insecure=False):
         """
         pull provided image from registry
 
-        :param image_name: str, image name
-        :param reg_uri: str, reg.com
-        :param tag: str, v1
+        :param image_name: ImageName, image to pull
         :param insecure: bool, allow connecting to registry over plain http
         :return: str, image (reg.om/img:v1)
         """
         logger.info("pull image from registry")
-        logger.debug("image = '%s', registry = '%s', tag = '%s', insecure = '%s'",
-                     image_name, reg_uri, tag, insecure)
-        image = join_repo_img_name_tag(reg_uri, image_name, tag)  # e.g. registry.com/image_name:1
+        logger.debug("image = '%s', insecure = '%s'", image, insecure)
         try:
-            logs_gen = self.d.pull(image, insecure_registry=insecure, stream=True)
+            logs_gen = self.d.pull(image.to_str(), insecure_registry=insecure, stream=True)
         except TypeError:
             # because changing api is fun
-            logs_gen = self.d.pull(image, stream=True)
+            logs_gen = self.d.pull(image.to_str(), stream=True)
         command_result = wait_for_command(logs_gen)
         self.last_logs = command_result.logs
-        return image
+        return image.to_str()
 
-    def tag_image(self, image, target_image_name, reg_uri='', tag='', force=False):
+    def tag_image(self, image, target_image, force=False):
         """
         tag provided image with specified image_name, registry and tag
 
-        :param image: str (reg.com/img:v1)
-        :param target_image_name: str, img
-        :param reg_uri: str, reg.com
-        :param tag: str, v1
+        :param image: str or ImageName, image to tag
+        :param target_image: ImageName, new name for the image
         :param force: bool, force tag the image?
         :return: str, image (reg.om/img:v1)
         """
         logger.info("tag image")
-        logger.debug("image = '%s', target_image_name = '%s', reg_uri = '%s', tag = '%s'",
-                     image, target_image_name, reg_uri, tag)
-        repository = join_repo_img_name(reg_uri, target_image_name)
-        response = self.d.tag(image, repository, tag=tag, force=force)  # returns True/False
+        logger.debug("image = '%s', target_image_name = '%s'", image, target_image)
+        if isinstance(image, ImageName):
+            image = image.to_str()
+        response = self.d.tag(image, target_image.to_str(tag=False), tag=target_image.tag, force=force)  # returns True/False
         if not response:
             logger.error("failed to tag image")
-            raise RuntimeError("Failed to tag image '%s': repository = '%s', tag = '%s'" %
-                               image, repository, tag)
-        return join_img_name_tag(repository, tag)  # this will be the proper name, not just repo/img
+            raise RuntimeError("Failed to tag image '%s': target_image = '%s'" % image, target_image)
+        return target_image.to_str()  # this will be the proper name, not just repo/img
 
     def push_image(self, image, insecure=False):
         """
         push provided image to registry
 
-        :param image: str
+        :param image: ImageName
         :param insecure: bool, allow connecting to registry over plain http
         :return: str, logs from push
         """
@@ -378,38 +371,37 @@ class DockerTasker(LastLogger):
         logger.debug("image: '%s', insecure: '%s'", image, insecure)
         try:
             # push returns string composed of newline separated jsons; exactly what 'docker push' outputs
-            logs = self.d.push(image, insecure_registry=insecure, stream=False)
+            logs = self.d.push(image.to_str(), insecure_registry=insecure, stream=False)
         except TypeError:
             # because changing api is fun
-            logs = self.d.push(image, stream=False)
+            logs = self.d.push(image.to_str(), stream=False)
         return logs
 
-    def tag_and_push_image(self, image, target_image_name, reg_uri='', tag='', insecure=False):
+    def tag_and_push_image(self, image, target_image, insecure=False):
         """
         tag provided image and push it to registry
 
-        :param image: str (reg.com/img:v1)
-        :param target_image_name: str, img
-        :param reg_uri: str, reg.com
-        :param tag: str, v1
+        :param image: str or ImageName, image id or name
+        :param target_image: ImageName, img
         :param insecure: bool, allow connecting to registry over plain http
         :return: str, image (reg.com/img:v1)
         """
         logger.info("tag and push image")
-        logger.debug("image = '%s', target_image_name = '%s', reg_uri = '%s', tag = '%s'",
-                     image, target_image_name, reg_uri, tag)
-        final_tag = self.tag_image(image, target_image_name, reg_uri=reg_uri, tag=tag)
-        return self.push_image(final_tag, insecure=insecure)
+        logger.debug("image = '%s', target_image = '%s'", image, target_image)
+        self.tag_image(image, target_image)
+        return self.push_image(target_image, insecure=insecure)
 
     def inspect_image(self, image_id):
         """
         return detailed metadata about provided image (see 'man docker-inspect')
 
-        :param image_id: str
+        :param image_id: str or ImageName, id or name of the image
         :return: dict
         """
         logger.info("inspect image")
         logger.debug("image_id = '%s'", image_id)
+        if isinstance(image_id, ImageName):
+            image_id = image_id.to_str()
         image_metadata = self.d.inspect_image(image_id)
         return image_metadata
 
@@ -417,13 +409,15 @@ class DockerTasker(LastLogger):
         """
         remove provided image from filesystem
 
-        :param image_id: str
+        :param image_id: str or ImageName
         :param noprune: bool, keep untagged parents?
         :param force: bool, force remove -- just trash it no matter what
         :return: None
         """
         logger.info("remove image from filesystem")
         logger.debug("image_id = '%s'", image_id)
+        if isinstance(image_id, ImageName):
+            image_id = image_id.to_str()
         self.d.remove_image(image_id, force=force, noprune=noprune)  # returns None
 
     def remove_container(self, container_id, force=False):
@@ -472,7 +466,7 @@ class DockerTasker(LastLogger):
         """
         does provided image exists?
 
-        :param image_id: str
+        :param image_id: str or ImageName
         :return: True if exists, False if not
         """
         logger.info("does image exists?")

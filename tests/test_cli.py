@@ -58,11 +58,11 @@ class TestCLISuite(object):
         temp_image = temp_image_name
         command = [
             "main.py",
-            "-v",
+            "--verbose",
             "build",
             "--method", "privileged",
             "--build-image", PRIV_BUILD_IMAGE,
-            "--image", temp_image,
+            "--image", temp_image.to_str(),
             "--git-url", DOCKERFILE_GIT,
         ]
         if is_registry_running:
@@ -78,11 +78,11 @@ class TestCLISuite(object):
         temp_image = temp_image_name
         command = [
             "main.py",
-            "-v",
+            "--verbose",
             "build",
             "--method", "hostdocker",
             "--build-image", DH_BUILD_IMAGE,
-            "--image", temp_image,
+            "--image", temp_image.to_str(),
             "--git-url", DOCKERFILE_GIT,
         ]
         if is_registry_running:
@@ -100,11 +100,11 @@ class TestCLISuite(object):
         priv_builder_path = os.path.join(dock_root, 'images', 'privileged-builder')
         command = [
             "main.py",
-            "-v",
+            "--verbose",
             "create-build-image",
             "--dock-local-path", dock_root,
             priv_builder_path,
-            temp_image,
+            temp_image.to_str(),
         ]
         with pytest.raises(SystemExit) as excinfo:
             self.exec_cli(command)

@@ -4,6 +4,7 @@ Push built image to pulp registry
 """
 
 from dock.plugin import PostBuildPlugin
+from dock.util import ImageName
 
 import json
 import os
@@ -154,7 +155,7 @@ class PulpServer(object):
 
     def upload_docker_image(self, image, repo_id):
         """Upload image to pulp repository"""
-        if not self.tasker.inspect_image(image):
+        if not self.tasker.inspect_image(ImageName.parse(image)):
             raise Exception("Image doesn't exist '{0}'".format(image))
         else:
             upload_id = self._upload_id
