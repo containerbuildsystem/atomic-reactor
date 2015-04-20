@@ -31,7 +31,7 @@ class TagByLabelsPlugin(PostBuildPlugin):
 
         def get_label(label_name):
             try:
-                return self.workflow.built_image_inspect["ContainerConfig"]["Labels"]['Name']
+                return self.workflow.built_image_inspect["ContainerConfig"]["Labels"][label_name]
             except KeyError:
                 raise RuntimeError("Missing label '%s'.", label_name)
 
