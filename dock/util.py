@@ -14,52 +14,71 @@ __author__ = 'ttomecek'
 logger = logging.getLogger(__name__)
 
 
-def split_repo_img_name_tag(image):
-    """
-    registry.com/image:tag -> (registry, image, tag)
+class ImageName(object):
+    def __init__(self, registry=None, namespace=None, repo=None, tag=None):
+        self.registry = registry
+        self.namespace = namespace
+        self.repo = repo
+        self.tag = tag
 
-    returns blank strings for missing fields
-    """
-    try:
-        reg_uri, img_name = image.split('/', 1)
-    except ValueError:
-        img_name = image
-        reg_uri = ""
-    try:
-        img_name, tag = img_name.rsplit(":", 1)
-    except ValueError:
-        tag = ""
-    return reg_uri, img_name, tag
+    @classmethod
+    def parse(cls, image_name):
+        result = cls()
 
+        # registry.org/namespace/repo:tag
+        s = image_name.split('/', 2)
 
-def join_repo_img_name(reg_uri, img_name):
-    """ ('registry', 'image_name') -> "registry/image_name" """
-    if not img_name:
-        raise RuntimeError("No image specified")
-    if reg_uri:
-        if not reg_uri.endswith('/'):
-            reg_uri += '/'
-        return reg_uri + img_name
-    else:
-        return img_name
+        if len(s) == 2:
+            if '.' in s[0] or ':' in s[0]:
+                result.registry = s[0]
+            else:
+                result.namespace = s[0]
+        elif len(s) == 3:
+            result.registry = s[0]
+            result.namespace = s[1]
+        result.repo = s[-1]
 
+        try:
+            result.repo, result.tag = result.repo.rsplit(':', 1)
+        except ValueError:
+            pass
 
-def join_img_name_tag(img_name, tag):
-    """ (image_name, tag) -> "image_name:tag" """
-    if not img_name:
-        raise RuntimeError("No image specified")
-    response = img_name
-    if tag:
-        response = "%s:%s" % (response, tag)
-    return response
+        return result
 
+    def to_str(self, registry=True, tag=True, explicit_tag=False,
+               explicit_namespace=False):
+        if self.repo is None:
+            raise RuntimeError('No image repository specified')
 
-def join_repo_img_name_tag(reg_uri, img_name, tag):
-    """ (image_name, registry, tag) -> "registry/image_name:tag" """
-    if not img_name:
-        raise RuntimeError("No image specified")
-    response = join_repo_img_name(reg_uri, img_name)
-    return join_img_name_tag(response, tag)
+        result = self.repo
+
+        if tag and self.tag:
+            result = '{}:{}'.format(result, self.tag)
+        elif tag and explicit_tag:
+            result = '{}:{}'.format(result, 'latest')
+
+        if self.namespace:
+            result = '{}/{}'.format(self.namespace, result)
+        elif explicit_namespace:
+            result = '{}/{}'.format('library', result)
+
+        if registry and self.registry:
+            result = '{}/{}'.format(self.registry, result)
+
+        return result
+
+    def __str__(self):
+        return self.to_str(registry=True, tag=True)
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self.__dict__ == other.__dict__
+
+    def copy(self):
+        return ImageName(
+            registry=self.registry,
+            namespace=self.namespace,
+            repo=self.repo,
+            tag=self.tag)
 
 
 def get_baseimage_from_dockerfile_path(path):

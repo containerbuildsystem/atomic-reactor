@@ -1,60 +1,33 @@
 import os
 import docker
-from dock.util import split_repo_img_name_tag, join_repo_img_name_tag, get_baseimage_from_dockerfile, \
-    join_repo_img_name, join_img_name_tag, wait_for_command, clone_git_repo, LazyGit, figure_out_dockerfile
+from dock.util import ImageName, get_baseimage_from_dockerfile, wait_for_command, \
+                      clone_git_repo, LazyGit, figure_out_dockerfile
 from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE
 
 
-TEST_DATA = [
-    ("repository.com/image-name", ("repository.com", "image-name", "")),
-    ("repository.com/prefix/image-name:1", ("repository.com", "prefix/image-name", "1")),
-    ("image-name", ("", "image-name", "")),
-    ("registry:5000/image-name:latest", ("registry:5000", "image-name", 'latest')),
-    ("fedora:20", ("", "fedora", "20")),
-]
+TEST_DATA = {
+    "repository.com/image-name": ImageName(registry="repository.com", repo="image-name"),
+    "repository.com/prefix/image-name:1": ImageName(registry="repository.com",
+                                                    namespace="prefix",
+                                                    repo="image-name", tag="1"),
+    "repository.com/prefix/image-name": ImageName(registry="repository.com",
+                                                  namespace="prefix",
+                                                  repo="image-name"),
+    "image-name": ImageName(repo="image-name"),
+    "registry:5000/image-name:latest": ImageName(registry="registry:5000",
+                                                 repo="image-name", tag="latest"),
+    "registry:5000/image-name": ImageName(registry="registry:5000", repo="image-name"),
+    "fedora:20": ImageName(repo="fedora", tag="20"),
+    "prefix/image-name:1": ImageName(namespace="prefix", repo="image-name", tag="1"),
+    }
 
+def test_image_name_parse():
+    for inp, parsed in TEST_DATA.items():
+        assert ImageName.parse(inp) == parsed
 
-TEST_DATA_IMG_TAG = [
-    ("image-name", ("image-name", "")),
-    ("prefix/image-name:1", ("prefix/image-name", "1")),
-    ("fedora:20", ("fedora", "20")),
-]
-
-
-TEST_DATA_REG_IMG = [
-    ("repository.com/image-name", ("repository.com", "image-name")),
-    ("repository.com/prefix/image-name", ("repository.com", "prefix/image-name")),
-    ("image-name", ("", "image-name")),
-    ("registry:5000/image-name", ("registry:5000", "image-name")),
-]
-
-
-def test_split_image_repo_name():
-    global TEST_DATA
-    for chain, chunks in TEST_DATA:
-        result = split_repo_img_name_tag(chain)
-        assert result == chunks
-
-
-def test_join_repo_img_name_tag():
-    global TEST_DATA
-    for chain, chunks in TEST_DATA:
-        result = join_repo_img_name_tag(*chunks)
-        assert result == chain
-
-
-def test_join_reg_img():
-    global TEST_DATA_REG_IMG
-    for chain, chunks in TEST_DATA_REG_IMG:
-        result = join_repo_img_name(*chunks)
-        assert result == chain
-
-
-def test_join_img_tag():
-    global TEST_DATA_IMG_TAG
-    for chain, chunks in TEST_DATA_IMG_TAG:
-        result = join_img_name_tag(*chunks)
-        assert result == chain
+def test_image_name_format():
+    for expected, image_name in TEST_DATA.items():
+        assert image_name.to_str() == expected
 
 
 def test_wait_for_command():

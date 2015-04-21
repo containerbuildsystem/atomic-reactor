@@ -6,13 +6,17 @@ from dock.core import DockerTasker
 from dock.inner import DockerBuildWorkflow
 from dock.plugin import PreBuildPluginsRunner
 from dock.plugins.pre_add_labels_in_df import AddLabelsPlugin
+from dock.util import ImageName
 
 
 class X(object):
-    pass
+    image_id = "xxx"
+    git_dockerfile_path = None
+    git_path = None
+    base_image = ImageName(repo="qwe", tag="asd")
 
 
-def test_yuminject_plugin(tmpdir):
+def test_addlabels_plugin(tmpdir):
     df = """\
 FROM fedora
 RUN yum install -y python-django
@@ -24,6 +28,7 @@ CMD blabla"""
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow("asd", "test-image")
     setattr(workflow, 'builder', X)
+    setattr(workflow.builder, 'df_path', tmp_df)
 
     labels_conf = OrderedDict({'label1': 'value 1', 'label2': 'long value'})
 

@@ -6,6 +6,7 @@ from dock.core import DockerTasker
 from dock.inner import DockerBuildWorkflow
 from dock.plugin import PreBuildPluginsRunner, PostBuildPluginsRunner
 from dock.plugins.pre_inject_yum_repo import InjectYumRepoPlugin, alter_yum_commands
+from dock.util import ImageName
 
 
 git_url = "https://github.com/TomasTomecek/docker-hello-world.git"
@@ -40,10 +41,10 @@ CMD blabla"""
 
     setattr(workflow.builder, 'image_id', "asd123")
     setattr(workflow.builder, 'df_path', tmp_df)
-    setattr(workflow.builder, 'base_image_name', "fedora")
-    setattr(workflow.builder, 'base_tag', "21")
-    runner = PreBuildPluginsRunner(tasker, workflow,
-                                   [{
+    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
+    setattr(workflow.builder, 'git_dockerfile_path', None)
+    setattr(workflow.builder, 'git_path', None)
+    runner = PreBuildPluginsRunner(tasker, workflow, [{
                                        'name': InjectYumRepoPlugin.key,
                                        'args': {}}])
     runner.run()
@@ -80,8 +81,9 @@ CMD blabla"""
     )]
     setattr(workflow.builder, 'image_id', "asd123")
     setattr(workflow.builder, 'df_path', tmp_df)
-    setattr(workflow.builder, 'base_image_name', "fedora")
-    setattr(workflow.builder, 'base_tag', "21")
+    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
+    setattr(workflow.builder, 'git_dockerfile_path', None)
+    setattr(workflow.builder, 'git_path', None)
     runner = PreBuildPluginsRunner(tasker, workflow,
                                    [{'name': InjectYumRepoPlugin.key, 'args': {}}])
     runner.run()

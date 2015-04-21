@@ -74,9 +74,14 @@ def store_result(results):
 
 class CLI(object):
     def __init__(self):
+        try:
+            version = pkg_resources.get_distribution("dock").version
+        except pkg_resources.DistributionNotFound:
+            version = "GIT"
+
         self.parser = argparse.ArgumentParser(
             description="dock, tool for building images",
-            version=pkg_resources.get_distribution("dock").version
+            version=version
         )
 
     def set_arguments(self):

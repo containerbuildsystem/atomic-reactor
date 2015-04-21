@@ -5,6 +5,7 @@ from dock.inner import DockerBuildWorkflow
 from dock.plugin import PostBuildPluginsRunner
 from dock.plugins.post_tag_and_push import TagAndPushPlugin
 from dock.plugins.post_tag_by_labels import TagByLabelsPlugin
+from dock.util import ImageName
 from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE
 
 
@@ -12,8 +13,7 @@ class X(object):
     image_id = INPUT_IMAGE
     git_dockerfile_path = None
     git_path = None
-    base_image_name = "qwe"
-    base_tag = "asd"
+    base_image = ImageName(repo="qwe", tag="asd")
 
 
 def test_tag_by_labels_plugin(tmpdir):
@@ -30,7 +30,9 @@ def test_tag_by_labels_plugin(tmpdir):
             }
         }
     }
-    image = "%s:%s_%s" % (TEST_IMAGE, version, release)
+    image = ImageName(repo=TEST_IMAGE,
+                      tag="%s_%s" % (version, release),
+                      registry=LOCALHOST_REGISTRY)
 
     setattr(workflow, 'builder', X)
 
@@ -49,4 +51,4 @@ def test_tag_by_labels_plugin(tmpdir):
     )
     output = runner.run()
     assert output[TagAndPushPlugin.key]
-    tasker.remove_image(LOCALHOST_REGISTRY + "/" + image)
+    tasker.remove_image(image)

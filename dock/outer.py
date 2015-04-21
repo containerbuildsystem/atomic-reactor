@@ -13,7 +13,7 @@ from dock.constants import BUILD_JSON, RESULTS_JSON
 from dock.build import BuilderStateMachine
 from dock.core import DockerTasker, BuildContainerFactory
 from dock.inner import BuildResultsJSONDecoder, BuildResults
-from dock.util import wait_for_command
+from dock.util import wait_for_command, ImageName
 
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,6 @@ class BuildManager(BuilderStateMachine):
         self.temp_dir = None
         # build image after build
         self.buildroot_image_id = None
-        self.buildroot_image_tag = None
         self.buildroot_image_name = None
         self.dt = DockerTasker()
 
@@ -101,22 +100,25 @@ class BuildManager(BuilderStateMachine):
         """
         logger.info("commit buildroot")
         self._ensure_is_built()
-        # save the time when image was built
-        self.buildroot_image_tag = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 
         commit_message = "docker build of '%s' (%s)" % (self.image, self.git_url)
-        self.buildroot_image_name = "buildroot-%s" % self.image
+        self.buildroot_image_name = ImageName(
+            repo = "buildroot-%s" % self.image,
+            # save the time when image was built
+            tag = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S'))
         self.buildroot_image_id = self.dt.commit_container(self.build_container_id, commit_message)
         return self.buildroot_image_id
 
     def push_buildroot(self, registry):
         logger.info("push buildroot to registry")
         self._ensure_is_built()
+
+        image_name_with_registry = self.buildroot_image_name.copy()
+        image_name_with_registry.registry = registry
+
         return self.dt.tag_and_push_image(
             self.buildroot_image_id,
-            self.buildroot_image_name,
-            reg_uri=registry,
-            tag=self.buildroot_image_tag)
+            image_name_with_registry)
 
 
 class PrivilegedBuildManager(BuildManager):

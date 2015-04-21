@@ -5,6 +5,7 @@ import fileinput
 import re
 import sys
 from dock.plugin import PreBuildPlugin
+from dock.util import ImageName
 
 
 class ChangeFromPlugin(PreBuildPlugin):
@@ -20,13 +21,13 @@ class ChangeFromPlugin(PreBuildPlugin):
         """
         # call parent constructor
         super(ChangeFromPlugin, self).__init__(tasker, workflow)
-        self.base_image = base_image
+        self.base_image = ImageName.parse(base_image) if base_image else None
 
     def run(self):
         """
         run the plugin
         """
-        base_image = self.base_image or self.workflow.builder.df_base_image
+        base_image = self.base_image or self.workflow.builder.base_image
         base_image_inspect = self.tasker.inspect_image(base_image)
         try:
             base_image_id = base_image_inspect['Id']

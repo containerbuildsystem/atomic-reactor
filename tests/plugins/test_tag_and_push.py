@@ -4,6 +4,7 @@ from dock.core import DockerTasker
 from dock.inner import DockerBuildWorkflow
 from dock.plugin import PostBuildPluginsRunner
 from dock.plugins.post_tag_and_push import TagAndPushPlugin
+from dock.util import ImageName
 from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE
 
 
@@ -11,8 +12,7 @@ class X(object):
     image_id = INPUT_IMAGE
     git_dockerfile_path = None
     git_path = None
-    base_image_name = "qwe"
-    base_tag = "asd"
+    base_image = ImageName(repo="qwe", tag="asd")
 
 
 def test_tag_and_push_plugin(tmpdir):

@@ -14,7 +14,7 @@ from glob import glob
 import uuid
 
 from dock.core import DockerTasker
-from dock.util import LazyGit, wait_for_command
+from dock.util import LazyGit, wait_for_command, ImageName
 
 
 logger = logging.getLogger(__name__)
@@ -69,7 +69,8 @@ class BuildImageBuilder(object):
             dock_tb_path = os.path.join(df_tmpdir, DOCKERFILE_DOCK_TARBALL_NAME)
             shutil.copy(dock_tarball, dock_tb_path)
 
-            logs_gen = self.tasker.build_image_from_path(df_tmpdir, image, stream=True, use_cache=use_cache)
+            image_name = ImageName.parse(image)
+            logs_gen = self.tasker.build_image_from_path(df_tmpdir, image_name, stream=True, use_cache=use_cache)
             wait_for_command(logs_gen)
         finally:
             shutil.rmtree(tmpdir)

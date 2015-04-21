@@ -1,5 +1,5 @@
 from dock.plugin import PostBuildPlugin
-from dock.util import split_repo_img_name_tag, join_repo_img_name_tag
+from dock.util import ImageName
 
 
 __all__ = ('TagAndPushPlugin', )
@@ -46,10 +46,11 @@ class TagAndPushPlugin(PostBuildPlugin):
                 self.log.error("Registry '%s' doesn't have any image names, skipping...", registry_uri)
                 continue
             for image in image_names:
-                reg_uri, image_name, tag = split_repo_img_name_tag(image)
-                if reg_uri:
-                    assert reg_uri == registry_uri
-                self.tasker.tag_and_push_image(self.workflow.builder.image_id, image_name, registry_uri, tag,
+                image_name = ImageName.parse(image)
+                if image_name.registry:
+                    assert image_name.registry == registry_uri
+                image_name.registry = registry_uri
+                self.tasker.tag_and_push_image(self.workflow.builder.image_id, image_name,
                                                insecure=insecure)
-                pushed_images.append(join_repo_img_name_tag(registry_uri, image_name, tag))
+                pushed_images.append(image_name.to_str())
         return pushed_images
