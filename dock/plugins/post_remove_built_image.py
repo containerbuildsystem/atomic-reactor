@@ -32,4 +32,5 @@ class GarbageCollectionPlugin(PostBuildPlugin):
         self.tasker.remove_image(image, force=True)
         if self.remove_base_image and self.workflow.pulled_base_image:
             # FIXME: we may need to add force here, let's try it like this for now
+            # FIXME: when ID of pulled img matches an ID of an image already present, don't remove
             self.tasker.remove_image(ImageName.parse(self.workflow.pulled_base_image))
