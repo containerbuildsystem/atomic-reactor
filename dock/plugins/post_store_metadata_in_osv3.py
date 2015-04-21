@@ -1,6 +1,7 @@
 import json
 import os
 from osbs.core import Openshift
+from dock.util import ImageName
 
 try:
     # py2
@@ -50,10 +51,37 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
         # from specific IP and will set specific X-Remote-User for such requests
         o = Openshift(api_url, oauth_url, None, use_auth=self.use_auth, verify_ssl=self.verify_ssl)
 
+        primary_repositories = []
+        for registry_uri in self.workflow.tag_and_push_conf.registries:
+            registry_conf = self.workflow.tag_and_push_conf[registry_uri]
+            try:
+                image_names = registry_conf['image_names']
+            except KeyError:
+                self.log.error("Registry '%s' doesn't have any image names, skipping...", registry_uri)
+                continue
+            for image in image_names:
+                image_name = ImageName.parse(image)
+                if image_name.registry:
+                    assert image_name.registry == registry_uri
+                image_name.registry = registry_uri
+                primary_repositories.append(image_name.to_str())
+
+        unique_repositories = []
+        target_image = self.workflow.builder.image.copy()
+        for registry in self.workflow.target_registries:
+            target_image.registry = registry
+            unique_repositories.append(target_image.to_str())
+
+        repositories = {
+            "primary": primary_repositories,
+            "unique": unique_repositories,
+        }
+
         labels = {
             "dockerfile": self.workflow.prebuild_results.get("dockerfile_content", ""),
             "artefacts": self.workflow.prebuild_results.get("distgit_fetch_artefacts", ""),
             "logs": "\n".join(self.workflow.build_logs),
             "rpm-packages": "\n".join(self.workflow.postbuild_results.get("all_rpm_packages", "")),
+            "repositories": json.dumps(repositories),
         }
-        o.set_labels_on_build(build_id, labels)
+        o.set_annotations_on_build(build_id, labels)
