@@ -2,8 +2,10 @@ import os
 import docker
 from dock.util import ImageName, get_baseimage_from_dockerfile, wait_for_command, \
                       clone_git_repo, LazyGit, figure_out_dockerfile
-from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE
+from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE, MOCK
 
+if MOCK:
+    from tests.docker_mock import mock_docker
 
 TEST_DATA = {
     "repository.com/image-name": ImageName(registry="repository.com", repo="image-name"),
@@ -31,6 +33,9 @@ def test_image_name_format():
 
 
 def test_wait_for_command():
+    if MOCK:
+        mock_docker()
+
     d = docker.Client()
     logs_gen = d.pull(INPUT_IMAGE, stream=True)
     assert wait_for_command(logs_gen) is not None

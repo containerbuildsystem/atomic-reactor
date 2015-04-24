@@ -6,7 +6,10 @@ from dock.plugin import PostBuildPluginsRunner
 from dock.plugins.post_tag_and_push import TagAndPushPlugin
 from dock.plugins.post_tag_by_labels import TagByLabelsPlugin
 from dock.util import ImageName
-from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE
+from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE, MOCK
+
+if MOCK:
+    from tests.docker_mock import mock_docker
 
 
 class X(object):
@@ -17,6 +20,9 @@ class X(object):
 
 
 def test_tag_by_labels_plugin(tmpdir):
+    if MOCK:
+        mock_docker()
+
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow("asd", "test-image")
     version = "1.0"

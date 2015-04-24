@@ -1,9 +1,15 @@
 from dock.core import DockerTasker
 from dock.outer import PrivilegedBuildManager, DockerhostBuildManager
 from dock.util import ImageName
-from constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, TEST_IMAGE
+from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, TEST_IMAGE, MOCK
+
+if MOCK:
+    from tests.docker_mock import mock_docker
 
 def test_hostdocker_build():
+    if MOCK:
+        mock_docker()
+
     image_name = ImageName(repo="dock-test-ssh-image")
     remote_image = image_name.copy()
     remote_image.registry = LOCALHOST_REGISTRY
@@ -17,7 +23,7 @@ def test_hostdocker_build():
     })
     results = m.build()
     dt = DockerTasker()
-    img = dt.pull_image(remote_image, insecure=True)
+    dt.pull_image(remote_image, insecure=True)
     assert len(results.build_logs) > 0
     # assert isinstance(results.built_img_inspect, dict)
     # assert len(results.built_img_inspect.items()) > 0
@@ -32,6 +38,9 @@ def test_hostdocker_build():
 
 
 def test_hostdocker_error_build():
+    if MOCK:
+        mock_docker()
+
     image_name = TEST_IMAGE
     m = DockerhostBuildManager("buildroot-dh-fedora", {
         "git_url": DOCKERFILE_GIT,
@@ -49,6 +58,9 @@ def test_hostdocker_error_build():
 
 
 def test_privileged_gitrepo_build():
+    if MOCK:
+        mock_docker()
+
     image_name = ImageName(repo="dock-test-ssh-image")
     remote_image = image_name.copy()
     remote_image.registry = LOCALHOST_REGISTRY
@@ -62,7 +74,7 @@ def test_privileged_gitrepo_build():
     })
     results = m.build()
     dt = DockerTasker()
-    img = dt.pull_image(remote_image, insecure=True)
+    dt.pull_image(remote_image, insecure=True)
     assert len(results.build_logs) > 0
     # assert isinstance(results.built_img_inspect, dict)
     # assert len(results.built_img_inspect.items()) > 0
@@ -76,6 +88,9 @@ def test_privileged_gitrepo_build():
     dt.remove_image(remote_image)
 
 def test_privileged_build():
+    if MOCK:
+        mock_docker()
+
     image_name = ImageName(repo=TEST_IMAGE)
     remote_image = image_name.copy()
     remote_image.registry = LOCALHOST_REGISTRY
@@ -88,7 +103,7 @@ def test_privileged_build():
     })
     results = m.build()
     dt = DockerTasker()
-    img = dt.pull_image(remote_image, insecure=True)
+    dt.pull_image(remote_image, insecure=True)
     assert len(results.build_logs) > 0
     # assert isinstance(results.built_img_inspect, dict)
     # assert len(results.built_img_inspect.items()) > 0
