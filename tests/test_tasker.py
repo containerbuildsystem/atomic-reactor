@@ -4,7 +4,7 @@ from fixtures import temp_image_name
 
 from dock.core import DockerTasker
 from dock.util import ImageName
-from tests.constants import INPUT_IMAGE, DOCKERFILE_GIT
+from tests.constants import LOCALHOST_REGISTRY, INPUT_IMAGE, DOCKERFILE_GIT
 
 import git
 import docker, docker.errors
@@ -20,7 +20,7 @@ def setup_module(module):
         d.inspect_image(INPUT_IMAGE)
         setattr(module, 'HAS_IMAGE', True)
     except docker.errors.APIError:
-        _ = [x for x in d.pull("busybox:latest", stream=True)]
+        _ = [x for x in d.pull(INPUT_IMAGE, stream=True)]
         setattr(module, 'HAS_IMAGE', False)
 
 
@@ -128,7 +128,7 @@ def test_tag_image(temp_image_name):
 
 def test_push_image(temp_image_name):
     t = DockerTasker()
-    temp_image_name.registry = "localhost:5000"
+    temp_image_name.registry = LOCALHOST_REGISTRY
     temp_image_name.tag = "1"
     t.tag_image(INPUT_IMAGE, temp_image_name)
     output = t.push_image(temp_image_name, insecure=True)
@@ -138,7 +138,7 @@ def test_push_image(temp_image_name):
 
 def test_tag_and_push(temp_image_name):
     t = DockerTasker()
-    temp_image_name.registry = "localhost:5000"
+    temp_image_name.registry = LOCALHOST_REGISTRY
     temp_image_name.tag = "1"
     output = t.tag_and_push_image(INPUT_IMAGE, temp_image_name, insecure=True)
     assert output is not None
@@ -148,8 +148,9 @@ def test_tag_and_push(temp_image_name):
 
 def test_pull_image():
     t = DockerTasker()
-    remote_img = ImageName(registry="localhost:5000", repo="busybox")
-    local_img = ImageName(repo="busybox")
+    local_img = input_image_name
+    remote_img = local_img.copy()
+    remote_img.registry = LOCALHOST_REGISTRY
     t.tag_and_push_image(local_img, remote_img, insecure=True)
     got_image = t.pull_image(remote_img, insecure=True)
     assert remote_img.to_str() == got_image
@@ -165,7 +166,7 @@ def test_get_image_info_by_id_nonexistent():
 
 def test_get_image_info_by_id():
     t = DockerTasker()
-    image_id = t.get_image_info_by_image_name(ImageName(repo="busybox"))[0]['Id']
+    image_id = t.get_image_info_by_image_name(input_image_name)[0]['Id']
     response = t.get_image_info_by_image_id(image_id)
     assert isinstance(response, dict)
 

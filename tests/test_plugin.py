@@ -5,9 +5,9 @@ from dock.inner import DockerBuildWorkflow
 from dock.plugin import PreBuildPluginsRunner, PostBuildPluginsRunner, InputPluginsRunner
 from dock.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from dock.util import ImageName
+from constants import DOCKERFILE_GIT
 
 
-git_url = "https://github.com/TomasTomecek/docker-hello-world.git"
 TEST_IMAGE = "fedora:latest"
 
 
@@ -29,7 +29,7 @@ class X(object):
 
 def test_rpmqa_plugin():
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(git_url, "test-image")
+    workflow = DockerBuildWorkflow(DOCKERFILE_GIT, "test-image")
     setattr(workflow, 'builder', X)
     setattr(workflow.builder, 'image_id', "asd123")
     setattr(workflow.builder, 'base_image', ImageName(repo='fedora', tag='21'))
