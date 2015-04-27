@@ -10,7 +10,7 @@ def test_hostdocker_build():
     m = DockerhostBuildManager("buildroot-dh-fedora", {
         "git_url": "https://github.com/fedora-cloud/Fedora-Dockerfiles.git",
         "git_dockerfile_path": "ssh/",
-        "image": image_name.to_str(),
+        "image": remote_image.to_str(),
         "parent_registry": LOCALHOST_REGISTRY,  # faster
         "target_registries_insecure": True,
         "parent_registry_insecure": True,
@@ -29,7 +29,6 @@ def test_hostdocker_build():
     # assert len(results.built_img_plugins_output) > 0
     dt.remove_container(results.container_id)
     dt.remove_image(remote_image)
-    dt.remove_image(image_name)
 
 
 def test_hostdocker_error_build():
@@ -50,19 +49,20 @@ def test_hostdocker_error_build():
 
 
 def test_privileged_gitrepo_build():
-    image_name = "dock-test-ssh-image"
+    image_name = ImageName(repo="dock-test-ssh-image")
+    remote_image = image_name.copy()
+    remote_image.registry = LOCALHOST_REGISTRY
     m = PrivilegedBuildManager("buildroot-fedora", {
         "git_url": "https://github.com/fedora-cloud/Fedora-Dockerfiles.git",
         "git_dockerfile_path": "ssh/",
-        "image": image_name,
+        "image": remote_image.to_str(),
         "parent_registry": LOCALHOST_REGISTRY,  # faster
         "target_registries_insecure": True,
         "parent_registry_insecure": True,
     })
     results = m.build()
     dt = DockerTasker()
-    img = dt.pull_image(image_name, LOCALHOST_REGISTRY, insecure=True)
-    dt.remove_image(img)
+    img = dt.pull_image(remote_image, insecure=True)
     assert len(results.build_logs) > 0
     # assert isinstance(results.built_img_inspect, dict)
     # assert len(results.built_img_inspect.items()) > 0
@@ -73,20 +73,22 @@ def test_privileged_gitrepo_build():
     # assert len(results.base_plugins_output) > 0
     # assert len(results.built_img_plugins_output) > 0
     dt.remove_container(results.container_id)
-    dt.remove_image(img)
-
+    dt.remove_image(remote_image)
 
 def test_privileged_build():
+    image_name = ImageName(repo=TEST_IMAGE)
+    remote_image = image_name.copy()
+    remote_image.registry = LOCALHOST_REGISTRY
     m = PrivilegedBuildManager("buildroot-fedora", {
         "git_url": DOCKERFILE_GIT,
-        "image": TEST_IMAGE,
+        "image": remote_image.to_str(),
         "parent_registry": LOCALHOST_REGISTRY,  # faster
         "target_registries_insecure": True,
         "parent_registry_insecure": True,
     })
     results = m.build()
     dt = DockerTasker()
-    img = dt.pull_image(TEST_IMAGE, LOCALHOST_REGISTRY, insecure=True)
+    img = dt.pull_image(remote_image, insecure=True)
     assert len(results.build_logs) > 0
     # assert isinstance(results.built_img_inspect, dict)
     # assert len(results.built_img_inspect.items()) > 0
@@ -97,4 +99,4 @@ def test_privileged_build():
     # assert len(results.base_plugins_output) > 0
     # assert len(results.built_img_plugins_output) > 0
     dt.remove_container(results.container_id)
-    dt.remove_image(img)
+    dt.remove_image(remote_image)
