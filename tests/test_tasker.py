@@ -176,6 +176,13 @@ def test_get_image_info_by_name_tag_in_name():
     response = t.get_image_info_by_image_name(input_image_name)
     assert len(response) == 1
 
+def test_get_image_info_by_name_tag_in_name_library():
+    # https://github.com/DBuildService/dock/issues/45
+    t = DockerTasker()
+    image_name = ImageName.parse("library/busybox")
+    response = t.get_image_info_by_image_name(image_name)
+    assert len(response) == 1
+
 
 def test_get_image_info_by_name_tag_in_name_nonexisten(temp_image_name):
     t = DockerTasker()
