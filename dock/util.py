@@ -57,17 +57,17 @@ class ImageName(object):
         result = self.repo
 
         if tag and self.tag:
-            result = '{}:{}'.format(result, self.tag)
+            result = '{0}:{1}'.format(result, self.tag)
         elif tag and explicit_tag:
-            result = '{}:{}'.format(result, 'latest')
+            result = '{0}:{1}'.format(result, 'latest')
 
         if self.namespace:
-            result = '{}/{}'.format(self.namespace, result)
+            result = '{0}/{1}'.format(self.namespace, result)
         elif explicit_namespace:
-            result = '{}/{}'.format('library', result)
+            result = '{0}/{1}'.format('library', result)
 
         if registry and self.registry:
-            result = '{}/{}'.format(self.registry, result)
+            result = '{0}/{1}'.format(self.registry, result)
 
         return result
 
