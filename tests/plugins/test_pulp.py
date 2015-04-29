@@ -1,6 +1,12 @@
 import os
 import logging
-from ConfigParser import SafeConfigParser
+
+try:
+    # py3
+    from configparser import SafeConfigParser
+except ImportError:
+    # py2
+    from ConfigParser import SafeConfigParser
 
 from dock.core import DockerTasker
 from dock.plugins.post_push_to_pulp import push_image_to_pulp
