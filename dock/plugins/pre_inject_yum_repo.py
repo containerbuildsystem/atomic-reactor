@@ -9,7 +9,7 @@ from dock.plugin import PreBuildPlugin
 
 
 def alter_yum_commands(df, wrap_str):
-    regex = re.compile(r"RUN (?P<yum_command>yum((\s.+\\\n)+)?(.+))", re.MULTILINE)
+    regex = re.compile(r"RUN\s+(?P<yum_command>yum((\s.+\\\n)+)?(.+))", re.MULTILINE)
     sub_func = lambda match: wrap_str % {'yum_command': match.group('yum_command').rstrip()}
     return regex.sub(sub_func, df)
 
