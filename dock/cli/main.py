@@ -74,20 +74,20 @@ def store_result(results):
 
 class CLI(object):
     def __init__(self):
+        self.parser = argparse.ArgumentParser(
+            description="dock, tool for building images"
+        )
+
+    def set_arguments(self):
         try:
             version = pkg_resources.get_distribution("dock").version
         except pkg_resources.DistributionNotFound:
             version = "GIT"
 
-        self.parser = argparse.ArgumentParser(
-            description="dock, tool for building images",
-            version=version
-        )
-
-    def set_arguments(self):
         exclusive_group = self.parser.add_mutually_exclusive_group()
-        exclusive_group.add_argument("--verbose", action="store_true")
         exclusive_group.add_argument("-q", "--quiet", action="store_true")
+        exclusive_group.add_argument("-v", "--verbose", action="store_true")
+        exclusive_group.add_argument("-V", "--version", action="version", version=version)
 
         subparsers = self.parser.add_subparsers(help='commands')
 
