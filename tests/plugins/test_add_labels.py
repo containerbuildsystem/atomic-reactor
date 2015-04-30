@@ -40,8 +40,8 @@ CMD blabla"""
         tasker,
         workflow,
         [{
-             'name': AddLabelsPlugin.key,
-             'args': {'labels': labels_conf}
+            'name': AddLabelsPlugin.key,
+            'args': {'labels': labels_conf}
         }]
     )
     runner.run()

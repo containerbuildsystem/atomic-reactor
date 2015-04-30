@@ -5,7 +5,10 @@ from dock.inner import DockerBuildWorkflow
 from dock.plugin import PostBuildPluginsRunner
 from dock.plugins.post_tag_and_push import TagAndPushPlugin
 from dock.util import ImageName
-from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE
+from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE, MOCK
+
+if MOCK:
+    from tests.docker_mock import mock_docker
 
 
 class X(object):
@@ -16,6 +19,9 @@ class X(object):
 
 
 def test_tag_and_push_plugin(tmpdir):
+    if MOCK:
+        mock_docker()
+
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow("asd", "test-image")
     setattr(workflow, 'builder', X)

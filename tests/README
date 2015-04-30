@@ -1,0 +1,16 @@
+Requirements: see requirements.txt
+
+How to run:
+$ py.test -v
+
+By default all docker.Client methods are mocked, so you don't need docker to run these tests.
+If you want to run 'integration' tests, i.e. test with running docker instance, you need:
+$ yum install docker docker-registry
+$ systemctl start docker docker-registry
+$ dock create-build-image --dock-local-path ${PATH_TO_DOCK_GIT} ${PATH_TO_DOCK_GIT}/images/dockerhost-builder buildroot
+$ docker tag buildroot:latest buildroot-dh-fedora
+$ docker tag buildroot:latest buildroot-fedora
+$ docker pull fedora:latest
+$ docker tag fedora:latest localhost:5000/fedora:latest
+$ docker push fedora:latest localhost:5000/fedora:latest
+$ NOMOCK=1 py.test -v

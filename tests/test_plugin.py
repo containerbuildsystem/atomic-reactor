@@ -5,7 +5,7 @@ from dock.inner import DockerBuildWorkflow
 from dock.plugin import PreBuildPluginsRunner, PostBuildPluginsRunner, InputPluginsRunner
 from dock.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from dock.util import ImageName
-from constants import DOCKERFILE_GIT
+from tests.constants import DOCKERFILE_GIT
 
 
 TEST_IMAGE = "fedora:latest"
