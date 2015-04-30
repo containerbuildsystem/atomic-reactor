@@ -34,7 +34,7 @@ CMD blabla"""
     workflow = DockerBuildWorkflow(git_url, "test-image")
     setattr(workflow, 'builder', X)
 
-    metalink = 'https://mirrors.fedoraproject.org/metalink?repo=fedora-\$releasever&arch=\$basearch'
+    metalink = 'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
 
     workflow.repos['yum'] = [OrderedDict(
         (('name', 'my-repo'),
@@ -75,7 +75,7 @@ CMD blabla"""
     workflow = DockerBuildWorkflow(git_url, "test-image")
     setattr(workflow, 'builder', X)
 
-    metalink = r'https://mirrors.fedoraproject.org/metalink?repo=fedora-\$releasever&arch=\$basearch'
+    metalink = r'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
 
     workflow.repos['yum'] = [OrderedDict(
         (('name', 'my-repo'),

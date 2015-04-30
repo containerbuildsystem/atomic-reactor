@@ -34,12 +34,18 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         """
         run the plugin
         """
+        def escape_dollar(v):
+            if isinstance(v, str):
+                return v.replace('$', '\$')
+            else:
+                return v
+
         rendered_repos = ''
         for repo in self.workflow.repos.get('yum', []):
             repo.setdefault("name", str(uuid.uuid4().hex[:6]))
             rendered_repo = ''
             for key, value in repo.items():
-                rendered_repo += r"%s=%s\n" % (key, value)
+                rendered_repo += r"%s=%s\n" % (key, escape_dollar(value))
             rendered_repo = r'[%(name)s]\n' % repo + rendered_repo
             rendered_repos += rendered_repo
 
