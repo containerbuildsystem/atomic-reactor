@@ -1,7 +1,11 @@
 from __future__ import print_function
 
 import os
-from collections import OrderedDict
+try:
+    from collections import OrderedDict
+except ImportError:
+    # Python 2.6
+    from ordereddict import OrderedDict
 from dock.core import DockerTasker
 from dock.inner import DockerBuildWorkflow
 from dock.plugin import PreBuildPluginsRunner
