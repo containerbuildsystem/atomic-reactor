@@ -36,7 +36,7 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         """
         rendered_repos = ''
         for repo in self.workflow.repos.get('yum', []):
-            repo.setdefault("name", str(uuid.uuid4().get_hex()[:6]))
+            repo.setdefault("name", str(uuid.uuid4().hex[:6]))
             rendered_repo = ''
             for key, value in repo.items():
                 rendered_repo += r"%s=%s\n" % (key, value)

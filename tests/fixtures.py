@@ -10,11 +10,7 @@ from dock.util import ImageName
 
 
 def get_uuid():
-    u = uuid.uuid4()
-    try:
-        return u.get_hex()  # py2
-    except AttributeError:
-        return u.hex  # py3
+    return uuid.uuid4().hex
 
 
 @pytest.fixture()
