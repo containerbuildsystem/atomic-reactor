@@ -104,7 +104,7 @@ def test_complex_df():
     df = """\
 FROM fedora
 RUN asd
-RUN yum install x
+RUN  yum install x
 ENV x=y
 RUN yum install \
     x \
