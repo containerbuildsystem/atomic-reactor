@@ -48,8 +48,13 @@ CMD blabla"""
     assert AddLabelsPlugin.key is not None
     with open(tmp_df, 'r') as fd:
         altered_df = fd.read()
-    expected_output = r"""FROM fedora
+    # Can't be sure of the order of the labels, expect either
+    expected_output = [r"""FROM fedora
 RUN yum install -y python-django
 LABEL "label1"="value 1" "label2"="long value"
-CMD blabla"""
-    assert expected_output == altered_df
+CMD blabla""",
+                       r"""FROM fedora
+RUN yum install -y python-django
+LABEL "label2"="long value" "label1"="value 1"
+CMD blabla"""]
+    assert altered_df in expected_output
