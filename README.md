@@ -1,6 +1,8 @@
 dock
 ====
 
+[![Build Status](https://travis-ci.org/DBuildService/dock.svg?branch=master)](https://travis-ci.org/DBuildService/dock)
+
 Python library with command line interface for building docker images.
 
 ## Features
