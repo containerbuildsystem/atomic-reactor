@@ -3,20 +3,16 @@ from dock.inner import DockerBuildWorkflow
 from dock.plugin import PreBuildPluginsRunner, PreBuildPlugin
 from dock.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
 from dock.util import ImageName
+from flexmock import flexmock
+import requests
 
 
 git_url = "https://github.com/TomasTomecek/docker-hello-world.git"
 TEST_IMAGE = "fedora:latest"
 
 
-class MockResponse(object):
-    def raise_for_status(self):
-        pass
-
-@staticmethod
 def fake_get(url):
     # Mock requests.get
-    response = MockResponse()
     if url.endswith("2repos.repo"):
         text = """
 [test1]
@@ -44,10 +40,16 @@ gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-$releasever-$basearch
 
     try:
         # py2
-        response.text = unicode(text)
+        text = unicode(text)
     except:
         # py3
-        response.text = text
+        pass
+
+    response = (flexmock(requests.Response,
+                         text=text)
+                .should_receive(name='raise_for_status')
+                .and_return(None)
+                .mock())
 
     return response
 
@@ -68,6 +70,7 @@ def prepare(tmpdir):
     setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
     setattr(workflow.builder, 'git_dockerfile_path', None)
     setattr(workflow.builder, 'git_path', None)
+    flexmock(requests, get=fake_get)
     return tasker, workflow
 
 def test_no_repourls(tmpdir):

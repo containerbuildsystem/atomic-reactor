@@ -44,10 +44,6 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
         super(AddYumRepoByUrlPlugin, self).__init__(tasker, workflow)
         self.repourls = repourls
 
-    @staticmethod
-    def _get(url):
-        return requests.get(url)
-
     def run(self):
         """
         run the plugin
@@ -55,7 +51,7 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
         self.workflow.repos.setdefault("yum", [])
         for repourl in self.repourls:
             repoconfig = SafeConfigParser()
-            response = self._get(repourl)
+            response = requests.get(repourl)
             response.raise_for_status()
             repoconfig.readfp(StringIO(response.text))
             for name in repoconfig.sections():
