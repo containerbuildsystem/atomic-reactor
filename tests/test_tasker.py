@@ -53,19 +53,13 @@ def test_run():
 
 def test_run_invalid_command():
     if MOCK:
-        mock_docker()
-        return  # FIXME: why the following doesn't work ?
-        from flexmock import flexmock
-        flexmock(docker.Client).should_receive('start').with_args("fake_id", None).and_raise(docker.errors.APIError)
+        mock_docker(should_raise_error={'start': []})
 
     t = DockerTasker()
     try:
         with pytest.raises(docker.errors.APIError):
             t.run(input_image_name, command=COMMAND)
     finally:
-        if MOCK:
-            # FIXME: This seems to be needed, why ?
-            mock_docker()
         # remove the container
         containers = t.d.containers(all=True)
         container_id = [c for c in containers if c["Command"] == COMMAND][0]['Id']
@@ -83,10 +77,8 @@ def test_image_exists():
 def test_image_doesnt_exist():
     image = "lerknglekrnglekrnglekrnglekrng"
     if MOCK:
-        from flexmock import flexmock
-        flexmock(docker.Client, inspect_image=lambda im_id: None)
-        # FIXME: why the following doesn't work ?
-        # flexmock(docker.Client).should_receive('inspect_image').with_args(image).and_raise(docker.errors.APIError)
+        mock_docker(should_raise_error={'inspect_image': [image]})
+
     t = DockerTasker()
     assert t.image_exists(image) is False
 
