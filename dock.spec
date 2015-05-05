@@ -8,7 +8,7 @@
 
 Name:           dock
 Version:        1.2.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -20,6 +20,7 @@ BuildArch:      noarch
 
 BuildRequires:  python2-devel
 BuildRequires:  python-setuptools
+Requires:       python-setuptools
 
 %if 0%{?with_python3}
 BuildRequires:  python3-devel
@@ -64,6 +65,7 @@ Group:          Development/Tools
 License:        BSD
 Requires:       python3-docker-py
 Requires:       python3-requests
+Requires:       python3-setuptools
 # python3 build is missing for GitPython
 Requires:       GitPython
 
@@ -181,6 +183,9 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 
 
 %changelog
+* Tue May 05 2015 Jiri Popelka <jpopelka@redhat.com> - 1.2.0-2
+- require python[3]-setuptools
+
 * Tue Apr 21 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.2.0-1
 - new upstream release 1.2.0
 
