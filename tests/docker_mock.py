@@ -53,12 +53,17 @@ mock_push_logs = \
     b'"error":"Repository does not exist: localhost:5000/dock-tests-b3a11e13d27c428f8fa2914c8c6a6d96"}\r\n'
 
 
-def mock_docker(build_should_fail=False, inspect_should_fail=False, provided_image_repotags=None, should_raise_error={}):
+def mock_docker(build_should_fail=False,
+                inspect_should_fail=False,
+                wait_should_fail=False,
+                provided_image_repotags=None,
+                should_raise_error={}):
     """
     mock all used docker.Client methods
 
     :param build_should_fail: True == build() log will contain error
     :param inspect_should_fail: True == inspect_image() will return None
+    :param wait_should_fail: True == wait() will return 1 instead of 0
     :param provided_image_repotags: images() will contain provided image
     :param should_raise_error: methods (with args) to raise docker.errors.APIError
     """
@@ -80,7 +85,7 @@ def mock_docker(build_should_fail=False, inspect_should_fail=False, provided_ima
     flexmock(docker.Client, remove_image=lambda iid, **kwargs: None)
     flexmock(docker.Client, start=lambda cid, **kwargs: None)
     flexmock(docker.Client, tag=lambda img, rep, **kwargs: True)
-    flexmock(docker.Client, wait=lambda cid: 1)
+    flexmock(docker.Client, wait=lambda cid: 1 if wait_should_fail else 0)
     flexmock(os.path, exists=lambda path: True)  # DOCKER_SOCKET_PATH check
 
     for method, args in should_raise_error.items():

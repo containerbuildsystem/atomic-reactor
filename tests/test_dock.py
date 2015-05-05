@@ -39,7 +39,7 @@ def test_hostdocker_build():
 
 def test_hostdocker_error_build():
     if MOCK:
-        mock_docker()
+        mock_docker(wait_should_fail=True)
 
     image_name = TEST_IMAGE
     m = DockerhostBuildManager("buildroot-dh-fedora", {

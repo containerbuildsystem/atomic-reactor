@@ -81,9 +81,8 @@ class TestCLISuite(object):
             logger.info("registry is NOT running")
         with pytest.raises(SystemExit) as excinfo:
             self.exec_cli(command)
-        if not MOCK:
-            # FIXME: Why this doesn't work with MOCK ?
-            assert excinfo.value.code == 0
+
+        assert excinfo.value.code == 0
 
     def test_simple_dh_build(self, is_registry_running, temp_image_name):
         if MOCK:
@@ -106,9 +105,7 @@ class TestCLISuite(object):
             logger.info("registry is NOT running")
         with pytest.raises(SystemExit) as excinfo:
             self.exec_cli(command)
-        if not MOCK:
-            # FIXME: Why this doesn't work with MOCK ?
-            assert excinfo.value.code == 0
+        assert excinfo.value.code == 0
         dt.remove_image(temp_image, noprune=True)
 
     def test_create_build_image(self, temp_image_name):
