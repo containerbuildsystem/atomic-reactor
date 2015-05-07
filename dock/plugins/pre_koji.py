@@ -31,6 +31,9 @@ class KojiPlugin(PreBuildPlugin):
         run the plugin
         """
         target_info = self.xmlrpc.getBuildTarget(self.target)
+        if target_info is None:
+            self.log.error("provided target '%s' doesn't exist", self.target)
+            raise RuntimeError("Provided target '%s' doesn't exist!" % self.target)
         tag_info = self.xmlrpc.getTag(target_info['build_tag_name'])
         repo_info = self.xmlrpc.getRepo(tag_info['id'])
         baseurl = self.pathinfo.repo(repo_info['id'], tag_info['name']) + r'/\$basearch'
