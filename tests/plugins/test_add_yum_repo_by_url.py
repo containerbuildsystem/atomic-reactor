@@ -11,12 +11,9 @@ from dock.inner import DockerBuildWorkflow
 from dock.plugin import PreBuildPluginsRunner, PreBuildPlugin
 from dock.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
 from dock.util import ImageName
+from tests.constants import DOCKERFILE_GIT
 from flexmock import flexmock
 import requests
-
-
-git_url = "https://github.com/TomasTomecek/docker-hello-world.git"
-TEST_IMAGE = "fedora:latest"
 
 
 def fake_get(url):
@@ -68,7 +65,7 @@ class X(object):
 
 def prepare(tmpdir):
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(git_url, "test-image")
+    workflow = DockerBuildWorkflow(DOCKERFILE_GIT, "test-image")
     setattr(workflow, 'builder', X)
 
     workflow.repos['yum'] = []

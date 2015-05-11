@@ -19,11 +19,7 @@ from dock.inner import DockerBuildWorkflow
 from dock.plugin import PreBuildPluginsRunner, PostBuildPluginsRunner
 from dock.plugins.pre_inject_yum_repo import InjectYumRepoPlugin, alter_yum_commands
 from dock.util import ImageName
-
-
-git_url = "https://github.com/TomasTomecek/docker-hello-world.git"
-TEST_IMAGE = "fedora:latest"
-
+from tests.constants import DOCKERFILE_GIT
 
 class X(object):
     pass
@@ -39,7 +35,7 @@ CMD blabla"""
         fd.write(df)
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(git_url, "test-image")
+    workflow = DockerBuildWorkflow(DOCKERFILE_GIT, "test-image")
     setattr(workflow, 'builder', X)
 
     metalink = 'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
@@ -80,7 +76,7 @@ CMD blabla"""
         fd.write(df)
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(git_url, "test-image")
+    workflow = DockerBuildWorkflow(DOCKERFILE_GIT, "test-image")
     setattr(workflow, 'builder', X)
 
     metalink = r'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
