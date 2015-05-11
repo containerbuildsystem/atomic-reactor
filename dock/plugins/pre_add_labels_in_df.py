@@ -83,6 +83,7 @@ class AddLabelsPlugin(PreBuildPlugin):
             label = '"%s"="%s"' % (escape(key), escape(value))
             self.log.info("setting label %s", label)
             content += " " + label
+            self.workflow.labels[key] = value
 
         # put it before last instruction
         lines.insert(-1, content + '\n')
