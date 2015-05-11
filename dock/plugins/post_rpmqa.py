@@ -29,7 +29,7 @@ class PostBuildRPMqaPlugin(PostBuildPlugin):
     def run(self):
         container_id = self.tasker.run(
             self.image_id,
-            command='-qa',
+            command="-qa --qf '%{NAME},%{VERSION},%{RELEASE},%{ARCH},%{EPOCH},%{SIZE},%{SIGMD5},%{BUILDTIME}\n'",
             create_kwargs={"entrypoint": "/bin/rpm"},
             start_kwargs={},
         )
