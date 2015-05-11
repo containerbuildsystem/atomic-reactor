@@ -1,4 +1,11 @@
 """
+Copyright (c) 2015 Red Hat, Inc
+All rights reserved.
+
+This software may be modified and distributed under the terms
+of the BSD license. See the LICENSE file for details.
+
+
 It returns the dockerfile itself and therefore displays it in results.
 """
 from dock.plugin import PreBuildPlugin

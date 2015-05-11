@@ -1,4 +1,11 @@
 """
+Copyright (c) 2015 Red Hat, Inc
+All rights reserved.
+
+This software may be modified and distributed under the terms
+of the BSD license. See the LICENSE file for details.
+
+
 Add arbitrary yum repo to a list of repos which should be injected into built image.
 
 This plugin has to run _BEFORE_ yum inject plugin.
