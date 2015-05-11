@@ -13,11 +13,8 @@ plugins are supposed to be run when image is built and we need to extract some i
 import copy
 import logging
 import os
-import sys
 import traceback
 import imp
-
-import dock.plugins
 
 
 MODULE_EXTENSIONS = ('.py', '.pyc', '.pyo')
@@ -92,7 +89,7 @@ class Plugin(object):
 
         input plugins should emit build json with this method
         """
-        raise NotImplemented()
+        raise NotImplementedError()
 
 
 class BuildPlugin(Plugin):

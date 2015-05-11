@@ -240,14 +240,15 @@ class DockerBuildWorkflow(object):
         """
         # FIXME: everything in here should be in separate postbuild plugin
         assert self.builder is not None
-        runner = PostBuildPluginsRunner(self.builder.tasker)
+        runner = PostBuildPluginsRunner(self.builder.tasker, self, self.postbuild_plugins_conf,
+                                        plugin_files=self.plugin_files)
         results = BuildResults()
         results.built_img_inspect = self.builder.inspect_built_image()
         results.built_img_info = self.builder.get_built_image_info()
         results.base_img_inspect = self.builder.inspect_base_image()
         results.base_img_info = self.builder.get_base_image_info()
-        results.base_plugins_output = runner.run(self.builder.base_image_name)
-        results.built_img_plugins_output = runner.run(self.builder.image)
+        results.base_plugins_output = runner.run()  # self.builder.base_image_name
+        results.built_img_plugins_output = runner.run()  # self.builder.image
         return results
 
 
