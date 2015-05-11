@@ -26,9 +26,7 @@ import os
 import shutil
 import logging
 import tempfile
-import datetime
 
-import git
 import docker
 from docker.errors import APIError
 
@@ -46,7 +44,7 @@ class LastLogger(object):
     provide method for getting last log
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
         self._last_logs = []
 
     @property
@@ -210,7 +208,7 @@ class DockerTasker(LastLogger):
             clone_git_repo(url, temp_dir, git_commit)
             df_path, df_dir = figure_out_dockerfile(temp_dir, git_path)
             if copy_dockerfile_to:  # TODO: pre build plugin
-                shutil.copyfile(os.path.join(df_dir, "Dockerfile"), copy_dockerfile_to)
+                shutil.copyfile(df_path, copy_dockerfile_to)
             response = self.build_image_from_path(df_dir, image, stream=stream, use_cache=use_cache)
         finally:
             try:

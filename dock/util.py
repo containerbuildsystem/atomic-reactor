@@ -113,10 +113,6 @@ def get_baseimage_from_dockerfile(git_path, path=''):
 
 
 class CommandResult(object):
-    logs = None
-    error = None
-    error_detail = None
-
     def __init__(self, logs, error=None, error_detail=None):
         self._logs = logs
         self._error = error

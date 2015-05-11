@@ -11,7 +11,6 @@ Pre build plugin which injects custom yum repository in dockerfile.
 import os
 import re
 import uuid
-import sys
 from dock.plugin import PreBuildPlugin
 
 

@@ -13,10 +13,10 @@ import tempfile
 import datetime
 import logging
 
-from dock.constants import BUILD_JSON, RESULTS_JSON
+from dock.constants import BUILD_JSON
 from dock.build import BuilderStateMachine
 from dock.core import DockerTasker, BuildContainerFactory
-from dock.inner import BuildResultsJSONDecoder, BuildResults
+from dock.inner import BuildResults
 from dock.util import wait_for_command, ImageName
 
 
