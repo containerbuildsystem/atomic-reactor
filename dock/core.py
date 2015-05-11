@@ -21,7 +21,6 @@ import logging
 import tempfile
 import datetime
 
-import git
 import docker
 from docker.errors import APIError
 

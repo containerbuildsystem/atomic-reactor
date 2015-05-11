@@ -22,6 +22,8 @@ BuildRequires:  python2-devel
 BuildRequires:  python-setuptools
 Requires:       python-dock
 
+Requires:       git >= 1.7.10
+
 %if 0%{?with_python3}
 BuildRequires:  python3-devel
 BuildRequires:  python3-setuptools
@@ -81,8 +83,6 @@ License:        BSD
 Requires:       python3-docker-py
 Requires:       python3-requests
 Requires:       python3-setuptools
-# python3 build is missing for GitPython
-Requires:       GitPython
 
 %description -n python3-dock
 Simple Python 3 library for building docker images. It contains
