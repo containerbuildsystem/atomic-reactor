@@ -8,7 +8,7 @@
 
 Name:           dock
 Version:        1.2.0
-Release:        2%{?dist}
+Release:        3%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -20,47 +20,62 @@ BuildArch:      noarch
 
 BuildRequires:  python2-devel
 BuildRequires:  python-setuptools
-Requires:       python-setuptools
+Requires:       python-dock
 
 %if 0%{?with_python3}
 BuildRequires:  python3-devel
 BuildRequires:  python3-setuptools
 %endif
 
-Requires:       python-docker-py
-Requires:       GitPython
-Requires:       python-requests
-
 %description
-Simple python library with command line interface for building docker
+Simple Python tool with command line interface for building docker
 images. It contains a lot of helpful functions which you would
 probably implement if you started hooking docker into your
 infrastructure.
 
 
-%package koji
+%package -n python-dock-koji
 Summary:        Koji plugin for Dock
 Group:          Development/Tools
-Requires:       %{name} = %{version}-%{release}
+Requires:       python-dock = %{version}-%{release}
 Requires:       koji
+Provides:       dock-koji = %{version}-%{release}
+Obsoletes:      dock-koji < 1.2.0-3
 
-%description koji
+%description -n python-dock-koji
 Koji plugin for Dock
 
 
-%package metadata
+%package -n python-dock-metadata
 Summary:        Plugin for submitting metada to OSBS
 Group:          Development/Tools
-Requires:       %{name} = %{version}-%{release}
+Requires:       python-dock = %{version}-%{release}
 Requires:       osbs
+Provides:       dock-metadata = %{version}-%{release}
+Obsoletes:      dock-metadata < 1.2.0-3
 
-%description metadata
+%description -n python-dock-metadata
 Plugin for submitting metada to OSBS
+
+
+%package -n python-dock
+Summary:        Python 2 Dock library
+Group:          Development/Tools
+License:        BSD
+Requires:       python-docker-py
+Requires:       python-requests
+Requires:       python-setuptools
+Requires:       GitPython
+
+%description -n python-dock
+Simple Python 2 library for building docker images. It contains
+a lot of helpful functions which you would probably implement if
+you started hooking docker into your infrastructure.
 
 
 %if 0%{?with_python3}
 %package -n python3-dock
-Summary:        Improved builder for Docker images
+Summary:        Python 3 Dock library
 Group:          Development/Tools
 License:        BSD
 Requires:       python3-docker-py
@@ -70,10 +85,9 @@ Requires:       python3-setuptools
 Requires:       GitPython
 
 %description -n python3-dock
-Simple python library with command line interface for building docker
-images. It contains a lot of helpful functions which you would
-probably implement if you started hooking docker into your
-infrastructure.
+Simple Python 3 library for building docker images. It contains
+a lot of helpful functions which you would probably implement if
+you started hooking docker into your infrastructure.
 
 
 %package -n python3-dock-koji
@@ -89,7 +103,7 @@ Koji plugin for Dock
 %package -n python3-dock-metadata
 Summary:        Plugin for submitting metada to OSBS
 Group:          Development/Tools
-Requires:       %{name} = %{version}-%{release}
+Requires:       python3-dock = %{version}-%{release}
 Requires:       osbs
 
 %description python3-dock-metadata
@@ -125,6 +139,8 @@ popd
 %endif # with_python3
 
 %{__python} setup.py install --skip-build --root %{buildroot}
+mv %{buildroot}%{_bindir}/dock %{buildroot}%{_bindir}/dock2
+ln -s %{_bindir}/dock2 %{buildroot}%{_bindir}/dock
 
 # ship dock in form of tarball so it can be installed within build image
 cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
@@ -134,6 +150,12 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 %doc README.md
 %license LICENSE
 %{_bindir}/dock
+
+
+%files -n python-dock
+%doc README.md
+%license LICENSE
+%{_bindir}/dock2
 %dir %{python2_sitelib}/dock
 %{python2_sitelib}/dock/*.*
 %{python2_sitelib}/dock/cli
@@ -145,11 +167,11 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 %{_datadir}/%{name}/images
 
 
-%files koji
+%files -n python-dock-koji
 %{python2_sitelib}/dock/plugins/pre_koji.py*
 
 
-%files metadata
+%files -n python-dock-metadata
 %{python2_sitelib}/dock/plugins/post_store_metadata_in_osv3.py*
 
 
@@ -183,6 +205,11 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 
 
 %changelog
+* Thu May 07 2015 Slavek Kabrda <bkabrda@redhat.com> - 1.2.0-3
+- Introduce python-dock subpackage
+- Rename dock-{koji,metadata} to python-dock-{koji,metadata}
+- move /usr/bin/dock to /usr/bin/dock2, /usr/bin/dock is now a symlink
+
 * Tue May 05 2015 Jiri Popelka <jpopelka@redhat.com> - 1.2.0-2
 - require python[3]-setuptools
 
