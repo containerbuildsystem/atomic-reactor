@@ -32,3 +32,14 @@ RELATIVE_REPOS_PATH = "dock-repos/"
 DEFAULT_YUM_REPOFILE_NAME = 'dock-injected.repo'
 
 SOURCE_DIRECTORY_NAME = "source"
+
+# docs constants
+
+DESCRIPTION = "Python library with command line interface for building docker images."
+HOMEPAGE = "https://github.com/DBuildService/dock"
+PROG = "dock"
+MANPAGE_AUTHORS = "Jiri Popelka <jpopelka@redhat.com>, " \
+                  "Martin Milata <mmilata@redhat.com>, " \
+                  "Tim Waugh <twaug@redhat.com>, " \
+                  "Tomas Tomecek <ttomecek@redhat.com>"
+MANPAGE_SECTION = 1

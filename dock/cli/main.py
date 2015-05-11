@@ -15,7 +15,7 @@ import pkg_resources
 
 from dock import build_image_here, build_image_in_privileged_container, \
     build_image_using_hosts_docker, set_logging
-from dock.constants import CONTAINER_BUILD_JSON_PATH, CONTAINER_RESULTS_JSON_PATH
+from dock.constants import CONTAINER_BUILD_JSON_PATH, CONTAINER_RESULTS_JSON_PATH, DESCRIPTION, PROG
 from dock.buildimage import BuildImageBuilder
 from dock.inner import BuildResultsEncoder, build_inside, BuildResults
 
@@ -85,10 +85,15 @@ def store_result(results):
 
 
 class CLI(object):
-    def __init__(self):
+    def __init__(self, formatter_class=argparse.HelpFormatter, prog=PROG):
         self.parser = argparse.ArgumentParser(
-            description="dock, tool for building images"
+            prog=prog,
+            description=DESCRIPTION,
+            formatter_class=formatter_class,
         )
+        self.build_parser = None
+        self.bi_parser = None
+        self.ib_parser = None
 
     def set_arguments(self):
         try:
@@ -105,47 +110,55 @@ class CLI(object):
 
         # BUILDING IMAGES
 
-        build_parser = subparsers.add_parser('build', help='build image')
-        build_parser.set_defaults(func=cli_build_image)
-        build_parser.add_argument("--json", action="store", help="path to build json")
-        build_parser.add_argument("--build-image", action='store',
-                                  help="name of build image to use "
-                                  "(build image type has to match method)")
-        build_parser.add_argument("--image", action='store',
-                                  help="name under the image will be accessible")
-        build_parser.add_argument("--git-url", action='store', metavar="URL",
-                                  help="URL to git repo")
-        build_parser.add_argument("--git-path", action='store',
-                                  help="path to Dockerfile within git repo (default is ./)")
-        build_parser.add_argument("--git-commit", action='store',
-                                  help="checkout this commit (default is master)")
-        build_parser.add_argument("--source-registry", action='store',
-                                  metavar="REGISTRY",
-                                  help="registry to pull base image from")
-        build_parser.add_argument("--source-registry-insecure", action='store_true',
-                                  help="allow connecting to source registry over plain http")
-        build_parser.add_argument("--target-registries", action='store', nargs="*",
-                                  metavar="REGISTRY",
-                                  help="list of registries to push image to")
-        build_parser.add_argument("--target-registries-insecure", action='store_true',
-                                  help="allow connecting to target registries over plain http")
-        build_parser.add_argument("--dont-pull-base-image", action='store_true',
-                                  help="don't pull or update base image specified in dockerfile")
-        build_parser.add_argument("--load-plugin", action="store", nargs="*", metavar="PLUGIN_FILE",
-                                  dest="plugin_files", help="list of files where plugins live")
-        build_parser.add_argument("--method", action='store', choices=["hostdocker", "privileged", "here"],
-                                  required=True,
-                                  help="choose method for building image: 'hostdocker' mounts socket "
-                                       "inside container, 'privileged' spawns privileged container and "
-                                       "runs separate docker instance inside and finally 'here' executes"
-                                       "build in current environment")
+        self.build_parser = subparsers.add_parser('build',
+                                                  usage="%s [OPTIONS] build" % PROG,
+                                                  description='This command enables you to build images. '
+                                                              'There are several methods for performing the build: '
+                                                              'inside a build container using docker from host, '
+                                                              'inside a build container using new instance of docker, '
+                                                              'or within current environment')
+        self.build_parser.set_defaults(func=cli_build_image)
+        self.build_parser.add_argument("--json", action="store", help="path to build json")
+        self.build_parser.add_argument("--build-image", action='store',
+                                       help="name of build image to use "
+                                            "(build image type has to match method)")
+        self.build_parser.add_argument("--image", action='store',
+                                       help="name under the image will be accessible")
+        self.build_parser.add_argument("--git-url", action='store', metavar="URL",
+                                       help="URL to git repo")
+        self.build_parser.add_argument("--git-path", action='store',
+                                       help="path to Dockerfile within git repo (default is ./)")
+        self.build_parser.add_argument("--git-commit", action='store',
+                                       help="checkout this commit (default is master)")
+        self.build_parser.add_argument("--source-registry", action='store',
+                                       metavar="REGISTRY",
+                                       help="registry to pull base image from")
+        self.build_parser.add_argument("--source-registry-insecure", action='store_true',
+                                       help="allow connecting to source registry over plain http")
+        self.build_parser.add_argument("--target-registries", action='store', nargs="*",
+                                       metavar="REGISTRY",
+                                       help="list of registries to push image to")
+        self.build_parser.add_argument("--target-registries-insecure", action='store_true',
+                                       help="allow connecting to target registries over plain http")
+        self.build_parser.add_argument("--dont-pull-base-image", action='store_true',
+                                       help="don't pull or update base image specified in dockerfile")
+        self.build_parser.add_argument("--load-plugin", action="store", nargs="*", metavar="PLUGIN_FILE",
+                                       dest="plugin_files", help="list of files where plugins live")
+        self.build_parser.add_argument("--method", action='store', choices=["hostdocker", "privileged", "here"],
+                                       required=True,
+                                       help="choose method for building image: 'hostdocker' mounts socket "
+                                            "inside container, 'privileged' spawns privileged container and "
+                                            "runs separate docker instance inside and finally 'here' executes"
+                                            "build in current environment")
 
         # CREATE BUILD IMAGE
 
-        bi_parser = subparsers.add_parser('create-build-image',
-                                          help='create build image where images are being build')
-        bi_parser.set_defaults(func=cli_create_build_image)
-        dock_source = bi_parser.add_mutually_exclusive_group()
+        self.bi_parser = subparsers.add_parser('create-build-image',
+                                               usage="%s [OPTIONS] create-build-image" % PROG,
+                                               description='Create build image; dock installs itself inside and '
+                                                           'is capable of building images within this image.')
+        self.bi_parser.set_defaults(func=cli_create_build_image)
+        dock_source = self.bi_parser.add_mutually_exclusive_group()
         dock_source.add_argument("--dock-latest", action='store_true',
                                  help="put latest dock inside (from public git)")
         dock_source.add_argument("--dock-remote-git", action='store',
@@ -154,30 +167,31 @@ class CLI(object):
                                  help="path to directory with dock (has to contain setup.py)")
         dock_source.add_argument("--dock-tarball-path", action='store',
                                  help="path to distribution tarball with dock")
-        bi_parser.add_argument("dockerfile_dir_path", action="store", metavar="DOCKERFILE_DIR_PATH",
-                               help="path to directory with Dockerfile")
-        bi_parser.add_argument("image", action='store', metavar="IMAGE",
-                               help="name under the image will be accessible")
-        bi_parser.add_argument("--use-cache", action='store_true', default=False,
-                               help="use cache to build image (may be faster, but not up to date)")
+        self.bi_parser.add_argument("dockerfile_dir_path", action="store", metavar="DOCKERFILE_DIR_PATH",
+                                    help="path to directory with Dockerfile")
+        self.bi_parser.add_argument("image", action='store', metavar="IMAGE",
+                                    help="name under the image will be accessible")
+        self.bi_parser.add_argument("--use-cache", action='store_true', default=False,
+                                    help="use cache to build image (may be faster, but not up to date)")
 
         # inside build
-        ib_parser = subparsers.add_parser(
+        self.ib_parser = subparsers.add_parser(
             'inside-build',
-            help="we do expect we are inside container, therefore we'll read "
-                 "build configuration from json at '%s' and when the build is done, " % CONTAINER_BUILD_JSON_PATH +
-                 "results are written in that dir so dock from host may read those")
-        ib_parser.add_argument("--input", action='store', help="input plugin name")
-        ib_parser.add_argument("--input-arg", action='append',
-                               help="argument for input plugin (in form of 'key=value'), see input plugins "
-                                    " to know what arguments they accept (can be specified multiple times)")
-        ib_parser.add_argument("--dont-pull-base-image", action='store_true',
-                               help="don't pull or update base image specified in dockerfile")
-        ib_parser.add_argument("--substitute", action='append',
-                               help="substitute values in build json (key=value, or "
-                                    "plugin_type.plugin_name.key=value)")
-
-        ib_parser.set_defaults(func=cli_inside_build)
+            usage="%s [OPTIONS] inside-build" % PROG,
+            description="We do expect we are inside container, therefore we'll read "
+                        "build configuration from json at '%s'" % CONTAINER_BUILD_JSON_PATH +
+                        "and when the build is done, "
+                        "results are written in that dir so dock from host may read those.")
+        self.ib_parser.add_argument("--input", action='store', help="input plugin name")
+        self.ib_parser.add_argument("--input-arg", action='append',
+                                    help="argument for input plugin (in form of 'key=value'), see input plugins "
+                                         " to know what arguments they accept (can be specified multiple times)")
+        self.ib_parser.add_argument("--dont-pull-base-image", action='store_true',
+                                    help="don't pull or update base image specified in dockerfile")
+        self.ib_parser.add_argument("--substitute", action='append',
+                                    help="substitute values in build json (key=value, or "
+                                         "plugin_type.plugin_name.key=value)")
+        self.ib_parser.set_defaults(func=cli_inside_build)
 
     def run(self):
         self.set_arguments()

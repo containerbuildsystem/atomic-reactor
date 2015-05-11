@@ -10,6 +10,7 @@ of the BSD license. See the LICENSE file for details.
 import re
 
 from setuptools import setup, find_packages
+from dock.constants import DESCRIPTION, HOMEPAGE
 
 data_files = {
     "share/dock/images/privileged-builder": [
@@ -35,18 +36,19 @@ def _install_requirements():
     requirements = _get_requirements('requirements.txt')
     return requirements
 
-setup(name='dock',
-      version='1.3.2',
-      description='improved builder for docker images',
-      author='Tomas Tomecek',
-      author_email='ttomecek@redhat.com',
-      url='https://github.com/DBuildService/dock',
-      license="BSD",
-      entry_points={
-          'console_scripts': ['dock=dock.cli.main:run'],
-      },
-      packages=find_packages(exclude=["tests", "tests.plugins"]),
-      install_requires=_install_requirements(),
-      data_files=data_files.items(),
+setup(
+    name='dock',
+    version='1.3.2',
+    description=DESCRIPTION,
+    author='Tomas Tomecek',  # FIXME: when under project atomic
+    author_email='ttomecek@redhat.com',
+    url=HOMEPAGE,
+    license="BSD",
+    entry_points={
+        'console_scripts': ['dock=dock.cli.main:run'],
+        },
+    packages=find_packages(exclude=["tests", "tests.plugins"]),
+    install_requires=_install_requirements(),
+    data_files=data_files.items(),
 )
 
