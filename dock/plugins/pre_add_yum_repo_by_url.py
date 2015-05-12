@@ -9,8 +9,6 @@ of the BSD license. See the LICENSE file for details.
 Add arbitrary yum repo, specified by URL of repo file, to a list of
 repos which should be injected into built image.
 
-This plugin has to run _BEFORE_ yum inject plugin.
-
 Example configuration to add content of repo file at URL:
 
 {
@@ -22,17 +20,74 @@ Example configuration to add content of repo file at URL:
 
 """
 from dock.plugin import PreBuildPlugin
-import requests
+import os.path
+import re
+
 try:
     # py2
-    from StringIO import StringIO
-    # use StringIO, not cStringIO
-    # cStringIO's readlines() gives bad results for unicode objects
-    from ConfigParser import SafeConfigParser
+    from urlparse import unquote, urlsplit
 except ImportError:
     # py3
-    from io import StringIO
-    from configparser import SafeConfigParser
+    from urllib.parse import unquote, urlsplit
+
+
+class YumRepo(object):
+    def __init__(self, url, yum_repos_dir):
+        self.url = url
+        self.yum_repos_dir = yum_repos_dir
+
+    @property
+    def quoted_filename(self):
+        urlpath = unquote(urlsplit(self.url, allow_fragments=False).path)
+        filename = os.path.join(self.yum_repos_dir, os.path.basename(urlpath))
+        return "'%s'" % filename
+
+
+def add_yum_repos_to_dockerfile(yumrepos, df):
+    num_lines = len(df)
+    if num_lines == 0:
+        raise RuntimeError("Empty Dockerfile")
+
+    # Find where to insert commands
+
+    def first_word_is(word):
+        return re.compile(r"^\s*" + word + r"\s", flags=re.IGNORECASE)
+
+    fromre = first_word_is("FROM")
+    maintainerre = first_word_is("MAINTAINER")
+    preinsert = None
+    for n in range(num_lines):
+        if maintainerre.match(df[n]):
+            # MAINTAINER line: stop looking
+            preinsert = n + 1
+            break
+        elif fromre.match(df[n]):
+            # FROM line: can use this, but keep looking in case there
+            # is a MAINTAINER line
+            preinsert = n + 1
+
+    if preinsert is None:
+        raise RuntimeError("No FROM line in Dockerfile")
+
+    cmdre = first_word_is("(CMD|ENTRYPOINT)")
+    postinsert = None  # append by default
+    for n in range(preinsert, num_lines):
+        if cmdre.match(df[n]):
+            postinsert = n
+            break
+
+    newdf = df[:preinsert]
+    cmds = ["RUN wget -O %s %s\n" % (yumrepo.quoted_filename, yumrepo.url)
+            for yumrepo in yumrepos]
+    newdf.extend(cmds)
+    newdf.extend(df[preinsert:postinsert])
+    newdf.append("RUN rm -f " +
+                 " ".join([yumrepo.quoted_filename for yumrepo in yumrepos]) +
+                 "\n")
+    if postinsert is not None:
+        newdf.extend(df[postinsert:])
+
+    return newdf
 
 
 class AddYumRepoByUrlPlugin(PreBuildPlugin):
@@ -50,18 +105,18 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
         # call parent constructor
         super(AddYumRepoByUrlPlugin, self).__init__(tasker, workflow)
         self.repourls = repourls
+        self.yum_repos_dir = '/etc/yum.repos.d/'
 
     def run(self):
         """
         run the plugin
         """
-        self.workflow.repos.setdefault("yum", [])
-        for repourl in self.repourls:
-            repoconfig = SafeConfigParser()
-            response = requests.get(repourl)
-            response.raise_for_status()
-            repoconfig.readfp(StringIO(response.text))
-            for name in repoconfig.sections():
-                repo = dict(repoconfig.items(name))
-                repo['name'] = name
-                self.workflow.repos['yum'].append(repo)
+        yumrepos = [YumRepo(repourl, self.yum_repos_dir)
+                    for repourl in self.repourls]
+        if yumrepos:
+            with open(self.workflow.builder.df_path, "r+") as fp:
+                df = fp.readlines()
+                df = add_yum_repos_to_dockerfile(yumrepos, df)
+                fp.seek(0)
+                fp.truncate()
+                fp.writelines(df)
