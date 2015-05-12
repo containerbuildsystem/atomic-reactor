@@ -20,8 +20,10 @@ Example configuration to add content of repo file at URL:
 
 """
 from dock.plugin import PreBuildPlugin
+import os
 import os.path
 import re
+import requests
 
 try:
     # py2
@@ -32,18 +34,32 @@ except ImportError:
 
 
 class YumRepo(object):
-    def __init__(self, url, yum_repos_dir):
-        self.url = url
-        self.yum_repos_dir = yum_repos_dir
+    def __init__(self, repourl, src_repos_dir, dst_repos_dir):
+        self.repourl = repourl
+        self.src_repos_dir = src_repos_dir
+        self.dst_repos_dir = dst_repos_dir
 
     @property
-    def quoted_filename(self):
-        urlpath = unquote(urlsplit(self.url, allow_fragments=False).path)
-        filename = os.path.join(self.yum_repos_dir, os.path.basename(urlpath))
-        return "'%s'" % filename
+    def filename(self):
+        urlpath = unquote(urlsplit(self.repourl, allow_fragments=False).path)
+        return os.path.basename(urlpath)
+
+    @property
+    def src_filename(self):
+        return os.path.join(self.src_repos_dir, self.filename)
+
+    @property
+    def dst_filename(self):
+        return os.path.join(self.dst_repos_dir, self.filename)
+
+    def fetch(self, relative_to):
+        response = requests.get(self.repourl)
+        response.raise_for_status()
+        with open(os.path.join(relative_to, self.src_filename), "wb") as fp:
+            fp.write(response.content)
 
 
-def add_yum_repos_to_dockerfile(yumrepos, df):
+def add_yum_repos_to_dockerfile(yumrepos, df, src_repos_dir, dst_repos_dir):
     num_lines = len(df)
     if num_lines == 0:
         raise RuntimeError("Empty Dockerfile")
@@ -77,12 +93,11 @@ def add_yum_repos_to_dockerfile(yumrepos, df):
             break
 
     newdf = df[:preinsert]
-    cmds = ["RUN wget -O %s %s\n" % (yumrepo.quoted_filename, yumrepo.url)
-            for yumrepo in yumrepos]
-    newdf.extend(cmds)
+    newdf.append("ADD '%s'/* '%s'\n" % (src_repos_dir, dst_repos_dir))
     newdf.extend(df[preinsert:postinsert])
     newdf.append("RUN rm -f " +
-                 " ".join([yumrepo.quoted_filename for yumrepo in yumrepos]) +
+                 " ".join(["'%s'" % yumrepo.dst_filename
+                           for yumrepo in yumrepos]) +
                  "\n")
     if postinsert is not None:
         newdf.extend(df[postinsert:])
@@ -105,18 +120,26 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
         # call parent constructor
         super(AddYumRepoByUrlPlugin, self).__init__(tasker, workflow)
         self.repourls = repourls
-        self.yum_repos_dir = '/etc/yum.repos.d/'
+        self.src_repos_dir = 'repos'
+        self.dst_repos_dir = '/etc/yum.repos.d/'
 
     def run(self):
         """
         run the plugin
         """
-        yumrepos = [YumRepo(repourl, self.yum_repos_dir)
+        yumrepos = [YumRepo(repourl, self.src_repos_dir, self.dst_repos_dir)
                     for repourl in self.repourls]
         if yumrepos:
+            os.mkdir(os.path.join(self.workflow.builder.df_dir,
+                                  self.src_repos_dir))
+            for yumrepo in yumrepos:
+                yumrepo.fetch(self.workflow.builder.df_dir)
+
             with open(self.workflow.builder.df_path, "r+") as fp:
                 df = fp.readlines()
-                df = add_yum_repos_to_dockerfile(yumrepos, df)
+                df = add_yum_repos_to_dockerfile(yumrepos, df,
+                                                 self.src_repos_dir,
+                                                 self.dst_repos_dir)
                 fp.seek(0)
                 fp.truncate()
                 fp.writelines(df)
