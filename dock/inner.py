@@ -186,9 +186,8 @@ class DockerBuildWorkflow(object):
         self.builder = InsideBuilder(self.git_url, self.image, git_dockerfile_path=self.git_dockerfile_path,
                                      git_commit=self.git_commit, tmpdir=tmpdir)
         try:
-            if self.parent_registry:
-                self.pulled_base_image = self.builder.pull_base_image(
-                    self.parent_registry, insecure=self.parent_registry_insecure)
+            self.pulled_base_image = self.builder.pull_base_image(
+                self.parent_registry, insecure=self.parent_registry_insecure)
 
             # time to run pre-build plugins, so they can access cloned repo,
             # base image

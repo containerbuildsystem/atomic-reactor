@@ -116,17 +116,19 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
         logger.info("pull base image from registry")
         self._ensure_not_built()
 
-        # registry in dockerfile doesn't match provided source registry
-        if self.base_image.registry and self.base_image.registry != source_registry:
-            logger.error("registry in dockerfile doesn't match provided source registry, "
-                         "dockerfile = '%s', provided = '%s'",
-                         self.base_image.registry, source_registry)
-            raise RuntimeError(
-                "Registry specified in dockerfile doesn't match provided one. Dockerfile: '%s', Provided: '%s'"
-                % (self.base_image.registry, source_registry))
-
         base_image_with_registry = self.base_image.copy()
-        base_image_with_registry.registry = source_registry
+
+        if source_registry:
+            # registry in dockerfile doesn't match provided source registry
+            if self.base_image.registry and self.base_image.registry != source_registry:
+                logger.error("registry in dockerfile doesn't match provided source registry, "
+                             "dockerfile = '%s', provided = '%s'",
+                             self.base_image.registry, source_registry)
+                raise RuntimeError(
+                    "Registry specified in dockerfile doesn't match provided one. Dockerfile: '%s', Provided: '%s'"
+                    % (self.base_image.registry, source_registry))
+
+            base_image_with_registry.registry = source_registry
 
         base_image = self.tasker.pull_image(base_image_with_registry, insecure=insecure)
 
