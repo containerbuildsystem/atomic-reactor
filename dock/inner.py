@@ -174,6 +174,7 @@ class DockerBuildWorkflow(object):
         self.tag_and_push_conf = TagAndPushConf()
 
         self.repos = {}  # this should be filled by plugins
+        self.labels = {}  # this might be filled by plugins
 
     def build_docker_image(self):
         """
