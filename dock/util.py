@@ -12,9 +12,9 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import tempfile
 import logging
-import git
 from dock.constants import DOCKERFILE_FILENAME
 
 __author__ = 'ttomecek'
@@ -191,12 +191,14 @@ def clone_git_repo(git_url, target_dir, commit=None):
     :param commit: str, commit to checkout
     :return:
     """
+    commit = commit or "master"
     logger.info("clone git repo")
     logger.debug("url = '%s', dir = '%s', commit = '%s'",
                  git_url, target_dir, commit)
-    repo = git.Repo.clone_from(git_url, target_dir)
-    if commit:
-        repo.git.checkout(commit)
+
+    # http://stackoverflow.com/questions/1911109/clone-a-specific-git-branch/4568323#4568323
+    cmd = ["git", "clone", "-b", commit, "--single-branch", git_url, target_dir]
+    subprocess.check_call(cmd)
 
 
 def figure_out_dockerfile(absolute_path, local_path=None):

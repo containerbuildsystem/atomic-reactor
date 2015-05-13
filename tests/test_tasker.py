@@ -11,10 +11,9 @@ from __future__ import print_function
 from tests.fixtures import temp_image_name
 
 from dock.core import DockerTasker
-from dock.util import ImageName
+from dock.util import ImageName, clone_git_repo
 from tests.constants import LOCALHOST_REGISTRY, INPUT_IMAGE, DOCKERFILE_GIT, MOCK, COMMAND
 
-import git
 import docker, docker.errors
 import pytest
 
@@ -265,7 +264,7 @@ def test_build_image_from_path(tmpdir, temp_image_name):
         mock_docker()
 
     tmpdir_path = str(tmpdir.realpath())
-    git.Repo.clone_from(DOCKERFILE_GIT, tmpdir_path)
+    clone_git_repo(DOCKERFILE_GIT, tmpdir_path)
     df = tmpdir.join("Dockerfile")
     assert df.check()
     t = DockerTasker()
