@@ -6,7 +6,8 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 
 
-Pre build plugin which adds labels to dockerfile. Labels has to be specified as dict:
+Pre build plugin which adds labels to dockerfile. Labels have to be specified either
+as a dict:
 
 {
     "name": "add_labels_in_dockerfile",
@@ -17,6 +18,8 @@ Pre build plugin which adds labels to dockerfile. Labels has to be specified as 
         }
     }
 }
+
+Or as a string, which must be a dict serialised as JSON.
 
 this will add turn this dockerfile:
 
@@ -36,6 +39,7 @@ CMD date
 Keys and values are quoted as necessary.
 """
 from dock.plugin import PreBuildPlugin
+import json
 
 class AddLabelsPlugin(PreBuildPlugin):
     key = "add_labels_in_dockerfile"
@@ -46,10 +50,12 @@ class AddLabelsPlugin(PreBuildPlugin):
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param labels: dict, key value pairs to set as labels
+        :param labels: dict, key value pairs to set as labels; or str, JSON-encoded dict
         """
         # call parent constructor
         super(AddLabelsPlugin, self).__init__(tasker, workflow)
+        if isinstance(labels, str):
+            labels = json.loads(labels)
         if not isinstance(labels, dict):
             raise RuntimeError("labels have to be dict")
         self.labels = labels
