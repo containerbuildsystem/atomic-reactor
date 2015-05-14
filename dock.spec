@@ -1,14 +1,14 @@
-%global with_python3 0
+%global with_python3 1
 
 %global owner DBuildService
 %global project dock
 
-%global commit 83b187ecc4b19ef993038e0459c69264b9b4a5c3
+%global commit 3de7f5a36090683addb0641ec2836d2e1ac45929
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 
 Name:           dock
 Version:        1.2.0
-Release:        3%{?dist}
+Release:        4%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -106,7 +106,7 @@ Group:          Development/Tools
 Requires:       python3-dock = %{version}-%{release}
 Requires:       osbs
 
-%description python3-dock-metadata
+%description -n python3-dock-metadata
 Plugin for submitting metada to OSBS
 %endif # with_python3
 
@@ -161,6 +161,7 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 %{python2_sitelib}/dock/cli
 %{python2_sitelib}/dock/plugins
 %exclude %{python2_sitelib}/dock/plugins/pre_koji.py*
+%exclude %{python2_sitelib}/dock/plugins/post_store_metadata_in_osv3.py*
 %{python2_sitelib}/dock-%{version}-py2.*.egg-info
 %dir %{_datadir}/%{name}
 %{_datadir}/%{name}/dock.tar.gz
@@ -184,8 +185,11 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 %{python3_sitelib}/dock/*.*
 %{python3_sitelib}/dock/cli
 %{python3_sitelib}/dock/plugins
+%{python3_sitelib}/dock/__pycache__/*.py*
 %exclude %{python3_sitelib}/dock/plugins/pre_koji.py*
-%{python3_sitelib}/dock-%{version}-py2.*.egg-info
+%exclude %{python3_sitelib}/dock/plugins/__pycache__/pre_koji*.py*
+%exclude %{python3_sitelib}/dock/plugins/__pycache__/post_store_metadata_in_osv3*.py*
+%{python3_sitelib}/dock-%{version}-py3.*.egg-info
 %dir %{_datadir}/%{name}
 # ship dock in form of tarball so it can be installed within build image
 %{_datadir}/%{name}/dock.tar.gz
@@ -197,14 +201,19 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 
 %files -n python3-dock-koji
 %{python3_sitelib}/dock/plugins/pre_koji.py*
+%{python3_sitelib}/dock/plugins/__pycache__/pre_koji*.py*
 
 
 %files -n python3-dock-metadata
 %{python3_sitelib}/dock/plugins/post_store_metadata_in_osv3.py*
+%{python3_sitelib}/dock/plugins/__pycache__/post_store_metadata_in_osv3*.py*
 %endif  # with_python3
 
 
 %changelog
+* Thu May 14 2015 Jiri Popelka <jpopelka@redhat.com> - 1.2.0-4
+- enable Python 3 build
+
 * Thu May 07 2015 Slavek Kabrda <bkabrda@redhat.com> - 1.2.0-3
 - Introduce python-dock subpackage
 - Rename dock-{koji,metadata} to python-dock-{koji,metadata}
