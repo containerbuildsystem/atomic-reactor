@@ -281,6 +281,7 @@ class PreBuildPlugin(BuildPlugin):
 class PreBuildPluginsRunner(BuildPluginsRunner):
 
     def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
+        logger.info("initializing runner of pre-build plugins")
         self.plugins_results = workflow.prebuild_results
         super(PreBuildPluginsRunner, self).__init__(dt, workflow, 'PreBuildPlugin', plugins_conf, *args, **kwargs)
 
@@ -291,6 +292,7 @@ class PrePublishPlugin(BuildPlugin):
 class PrePublishPluginsRunner(BuildPluginsRunner):
 
     def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
+        logger.info("initializing runner of pre-publish plugins")
         self.plugins_results = workflow.postbuild_results
         super(PrePublishPluginsRunner, self).__init__(dt, workflow, 'PrePublishPlugin', plugins_conf, *args, **kwargs)
 
@@ -302,6 +304,7 @@ class PostBuildPlugin(BuildPlugin):
 class PostBuildPluginsRunner(BuildPluginsRunner):
 
     def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
+        logger.info("initializing runner of post-build plugins")
         self.plugins_results = workflow.postbuild_results
         super(PostBuildPluginsRunner, self).__init__(dt, workflow, 'PostBuildPlugin', plugins_conf, *args, **kwargs)
 
