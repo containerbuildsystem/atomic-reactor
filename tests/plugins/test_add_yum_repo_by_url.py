@@ -12,58 +12,67 @@ from dock.plugin import PreBuildPluginsRunner, PreBuildPlugin
 from dock.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
 from dock.util import ImageName
 from tests.constants import DOCKERFILE_GIT
-from flexmock import flexmock
+from tempfile import NamedTemporaryFile
+from collections import namedtuple
 import requests
+from flexmock import flexmock
+import os.path
 
 
-def fake_get(url):
-    # Mock requests.get
-    if url.endswith("2repos.repo"):
-        text = """
-[test1]
-name=Test 1 $releasever - $basearch (ignored)
-baseurl=http://example.com/xyzzy/repo1/$releasever/
-enabled=1
-gpgcheck=1
+repocontent = b'''[repo]\n'''
+Dockerfile = namedtuple('Dockerfile', ['lines_before_add',
+                                       'lines_before_remove',
+                                       'lines_after_remove'])
 
-[test2]
-name=Test 2 $releasever - $basearch (ignored)
-baseurl=http://example.com/xyzzy/repo2/$releasever/
-#metadata_expire=7d (ignored)
-enabled=1
-gpgcheck=1
-"""
-    else:
-        text = """
-[test3]
-name=Test 3 $releasever - $basearch (ignored)
-metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch
-enabled=1
-gpgcheck=1
-gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-$releasever-$basearch
-"""
 
-    try:
-        # py2
-        text = unicode(text)
-    except:
-        # py3
-        pass
+DOCKERFILES = {
+    "no maintainer":
+    Dockerfile(["# Simple example with no MAINTAINER line\n",
+                "FROM base\n"],
+               # add goes here
+               [" RUN yum -y update\n"],
+               # remove goes here
+               []),
 
-    response = (flexmock(requests.Response,
-                         text=text)
-                .should_receive(name='raise_for_status')
-                .and_return(None)
-                .mock())
+    "no yum":
+    Dockerfile(["FROM base\n",
+                "# This time there is a MAINTAINER line\n",
+                "# but it's the last last there is\n",
+                "MAINTAINER Example <example@example.com>\n"],
+               # add goes here
+               [],
+               # remove goes here
+               []),
 
-    return response
+    "cmd":
+    Dockerfile([" From base\n",
+                "LABEL 'a'='b'\n",
+                "MAINTAINER Example <example@example.com>\n"],
+               # add goes here
+               ["RUN some command\n",
+                "RUN some other command\n",
+                "VOLUME ['/data']\n",
+                "# rm line expected on following line\n"],
+               # remove goes here
+               ["CMD ['/bin/bash']\n"]),
+
+    "entrypoint":
+    Dockerfile(["FROM base\n",
+                "MAINTAINER Example <example@example.com\n"],
+               # add goes here
+               ["RUN yum update -y\n",
+                "RUN yum install -y example\n"],
+               # remove goes here
+               ["ENTRYPOINT ['/bin/bash']\n",
+                "CMD ['/bin/ls']\n"]),
+}
 
 
 class X(object):
     pass
 
 
-def prepare(tmpdir):
+def prepare(df_path):
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(DOCKERFILE_GIT, "test-image")
     setattr(workflow, 'builder', X)
@@ -71,70 +80,148 @@ def prepare(tmpdir):
     workflow.repos['yum'] = []
 
     setattr(workflow.builder, 'image_id', "asd123")
-    setattr(workflow.builder, 'df_path', "/tmp/nonexistent")
+    setattr(workflow.builder, 'df_path', str(df_path))
+    setattr(workflow.builder, 'df_dir', os.path.dirname(str(df_path)))
     setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
     setattr(workflow.builder, 'git_dockerfile_path', None)
     setattr(workflow.builder, 'git_path', None)
-    flexmock(requests, get=fake_get)
+    (flexmock(requests.Response, content=repocontent)
+        .should_receive('raise_for_status')
+        .and_return(None))
+    (flexmock(requests, get=lambda *_: requests.Response()))
     return tasker, workflow
 
+
 def test_no_repourls(tmpdir):
-    tasker, workflow = prepare(tmpdir)
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
-        'name': AddYumRepoByUrlPlugin.key,
-        'args': { 'repourls': [] }}])
-    runner.run()
-    assert AddYumRepoByUrlPlugin.key is not None
-    assert len (workflow.repos['yum']) == 0
+    for df in DOCKERFILES.values():
+        with NamedTemporaryFile(mode="w+t",
+                                prefix="Dockerfile",
+                                dir=str(tmpdir)) as f:
+            f.writelines(df.lines_before_add +
+                         df.lines_before_remove +
+                         df.lines_after_remove)
+            f.flush()
+            tasker, workflow = prepare(f.name)
+            runner = PreBuildPluginsRunner(tasker, workflow, [{
+                'name': AddYumRepoByUrlPlugin.key,
+                'args': {'repourls': []}}])
+            runner.run()
+            assert AddYumRepoByUrlPlugin.key is not None
+
+            f.seek(0)
+            # Should be unchanged
+            assert f.readlines() == (df.lines_before_add +
+                                     df.lines_before_remove +
+                                     df.lines_after_remove)
+
 
 def test_single_repourl(tmpdir):
-    tasker, workflow = prepare(tmpdir)
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
-        'name': AddYumRepoByUrlPlugin.key,
-        'args': { 'repourls': ['http://example.com/2repos.repo'] }}])
-    runner.plugin_classes[AddYumRepoByUrlPlugin.key]._get = fake_get
-    runner.run()
+    for df in DOCKERFILES.values():
+        with NamedTemporaryFile(mode="w+t",
+                                prefix="Dockerfile",
+                                dir=str(tmpdir)) as f:
+            f.writelines(df.lines_before_add +
+                         df.lines_before_remove +
+                         df.lines_after_remove)
+            f.flush()
+            tasker, workflow = prepare(f.name)
+            url = 'http://example.com/example%20repo.repo'
+            filename = 'example repo.repo'
+            runner = PreBuildPluginsRunner(tasker, workflow, [{
+                'name': AddYumRepoByUrlPlugin.key,
+                'args': {'repourls': [url]}}])
+            runner.run()
 
-    assert len (workflow.repos['yum']) == 2
+            # Should have downloaded the repo file content.
+            repos_dir = os.path.join(str(tmpdir), "repos")
+            repofile = os.path.join(repos_dir, filename)
+            with open(repofile, "rb") as fp:
+                assert fp.read() == repocontent
 
-    expected1 = { 'name': r'test1',
-                  'baseurl': r'http://example.com/xyzzy/repo1/$releasever/',
-                  'enabled': r'1',
-                  'gpgcheck': r'1' }
-    assert expected1 in workflow.repos['yum']
+            # Remove the repos/ directory.
+            os.remove(repofile)
+            os.rmdir(repos_dir)
 
-    expected2 = { 'name': r'test2',
-                  'baseurl': r'http://example.com/xyzzy/repo2/$releasever/',
-                  'enabled': r'1',
-                  'gpgcheck': r'1' }
-    assert expected2 in workflow.repos['yum']
+            # Examine the Dockerfile.
+
+            f.seek(0)
+            newdf = f.readlines()
+            before_add = len(df.lines_before_add)
+            before_remove = len(df.lines_before_remove)
+
+            # Start of file should be unchanged.
+            assert newdf[:before_add] == df.lines_before_add
+
+            # Should see a single add line.
+            after_add = before_add + 1
+            assert (newdf[before_add:after_add] ==
+                    ["ADD 'repos'/* '/etc/yum.repos.d/'\n"])
+
+            # Lines from there up to the remove line should be unchanged.
+            before_remove = after_add + len(df.lines_before_remove)
+            assert (newdf[after_add:before_remove] ==
+                    df.lines_before_remove)
+
+            # There should be a final 'rm'
+            remove = newdf[before_remove]
+            assert remove == "RUN rm -f '/etc/yum.repos.d/%s'\n" % filename
+
+            # Lines after that should be unchanged.
+            after_remove = before_remove + 1
+            assert newdf[after_remove:] == df.lines_after_remove
+
 
 def test_multiple_repourls(tmpdir):
-    tasker, workflow = prepare(tmpdir)
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
-        'name': AddYumRepoByUrlPlugin.key,
-        'args': { 'repourls': ['http://example.com/2repos.repo',
-                               'http://example.com/xyzzy'] }}])
-    runner.plugin_classes[AddYumRepoByUrlPlugin.key]._get = fake_get
-    runner.run()
+    for df in DOCKERFILES.values():
+        with NamedTemporaryFile(mode="w+t",
+                                prefix="Dockerfile",
+                                dir=str(tmpdir)) as f:
+            f.writelines(df.lines_before_add +
+                         df.lines_before_remove +
+                         df.lines_after_remove)
+            f.flush()
+            tasker, workflow = prepare(f.name)
+            url1 = 'http://example.com/a/b/c/myrepo.repo'
+            filename1 = 'myrepo.repo'
+            url2 = 'http://example.com/repo-2.repo'
+            filename2 = 'repo-2.repo'
+            runner = PreBuildPluginsRunner(tasker, workflow, [{
+                'name': AddYumRepoByUrlPlugin.key,
+                'args': {'repourls': [url1, url2]}}])
+            runner.run()
 
-    assert len (workflow.repos['yum']) == 3
+            # Remove the repos/ directory.
+            repos_dir = os.path.join(str(tmpdir), "repos")
+            for repofile in [filename1, filename2]:
+                os.remove(os.path.join(repos_dir, repofile))
 
-    expected1 = { 'name': r'test1',
-                  'baseurl': r'http://example.com/xyzzy/repo1/$releasever/',
-                  'enabled': r'1',
-                  'gpgcheck': r'1' }
-    assert expected1 in workflow.repos['yum']
+            os.rmdir(repos_dir)
 
-    expected2 = { 'name': r'test2',
-                  'baseurl': r'http://example.com/xyzzy/repo2/$releasever/',
-                  'enabled': r'1',
-                  'gpgcheck': r'1' }
-    assert expected2 in workflow.repos['yum']
+            # Examine the Dockerfile.
+            f.seek(0)
+            newdf = f.readlines()
+            before_add = len(df.lines_before_add)
+            before_remove = len(df.lines_before_remove)
 
-    expected3 = { 'name': r'test3',
-                  'metalink': r'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch',
-                  'enabled': r'1',
-                  'gpgcheck': r'1',
-                  'gpgkey': r'file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-$releasever-$basearch' }
-    assert expected3 in workflow.repos['yum']
+            # Start of file should be unchanged.
+            assert newdf[:before_add] == df.lines_before_add
+
+            # Should see a single add line.
+            after_add = before_add + 1
+            assert (newdf[before_add:after_add] ==
+                    ["ADD 'repos'/* '/etc/yum.repos.d/'\n"])
+
+            # Lines from there up to the remove line should be unchanged.
+            before_remove = after_add + len(df.lines_before_remove)
+            assert (newdf[after_add:before_remove] ==
+                    df.lines_before_remove)
+
+            # For the 'rm' line, they could be in either order
+            remove = newdf[before_remove]
+            rmline = "RUN rm -f '/etc/yum.repos.d/%s' '/etc/yum.repos.d/%s'\n"
+            assert remove in [rmline % (filename1, filename2),
+                              rmline % (filename2, filename1)]
+
+            # Lines after that should be unchanged.
+            after_remove = before_remove + 1
+            assert newdf[after_remove:] == df.lines_after_remove
