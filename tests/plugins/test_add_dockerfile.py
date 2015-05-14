@@ -99,6 +99,36 @@ def test_adddockerfile_nvr_from_labels(tmpdir):
     df = """
 FROM fedora
 RUN yum install -y python-django
+LABEL Name="jboss-eap-6-docker" "Version"="6.4" "Release"=77
+CMD blabla"""
+    tmp_df = os.path.join(str(tmpdir), 'Dockerfile')
+    with open(tmp_df, mode="w") as fd:
+        fd.write(df)
+
+    tasker = DockerTasker()
+    workflow = DockerBuildWorkflow('asd', 'test-image')
+    workflow.builder = X
+    workflow.builder.df_path = tmp_df
+
+    runner = PreBuildPluginsRunner(
+        tasker,
+        workflow,
+        [{
+            'name': AddDockerfilePlugin.key
+        }]
+    )
+    runner.run()
+    assert AddDockerfilePlugin.key is not None
+    with open(tmp_df, 'r') as fd:
+        altered_df = fd.read()
+
+    assert "ADD Dockerfile /root/buildinfo/Dockerfile-jboss-eap-6-docker-6.4-77" in altered_df
+
+
+def test_adddockerfile_nvr_from_labels2(tmpdir):
+    df = """
+FROM fedora
+RUN yum install -y python-django
 CMD blabla"""
     tmp_df = os.path.join(str(tmpdir), 'Dockerfile')
     with open(tmp_df, mode="w") as fd:
@@ -119,8 +149,7 @@ CMD blabla"""
                                 'Release': '77'}}
          },
          {
-            'name': AddDockerfilePlugin.key,
-            'args': {}
+            'name': AddDockerfilePlugin.key
         }]
     )
     runner.run()
@@ -146,8 +175,7 @@ def test_adddockerfile_fails(tmpdir):
         tasker,
         workflow,
         [{
-            'name': AddDockerfilePlugin.key,
-            'args': {}
+            'name': AddDockerfilePlugin.key
         }]
     )
     with pytest.raises(ValueError):

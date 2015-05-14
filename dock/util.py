@@ -11,6 +11,7 @@ from __future__ import print_function, unicode_literals
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -110,6 +111,24 @@ def get_baseimage_from_dockerfile(git_path, path=''):
         else:
             dockerfile_path = os.path.join(git_path, path, DOCKERFILE_FILENAME)
     return get_baseimage_from_dockerfile_path(dockerfile_path)
+
+
+def get_labels_from_dockerfile(path):
+    """ opposite of AddLabelsPlugin, i.e. return dict of labels from dockerfile
+    :param path: dockerfile path
+    :return: dictionary of label:value or label:'' if there's no value
+    """
+    labels = {}
+    with open(path, 'r') as dockerfile:
+        for line in dockerfile:
+            if line.startswith("LABEL"):
+                for token in shlex.split(line[5:]):
+                    key_val = token.split("=", 1)
+                    if len(key_val) == 2:
+                        labels[key_val[0]] = key_val[1]
+                    else:
+                        labels[key_val[0]] = ''
+    return labels
 
 
 class CommandResult(object):
