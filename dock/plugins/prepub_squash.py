@@ -37,12 +37,12 @@ class PrePublishSquashPlugin(PrePublishPlugin):
     # Fail the build in case of squashing error
     can_fail = False
 
-    def __init__(self, tasker, workflow, tag, from_layer=None):
+    def __init__(self, tasker, workflow, tag=None, from_layer=None):
         """
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param from_layer: The layer from we will squash - by default it'll be the first layer
-        :param tag: What should be used to tag the squashed the image.
+        :param tag: str, new name of the image - by default use the former one
         """
         super(PrePublishSquashPlugin, self).__init__(tasker, workflow)
         self.image = self.workflow.builder.image_id
