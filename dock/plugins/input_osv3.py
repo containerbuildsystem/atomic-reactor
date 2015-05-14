@@ -53,12 +53,11 @@ class OSv3InputPlugin(InputPlugin):
             'image': image,
             'git_commit': git_ref,
             'target_registries': [target_registry] if target_registry is not None else None,
-            'prebuild_plugins': plugins_json.get('prebuild_plugins', None),
-            'postbuild_plugins': plugins_json.get('postbuild_plugins', None),
             'target_registries_insecure': True,  # FIXME: create plugin for this
             'parent_registry': source_registry,
             'parent_registry_insecure': source_registry_insecure,
         }
+        input_json.update(plugins_json)
 
         self.log.debug("build json: %s", input_json)
 
