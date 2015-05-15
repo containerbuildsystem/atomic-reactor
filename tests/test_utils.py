@@ -8,9 +8,9 @@ of the BSD license. See the LICENSE file for details.
 
 import os
 import docker
-from dock.util import ImageName, get_baseimage_from_dockerfile, wait_for_command, \
-                      clone_git_repo, LazyGit, figure_out_dockerfile
-from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE, MOCK
+from dock.util import ImageName, get_baseimage_from_dockerfile, get_labels_from_dockerfile, \
+                      wait_for_command, clone_git_repo, LazyGit, figure_out_dockerfile
+from tests.constants import DOCKERFILE_FILENAME, DOCKERFILE_GIT, INPUT_IMAGE, MOCK
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -60,6 +60,23 @@ def test_get_baseimg_from_df(tmpdir):
     clone_git_repo(DOCKERFILE_GIT, tmpdir_path)
     base_img = get_baseimage_from_dockerfile(tmpdir_path)
     assert base_img.startswith('fedora')
+
+
+def test_get_labels_from_df(tmpdir):
+    tmpdir_path = str(tmpdir.realpath())
+    clone_git_repo(DOCKERFILE_GIT, tmpdir_path)
+    df_path = os.path.join(tmpdir_path, DOCKERFILE_FILENAME)
+    with open(df_path, 'r') as fp:
+        lines = fp.readlines()
+    lines.insert(-1, 'LABEL "label1"="value 1" "label2"=myself label3="" label4\n')
+    with open(df_path, 'w') as fp:
+        fp.writelines(lines)
+    labels = get_labels_from_dockerfile(df_path)
+    assert len(labels) == 4
+    assert labels.get('label1') == 'value 1'
+    assert labels.get('label2') == 'myself'
+    assert labels.get('label3') == ''
+    assert labels.get('label4') == ''
 
 
 def test_figure_out_dockerfile(tmpdir):

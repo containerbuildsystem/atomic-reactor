@@ -174,7 +174,6 @@ class DockerBuildWorkflow(object):
         self.tag_and_push_conf = TagAndPushConf()
 
         self.repos = {}  # this should be filled by plugins
-        self.labels = {}  # this might be filled by plugins
 
         if kwargs:
             logger.warning("unprocessed keyword arguments: %s", kwargs)
