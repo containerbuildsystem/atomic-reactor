@@ -50,5 +50,6 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         self.tag = tag
 
     def run(self):
-        Squash(log=self.log, image=self.image,
+        new_id = Squash(log=self.log, image=self.image,
                from_layer=self.from_layer, tag=self.tag).run()
+        self.workflow.builder.image_id = new_id
