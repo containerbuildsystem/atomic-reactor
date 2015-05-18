@@ -19,7 +19,8 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         "name": "squash",
           "args": {
             "tag": "SQUASH_TAG",
-            "from_layer": "FROM_LAYER"
+            "from_layer": "FROM_LAYER",
+            "remove_former_image": false
           }
         }
       }
@@ -27,7 +28,8 @@ class PrePublishSquashPlugin(PrePublishPlugin):
 
     The `tag` argument specifes the tag under which the new squashed image will
     be registered. The `from_layer` argument specifies from which layer we want
-    to squash.
+    to squash. `remove_former_image` is an optional boolean argument which specifies
+    if former, unsquashed image should be removed.
 
     Of course it's possible to override it at runtime, like this: `--substitute prepublish_plugins.squash.tag=image:squashed
       --substitute prepublish_plugins.squash.from_layer=asdasd2332`.
@@ -37,20 +39,23 @@ class PrePublishSquashPlugin(PrePublishPlugin):
     # Fail the build in case of squashing error
     can_fail = False
 
-    def __init__(self, tasker, workflow, tag=None, from_layer=None):
+    def __init__(self, tasker, workflow, tag=None, from_layer=None, remove_former_image=True):
         """
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param from_layer: The layer from we will squash - by default it'll be the first layer
         :param tag: str, new name of the image - by default use the former one
+        :param remove_former_image: bool, remove unsquashed image?
         """
         super(PrePublishSquashPlugin, self).__init__(tasker, workflow)
         self.image = self.workflow.builder.image_id
         self.from_layer = from_layer
         self.tag = tag or str(self.workflow.builder.image)
+        self.remove_former_image = remove_former_image
 
     def run(self):
         new_id = Squash(log=self.log, image=self.image,
                         from_layer=self.from_layer, tag=self.tag).run()
         self.workflow.builder.image_id = new_id
-        self.tasker.remove_image(self.image)
+        if self.remove_former_image:
+            self.tasker.remove_image(self.image)
