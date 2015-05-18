@@ -59,6 +59,6 @@ class TagAndPushPlugin(PostBuildPlugin):
                     assert image_name.registry == registry_uri
                 image_name.registry = registry_uri
                 self.tasker.tag_and_push_image(self.workflow.builder.image_id, image_name,
-                                               insecure=insecure)
+                                               insecure=insecure, force=True)
                 pushed_images.append(image_name.to_str())
         return pushed_images

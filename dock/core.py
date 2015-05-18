@@ -382,18 +382,19 @@ class DockerTasker(LastLogger):
             logs = self.d.push(image.to_str(tag=False), tag=image.tag, stream=False)
         return logs
 
-    def tag_and_push_image(self, image, target_image, insecure=False):
+    def tag_and_push_image(self, image, target_image, insecure=False, force=False):
         """
         tag provided image and push it to registry
 
         :param image: str or ImageName, image id or name
         :param target_image: ImageName, img
         :param insecure: bool, allow connecting to registry over plain http
+        :param force: bool, force the tag?
         :return: str, image (reg.com/img:v1)
         """
         logger.info("tag and push image")
         logger.debug("image = '%s', target_image = '%s'", image, target_image)
-        self.tag_image(image, target_image)
+        self.tag_image(image, target_image, force=force)
         return self.push_image(target_image, insecure=insecure)
 
     def inspect_image(self, image_id):
