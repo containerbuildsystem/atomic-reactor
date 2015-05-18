@@ -119,15 +119,36 @@ def get_labels_from_dockerfile(path):
     :return: dictionary of label:value or label:'' if there's no value
     """
     labels = {}
+    multiline = False
+    processed_instr = ""
     with open(path, 'r') as dockerfile:
         for line in dockerfile:
-            if line.startswith("LABEL"):
-                for token in shlex.split(line[5:]):
+            line = line.rstrip()  # docker does this
+            logger.debug("processing line %s", repr(line))
+            if multiline:
+                processed_instr += line
+                if line.endswith("\\"):  # does multiline continue?
+                    # docker strips single \
+                    processed_instr = processed_instr[:-1]
+                    continue
+                else:
+                    multiline = False
+            else:
+                processed_instr = line
+            if processed_instr.startswith("LABEL"):
+                if processed_instr.endswith("\\"):
+                    logger.debug("multiline LABEL")
+                    # docker strips single \
+                    processed_instr = processed_instr[:-1]
+                    multiline = True
+                    continue
+                for token in shlex.split(processed_instr[5:]):
                     key_val = token.split("=", 1)
                     if len(key_val) == 2:
                         labels[key_val[0]] = key_val[1]
                     else:
                         labels[key_val[0]] = ''
+                    logger.debug("new label %s=%s", repr(key_val[0]), repr(labels[key_val[0]]))
     return labels
 
 
