@@ -69,14 +69,24 @@ def test_get_labels_from_df(tmpdir):
     with open(df_path, 'r') as fp:
         lines = fp.readlines()
     lines.insert(-1, 'LABEL "label1"="value 1" "label2"=myself label3="" label4\n')
+    lines.insert(-1, 'LABEL label5=5\n')
+    lines.insert(-1, 'LABEL "label6"=6\n')
+    lines.insert(-1, 'LABEL label7\n')
+    lines.insert(-1, 'LABEL "label8"\n')
+    lines.insert(-1, 'LABEL "label9"="asd \  \nqwe"\n')
     with open(df_path, 'w') as fp:
         fp.writelines(lines)
     labels = get_labels_from_dockerfile(df_path)
-    assert len(labels) == 4
+    assert len(labels) == 9
     assert labels.get('label1') == 'value 1'
     assert labels.get('label2') == 'myself'
     assert labels.get('label3') == ''
     assert labels.get('label4') == ''
+    assert labels.get('label5') == '5'
+    assert labels.get('label6') == '6'
+    assert labels.get('label7') == ''
+    assert labels.get('label8') == ''
+    assert labels.get('label9') == 'asd qwe'
 
 
 def test_figure_out_dockerfile(tmpdir):
