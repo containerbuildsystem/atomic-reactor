@@ -47,9 +47,10 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         super(PrePublishSquashPlugin, self).__init__(tasker, workflow)
         self.image = self.workflow.builder.image_id
         self.from_layer = from_layer
-        self.tag = tag
+        self.tag = tag or str(self.workflow.builder.image)
 
     def run(self):
         new_id = Squash(log=self.log, image=self.image,
-               from_layer=self.from_layer, tag=self.tag).run()
+                        from_layer=self.from_layer, tag=self.tag).run()
         self.workflow.builder.image_id = new_id
+        self.tasker.remove_image(self.image)
