@@ -38,6 +38,7 @@ CMD date
 
 Keys and values are quoted as necessary.
 """
+from dock.util import DockerfileParser
 from dock.plugin import PreBuildPlugin
 import json
 
@@ -64,8 +65,8 @@ class AddLabelsPlugin(PreBuildPlugin):
         """
         run the plugin
         """
-        with open(self.workflow.builder.df_path, 'r') as fp:
-            lines = fp.readlines()
+        dockerfile = DockerfileParser(self.workflow.builder.df_path)
+        lines = dockerfile.lines
 
         # correct syntax is:
         #   LABEL "key"="value" "key2"="value2"
@@ -93,7 +94,6 @@ class AddLabelsPlugin(PreBuildPlugin):
         # put it before last instruction
         lines.insert(-1, content + '\n')
 
-        with open(self.workflow.builder.df_path, 'w') as fp:
-            fp.writelines(lines)
+        dockerfile.lines = lines
 
         return content

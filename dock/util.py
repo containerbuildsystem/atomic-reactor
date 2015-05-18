@@ -18,7 +18,7 @@ import subprocess
 import tempfile
 import logging
 import uuid
-from dock.constants import DOCKERFILE_FILENAME
+from dock.constants import DOCKERFILE_FILENAME, PY2
 
 
 logger = logging.getLogger(__name__)
@@ -95,35 +95,72 @@ class ImageName(object):
             tag=self.tag)
 
 
-def get_baseimage_from_dockerfile_path(path):
-    with open(path, 'r') as dockerfile:
-        for line in dockerfile:
+class DockerfileParser(object):
+    def __init__(self, git_path, path=''):
+        if git_path.endswith(DOCKERFILE_FILENAME):
+            self.dockerfile_path = git_path
+        else:
+            if path.endswith(DOCKERFILE_FILENAME):
+                self.dockerfile_path = os.path.join(git_path, path)
+            else:
+                self.dockerfile_path = os.path.join(git_path, path, DOCKERFILE_FILENAME)
+
+    @staticmethod
+    def b2u(string):
+        """ bytes to unicode """
+        if isinstance(string, bytes):
+            return string.decode('utf-8')
+        return string
+
+    @staticmethod
+    def u2b(string):
+        """ unicode to bytes (Python 2 only) """
+        if PY2 and isinstance(string, unicode):
+            return string.encode('utf-8')
+        return string
+
+    @property
+    def lines(self):
+        with open(self.dockerfile_path, 'r') as dockerfile:
+            return [self.b2u(l) for l in dockerfile.readlines()]
+
+    @lines.setter
+    def lines(self, lines):
+        with open(self.dockerfile_path, 'w') as dockerfile:
+            dockerfile.writelines([self.u2b(l) for l in lines])
+
+    @property
+    def content(self):
+        with open(self.dockerfile_path, 'r') as dockerfile:
+            return self.b2u(dockerfile.read())
+
+    @content.setter
+    def content(self, content):
+        with open(self.dockerfile_path, 'w') as dockerfile:
+            dockerfile.write(self.u2b(content))
+
+    def get_baseimage(self):
+        for line in self.lines:
             if line.startswith("FROM"):
                 return line.split()[1]
 
-
-def get_baseimage_from_dockerfile(git_path, path=''):
-    """ return name of base image from provided gitrepo """
-    if git_path.endswith(DOCKERFILE_FILENAME):
-        dockerfile_path = git_path
-    else:
-        if path.endswith(DOCKERFILE_FILENAME):
-            dockerfile_path = os.path.join(git_path, path)
+    def _split(self, string):
+        if PY2 and isinstance(string, unicode):
+            # Python2's shlex doesn't like unicode
+            string = self.u2b(string)
+            splits = shlex.split(string)
+            return map(self.b2u, splits)
         else:
-            dockerfile_path = os.path.join(git_path, path, DOCKERFILE_FILENAME)
-    return get_baseimage_from_dockerfile_path(dockerfile_path)
+            return shlex.split(string)
 
-
-def get_labels_from_dockerfile(path):
-    """ opposite of AddLabelsPlugin, i.e. return dict of labels from dockerfile
-    :param path: dockerfile path
-    :return: dictionary of label:value or label:'' if there's no value
-    """
-    labels = {}
-    multiline = False
-    processed_instr = ""
-    with open(path, 'r') as dockerfile:
-        for line in dockerfile:
+    def get_labels(self):
+        """ opposite of AddLabelsPlugin, i.e. return dict of labels from dockerfile
+        :return: dictionary of label:value or label:'' if there's no value
+        """
+        labels = {}
+        multiline = False
+        processed_instr = ""
+        for line in self.lines:
             line = line.rstrip()  # docker does this
             logger.debug("processing line %s", repr(line))
             if multiline:
@@ -143,14 +180,43 @@ def get_labels_from_dockerfile(path):
                     processed_instr = processed_instr[:-1]
                     multiline = True
                     continue
-                for token in shlex.split(processed_instr[5:]):
+                for token in self._split(processed_instr[len("LABEL "):]):
                     key_val = token.split("=", 1)
                     if len(key_val) == 2:
                         labels[key_val[0]] = key_val[1]
                     else:
                         labels[key_val[0]] = ''
                     logger.debug("new label %s=%s", repr(key_val[0]), repr(labels[key_val[0]]))
-    return labels
+        return labels
+
+
+def figure_out_dockerfile(absolute_path, local_path=None):
+    """
+    try to figure out dockerfile from provided path and optionally from relative local path
+    this is meant to be used with git repo: absolute_path is path to git repo,
+    local_path is path to dockerfile within git repo
+
+    :param absolute_path:
+    :param local_path:
+    :return: tuple, (dockerfile_path, dir_with_dockerfile_path)
+    """
+    logger.info("find dockerfile")
+    logger.debug("abs path = '%s', local path = '%s'", absolute_path, local_path)
+    if local_path:
+        if local_path.endswith(DOCKERFILE_FILENAME):
+            git_df_dir = os.path.dirname(local_path)
+            df_dir = os.path.abspath(os.path.join(absolute_path, git_df_dir))
+        else:
+            df_dir = os.path.abspath(os.path.join(absolute_path, local_path))
+    else:
+        df_dir = os.path.abspath(absolute_path)
+    if not os.path.isdir(df_dir):
+        raise IOError("Directory '%s' doesn't exist." % df_dir)
+    df_path = os.path.join(df_dir, DOCKERFILE_FILENAME)
+    if not os.path.isfile(df_path):
+        raise IOError("Dockerfile '%s' doesn't exist." % df_path)
+    logger.debug("dockerfile found: '%s'", df_path)
+    return df_path, df_dir
 
 
 class CommandResult(object):
@@ -282,35 +348,6 @@ def clone_git_repo(git_url, target_dir, commit=None):
     commit_id = commit_id.strip()
     logger.info("commit ID = %s", commit_id)
     return commit_id
-
-
-def figure_out_dockerfile(absolute_path, local_path=None):
-    """
-    try to figure out dockerfile from provided path and optionally from relative local path
-    this is meant to be used with git repo: absolute_path is path to git repo,
-    local_path is path to dockerfile within git repo
-
-    :param absolute_path:
-    :param local_path:
-    :return: tuple, (dockerfile_path, dir_with_dockerfile_path)
-    """
-    logger.info("find dockerfile")
-    logger.debug("abs path = '%s', local path = '%s'", absolute_path, local_path)
-    if local_path:
-        if local_path.endswith(DOCKERFILE_FILENAME):
-            git_df_dir = os.path.dirname(local_path)
-            df_dir = os.path.abspath(os.path.join(absolute_path, git_df_dir))
-        else:
-            df_dir = os.path.abspath(os.path.join(absolute_path, local_path))
-    else:
-        df_dir = os.path.abspath(absolute_path)
-    if not os.path.isdir(df_dir):
-        raise IOError("Directory '%s' doesn't exist." % df_dir)
-    df_path = os.path.join(df_dir, DOCKERFILE_FILENAME)
-    if not os.path.isfile(df_path):
-        raise IOError("Dockerfile '%s' doesn't exist." % df_path)
-    logger.debug("dockerfile found: '%s'", df_path)
-    return df_path, df_dir
 
 
 class LazyGit(object):

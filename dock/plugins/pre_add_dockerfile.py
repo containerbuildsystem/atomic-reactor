@@ -39,7 +39,7 @@ or
 import os
 import shutil
 from dock.constants import DOCKERFILE_FILENAME
-from dock.util import get_labels_from_dockerfile
+from dock.util import DockerfileParser
 from dock.plugin import PreBuildPlugin
 
 
@@ -65,7 +65,7 @@ class AddDockerfilePlugin(PreBuildPlugin):
         self.use_final_dockerfile = use_final_dockerfile
 
         if nvr is None:
-            labels = get_labels_from_dockerfile(self.workflow.builder.df_path)
+            labels = DockerfileParser(self.workflow.builder.df_path).get_labels()
             name = labels.get('Name')
             version = labels.get('Version')
             release = labels.get('Release')
@@ -86,8 +86,8 @@ class AddDockerfilePlugin(PreBuildPlugin):
         """
         run the plugin
         """
-        with open(self.workflow.builder.df_path, 'r') as fp:
-            lines = fp.readlines()
+        dockerfile = DockerfileParser(self.workflow.builder.df_path)
+        lines = dockerfile.lines
 
         # when using final dockerfile, we should use DOCKERFILE_FILENAME
         # otherwise we should use the copied version
@@ -99,8 +99,7 @@ class AddDockerfilePlugin(PreBuildPlugin):
         # put it before last instruction
         lines.insert(-1, content + '\n')
 
-        with open(self.workflow.builder.df_path, 'w') as fp:
-            fp.writelines(lines)
+        dockerfile.lines = lines
 
         self.log.info("Added %s", self.df_path)
 

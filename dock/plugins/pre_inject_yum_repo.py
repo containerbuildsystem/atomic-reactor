@@ -11,6 +11,7 @@ Pre build plugin which injects custom yum repository in dockerfile.
 import os
 import re
 from dock.constants import YUM_REPOS_DIR, RELATIVE_REPOS_PATH
+from dock.util import DockerfileParser
 from dock.plugin import PreBuildPlugin
 
 
@@ -84,12 +85,9 @@ def wrap_yum_commands(yum_repos, df_path):
 
     logger.debug("wrap cmd is %s", repr(wrap_cmd))
 
-    with open(df_path, "r+") as fd:
-        df = fd.read()
-        out = alter_yum_commands(df, wrap_cmd)
-        fd.seek(0)
-        fd.truncate()
-        fd.write(out)
+    df = DockerfileParser(df_path)
+    df_content = df.content
+    df.content = alter_yum_commands(df_content, wrap_cmd)
 
 
 class InjectYumRepoPlugin(PreBuildPlugin):
@@ -141,9 +139,6 @@ class InjectYumRepoPlugin(PreBuildPlugin):
                     fp.write(repo_content.encode("utf-8"))
                 repos_host_cont_mapping[repo] = repo_relative_path
 
-            with open(self.workflow.builder.df_path, "r+") as fp:
-                df = fp.readlines()
-                df = add_yum_repos_to_dockerfile(repos_host_cont_mapping, df)
-                fp.seek(0)
-                fp.truncate()
-                fp.writelines(df)
+            df = DockerfileParser(self.workflow.builder.df_path)
+            df_lines = df.lines
+            df.lines = add_yum_repos_to_dockerfile(repos_host_cont_mapping, df_lines)

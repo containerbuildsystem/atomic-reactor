@@ -5,6 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+
 from __future__ import unicode_literals
 
 import os
@@ -16,9 +17,9 @@ except ImportError:
     # Python 2.6
     from ordereddict import OrderedDict
 import docker
-from dock.util import ImageName, get_baseimage_from_dockerfile, get_labels_from_dockerfile, \
+from dock.util import ImageName, DockerfileParser, \
                       wait_for_command, clone_git_repo, LazyGit, figure_out_dockerfile, render_yum_repo
-from tests.constants import DOCKERFILE_FILENAME, DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1
+from tests.constants import NON_ASCII, DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -76,29 +77,47 @@ def test_clone_git_repo_by_sha1(tmpdir):
     assert os.path.isdir(os.path.join(tmpdir_path, '.git'))
 
 
+def test_dockerfileparser_non_ascii(tmpdir):
+        df_content = """\
+FROM fedora
+CMD {0}""".format(NON_ASCII)
+        df_lines = ["FROM fedora\n", "CMD {0}".format(NON_ASCII)]
+
+        tmpdir_path = str(tmpdir.realpath())
+        df = DockerfileParser(tmpdir_path)
+
+        df.content = ""
+        df.content = df_content
+        assert df.content == df_content
+        assert df.lines == df_lines
+
+        df.content = ""
+        df.lines = df_lines
+        assert df.content == df_content
+        assert df.lines == df_lines
+
 def test_get_baseimg_from_df(tmpdir):
     tmpdir_path = str(tmpdir.realpath())
     clone_git_repo(DOCKERFILE_GIT, tmpdir_path)
-    base_img = get_baseimage_from_dockerfile(tmpdir_path)
+    base_img = DockerfileParser(tmpdir_path).get_baseimage()
     assert base_img.startswith('fedora')
 
 
 def test_get_labels_from_df(tmpdir):
     tmpdir_path = str(tmpdir.realpath())
     clone_git_repo(DOCKERFILE_GIT, tmpdir_path)
-    df_path = os.path.join(tmpdir_path, DOCKERFILE_FILENAME)
-    with open(df_path, 'r') as fp:
-        lines = fp.readlines()
+    df = DockerfileParser(tmpdir_path)
+    lines = df.lines
     lines.insert(-1, 'LABEL "label1"="value 1" "label2"=myself label3="" label4\n')
     lines.insert(-1, 'LABEL label5=5\n')
     lines.insert(-1, 'LABEL "label6"=6\n')
     lines.insert(-1, 'LABEL label7\n')
     lines.insert(-1, 'LABEL "label8"\n')
     lines.insert(-1, 'LABEL "label9"="asd \  \nqwe"\n')
-    with open(df_path, 'w') as fp:
-        fp.writelines(lines)
-    labels = get_labels_from_dockerfile(df_path)
-    assert len(labels) == 9
+    lines.insert(-1, 'LABEL "label10"="{0}"\n'.format(NON_ASCII))
+    df.lines = lines
+    labels = df.get_labels()
+    assert len(labels) == 10
     assert labels.get('label1') == 'value 1'
     assert labels.get('label2') == 'myself'
     assert labels.get('label3') == ''
@@ -108,6 +127,7 @@ def test_get_labels_from_df(tmpdir):
     assert labels.get('label7') == ''
     assert labels.get('label8') == ''
     assert labels.get('label9') == 'asd qwe'
+    assert labels.get('label10') == '{0}'.format(NON_ASCII)
 
 
 def test_figure_out_dockerfile(tmpdir):
