@@ -3,12 +3,12 @@
 %global owner DBuildService
 %global project dock
 
-%global commit 3de7f5a36090683addb0641ec2836d2e1ac45929
+%global commit 8a541fc87d8138c2399dca4fe6b7448c1d42b75b
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 
 Name:           dock
 Version:        1.2.1
-Release:        1%{?dist}
+Release:        2%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -211,6 +211,9 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 
 
 %changelog
+* Tue May 19 2015 Jiri Popelka <jpopelka@redhat.com> - 1.2.1-2
+- rebuilt
+
 * Tue May 19 2015 Martin Milata <mmilata@redhat.com> - 1.2.1-1
 - new upstream release 1.2.1
 
