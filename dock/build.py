@@ -71,35 +71,29 @@ class BuildResult(object):
         return self.command_result.logs
 
 
-class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
+class InsideBuilder(LastLogger, BuilderStateMachine):
     """
     This is expected to run within container
     """
 
-    def __init__(self, git_url, image,
-                 git_dockerfile_path=None,
-                 git_commit=None,
-                 tmpdir=None,
-                 **kwargs):
+    def __init__(self, source, image,
+                 tmpdir=None, **kwargs):
         """
         """
         LastLogger.__init__(self)
-        LazyGit.__init__(self, git_url, git_commit, tmpdir=tmpdir)
         BuilderStateMachine.__init__(self)
 
         self.tasker = DockerTasker()
 
         # arguments for build
-        self.git_url = git_url
+        self.source = source
         self.base_image_id = None
         self.image_id = None
         self.built_image_info = None
         self.image = ImageName.parse(image)
-        self.git_dockerfile_path = git_dockerfile_path
-        self.git_commit = git_commit
 
         # get info about base image from dockerfile
-        self.df_path, self.df_dir = figure_out_dockerfile(self.git_path, self.git_dockerfile_path)
+        self.df_path, self.df_dir = self.source.get_dockerfile_path()
         self.base_image = ImageName.parse(DockerfileParser(self.df_path).get_baseimage())
         logger.debug("image specified in dockerfile = '%s'", self.base_image)
         if not self.base_image.tag:

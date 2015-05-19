@@ -23,11 +23,13 @@ from dock.plugin import PreBuildPluginsRunner
 from dock.plugins.pre_inject_yum_repo import InjectYumRepoPlugin, alter_yum_commands
 from dock.util import ImageName, render_yum_repo, DockerfileParser
 from tests.constants import DOCKERFILE_GIT
-from tempfile import NamedTemporaryFile
 from collections import namedtuple
 import requests
 from flexmock import flexmock
 import os.path
+
+
+SOURCE = {'provider': 'git', 'uri': DOCKERFILE_GIT}
 
 
 class X(object):
@@ -43,8 +45,8 @@ CMD blabla"""
     df.content = df_content
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(DOCKERFILE_GIT, "test-image")
-    setattr(workflow, 'builder', X)
+    workflow = DockerBuildWorkflow(SOURCE, "test-image")
+    setattr(workflow, 'builder', X())
 
     metalink = 'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
 
@@ -59,8 +61,9 @@ CMD blabla"""
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'df_dir', str(tmpdir))
     setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
-    setattr(workflow.builder, 'git_dockerfile_path', None)
-    setattr(workflow.builder, 'git_path', None)
+    setattr(workflow.builder, 'source', X())
+    setattr(workflow.builder.source, 'dockerfile_path', None)
+    setattr(workflow.builder.source, 'path', None)
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': InjectYumRepoPlugin.key,
         'args': {
@@ -130,7 +133,7 @@ CMD blabla"""
     df.content = df_content
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(DOCKERFILE_GIT, "test-image")
+    workflow = DockerBuildWorkflow(SOURCE, "test-image")
     setattr(workflow, 'builder', X)
 
     metalink = 'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
@@ -145,8 +148,9 @@ CMD blabla"""
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'df_dir', str(tmpdir))
     setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
-    setattr(workflow.builder, 'git_dockerfile_path', None)
-    setattr(workflow.builder, 'git_path', None)
+    setattr(workflow.builder, 'source', X())
+    setattr(workflow.builder.source, 'dockerfile_path', None)
+    setattr(workflow.builder.source, 'path', None)
     runner = PreBuildPluginsRunner(tasker, workflow,
                                    [{'name': InjectYumRepoPlugin.key, 'args': {
                                        "wrap_commands": True

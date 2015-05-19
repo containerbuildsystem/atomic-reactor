@@ -249,8 +249,8 @@ class BuildPluginsRunner(PluginsRunner):
         """
         translation_dict = {
             'BUILT_IMAGE_ID': self.workflow.builder.image_id,
-            'BUILD_DOCKERFILE_PATH' : self.workflow.builder.git_dockerfile_path,
-            'BUILD_GIT_PATH' :  self.workflow.builder.git_path,
+            'BUILD_DOCKERFILE_PATH' : self.workflow.builder.source.dockerfile_path,
+            'BUILD_SOURCE_PATH' :  self.workflow.builder.source.path,
             'BASE_IMAGE': self.workflow.builder.base_image.to_str(),
         }
         if isinstance(obj_to_translate, dict):

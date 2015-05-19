@@ -20,10 +20,15 @@ if MOCK:
     from tests.docker_mock import mock_docker
 
 
+class Y(object):
+    pass
+
+
 class X(object):
     image_id = INPUT_IMAGE
-    git_dockerfile_path = None
-    git_path = None
+    source = Y()
+    source.dockerfile_path = None
+    source.path = None
     base_image = ImageName(repo="qwe", tag="asd")
 
 
@@ -32,7 +37,7 @@ def test_tag_by_labels_plugin(tmpdir):
         mock_docker()
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow("asd", "test-image")
+    workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, "test-image")
     version = "1.0"
     release = "1"
     workflow.built_image_inspect = {

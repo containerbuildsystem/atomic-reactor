@@ -17,11 +17,18 @@ from dock.plugins.pre_add_labels_in_df import AddLabelsPlugin
 from dock.util import ImageName, DockerfileParser
 
 
+MOCK_SOURCE = {'provider': 'git', 'uri': 'asd'}
+
+
+class Y(object):
+    pass
+
 
 class X(object):
     image_id = "xxx"
-    git_dockerfile_path = None
-    git_path = None
+    source = Y()
+    source.dockerfile_path = None
+    source.path = None
     base_image = ImageName(repo="qwe", tag="asd")
 
 
@@ -34,7 +41,7 @@ CMD blabla"""
     df.content = df_content
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow('asd', 'test-image')
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
@@ -67,7 +74,7 @@ CMD blabla"""
     df.content = df_content
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow('asd', 'test-image')
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
@@ -102,7 +109,7 @@ CMD blabla"""
     df.content = df_content
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow('asd', 'test-image')
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
@@ -129,7 +136,7 @@ CMD blabla"""
     df.content = df_content
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow('asd', 'test-image')
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
@@ -162,7 +169,7 @@ CMD blabla"""
     df.content = df_content
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow('asd', 'test-image')
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)

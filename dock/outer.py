@@ -32,7 +32,7 @@ class BuildManager(BuilderStateMachine):
         self.build_image = build_image
         self.build_args = build_args
         self.image = build_args['image']
-        self.git_url = build_args['git_url']
+        self.uri = build_args['source']['uri']
 
         self.temp_dir = None
         # build image after build
@@ -105,7 +105,7 @@ class BuildManager(BuilderStateMachine):
         logger.info("commit buildroot")
         self._ensure_is_built()
 
-        commit_message = "docker build of '%s' (%s)" % (self.image, self.git_url)
+        commit_message = "docker build of '%s' (%s)" % (self.image, self.uri)
         self.buildroot_image_name = ImageName(
             repo = "buildroot-%s" % self.image,
             # save the time when image was built
