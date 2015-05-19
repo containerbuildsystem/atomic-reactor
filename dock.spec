@@ -1,4 +1,6 @@
+%if (0%{?fedora} >= 23 || 0%{?rhel} >= 8)
 %global with_python3 1
+%endif
 
 %global owner DBuildService
 %global project dock
@@ -8,7 +10,7 @@
 
 Name:           dock
 Version:        1.2.1
-Release:        2%{?dist}
+Release:        3%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -148,12 +150,14 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 
 %files
 %doc README.md
+%{!?_licensedir:%global license %%doc}
 %license LICENSE
 %{_bindir}/dock
 
 
 %files -n python-dock
 %doc README.md
+%{!?_licensedir:%global license %%doc}
 %license LICENSE
 %{_bindir}/dock2
 %dir %{python2_sitelib}/dock
@@ -179,6 +183,7 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 %if 0%{?with_python3}
 %files -n python3-dock
 %doc README.md
+%{!?_licensedir:%global license %%doc}
 %license LICENSE
 %{_bindir}/dock3
 %dir %{python3_sitelib}/dock
@@ -211,6 +216,9 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 
 
 %changelog
+* Tue May 19 2015 Jiri Popelka <jpopelka@redhat.com> - 1.2.1-3
+- fix el7 build
+
 * Tue May 19 2015 Jiri Popelka <jpopelka@redhat.com> - 1.2.1-2
 - rebuilt
 
