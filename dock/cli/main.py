@@ -44,10 +44,13 @@ def cli_build_image(args):
             common_kwargs = json.load(json_fp)
     else:
         common_kwargs = {
-            "git_url": args.git_url,
+            "source": {
+                "provider": "git",
+                "uri": args.git_url,
+                "dockerfile_path": args.git_path,
+                "provider_params": {"git_commit": args.git_commit}
+            },
             "image": args.image,
-            "git_dockerfile_path": args.git_path,
-            "git_commit": args.git_commit,
             "parent_registry": args.source_registry,
             "parent_registry_insecure": args.source_registry_insecure,
             "target_registries": args.target_registries,

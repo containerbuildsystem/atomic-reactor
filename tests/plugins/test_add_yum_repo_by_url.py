@@ -32,13 +32,14 @@ class X(object):
 
 def prepare():
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(DOCKERFILE_GIT, "test-image")
-    setattr(workflow, 'builder', X)
+    workflow = DockerBuildWorkflow({"provider": "git", "uri": DOCKERFILE_GIT}, "test-image")
+    setattr(workflow, 'builder', X())
 
     setattr(workflow.builder, 'image_id', "asd123")
     setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
-    setattr(workflow.builder, 'git_dockerfile_path', None)
-    setattr(workflow.builder, 'git_path', None)
+    setattr(workflow.builder, 'source', X())
+    setattr(workflow.builder.source, 'dockerfile_path', None)
+    setattr(workflow.builder.source, 'path', None)
     (flexmock(requests.Response, content=repocontent)
         .should_receive('raise_for_status')
         .and_return(None))

@@ -19,19 +19,16 @@ __all__ = (
 )
 
 
-def build_image_in_privileged_container(build_image, git_url, image,
-        git_dockerfile_path=None, git_commit=None, parent_registry=None,
-        target_registries=None, push_buildroot_to=None,
+def build_image_in_privileged_container(build_image, source, image,
+        parent_registry=None, target_registries=None, push_buildroot_to=None,
         parent_registry_insecure=False, target_registries_insecure=False,
         **kwargs):
     """
-    build image from provided dockerfile (specified as git url) in privileged image
+    build image from provided dockerfile (specified by `source`) in privileged image
 
     :param build_image: str, image where target image should be built
-    :param git_url: str, URL to git repo
+    :param source: dict, where/how to get source code to put in image
     :param image: str, tag for built image ([registry/]image_name[:tag])
-    :param git_dockerfile_path: str, path to dockerfile within git repo (if not in root)
-    :param git_commit: str, git commit to check out
     :param parent_registry: str, registry to pull base image from
     :param target_registries: list of str, list of registries to push image to (might change in future)
     :param push_buildroot_to: str, repository where buildroot should be pushed
@@ -41,10 +38,8 @@ def build_image_in_privileged_container(build_image, git_url, image,
     :return: BuildResults
     """
     build_json = {
-        "git_url": git_url,
         "image": image,
-        "git_dockerfile_path": git_dockerfile_path,
-        "git_commit": git_commit,
+        "source": source,
         "parent_registry": parent_registry,
         "target_registries": target_registries,
         "parent_registry_insecure": parent_registry_insecure,
@@ -59,20 +54,17 @@ def build_image_in_privileged_container(build_image, git_url, image,
     return build_response
 
 
-def build_image_using_hosts_docker(build_image, git_url, image,
-        git_dockerfile_path=None, git_commit=None, parent_registry=None,
-        target_registries=None, push_buildroot_to=None,
+def build_image_using_hosts_docker(build_image, source, image,
+        parent_registry=None, target_registries=None, push_buildroot_to=None,
         parent_registry_insecure=False, target_registries_insecure=False,
         **kwargs):
     """
-    build image from provided dockerfile (specified as git url) in container
+    build image from provided dockerfile (specified by `source`) in container
     using docker from host
 
     :param build_image: str, image where target image should be built
-    :param git_url: str, URL to git repo
+    :param source: dict, where/how to get source code to put in image
     :param image: str, tag for built image ([registry/]image_name[:tag])
-    :param git_dockerfile_path: str, path to dockerfile within git repo (if not in root)
-    :param git_commit: str, git commit to check out
     :param parent_registry: str, registry to pull base image from
     :param target_registries: list of str, list of registries to push image to (might change in future)
     :param push_buildroot_to: str, repository where buildroot should be pushed
@@ -82,10 +74,8 @@ def build_image_using_hosts_docker(build_image, git_url, image,
     :return: BuildResults
     """
     build_json = {
-        "git_url": git_url,
         "image": image,
-        "git_dockerfile_path": git_dockerfile_path,
-        "git_commit": git_commit,
+        "source": source,
         "parent_registry": parent_registry,
         "target_registries": target_registries,
         "parent_registry_insecure": parent_registry_insecure,
@@ -100,17 +90,14 @@ def build_image_using_hosts_docker(build_image, git_url, image,
     return build_response
 
 
-def build_image_here(git_url, image,
-        git_dockerfile_path=None, git_commit=None, parent_registry=None,
-        target_registries=None, parent_registry_insecure=False,
+def build_image_here(source, image,
+        parent_registry=None, target_registries=None, parent_registry_insecure=False,
         target_registries_insecure=False, **kwargs):
     """
-    build image from provided dockerfile (specified as git url) in current environment
+    build image from provided dockerfile (specified by `source`) in current environment
 
-    :param git_url: str, URL to git repo
+    :param source: dict, where/how to get source code to put in image
     :param image: str, tag for built image ([registry/]image_name[:tag])
-    :param git_dockerfile_path: str, path to dockerfile within git repo (if not in root)
-    :param git_commit: str, git commit to check out
     :param parent_registry: str, registry to pull base image from
     :param target_registries: list of str, list of registries to push image to (might change in future)
     :param parent_registry_insecure: bool, allow connecting to parent registry over plain http
@@ -119,10 +106,8 @@ def build_image_here(git_url, image,
     :return: BuildResults
     """
     build_json = {
-        "git_url": git_url,
         "image": image,
-        "git_dockerfile_path": git_dockerfile_path,
-        "git_commit": git_commit,
+        "source": source,
         "parent_registry": parent_registry,
         "target_registries": target_registries,
         "parent_registry_insecure": parent_registry_insecure,

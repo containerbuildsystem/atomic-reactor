@@ -18,6 +18,7 @@ import tempfile
 from dock.build import InsideBuilder
 from dock.plugin import PostBuildPluginsRunner, PreBuildPluginsRunner, InputPluginsRunner, PrePublishPluginsRunner, \
     PluginFailedException
+from dock.source import get_source_instance_for
 
 
 logger = logging.getLogger(__name__)
@@ -120,22 +121,19 @@ class DockerBuildWorkflow(object):
 
     1. pull image from registry
     2. tag it properly if needed
-    3. clone git repo
+    3. obtain source
     4. build image
     5. tag it
     6. push it to registries
     """
 
-    def __init__(self, git_url, image, git_dockerfile_path=None,
-                 git_commit=None, parent_registry=None, target_registries=None,
+    def __init__(self, source, image, parent_registry=None, target_registries=None,
                  prebuild_plugins=None, prepublish_plugins=None, postbuild_plugins=None,
                  plugin_files=None, parent_registry_insecure=False,
                  target_registries_insecure=False, **kwargs):
         """
-        :param git_url: str, URL to git repo
+        :param source: dict, where/how to get source code to put in image
         :param image: str, tag for built image ([registry/]image_name[:tag])
-        :param git_dockerfile_path: str, path to dockerfile within git repo (if not in root)
-        :param git_commit: str, git commit to check out
         :param parent_registry: str, registry to pull base image from
         :param target_registries: list of str, list of registries to push image to (might change in future)
         :param prebuild_plugins: dict, arguments for pre-build plugins
@@ -145,10 +143,8 @@ class DockerBuildWorkflow(object):
         :param parent_registry_insecure: bool, allow connecting to parent registry over plain http
         :param target_registries_insecure: bool, allow connecting to target registries over plain http
         """
-        self.git_url = git_url
+        self.source = get_source_instance_for(source)
         self.image = image
-        self.git_dockerfile_path = git_dockerfile_path
-        self.git_commit = git_commit
 
         self.parent_registry = parent_registry
         self.parent_registry_insecure = parent_registry_insecure
@@ -192,10 +188,7 @@ class DockerBuildWorkflow(object):
         :return: BuildResults
         """
         tmpdir = tempfile.mkdtemp()
-        source_dir = os.path.join(tmpdir, "source")
-        self.exported_squashed_image_path = os.path.join(tmpdir, "image.tar")
-        self.builder = InsideBuilder(self.git_url, self.image, git_dockerfile_path=self.git_dockerfile_path,
-                                     git_commit=self.git_commit, tmpdir=source_dir)
+        self.builder = InsideBuilder(self.source, self.image, tmpdir=tmpdir)
         try:
             self.pulled_base_image = self.builder.pull_base_image(
                 self.parent_registry, insecure=self.parent_registry_insecure)

@@ -49,9 +49,12 @@ class OSv3InputPlugin(InputPlugin):
             self.log.error("source registry is not configured: '%s'", repr(ex))
 
         input_json = {
-            'git_url': git_url,
+            'source': {
+                'provider': 'git',
+                'uri': git_url,
+                'provider_params': {'git_commit': git_ref}
+            },
             'image': image,
-            'git_commit': git_ref,
             'target_registries': [target_registry] if target_registry is not None else None,
             'target_registries_insecure': True,  # FIXME: create plugin for this
             'parent_registry': source_registry,

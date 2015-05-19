@@ -21,10 +21,15 @@ from dock.plugins.pre_add_labels_in_df import AddLabelsPlugin
 from dock.util import ImageName, DockerfileParser
 
 
+class Y(object):
+    pass
+
+
 class X(object):
     image_id = "xxx"
-    git_dockerfile_path = None
-    git_path = None
+    source = Y()
+    source.dockerfile_path = None
+    source.path = None
     base_image = ImageName(repo="qwe", tag="asd")
 
 
@@ -37,7 +42,7 @@ CMD blabla"""
     df.content = df_content
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow("asd", "test-image")
+    workflow = DockerBuildWorkflow({'provider': 'git', 'uri': 'asd'}, 'test-image')
     setattr(workflow, 'builder', X)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
 

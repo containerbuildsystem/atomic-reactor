@@ -19,16 +19,17 @@ from tests.constants import DOCKERFILE_GIT
 
 
 TEST_IMAGE = "fedora:latest"
+SOURCE = {"provider": "git", "uri": DOCKERFILE_GIT}
 
 
 def test_load_prebuild_plugins():
-    runner = PreBuildPluginsRunner(DockerTasker(), DockerBuildWorkflow("", ""), None)
+    runner = PreBuildPluginsRunner(DockerTasker(), DockerBuildWorkflow(SOURCE, ""), None)
     assert runner.plugin_classes is not None
     assert len(runner.plugin_classes) > 0
 
 
 def test_load_postbuild_plugins():
-    runner = PostBuildPluginsRunner(DockerTasker(), DockerBuildWorkflow("", ""), None)
+    runner = PostBuildPluginsRunner(DockerTasker(), DockerBuildWorkflow(SOURCE, ""), None)
     assert runner.plugin_classes is not None
     assert len(runner.plugin_classes) > 0
 
@@ -39,12 +40,13 @@ class X(object):
 
 def test_rpmqa_plugin():
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(DOCKERFILE_GIT, "test-image")
-    setattr(workflow, 'builder', X)
+    workflow = DockerBuildWorkflow(SOURCE, "test-image")
+    setattr(workflow, 'builder', X())
     setattr(workflow.builder, 'image_id', "asd123")
     setattr(workflow.builder, 'base_image', ImageName(repo='fedora', tag='21'))
-    setattr(workflow.builder, 'git_dockerfile_path', "/non/existent")
-    setattr(workflow.builder, 'git_path', "/non/existent")
+    setattr(workflow.builder, "source", X())
+    setattr(workflow.builder.source, 'dockerfile_path', "/non/existent")
+    setattr(workflow.builder.source, 'path', "/non/existent")
     runner = PostBuildPluginsRunner(tasker, workflow,
                                     [{"name": PostBuildRPMqaPlugin.key,
                                       "args": {'image_id': TEST_IMAGE}}])

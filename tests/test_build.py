@@ -10,6 +10,7 @@ from __future__ import unicode_literals
 
 from dock.build import InsideBuilder
 from dock.core import DockerTasker
+from dock.source import GitSource
 from dock.util import ImageName
 from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, MOCK
 
@@ -27,8 +28,9 @@ def test_pull_base_image(tmpdir):
     if MOCK:
         mock_docker()
 
+    s = GitSource(provider='git', uri=DOCKERFILE_GIT)
     t = DockerTasker()
-    b = InsideBuilder(DOCKERFILE_GIT, "", tmpdir=str(tmpdir))
+    b = InsideBuilder(s, "", tmpdir=str(tmpdir))
     reg_img_name = b.pull_base_image(LOCALHOST_REGISTRY, insecure=True)
     reg_img_name = ImageName.parse(reg_img_name)
     assert t.inspect_image(reg_img_name) is not None
@@ -43,8 +45,9 @@ def test_build_image(tmpdir):
     if MOCK:
         mock_docker(provided_image_repotags=provided_image)
 
+    s = GitSource(provider='git', uri=DOCKERFILE_GIT)
     t = DockerTasker()
-    b = InsideBuilder(DOCKERFILE_GIT, provided_image, tmpdir=str(tmpdir))
+    b = InsideBuilder(s, provided_image, tmpdir=str(tmpdir))
     build_result = b.build()
     assert t.inspect_image(build_result.image_id)
     # clean
@@ -56,7 +59,9 @@ def test_build_error_dockerfile(tmpdir):
     if MOCK:
         mock_docker(build_should_fail=True, provided_image_repotags=provided_image)
 
-    b = InsideBuilder(DOCKERFILE_GIT, provided_image, git_commit="error-build", tmpdir=str(tmpdir))
+    s = GitSource(provider='git', uri=DOCKERFILE_GIT,
+            provider_params={'git_commit': 'error-build'})
+    b = InsideBuilder(s, provided_image, tmpdir=str(tmpdir))
     build_result = b.build()
     assert build_result.is_failed()
 
@@ -66,8 +71,9 @@ def test_inspect_built_image(tmpdir):
     if MOCK:
         mock_docker(provided_image_repotags=provided_image)
 
+    s = GitSource(provider='git', uri=DOCKERFILE_GIT)
     t = DockerTasker()
-    b = InsideBuilder(DOCKERFILE_GIT, provided_image, tmpdir=str(tmpdir))
+    b = InsideBuilder(s, provided_image, tmpdir=str(tmpdir))
     build_result = b.build()
     built_inspect = b.inspect_built_image()
 
@@ -82,7 +88,8 @@ def test_inspect_base_image(tmpdir):
     if MOCK:
         mock_docker()
 
-    b = InsideBuilder(DOCKERFILE_GIT, '', tmpdir=str(tmpdir))
+    s = GitSource(provider='git', uri=DOCKERFILE_GIT)
+    b = InsideBuilder(s, '', tmpdir=str(tmpdir))
     built_inspect = b.inspect_base_image()
 
     assert built_inspect is not None
@@ -93,7 +100,8 @@ def test_get_base_image_info(tmpdir):
     if MOCK:
         mock_docker(provided_image_repotags='fedora:latest')
 
-    b = InsideBuilder(DOCKERFILE_GIT, '', tmpdir=str(tmpdir))
+    s = GitSource(provider='git', uri=DOCKERFILE_GIT)
+    b = InsideBuilder(s, '', tmpdir=str(tmpdir))
     built_inspect = b.get_base_image_info()
 
     assert built_inspect is not None

@@ -24,8 +24,11 @@ def test_hostdocker_build():
     remote_image = image_name.copy()
     remote_image.registry = LOCALHOST_REGISTRY
     m = DockerhostBuildManager("buildroot-dh-fedora", {
-        "git_url": "https://github.com/fedora-cloud/Fedora-Dockerfiles.git",
-        "git_dockerfile_path": "ssh/",
+        "source": {
+            "provider": "git",
+            "uri": "https://github.com/fedora-cloud/Fedora-Dockerfiles.git",
+            "dockerfile_path": "ssh/"
+        },
         "image": remote_image.to_str(),
         "parent_registry": LOCALHOST_REGISTRY,  # faster
         "target_registries_insecure": True,
@@ -53,8 +56,11 @@ def test_hostdocker_error_build():
 
     image_name = TEST_IMAGE
     m = DockerhostBuildManager("buildroot-dh-fedora", {
-        "git_url": DOCKERFILE_GIT,
-        "git_commit": "error-build",
+        "source": {
+            "provider": "git",
+            "uri": DOCKERFILE_GIT,
+            "provider_params": {"git_commit": "error-build"}
+        },
         "image": image_name,
         "parent_registry": LOCALHOST_REGISTRY,  # faster
         "target_registries_insecure": True,
@@ -75,8 +81,11 @@ def test_privileged_gitrepo_build():
     remote_image = image_name.copy()
     remote_image.registry = LOCALHOST_REGISTRY
     m = PrivilegedBuildManager("buildroot-fedora", {
-        "git_url": "https://github.com/fedora-cloud/Fedora-Dockerfiles.git",
-        "git_dockerfile_path": "ssh/",
+        "source": {
+            "provider": "git",
+            "uri": "https://github.com/fedora-cloud/Fedora-Dockerfiles.git",
+            "dockerfile_path": "ssh/"
+        },
         "image": remote_image.to_str(),
         "parent_registry": LOCALHOST_REGISTRY,  # faster
         "target_registries_insecure": True,
@@ -105,7 +114,10 @@ def test_privileged_build():
     remote_image = image_name.copy()
     remote_image.registry = LOCALHOST_REGISTRY
     m = PrivilegedBuildManager("buildroot-fedora", {
-        "git_url": DOCKERFILE_GIT,
+        "source": {
+            "provider": "git",
+            "uri": DOCKERFILE_GIT,
+        },
         "image": remote_image.to_str(),
         "parent_registry": LOCALHOST_REGISTRY,  # faster
         "target_registries_insecure": True,

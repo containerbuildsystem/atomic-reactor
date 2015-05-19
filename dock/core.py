@@ -26,11 +26,13 @@ import os
 import shutil
 import logging
 import tempfile
+import json
 
 import docker
 from docker.errors import APIError
 
 from dock.constants import CONTAINER_SHARE_PATH, BUILD_JSON
+from dock.source import get_source_instance_for
 from dock.util import ImageName, wait_for_command, clone_git_repo, figure_out_dockerfile
 
 
@@ -85,6 +87,22 @@ class BuildContainerFactory(object):
             logger.error("Provided build image doesn't exist: '%s'", image)
             raise RuntimeError("Provided build image doesn't exist: '%s'" % image)
 
+    def _obtain_source_from_path_if_needed(self, local_path, container_path=CONTAINER_SHARE_PATH):
+        # TODO: maybe we should do this for any provider? (if we expand to various providers
+        #  like mercurial, we don't to force container to have mercurial installed, etc.)
+        build_json_path = os.path.join(local_path, BUILD_JSON)
+        with open(build_json_path, 'r') as fp:
+            build_json = json.load(fp)
+        save_code_to = os.path.join(local_path, 'source')
+        source = get_source_instance_for(build_json['source'], tmpdir=save_code_to)
+        if source.provider == 'path':
+            source.get()
+            # now modify the build json
+            build_json['source']['path'] = 'file://' + os.path.join(container_path, 'source')
+            with open(build_json_path, 'w') as fp:
+                json.dump(build_json, fp)
+        # else we do nothing
+
     def build_image_dockerhost(self, build_image, json_args_path):
         """
         Build docker image within a build image using docker from host (mount docker socket inside container).
@@ -102,6 +120,7 @@ class BuildContainerFactory(object):
         logger.info("build image in container using docker from host")
 
         self._check_build_input(build_image, json_args_path)
+        self._obtain_source_from_path_if_needed(json_args_path, CONTAINER_SHARE_PATH)
 
         if not os.path.exists(DOCKER_SOCKET_PATH):
             logger.error("Looks like docker is not running because there is no socket at: %s", DOCKER_SOCKET_PATH)
@@ -142,6 +161,7 @@ class BuildContainerFactory(object):
         logger.info("build image inside privileged container")
 
         self._check_build_input(build_image, json_args_path)
+        self._obtain_source_from_path_if_needed(json_args_path, CONTAINER_SHARE_PATH)
 
         container_id = self.tasker.run(
             ImageName.parse(build_image),
