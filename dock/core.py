@@ -31,7 +31,8 @@ import json
 import docker
 from docker.errors import APIError
 
-from dock.constants import CONTAINER_SHARE_PATH, BUILD_JSON, DOCKER_SOCKET_PATH
+from dock.constants import CONTAINER_SHARE_PATH, CONTAINER_SHARE_SOURCE_SUBDIR,\
+        BUILD_JSON, DOCKER_SOCKET_PATH
 from dock.source import get_source_instance_for
 from dock.util import ImageName, wait_for_command, clone_git_repo, figure_out_dockerfile
 
@@ -91,12 +92,16 @@ class BuildContainerFactory(object):
         build_json_path = os.path.join(local_path, BUILD_JSON)
         with open(build_json_path, 'r') as fp:
             build_json = json.load(fp)
-        save_code_to = os.path.join(local_path, 'source')
+        save_code_to = os.path.join(local_path, CONTAINER_SHARE_SOURCE_SUBDIR)
+        os.mkdir(save_code_to)
         source = get_source_instance_for(build_json['source'], tmpdir=save_code_to)
         if source.provider == 'path':
+            logger.debug('Copying source from %s to %s', source.schemeless_path, save_code_to)
             source.get()
+            logger.debug('Verifying that %s exists: %s', save_code_to, os.path.exists(save_code_to))
             # now modify the build json
-            build_json['source']['path'] = 'file://' + os.path.join(container_path, 'source')
+            build_json['source']['uri'] =\
+                    'file://' + os.path.join(container_path, CONTAINER_SHARE_SOURCE_SUBDIR)
             with open(build_json_path, 'w') as fp:
                 json.dump(build_json, fp)
         # else we do nothing
@@ -135,6 +140,8 @@ class BuildContainerFactory(object):
             },
         }
 
+        logger.debug('build json mounted in container: %s',
+                open(os.path.join(json_args_path, BUILD_JSON)).read())
         container_id = self.tasker.run(
             ImageName.parse(build_image),
             create_kwargs={'volumes': [DOCKER_SOCKET_PATH, json_args_path]},
@@ -161,6 +168,8 @@ class BuildContainerFactory(object):
         self._check_build_input(build_image, json_args_path)
         self._obtain_source_from_path_if_needed(json_args_path, CONTAINER_SHARE_PATH)
 
+        logger.debug('build json mounted in container: %s',
+                open(os.path.join(json_args_path, BUILD_JSON)).read())
         container_id = self.tasker.run(
             ImageName.parse(build_image),
             create_kwargs={'volumes': [json_args_path]},
