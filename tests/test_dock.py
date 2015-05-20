@@ -7,7 +7,12 @@ of the BSD license. See the LICENSE file for details.
 """
 from __future__ import unicode_literals
 
+import os
+import re
+
 import pytest
+
+from dock import constants as dconstants
 
 from dock.core import DockerTasker
 from dock.outer import PrivilegedBuildManager, DockerhostBuildManager
@@ -26,8 +31,23 @@ with_all_sources = pytest.mark.parametrize('source_params', [
      'dockerfile_path': 'ssh/'},
 ])
 
+
+def assert_source_from_path_mounted_ok(caplog, tmpdir):
+    # assert that build json has properly modified source uri
+    container_uri = 'file://' + os.path.join(dconstants.CONTAINER_SHARE_PATH,
+            dconstants.CONTAINER_SHARE_SOURCE_SUBDIR)
+    container_uri_re = re.compile(r'build json mounted in container.*"uri": "%s"' % container_uri)
+
+    # verify that source code was copied in - actually only verifies
+    #  that source dir has been created
+    source_exists = 'Verifying that %s exists: True' %\
+            os.path.join(tmpdir, dconstants.CONTAINER_SHARE_SOURCE_SUBDIR)
+    assert any([container_uri_re.search(l.getMessage()) for l in caplog.records()])
+    assert source_exists in [l.getMessage() for l in caplog.records()]
+
+
 @with_all_sources
-def test_hostdocker_build(source_params):
+def test_hostdocker_build(caplog, source_params):
     if MOCK:
         mock_docker()
 
@@ -44,7 +64,13 @@ def test_hostdocker_build(source_params):
     results = m.build()
     dt = DockerTasker()
     dt.pull_image(remote_image, insecure=True)
+
+    if source_params['provider'] == 'path':
+        assert_source_from_path_mounted_ok(caplog, m.temp_dir)
+
     assert len(results.build_logs) > 0
+    #assert re.search(r'build json mounted in container .+"uri": %s' %
+    #        os.path.join(dconstants.CONTAINER_SHARE_PATH, 'source'))
     # assert isinstance(results.built_img_inspect, dict)
     # assert len(results.built_img_inspect.items()) > 0
     # assert isinstance(results.built_img_info, dict)
@@ -85,7 +111,7 @@ def test_hostdocker_error_build(source_params):
 
 
 @with_all_sources
-def test_privileged_gitrepo_build(source_params):
+def test_privileged_gitrepo_build(caplog, source_params):
     if MOCK:
         mock_docker()
 
@@ -102,6 +128,10 @@ def test_privileged_gitrepo_build(source_params):
     results = m.build()
     dt = DockerTasker()
     dt.pull_image(remote_image, insecure=True)
+
+    if source_params['provider'] == 'path':
+        assert_source_from_path_mounted_ok(caplog, m.temp_dir)
+
     assert len(results.build_logs) > 0
     # assert isinstance(results.built_img_inspect, dict)
     # assert len(results.built_img_inspect.items()) > 0
@@ -116,7 +146,7 @@ def test_privileged_gitrepo_build(source_params):
 
 
 @with_all_sources
-def test_privileged_build(source_params):
+def test_privileged_build(caplog, source_params):
     if MOCK:
         mock_docker()
 
@@ -133,6 +163,10 @@ def test_privileged_build(source_params):
     results = m.build()
     dt = DockerTasker()
     dt.pull_image(remote_image, insecure=True)
+
+    if source_params['provider'] == 'path':
+        assert_source_from_path_mounted_ok(caplog, m.temp_dir)
+
     assert len(results.build_logs) > 0
     # assert isinstance(results.built_img_inspect, dict)
     # assert len(results.built_img_inspect.items()) > 0
