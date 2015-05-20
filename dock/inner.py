@@ -11,8 +11,6 @@ Script for building docker image. This is expected to run inside container.
 
 import json
 import logging
-import os
-import shutil
 import tempfile
 
 from dock.build import InsideBuilder
@@ -143,7 +141,7 @@ class DockerBuildWorkflow(object):
         :param parent_registry_insecure: bool, allow connecting to parent registry over plain http
         :param target_registries_insecure: bool, allow connecting to target registries over plain http
         """
-        self.source = get_source_instance_for(source)
+        self.source = get_source_instance_for(source, tmpdir=tempfile.mkdtemp())
         self.image = image
 
         self.parent_registry = parent_registry
@@ -187,8 +185,7 @@ class DockerBuildWorkflow(object):
 
         :return: BuildResults
         """
-        tmpdir = tempfile.mkdtemp()
-        self.builder = InsideBuilder(self.source, self.image, tmpdir=tmpdir)
+        self.builder = InsideBuilder(self.source, self.image)
         try:
             self.pulled_base_image = self.builder.pull_base_image(
                 self.parent_registry, insecure=self.parent_registry_insecure)
@@ -234,7 +231,7 @@ class DockerBuildWorkflow(object):
 
             return build_result
         finally:
-            shutil.rmtree(tmpdir)
+            self.source.remove_tmpdir()
 
     def _prepare_response(self):
         """

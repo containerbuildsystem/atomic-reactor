@@ -31,12 +31,10 @@ import json
 import docker
 from docker.errors import APIError
 
-from dock.constants import CONTAINER_SHARE_PATH, BUILD_JSON
+from dock.constants import CONTAINER_SHARE_PATH, BUILD_JSON, DOCKER_SOCKET_PATH
 from dock.source import get_source_instance_for
 from dock.util import ImageName, wait_for_command, clone_git_repo, figure_out_dockerfile
 
-
-DOCKER_SOCKET_PATH = '/var/run/docker.sock'
 
 logger = logging.getLogger(__name__)
 

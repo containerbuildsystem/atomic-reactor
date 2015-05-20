@@ -13,8 +13,7 @@ Logic above these classes has to set the workflow itself.
 import logging
 
 from dock.core import DockerTasker, LastLogger
-from dock.util import DockerfileParser, LazyGit, wait_for_command, \
-    figure_out_dockerfile, ImageName
+from dock.util import DockerfileParser, wait_for_command, ImageName
 
 
 logger = logging.getLogger(__name__)
@@ -76,8 +75,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
     This is expected to run within container
     """
 
-    def __init__(self, source, image,
-                 tmpdir=None, **kwargs):
+    def __init__(self, source, image, **kwargs):
         """
         """
         LastLogger.__init__(self)

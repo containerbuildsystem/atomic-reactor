@@ -34,8 +34,11 @@ class Source(object):
         raise NotImplementedError('Must override in subclasses!')
 
     def get_dockerfile_path(self):
-        # TODO: will we need figure_out_dockerfile as a separate method
+        # TODO: will we need figure_out_dockerfile as a separate method?
         return util.figure_out_dockerfile(self.path, self.dockerfile_path)
+
+    def remove_tmpdir(self):
+        shutil.rmtree(self.tmpdir)
 
 
 class GitSource(Source):
@@ -56,14 +59,20 @@ class PathSource(Source):
         self.schemeless_path = self.uri[len('file://'):]
 
     def get(self):
-        # TODO: check that self.schemeless_path is a directory?
-        base = os.path.basename(self.schemeless_path)
-        copy_to = os.path.join(self.tmpdir, base)
-        if os.path.exists(copy_to):
-            return copy_to
-        else:
-            shutil.copytree(self.schemeless_path, copy_to)
-        return copy_to
+        # work around the weird behaviour of copytree, which requires the top dir
+        #  to *not* exist
+        for f in os.listdir(self.schemeless_path):
+            old = os.path.join(self.schemeless_path, f)
+            new = os.path.join(self.tmpdir, f)
+            if os.path.exists(new):
+                # this is the second invocation of this method; just break the loop
+                break
+            else:
+                if os.path.isdir(old):
+                    shutil.copytree(old, new)
+                else:
+                    shutil.copy2(old, new)
+        return self.tmpdir
 
 
 def get_source_instance_for(source, tmpdir=None):
