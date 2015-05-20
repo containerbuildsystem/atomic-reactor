@@ -14,303 +14,156 @@ Push built image to pulp registry
 from dock.plugin import PostBuildPlugin
 from dock.util import ImageName
 
-import json
+import dockpulp
+import dockpulp.imgutils
+
+import gzip
 import os
+from tempfile import NamedTemporaryFile
 
-import requests
 
+class PulpUploader(object):
+    CER = 'pulp.cer'
+    KEY = 'pulp.key'
 
-class PulpServer(object):
-    """Interact with Pulp API"""
-    def __init__(self, server_url, username, password, verify_ssl, tasker, logger):
-        self._server_url = server_url
-        self._username = username
-        self._password = password
-        self._verify_ssl = verify_ssl
-        self._web_distributor = "docker_web_distributor_name_cli"
-        self._export_distributor = "docker_export_distributor_name_cli"
-        self._importer = "docker_importer"
-        self._export_dir = "/var/www/pub/docker/web/"
-        self._unit_type_id = "docker_image"
-        self._chunk_size = 1048576  # 1 MB per upload call
-        self.tasker = tasker
-        self.logger = logger
+    def __init__(self, pulp_instance, filename, log, pulp_secret_path=None):
+        self.pulp_instance = pulp_instance
+        self.filename = filename
+        self.pulp_secret_path = pulp_secret_path
+        self.log = log
 
-    def _call_pulp(self, url, req_type='get', payload=None):
-        if req_type == 'get':
-            self.logger.info('Calling Pulp URL "{0}"'.format(url))
-            r = requests.get(url, auth=(self._username, self._password), verify=self._verify_ssl)
-        elif req_type == 'post':
-            self.logger.info('Posting to Pulp URL "{0}"'.format(url))
-            if payload:
-                self.logger.debug('Pulp HTTP payload:\n{0}'.format(json.dumps(payload, indent=2)))
-            r = requests.post(url, auth=(self._username, self._password), data=json.dumps(payload), verify=self._verify_ssl)
-        elif req_type == 'put':
-            # some calls pass in binary data so we don't log payload data or json encode it here
-            self.logger.info('Putting to Pulp URL "{0}"'.format(url))
-            r = requests.put(url, auth=(self._username, self._password), data=payload, verify=self._verify_ssl)
-        elif req_type == 'delete':
-            self.logger.info('Delete call to Pulp URL "{0}"'.format(url))
-            r = requests.delete(url, auth=(self._username, self._password), verify=self._verify_ssl)
+    def _check_file(self):
+        # Sanity-check image
+        metadata = dockpulp.imgutils.get_metadata(self.filename)
+        vers = dockpulp.imgutils.get_versions(metadata)
+        good = True
+        for id, version in vers.items():
+            verparts = version.split('.')
+            major = int(verparts[0])
+            if major < 1:
+                minor = 0
+                if len(verparts) > 1:
+                    minor = int(verparts[1])
+                if minor < 10:
+                    raise RuntimeError('An image layer uses an unsupported '
+                                       'version of docker (%s)' % version)
+
+        r_chk = dockpulp.imgutils.check_repo(self.filename)
+        if r_chk == 1:
+            raise RuntimeError('Image is missing a /repositories file')
+        elif r_chk == 2:
+            raise RuntimeError('Pulp demands exactly 1 repo in /repositories')
+        elif r_chk == 3:
+            raise RuntimeError('/repositories references external images')
+
+    def _set_auth(self, p):
+        # The pulp.cer and pulp.key values must be set in a
+        # 'Secret'-type resource, and referenced by the sourceSecret
+        # for the build. The path to our files is now given in the
+        # environment variable SOURCE_SECRET_PATH.
+        if self.pulp_secret_path is not None:
+            path = self.pulp_secret_path
+            self.log.info("Using configured path %s for secrets" % path)
         else:
-            raise ValueError('Invalid value of "req_type" parameter: {0}'.format(req_type))
-        r_json = r.json()
-        # some requests return null
-        if not r_json:
-            return r_json
+            path = os.environ["SOURCE_SECRET_PATH"]
+            self.log.info("SOURCE_SECRET_PATH=%s from environment" % path)
 
-        self.logger.debug('Pulp HTTP status code: {0}'.format(r.status_code))
-        self.logger.debug('Pulp JSON response:\n{0}'.format(json.dumps(r_json, indent=2)))
+        # Work out the pathnames for the certificate/key pair.
+        cer = os.path.join(path, self.CER)
+        key = os.path.join(path, self.KEY)
 
-        if 'error_message' in r_json:
-            self.logger.warn('Error messages from Pulp response:\n{0}'.format(r_json['error_message']))
+        if not os.path.exists(cer):
+            raise RuntimeError("Certificate does not exist.")
+        if not os.path.exists(key):
+            raise RuntimeError("Key does not exist.")
 
-        if 'spawned_tasks' in r_json:
-            for task in r_json['spawned_tasks']:
-                self.logger.debug('Checking status of spawned task {0}'.format(task['task_id']))
-                self._call_pulp('{0}/{1}'.format(self._server_url, task['_href']))
-        return r_json
+        # Tell dockpulp.
+        p.certificate = cer
+        p.key = key
 
-    @property
-    def status(self):
-        """Return pulp server status"""
-        self.logger.info('Verifying Pulp server status')
-        return self._call_pulp('{0}/pulp/api/v2/status/'.format(self._server_url))
+    def push_tarball_to_pulp(self, image_names):
+        self.log.info("Checking image before upload")
+        self._check_file()
 
-    def verify_repo(self, repo_id):
-        """Verify pulp repository exists"""
-        url = '{0}/pulp/api/v2/repositories/{1}/'.format(self._server_url, repo_id)
-        self.logger.info('Verifying pulp repository "{0}"'.format(repo_id))
-        r_json = self._call_pulp(url)
-        if 'error_message' in r_json:
-            raise Exception('Repository "{0}" not found'.format(repo_id))
+        p = dockpulp.Pulp(env=self.pulp_instance)
+        self._set_auth(p)
 
-    def is_repo(self, repo_id):
-        """Return true if repo exists"""
-        url = '{0}/pulp/api/v2/repositories/'.format(self._server_url)
-        self.logger.info('Verifying pulp repository "{0}"'.format(repo_id))
-        r_json = self._call_pulp(url)
-        return repo_id in [repo['id'] for repo in r_json]
+        repos_tags_mapping = {}
+        for image in image_names:
+            repo = image.repo
+            repos_tags_mapping.setdefault(repo, [])
+            repos_tags_mapping[repo].append(image.tag)
+        self.log.info("repo_tags_mapping = %s", repos_tags_mapping)
+        p.push_tar_to_pulp(repos_tags_mapping, self.filename)
 
-    def create_repo(self, image, repo_id):
-        """Create pulp docker repository"""
-        payload = {
-            'id': repo_id,
-            'display_name': image,
-            'description': 'docker image repository',
-            'notes': {
-                '_repo-type': 'docker-repo'
-            },
-            'importer_type_id': self._importer,
-            'importer_config': {},
-            'distributors': [{
-                'distributor_type_id': 'docker_distributor_web',
-                'distributor_id': self._web_distributor,
-                'repo-registry-id': image,
-                'auto_publish': 'true'},
-                {
-                'distributor_type_id': 'docker_distributor_export',
-                'distributor_id': self._export_distributor,
-                'repo-registry-id': image,
-                'docker_publish_directory': self._export_dir,
-                'auto_publish': 'true'}
-                ]
-        }
-        url = '{0}/pulp/api/v2/repositories/'.format(self._server_url)
-        self.logger.info('Verifying pulp repository "{0}"'.format(repo_id))
-        r_json = self._call_pulp(url, "post", payload)
-        if 'error_message' in r_json:
-            raise Exception('Failed to create repository "{0}"'.format(repo_id))
+        # release
+        self.log.info("Releasing to crane")
+        p.crane()
 
-    def update_redirect_url(self, repo_id, redirect_url):
-        """Update distributor redirect URL and export file"""
-        url = '{0}/pulp/api/v2/repositories/{1}/distributors/{2}/'.format(self._server_url, repo_id, self._export_distributor)
-        payload = {
-          "distributor_config": {
-            "redirect-url": redirect_url
-          }
-        }
-        self.logger.info('Update pulp repository "{0}" URL "{1}"'.format(repo_id, redirect_url))
-        r_json = self._call_pulp(url, "put", json.dumps(payload))
-        if 'error_message' in r_json:
-            raise Exception('Unable to update pulp repo "{0}"'.format(repo_id))
 
-    @property
-    def _upload_id(self):
-        """Get a pulp upload ID"""
-        url = '{0}/pulp/api/v2/content/uploads/'.format(self._server_url)
-        r_json = self._call_pulp(url, "post")
-        if 'error_message' in r_json:
-            raise Exception('Unable to get a pulp upload ID')
-        return r_json['upload_id']
-
-    def _delete_upload_id(self, upload_id):
-        """Delete upload request ID"""
-        self.logger.info('Deleting pulp upload ID {0}'.format(upload_id))
-        url = '{0}/pulp/api/v2/content/uploads/{1}/'.format(self._server_url, upload_id)
-        self._call_pulp(url, "delete")
-
-    def upload_image_from_tarfile(self, repo_id, file_upload):
-        """Upload image to pulp repository"""
-        if not os.path.isfile(file_upload):
-            raise Exception('Cannot find file "{0}"'.format(file_upload))
-        else:
-            upload_id = self._upload_id
-            self.logger.info('Uploading image using ID "{0}"'.format(upload_id))
-            self._upload_bits(upload_id, file_upload)
-            self._import_upload(upload_id, repo_id)
-            self._delete_upload_id(upload_id)
-
-    def upload_docker_image(self, image, repo_id):
-        """Upload image to pulp repository"""
-        if not self.tasker.inspect_image(ImageName.parse(image)):
-            raise Exception("Image doesn't exist '{0}'".format(image))
-        else:
-            upload_id = self._upload_id
-            self.logger.info('Uploading image using ID "{0}"'.format(upload_id))
-            self._upload_docker_image(upload_id, image)
-            self._import_upload(upload_id, repo_id)
-            self._delete_upload_id(upload_id)
-
-    def _upload_docker_image(self, upload_id, image):
-        self.logger.info('Uploading docker image ({0})'.format(image))
-        offset = 0
-        image_stream = self.tasker.d.get_image(image)
+def compress(filename, ifp):
+    _chunk_size = 1024*1024  # 1Mb buffer for writing file
+    with gzip.open(filename, "wb", compresslevel=6) as wfp:
         while True:
-            # image_stream.seek(offset)
-            data = image_stream.read(self._chunk_size)
-            if not data:
+            data = ifp.read(_chunk_size)
+            if data == b'':
                 break
-            url = '{0}/pulp/api/v2/content/uploads/{1}/{2}/'.format(self._server_url, upload_id, offset)
-            self.logger.info('Uploading {0}: {1}'.format(image, offset))
-            self._call_pulp(url, "put", data)
-            offset += self._chunk_size
-        image_stream.close()
 
-    def _upload_bits(self, upload_id, file_upload):
-        self.logger.info('Uploading file ({0})'.format(file_upload))
-        offset = 0
-        source_file_size = os.path.getsize(file_upload)
-        f = open(file_upload, 'r')
-        while True:
-            f.seek(offset)
-            data = f.read(self._chunk_size)
-            if not data:
-                break
-            url = '{0}/pulp/api/v2/content/uploads/{1}/{2}/'.format(self._server_url, upload_id, offset)
-            self.logger.info('Uploading {0}: {1} of {2} bytes'.format(file_upload, offset, source_file_size))
-            self._call_pulp(url, "put", data)
-            offset = min(offset + self._chunk_size, source_file_size)
-        f.close()
-
-    def _import_upload(self, upload_id, repo_id):
-        """Import uploaded content"""
-        self.logger.info('Importing pulp upload {0} into {1}'.format(upload_id, repo_id))
-        url = '{0}/pulp/api/v2/repositories/{1}/actions/import_upload/'.format(self._server_url, repo_id)
-        payload = {
-          'upload_id': upload_id,
-          'unit_type_id': self._unit_type_id,
-          'unit_key': None,
-          'unit_metadata': None,
-          'override_config': None
-        }
-        r_json = self._call_pulp(url, "post", payload)
-        if 'error_message' in r_json:
-            raise Exception('Unable to import pulp content into {0}'.format(repo_id))
-
-    def _publish_repo(self, repo_id):
-        """Publish pulp repository to pulp web server"""
-        url = '{0}/pulp/api/v2/repositories/{1}/actions/publish/'.format(self._server_url, repo_id)
-        payload = {
-          "id": self._web_distributor,
-          "override_config": {}
-        }
-        self.logger.info('Publishing pulp repository "{0}"'.format(repo_id))
-        r_json = self._call_pulp(url, "post", payload)
-        if 'error_message' in r_json:
-            raise Exception('Unable to publish pulp repo "{0}"'.format(repo_id))
-
-    def export_repo(self, repo_id):
-        """Export pulp repository to pulp web server as tar
-
-        The tarball is split into the layer components and crane metadata.
-        It is for the purpose of uploading to remote crane server"""
-        url = '{0}/pulp/api/v2/repositories/{1}/actions/publish/'.format(self._server_url, repo_id)
-        payload = {
-          "id": self._export_distributor,
-          "override_config": {
-            "export_file": '{0}{1}.tar'.format(self._export_dir, repo_id),
-          }
-        }
-        self.logger.info('Exporting pulp repository "{0}"'.format(repo_id))
-        r_json = self._call_pulp(url, "post", payload)
-        if 'error_message' in r_json:
-            raise Exception('Unable to export pulp repo "{0}"'.format(repo_id))
-
-
-def push_image_to_pulp(repo, image, server_url, username, password, verify_ssl, tasker, logger):
-    try:
-        pulp = PulpServer(server_url=server_url, username=username,
-                          password=password, verify_ssl=verify_ssl, tasker=tasker, logger=logger)
-        logger.info("pulp server status: %s", pulp.status)
-    except Exception as e:
-        logger.critical('Failed to initialize Pulp: {0}'.format(e))
-        return
-    else:
-        if not pulp.is_repo(repo):
-            try:
-                pulp.create_repo(image, repo)
-            except Exception as e:
-                logger.critical('Failed to create Pulp repository: {0}'.format(e))
-        try:
-            pulp.upload_docker_image(image, repo)
-            logger.info('Uploaded image to pulp repo "{0}"'.format("busybox"))
-        except Exception as e:
-            logger.error('Failed to upload image to Pulp: {0}'.format(e))
-            raise
-        else:
-            pulp.export_repo(repo)
+            wfp.write(data)
 
 
 class PulpPushPlugin(PostBuildPlugin):
     key = "pulp_push"
+    can_fail = False
 
-    def __init__(self, tasker, workflow, image, server_url=None, username=None, password=None, verify_ssl=True):
+    def __init__(self, tasker, workflow, pulp_registry_name, load_squashed_image=False, image_names=None, pulp_secret_path=None):
         """
         constructor
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param image: str, docker image to push to pulp registry
-        :param server_url: str, URL to pulp server
-        :param username: str
-        :param password: str
-        :param verify_ssl: str, verify certificate of the SSL connection
+        :param pulp_registry_name: str, name of pulp registry to use, specified in /etc/dockpulp.conf
+        :param load_squashed_image: bool, when running squash plugin with `dont_load=True`,
+                                    you may load the squashed tar with this switch
+        :param image_names: list of additional image names
+        :param pulp_secret_path: path to pulp.cer and pulp.key; $SOURCE_SECRET_PATH otherwise
         """
         # call parent constructor
         super(PulpPushPlugin, self).__init__(tasker, workflow)
-        self.image = image
-        self.server_url = server_url or self.get_or_raise(os.environ, 'PULP_SERVER_URL')
-        self.username = username or self.get_or_raise(os.environ, 'PULP_USERNAME')
-        self.password = password or self.get_or_raise(os.environ, 'PULP_PASSWORD')
-        self.verify_ssl = verify_ssl
+        self.pulp_registry_name = pulp_registry_name
+        self.image_names = image_names
+        self.load_squashed_image = load_squashed_image
+        self.pulp_secret_path = pulp_secret_path
 
-    def get_or_raise(self, d, k):
-        try:
-            return d[k]
-        except KeyError:
-            self.log.error("there is no key '%s'", k)
-            raise RuntimeError("missing key '%s'")
+    def push_tar(self, image_stream, image_names=None):
+        with NamedTemporaryFile(prefix='docker-image-',
+                                suffix='.tar.gz') as targz:
+            # Compress the tarball docker gave us.
+            self.log.info("Compressing tarball to %s" % targz.name)
+            compress(targz.name, image_stream)
+
+            # Find out how to tag this image.
+            self.log.info("Image names: %s" % repr(image_names))
+
+            # Give that compressed tarball to pulp.
+            uploader = PulpUploader(self.pulp_registry_name, targz.name, self.log,
+                                    pulp_secret_path=self.pulp_secret_path)
+            uploader.push_tarball_to_pulp(image_names)
 
     def run(self):
-        repo = self.image.split(":")[0].replace("/", '-')
-        return push_image_to_pulp(
-            repo,
-            self.image,
-            self.server_url,
-            self.username,
-            self.password,
-            self.verify_ssl,
-            self.tasker,
-            self.log,
-        )
+        image_names = self.workflow.tag_conf.images[:]
+        # Add in additional image names, if any
+        if self.image_names:
+            self.log.info("extending image names")
+            image_names += map(lambda x: ImageName.parse(x), self.image_names)
+
+        # Work out image ID
+        image = self.workflow.image
+        self.log.info("Image ID: %s" % image)
+
+        if self.load_squashed_image:
+            with open(self.workflow.exported_squashed_image.get("path"), "r") as image_stream:
+                self.push_tar(image_stream, image_names)
+        else:
+            with self.tasker.d.get_image(image) as image_stream:
+                self.push_tar(image_stream, image_names)

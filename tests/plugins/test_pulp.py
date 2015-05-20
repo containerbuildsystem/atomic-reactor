@@ -11,32 +11,68 @@ from __future__ import unicode_literals
 import os
 import logging
 
-try:
-    # py3
-    from configparser import SafeConfigParser
-except ImportError:
-    # py2
-    from ConfigParser import SafeConfigParser
-
 from dock.core import DockerTasker
-from dock.plugins.post_push_to_pulp import push_image_to_pulp
+from dock.inner import DockerBuildWorkflow
+from dock.plugin import PostBuildPluginsRunner
+from dock.util import ImageName
+from tests.constants import INPUT_IMAGE, SOURCE, LOCALHOST_REGISTRY_HTTP
+try:
+    import dockpulp
+    from dock.plugins.post_push_to_pulp import PulpPushPlugin
+except ImportError:
+    dockpulp = None
 
 import pytest
+from flexmock import flexmock
+from tests.docker_mock import mock_docker
 
 
-PULP_CONF_PATH = os.path.expanduser("~/.pulp/admin.conf")
+class X(object):
+    image_id = INPUT_IMAGE
+    git_dockerfile_path = None
+    git_path = None
+    base_image = ImageName(repo="qwe", tag="asd")
 
 
-@pytest.mark.skipif(not os.path.exists(PULP_CONF_PATH),
-                    reason="no pulp config found at %s" % PULP_CONF_PATH)
-def test_pulp():
+@pytest.mark.skipif(dockpulp is None,
+                    reason='dockpulp module not available')
+def test_pulp(tmpdir):
     tasker = DockerTasker()
-    parsed_config = SafeConfigParser()
-    assert len(parsed_config.read(PULP_CONF_PATH)) > 0
+    workflow = DockerBuildWorkflow(SOURCE, "test-image")
+    setattr(workflow, 'builder', X())
+    setattr(workflow.builder, 'source', X())
+    setattr(workflow.builder.source, 'dockerfile_path', None)
+    setattr(workflow.builder.source, 'path', None)
+    setattr(workflow, 'tag_conf', X())
+    setattr(workflow.tag_conf, 'images', [ImageName(repo="image-name1"),
+                                          ImageName(namespace="prefix",
+                                                    repo="image-name2")])
 
-    host = parsed_config.get("server", "host")
-    un = parsed_config.get("server", "username")
-    pswd = parsed_config.get("server", "password")
-    verify_ssl = parsed_config.getboolean("server", "verify_ssl")
-    push_image_to_pulp("busybox-test", "busybox", host, un, pswd, verify_ssl,
-                       tasker, logging.getLogger("dock.tests"))
+    # Mock dockpulp and docker
+    dockpulp.Pulp = flexmock(dockpulp.Pulp)
+    (flexmock(dockpulp.imgutils).should_receive('get_metadata')
+     .with_args(object)
+     .and_return([{'id': 'foo'}]))
+    (flexmock(dockpulp.imgutils).should_receive('get_versions')
+     .with_args(object)
+     .and_return({'id': '1.6.0'}))
+    flexmock(dockpulp.imgutils).should_receive('check_repo').and_return(0)
+    (flexmock(dockpulp.Pulp)
+     .should_receive('push_tar_to_pulp')
+     .with_args(object, object))
+    flexmock(dockpulp.Pulp).should_receive('crane').with_args()
+    mock_docker()
+
+    os.environ['SOURCE_SECRET_PATH'] = str(tmpdir)
+    with open(os.path.join(str(tmpdir), "pulp.cer"), "wt") as cer:
+        cer.write("pulp certificate\n")
+    with open(os.path.join(str(tmpdir), "pulp.key"), "wt") as key:
+        key.write("pulp key\n")
+
+    runner = PostBuildPluginsRunner(tasker, workflow, [{
+        'name': PulpPushPlugin.key,
+        'args': {
+            'pulp_registry_name': 'test'
+        }}])
+    runner.run()
+    assert PulpPushPlugin.key is not None
