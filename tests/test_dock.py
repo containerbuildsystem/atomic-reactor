@@ -5,18 +5,29 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-
 from __future__ import unicode_literals
+
+import pytest
 
 from dock.core import DockerTasker
 from dock.outer import PrivilegedBuildManager, DockerhostBuildManager
 from dock.util import ImageName
-from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, TEST_IMAGE, MOCK
+from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, DOCKERFILE_SUBDIR_PATH,\
+        DOCKERFILE_ERROR_BUILD_PATH, TEST_IMAGE, MOCK
 
 if MOCK:
     from tests.docker_mock import mock_docker
 
-def test_hostdocker_build():
+
+with_all_sources = pytest.mark.parametrize('source_params', [
+    {'provider': 'git', 'uri': 'https://github.com/fedora-cloud/Fedora-Dockerfiles.git',
+     'dockerfile_path': 'ssh/'},
+    {'provider': 'path', 'uri': 'file://' + DOCKERFILE_SUBDIR_PATH,
+     'dockerfile_path': 'ssh/'},
+])
+
+@with_all_sources
+def test_hostdocker_build(source_params):
     if MOCK:
         mock_docker()
 
@@ -24,11 +35,7 @@ def test_hostdocker_build():
     remote_image = image_name.copy()
     remote_image.registry = LOCALHOST_REGISTRY
     m = DockerhostBuildManager("buildroot-dh-fedora", {
-        "source": {
-            "provider": "git",
-            "uri": "https://github.com/fedora-cloud/Fedora-Dockerfiles.git",
-            "dockerfile_path": "ssh/"
-        },
+        "source": source_params,
         "image": remote_image.to_str(),
         "parent_registry": LOCALHOST_REGISTRY,  # faster
         "target_registries_insecure": True,
@@ -50,7 +57,11 @@ def test_hostdocker_build():
     dt.remove_image(remote_image)
 
 
-def test_hostdocker_error_build():
+@pytest.mark.parametrize('source_params', [
+    {'provider': 'git', 'uri': DOCKERFILE_GIT, 'provider_params': {'git_commit': 'error-build'}},
+    {'provider': 'path', 'uri': 'file://' + DOCKERFILE_ERROR_BUILD_PATH},
+])
+def test_hostdocker_error_build(source_params):
     if MOCK:
         mock_docker(wait_should_fail=True)
 
@@ -73,7 +84,8 @@ def test_hostdocker_error_build():
     dt.remove_container(results.container_id)
 
 
-def test_privileged_gitrepo_build():
+@with_all_sources
+def test_privileged_gitrepo_build(source_params):
     if MOCK:
         mock_docker()
 
@@ -81,11 +93,7 @@ def test_privileged_gitrepo_build():
     remote_image = image_name.copy()
     remote_image.registry = LOCALHOST_REGISTRY
     m = PrivilegedBuildManager("buildroot-fedora", {
-        "source": {
-            "provider": "git",
-            "uri": "https://github.com/fedora-cloud/Fedora-Dockerfiles.git",
-            "dockerfile_path": "ssh/"
-        },
+        "source": source_params,
         "image": remote_image.to_str(),
         "parent_registry": LOCALHOST_REGISTRY,  # faster
         "target_registries_insecure": True,
@@ -106,7 +114,9 @@ def test_privileged_gitrepo_build():
     dt.remove_container(results.container_id)
     dt.remove_image(remote_image)
 
-def test_privileged_build():
+
+@with_all_sources
+def test_privileged_build(source_params):
     if MOCK:
         mock_docker()
 
@@ -114,10 +124,7 @@ def test_privileged_build():
     remote_image = image_name.copy()
     remote_image.registry = LOCALHOST_REGISTRY
     m = PrivilegedBuildManager("buildroot-fedora", {
-        "source": {
-            "provider": "git",
-            "uri": DOCKERFILE_GIT,
-        },
+        "source": source_params,
         "image": remote_image.to_str(),
         "parent_registry": LOCALHOST_REGISTRY,  # faster
         "target_registries_insecure": True,

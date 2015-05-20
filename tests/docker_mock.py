@@ -12,7 +12,11 @@ import os
 import docker
 from flexmock import flexmock
 
+from dock.constants import DOCKER_SOCKET_PATH
+
 from tests.constants import COMMAND
+
+old_ope = os.path.exists
 
 mock_containers = \
     [{'Created': 1430292310,
@@ -98,7 +102,7 @@ def mock_docker(build_should_fail=False,
     flexmock(docker.Client, wait=lambda cid: 1 if wait_should_fail else 0)
     flexmock(docker.Client, get_image=lambda img, **kwargs: open("/dev/null",
                                                                  "rb"))
-    flexmock(os.path, exists=lambda path: True)  # DOCKER_SOCKET_PATH check
+    flexmock(os.path, exists=lambda p: True if p == DOCKER_SOCKET_PATH else old_ope(p))
 
     for method, args in should_raise_error.items():
         response = flexmock(content="abc", status_code=123)
