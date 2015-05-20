@@ -94,6 +94,8 @@ def mock_docker(build_should_fail=False,
     flexmock(docker.Client, start=lambda cid, **kwargs: None)
     flexmock(docker.Client, tag=lambda img, rep, **kwargs: True)
     flexmock(docker.Client, wait=lambda cid: 1 if wait_should_fail else 0)
+    flexmock(docker.Client, get_image=lambda img, **kwargs: open("/dev/null",
+                                                                 "rb"))
     flexmock(os.path, exists=lambda path: True)  # DOCKER_SOCKET_PATH check
 
     for method, args in should_raise_error.items():
