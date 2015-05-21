@@ -23,17 +23,17 @@ from dock.plugin import PreBuildPluginsRunner
 from dock.plugins.pre_inject_yum_repo import InjectYumRepoPlugin, alter_yum_commands
 from dock.util import ImageName, render_yum_repo, DockerfileParser
 from tests.constants import DOCKERFILE_GIT
+import os.path
 from collections import namedtuple
 import requests
 from flexmock import flexmock
-import os.path
-
-
-SOURCE = {'provider': 'git', 'uri': DOCKERFILE_GIT}
 
 
 class X(object):
     pass
+
+
+SOURCE = {'provider': 'git', 'uri': DOCKERFILE_GIT}
 
 
 def test_yuminject_plugin_notwrapped(tmpdir):
@@ -327,7 +327,6 @@ DOCKERFILES = {
                    # remove goes here
                    ["ENTRYPOINT ['/bin/bash']\n",
                     "CMD ['/bin/ls']\n"]),
-
     "user":
     Dockerfile(["FROM base\n",
                 "MAINTAINER Example <example@example.com\n"],

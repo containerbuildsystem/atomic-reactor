@@ -5,7 +5,6 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-
 from __future__ import unicode_literals
 
 import os
@@ -18,8 +17,8 @@ except ImportError:
     from ordereddict import OrderedDict
 import docker
 from dock.util import ImageName, DockerfileParser, \
-                      wait_for_command, clone_git_repo, LazyGit, figure_out_dockerfile, render_yum_repo
-from tests.constants import NON_ASCII, DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1
+    wait_for_command, clone_git_repo, LazyGit, figure_out_dockerfile, render_yum_repo
+from tests.constants import NON_ASCII, DOCKERFILE_SHA1, DOCKERFILE_GIT, INPUT_IMAGE, MOCK
 
 if MOCK:
     from tests.docker_mock import mock_docker
