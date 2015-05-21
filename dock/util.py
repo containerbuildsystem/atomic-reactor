@@ -16,9 +16,9 @@ import shutil
 import subprocess
 import tempfile
 import logging
+import uuid
 from dock.constants import DOCKERFILE_FILENAME
 
-__author__ = 'ttomecek'
 
 logger = logging.getLogger(__name__)
 
@@ -308,3 +308,24 @@ class LazyGit(object):
         if not self.provided_tmpdir:
             if self.our_tmpdir:
                 shutil.rmtree(self.our_tmpdir)
+
+
+def escape_dollar(v):
+    try:
+        str_type = unicode
+    except NameError:
+        str_type = str
+    if isinstance(v, str_type):
+        return v.replace('$', r'\$')
+    else:
+        return v
+
+
+def render_yum_repo(repo):
+    repo.setdefault("name", str(uuid.uuid4().hex[:6]))
+    repo_name = repo["name"]
+    logger.info("rendering repo '%s'", repo_name)
+    rendered_repo = '[%s]\n' % repo_name
+    for key, value in repo.items():
+        rendered_repo += "%s=%s\n" % (key, escape_dollar(value))
+    return rendered_repo

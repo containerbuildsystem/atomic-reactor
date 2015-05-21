@@ -8,9 +8,12 @@ of the BSD license. See the LICENSE file for details.
 
 Pre build plugin for koji build system
 """
+import os
 import koji
+from dock.constants import YUM_REPOS_DIR
 
 from dock.plugin import PreBuildPlugin
+from dock.util import render_yum_repo
 
 
 class KojiPlugin(PreBuildPlugin):
@@ -45,11 +48,12 @@ class KojiPlugin(PreBuildPlugin):
         repo_info = self.xmlrpc.getRepo(tag_info['id'])
         baseurl = self.pathinfo.repo(repo_info['id'], tag_info['name']) + r'/\$basearch'
 
-        self.workflow.repos.setdefault('yum', [])
         repo = {
             'name': 'dock-koji-plugin-%s' % self.target,
             'baseurl': baseurl,
             'enabled': 1,
             'gpgcheck': 0,
         }
-        self.workflow.repos['yum'].append(repo)
+        path = os.path.join(YUM_REPOS_DIR, self.target + ".repo")
+        self.log.info("yum repo of koji target: '%s'", path)
+        self.workflow.files[path] = render_yum_repo(repo)

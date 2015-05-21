@@ -10,7 +10,10 @@ Add arbitrary yum repo to a list of repos which should be injected into built im
 
 This plugin has to run _BEFORE_ yum inject plugin.
 """
+import os
+from dock.constants import YUM_REPOS_DIR
 from dock.plugin import PreBuildPlugin
+from dock.util import render_yum_repo
 
 
 class AddYumRepoPlugin(PreBuildPlugin):
@@ -42,4 +45,6 @@ class AddYumRepoPlugin(PreBuildPlugin):
             'enabled': 1,
             'gpgcheck': 0,
         }
-        self.workflow.repos['yum'].append(repo)
+        path = os.path.join(YUM_REPOS_DIR, self.repo_name + ".repo")
+        self.log.info("yum repo of koji target: '%s'", path)
+        self.workflow.files[path] = render_yum_repo(repo)

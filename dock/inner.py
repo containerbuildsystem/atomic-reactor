@@ -173,7 +173,9 @@ class DockerBuildWorkflow(object):
         #       get rid of target_reg*, push_built_img
         self.tag_and_push_conf = TagAndPushConf()
 
-        self.repos = {}  # this should be filled by plugins
+        # mapping of downloaded files; DON'T PUT ANYTHING BIG HERE!
+        # "path/to/file" -> "content"
+        self.files = {}
 
         if kwargs:
             logger.warning("unprocessed keyword arguments: %s", kwargs)

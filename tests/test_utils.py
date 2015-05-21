@@ -5,11 +5,17 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+from __future__ import unicode_literals
 
 import os
+try:
+    from collections import OrderedDict
+except ImportError:
+    # Python 2.6
+    from ordereddict import OrderedDict
 import docker
 from dock.util import ImageName, get_baseimage_from_dockerfile, get_labels_from_dockerfile, \
-                      wait_for_command, clone_git_repo, LazyGit, figure_out_dockerfile
+                      wait_for_command, clone_git_repo, LazyGit, figure_out_dockerfile, render_yum_repo
 from tests.constants import DOCKERFILE_FILENAME, DOCKERFILE_GIT, INPUT_IMAGE, MOCK
 
 if MOCK:
@@ -108,3 +114,20 @@ def test_lazy_git_with_tmpdir(tmpdir):
     lazy_git = LazyGit(git_url=DOCKERFILE_GIT, tmpdir=t)
     assert lazy_git._tmpdir == t
     assert lazy_git.git_path is not None
+
+
+def test_render_yum_repo_unicode():
+    yum_repo = OrderedDict((
+        ("name", "asd"),
+        ("baseurl", "http://example.com/$basearch/test.repo"),
+        ("enabled", "1"),
+        ("gpgcheck", "0"),
+    ))
+    rendered_repo = render_yum_repo(yum_repo)
+    assert rendered_repo == """\
+[asd]
+name=asd
+baseurl=http://example.com/\$basearch/test.repo
+enabled=1
+gpgcheck=0
+"""

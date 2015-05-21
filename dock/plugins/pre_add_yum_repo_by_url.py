@@ -19,10 +19,10 @@ Example configuration to add content of repo file at URL:
 }
 
 """
+from dock.constants import YUM_REPOS_DIR
 from dock.plugin import PreBuildPlugin
 import os
 import os.path
-import re
 import requests
 
 try:
@@ -34,10 +34,10 @@ except ImportError:
 
 
 class YumRepo(object):
-    def __init__(self, repourl, src_repos_dir, dst_repos_dir):
+    def __init__(self, repourl, dst_repos_dir=YUM_REPOS_DIR):
         self.repourl = repourl
-        self.src_repos_dir = src_repos_dir
         self.dst_repos_dir = dst_repos_dir
+        self.content = None
 
     @property
     def filename(self):
@@ -45,64 +45,13 @@ class YumRepo(object):
         return os.path.basename(urlpath)
 
     @property
-    def src_filename(self):
-        return os.path.join(self.src_repos_dir, self.filename)
-
-    @property
     def dst_filename(self):
         return os.path.join(self.dst_repos_dir, self.filename)
 
-    def fetch(self, relative_to):
+    def fetch(self):
         response = requests.get(self.repourl)
         response.raise_for_status()
-        with open(os.path.join(relative_to, self.src_filename), "wb") as fp:
-            fp.write(response.content)
-
-
-def add_yum_repos_to_dockerfile(yumrepos, df, src_repos_dir, dst_repos_dir):
-    num_lines = len(df)
-    if num_lines == 0:
-        raise RuntimeError("Empty Dockerfile")
-
-    # Find where to insert commands
-
-    def first_word_is(word):
-        return re.compile(r"^\s*" + word + r"\s", flags=re.IGNORECASE)
-
-    fromre = first_word_is("FROM")
-    maintainerre = first_word_is("MAINTAINER")
-    preinsert = None
-    for n in range(num_lines):
-        if maintainerre.match(df[n]):
-            # MAINTAINER line: stop looking
-            preinsert = n + 1
-            break
-        elif fromre.match(df[n]):
-            # FROM line: can use this, but keep looking in case there
-            # is a MAINTAINER line
-            preinsert = n + 1
-
-    if preinsert is None:
-        raise RuntimeError("No FROM line in Dockerfile")
-
-    cmdre = first_word_is("(CMD|ENTRYPOINT)")
-    postinsert = None  # append by default
-    for n in range(preinsert, num_lines):
-        if cmdre.match(df[n]):
-            postinsert = n
-            break
-
-    newdf = df[:preinsert]
-    newdf.append("ADD '%s'/* '%s'\n" % (src_repos_dir, dst_repos_dir))
-    newdf.extend(df[preinsert:postinsert])
-    newdf.append("RUN rm -f " +
-                 " ".join(["'%s'" % yumrepo.dst_filename
-                           for yumrepo in yumrepos]) +
-                 "\n")
-    if postinsert is not None:
-        newdf.extend(df[postinsert:])
-
-    return newdf
+        self.content = response.content
 
 
 class AddYumRepoByUrlPlugin(PreBuildPlugin):
@@ -120,26 +69,15 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
         # call parent constructor
         super(AddYumRepoByUrlPlugin, self).__init__(tasker, workflow)
         self.repourls = repourls
-        self.src_repos_dir = 'repos'
-        self.dst_repos_dir = '/etc/yum.repos.d/'
 
     def run(self):
         """
         run the plugin
         """
-        yumrepos = [YumRepo(repourl, self.src_repos_dir, self.dst_repos_dir)
-                    for repourl in self.repourls]
-        if yumrepos:
-            os.mkdir(os.path.join(self.workflow.builder.df_dir,
-                                  self.src_repos_dir))
-            for yumrepo in yumrepos:
-                yumrepo.fetch(self.workflow.builder.df_dir)
-
-            with open(self.workflow.builder.df_path, "r+") as fp:
-                df = fp.readlines()
-                df = add_yum_repos_to_dockerfile(yumrepos, df,
-                                                 self.src_repos_dir,
-                                                 self.dst_repos_dir)
-                fp.seek(0)
-                fp.truncate()
-                fp.writelines(df)
+        if self.repourls:
+            for repourl in self.repourls:
+                yumrepo = YumRepo(repourl)
+                yumrepo.fetch()
+                self.log.info("fetched repo from '%s'", yumrepo.repourl)
+                self.workflow.files[yumrepo.dst_filename] = yumrepo.content
+                self.log.debug("saving repo '%s', length %d", yumrepo.dst_filename, len(yumrepo.content))
