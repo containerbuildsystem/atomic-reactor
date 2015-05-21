@@ -1,3 +1,5 @@
+%{!?_licensedir:%global license %%doc}
+
 %if (0%{?fedora} >= 23 || 0%{?rhel} >= 8)
 %global with_python3 1
 %endif
@@ -150,14 +152,11 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 
 %files
 %doc README.md
-%{!?_licensedir:%global license %%doc}
-%license LICENSE
 %{_bindir}/dock
 
 
 %files -n python-dock
 %doc README.md
-%{!?_licensedir:%global license %%doc}
 %license LICENSE
 %{_bindir}/dock2
 %dir %{python2_sitelib}/dock
@@ -183,7 +182,6 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 %if 0%{?with_python3}
 %files -n python3-dock
 %doc README.md
-%{!?_licensedir:%global license %%doc}
 %license LICENSE
 %{_bindir}/dock3
 %dir %{python3_sitelib}/dock
