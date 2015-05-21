@@ -47,8 +47,10 @@ class TagByLabelsPlugin(PostBuildPlugin):
         version = get_label("Version")
         release = get_label("Release")
 
-        image = "%s:%s_%s" % (name, version, release)
+        nvr = "%s:%s_%s" % (name, version, release)
+        nv = "%s:%s" % (name, version)
 
         target_registries_insecure = self.insecure or self.workflow.target_registries_insecure
 
-        self.workflow.tag_and_push_conf.add_image(self.registry_uri, image, target_registries_insecure)
+        self.workflow.tag_and_push_conf.add_image(self.registry_uri, nvr, target_registries_insecure)
+        self.workflow.tag_and_push_conf.add_image(self.registry_uri, nv, target_registries_insecure)
