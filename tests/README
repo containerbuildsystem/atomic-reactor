@@ -12,5 +12,5 @@ $ docker tag buildroot:latest buildroot-dh-fedora
 $ docker tag buildroot:latest buildroot-fedora
 $ docker pull fedora:latest
 $ docker tag fedora:latest localhost:5000/fedora:latest
-$ docker push fedora:latest localhost:5000/fedora:latest
+$ docker push localhost:5000/fedora:latest
 $ NOMOCK=1 py.test -v
