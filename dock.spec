@@ -69,7 +69,6 @@ License:        BSD
 Requires:       python-docker-py
 Requires:       python-requests
 Requires:       python-setuptools
-Requires:       GitPython
 
 %description -n python-dock
 Simple Python 2 library for building docker images. It contains
