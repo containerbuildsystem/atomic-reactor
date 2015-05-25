@@ -72,6 +72,7 @@ class AddDockerfilePlugin(PreBuildPlugin):
             if name is None or version is None or release is None:
                 raise ValueError("You have to specify either nvr arg or Name/Version/Release labels.")
             nvr = "{0}-{1}-{2}".format(name, version, release)
+            nvr = nvr.replace("/", "-")
         self.df_name = '{0}-{1}'.format(DOCKERFILE_FILENAME, nvr)
         self.df_dir = destdir
         self.df_path = os.path.join(self.df_dir, self.df_name)
