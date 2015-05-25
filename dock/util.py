@@ -10,6 +10,7 @@ from __future__ import print_function, unicode_literals
 
 import json
 import os
+from pipes import quote
 import re
 import shlex
 import shutil
@@ -229,7 +230,7 @@ def clone_git_repo(git_url, target_dir, commit=None):
     :param git_url: str, git repo to clone
     :param target_dir: str, filesystem path where the repo should be cloned
     :param commit: str, commit to checkout
-    :return:
+    :return: str, commit ID of HEAD
     """
     commit = commit or "master"
     logger.info("clone git repo")
@@ -237,8 +238,13 @@ def clone_git_repo(git_url, target_dir, commit=None):
                  git_url, target_dir, commit)
 
     # http://stackoverflow.com/questions/1911109/clone-a-specific-git-branch/4568323#4568323
-    cmd = ["git", "clone", "-b", commit, "--single-branch", git_url, target_dir]
+    cmd = ["git", "clone", "-b", commit, "--single-branch", git_url, quote(target_dir)]
     subprocess.check_call(cmd)
+    cmd = ["git", "-C", quote(target_dir), "rev-parse", "HEAD"]
+    commit_id = subprocess.check_output(cmd)
+    commit_id = commit_id.strip()
+    logger.info("commit ID = %s", commit_id)
+    return commit_id
 
 
 def figure_out_dockerfile(absolute_path, local_path=None):
@@ -285,7 +291,10 @@ class LazyGit(object):
     """
     def __init__(self, git_url, commit=None, tmpdir=None):
         self.git_url = git_url
+        # provided commit ID/reference to check out
         self.commit = commit
+        # commit ID of HEAD; we'll figure this out ourselves
+        self._commit_id = None
         self.provided_tmpdir = tmpdir
         self._git_path = None
 
@@ -294,9 +303,13 @@ class LazyGit(object):
         return self.provided_tmpdir or self.our_tmpdir
 
     @property
+    def commit_id(self):
+        return self._commit_id
+
+    @property
     def git_path(self):
         if self._git_path is None:
-            clone_git_repo(self.git_url, self._tmpdir, self.commit)
+            self._commit_id = clone_git_repo(self.git_url, self._tmpdir, self.commit)
             self._git_path = self._tmpdir
         return self._git_path
 

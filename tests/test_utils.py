@@ -57,7 +57,9 @@ def test_wait_for_command():
 
 def test_clone_git_repo(tmpdir):
     tmpdir_path = str(tmpdir.realpath())
-    clone_git_repo(DOCKERFILE_GIT, tmpdir_path)
+    commit_id = clone_git_repo(DOCKERFILE_GIT, tmpdir_path)
+    assert commit_id is not None
+    assert len(commit_id) == 40  # current git hashes are this long
     assert os.path.isdir(os.path.join(tmpdir_path, '.git'))
 
 
@@ -107,6 +109,8 @@ def test_lazy_git():
     lazy_git = LazyGit(git_url=DOCKERFILE_GIT)
     with lazy_git:
         assert lazy_git.git_path is not None
+        assert lazy_git.commit_id is not None
+        assert len(lazy_git.commit_id) == 40  # current git hashes are this long
 
 
 def test_lazy_git_with_tmpdir(tmpdir):
@@ -114,6 +118,8 @@ def test_lazy_git_with_tmpdir(tmpdir):
     lazy_git = LazyGit(git_url=DOCKERFILE_GIT, tmpdir=t)
     assert lazy_git._tmpdir == t
     assert lazy_git.git_path is not None
+    assert lazy_git.commit_id is not None
+    assert len(lazy_git.commit_id) == 40  # current git hashes are this long
 
 
 def test_render_yum_repo_unicode():

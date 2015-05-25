@@ -91,5 +91,6 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
             "logs": "\n".join(self.workflow.build_logs),
             "rpm-packages": "\n".join(self.workflow.postbuild_results.get("all_rpm_packages", "")),
             "repositories": json.dumps(repositories),
+            "commit_id": self.workflow.builder.commit_id,
         }
         o.set_annotations_on_build(build_id, labels)
