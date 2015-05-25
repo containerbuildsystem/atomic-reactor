@@ -261,11 +261,11 @@ def clone_git_repo(git_url, target_dir, commit=None):
     # http://stackoverflow.com/questions/1911109/clone-a-specific-git-branch/4568323#4568323
     cmd = ["git", "clone", "-b", commit, "--single-branch", git_url, quote(target_dir)]
     subprocess.check_call(cmd)
-    cmd = ["git", "-C", quote(target_dir), "rev-parse", "HEAD"]
+    cmd = ["git", "rev-parse", "HEAD"]
     try:
-        commit_id = subprocess.check_output(cmd)  # py 2.7
+        commit_id = subprocess.check_output(cmd, cwd=target_dir)  # py 2.7
     except AttributeError:
-        commit_id = backported_check_output(cmd)  # py 2.6
+        commit_id = backported_check_output(cmd, cwd=target_dir)  # py 2.6
     commit_id = commit_id.strip()
     logger.info("commit ID = %s", commit_id)
     return commit_id
