@@ -223,6 +223,27 @@ def wait_for_command(logs_generator):
     return cr
 
 
+def backported_check_output(*popenargs, **kwargs):
+    """
+    Run command with arguments and return its output as a byte string.
+
+    Backported from Python 2.7 as it's implemented as pure python on stdlib.
+
+    https://gist.github.com/edufelipe/1027906
+    """
+    process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
+    output, _ = process.communicate()
+    retcode = process.poll()
+    if retcode:
+        cmd = kwargs.get("args")
+        if cmd is None:
+            cmd = popenargs[0]
+        error = subprocess.CalledProcessError(retcode, cmd)
+        error.output = output
+        raise error
+    return output
+
+
 def clone_git_repo(git_url, target_dir, commit=None):
     """
     clone provided git repo to target_dir, optionally checkout provided commit
@@ -241,7 +262,10 @@ def clone_git_repo(git_url, target_dir, commit=None):
     cmd = ["git", "clone", "-b", commit, "--single-branch", git_url, quote(target_dir)]
     subprocess.check_call(cmd)
     cmd = ["git", "-C", quote(target_dir), "rev-parse", "HEAD"]
-    commit_id = subprocess.check_output(cmd)
+    try:
+        commit_id = subprocess.check_output(cmd)  # py 2.7
+    except AttributeError:
+        commit_id = backported_check_output(cmd)  # py 2.6
     commit_id = commit_id.strip()
     logger.info("commit ID = %s", commit_id)
     return commit_id
