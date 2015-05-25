@@ -9,8 +9,8 @@
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 
 Name:           dock
-Version:        1.2.1
-Release:        3%{?dist}
+Version:        1.3.0
+Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -213,6 +213,9 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 
 
 %changelog
+* Mon May 25 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.3.0-1
+- new upstream release 1.3.0
+
 * Tue May 19 2015 Jiri Popelka <jpopelka@redhat.com> - 1.2.1-3
 - fix el7 build
 

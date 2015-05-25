@@ -36,7 +36,7 @@ def _install_requirements():
     return requirements
 
 setup(name='dock',
-      version='1.2.1',
+      version='1.3.0',
       description='improved builder for docker images',
       author='Tomas Tomecek',
       author_email='ttomecek@redhat.com',
