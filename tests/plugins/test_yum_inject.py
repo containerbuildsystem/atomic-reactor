@@ -22,7 +22,6 @@ from dock.plugin import PreBuildPluginsRunner
 from dock.plugins.pre_inject_yum_repo import InjectYumRepoPlugin, alter_yum_commands
 from dock.util import ImageName, render_yum_repo
 from tests.constants import DOCKERFILE_GIT
-from dock.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
 from tempfile import NamedTemporaryFile
 from collections import namedtuple
 import requests
@@ -325,7 +324,7 @@ def test_no_repourls(tmpdir):
                 'name': InjectYumRepoPlugin.key,
             }])
             runner.run()
-            assert AddYumRepoByUrlPlugin.key is not None
+            assert InjectYumRepoPlugin.key is not None
 
             f.seek(0)
             # Should be unchanged
