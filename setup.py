@@ -45,8 +45,9 @@ setup(
     url=HOMEPAGE,
     license="BSD",
     entry_points={
-        'console_scripts': ['dock=dock.cli.main:run'],
-        },
+        'console_scripts': ['dock=dock.cli.main:run',
+                            'pulpsecret-gen=dock.cli.secret:run'],
+    },
     packages=find_packages(exclude=["tests", "tests.plugins"]),
     install_requires=_install_requirements(),
     data_files=data_files.items(),
