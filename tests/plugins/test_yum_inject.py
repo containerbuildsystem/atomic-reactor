@@ -255,7 +255,11 @@ CMD blabla"""
     runner.run()
     assert InjectYumRepoPlugin.key is not None
     with open(tmp_df, 'r') as fd:
-        altered_df = fd.read().decode()
+        altered_df = fd.read()
+    try:
+        altered_df = altered_df.decode("utf-8")
+    except AttributeError:
+        pass
     expected_output = """FROM fedora
 RUN printf "[my-repo]\nname=my-repo\nmetalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-\\$releasever&arch=\
 \\$basearch\nenabled=1\ngpgcheck=0\n" >/etc/yum.repos.d/dock-injected.repo && \
