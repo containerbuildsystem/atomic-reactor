@@ -30,3 +30,5 @@ HOST_SECRET_PATH = ''
 YUM_REPOS_DIR = '/etc/yum.repos.d/'
 RELATIVE_REPOS_PATH = "dock-repos/"
 DEFAULT_YUM_REPOFILE_NAME = 'dock-injected.repo'
+
+SOURCE_DIRECTORY_NAME = "source"
