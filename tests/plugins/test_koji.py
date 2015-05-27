@@ -78,4 +78,4 @@ def test_koji_plugin():
     assert "gpgcheck=0\n" in list(workflow.files.values())[0]
     assert "enabled=1\n" in list(workflow.files.values())[0]
     assert "name=dock-koji-plugin-target\n" in list(workflow.files.values())[0]
-    assert "baseurl=http://example.com/repos/tag/$basearch\n" in list(workflow.files.values())[0]
+    assert "baseurl=http://example.com/repos/tag/2/$basearch\n" in list(workflow.files.values())[0]

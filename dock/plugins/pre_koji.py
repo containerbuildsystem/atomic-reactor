@@ -9,12 +9,6 @@ of the BSD license. See the LICENSE file for details.
 Pre build plugin for koji build system
 """
 import os
-try:
-    # py2
-    from urlparse import urljoin
-except Exception:
-    # py3
-    from urllib.parse import urljoin
 import koji
 from dock.constants import YUM_REPOS_DIR
 
@@ -52,8 +46,8 @@ class KojiPlugin(PreBuildPlugin):
             raise RuntimeError("Provided target '%s' doesn't exist!" % self.target)
         tag_info = self.xmlrpc.getTag(target_info['build_tag_name'])
         repo_info = self.xmlrpc.getRepo(tag_info['id'])
-        baseurl = self.pathinfo.repo(repo_info['id'], tag_info['name'])
-        baseurl = urljoin(baseurl, "$basearch")
+        # to use urljoin, we would have to append '/', so let's append everything
+        baseurl = self.pathinfo.repo(repo_info['id'], tag_info['name']) + "/$basearch"
 
         self.log.info("baseurl = '%s'", baseurl)
 
