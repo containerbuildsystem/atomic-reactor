@@ -7,15 +7,23 @@ of the BSD license. See the LICENSE file for details.
 """
 from __future__ import print_function, unicode_literals
 
-import koji
+try:
+    import koji
+except ImportError:
+    KOJI_FOUND = False
+else:
+    KOJI_FOUND = True
+    from dock.plugins.pre_koji import KojiPlugin
+
 
 from dock.core import DockerTasker
 from dock.inner import DockerBuildWorkflow
 from dock.plugin import PreBuildPluginsRunner
-from dock.plugins.pre_koji import KojiPlugin
 from dock.util import ImageName
 from tests.constants import DOCKERFILE_GIT
+
 from flexmock import flexmock
+import pytest
 
 
 class X(object):
@@ -62,6 +70,8 @@ def prepare():
     return tasker, workflow
 
 
+@pytest.mark.skipif(not KOJI_FOUND,
+                    reason="koji module is not present in PyPI")
 def test_koji_plugin():
     tasker, workflow = prepare()
     runner = PreBuildPluginsRunner(tasker, workflow, [{
