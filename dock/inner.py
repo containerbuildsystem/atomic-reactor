@@ -11,6 +11,7 @@ Script for building docker image. This is expected to run inside container.
 
 import json
 import logging
+import os
 import shutil
 import tempfile
 
@@ -169,6 +170,10 @@ class DockerBuildWorkflow(object):
 
         self.pulled_base_image = None
 
+        # path to tarball with squashed image
+        # set by squash plugin
+        self.exported_squashed_image_path = None
+
         # TODO: ensure this is the only way to tag and push images,
         #       get rid of target_reg*, push_built_img
         self.tag_and_push_conf = TagAndPushConf()
@@ -187,8 +192,10 @@ class DockerBuildWorkflow(object):
         :return: BuildResults
         """
         tmpdir = tempfile.mkdtemp()
+        source_dir = os.path.join(tmpdir, "source")
+        self.exported_squashed_image_path = os.path.join(tmpdir, "image.tar")
         self.builder = InsideBuilder(self.git_url, self.image, git_dockerfile_path=self.git_dockerfile_path,
-                                     git_commit=self.git_commit, tmpdir=tmpdir)
+                                     git_commit=self.git_commit, tmpdir=source_dir)
         try:
             self.pulled_base_image = self.builder.pull_base_image(
                 self.parent_registry, insecure=self.parent_registry_insecure)

@@ -39,23 +39,30 @@ class PrePublishSquashPlugin(PrePublishPlugin):
     # Fail the build in case of squashing error
     can_fail = False
 
-    def __init__(self, tasker, workflow, tag=None, from_layer=None, remove_former_image=True):
+    def __init__(self, tasker, workflow, tag=None, from_layer=None, remove_former_image=True,
+                 dont_push=False):
         """
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param from_layer: The layer from we will squash - by default it'll be the first layer
         :param tag: str, new name of the image - by default use the former one
         :param remove_former_image: bool, remove unsquashed image?
+        :param dont_push: bool, don't push squashed image, place it to `$tmpdir/image.tar` instead
         """
         super(PrePublishSquashPlugin, self).__init__(tasker, workflow)
         self.image = self.workflow.builder.image_id
         self.from_layer = from_layer
         self.tag = tag or str(self.workflow.builder.image)
         self.remove_former_image = remove_former_image
+        self.dont_push = dont_push
 
     def run(self):
-        new_id = Squash(log=self.log, image=self.image,
-                        from_layer=self.from_layer, tag=self.tag).run()
+        if self.dont_push:
+            new_id = Squash(log=self.log, image=self.image, from_layer=self.from_layer,
+                            tag=self.tag, output_path=self.workflow.exported_squashed_image_path).run()
+        else:
+            new_id = Squash(log=self.log, image=self.image, from_layer=self.from_layer,
+                            tag=self.tag).run()
         self.workflow.builder.image_id = new_id
         if self.remove_former_image:
             self.tasker.remove_image(self.image)
