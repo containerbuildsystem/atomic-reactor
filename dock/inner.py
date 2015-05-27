@@ -11,6 +11,7 @@ Script for building docker image. This is expected to run inside container.
 
 import json
 import logging
+import os
 import tempfile
 
 from dock.build import InsideBuilder
@@ -185,6 +186,7 @@ class DockerBuildWorkflow(object):
 
         :return: BuildResults
         """
+        self.exported_squashed_image_path = os.path.join(self.source.workdir, "image.tar")
         self.builder = InsideBuilder(self.source, self.image)
         try:
             self.pulled_base_image = self.builder.pull_base_image(

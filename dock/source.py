@@ -15,6 +15,8 @@ import shutil
 import tempfile
 
 from dock import util
+from dock.constants import SOURCE_DIRECTORY_NAME
+
 
 class Source(object):
     def __init__(self, provider, uri, dockerfile_path=None, provider_params=None, tmpdir=None):
@@ -24,10 +26,15 @@ class Source(object):
         self.provider_params = provider_params or {}
         # TODO: do we want to delete tmpdir when destroying the object?
         self.tmpdir = tmpdir or tempfile.mkdtemp()
+        self.source_path = os.path.join(self.tmpdir, SOURCE_DIRECTORY_NAME)
 
     @property
     def path(self):
         return self.get()
+
+    @property
+    def workdir(self):
+        return self.tmpdir
 
     def get(self):
         """Run this to get source and save it to `tmpdir` or a newly created tmpdir."""
@@ -46,7 +53,7 @@ class GitSource(Source):
         super(GitSource, self).__init__(provider, uri, dockerfile_path,
                 provider_params, tmpdir)
         self.git_commit = self.provider_params.get('git_commit', None)
-        self.lg = util.LazyGit(self.uri, self.git_commit, self.tmpdir)
+        self.lg = util.LazyGit(self.uri, self.git_commit, self.source_path)
 
     def get(self):
         return self.lg.git_path
@@ -63,7 +70,7 @@ class PathSource(Source):
         #  to *not* exist
         for f in os.listdir(self.schemeless_path):
             old = os.path.join(self.schemeless_path, f)
-            new = os.path.join(self.tmpdir, f)
+            new = os.path.join(self.source_path, f)
             if os.path.exists(new):
                 # this is the second invocation of this method; just break the loop
                 break
@@ -72,7 +79,7 @@ class PathSource(Source):
                     shutil.copytree(old, new)
                 else:
                     shutil.copy2(old, new)
-        return self.tmpdir
+        return self.source_path
 
 
 def get_source_instance_for(source, tmpdir=None):
