@@ -3,3 +3,4 @@ ordereddict
 pytest
 six
 pytest-capturelog
+six
