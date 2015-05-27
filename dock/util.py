@@ -250,7 +250,7 @@ def clone_git_repo(git_url, target_dir, commit=None):
 
     :param git_url: str, git repo to clone
     :param target_dir: str, filesystem path where the repo should be cloned
-    :param commit: str, commit to checkout
+    :param commit: str, commit to checkout, SHA-1 or ref
     :return: str, commit ID of HEAD
     """
     commit = commit or "master"
@@ -259,9 +259,22 @@ def clone_git_repo(git_url, target_dir, commit=None):
                  git_url, target_dir, commit)
 
     # http://stackoverflow.com/questions/1911109/clone-a-specific-git-branch/4568323#4568323
+    # -b takes only refs, not SHA-1
     cmd = ["git", "clone", "-b", commit, "--single-branch", git_url, quote(target_dir)]
-    subprocess.check_call(cmd)
+    logger.debug("Cloning single branch: %s", cmd)
+    try:
+        subprocess.check_call(cmd)
+    except subprocess.CalledProcessError as ex:
+        logger.warning(repr(ex))
+        # let's try again with plain `git clone $url && git checkout`
+        cmd = ["git", "clone", git_url, quote(target_dir)]
+        logger.debug("Cloning: %s", cmd)
+        subprocess.check_call(cmd)
+        cmd = ["git", "checkout", commit]
+        logger.debug("Checking out branch: %s", cmd)
+        subprocess.check_call(cmd, cwd=target_dir)
     cmd = ["git", "rev-parse", "HEAD"]
+    logger.debug("getting SHA-1 of provided ref: %s", cmd)
     try:
         commit_id = subprocess.check_output(cmd, cwd=target_dir)  # py 2.7
     except AttributeError:

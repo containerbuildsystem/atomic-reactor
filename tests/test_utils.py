@@ -8,6 +8,8 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 import os
+import six
+
 try:
     from collections import OrderedDict
 except ImportError:
@@ -16,7 +18,7 @@ except ImportError:
 import docker
 from dock.util import ImageName, get_baseimage_from_dockerfile, get_labels_from_dockerfile, \
                       wait_for_command, clone_git_repo, LazyGit, figure_out_dockerfile, render_yum_repo
-from tests.constants import DOCKERFILE_FILENAME, DOCKERFILE_GIT, INPUT_IMAGE, MOCK
+from tests.constants import DOCKERFILE_FILENAME, DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -59,6 +61,17 @@ def test_clone_git_repo(tmpdir):
     tmpdir_path = str(tmpdir.realpath())
     commit_id = clone_git_repo(DOCKERFILE_GIT, tmpdir_path)
     assert commit_id is not None
+    assert len(commit_id) == 40  # current git hashes are this long
+    assert os.path.isdir(os.path.join(tmpdir_path, '.git'))
+
+
+def test_clone_git_repo_by_sha1(tmpdir):
+    tmpdir_path = str(tmpdir.realpath())
+    commit_id = clone_git_repo(DOCKERFILE_GIT, tmpdir_path, commit=DOCKERFILE_SHA1)
+    assert commit_id is not None
+    print(six.text_type(commit_id))
+    print(commit_id)
+    assert six.text_type(commit_id, encoding="ascii") == six.text_type(DOCKERFILE_SHA1)
     assert len(commit_id) == 40  # current git hashes are this long
     assert os.path.isdir(os.path.join(tmpdir_path, '.git'))
 

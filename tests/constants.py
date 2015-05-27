@@ -12,6 +12,7 @@ MOCK = os.environ.get('NOMOCK') is None
 INPUT_IMAGE = "busybox:latest"
 DOCKERFILE_FILENAME = 'Dockerfile'
 DOCKERFILE_GIT = "https://github.com/TomasTomecek/docker-hello-world.git"
+DOCKERFILE_SHA1 = "6e592f1420efcd331cd28b360a7e02f669caf540"
 
 REGISTRY_PORT = "5000"
 DOCKER0_IP = "172.17.42.1"
