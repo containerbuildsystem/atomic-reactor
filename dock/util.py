@@ -371,11 +371,14 @@ def escape_dollar(v):
         return v
 
 
-def render_yum_repo(repo):
+def render_yum_repo(repo, escape_dollars=True):
     repo.setdefault("name", str(uuid.uuid4().hex[:6]))
     repo_name = repo["name"]
     logger.info("rendering repo '%s'", repo_name)
     rendered_repo = '[%s]\n' % repo_name
     for key, value in repo.items():
-        rendered_repo += "%s=%s\n" % (key, escape_dollar(value))
+        if escape_dollars:
+            value = escape_dollar(value)
+        rendered_repo += "%s=%s\n" % (key, value)
+    logger.info("rendered repo: %s", repr(rendered_repo))
     return rendered_repo
