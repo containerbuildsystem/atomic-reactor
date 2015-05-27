@@ -149,6 +149,8 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
         """
         logger.info("build image inside current environment")
         self._ensure_not_built()
+        with open(self.df_path, 'r') as df:
+            logger.debug("Using dockerfile:\n%s", df.read())
         logs_gen = self.tasker.build_image_from_path(
             self.df_dir,
             self.image,
