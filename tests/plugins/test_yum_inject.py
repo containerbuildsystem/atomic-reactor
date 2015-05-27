@@ -217,6 +217,57 @@ CMD blabla"""
     assert altered_df == expected_output
 
 
+def test_yuminject_multiline_wrapped_with_chown(tmpdir):
+    df = """\
+FROM fedora
+RUN yum install -y --setopt=tsflags=nodocs bind-utils gettext iproute v8314 mongodb24-mongodb mongodb24 && \
+    yum clean all && \
+    mkdir -p /var/lib/mongodb/data && chown -R mongodb:mongodb /var/lib/mongodb/ && \
+    test "$(id mongodb)" = "uid=184(mongodb) gid=998(mongodb) groups=998(mongodb)" && \
+    chmod o+w -R /var/lib/mongodb && chmod o+w -R /opt/rh/mongodb24/root/var/lib/mongodb
+CMD blabla"""
+    tmp_df = os.path.join(str(tmpdir), 'Dockerfile')
+    with open(tmp_df, mode="w") as fd:
+        fd.write(df)
+
+    tasker = DockerTasker()
+    workflow = DockerBuildWorkflow(DOCKERFILE_GIT, "test-image")
+    setattr(workflow, 'builder', X)
+
+    metalink = r'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
+
+    workflow.files[os.path.join(YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME)] = render_yum_repo(OrderedDict(
+        (('name', 'my-repo'),
+         ('metalink', metalink),
+         ('enabled', 1),
+         ('gpgcheck', 0)),
+    ))
+    setattr(workflow.builder, 'image_id', "asd123")
+    setattr(workflow.builder, 'df_path', tmp_df)
+    setattr(workflow.builder, 'df_dir', str(tmpdir))
+    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
+    setattr(workflow.builder, 'git_dockerfile_path', None)
+    setattr(workflow.builder, 'git_path', None)
+    runner = PreBuildPluginsRunner(tasker, workflow,
+                                   [{'name': InjectYumRepoPlugin.key, 'args': {
+                                       "wrap_commands": True
+                                   }}])
+    runner.run()
+    assert InjectYumRepoPlugin.key is not None
+    with open(tmp_df, 'r') as fd:
+        altered_df = fd.read().decode()
+    expected_output = """FROM fedora
+RUN printf "[my-repo]\nname=my-repo\nmetalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-\\$releasever&arch=\
+\\$basearch\nenabled=1\ngpgcheck=0\n" >/etc/yum.repos.d/dock-injected.repo && \
+yum install -y --setopt=tsflags=nodocs bind-utils gettext iproute v8314 mongodb24-mongodb mongodb24 &&     \
+yum clean all &&     mkdir -p /var/lib/mongodb/data && chown -R mongodb:mongodb /var/lib/mongodb/ &&     \
+test "$(id mongodb)" = "uid=184(mongodb) gid=998(mongodb) groups=998(mongodb)" &&     \
+chmod o+w -R /var/lib/mongodb && chmod o+w -R /opt/rh/mongodb24/root/var/lib/mongodb && \
+yum clean all && rm -f /etc/yum.repos.d/dock-injected.repo
+CMD blabla"""
+    assert altered_df == expected_output
+
+
 def test_complex_df():
     df = """\
 FROM fedora
