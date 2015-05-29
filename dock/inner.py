@@ -165,9 +165,9 @@ class DockerBuildWorkflow(object):
 
         self.pulled_base_image = None
 
-        # path to tarball with squashed image
+        # squashed image tarball
         # set by squash plugin
-        self.exported_squashed_image_path = None
+        self.exported_squashed_image = {}
 
         # TODO: ensure this is the only way to tag and push images,
         #       get rid of target_reg*, push_built_img
@@ -186,7 +186,7 @@ class DockerBuildWorkflow(object):
 
         :return: BuildResults
         """
-        self.exported_squashed_image_path = os.path.join(self.source.workdir, "image.tar")
+        self.exported_squashed_image["path"] = os.path.join(self.source.workdir, "image.tar")
         self.builder = InsideBuilder(self.source, self.image)
         try:
             self.pulled_base_image = self.builder.pull_base_image(

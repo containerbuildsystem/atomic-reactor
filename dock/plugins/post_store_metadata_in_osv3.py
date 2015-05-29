@@ -97,5 +97,10 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
             "rpm-packages": "\n".join(self.workflow.postbuild_results.get("all_rpm_packages", "")),
             "repositories": json.dumps(repositories),
             "commit_id": commit_id,
+            "tar_metadata": {
+                "size": self.workflow.exported_squashed_image.get("size"),
+                "md5sum": self.workflow.exported_squashed_image.get("md5sum"),
+                "sha256sum": self.workflow.exported_squashed_image.get("sha256sum"),
+            }
         }
         o.set_annotations_on_build(build_id, labels)

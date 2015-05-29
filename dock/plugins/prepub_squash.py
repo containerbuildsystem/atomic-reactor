@@ -1,3 +1,16 @@
+"""
+Copyright (c) 2015 Red Hat, Inc
+All rights reserved.
+
+This software may be modified and distributed under the terms
+of the BSD license. See the LICENSE file for details.
+
+
+It returns the dockerfile itself and therefore displays it in results.
+"""
+
+from os.path import getsize, isfile
+from hashlib import md5, sha256
 from dock.plugin import PrePublishPlugin
 from docker_scripts.squash import Squash
 
@@ -57,10 +70,34 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         self.remove_former_image = remove_former_image
         self.dont_load = dont_load
 
+    def _get_tarball_metadata(self):
+        self.log.info("Getting exported squashed tarball metadata")
+        path = self.workflow.exported_squashed_image.get("path")
+        if not path or not isfile(path):
+            self.log.error("%s is not a file.", path)
+            return
+
+        self.workflow.exported_squashed_image["size"] = getsize(path)
+        self.log.debug("size: %d bytes", self.workflow.exported_squashed_image["size"])
+        m = md5()
+        s = sha256()
+        blocksize = 65536
+        with open(path, mode='rb') as f:
+            buf = f.read(blocksize)
+            while len(buf) > 0:
+                m.update(buf)
+                s.update(buf)
+                buf = f.read(blocksize)
+        self.workflow.exported_squashed_image["md5sum"] = m.hexdigest()
+        self.log.debug("md5sum: %s", self.workflow.exported_squashed_image["md5sum"])
+        self.workflow.exported_squashed_image["sha256sum"] = s.hexdigest()
+        self.log.debug("sha256sum: %s", self.workflow.exported_squashed_image["sha256sum"])
+
     def run(self):
         if self.dont_load:
             new_id = Squash(log=self.log, image=self.image, from_layer=self.from_layer,
-                            tag=self.tag, output_path=self.workflow.exported_squashed_image_path).run()
+                            tag=self.tag, output_path=self.workflow.exported_squashed_image.get("path")).run()
+            self._get_tarball_metadata()
         else:
             new_id = Squash(log=self.log, image=self.image, from_layer=self.from_layer,
                             tag=self.tag).run()
