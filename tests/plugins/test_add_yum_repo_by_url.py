@@ -10,18 +10,12 @@ from __future__ import unicode_literals
 
 from dock.constants import YUM_REPOS_DIR
 
-from __future__ import unicode_literals
-
-from dock.constants import YUM_REPOS_DIR
-
 from dock.core import DockerTasker
 from dock.inner import DockerBuildWorkflow
 from dock.plugin import PreBuildPluginsRunner, PreBuildPlugin
 from dock.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
 from dock.util import ImageName
 from tests.constants import DOCKERFILE_GIT
-from tempfile import NamedTemporaryFile
-from collections import namedtuple
 import requests
 from flexmock import flexmock
 import os.path
