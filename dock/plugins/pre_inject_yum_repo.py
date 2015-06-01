@@ -57,6 +57,13 @@ def add_yum_repos_to_dockerfile(yumrepos, df):
             postinsert = n
             break
 
+    # we need to clear repos BEFORE any USER instruction
+    userre = first_word_is("USER")
+    for n in range(preinsert, num_lines):
+        if userre.match(df[n]):
+            postinsert = n
+            break
+
     newdf = df[:preinsert]
     newdf.append("ADD %s* '%s'\n" % (RELATIVE_REPOS_PATH, YUM_REPOS_DIR))
     newdf.extend(df[preinsert:postinsert])

@@ -323,7 +323,19 @@ DOCKERFILES = {
                    # remove goes here
                    ["ENTRYPOINT ['/bin/bash']\n",
                     "CMD ['/bin/ls']\n"]),
-    }
+
+    "user":
+    Dockerfile(["FROM base\n",
+                "MAINTAINER Example <example@example.com\n"],
+               # add goes here
+               ["RUN yum update -y\n",
+                "ENV asd qwe\n"],
+               # remove goes here
+               ["USER foo\n",
+                "RUN uname\n",
+                "LABEL x y\n",
+                "CMD ['/bin/ls']\n"]),
+}
 
 
 def prepare(df_path):
