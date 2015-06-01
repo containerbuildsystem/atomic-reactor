@@ -37,7 +37,8 @@ class DistgitFetchArtefactsPlugin(PreBuildPlugin):
         """
         fetch artefacts
         """
-        sources_file_path = os.path.join(self.workflow.builder.path, 'sources')
+        source_path = self.workflow.source.path
+        sources_file_path = os.path.join(source_path, 'sources')
         artefacts = ""
         try:
             with open(sources_file_path, 'r') as f:
@@ -50,7 +51,7 @@ class DistgitFetchArtefactsPlugin(PreBuildPlugin):
                 raise
         else:
             cur_dir = os.getcwd()
-            os.chdir(self.workflow.builder.path)
+            os.chdir(source_path)
             subprocess.check_call(self.command.split())
             os.chdir(cur_dir)
         return artefacts
