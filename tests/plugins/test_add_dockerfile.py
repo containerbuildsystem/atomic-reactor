@@ -194,7 +194,7 @@ CMD blabla"""
     df.content = df_content
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow('asd', 'test-image')
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)

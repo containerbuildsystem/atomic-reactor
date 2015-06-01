@@ -90,8 +90,9 @@ CMD blabla"""
     df.content = df_content
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(DOCKERFILE_GIT, "test-image")
-    setattr(workflow, 'builder', X)
+    workflow = DockerBuildWorkflow(SOURCE, "test-image")
+    setattr(workflow, 'builder', X())
+    workflow.builder.source = workflow.source
 
     metalink = 'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
 
@@ -174,7 +175,7 @@ CMD blabla"""
     df.content = df_content
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(DOCKERFILE_GIT, "test-image")
+    workflow = DockerBuildWorkflow(SOURCE, "test-image")
     setattr(workflow, 'builder', X)
 
     metalink = r'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
@@ -219,7 +220,7 @@ CMD blabla"""
     df.content = df_content
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(DOCKERFILE_GIT, "test-image")
+    workflow = DockerBuildWorkflow(SOURCE, "test-image")
     setattr(workflow, 'builder', X)
 
     metalink = r'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
@@ -343,7 +344,7 @@ DOCKERFILES = {
 
 def prepare(df_path):
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(DOCKERFILE_GIT, "test-image")
+    workflow = DockerBuildWorkflow(SOURCE, "test-image")
     setattr(workflow, 'builder', X)
 
     setattr(workflow.builder, 'image_id', "asd123")
