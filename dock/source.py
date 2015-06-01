@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 Code for getting source code to put inside container.
 """
 
+import logging
 import copy
 import os
 import shutil
@@ -16,6 +17,9 @@ import tempfile
 
 from dock import util
 from dock.constants import SOURCE_DIRECTORY_NAME
+
+
+logger = logging.getLogger(__name__)
 
 
 class Source(object):
@@ -26,7 +30,9 @@ class Source(object):
         self.provider_params = provider_params or {}
         # TODO: do we want to delete tmpdir when destroying the object?
         self.tmpdir = tmpdir or tempfile.mkdtemp()
+        logger.debug("workdir is '%s'", repr(self.tmpdir))
         self.source_path = os.path.join(self.tmpdir, SOURCE_DIRECTORY_NAME)
+        logger.debug("source path is '%s'", repr(self.source_path))
 
     @property
     def path(self):
@@ -64,6 +70,7 @@ class PathSource(Source):
         super(PathSource, self).__init__(provider, uri, dockerfile_path,
                 provider_params, tmpdir)
         self.schemeless_path = self.uri[len('file://'):]
+        os.makedirs(self.source_path)
 
     def get(self):
         # work around the weird behaviour of copytree, which requires the top dir
