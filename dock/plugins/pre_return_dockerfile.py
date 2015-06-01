@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 It returns the dockerfile itself and therefore displays it in results.
 """
+from dock.util import DockerfileParser
 from dock.plugin import PreBuildPlugin
 
 
@@ -30,8 +31,7 @@ class CpDockerfilePlugin(PreBuildPlugin):
         try open dockerfile, output an error if there is one
         """
         try:
-            with open(self.workflow.builder.df_path, 'r') as fd:
-                return fd.read()
+            return str(DockerfileParser(self.workflow.builder.df_path))
         except (IOError, OSError) as ex:
             msg = "Couldn't retrieve dockerfile: %s" % repr(ex)
             self.log.error(msg)

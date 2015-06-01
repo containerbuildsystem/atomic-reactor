@@ -13,7 +13,7 @@ Logic above these classes has to set the workflow itself.
 import logging
 
 from dock.core import DockerTasker, LastLogger
-from dock.util import get_baseimage_from_dockerfile, LazyGit, wait_for_command, \
+from dock.util import DockerfileParser, LazyGit, wait_for_command, \
     figure_out_dockerfile, ImageName
 
 
@@ -100,7 +100,7 @@ class InsideBuilder(LastLogger, LazyGit, BuilderStateMachine):
 
         # get info about base image from dockerfile
         self.df_path, self.df_dir = figure_out_dockerfile(self.git_path, self.git_dockerfile_path)
-        self.base_image = ImageName.parse(get_baseimage_from_dockerfile(self.df_path))
+        self.base_image = ImageName.parse(DockerfileParser(self.df_path).get_baseimage())
         logger.debug("image specified in dockerfile = '%s'", self.base_image)
         if not self.base_image.tag:
             self.base_image.tag = 'latest'

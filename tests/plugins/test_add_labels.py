@@ -6,7 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
 
 import os
 try:
@@ -18,7 +18,7 @@ from dock.core import DockerTasker
 from dock.inner import DockerBuildWorkflow
 from dock.plugin import PreBuildPluginsRunner
 from dock.plugins.pre_add_labels_in_df import AddLabelsPlugin
-from dock.util import ImageName
+from dock.util import ImageName, DockerfileParser
 
 
 class X(object):
@@ -29,18 +29,17 @@ class X(object):
 
 
 def test_addlabels_plugin(tmpdir):
-    df = """\
+    df_content = """\
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
-    tmp_df = os.path.join(str(tmpdir), 'Dockerfile')
-    with open(tmp_df, mode="w") as fd:
-        fd.write(df)
+    df = DockerfileParser(str(tmpdir))
+    df.content = df_content
 
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow("asd", "test-image")
     setattr(workflow, 'builder', X)
-    setattr(workflow.builder, 'df_path', tmp_df)
+    setattr(workflow.builder, 'df_path', df.dockerfile_path)
 
     labels_conf = OrderedDict({'label1': 'value 1', 'label2': 'long value'})
 
@@ -54,8 +53,7 @@ CMD blabla"""
     )
     runner.run()
     assert AddLabelsPlugin.key is not None
-    with open(tmp_df, 'r') as fd:
-        altered_df = fd.read()
+
     # Can't be sure of the order of the labels, expect either
     expected_output = [r"""FROM fedora
 RUN yum install -y python-django
@@ -65,4 +63,4 @@ CMD blabla""",
 RUN yum install -y python-django
 LABEL "label2"="long value" "label1"="value 1"
 CMD blabla"""]
-    assert altered_df in expected_output
+    assert df.content in expected_output
