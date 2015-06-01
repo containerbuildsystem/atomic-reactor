@@ -55,6 +55,7 @@ def cli_build_image(args):
             "parent_registry_insecure": args.source_registry_insecure,
             "target_registries": args.target_registries,
             "target_registries_insecure": args.target_registries_insecure,
+            "dont_pull_base_image": args.dont_pull_base_image,
         }
     response = BuildResults()
     if args.method == "hostdocker":
@@ -128,6 +129,8 @@ class CLI(object):
                                   help="list of registries to push image to")
         build_parser.add_argument("--target-registries-insecure", action='store_true',
                                   help="allow connecting to target registries over plain http")
+        build_parser.add_argument("--dont-pull-base-image", action='store_true',
+                                  help="don't pull or update base image specified in dockerfile")
         build_parser.add_argument("--load-plugin", action="store", nargs="*", metavar="PLUGIN_FILE",
                                   dest="plugin_files", help="list of files where plugins live")
         build_parser.add_argument("--method", action='store', choices=["hostdocker", "privileged", "here"],
@@ -168,9 +171,12 @@ class CLI(object):
         ib_parser.add_argument("--input-arg", action='append',
                                help="argument for input plugin (in form of 'key=value'), see input plugins "
                                     " to know what arguments they accept (can be specified multiple times)")
+        ib_parser.add_argument("--dont-pull-base-image", action='store_true',
+                               help="don't pull or update base image specified in dockerfile")
         ib_parser.add_argument("--substitute", action='append',
                                help="substitute values in build json (key=value, or "
                                     "plugin_type.plugin_name.key=value)")
+
         ib_parser.set_defaults(func=cli_inside_build)
 
     def run(self):

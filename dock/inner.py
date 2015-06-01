@@ -129,7 +129,7 @@ class DockerBuildWorkflow(object):
     def __init__(self, source, image, parent_registry=None, target_registries=None,
                  prebuild_plugins=None, prepublish_plugins=None, postbuild_plugins=None,
                  plugin_files=None, parent_registry_insecure=False,
-                 target_registries_insecure=False, **kwargs):
+                 target_registries_insecure=False, dont_pull_base_image=False, **kwargs):
         """
         :param source: dict, where/how to get source code to put in image
         :param image: str, tag for built image ([registry/]image_name[:tag])
@@ -141,6 +141,7 @@ class DockerBuildWorkflow(object):
         :param plugin_files: list of str, load plugins also from these files
         :param parent_registry_insecure: bool, allow connecting to parent registry over plain http
         :param target_registries_insecure: bool, allow connecting to target registries over plain http
+        :param dont_pull_base_image: bool, don't pull or update base image specified in dockerfile
         """
         self.source = get_source_instance_for(source, tmpdir=tempfile.mkdtemp())
         self.image = image
@@ -163,6 +164,7 @@ class DockerBuildWorkflow(object):
         self.build_logs = None
         self.built_image_inspect = None
 
+        self.dont_pull_base_image = dont_pull_base_image
         self.pulled_base_image = None
 
         # squashed image tarball
@@ -189,8 +191,9 @@ class DockerBuildWorkflow(object):
         self.exported_squashed_image["path"] = os.path.join(self.source.workdir, "image.tar")
         self.builder = InsideBuilder(self.source, self.image)
         try:
-            self.pulled_base_image = self.builder.pull_base_image(
-                self.parent_registry, insecure=self.parent_registry_insecure)
+            if not self.dont_pull_base_image:
+                self.pulled_base_image = self.builder.pull_base_image(self.parent_registry,
+                                                                      insecure=self.parent_registry_insecure)
 
             # time to run pre-build plugins, so they can access cloned repo,
             # base image
