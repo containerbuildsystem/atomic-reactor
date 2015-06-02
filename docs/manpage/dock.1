@@ -1,4 +1,4 @@
-.TH dock 1 2015\-05\-11
+.TH dock 1 2015\-06\-02
 .SH SYNOPSIS
  \fBdock\fR [-h] [-q | -v | -V] {build,create-build-image,inside-build} ...
 
@@ -40,6 +40,9 @@
                         list of registries to push image to
   --target-registries-insecure
                         allow connecting to target registries over plain http
+  --dont-pull-base-image
+                        don't pull or update base image specified in
+                        dockerfile
   --load-plugin [PLUGIN_FILE [PLUGIN_FILE ...]]
                         list of files where plugins live
   --method {hostdocker,privileged,here}
@@ -77,6 +80,9 @@
                         argument for input plugin (in form of 'key=value'),
                         see input plugins to know what arguments they accept
                         (can be specified multiple times)
+  --dont-pull-base-image
+                        don't pull or update base image specified in
+                        dockerfile
   --substitute SUBSTITUTE
                         substitute values in build json (key=value, or
                         plugin_type.plugin_name.key=value)
