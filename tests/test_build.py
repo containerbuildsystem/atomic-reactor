@@ -7,8 +7,6 @@ of the BSD license. See the LICENSE file for details.
 """
 from __future__ import unicode_literals
 
-import os
-
 import pytest
 
 from dock.build import InsideBuilder
@@ -16,7 +14,7 @@ from dock.core import DockerTasker
 from dock.source import get_source_instance_for
 from dock.util import ImageName
 from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, DOCKERFILE_OK_PATH,\
-        DOCKERFILE_ERROR_BUILD_PATH, MOCK
+        DOCKERFILE_ERROR_BUILD_PATH, MOCK, SOURCE
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -29,7 +27,7 @@ git_base_image = ImageName(registry=LOCALHOST_REGISTRY, repo="fedora", tag="late
 
 
 with_all_sources = pytest.mark.parametrize('source_params', [
-    {'provider': 'git', 'uri': DOCKERFILE_GIT},
+    SOURCE,
     {'provider': 'path', 'uri': 'file://' + DOCKERFILE_OK_PATH}
 ])
 

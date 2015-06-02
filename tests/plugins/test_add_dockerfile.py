@@ -15,9 +15,7 @@ from dock.plugin import PreBuildPluginsRunner
 from dock.plugins.pre_add_dockerfile import AddDockerfilePlugin
 from dock.plugins.pre_add_labels_in_df import AddLabelsPlugin
 from dock.util import ImageName, DockerfileParser
-
-
-MOCK_SOURCE = {'provider': 'git', 'uri': 'asd'}
+from tests.constants import MOCK_SOURCE
 
 
 class Y(object):

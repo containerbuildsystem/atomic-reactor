@@ -22,6 +22,9 @@ DOCKERFILE_ERROR_BUILD_PATH =\
 DOCKERFILE_SUBDIR_PATH = os.path.join(os.path.dirname(__file__), 'files', 'df-in-subdir')
 DOCKERFILE_SHA1 = "6e592f1420efcd331cd28b360a7e02f669caf540"
 
+SOURCE = {'provider': 'git', 'uri': DOCKERFILE_GIT}
+MOCK_SOURCE = {'provider': 'git', 'uri': 'asd'}
+
 REGISTRY_PORT = "5000"
 DOCKER0_IP = "172.17.42.1"
 TEST_IMAGE = "dock-test-image"

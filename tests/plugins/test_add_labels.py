@@ -19,6 +19,7 @@ from dock.inner import DockerBuildWorkflow
 from dock.plugin import PreBuildPluginsRunner
 from dock.plugins.pre_add_labels_in_df import AddLabelsPlugin
 from dock.util import ImageName, DockerfileParser
+from tests.constants import MOCK_SOURCE
 
 
 class Y(object):
@@ -42,7 +43,7 @@ CMD blabla"""
     df.content = df_content
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow({'provider': 'git', 'uri': 'asd'}, 'test-image')
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     setattr(workflow, 'builder', X)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
 

@@ -27,13 +27,10 @@ import os.path
 from collections import namedtuple
 import requests
 from flexmock import flexmock
-
+from tests.constants import SOURCE
 
 class X(object):
     pass
-
-
-SOURCE = {'provider': 'git', 'uri': DOCKERFILE_GIT}
 
 
 def test_yuminject_plugin_notwrapped(tmpdir):

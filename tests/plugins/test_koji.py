@@ -20,7 +20,7 @@ from dock.core import DockerTasker
 from dock.inner import DockerBuildWorkflow
 from dock.plugin import PreBuildPluginsRunner
 from dock.util import ImageName
-from tests.constants import DOCKERFILE_GIT
+from tests.constants import SOURCE
 
 from flexmock import flexmock
 import pytest
@@ -57,13 +57,14 @@ class MockedClientSession(object):
 
 def prepare():
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(DOCKERFILE_GIT, "test-image")
-    setattr(workflow, 'builder', X)
+    workflow = DockerBuildWorkflow(SOURCE, "test-image")
+    setattr(workflow, 'builder', X())
 
     setattr(workflow.builder, 'image_id', "asd123")
     setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
-    setattr(workflow.builder, 'git_dockerfile_path', None)
-    setattr(workflow.builder, 'git_path', None)
+    setattr(workflow.builder, 'source', X())
+    setattr(workflow.builder.source, 'dockerfile_path', None)
+    setattr(workflow.builder.source, 'path', None)
 
     flexmock(koji, ClientSession=MockedClientSession)
 
