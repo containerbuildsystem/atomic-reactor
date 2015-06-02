@@ -6,7 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 
 
-It returns the dockerfile itself and therefore displays it in results.
+It returns content of dockerfile and therefore displays it in results.
 """
 from dock.util import DockerfileParser
 from dock.plugin import PreBuildPlugin
@@ -31,8 +31,6 @@ class CpDockerfilePlugin(PreBuildPlugin):
         try open dockerfile, output an error if there is one
         """
         try:
-            return str(DockerfileParser(self.workflow.builder.df_path))
+            return DockerfileParser(self.workflow.builder.df_path).content
         except (IOError, OSError) as ex:
-            msg = "Couldn't retrieve dockerfile: %s" % repr(ex)
-            self.log.error(msg)
-            return msg
+            return "Couldn't retrieve dockerfile: %s" % repr(ex)

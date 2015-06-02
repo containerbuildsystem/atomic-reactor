@@ -121,23 +121,39 @@ class DockerfileParser(object):
 
     @property
     def lines(self):
-        with open(self.dockerfile_path, 'r') as dockerfile:
-            return [self.b2u(l) for l in dockerfile.readlines()]
+        try:
+            with open(self.dockerfile_path, 'r') as dockerfile:
+                return [self.b2u(l) for l in dockerfile.readlines()]
+        except (IOError, OSError) as ex:
+            logger.error("Couldn't retrieve lines from dockerfile: %s" % repr(ex))
+            raise
 
     @lines.setter
     def lines(self, lines):
-        with open(self.dockerfile_path, 'w') as dockerfile:
-            dockerfile.writelines([self.u2b(l) for l in lines])
+        try:
+            with open(self.dockerfile_path, 'w') as dockerfile:
+                dockerfile.writelines([self.u2b(l) for l in lines])
+        except (IOError, OSError) as ex:
+            logger.error("Couldn't write lines to dockerfile: %s" % repr(ex))
+            raise
 
     @property
     def content(self):
-        with open(self.dockerfile_path, 'r') as dockerfile:
-            return self.b2u(dockerfile.read())
+        try:
+            with open(self.dockerfile_path, 'r') as dockerfile:
+                return self.b2u(dockerfile.read())
+        except (IOError, OSError) as ex:
+            logger.error("Couldn't retrieve content of dockerfile: %s" % repr(ex))
+            raise
 
     @content.setter
     def content(self, content):
-        with open(self.dockerfile_path, 'w') as dockerfile:
-            dockerfile.write(self.u2b(content))
+        try:
+            with open(self.dockerfile_path, 'w') as dockerfile:
+                dockerfile.write(self.u2b(content))
+        except (IOError, OSError) as ex:
+            logger.error("Couldn't write content to dockerfile: %s" % repr(ex))
+            raise
 
     def get_baseimage(self):
         for line in self.lines:
