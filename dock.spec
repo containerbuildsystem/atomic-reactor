@@ -5,7 +5,7 @@
 %global owner DBuildService
 %global project dock
 
-%global commit aaefffeae4e8847aaa4aa557cf953840023ef1b6
+%global commit 4c6195fefbd5504f10e5ccd138f68a15bcbfe65a
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 
 Name:           dock
@@ -146,14 +146,20 @@ ln -s %{_bindir}/dock2 %{buildroot}%{_bindir}/dock
 # ship dock in form of tarball so it can be installed within build image
 cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 
+mkdir -p %{buildroot}%{_mandir}/man1
+cp -a docs/manpage/dock.1 %{buildroot}%{_mandir}/man1/
+
 
 %files
 %doc README.md
+%{_mandir}/man1/dock.1*
+%license LICENSE
 %{_bindir}/dock
 
 
 %files -n python-dock
 %doc README.md
+%doc docs/*.md
 %{!?_licensedir:%global license %%doc}
 %license LICENSE
 %{_bindir}/dock2
@@ -180,9 +186,11 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
 %if 0%{?with_python3}
 %files -n python3-dock
 %doc README.md
+%doc docs/*.md
 %{!?_licensedir:%global license %%doc}
 %license LICENSE
 %{_bindir}/dock3
+%{_mandir}/man1/dock.1*
 %dir %{python3_sitelib}/dock
 %{python3_sitelib}/dock/*.*
 %{python3_sitelib}/dock/cli
