@@ -19,7 +19,7 @@ from dock.core import DockerTasker
 import dock.cli.main
 
 from tests.fixtures import is_registry_running, temp_image_name, get_uuid
-from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, MOCK
+from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, DOCKERFILE_OK_PATH, FILES, MOCK
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -32,6 +32,10 @@ logger = logging.getLogger('dock.tests')
 dt = DockerTasker()
 dock_root = os.path.dirname(os.path.dirname(__file__))
 
+with_all_sources = pytest.mark.parametrize('source_provider, uri', [
+    ('git', DOCKERFILE_GIT),
+    ('path', DOCKERFILE_OK_PATH),
+])
 
 # TEST-SUITE SETUP
 
@@ -68,7 +72,9 @@ class TestCLISuite(object):
         dock.cli.main.run()
         sys.argv = saved_args
 
-    def test_simple_privileged_build(self, is_registry_running, temp_image_name):
+    @with_all_sources
+    def test_simple_privileged_build(self, is_registry_running, temp_image_name,
+            source_provider, uri):
         if MOCK:
             mock_docker()
 
@@ -77,10 +83,11 @@ class TestCLISuite(object):
             "main.py",
             "--verbose",
             "build",
+            source_provider,
             "--method", "privileged",
             "--build-image", PRIV_BUILD_IMAGE,
             "--image", temp_image.to_str(),
-            "--git-url", DOCKERFILE_GIT,
+            "--uri", uri,
         ]
         if is_registry_running:
             logger.info("registry is running")
@@ -92,7 +99,8 @@ class TestCLISuite(object):
 
         assert excinfo.value.code == 0
 
-    def test_simple_dh_build(self, is_registry_running, temp_image_name):
+    @with_all_sources
+    def test_simple_dh_build(self, is_registry_running, temp_image_name, source_provider, uri):
         if MOCK:
             mock_docker()
 
@@ -101,10 +109,37 @@ class TestCLISuite(object):
             "main.py",
             "--verbose",
             "build",
+            source_provider,
             "--method", "hostdocker",
             "--build-image", DH_BUILD_IMAGE,
             "--image", temp_image.to_str(),
-            "--git-url", DOCKERFILE_GIT,
+            "--uri", uri,
+        ]
+        if is_registry_running:
+            logger.info("registry is running")
+            command += ["--source-registry", LOCALHOST_REGISTRY]
+        else:
+            logger.info("registry is NOT running")
+        with pytest.raises(SystemExit) as excinfo:
+            self.exec_cli(command)
+        assert excinfo.value.code == 0
+        dt.remove_image(temp_image, noprune=True)
+
+    def test_building_from_json_source_provider(self, is_registry_running, temp_image_name):
+        if MOCK:
+            mock_docker()
+
+        temp_image = temp_image_name
+        command = [
+            "main.py",
+            "--verbose",
+            "build",
+            "json",
+            "--method", "hostdocker",
+            "--build-image", DH_BUILD_IMAGE,
+            os.path.join(FILES, 'example-build.json'),
+            "--overrides", "image={0}".format(temp_image),
+            "source.uri={0}".format(DOCKERFILE_OK_PATH)
         ]
         if is_registry_running:
             logger.info("registry is running")
