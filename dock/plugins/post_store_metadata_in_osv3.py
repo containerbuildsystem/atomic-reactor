@@ -100,10 +100,16 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
             "rpm-packages": "\n".join(self.workflow.postbuild_results.get(PostBuildRPMqaPlugin.key, "")),
             "repositories": json.dumps(repositories),
             "commit_id": commit_id,
-            "tar_metadata": {
-                "size": self.workflow.exported_squashed_image.get("size"),
-                "md5sum": self.workflow.exported_squashed_image.get("md5sum"),
-                "sha256sum": self.workflow.exported_squashed_image.get("sha256sum"),
-            }
         }
+
+        tar_size = self.workflow.exported_squashed_image.get("size")
+        tar_md5sum = self.workflow.exported_squashed_image.get("md5sum")
+        tar_sha256sum = self.workflow.exported_squashed_image.get("sha256sum")
+        # looks like that openshift can't handle value being None (null in json)
+        if tar_size is not None and tar_md5sum is not None and tar_sha256sum is not None:
+            labels["tar_metadata"] = {
+                "size": tar_size,
+                "md5sum": tar_md5sum,
+                "sha256sum": tar_sha256sum,
+            }
         o.set_annotations_on_build(build_id, labels)
