@@ -19,6 +19,9 @@ except Exception:
     from urllib.parse import urljoin
 
 from dock.plugin import PostBuildPlugin
+from dock.plugins.pre_return_dockerfile import CpDockerfilePlugin
+from dock.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
+from dock.plugins.post_rpmqa import PostBuildRPMqaPlugin
 
 
 class StoreMetadataInOSv3Plugin(PostBuildPlugin):
@@ -91,10 +94,10 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
             commit_id = ""
 
         labels = {
-            "dockerfile": self.workflow.prebuild_results.get("dockerfile_content", ""),
-            "artefacts": self.workflow.prebuild_results.get("distgit_fetch_artefacts", ""),
+            "dockerfile": self.workflow.prebuild_results.get(CpDockerfilePlugin.key, ""),
+            "artefacts": self.workflow.prebuild_results.get(DistgitFetchArtefactsPlugin.key, ""),
             "logs": "\n".join(self.workflow.build_logs),
-            "rpm-packages": "\n".join(self.workflow.postbuild_results.get("all_rpm_packages", "")),
+            "rpm-packages": "\n".join(self.workflow.postbuild_results.get(PostBuildRPMqaPlugin.key, "")),
             "repositories": json.dumps(repositories),
             "commit_id": commit_id,
             "tar_metadata": {
