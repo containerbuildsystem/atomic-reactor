@@ -41,16 +41,21 @@ class GarbageCollectionPlugin(PostBuildPlugin):
             self.tasker.remove_image(image, force=True)
         except APIError as ex:
             if ex.is_client_error():
-                self.log.warning("failed to remove built image, ignoring")
+                self.log.warning("failed to remove built image %s (%s: %s), ignoring",
+                                 image, ex.response.status_code, ex.response.reason)
             else:
                 raise
-        if self.remove_base_image and self.workflow.pulled_base_image:
+        if self.remove_base_image and self.workflow.pulled_base_images:
             # FIXME: we may need to add force here, let's try it like this for now
             # FIXME: when ID of pulled img matches an ID of an image already present, don't remove
-            try:
-                self.tasker.remove_image(ImageName.parse(self.workflow.pulled_base_image))
-            except APIError as ex:
-                if ex.is_client_error():
-                    self.log.warning("failed to remove base image, ignoring")
-                else:
-                    raise
+            for base_image_tag in self.workflow.pulled_base_images:
+                try:
+                    self.tasker.remove_image(ImageName.parse(base_image_tag))
+                except APIError as ex:
+                    if ex.is_client_error():
+                        self.log.warning("failed to remove base image %s (%s: %s), ignoring",
+                                         base_image_tag,
+                                         ex.response.status_code,
+                                         ex.response.reason)
+                    else:
+                        raise

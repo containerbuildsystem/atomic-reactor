@@ -165,7 +165,7 @@ class DockerBuildWorkflow(object):
         self.built_image_inspect = None
 
         self.dont_pull_base_image = dont_pull_base_image
-        self.pulled_base_image = None
+        self.pulled_base_images = set()
 
         # squashed image tarball
         # set by squash plugin
@@ -192,8 +192,8 @@ class DockerBuildWorkflow(object):
         self.builder = InsideBuilder(self.source, self.image)
         try:
             if not self.dont_pull_base_image:
-                self.pulled_base_image = self.builder.pull_base_image(self.parent_registry,
-                                                                      insecure=self.parent_registry_insecure)
+                self.pulled_base_images = self.builder.pull_base_image(self.parent_registry,
+                                                                       insecure=self.parent_registry_insecure)
 
             # time to run pre-build plugins, so they can access cloned repo,
             # base image
