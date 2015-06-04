@@ -206,8 +206,13 @@ class DockerTasker(LastLogger):
         """
         logger.info("build image from provided path")
         logger.debug("image = '%s', path = '%s'", image, path)
-        response = self.d.build(path=path, tag=image.to_str(), stream=stream, nocache=not use_cache,
-                                rm=remove_im, pull=False)  # returns generator
+        try:
+            response = self.d.build(path=path, tag=image.to_str(), stream=stream, nocache=not use_cache,
+                                    rm=remove_im, pull=False)  # returns generator
+        except TypeError:
+            # because changing api is fun
+            response = self.d.build(path=path, tag=image.to_str(), stream=stream, nocache=not use_cache,
+                                    rm=remove_im)  # returns generator
         return response
 
     def build_image_from_git(self, url, image, git_path=None, git_commit=None, copy_dockerfile_to=None,
