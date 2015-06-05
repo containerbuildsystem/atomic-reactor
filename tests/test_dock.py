@@ -40,10 +40,14 @@ def assert_source_from_path_mounted_ok(caplog, tmpdir):
 
     # verify that source code was copied in - actually only verifies
     #  that source dir has been created
-    source_exists = 'Verifying that %s exists: True' %\
+    source_exists = "source path is '%s'" %\
             os.path.join(tmpdir, dconstants.CONTAINER_SHARE_SOURCE_SUBDIR)
     assert any([container_uri_re.search(l.getMessage()) for l in caplog.records()])
     assert source_exists in [l.getMessage() for l in caplog.records()]
+
+    # make sure that double source (i.e. source/source) is not created
+    source_path_is_re = re.compile(r"source path is '.*/source/source'")
+    assert not any([source_path_is_re.search(l.getMessage()) for l in caplog.records()])
 
 
 @with_all_sources

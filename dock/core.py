@@ -92,13 +92,11 @@ class BuildContainerFactory(object):
         build_json_path = os.path.join(local_path, BUILD_JSON)
         with open(build_json_path, 'r') as fp:
             build_json = json.load(fp)
-        save_code_to = os.path.join(local_path, CONTAINER_SHARE_SOURCE_SUBDIR)
-        os.mkdir(save_code_to)
-        source = get_source_instance_for(build_json['source'], tmpdir=save_code_to)
+        source = get_source_instance_for(build_json['source'], tmpdir=local_path)
         if source.provider == 'path':
-            logger.debug('Copying source from %s to %s', source.schemeless_path, save_code_to)
+            logger.debug('Copying source from %s to %s', source.schemeless_path, local_path)
             source.get()
-            logger.debug('Verifying that %s exists: %s', save_code_to, os.path.exists(save_code_to))
+            logger.debug('Verifying that %s exists: %s', local_path, os.path.exists(local_path))
             # now modify the build json
             build_json['source']['uri'] =\
                     'file://' + os.path.join(container_path, CONTAINER_SHARE_SOURCE_SUBDIR)
