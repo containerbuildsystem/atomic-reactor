@@ -69,6 +69,9 @@ class PathSource(Source):
     def __init__(self, provider, uri, dockerfile_path=None, provider_params=None, tmpdir=None):
         super(PathSource, self).__init__(provider, uri, dockerfile_path,
                 provider_params, tmpdir)
+        # make sure we have canonical URI representation even if we got path without "file://"
+        if not self.uri.startswith('file://'):
+            self.uri = 'file://' + self.uri
         self.schemeless_path = self.uri[len('file://'):]
         os.makedirs(self.source_path)
 

@@ -39,24 +39,13 @@ def cli_create_build_image(args):
 def cli_build_image(args):
     if args.plugin_files:
         args.plugin_files = [os.path.abspath(f) for f in args.plugin_files]
-    if args.json:
-        with open(args.json) as json_fp:
+    if args.source__provider == 'json':
+        with open(args.json_path) as json_fp:
             common_kwargs = json.load(json_fp)
+        if args.overrides:
+            process_overrides(common_kwargs, args.overrides)
     else:
-        common_kwargs = {
-            "source": {
-                "provider": "git",
-                "uri": args.git_url,
-                "dockerfile_path": args.git_path,
-                "provider_params": {"git_commit": args.git_commit}
-            },
-            "image": args.image,
-            "parent_registry": args.source_registry,
-            "parent_registry_insecure": args.source_registry_insecure,
-            "target_registries": args.target_registries,
-            "target_registries_insecure": args.target_registries_insecure,
-            "dont_pull_base_image": args.dont_pull_base_image,
-        }
+        common_kwargs = construct_kwargs(**vars(args))
     response = BuildResults()
     if args.method == "hostdocker":
         response = build_image_using_hosts_docker(args.build_image, **common_kwargs)
@@ -72,6 +61,55 @@ def cli_build_image(args):
     if response.return_code != 0:
         logger.error("build failed")
     sys.exit(response.return_code)
+
+
+def process_overrides(common_kwargs, overrides_list):
+    def parse_val(v):
+        # TODO: do we need to recognize numbers,lists,dicts?
+        if v.lower() == 'true':
+            return True
+        elif v.lower() == 'false':
+            return False
+        elif v.lower() == 'none':
+            return None
+        return v
+
+    for ovrd in overrides_list:
+        key, val = ovrd.split('=', 1)
+        cur_dict = common_kwargs
+        key_parts = key.split('.')
+        key_parts_without_last = key_parts[:-1]
+
+        # now go down common_kwargs, following the dotted path; create empty dicts on way if needed
+        for k in key_parts_without_last:
+            if k in cur_dict:
+                if not isinstance(cur_dict[k], dict):
+                    cur_dict[k] = {}
+            else:
+                cur_dict[k] = {}
+            cur_dict = cur_dict[k]
+        cur_dict[key_parts[-1]] = parse_val(val)
+
+
+def construct_kwargs(**kwargs):
+    ret = {}
+    ret['source'] = {'provider_params': {}}
+
+    # extend this when adding more args that should be passed to build_* functions
+    recognized_kwargs = ['image', 'parent_registry', 'parent_registry_insecure',
+                         'target_registries', 'target_registries_insecure', 'dont_pull_base_image']
+    is_recognized_kwarg = lambda x: x in recognized_kwargs or x.startswith('source__')
+
+    for k, v in kwargs.items():
+        if is_recognized_kwarg(k):
+            if k.startswith('source__provider_params__'):
+                ret['source']['provider_params'][k.split('__')[-1]] = v
+            elif k.startswith('source__'):
+                ret['source'][k.split('__')[-1]] = v
+            else:
+                ret[k] = v
+
+    return ret
 
 
 def cli_inside_build(args):
@@ -110,46 +148,18 @@ class CLI(object):
 
         # BUILDING IMAGES
 
-        self.build_parser = subparsers.add_parser('build',
-                                                  usage="%s [OPTIONS] build" % PROG,
-                                                  description='This command enables you to build images. '
-                                                              'There are several methods for performing the build: '
-                                                              'inside a build container using docker from host, '
-                                                              'inside a build container using new instance of docker, '
-                                                              'or within current environment')
+        self.build_parser = subparsers.add_parser(
+            'build',
+            usage="%s [OPTIONS] build" % PROG,
+            description='This command enables you to build images. '
+                        'Currently, you can build images from git repo or from local path. '
+                        'There are several methods for performing the build: '
+                        'inside a build container using docker from host, '
+                        'inside a build container using new instance of docker, '
+                        'or within current environment.'
+        )
         self.build_parser.set_defaults(func=cli_build_image)
-        self.build_parser.add_argument("--json", action="store", help="path to build json")
-        self.build_parser.add_argument("--build-image", action='store',
-                                       help="name of build image to use "
-                                            "(build image type has to match method)")
-        self.build_parser.add_argument("--image", action='store',
-                                       help="name under the image will be accessible")
-        self.build_parser.add_argument("--git-url", action='store', metavar="URL",
-                                       help="URL to git repo")
-        self.build_parser.add_argument("--git-path", action='store',
-                                       help="path to Dockerfile within git repo (default is ./)")
-        self.build_parser.add_argument("--git-commit", action='store',
-                                       help="checkout this commit (default is master)")
-        self.build_parser.add_argument("--source-registry", action='store',
-                                       metavar="REGISTRY",
-                                       help="registry to pull base image from")
-        self.build_parser.add_argument("--source-registry-insecure", action='store_true',
-                                       help="allow connecting to source registry over plain http")
-        self.build_parser.add_argument("--target-registries", action='store', nargs="*",
-                                       metavar="REGISTRY",
-                                       help="list of registries to push image to")
-        self.build_parser.add_argument("--target-registries-insecure", action='store_true',
-                                       help="allow connecting to target registries over plain http")
-        self.build_parser.add_argument("--dont-pull-base-image", action='store_true',
-                                       help="don't pull or update base image specified in dockerfile")
-        self.build_parser.add_argument("--load-plugin", action="store", nargs="*", metavar="PLUGIN_FILE",
-                                       dest="plugin_files", help="list of files where plugins live")
-        self.build_parser.add_argument("--method", action='store', choices=["hostdocker", "privileged", "here"],
-                                       required=True,
-                                       help="choose method for building image: 'hostdocker' mounts socket "
-                                            "inside container, 'privileged' spawns privileged container and "
-                                            "runs separate docker instance inside and finally 'here' executes"
-                                            "build in current environment")
+        self.generate_source_types_subparsers()
 
         # CREATE BUILD IMAGE
 
@@ -192,6 +202,83 @@ class CLI(object):
                                     help="substitute values in build json (key=value, or "
                                          "plugin_type.plugin_name.key=value)")
         self.ib_parser.set_defaults(func=cli_inside_build)
+
+    def generate_source_types_subparsers(self):
+        build_subparsers = self.build_parser.add_subparsers(help='select source provider to use',
+                                                            dest='source__provider')
+        self.source_types_parsers = {
+            'git': build_subparsers.add_parser('git', help='build from a git repo'),
+            'path': build_subparsers.add_parser('path', help='build from a local path'),
+        }
+        source_types_uri_help = {
+            'git': 'URI of the git repo',
+            'path': 'URI of the directory with source (e.g. "file:///foo/bar") or\
+                    path (e.g. "/foo/bar"); path can be relative',
+        }
+        source_types_df_path_help = {
+            'git': 'path to Dockerfile within git repo (default is ./)',
+            'path': 'path to Dockerfile within given directory (default is ./)',
+        }
+
+        # add arguments that are common to non-json source types
+        for st, stp in self.source_types_parsers.items():
+            stp.add_argument(
+                "--image", action='store',
+                help="name under which the image will be accessible")
+            stp.add_argument(
+                "--uri", action='store', metavar="URI", required=True,
+                help=source_types_uri_help[st], dest='source__uri')
+            stp.add_argument(
+                "--df-path", action='store', help=source_types_df_path_help[st],
+                dest='source__dockerfile_path')
+            stp.add_argument(
+                "--source-registry", action='store', metavar="REGISTRY",
+                help="registry to pull base image from")
+            stp.add_argument(
+                "--source-registry-insecure", action='store_true',
+                help="allow connecting to source registry over plain http")
+            stp.add_argument(
+                "--target-registries", action='store', nargs="*", metavar="REGISTRY",
+                help="list of registries to push image to")
+            stp.add_argument(
+                "--target-registries-insecure", action='store_true',
+                help="allow connecting to target registries over plain http")
+            stp.add_argument(
+                "--dont-pull-base-image", action='store_true',
+                help="don't pull or update base image specified in dockerfile")
+
+        # add the "json" subparser that allows to build from a json build file
+        self.source_types_parsers['json'] = build_subparsers.add_parser(
+            'json',
+            help='load build configuration from json file')
+
+        # add arguments common to both non-json and json source types
+        for stp in self.source_types_parsers.values():
+            stp.add_argument(
+                "--build-image", action='store',
+                help="name of build image to use (build image type has to match method)")
+            stp.add_argument(
+                "--load-plugin", action="store", nargs="*", metavar="PLUGIN_FILE",
+                dest="plugin_files", help="list of files where plugins live")
+            stp.add_argument(
+                "--method", action='store', required=True,
+                choices=["hostdocker", "privileged", "here"],
+                help="choose method for building image: 'hostdocker' mounts socket "
+                     "inside container, 'privileged' spawns privileged container and "
+                     "runs separate docker instance inside and finally 'here' executes"
+                     "build in current environment")
+
+        # add sourcetype-specific arguments now
+        self.source_types_parsers['git'].add_argument(
+            '--commit', action='store',
+            dest='source__provider_params__git_commit',
+            help="checkout this commit (default is master)")
+        self.source_types_parsers['json'].add_argument(
+            'json_path', metavar='JSON_PATH',
+            help='path to the build json')
+        self.source_types_parsers['json'].add_argument(
+            '--overrides', nargs='*', metavar='OVERRIDES',
+            help='provide overrides for json in form "foo.bar=spam"')
 
     def run(self):
         self.set_arguments()

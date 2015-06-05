@@ -1,0 +1,8 @@
+{
+  "image": "this should get overriden",
+  "target_registries_insecure": "True",
+  "source": {
+    "provider": "path",
+    "uri": "override this as well"
+  }
+}
