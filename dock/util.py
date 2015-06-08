@@ -84,6 +84,9 @@ class ImageName(object):
     def __str__(self):
         return self.to_str(registry=True, tag=True)
 
+    def __repr__(self):
+        return "ImageName(image=%s)" % repr(self.to_str())
+
     def __eq__(self, other):
         return type(self) == type(other) and self.__dict__ == other.__dict__
 
