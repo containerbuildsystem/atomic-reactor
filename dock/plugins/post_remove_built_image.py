@@ -11,6 +11,7 @@ Remove built image (this only makes sense if you store the image in some registr
 from dock.plugin import PostBuildPlugin
 from dock.util import ImageName
 
+from docker.errors import APIError
 
 __all__ = ('GarbageCollectionPlugin', )
 
@@ -36,8 +37,25 @@ class GarbageCollectionPlugin(PostBuildPlugin):
         if not image:
             self.log.error("no built image, nothing to remove")
             return
-        self.tasker.remove_image(image, force=True)
-        if self.remove_base_image and self.workflow.pulled_base_image:
+        try:
+            self.tasker.remove_image(image, force=True)
+        except APIError as ex:
+            if ex.is_client_error():
+                self.log.warning("failed to remove built image %s (%s: %s), ignoring",
+                                 image, ex.response.status_code, ex.response.reason)
+            else:
+                raise
+        if self.remove_base_image and self.workflow.pulled_base_images:
             # FIXME: we may need to add force here, let's try it like this for now
             # FIXME: when ID of pulled img matches an ID of an image already present, don't remove
-            self.tasker.remove_image(ImageName.parse(self.workflow.pulled_base_image))
+            for base_image_tag in self.workflow.pulled_base_images:
+                try:
+                    self.tasker.remove_image(ImageName.parse(base_image_tag))
+                except APIError as ex:
+                    if ex.is_client_error():
+                        self.log.warning("failed to remove base image %s (%s: %s), ignoring",
+                                         base_image_tag,
+                                         ex.response.status_code,
+                                         ex.response.reason)
+                    else:
+                        raise

@@ -318,7 +318,7 @@ Python API for dock. This is the official way of interacting with dock.
 
 * prepublish_plugins_conf
 
-* pulled_base_image
+* pulled_base_images
 
 * repos
 

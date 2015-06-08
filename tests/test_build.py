@@ -41,11 +41,14 @@ def test_pull_base_image(tmpdir, source_params):
     s = get_source_instance_for(source_params)
     t = DockerTasker()
     b = InsideBuilder(s, "")
-    reg_img_name = b.pull_base_image(LOCALHOST_REGISTRY, insecure=True)
-    reg_img_name = ImageName.parse(reg_img_name)
-    assert t.inspect_image(reg_img_name) is not None
-    assert reg_img_name.repo == git_base_image.repo
-    assert reg_img_name.tag == git_base_image.tag
+    pulled_tags = b.pull_base_image(LOCALHOST_REGISTRY, insecure=True)
+    assert isinstance(pulled_tags, set)
+    assert len(pulled_tags) == 2
+    for reg_img_name in pulled_tags:
+        reg_img_name = ImageName.parse(reg_img_name)
+        assert t.inspect_image(reg_img_name) is not None
+        assert reg_img_name.repo == git_base_image.repo
+        assert reg_img_name.tag == git_base_image.tag
     # clean
     t.remove_image(git_base_image)
 
