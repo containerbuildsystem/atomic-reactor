@@ -5,6 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+from __future__ import unicode_literals
 
 import json
 import os
@@ -107,9 +108,9 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
         tar_sha256sum = self.workflow.exported_squashed_image.get("sha256sum")
         # looks like that openshift can't handle value being None (null in json)
         if tar_size is not None and tar_md5sum is not None and tar_sha256sum is not None:
-            labels["tar_metadata"] = {
+            labels["tar_metadata"] = json.dumps({
                 "size": tar_size,
                 "md5sum": tar_md5sum,
                 "sha256sum": tar_sha256sum,
-            }
+            })
         o.set_annotations_on_build(build_id, labels)

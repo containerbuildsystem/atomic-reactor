@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 It returns the dockerfile itself and therefore displays it in results.
 """
+from __future__ import unicode_literals
 
 from os.path import getsize, isfile
 from hashlib import md5, sha256
