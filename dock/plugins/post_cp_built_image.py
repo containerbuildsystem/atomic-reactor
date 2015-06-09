@@ -29,11 +29,6 @@ __all__ = ('CopyBuiltImageToNFSPlugin', )
 DEFAULT_MOUNTPOINT = "/dock-nfs-mountpoint/"
 
 
-def create_mountpoint(path):
-    mkdir_p(path)
-    return path
-
-
 def mount(server_path, mountpoint, args=None, mount_type="nfs"):
     args = args or ["nolock"]
     rendered_args = ",".join(args)
@@ -93,7 +88,7 @@ class CopyBuiltImageToNFSPlugin(PostBuildPlugin):
 
     def mount_nfs(self):
         self.log.debug("create mountpoint %s", self.mountpoint)
-        create_mountpoint(self.mountpoint)
+        mkdir_p(self.mountpoint)
         self.log.debug("mount NFS %s at %s", repr(self.nfs_server_path), self.mountpoint)
         mount(self.nfs_server_path, self.mountpoint)
 
