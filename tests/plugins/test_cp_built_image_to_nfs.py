@@ -18,7 +18,7 @@ from dock.util import ImageName
 from dock.core import DockerTasker
 from dock.inner import DockerBuildWorkflow
 from dock.plugin import PostBuildPluginsRunner
-from dock.plugins.post_cp_built_image import CopyBuiltImageToNFSPlugin
+from dock.plugins.post_cp_built_image_to_nfs import CopyBuiltImageToNFSPlugin
 from tests.constants import INPUT_IMAGE
 
 
@@ -38,7 +38,7 @@ NFS_SERVER_PATH = "server:path"
 
 
 @pytest.mark.parametrize('dest_dir', [None, "test_directory"])
-def test_cp_built_image(tmpdir, dest_dir):
+def test_cp_built_image_to_nfs(tmpdir, dest_dir):
     mountpoint = tmpdir.join("mountpoint")
 
     def fake_check_call(cmd):
