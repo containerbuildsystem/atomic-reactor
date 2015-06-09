@@ -63,6 +63,8 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
         # FIXME: use OSBS here
         o = Openshift(api_url, oauth_url, None, use_auth=self.use_auth, verify_ssl=self.verify_ssl)
 
+        # usually repositories formed from NVR labels
+        # these should be used for pulling and layering
         primary_repositories = []
         for registry in self.workflow.push_conf.all_registries:
             for image in self.workflow.tag_conf.images:
@@ -70,6 +72,7 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
                 registry_image.registry = registry.uri
                 primary_repositories.append(registry_image.to_str())
 
+        # unique unpredictable repositories
         unique_repositories = []
         target_image = self.workflow.builder.image.copy()
         for registry in self.workflow.push_conf.all_registries:

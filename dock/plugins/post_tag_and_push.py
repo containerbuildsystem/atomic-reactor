@@ -13,6 +13,10 @@ __all__ = ('TagAndPushPlugin', )
 
 
 class TagAndPushPlugin(PostBuildPlugin):
+    """
+    Use tags from workflow.tag_conf and push the images to workflow.push_conf
+    """
+
     key = "tag_and_push"
     can_fail = False
 
@@ -29,7 +33,7 @@ class TagAndPushPlugin(PostBuildPlugin):
 
     def run(self):
         pushed_images = []
-        for registry in self.workflow.push_conf.all_docker_registries:
+        for registry in self.workflow.push_conf.docker_registries:
             for image in self.workflow.tag_conf.images:
                 registry_image = image.copy()
                 registry_image.registry = registry.uri

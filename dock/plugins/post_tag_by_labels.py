@@ -13,6 +13,11 @@ __all__ = ('TagByLabelsPlugin', )
 
 
 class TagByLabelsPlugin(PostBuildPlugin):
+    """
+    Use labels Name, Version and Release of final image and create tags:
+     * Name:Version
+     * Name:Version_Release
+    """
     key = "tag_by_labels"
     can_fail = False
 

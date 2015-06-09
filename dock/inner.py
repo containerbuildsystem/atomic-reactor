@@ -70,12 +70,22 @@ class TagConf(object):
     """
 
     def __init__(self):
-        self.images = []
+        self.images = []  # list of ImageName instances
 
     def add_image(self, image):
+        """
+
+        :param image: str, name of image (e.g. "namespace/httpd:2.4")
+        :return: None
+        """
         self.images.append(ImageName.parse(image))
 
     def add_images(self, images):
+        """
+
+        :param images: list of str, list of image names
+        :return: None
+        """
         for image in images:
             self.add_image(image)
 
@@ -114,25 +124,16 @@ class PushConf(object):
     """
 
     def __init__(self):
-        self._primary_registry = None
-        self._additional_registries = {
+        self._registries = {
             "docker": [],
             "pulp": [],
         }
-
-    @property
-    def primary_registry(self):
-        return self._primary_registry
-
-    @primary_registry.setter
-    def primary_registry(self, value):
-        self._primary_registry = value
 
     def add_docker_registry(self, registry_uri, insecure=False):
         if registry_uri is None:
             raise RuntimeError("registry URI cannot be None")
         r = DockerRegistry(registry_uri, insecure=insecure)
-        self._additional_registries["docker"].append(r)
+        self._registries["docker"].append(r)
 
     def add_docker_registries(self, registry_uris, insecure=False):
         for registry_uri in registry_uris:
@@ -144,22 +145,15 @@ class PushConf(object):
 
     @property
     def docker_registries(self):
-        return self._additional_registries["docker"]
+        return self._registries["docker"]
 
     @property
     def pulp_registries(self):
-        return self._additional_registries["pulp"]
+        return self._registries["pulp"]
 
     @property
     def all_registries(self):
-        return self.docker_registries + self.pulp_registries + [self.primary_registry]
-
-    @property
-    def all_docker_registries(self):
-        if isinstance(self.primary_registry, DockerRegistry):
-            return self.docker_registries + [self.primary_registry]
-        else:
-            return self.docker_registries
+        return self.docker_registries + self.pulp_registries
 
 
 class DockerBuildWorkflow(object):
@@ -220,9 +214,7 @@ class DockerBuildWorkflow(object):
         self.tag_conf = TagConf()
         self.push_conf = PushConf()
         if target_registries:
-            self.push_conf.primary_registry = DockerRegistry(target_registries[0],
-                                                             insecure=target_registries_insecure)
-            self.push_conf.add_docker_registries(target_registries[1:], insecure=target_registries_insecure)
+            self.push_conf.add_docker_registries(target_registries, insecure=target_registries_insecure)
 
         # mapping of downloaded files; DON'T PUT ANYTHING BIG HERE!
         # "path/to/file" -> "content"
@@ -271,7 +263,7 @@ class DockerBuildWorkflow(object):
                 return
 
             if not build_result.is_failed():
-                for registry in self.push_conf.all_docker_registries:
+                for registry in self.push_conf.docker_registries:
                     self.builder.push_built_image(registry.uri,
                                                   insecure=registry.insecure)
 
