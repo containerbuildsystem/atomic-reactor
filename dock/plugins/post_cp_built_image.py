@@ -119,7 +119,6 @@ class CopyBuiltImageToNFSPlugin(PostBuildPlugin):
             self.log.error("Couldn't copy %s into %s: %s", source_path, self.dest_dir, repr(ex))
             raise
 
-        fname = os.path.basename(source_path)
         if os.path.isfile(os.path.join(self.absolute_dest_dir, fname)):
             self.log.debug("CopyBuiltImagePlugin.run() success")
         else:
