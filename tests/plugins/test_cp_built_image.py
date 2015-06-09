@@ -9,13 +9,19 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 import os
+import subprocess
+
 import pytest
+from flexmock import flexmock
+
 from dock.util import ImageName
 from dock.core import DockerTasker
 from dock.inner import DockerBuildWorkflow
 from dock.plugin import PostBuildPluginsRunner
-from dock.plugins.post_cp_built_image import CopyBuiltImagePlugin, DEFAULT_DEST_DIR
+from dock.plugins import post_cp_built_image
+from dock.plugins.post_cp_built_image import CopyBuiltImageToNFSPlugin
 from tests.constants import INPUT_IMAGE
+
 
 class Y(object):
     pass
@@ -28,8 +34,23 @@ class X(object):
     source.path = None
     base_image = ImageName(repo="qwe", tag="asd")
 
+
+NFS_SERVER_PATH = "server:path"
+
+
 @pytest.mark.parametrize('dest_dir', [None, "test_directory"])
 def test_cp_built_image(tmpdir, dest_dir):
+    mountpoint = tmpdir.join("mountpoint")
+
+    def fake_check_call(cmd):
+        assert cmd == [
+            "mount",
+            "-t", "nfs",
+            "-o", "nolock",
+            NFS_SERVER_PATH,
+            mountpoint,
+        ]
+    flexmock(subprocess, check_call=fake_check_call)
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, "test-image")
     workflow.builder = X()
@@ -40,12 +61,16 @@ def test_cp_built_image(tmpdir, dest_dir):
         tasker,
         workflow,
         [{
-            'name': CopyBuiltImagePlugin.key,
+            'name': CopyBuiltImageToNFSPlugin.key,
             'args': {
-                "secrets": str(tmpdir),
-                "dest_dir": dest_dir}
+                "nfs_server_path": NFS_SERVER_PATH,
+                "dest_dir": dest_dir,
+                "mountpoint": str(mountpoint),
+            }
         }]
     )
     runner.run()
-    dest_dir = DEFAULT_DEST_DIR if dest_dir is None else dest_dir
-    assert os.path.isfile(os.path.join(str(tmpdir), dest_dir, "image.tar"))
+    if dest_dir is None:
+        assert os.path.isfile(os.path.join(str(mountpoint), "image.tar"))
+    else:
+        assert os.path.isfile(os.path.join(str(mountpoint), dest_dir, "image.tar"))

@@ -15,67 +15,100 @@ Usage:
 }
 
 """
-
+from __future__ import unicode_literals
 
 import os
 import shutil
+import subprocess
 from dock.plugin import PostBuildPlugin
 
 
-__all__ = ('CopyBuiltImagePlugin', )
+__all__ = ('CopyBuiltImageToNFSPlugin', )
 
-DEFAULT_SECRETS = '/run/secrets/'
-DEFAULT_DEST_DIR = 'built_images/'
+DEFAULT_MOUNTPOINT = "/dock-nfs-mountpoint/"
 
-class CopyBuiltImagePlugin(PostBuildPlugin):
-    key = "cp_built_image"
 
-    def __init__(self, tasker, workflow, secrets=None, dest_dir=None):
+def create_mountpoint(path):
+    os.makedirs(path)
+    return path
+
+
+def mount(server_path, mountpoint, args=None, mount_type="nfs"):
+    args = args or ["nolock"]
+    rendered_args = ",".join(args)
+    cmd = [
+        "mount",
+        "-t", mount_type,
+        "-o", rendered_args,
+        server_path,
+        mountpoint
+    ]
+    subprocess.check_call(cmd)
+
+
+class CopyBuiltImageToNFSPlugin(PostBuildPlugin):
+    """
+    Workflow of this plugin:
+
+    1. mount NFS
+    2. create subdir (`dest_dir`)
+    3. copy squashed image to $NFS/$dest_dir/
+    """
+
+    key = "cp_built_image_to_nfs"
+    can_fail = False
+
+    def __init__(self, tasker, workflow, nfs_server_path, dest_dir=None,
+                 mountpoint=DEFAULT_MOUNTPOINT):
         """
         constructor
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param secrets: mainly for testing, to be able to create dest_dir somewhere else than in /run/secrets/
-        :param dest_dir: this directory will be created in 'secrets' (/run/secrets/ by default)
-                         and the built image will be copied into it
+        :param nfs_server_path: str, $server:$path of NFS share
+        :param dest_dir: this directory will be created in NFS and the built image will be copied
+                         into it, if not specified, copy to root of NFS
+        :param mountpoint: str, path where NFS share will be mounted
         """
         # call parent constructor
-        super(CopyBuiltImagePlugin, self).__init__(tasker, workflow)
-        if secrets is None:
-            secrets = DEFAULT_SECRETS
-        self.secrets = secrets
-        if dest_dir is None:
-            dest_dir = DEFAULT_DEST_DIR
-        self.dest_dir = os.path.join(self.secrets, dest_dir)
+        super(CopyBuiltImageToNFSPlugin, self).__init__(tasker, workflow)
+        self.nfs_server_path = nfs_server_path
+        self.dest_dir = dest_dir
+        self.mountpoint = mountpoint
+        self.absolute_dest_dir = self.mountpoint
+        if self.dest_dir:
+            self.absolute_dest_dir = os.path.join(self.mountpoint, self.dest_dir)
+            self.log.debug("destination dir = %s", self.absolute_dest_dir)
+
+    def mount_nfs(self):
+        self.log.debug("create mountpoint %s", self.mountpoint)
+        create_mountpoint(self.mountpoint)
+        self.log.debug("mount NFS %s at %s", repr(self.nfs_server_path), self.mountpoint)
+        mount(self.nfs_server_path, self.mountpoint)
 
     def run(self):
         source_path = self.workflow.exported_squashed_image.get("path")
-        self.log.info("Copying exported built image %s into %s", source_path, self.dest_dir)
         if not source_path or not os.path.isfile(source_path):
-            self.log.error("%s is not a file.", source_path)
+            self.log.error("squashed image does not exist: %s", source_path)
             return
 
-        if not os.path.isdir(self.secrets):
-            self.log.error("%s doesn't exist.", self.secrets)
-            return
+        self.mount_nfs()
 
-        if not os.path.isdir(self.dest_dir):
+        if self.dest_dir:
             try:
-                os.mkdir(self.dest_dir)
-                self.log.info("Creating %s", self.dest_dir)
+                os.makedirs(self.absolute_dest_dir)
             except (IOError, OSError) as ex:
-                self.log.error("Couldn't create %s: %s", self.dest_dir,  repr(ex))
+                self.log.error("Couldn't create %s: %s", self.dest_dir, repr(ex))
                 raise
 
         try:
-            shutil.copy2(source_path, self.dest_dir)
+            shutil.copy2(source_path, self.absolute_dest_dir)
         except (IOError, OSError) as ex:
             self.log.error("Couldn't copy %s into %s: %s", source_path, self.dest_dir, repr(ex))
             raise
 
         fname = os.path.basename(source_path)
-        if os.path.isfile(os.path.join(self.dest_dir, fname)):
+        if os.path.isfile(os.path.join(self.absolute_dest_dir, fname)):
             self.log.debug("CopyBuiltImagePlugin.run() success")
         else:
             self.log.error("CopyBuiltImagePlugin.run() unknown error")
