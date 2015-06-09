@@ -20,6 +20,7 @@ from __future__ import unicode_literals
 import os
 import shutil
 import subprocess
+import errno
 from dock.plugin import PostBuildPlugin
 
 
@@ -29,7 +30,7 @@ DEFAULT_MOUNTPOINT = "/dock-nfs-mountpoint/"
 
 
 def create_mountpoint(path):
-    os.makedirs(path)
+    mkdir_p(path)
     return path
 
 
@@ -44,6 +45,16 @@ def mount(server_path, mountpoint, args=None, mount_type="nfs"):
         mountpoint
     ]
     subprocess.check_call(cmd)
+
+
+def mkdir_p(path):
+    try:
+        os.makedirs(path)
+    except OSError as exc:
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
 
 
 class CopyBuiltImageToNFSPlugin(PostBuildPlugin):
@@ -96,7 +107,7 @@ class CopyBuiltImageToNFSPlugin(PostBuildPlugin):
 
         if self.dest_dir:
             try:
-                os.makedirs(self.absolute_dest_dir)
+                mkdir_p(self.absolute_dest_dir)
             except (IOError, OSError) as ex:
                 self.log.error("Couldn't create %s: %s", self.dest_dir, repr(ex))
                 raise
