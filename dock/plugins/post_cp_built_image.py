@@ -112,6 +112,11 @@ class CopyBuiltImageToNFSPlugin(PostBuildPlugin):
                 self.log.error("Couldn't create %s: %s", self.dest_dir, repr(ex))
                 raise
 
+        fname = os.path.basename(source_path)
+        expected_image_path = os.path.join(self.absolute_dest_dir, fname)
+        if os.path.isfile(expected_image_path):
+            raise RuntimeError("%s already exists!", expected_image_path)
+
         try:
             shutil.copy2(source_path, self.absolute_dest_dir)
         except (IOError, OSError) as ex:
