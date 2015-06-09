@@ -5,16 +5,21 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 
+Mounts NFS share to mountpoint,
+creates a directory there and copies
+exported squashed built image ($tmpdir/image.tar) into it.
 
-Copies exported squashed built image ($tmpdir/image.tar)
-into specified directory under /run/secrets/
 Usage:
 {
-    'name': 'cp_built_image',
-    'args': {'dest_dir': 'custom_directory'}
+    'name': 'cp_built_image_to_nfs',
+    'args': { 'nfs_server_path': 'server:path',
+              'dest_dir': 'dest_dir',
+              'mountpoint': '/tmp/mountpoint/' }
+
 }
 
 """
+
 from __future__ import unicode_literals
 
 import os
@@ -112,7 +117,7 @@ class CopyBuiltImageToNFSPlugin(PostBuildPlugin):
         if os.path.isfile(expected_image_path):
             raise RuntimeError("%s already exists!", expected_image_path)
 
-        self.log.info("starting copying the image; this make take a while")
+        self.log.info("starting copying the image; this may take a while")
         try:
             shutil.copy2(source_path, self.absolute_dest_dir)
         except (IOError, OSError) as ex:
