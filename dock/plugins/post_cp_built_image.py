@@ -117,6 +117,7 @@ class CopyBuiltImageToNFSPlugin(PostBuildPlugin):
         if os.path.isfile(expected_image_path):
             raise RuntimeError("%s already exists!", expected_image_path)
 
+        self.log.info("starting copying the image; this make take a while")
         try:
             shutil.copy2(source_path, self.absolute_dest_dir)
         except (IOError, OSError) as ex:
