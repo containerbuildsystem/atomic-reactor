@@ -26,11 +26,15 @@ class PulpUploader(object):
     CER = 'pulp.cer'
     KEY = 'pulp.key'
 
-    def __init__(self, pulp_instance, filename, log, pulp_secret_path=None):
+    def __init__(self, pulp_instance, filename, log, pulp_secret_path=None, username=None,
+                 password=None):
         self.pulp_instance = pulp_instance
         self.filename = filename
         self.pulp_secret_path = pulp_secret_path
         self.log = log
+        # U/N & password has bigger prio than secret cert
+        self.username = username
+        self.password = password
 
     def _check_file(self):
         # Sanity-check image
@@ -61,25 +65,28 @@ class PulpUploader(object):
         # 'Secret'-type resource, and referenced by the sourceSecret
         # for the build. The path to our files is now given in the
         # environment variable SOURCE_SECRET_PATH.
-        if self.pulp_secret_path is not None:
-            path = self.pulp_secret_path
-            self.log.info("Using configured path %s for secrets" % path)
+        if self.username and self.password:
+            p.login(self.username, self.password)
         else:
-            path = os.environ["SOURCE_SECRET_PATH"]
-            self.log.info("SOURCE_SECRET_PATH=%s from environment" % path)
+            if self.pulp_secret_path is not None:
+                path = self.pulp_secret_path
+                self.log.info("Using configured path %s for secrets" % path)
+            else:
+                path = os.environ["SOURCE_SECRET_PATH"]
+                self.log.info("SOURCE_SECRET_PATH=%s from environment" % path)
 
-        # Work out the pathnames for the certificate/key pair.
-        cer = os.path.join(path, self.CER)
-        key = os.path.join(path, self.KEY)
+            # Work out the pathnames for the certificate/key pair.
+            cer = os.path.join(path, self.CER)
+            key = os.path.join(path, self.KEY)
 
-        if not os.path.exists(cer):
-            raise RuntimeError("Certificate does not exist.")
-        if not os.path.exists(key):
-            raise RuntimeError("Key does not exist.")
+            if not os.path.exists(cer):
+                raise RuntimeError("Certificate does not exist.")
+            if not os.path.exists(key):
+                raise RuntimeError("Key does not exist.")
 
-        # Tell dockpulp.
-        p.certificate = cer
-        p.key = key
+            # Tell dockpulp.
+            p.certificate = cer
+            p.key = key
 
     def push_tarball_to_pulp(self, image_names):
         self.log.info("Checking image before upload")
@@ -116,7 +123,8 @@ class PulpPushPlugin(PostBuildPlugin):
     key = "pulp_push"
     can_fail = False
 
-    def __init__(self, tasker, workflow, pulp_registry_name, load_squashed_image=False, image_names=None, pulp_secret_path=None):
+    def __init__(self, tasker, workflow, pulp_registry_name, load_squashed_image=False,
+                 image_names=None, pulp_secret_path=None, username=None, password=None):
         """
         constructor
 
@@ -127,6 +135,8 @@ class PulpPushPlugin(PostBuildPlugin):
                                     you may load the squashed tar with this switch
         :param image_names: list of additional image names
         :param pulp_secret_path: path to pulp.cer and pulp.key; $SOURCE_SECRET_PATH otherwise
+        :param username: pulp username, used in preference to certificate and key
+        :param password: pulp password, used in preference to certificate and key
         """
         # call parent constructor
         super(PulpPushPlugin, self).__init__(tasker, workflow)
@@ -134,6 +144,8 @@ class PulpPushPlugin(PostBuildPlugin):
         self.image_names = image_names
         self.load_squashed_image = load_squashed_image
         self.pulp_secret_path = pulp_secret_path
+        self.username = username
+        self.password = password
 
     def push_tar(self, image_stream, image_names=None):
         with NamedTemporaryFile(prefix='docker-image-',
@@ -147,7 +159,8 @@ class PulpPushPlugin(PostBuildPlugin):
 
             # Give that compressed tarball to pulp.
             uploader = PulpUploader(self.pulp_registry_name, targz.name, self.log,
-                                    pulp_secret_path=self.pulp_secret_path)
+                                    pulp_secret_path=self.pulp_secret_path, username=self.username,
+                                    password=self.password)
             uploader.push_tarball_to_pulp(image_names)
 
     def run(self):
