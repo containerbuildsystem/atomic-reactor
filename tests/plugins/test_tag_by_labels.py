@@ -49,6 +49,7 @@ def test_tag_by_labels_plugin(tmpdir):
             }
         }
     }
+    workflow.push_conf.add_docker_registry(LOCALHOST_REGISTRY, insecure=True)
     image = ImageName(repo=TEST_IMAGE,
                       tag="%s_%s" % (version, release),
                       registry=LOCALHOST_REGISTRY)
@@ -60,10 +61,6 @@ def test_tag_by_labels_plugin(tmpdir):
         workflow,
         [{
             'name': TagByLabelsPlugin.key,
-            'args': {
-                "registry_uri": LOCALHOST_REGISTRY,
-                "insecure": True,
-            }
         }, {
             'name': TagAndPushPlugin.key,
         }]

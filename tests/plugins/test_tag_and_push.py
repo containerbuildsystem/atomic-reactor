@@ -36,7 +36,9 @@ def test_tag_and_push_plugin(tmpdir):
         mock_docker()
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, "test-image")
+    workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
+    workflow.tag_conf.add_image(TEST_IMAGE)
+    workflow.push_conf.add_docker_registry(LOCALHOST_REGISTRY, insecure=True)
     setattr(workflow, 'builder', X)
 
     runner = PostBuildPluginsRunner(
@@ -44,16 +46,6 @@ def test_tag_and_push_plugin(tmpdir):
         workflow,
         [{
             'name': TagAndPushPlugin.key,
-            'args': {
-                "mapping": {
-                    LOCALHOST_REGISTRY: {
-                        "insecure": True,
-                        "image_names": [
-                            TEST_IMAGE
-                        ]
-                    }
-                }
-            }
         }]
     )
     output = runner.run()

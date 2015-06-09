@@ -13,22 +13,24 @@ __all__ = ('TagByLabelsPlugin', )
 
 
 class TagByLabelsPlugin(PostBuildPlugin):
+    """
+    Use labels Name, Version and Release of final image and create tags:
+     * Name:Version
+     * Name:Version_Release
+    """
     key = "tag_by_labels"
     can_fail = False
 
-    def __init__(self, tasker, workflow, registry_uri, insecure=False):
+    def __init__(self, tasker, workflow, **kwargs):
         """
         constructor
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param registry_uri: str, registry URI where the image should be pushed
-        :param insecure: bool, allow connection to registry to be insecure
         """
         # call parent constructor
         super(TagByLabelsPlugin, self).__init__(tasker, workflow)
-        self.registry_uri = registry_uri
-        self.insecure = insecure
+        self.log.warning("Ignoring arguments %s", kwargs)
 
     def run(self):
         if not self.workflow.built_image_inspect:
@@ -50,7 +52,4 @@ class TagByLabelsPlugin(PostBuildPlugin):
         nvr = "%s:%s_%s" % (name, version, release)
         nv = "%s:%s" % (name, version)
 
-        target_registries_insecure = self.insecure or self.workflow.target_registries_insecure
-
-        self.workflow.tag_and_push_conf.add_image(self.registry_uri, nvr, target_registries_insecure)
-        self.workflow.tag_and_push_conf.add_image(self.registry_uri, nv, target_registries_insecure)
+        self.workflow.tag_conf.add_images([nvr, nv])

@@ -18,6 +18,7 @@ from dock.build import InsideBuilder
 from dock.plugin import PostBuildPluginsRunner, PreBuildPluginsRunner, InputPluginsRunner, PrePublishPluginsRunner, \
     PluginFailedException
 from dock.source import get_source_instance_for
+from dock.util import ImageName
 
 
 logger = logging.getLogger(__name__)
@@ -63,55 +64,96 @@ class BuildResultsJSONDecoder(json.JSONDecoder):
         return results
 
 
-class TagAndPushConf(object):
+class TagConf(object):
     """
-    mapping =
-      {
-        "<registry_uri>": {
-          "insecure": false,
-          "image_names": [
-            "image-name1",
-            "prefix/image-name2",
-          ],
-        }
-        "...": {...}
-      }
+    confguration of image names and tags to be applied
     """
 
-    def __init__(self, mapping=None):
-        self.mapping = mapping or {}
+    def __init__(self):
+        self.images = []  # list of ImageName instances
+
+    def add_image(self, image):
+        """
+
+        :param image: str, name of image (e.g. "namespace/httpd:2.4")
+        :return: None
+        """
+        self.images.append(ImageName.parse(image))
+
+    def add_images(self, images):
+        """
+
+        :param images: list of str, list of image names
+        :return: None
+        """
+        for image in images:
+            self.add_image(image)
+
+
+class Registry(object):
+    def __init__(self, uri, insecure=False):
+        """
+        abstraction for all registry classes
+
+        :param uri: str, uri for pulling (in case of docker-registry, pushing too)
+        :param insecure: bool
+        """
+        self.uri = uri
+        self.insecure = insecure
+
+
+class PulpRegistry(Registry):
+    """ pulp & crane """
+    def __init__(self, name, crane_uri, insecure=False):
+        """
+        :param name: str, pulp's rest api is specified in dockpulp's config, we refer only by name
+        :param crane_uri: str, read-only docker registry api access point
+        :param insecure: bool
+        """
+        super(PulpRegistry, self).__init__(crane_uri, insecure=insecure)
+        self.name = name
+
+
+class DockerRegistry(Registry):
+    """ v1 docker registry """
+
+
+class PushConf(object):
+    """
+    configuration of remote registries: docker-registry or pulp
+    """
+
+    def __init__(self):
+        self._registries = {
+            "docker": [],
+            "pulp": [],
+        }
+
+    def add_docker_registry(self, registry_uri, insecure=False):
+        if registry_uri is None:
+            raise RuntimeError("registry URI cannot be None")
+        r = DockerRegistry(registry_uri, insecure=insecure)
+        self._registries["docker"].append(r)
+
+    def add_docker_registries(self, registry_uris, insecure=False):
+        for registry_uri in registry_uris:
+            self.add_docker_registry(registry_uri, insecure=insecure)
 
     @property
-    def registries(self):
-        return self.mapping.keys()
+    def has_some_docker_registry(self):
+        return len(self.docker_registries) > 0
 
-    def __getitem__(self, item):
-        return self.mapping[item]
+    @property
+    def docker_registries(self):
+        return self._registries["docker"]
 
-    def init_registry_conf(self, registry, insecure=False):
-        """ initialize new registry in mapping (do nothing if it's already there) """
-        self.mapping.setdefault(registry, {})
-        self.mapping[registry].setdefault("insecure", insecure)
-        self.mapping[registry].setdefault("image_names", [])
+    @property
+    def pulp_registries(self):
+        return self._registries["pulp"]
 
-    def add_image(self, registry, image, insecure=False):
-        self.init_registry_conf(registry, insecure)
-        self.mapping[registry]['image_names'].append(image)
-
-    def add_images(self, registry, images, insecure=False):
-        self.init_registry_conf(registry, insecure)
-        self.mapping[registry]['image_names'] += images
-
-    def merge_with_mapping(self, mapping):
-        if not isinstance(mapping, dict):
-            return
-        for registry_uri, registry_conf in mapping.items():
-            insecure = registry_conf.get("insecure", None)
-            if insecure is None:
-                self.init_registry_conf(registry_uri)
-            else:
-                self.init_registry_conf(registry_uri, insecure)
-            self.add_images(registry_uri, registry_conf.get("image_names", []))
+    @property
+    def all_registries(self):
+        return self.docker_registries + self.pulp_registries
 
 
 class DockerBuildWorkflow(object):
@@ -148,8 +190,6 @@ class DockerBuildWorkflow(object):
 
         self.parent_registry = parent_registry
         self.parent_registry_insecure = parent_registry_insecure
-        self.target_registries = target_registries
-        self.target_registries_insecure = target_registries_insecure
 
         self.prebuild_plugins_conf = prebuild_plugins
         self.prepublish_plugins_conf = prepublish_plugins
@@ -171,9 +211,10 @@ class DockerBuildWorkflow(object):
         # set by squash plugin
         self.exported_squashed_image = {}
 
-        # TODO: ensure this is the only way to tag and push images,
-        #       get rid of target_reg*, push_built_img
-        self.tag_and_push_conf = TagAndPushConf()
+        self.tag_conf = TagConf()
+        self.push_conf = PushConf()
+        if target_registries:
+            self.push_conf.add_docker_registries(target_registries, insecure=target_registries_insecure)
 
         # mapping of downloaded files; DON'T PUT ANYTHING BIG HERE!
         # "path/to/file" -> "content"
@@ -222,9 +263,9 @@ class DockerBuildWorkflow(object):
                 return
 
             if not build_result.is_failed():
-                if self.target_registries:
-                    for target_registry in self.target_registries:
-                        self.builder.push_built_image(target_registry, insecure=self.target_registries_insecure)
+                for registry in self.push_conf.docker_registries:
+                    self.builder.push_built_image(registry.uri,
+                                                  insecure=registry.insecure)
 
             postbuild_runner = PostBuildPluginsRunner(self.builder.tasker, self, self.postbuild_plugins_conf,
                                                       plugin_files=self.plugin_files)

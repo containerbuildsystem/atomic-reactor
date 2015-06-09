@@ -10,7 +10,6 @@ from __future__ import unicode_literals
 import json
 import os
 from osbs.core import Openshift
-from dock.util import ImageName
 
 try:
     # py2
@@ -61,27 +60,23 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
 
         # initial setup will use host based auth: apache will be set to accept everything
         # from specific IP and will set specific X-Remote-User for such requests
+        # FIXME: use OSBS here
         o = Openshift(api_url, oauth_url, None, use_auth=self.use_auth, verify_ssl=self.verify_ssl)
 
+        # usually repositories formed from NVR labels
+        # these should be used for pulling and layering
         primary_repositories = []
-        for registry_uri in self.workflow.tag_and_push_conf.registries:
-            registry_conf = self.workflow.tag_and_push_conf[registry_uri]
-            try:
-                image_names = registry_conf['image_names']
-            except KeyError:
-                self.log.error("Registry '%s' doesn't have any image names, skipping...", registry_uri)
-                continue
-            for image in image_names:
-                image_name = ImageName.parse(image)
-                if image_name.registry:
-                    assert image_name.registry == registry_uri
-                image_name.registry = registry_uri
-                primary_repositories.append(image_name.to_str())
+        for registry in self.workflow.push_conf.all_registries:
+            for image in self.workflow.tag_conf.images:
+                registry_image = image.copy()
+                registry_image.registry = registry.uri
+                primary_repositories.append(registry_image.to_str())
 
+        # unique unpredictable repositories
         unique_repositories = []
         target_image = self.workflow.builder.image.copy()
-        for registry in self.workflow.target_registries:
-            target_image.registry = registry
+        for registry in self.workflow.push_conf.all_registries:
+            target_image.registry = registry.uri
             unique_repositories.append(target_image.to_str())
 
         repositories = {
