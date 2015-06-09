@@ -18,7 +18,6 @@ from dock.util import ImageName
 from dock.core import DockerTasker
 from dock.inner import DockerBuildWorkflow
 from dock.plugin import PostBuildPluginsRunner
-from dock.plugins import post_cp_built_image
 from dock.plugins.post_cp_built_image import CopyBuiltImageToNFSPlugin
 from tests.constants import INPUT_IMAGE
 
@@ -54,7 +53,8 @@ def test_cp_built_image(tmpdir, dest_dir):
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, "test-image")
     workflow.builder = X()
-    workflow.exported_squashed_image = {"path": os.path.join(str(tmpdir), "image.tar")}
+    workflow.exported_squashed_image = {"path": os.path.join(str(tmpdir),
+                                                             DockerBuildWorkflow.EXPORTED_SQUASHED_IMAGE_NAME)}
     open(workflow.exported_squashed_image.get("path"), 'a').close()
 
     runner = PostBuildPluginsRunner(
@@ -71,6 +71,6 @@ def test_cp_built_image(tmpdir, dest_dir):
     )
     runner.run()
     if dest_dir is None:
-        assert os.path.isfile(os.path.join(str(mountpoint), "image.tar"))
+        assert os.path.isfile(os.path.join(str(mountpoint), DockerBuildWorkflow.EXPORTED_SQUASHED_IMAGE_NAME))
     else:
-        assert os.path.isfile(os.path.join(str(mountpoint), dest_dir, "image.tar"))
+        assert os.path.isfile(os.path.join(str(mountpoint), dest_dir, DockerBuildWorkflow.EXPORTED_SQUASHED_IMAGE_NAME))
