@@ -73,10 +73,10 @@ Just use
 $ docker pull slavek/buildroot
 ```
 
-This will pull the `buildroot` image with the latest dock's commits. Stable releases will be added to the repo from next version and you'll be able to pull them using the version specifier, such as
+This will pull the `buildroot` image with the latest dock's commits. Images with stable releases are available since version 1.3.3 and you can access them by using the version specifier as a tag, such as
 
 ```bash
-$ docker pull slavek/buildroot:<version>
+$ docker pull slavek/buildroot:1.3.3
 ```
 
 ### installation from git
