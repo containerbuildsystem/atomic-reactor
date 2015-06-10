@@ -10,7 +10,7 @@
 
 Name:           dock
 Version:        1.3.3
-Release:        1%{?dist}
+Release:        2%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -66,6 +66,7 @@ Plugin for submitting metada to OSBS
 Summary:        Python 2 Dock library
 Group:          Development/Tools
 License:        BSD
+BuildRequires:  python-docker-py
 Requires:       python-docker-py
 Requires:       python-requests
 Requires:       python-setuptools
@@ -83,6 +84,7 @@ you started hooking docker into your infrastructure.
 Summary:        Python 3 Dock library
 Group:          Development/Tools
 License:        BSD
+BuildRequires:  python3-docker-py
 Requires:       python3-docker-py
 Requires:       python3-requests
 Requires:       python3-setuptools
@@ -232,6 +234,9 @@ cp -a docs/manpage/dock.1 %{buildroot}%{_mandir}/man1/
 
 
 %changelog
+* Wed Jun 10 2015 Jiri Popelka <jpopelka@redhat.com> - 1.3.3-2
+- BuildRequires:  python-docker-py
+
 * Wed Jun 10 2015 Jiri Popelka <jpopelka@redhat.com> - 1.3.3-1
 - new upstream release 1.3.3
 
