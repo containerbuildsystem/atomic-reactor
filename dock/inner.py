@@ -11,7 +11,6 @@ Script for building docker image. This is expected to run inside container.
 
 import json
 import logging
-import os
 import tempfile
 
 from dock.build import InsideBuilder
@@ -157,8 +156,6 @@ class PushConf(object):
 
 
 class DockerBuildWorkflow(object):
-    EXPORTED_SQUASHED_IMAGE_NAME = 'image.tar'
-
     """
     This class defines a workflow for building images:
 
@@ -231,7 +228,6 @@ class DockerBuildWorkflow(object):
 
         :return: BuildResults
         """
-        self.exported_squashed_image["path"] = os.path.join(self.source.workdir, self.EXPORTED_SQUASHED_IMAGE_NAME)
         self.builder = InsideBuilder(self.source, self.image)
         try:
             if not self.dont_pull_base_image:

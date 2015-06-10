@@ -13,6 +13,7 @@ import subprocess
 
 import pytest
 from flexmock import flexmock
+from dock.constants import EXPORTED_SQUASHED_IMAGE_NAME
 
 from dock.util import ImageName
 from dock.core import DockerTasker
@@ -54,7 +55,7 @@ def test_cp_built_image_to_nfs(tmpdir, dest_dir):
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, "test-image")
     workflow.builder = X()
     workflow.exported_squashed_image = {"path": os.path.join(str(tmpdir),
-                                                             DockerBuildWorkflow.EXPORTED_SQUASHED_IMAGE_NAME)}
+                                                             EXPORTED_SQUASHED_IMAGE_NAME)}
     open(workflow.exported_squashed_image.get("path"), 'a').close()
 
     runner = PostBuildPluginsRunner(
@@ -71,6 +72,6 @@ def test_cp_built_image_to_nfs(tmpdir, dest_dir):
     )
     runner.run()
     if dest_dir is None:
-        assert os.path.isfile(os.path.join(str(mountpoint), DockerBuildWorkflow.EXPORTED_SQUASHED_IMAGE_NAME))
+        assert os.path.isfile(os.path.join(str(mountpoint), EXPORTED_SQUASHED_IMAGE_NAME))
     else:
-        assert os.path.isfile(os.path.join(str(mountpoint), dest_dir, DockerBuildWorkflow.EXPORTED_SQUASHED_IMAGE_NAME))
+        assert os.path.isfile(os.path.join(str(mountpoint), dest_dir, EXPORTED_SQUASHED_IMAGE_NAME))

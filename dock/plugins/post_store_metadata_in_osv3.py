@@ -98,14 +98,17 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
             "commit_id": commit_id,
         }
 
+        tar_path = self.workflow.exported_squashed_image.get("path")
         tar_size = self.workflow.exported_squashed_image.get("size")
         tar_md5sum = self.workflow.exported_squashed_image.get("md5sum")
         tar_sha256sum = self.workflow.exported_squashed_image.get("sha256sum")
         # looks like that openshift can't handle value being None (null in json)
-        if tar_size is not None and tar_md5sum is not None and tar_sha256sum is not None:
+        if tar_size is not None and tar_md5sum is not None and tar_sha256sum is not None and \
+                tar_path is not None:
             labels["tar_metadata"] = json.dumps({
                 "size": tar_size,
                 "md5sum": tar_md5sum,
                 "sha256sum": tar_sha256sum,
+                "filename": os.path.basename(tar_path),
             })
         o.set_annotations_on_build(build_id, labels)

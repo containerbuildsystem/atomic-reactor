@@ -9,9 +9,11 @@ of the BSD license. See the LICENSE file for details.
 It returns the dockerfile itself and therefore displays it in results.
 """
 from __future__ import unicode_literals
+import os
 
 from os.path import getsize, isfile
 from hashlib import md5, sha256
+from dock.constants import EXPORTED_SQUASHED_IMAGE_NAME
 from dock.plugin import PrePublishPlugin
 from docker_scripts.squash import Squash
 
@@ -96,8 +98,11 @@ class PrePublishSquashPlugin(PrePublishPlugin):
 
     def run(self):
         if self.dont_load:
-            new_id = Squash(log=self.log, image=self.image, from_layer=self.from_layer,
-                            tag=self.tag, output_path=self.workflow.exported_squashed_image.get("path")).run()
+            self.workflow.exported_squashed_image["path"] = \
+                os.path.join(self.workflow.source.workdir, EXPORTED_SQUASHED_IMAGE_NAME)
+            # squash the image, don't load it back to docker
+            Squash(log=self.log, image=self.image, from_layer=self.from_layer,
+                   tag=self.tag, output_path=self.workflow.exported_squashed_image.get("path")).run()
             self._get_tarball_metadata()
         else:
             new_id = Squash(log=self.log, image=self.image, from_layer=self.from_layer,
