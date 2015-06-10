@@ -55,7 +55,7 @@ class OSv3InputPlugin(InputPlugin):
                 'provider_params': {'git_commit': git_ref}
             },
             'image': image,
-            'target_registries': [target_registry] if target_registry is not None else None,
+            'target_registries': [target_registry] if target_registry else None,
             'target_registries_insecure': True,  # FIXME: create plugin for this
             'parent_registry': source_registry,
             'parent_registry_insecure': source_registry_insecure,
