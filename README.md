@@ -63,7 +63,21 @@ $ yum install koji
 
 If you would like to build your images within build containers, you need to obtain images for those containers. We call them build images. dock is installed inside and used to take care of build itself.
 
-At some point, these will be available on docker hub, but right now, you need to build them yourself.
+You can either get the build image from Dockerhub or create it yourself.
+
+### getting build image from Dockerhub
+
+Just use
+
+```bash
+$ docker pull slavek/buildroot
+```
+
+This will pull the `buildroot` image with the latest dock's commits. Stable releases will be added to the repo from next version and you'll be able to pull them using the version specifier, such as
+
+```bash
+$ docker pull slavek/buildroot:<version>
+```
 
 ### installation from git
 
