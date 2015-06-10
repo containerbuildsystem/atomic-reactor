@@ -50,6 +50,7 @@ def test_pulp(tmpdir):
 
     # Mock dockpulp and docker
     dockpulp.Pulp = flexmock(dockpulp.Pulp)
+    dockpulp.Pulp.registry='registry.example.com'
     (flexmock(dockpulp.imgutils).should_receive('get_metadata')
      .with_args(object)
      .and_return([{'id': 'foo'}]))
