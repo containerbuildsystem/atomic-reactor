@@ -140,12 +140,16 @@ popd
 pushd %{py3dir}
 %{__python3} setup.py install --skip-build --root %{buildroot}
 mv %{buildroot}%{_bindir}/dock %{buildroot}%{_bindir}/dock3
+mv %{buildroot}%{_bindir}/pulpsecret-gen %{buildroot}%{_bindir}/pulpsecret-gen3
 popd
 %endif # with_python3
 
 %{__python} setup.py install --skip-build --root %{buildroot}
 mv %{buildroot}%{_bindir}/dock %{buildroot}%{_bindir}/dock2
 ln -s %{_bindir}/dock2 %{buildroot}%{_bindir}/dock
+
+mv %{buildroot}%{_bindir}/pulpsecret-gen %{buildroot}%{_bindir}/pulpsecret-gen2
+ln -s %{_bindir}/pulpsecret-gen2 %{buildroot}%{_bindir}/pulpsecret-gen
 
 # ship dock in form of tarball so it can be installed within build image
 cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/dock.tar.gz
@@ -160,7 +164,7 @@ cp -a docs/manpage/dock.1 %{buildroot}%{_mandir}/man1/
 %{!?_licensedir:%global license %%doc}
 %license LICENSE
 %{_bindir}/dock
-
+%{_bindir}/pulpsecret-gen
 
 %files -n python-dock
 %doc README.md
@@ -168,6 +172,7 @@ cp -a docs/manpage/dock.1 %{buildroot}%{_mandir}/man1/
 %{!?_licensedir:%global license %%doc}
 %license LICENSE
 %{_bindir}/dock2
+%{_bindir}/pulpsecret-gen2
 %dir %{python2_sitelib}/dock
 %{python2_sitelib}/dock/*.*
 %{python2_sitelib}/dock/cli
@@ -195,6 +200,7 @@ cp -a docs/manpage/dock.1 %{buildroot}%{_mandir}/man1/
 %{!?_licensedir:%global license %%doc}
 %license LICENSE
 %{_bindir}/dock3
+%{_bindir}/pulpsecret-gen3
 %{_mandir}/man1/dock.1*
 %dir %{python3_sitelib}/dock
 %{python3_sitelib}/dock/*.*
