@@ -19,6 +19,7 @@ import dockpulp.imgutils
 
 import gzip
 import os
+import re
 from tempfile import NamedTemporaryFile
 
 
@@ -108,11 +109,17 @@ class PulpUploader(object):
         p.crane()
 
         # Store the registry URI in the push configuration
+
+        # We only want the hostname[:port]
+        pulp_registry = re.sub(r'^https?://([^/]*)/?.*',
+                               lambda m: m.groups()[0],
+                               p.registry)
+
         self.workflow.push_conf.add_pulp_registry(self.pulp_instance,
-                                                  p.registry)
+                                                  pulp_registry)
 
         # Return the set of qualified repo names for this image
-        return [ImageName(registry=p.registry, repo=repo, tag=tag)
+        return [ImageName(registry=pulp_registry, repo=repo, tag=tag)
                 for repo, tags in repos_tags_mapping.items()
                 for tag in tags]
 
