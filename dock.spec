@@ -69,6 +69,8 @@ License:        BSD
 Requires:       python-docker-py
 Requires:       python-requests
 Requires:       python-setuptools
+# Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
+Requires:       nfs-utils
 
 %description -n python-dock
 Simple Python 2 library for building docker images. It contains
@@ -84,6 +86,8 @@ License:        BSD
 Requires:       python3-docker-py
 Requires:       python3-requests
 Requires:       python3-setuptools
+# Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
+Requires:       nfs-utils
 
 %description -n python3-dock
 Simple Python 3 library for building docker images. It contains
