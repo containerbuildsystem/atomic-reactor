@@ -40,8 +40,7 @@ class PulpUploader(object):
         # Sanity-check image
         metadata = dockpulp.imgutils.get_metadata(self.filename)
         vers = dockpulp.imgutils.get_versions(metadata)
-        good = True
-        for id, version in vers.items():
+        for _, version in vers.items():
             verparts = version.split('.')
             major = int(verparts[0])
             if major < 1:
@@ -151,11 +150,11 @@ class PulpPushPlugin(PostBuildPlugin):
         with NamedTemporaryFile(prefix='docker-image-',
                                 suffix='.tar.gz') as targz:
             # Compress the tarball docker gave us.
-            self.log.info("Compressing tarball to %s" % targz.name)
+            self.log.info("Compressing tarball to %s", targz.name)
             compress(targz.name, image_stream)
 
             # Find out how to tag this image.
-            self.log.info("Image names: %s" % repr(image_names))
+            self.log.info("Image names: %s", repr(image_names))
 
             # Give that compressed tarball to pulp.
             uploader = PulpUploader(self.pulp_registry_name, targz.name, self.log,
@@ -168,11 +167,11 @@ class PulpPushPlugin(PostBuildPlugin):
         # Add in additional image names, if any
         if self.image_names:
             self.log.info("extending image names")
-            image_names += map(lambda x: ImageName.parse(x), self.image_names)
+            image_names += [ImageName.parse(x) for x in self.image_names]
 
         # Work out image ID
         image = self.workflow.image
-        self.log.info("Image ID: %s" % image)
+        self.log.info("Image ID: %s", image)
 
         if self.load_squashed_image:
             with open(self.workflow.exported_squashed_image.get("path"), "r") as image_stream:

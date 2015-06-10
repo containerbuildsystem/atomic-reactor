@@ -8,7 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 import json
 import argparse
-import logging
 import pkg_resources
 from base64 import b64encode
 
