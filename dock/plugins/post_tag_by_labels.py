@@ -51,5 +51,6 @@ class TagByLabelsPlugin(PostBuildPlugin):
 
         nvr = "%s:%s_%s" % (name, version, release)
         nv = "%s:%s" % (name, version)
+        n = "%s:latest" % name
 
-        self.workflow.tag_conf.add_images([nvr, nv])
+        self.workflow.tag_conf.add_images([nvr, nv, n])
