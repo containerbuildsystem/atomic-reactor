@@ -83,7 +83,7 @@ class ImageName(object):
 
     @property
     def pulp_repo(self):
-        return self.to_str(registry=False, tag=False, explicit_namespace=True).replace("/", "-")
+        return self.to_str(registry=False, tag=False).replace("/", "-")
 
     def __str__(self):
         return self.to_str(registry=True, tag=True)

@@ -96,11 +96,20 @@ class PulpUploader(object):
         p = dockpulp.Pulp(env=self.pulp_instance)
         self._set_auth(p)
 
+        # {
+        #     "repo-id": {
+        #         "registry-id": "",
+        #         "tags": [],
+        #     },
+        #     ...
+        # }
         repos_tags_mapping = {}
         for image in image_names:
             repo = image.pulp_repo
-            repos_tags_mapping.setdefault(repo, [])
-            repos_tags_mapping[repo].append(image.tag)
+            repos_tags_mapping.setdefault(repo, {})
+            repos_tags_mapping[repo]["registry-id"] = image.to_str(registry=False, tag=False)
+            repos_tags_mapping[repo].setdefault("tags", [])
+            repos_tags_mapping[repo]["tags"].append(image.tag)
         self.log.info("repo_tags_mapping = %s", repos_tags_mapping)
         p.push_tar_to_pulp(repos_tags_mapping, self.filename)
 
