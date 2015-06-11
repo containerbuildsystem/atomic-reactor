@@ -13,8 +13,8 @@ import os
 import sys
 import pkg_resources
 
-from dock import build_image_here, build_image_in_privileged_container, \
-    build_image_using_hosts_docker, set_logging
+from dock import set_logging
+from dock.api import build_image_here, build_image_in_privileged_container, build_image_using_hosts_docker
 from dock.constants import CONTAINER_BUILD_JSON_PATH, CONTAINER_RESULTS_JSON_PATH, DESCRIPTION, PROG
 from dock.buildimage import BuildImageBuilder
 from dock.inner import BuildResultsEncoder, build_inside, BuildResults
