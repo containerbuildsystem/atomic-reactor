@@ -98,7 +98,7 @@ class PulpUploader(object):
 
         repos_tags_mapping = {}
         for image in image_names:
-            repo = image.repo
+            repo = image.pulp_repo
             repos_tags_mapping.setdefault(repo, [])
             repos_tags_mapping[repo].append(image.tag)
         self.log.info("repo_tags_mapping = %s", repos_tags_mapping)
