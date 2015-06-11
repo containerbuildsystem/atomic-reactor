@@ -138,6 +138,12 @@ class PushConf(object):
         for registry_uri in registry_uris:
             self.add_docker_registry(registry_uri, insecure=insecure)
 
+    def add_pulp_registry(self, name, crane_uri):
+        if crane_uri is None:
+            raise RuntimeError("registry URI cannot be None")
+        r = PulpRegistry(name, crane_uri)
+        self._registries["pulp"].append(r)
+
     @property
     def has_some_docker_registry(self):
         return len(self.docker_registries) > 0

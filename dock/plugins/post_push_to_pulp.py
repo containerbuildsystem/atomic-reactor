@@ -19,6 +19,7 @@ import dockpulp.imgutils
 
 import gzip
 import os
+import re
 from tempfile import NamedTemporaryFile
 
 
@@ -26,8 +27,9 @@ class PulpUploader(object):
     CER = 'pulp.cer'
     KEY = 'pulp.key'
 
-    def __init__(self, pulp_instance, filename, log, pulp_secret_path=None, username=None,
+    def __init__(self, workflow, pulp_instance, filename, log, pulp_secret_path=None, username=None,
                  password=None):
+        self.workflow = workflow
         self.pulp_instance = pulp_instance
         self.filename = filename
         self.pulp_secret_path = pulp_secret_path
@@ -106,8 +108,18 @@ class PulpUploader(object):
         self.log.info("Releasing to crane")
         p.crane()
 
+        # Store the registry URI in the push configuration
+
+        # We only want the hostname[:port]
+        pulp_registry = re.sub(r'^https?://([^/]*)/?.*',
+                               lambda m: m.groups()[0],
+                               p.registry)
+
+        self.workflow.push_conf.add_pulp_registry(self.pulp_instance,
+                                                  pulp_registry)
+
         # Return the set of qualified repo names for this image
-        return [ImageName(registry=p.registry, repo=repo, tag=tag)
+        return [ImageName(registry=pulp_registry, repo=repo, tag=tag)
                 for repo, tags in repos_tags_mapping.items()
                 for tag in tags]
 
@@ -162,7 +174,7 @@ class PulpPushPlugin(PostBuildPlugin):
             self.log.info("Image names: %s", repr(image_names))
 
             # Give that compressed tarball to pulp.
-            uploader = PulpUploader(self.pulp_registry_name, targz.name, self.log,
+            uploader = PulpUploader(self.workflow, self.pulp_registry_name, targz.name, self.log,
                                     pulp_secret_path=self.pulp_secret_path, username=self.username,
                                     password=self.password)
             return uploader.push_tarball_to_pulp(image_names)
