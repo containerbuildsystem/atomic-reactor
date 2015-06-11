@@ -11,9 +11,6 @@ constants
 
 import logging
 
-from dock.api import *
-
-
 def set_logging(name="dock", level=logging.DEBUG):
     # create logger
     logger = logging.getLogger(name)
