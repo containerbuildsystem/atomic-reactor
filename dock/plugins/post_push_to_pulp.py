@@ -183,17 +183,16 @@ class PulpPushPlugin(PostBuildPlugin):
         image_names = self.workflow.tag_conf.images[:]
         # Add in additional image names, if any
         if self.image_names:
-            self.log.info("extending image names")
+            self.log.info("extending image names: %s", self.image_names)
             image_names += [ImageName.parse(x) for x in self.image_names]
-
-        # Work out image ID
-        image = self.workflow.image
-        self.log.info("Image ID: %s", image)
 
         if self.load_squashed_image:
             with open(self.workflow.exported_squashed_image.get("path"), "r") as image_stream:
                 crane_repos = self.push_tar(image_stream, image_names)
         else:
+            # Work out image ID
+            image = self.workflow.image
+            self.log.info("fetching image %s from docker", image)
             with self.tasker.d.get_image(image) as image_stream:
                 crane_repos = self.push_tar(image_stream, image_names)
 
