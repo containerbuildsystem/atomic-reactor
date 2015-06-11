@@ -96,11 +96,20 @@ class PulpUploader(object):
         p = dockpulp.Pulp(env=self.pulp_instance)
         self._set_auth(p)
 
+        # {
+        #     "repo-id": {
+        #         "registry-id": "",
+        #         "tags": [],
+        #     },
+        #     ...
+        # }
         repos_tags_mapping = {}
         for image in image_names:
-            repo = image.repo
-            repos_tags_mapping.setdefault(repo, [])
-            repos_tags_mapping[repo].append(image.tag)
+            repo = image.pulp_repo
+            repos_tags_mapping.setdefault(repo, {})
+            repos_tags_mapping[repo]["registry-id"] = image.to_str(registry=False, tag=False)
+            repos_tags_mapping[repo].setdefault("tags", [])
+            repos_tags_mapping[repo]["tags"].append(image.tag)
         self.log.info("repo_tags_mapping = %s", repos_tags_mapping)
         p.push_tar_to_pulp(repos_tags_mapping, self.filename)
 
@@ -119,9 +128,9 @@ class PulpUploader(object):
                                                   pulp_registry)
 
         # Return the set of qualified repo names for this image
-        return [ImageName(registry=pulp_registry, repo=repo, tag=tag)
-                for repo, tags in repos_tags_mapping.items()
-                for tag in tags]
+        return [ImageName(registry=pulp_registry, repo=repodata["registry-id"], tag=tag)
+                for repo, repodata in repos_tags_mapping.items()
+                for tag in repodata['tags']]
 
 
 def compress(filename, ifp):
@@ -183,17 +192,16 @@ class PulpPushPlugin(PostBuildPlugin):
         image_names = self.workflow.tag_conf.images[:]
         # Add in additional image names, if any
         if self.image_names:
-            self.log.info("extending image names")
+            self.log.info("extending image names: %s", self.image_names)
             image_names += [ImageName.parse(x) for x in self.image_names]
-
-        # Work out image ID
-        image = self.workflow.image
-        self.log.info("Image ID: %s", image)
 
         if self.load_squashed_image:
             with open(self.workflow.exported_squashed_image.get("path"), "r") as image_stream:
                 crane_repos = self.push_tar(image_stream, image_names)
         else:
+            # Work out image ID
+            image = self.workflow.image
+            self.log.info("fetching image %s from docker", image)
             with self.tasker.d.get_image(image) as image_stream:
                 crane_repos = self.push_tar(image_stream, image_names)
 
