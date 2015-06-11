@@ -128,7 +128,7 @@ class PulpUploader(object):
                                                   pulp_registry)
 
         # Return the set of qualified repo names for this image
-        return [ImageName(registry=pulp_registry, repo=repo, tag=tag)
+        return [ImageName(registry=pulp_registry, repo=repodata["registry-id"], tag=tag)
                 for repo, repodata in repos_tags_mapping.items()
                 for tag in repodata['tags']]
 
