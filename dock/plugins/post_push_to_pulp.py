@@ -180,7 +180,8 @@ class PulpPushPlugin(PostBuildPlugin):
             compress(targz.name, image_stream)
 
             # Find out how to tag this image.
-            self.log.info("Image names: %s", repr(image_names))
+            self.log.info("Image names: %s", [str(image_name)
+                                              for image_name in image_names])
 
             # Give that compressed tarball to pulp.
             uploader = PulpUploader(self.workflow, self.pulp_registry_name, targz.name, self.log,
@@ -205,5 +206,7 @@ class PulpPushPlugin(PostBuildPlugin):
             with self.tasker.d.get_image(image) as image_stream:
                 crane_repos = self.push_tar(image_stream, image_names)
 
-        self.log.info("Image now available at %s", crane_repos)
+        for image_name in crane_repos:
+            self.log.info("Image available at %s", str(image_name))
+
         return crane_repos
