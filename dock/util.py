@@ -405,7 +405,7 @@ def clone_git_repo(git_url, target_dir, commit=None):
         cmd = ["git", "clone", git_url, quote(target_dir)]
         logger.debug("Cloning: %s", cmd)
         subprocess.check_call(cmd)
-        cmd = ["git", "checkout", commit]
+        cmd = ["git", "reset", "--hard", commit]
         logger.debug("Checking out branch: %s", cmd)
         subprocess.check_call(cmd, cwd=target_dir)
     cmd = ["git", "rev-parse", "HEAD"]
