@@ -138,5 +138,4 @@ class InjectYumRepoPlugin(PreBuildPlugin):
                 repos_host_cont_mapping[repo] = repo_relative_path
 
             df = DockerfileParser(self.workflow.builder.df_path)
-            df_lines = df.lines
             df.lines = add_yum_repos_to_dockerfile(repos_host_cont_mapping, df)
