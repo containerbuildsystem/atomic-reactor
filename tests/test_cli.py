@@ -138,7 +138,7 @@ class TestCLISuite(object):
             "--method", "hostdocker",
             "--build-image", DH_BUILD_IMAGE,
             os.path.join(FILES, 'example-build.json'),
-            "--overrides", "image={0}".format(temp_image),
+            "--substitute", "image={0}".format(temp_image),
             "source.uri={0}".format(DOCKERFILE_OK_PATH)
         ]
         if is_registry_running:

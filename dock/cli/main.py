@@ -43,8 +43,8 @@ def cli_build_image(args):
     if args.source__provider == 'json':
         with open(args.json_path) as json_fp:
             common_kwargs = json.load(json_fp)
-        if args.overrides:
-            process_substitutions(common_kwargs, args.overrides)
+        if args.substitute:
+            process_substitutions(common_kwargs, args.substitute)
     else:
         common_kwargs = construct_kwargs(**vars(args))
     response = BuildResults()
@@ -250,8 +250,8 @@ class CLI(object):
             'json_path', metavar='JSON_PATH',
             help='path to the build json')
         self.source_types_parsers['json'].add_argument(
-            '--overrides', nargs='*', metavar='OVERRIDES',
-            help='provide overrides for json in form "foo.bar=spam"')
+            '--substitute', nargs='*', metavar='SUBSTITUTE',
+            help='provide substitutions for json in form "foo.bar=spam"')
 
     def run(self):
         self.set_arguments()
