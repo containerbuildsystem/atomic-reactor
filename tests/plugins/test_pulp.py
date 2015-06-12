@@ -46,7 +46,8 @@ def test_pulp(tmpdir):
     setattr(workflow, 'tag_conf', X())
     setattr(workflow.tag_conf, 'images', [ImageName(repo="image-name1"),
                                           ImageName(namespace="prefix",
-                                                    repo="image-name2")])
+                                                    repo="image-name2"),
+                                          ImageName(repo="image-name3", tag="asd")])
 
     # Mock dockpulp and docker
     dockpulp.Pulp = flexmock(dockpulp.Pulp)
@@ -77,3 +78,7 @@ def test_pulp(tmpdir):
         }}])
     runner.run()
     assert PulpPushPlugin.key is not None
+    images = [i.to_str() for i in workflow.postbuild_results[PulpPushPlugin.key]]
+    assert "registry.example.com/image-name1" in images
+    assert "registry.example.com/prefix/image-name2" in images
+    assert "registry.example.com/image-name3:asd" in images
