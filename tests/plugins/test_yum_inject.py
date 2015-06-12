@@ -292,7 +292,7 @@ DOCKERFILES = {
                    # add goes here
                    [" RUN yum -y update\n"],
                    # remove goes here
-            []),
+                   []),
 
     "no yum":
         Dockerfile(["FROM base\n",
@@ -300,9 +300,9 @@ DOCKERFILES = {
                     "# but it's the last last there is\n",
                     "MAINTAINER Example <example@example.com>\n"],
                    # add goes here
-            [],
+                   ["RUN yum -y update\n"],
                    # remove goes here
-            []),
+                   []),
 
     "cmd":
         Dockerfile([" From base\n",
@@ -313,7 +313,6 @@ DOCKERFILES = {
                     "RUN some other yum command\n"],
                    # remove goes here
                    ["VOLUME ['/data']\n",
-                    "# rm line expected on following line\n",
                     "CMD ['/bin/bash']\n"]),
 
     "entrypoint":
@@ -326,26 +325,26 @@ DOCKERFILES = {
                    ["ENTRYPOINT ['/bin/bash']\n",
                     "CMD ['/bin/ls']\n"]),
     "user":
-    Dockerfile(["FROM base\n",
-                "MAINTAINER Example <example@example.com\n"],
-               # add goes here
-               ["RUN yum update -y\n"],
-               # remove goes here
-               ["ENV asd qwe\n",
-                "USER foo\n",
-                "RUN uname\n",
-                "LABEL x y\n",
-                "CMD ['/bin/ls']\n"]),
+        Dockerfile(["FROM base\n",
+                    "MAINTAINER Example <example@example.com\n"],
+                   # add goes here
+                   ["RUN yum update -y\n"],
+                   # remove goes here
+                   ["ENV asd qwe\n",
+                    "USER foo\n",
+                    "RUN uname\n",
+                    "LABEL x y\n",
+                    "CMD ['/bin/ls']\n"]),
 
     "root":
-    Dockerfile(["FROM nonroot-base\n",
-                "MAINTAINER example@example.com\n"],
-               # add goes here
-               ["USER root\n",
-                "RUN yum -y update\n"],
-               # remove goes here
-               ["USER user\n",
-                "CMD ['id']\n"]),
+        Dockerfile(["FROM nonroot-base\n",
+                    "MAINTAINER example@example.com\n"],
+                   # add goes here
+                   ["USER root\n",
+                    "RUN yum -y update\n"],
+                   # remove goes here
+                   ["USER user\n",
+                    "CMD ['id']\n"]),
 }
 
 
@@ -489,3 +488,29 @@ def test_multiple_repourls(tmpdir):
         # Lines after that should be unchanged.
         after_remove = before_remove + 1
         assert newdf[after_remove:] == df_content.lines_after_remove
+
+
+def test_no_yum(tmpdir):
+    df = DockerfileParser(str(tmpdir))
+    content = ["FROM nonroot-base\n",
+               "MAINTAINER example@example.com\n",
+               "RUN nothing to install\n",
+               "USER user\n",
+               "CMD ['id']\n"]
+    df.lines = content
+    tasker, workflow = prepare(df.dockerfile_path)
+    filename = 'test.repo'
+    repo_path = os.path.join(YUM_REPOS_DIR, filename)
+    workflow.files[repo_path] = repocontent
+    runner = PreBuildPluginsRunner(tasker, workflow, [{
+        'name': InjectYumRepoPlugin.key,
+        'args': {'wrap_commands': False}}])
+    runner.run()
+
+    # Remove the repos/ directory.
+    repos_dir = os.path.join(str(tmpdir), RELATIVE_REPOS_PATH)
+    os.remove(os.path.join(repos_dir, filename))
+    os.rmdir(repos_dir)
+
+    # Examine the Dockerfile -- should be unchanged.
+    assert df.lines == content
