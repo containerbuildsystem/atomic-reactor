@@ -385,13 +385,22 @@ class DockerTasker(LastLogger):
         :return: str, image (reg.om/img:v1)
         """
         logger.info("tag image")
-        logger.debug("image = '%s', target_image_name = '%s'", image, target_image)
-        if isinstance(image, ImageName):
-            image = image.to_str()
-        response = self.d.tag(image, target_image.to_str(tag=False), tag=target_image.tag, force=force)  # returns True/False
-        if not response:
-            logger.error("failed to tag image")
-            raise RuntimeError("Failed to tag image '%s': target_image = '%s'" % image, target_image)
+        if not isinstance(image, ImageName):
+            image = ImageName.parse(image)
+
+        if image != target_image:
+            logger.debug("image = '%s', target_image_name = '%s'", image, target_image)
+            response = self.d.tag(
+                image.to_str(),
+                target_image.to_str(tag=False),
+                tag=target_image.tag,
+                force=force)  # returns True/False
+            if not response:
+                logger.error("failed to tag image")
+                raise RuntimeError("Failed to tag image '%s': target_image = '%s'" %
+                        image.to_str(), target_image)
+        else:
+            logger.debug('image already tagged correctly, nothing to do')
         return target_image.to_str()  # this will be the proper name, not just repo/img
 
     def push_image(self, image, insecure=False):

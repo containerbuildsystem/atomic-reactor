@@ -94,6 +94,9 @@ class ImageName(object):
     def __eq__(self, other):
         return type(self) == type(other) and self.__dict__ == other.__dict__
 
+    def __ne__(self, other):
+        return not self == other
+
     def __hash__(self):
         return hash(self.to_str())
 

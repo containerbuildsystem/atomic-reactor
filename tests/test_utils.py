@@ -51,6 +51,16 @@ def test_image_name_format():
     for expected, image_name in TEST_DATA.items():
         assert image_name.to_str() == expected
 
+def test_image_name_comparison():
+    # make sure that both "==" and "!=" are implemented right on both Python major releases
+    i1 = ImageName(registry='foo.com', namespace='spam', repo='bar', tag='1')
+    i2 = ImageName(registry='foo.com', namespace='spam', repo='bar', tag='1')
+    assert i1 == i2
+    assert not i1 != i2
+
+    i2 = ImageName(registry='foo.com', namespace='spam', repo='bar', tag='2')
+    assert not i1 == i2
+    assert i1 != i2
 
 def test_wait_for_command():
     if MOCK:

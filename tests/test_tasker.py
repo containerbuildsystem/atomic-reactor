@@ -15,6 +15,8 @@ from dock.util import ImageName, clone_git_repo
 from tests.constants import LOCALHOST_REGISTRY, INPUT_IMAGE, DOCKERFILE_GIT, MOCK, COMMAND
 
 import docker, docker.errors
+
+from flexmock import flexmock
 import pytest
 
 if MOCK:
@@ -168,6 +170,17 @@ def test_tag_image(temp_image_name):
         assert img == temp_image_name.to_str()
     finally:
         t.remove_image(temp_image_name)
+
+
+def test_tag_image_same_name(temp_image_name):
+    if MOCK:
+        mock_docker()
+
+    t = DockerTasker()
+    temp_image_name.registry = "somewhere.example.com"
+    temp_image_name.tag = "1"
+    flexmock(t.d).should_receive('tag').never()
+    img = t.tag_image(temp_image_name, temp_image_name.copy())
 
 
 def test_push_image(temp_image_name):
