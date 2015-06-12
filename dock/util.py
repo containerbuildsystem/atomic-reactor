@@ -165,6 +165,49 @@ class DockerfileParser(object):
             logger.error("Couldn't write content to dockerfile: %s" % repr(ex))
             raise
 
+    @property
+    def structure(self):
+        """
+        Returns a list of dicts describing the commands:
+        [
+            {"instruction": "FROM",
+             "startline": 0,
+             "endline": 0,
+             "content": "FROM fedora\n"},
+
+            {"instruction": "CMD",
+             "startline": 1,
+             "endline": 2,
+             "content": "CMD yum -y update && \\\n    yum clean all\n"}
+        ]
+        """
+        instructions = []
+        lineno = -1
+        insnre = re.compile(r'^\s*(\w+)\s.*$') # matched group is insn
+        contre = re.compile(r'^.*\\\s*$')
+        in_continuation = False
+        current_instruction = None
+        for line in self.lines:
+            lineno += 1
+            if not in_continuation:
+                m = insnre.match(line)
+                if not m:
+                    continue
+
+                current_instruction = {'instruction': m.groups()[0],
+                                       'startline': lineno,
+                                       'endline': lineno,
+                                       'content': line}
+            else:
+                current_instruction['content'] += line
+                current_instruction['endline'] = lineno
+
+            in_continuation = contre.match(line)
+            if not in_continuation and current_instruction is not None:
+                instructions.append(current_instruction)
+
+        return instructions
+
     def get_baseimage(self):
         for line in self.lines:
             if line.startswith("FROM"):

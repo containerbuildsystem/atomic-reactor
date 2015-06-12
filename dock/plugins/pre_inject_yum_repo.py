@@ -25,54 +25,45 @@ def alter_yum_commands(df, wrap_str):
 
 
 def add_yum_repos_to_dockerfile(yumrepos, df):
-    num_lines = len(df)
-    if num_lines == 0:
+    df_lines = df.lines
+    if len(df_lines) == 0:
         raise RuntimeError("Empty Dockerfile")
 
     # Find where to insert commands
 
-    def first_word_is(word):
-        return re.compile(r"^\s*" + word + r"\s", flags=re.IGNORECASE)
-
-    fromre = first_word_is("FROM")
-    maintainerre = first_word_is("MAINTAINER")
     preinsert = None
-    for n in range(num_lines):
-        if maintainerre.match(df[n]):
+    structure = df.structure
+    for insndesc in structure:
+        insn = insndesc['instruction'].lower()
+        if insn == 'maintainer':
             # MAINTAINER line: stop looking
-            preinsert = n + 1
+            preinsert = insndesc['endline'] + 1
             break
-        elif fromre.match(df[n]):
+        elif insn == 'from':
             # FROM line: can use this, but keep looking in case there
             # is a MAINTAINER line
-            preinsert = n + 1
+            preinsert = insndesc['endline'] + 1
 
     if preinsert is None:
         raise RuntimeError("No FROM line in Dockerfile")
 
-    cmdre = first_word_is("(CMD|ENTRYPOINT)")
+    # Look for the last 'yum' invocation
     postinsert = None  # append by default
-    for n in range(preinsert, num_lines):
-        if cmdre.match(df[n]):
-            postinsert = n
-            break
+    yumre = re.compile(r'^.*\byum\b')
+    for insndesc in structure:
+        if insndesc['instruction'].lower() == 'run' and \
+           yumre.match(insndesc['content']):
+            postinsert = insndesc['endline'] + 1
 
-    # we need to clear repos BEFORE any USER instruction
-    userre = first_word_is("USER")
-    for n in range(preinsert, num_lines):
-        if userre.match(df[n]):
-            postinsert = n
-            break
-
-    newdf = df[:preinsert]
+    newdf = df_lines[:preinsert]
     newdf.append("ADD %s* '%s'\n" % (RELATIVE_REPOS_PATH, YUM_REPOS_DIR))
-    newdf.extend(df[preinsert:postinsert])
+    newdf.extend(df_lines[preinsert:postinsert])
     newdf.append("RUN rm -f " +
                  " ".join(["'%s'" % yumrepo
                            for yumrepo in yumrepos]) +
                  "\n")
     if postinsert is not None:
-        newdf.extend(df[postinsert:])
+        newdf.extend(df_lines[postinsert:])
 
     return newdf
 
@@ -147,5 +138,4 @@ class InjectYumRepoPlugin(PreBuildPlugin):
                 repos_host_cont_mapping[repo] = repo_relative_path
 
             df = DockerfileParser(self.workflow.builder.df_path)
-            df_lines = df.lines
-            df.lines = add_yum_repos_to_dockerfile(repos_host_cont_mapping, df_lines)
+            df.lines = add_yum_repos_to_dockerfile(repos_host_cont_mapping, df)

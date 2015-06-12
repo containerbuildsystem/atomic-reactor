@@ -309,12 +309,12 @@ DOCKERFILES = {
                     "LABEL 'a'='b'\n",
                     "MAINTAINER Example <example@example.com>\n"],
                    # add goes here
-                   ["RUN some command\n",
-                    "RUN some other command\n",
-                    "VOLUME ['/data']\n",
-                    "# rm line expected on following line\n"],
+                   ["RUN some yum command\n",
+                    "RUN some other yum command\n"],
                    # remove goes here
-                   ["CMD ['/bin/bash']\n"]),
+                   ["VOLUME ['/data']\n",
+                    "# rm line expected on following line\n",
+                    "CMD ['/bin/bash']\n"]),
 
     "entrypoint":
         Dockerfile(["FROM base\n",
@@ -329,13 +329,23 @@ DOCKERFILES = {
     Dockerfile(["FROM base\n",
                 "MAINTAINER Example <example@example.com\n"],
                # add goes here
-               ["RUN yum update -y\n",
-                "ENV asd qwe\n"],
+               ["RUN yum update -y\n"],
                # remove goes here
-               ["USER foo\n",
+               ["ENV asd qwe\n",
+                "USER foo\n",
                 "RUN uname\n",
                 "LABEL x y\n",
                 "CMD ['/bin/ls']\n"]),
+
+    "root":
+    Dockerfile(["FROM nonroot-base\n",
+                "MAINTAINER example@example.com\n"],
+               # add goes here
+               ["USER root\n",
+                "RUN yum -y update\n"],
+               # remove goes here
+               ["USER user\n",
+                "CMD ['id']\n"]),
 }
 
 
