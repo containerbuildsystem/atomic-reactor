@@ -18,6 +18,7 @@ from dock.api import build_image_here, build_image_in_privileged_container, buil
 from dock.constants import CONTAINER_BUILD_JSON_PATH, CONTAINER_RESULTS_JSON_PATH, DESCRIPTION, PROG
 from dock.buildimage import BuildImageBuilder
 from dock.inner import BuildResultsEncoder, build_inside, BuildResults
+from dock.util import process_substitutions
 
 
 logger = logging.getLogger('dock')
@@ -42,8 +43,8 @@ def cli_build_image(args):
     if args.source__provider == 'json':
         with open(args.json_path) as json_fp:
             common_kwargs = json.load(json_fp)
-        if args.overrides:
-            process_overrides(common_kwargs, args.overrides)
+        if args.substitute:
+            process_substitutions(common_kwargs, args.substitute)
     else:
         common_kwargs = construct_kwargs(**vars(args))
     response = BuildResults()
@@ -61,34 +62,6 @@ def cli_build_image(args):
     if response.return_code != 0:
         logger.error("build failed")
     sys.exit(response.return_code)
-
-
-def process_overrides(common_kwargs, overrides_list):
-    def parse_val(v):
-        # TODO: do we need to recognize numbers,lists,dicts?
-        if v.lower() == 'true':
-            return True
-        elif v.lower() == 'false':
-            return False
-        elif v.lower() == 'none':
-            return None
-        return v
-
-    for ovrd in overrides_list:
-        key, val = ovrd.split('=', 1)
-        cur_dict = common_kwargs
-        key_parts = key.split('.')
-        key_parts_without_last = key_parts[:-1]
-
-        # now go down common_kwargs, following the dotted path; create empty dicts on way if needed
-        for k in key_parts_without_last:
-            if k in cur_dict:
-                if not isinstance(cur_dict[k], dict):
-                    cur_dict[k] = {}
-            else:
-                cur_dict[k] = {}
-            cur_dict = cur_dict[k]
-        cur_dict[key_parts[-1]] = parse_val(val)
 
 
 def construct_kwargs(**kwargs):
@@ -277,8 +250,8 @@ class CLI(object):
             'json_path', metavar='JSON_PATH',
             help='path to the build json')
         self.source_types_parsers['json'].add_argument(
-            '--overrides', nargs='*', metavar='OVERRIDES',
-            help='provide overrides for json in form "foo.bar=spam"')
+            '--substitute', nargs='*', metavar='SUBSTITUTE',
+            help='provide substitutions for json in form "foo.bar=spam"')
 
     def run(self):
         self.set_arguments()
