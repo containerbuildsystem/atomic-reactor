@@ -33,6 +33,30 @@ class X(object):
     pass
 
 
+def prepare(df_path, inherited_user=''):
+    tasker = DockerTasker()
+    workflow = DockerBuildWorkflow(SOURCE, "test-image")
+    setattr(workflow, 'builder', X())
+
+    setattr(workflow.builder, 'image_id', "asd123")
+    setattr(workflow.builder, 'df_path', str(df_path))
+    setattr(workflow.builder, 'df_dir', os.path.dirname(str(df_path)))
+    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
+    setattr(workflow.builder, 'git_dockerfile_path', None)
+    setattr(workflow.builder, 'git_path', None)
+    setattr(workflow.builder, 'source', X())
+    setattr(workflow.builder.source, 'dockerfile_path', None)
+    setattr(workflow.builder.source, 'path', '')
+
+    inspection_data = {'Config': {'User': inherited_user}}
+    workflow.builder.inspect_base_image = lambda: inspection_data
+    (flexmock(requests.Response, content=repocontent)
+     .should_receive('raise_for_status')
+     .and_return(None))
+    (flexmock(requests, get=lambda *_: requests.Response()))
+    return tasker, workflow
+
+
 def test_yuminject_plugin_notwrapped(tmpdir):
     df_content = """\
 FROM fedora
@@ -41,9 +65,7 @@ CMD blabla"""
     df = DockerfileParser(str(tmpdir))
     df.content = df_content
 
-    tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
-    setattr(workflow, 'builder', X())
+    tasker, workflow = prepare(df.dockerfile_path)
 
     metalink = 'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
 
@@ -54,13 +76,6 @@ CMD blabla"""
          ('gpgcheck', 0)),
     ))
 
-    setattr(workflow.builder, 'image_id', "asd123")
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
-    setattr(workflow.builder, 'df_dir', str(tmpdir))
-    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
-    setattr(workflow.builder, 'source', X())
-    setattr(workflow.builder.source, 'dockerfile_path', None)
-    setattr(workflow.builder.source, 'path', None)
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': InjectYumRepoPlugin.key,
         'args': {
@@ -73,8 +88,9 @@ CMD blabla"""
     expected_output = r"""FROM fedora
 ADD dock-repos/* '/etc/yum.repos.d/'
 RUN yum install -y python-django
+CMD blabla
 RUN rm -f '/etc/yum.repos.d/dock-injected.repo'
-CMD blabla"""
+"""
     assert expected_output == df.content
 
 
@@ -132,7 +148,7 @@ CMD blabla"""
 
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
-    setattr(workflow, 'builder', X)
+    setattr(workflow, 'builder', X())
 
     metalink = 'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
 
@@ -171,9 +187,7 @@ CMD blabla"""
     df = DockerfileParser(str(tmpdir))
     df.content = df_content
 
-    tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
-    setattr(workflow, 'builder', X)
+    tasker, workflow = prepare(df.dockerfile_path)
 
     metalink = r'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
 
@@ -183,12 +197,6 @@ CMD blabla"""
          ('enabled', "1"),
          ('gpgcheck', "0")),
     ))
-    setattr(workflow.builder, 'image_id', "asd123")
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
-    setattr(workflow.builder, 'df_dir', str(tmpdir))
-    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
-    setattr(workflow.builder, 'git_dockerfile_path', None)
-    setattr(workflow.builder, 'git_path', None)
     runner = PreBuildPluginsRunner(tasker, workflow,
                                    [{'name': InjectYumRepoPlugin.key, 'args': {
                                        "wrap_commands": False
@@ -199,8 +207,9 @@ CMD blabla"""
     expected_output = r"""FROM fedora
 ADD dock-repos/* '/etc/yum.repos.d/'
 RUN yum install -y httpd                    uwsgi
+CMD blabla
 RUN rm -f '/etc/yum.repos.d/dock-injected.repo'
-CMD blabla"""
+"""
     assert df.content == expected_output
 
 
@@ -218,7 +227,7 @@ CMD blabla"""
 
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
-    setattr(workflow, 'builder', X)
+    setattr(workflow, 'builder', X())
 
     metalink = r'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
 
@@ -234,6 +243,9 @@ CMD blabla"""
     setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
     setattr(workflow.builder, 'git_dockerfile_path', None)
     setattr(workflow.builder, 'git_path', None)
+    setattr(workflow.builder, 'source', X())
+    setattr(workflow.builder.source, 'dockerfile_path', None)
+    setattr(workflow.builder.source, 'path', '')
     runner = PreBuildPluginsRunner(tasker, workflow,
                                    [{'name': InjectYumRepoPlugin.key, 'args': {
                                        "wrap_commands": True
@@ -280,117 +292,122 @@ repocontent = '''\
 [repo]
 name=asd
 '''
-Dockerfile = namedtuple('Dockerfile', ['lines_before_add',
+Dockerfile = namedtuple('Dockerfile', ['inherited_user',
+                                       'lines_before_add',
                                        'lines_before_remove',
-                                       'lines_after_remove'])
+                                       'remove_lines'])
 
 
 DOCKERFILES = {
     "no maintainer":
-        Dockerfile(["# Simple example with no MAINTAINER line\n",
+        Dockerfile('',
+                   ["# Simple example with no MAINTAINER line\n",
                     "FROM base\n"],
                    # add goes here
                    [" RUN yum -y update\n"],
-                   # remove goes here
-                   []),
+                   ["RUN rm ...\n"]),
 
     "no yum":
-        Dockerfile(["FROM base\n",
+        Dockerfile('',
+                   ["FROM base\n",
                     "# This time there is a MAINTAINER line\n",
                     "# but it's the last last there is\n",
                     "MAINTAINER Example <example@example.com>\n"],
                    # add goes here
-                   ["RUN yum -y update\n"],
-                   # remove goes here
-                   []),
+                   [],
+                   ["RUN rm ...\n"]),
 
-    "cmd":
-        Dockerfile([" From base\n",
-                    "LABEL 'a'='b'\n",
-                    "MAINTAINER Example <example@example.com>\n"],
-                   # add goes here
-                   ["RUN some yum command\n",
-                    "RUN some other yum command\n"],
-                   # remove goes here
-                   ["VOLUME ['/data']\n",
-                    "CMD ['/bin/bash']\n"]),
-
-    "entrypoint":
-        Dockerfile(["FROM base\n",
+    "user":
+        Dockerfile('',
+                   ["FROM base\n",
                     "MAINTAINER Example <example@example.com\n"],
                    # add goes here
                    ["RUN yum update -y\n",
-                    "RUN yum install -y example\n"],
-                   # remove goes here
-                   ["ENTRYPOINT ['/bin/bash']\n",
-                    "CMD ['/bin/ls']\n"]),
-    "user":
-        Dockerfile(["FROM base\n",
-                    "MAINTAINER Example <example@example.com\n"],
-                   # add goes here
-                   ["RUN yum update -y\n"],
-                   # remove goes here
-                   ["ENV asd qwe\n",
+                    "ENV asd qwe\n",
                     "USER foo\n",
                     "RUN uname\n",
                     "LABEL x y\n",
-                    "CMD ['/bin/ls']\n"]),
+                    "CMD ['/bin/ls']\n"],
+                   ["USER root\n",
+                    "RUN rm ...\n",
+                    "USER foo\n"]),
 
     "root":
-        Dockerfile(["FROM nonroot-base\n",
+        Dockerfile('',
+                   ["FROM nonroot-base\n",
                     "MAINTAINER example@example.com\n"],
                    # add goes here
                    ["USER root\n",
-                    "RUN yum -y update\n"],
-                   # remove goes here
-                   ["USER user\n",
-                    "CMD ['id']\n"]),
+                    "RUN yum -y update\n",
+                    "USER user\n",
+                    "CMD ['id']\n"],
+                   ["USER root\n",
+                    "RUN rm ...\n",
+                    "USER user\n"]),
+
+    "inherit":
+        Dockerfile('inherited',
+                   ["FROM inherit-user\n"],
+                   # add goes here
+                   ["RUN /bin/ls\n"],
+                   ["USER root\n",
+                    "RUN rm ...\n",
+                    "USER inherited\n"]),
+
+    "inherit-root":
+        Dockerfile('inherited',
+                   ["FROM inherit-root\n"],
+                   # add goes here
+                   ["USER root\n",
+                    "RUN yum -y update\n",
+                    "USER user\n"],
+                   ["USER root\n",
+                    "RUN rm ...\n",
+                    "USER user\n"]),
 }
-
-
-def prepare(df_path):
-    tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
-    setattr(workflow, 'builder', X)
-
-    setattr(workflow.builder, 'image_id', "asd123")
-    setattr(workflow.builder, 'df_path', str(df_path))
-    setattr(workflow.builder, 'df_dir', os.path.dirname(str(df_path)))
-    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
-    setattr(workflow.builder, 'git_dockerfile_path', None)
-    setattr(workflow.builder, 'git_path', None)
-    (flexmock(requests.Response, content=repocontent)
-     .should_receive('raise_for_status')
-     .and_return(None))
-    (flexmock(requests, get=lambda *_: requests.Response()))
-    return tasker, workflow
 
 
 def test_no_repourls(tmpdir):
     for df_content in DOCKERFILES.values():
         df = DockerfileParser(str(tmpdir))
         df.lines = df_content.lines_before_add + \
-                   df_content.lines_before_remove + \
-                   df_content.lines_after_remove
+                   df_content.lines_before_remove
 
-        tasker, workflow = prepare(df.dockerfile_path)
+        tasker, workflow = prepare(df.dockerfile_path,
+                                   df_content.inherited_user)
         runner = PreBuildPluginsRunner(tasker, workflow, [{
             'name': InjectYumRepoPlugin.key,
         }])
         runner.run()
         assert InjectYumRepoPlugin.key is not None
 
+        # Should be unchanged.
         assert df.lines == df_content.lines_before_add + \
-                           df_content.lines_before_remove + \
-                           df_content.lines_after_remove
+                           df_content.lines_before_remove
+
+
+def remove_lines_match(actual, expected, repos):
+    if len(actual) != len(expected):
+        return False
+
+    for aline, eline in zip(actual, expected):
+        if eline.startswith("RUN rm"):
+            if not aline.startswith("RUN rm -f "):
+                assert aline == eline
+
+            assert set(aline.rstrip()[10:].split(' ')) == set(["'/etc/yum.repos.d/%s'" % repo for repo in repos])
+        else:
+            assert aline == eline
+
+    return True
 
 def test_single_repourl(tmpdir):
     for df_content in DOCKERFILES.values():
         df = DockerfileParser(str(tmpdir))
         df.lines = df_content.lines_before_add + \
-                   df_content.lines_before_remove + \
-                   df_content.lines_after_remove
-        tasker, workflow = prepare(df.dockerfile_path)
+                   df_content.lines_before_remove
+        tasker, workflow = prepare(df.dockerfile_path,
+                                   df_content.inherited_user)
         filename = 'test.repo'
         repo_path = os.path.join(YUM_REPOS_DIR, filename)
         workflow.files[repo_path] = repocontent
@@ -427,22 +444,19 @@ def test_single_repourl(tmpdir):
         assert (newdf[after_add:before_remove] ==
                 df_content.lines_before_remove)
 
+        # The 'rm' lines should match
         # There should be a final 'rm'
-        remove = newdf[before_remove]
-        assert remove == "RUN rm -f '/etc/yum.repos.d/%s'\n" % filename
-
-        # Lines after that should be unchanged.
-        after_remove = before_remove + 1
-        assert newdf[after_remove:] == df_content.lines_after_remove
+        remove = newdf[before_remove:]
+        assert remove_lines_match(remove, df_content.remove_lines, [filename])
 
 
 def test_multiple_repourls(tmpdir):
     for df_content in DOCKERFILES.values():
         df = DockerfileParser(str(tmpdir))
         df.lines = df_content.lines_before_add + \
-                   df_content.lines_before_remove + \
-                   df_content.lines_after_remove
-        tasker, workflow = prepare(df.dockerfile_path)
+                   df_content.lines_before_remove
+        tasker, workflow = prepare(df.dockerfile_path,
+                                   df_content.inherited_user)
         filename1 = 'myrepo.repo'
         filename2 = 'repo-2.repo'
         repo_path1 = os.path.join(YUM_REPOS_DIR, filename1)
@@ -480,37 +494,6 @@ def test_multiple_repourls(tmpdir):
                     df_content.lines_before_remove)
 
         # For the 'rm' line, they could be in either order
-        remove = newdf[before_remove]
-        rmline = "RUN rm -f '/etc/yum.repos.d/%s' '/etc/yum.repos.d/%s'\n"
-        assert remove in [rmline % (filename1, filename2),
-                          rmline % (filename2, filename1)]
-
-        # Lines after that should be unchanged.
-        after_remove = before_remove + 1
-        assert newdf[after_remove:] == df_content.lines_after_remove
-
-
-def test_no_yum(tmpdir):
-    df = DockerfileParser(str(tmpdir))
-    content = ["FROM nonroot-base\n",
-               "MAINTAINER example@example.com\n",
-               "RUN nothing to install\n",
-               "USER user\n",
-               "CMD ['id']\n"]
-    df.lines = content
-    tasker, workflow = prepare(df.dockerfile_path)
-    filename = 'test.repo'
-    repo_path = os.path.join(YUM_REPOS_DIR, filename)
-    workflow.files[repo_path] = repocontent
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
-        'name': InjectYumRepoPlugin.key,
-        'args': {'wrap_commands': False}}])
-    runner.run()
-
-    # Remove the repos/ directory.
-    repos_dir = os.path.join(str(tmpdir), RELATIVE_REPOS_PATH)
-    os.remove(os.path.join(repos_dir, filename))
-    os.rmdir(repos_dir)
-
-    # Examine the Dockerfile -- should be unchanged.
-    assert df.lines == content
+        remove = newdf[before_remove:]
+        assert remove_lines_match(remove, df_content.remove_lines,
+                                  [filename1, filename2])

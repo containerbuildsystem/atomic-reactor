@@ -24,7 +24,7 @@ def alter_yum_commands(df, wrap_str):
     return regex.sub(sub_func, df)
 
 
-def add_yum_repos_to_dockerfile(yumrepos, df):
+def add_yum_repos_to_dockerfile(yumrepos, df, inherited_user):
     df_lines = df.lines
     if len(df_lines) == 0:
         raise RuntimeError("Empty Dockerfile")
@@ -47,27 +47,40 @@ def add_yum_repos_to_dockerfile(yumrepos, df):
     if preinsert is None:
         raise RuntimeError("No FROM line in Dockerfile")
 
-    # Look for the last 'yum' invocation
-    postinsert = None
-    yumre = re.compile(r'^.*\byum\b')
+    # Track changes to the inherited USER
+    if inherited_user:
+        final_user = "USER %s\n" % inherited_user
+    else:
+        final_user = None
+
     for insndesc in structure:
-        if insndesc['instruction'].lower() == 'run' and \
-           yumre.match(insndesc['content']):
-            postinsert = insndesc['endline'] + 1
+        if insndesc['instruction'].lower() == 'user':
+            final_user = insndesc['content']
 
-    if postinsert is None:
-        # No yum invocations. Don't change anything.
-        return df_lines[:]
-
+    # Insert the ADD line
     newdf = df_lines[:preinsert]
     newdf.append("ADD %s* '%s'\n" % (RELATIVE_REPOS_PATH, YUM_REPOS_DIR))
-    newdf.extend(df_lines[preinsert:postinsert])
+    newdf.extend(df_lines[preinsert:])
+
+    # Deal with potential lack of newline on final line
+    last = len(newdf) - 1
+    if newdf[last][len(newdf[last]) - 1] != '\n':
+        newdf[last] += '\n'
+
+    # If needed, change to root in order to RUN rm
+    if final_user is not None:
+        newdf.append("USER root\n")
+
+    # Insert the line to remove the repos
     newdf.append("RUN rm -f " +
                  " ".join(["'%s'" % yumrepo
                            for yumrepo in yumrepos]) +
                  "\n")
-    if postinsert is not None:
-        newdf.extend(df_lines[postinsert:])
+
+    # If needed, switch back to the user we would have been before
+    # modifications
+    if final_user is not None:
+        newdf.append(final_user)
 
     return newdf
 
@@ -141,5 +154,9 @@ class InjectYumRepoPlugin(PreBuildPlugin):
                     fp.write(repo_content.encode("utf-8"))
                 repos_host_cont_mapping[repo] = repo_relative_path
 
+            # Find out the USER inherited from the base image
+            inspect = self.workflow.builder.inspect_base_image()
+            inherited_user = inspect['Config'].get('User', '')
             df = DockerfileParser(self.workflow.builder.df_path)
-            df.lines = add_yum_repos_to_dockerfile(repos_host_cont_mapping, df)
+            df.lines = add_yum_repos_to_dockerfile(repos_host_cont_mapping,
+                                                   df, inherited_user)
