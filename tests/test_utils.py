@@ -9,6 +9,8 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 import os
+
+import pytest
 import six
 
 try:
@@ -18,7 +20,8 @@ except ImportError:
     from ordereddict import OrderedDict
 import docker
 from dock.util import ImageName, DockerfileParser, \
-    wait_for_command, clone_git_repo, LazyGit, figure_out_dockerfile, render_yum_repo
+    wait_for_command, clone_git_repo, LazyGit, figure_out_dockerfile, render_yum_repo, \
+    process_substitutions
 from tests.constants import NON_ASCII, DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1
 
 if MOCK:
@@ -170,3 +173,26 @@ baseurl=http://example.com/\$basearch/test.repo
 enabled=1
 gpgcheck=0
 """
+
+@pytest.mark.parametrize('dct, subst, expected', [
+    ({'foo': 'bar'}, ['foo=spam'], {'foo': 'spam'}),
+    ({'foo': 'bar'}, ['baz=spam'], {'foo': 'bar', 'baz': 'spam'}),
+    ({'foo': 'bar'}, ['foo.bar=spam'], {'foo': {'bar': 'spam'}}),
+    ({'foo': 'bar'}, ['spam.spam=spam'], {'foo': 'bar', 'spam': {'spam': 'spam'}}),
+
+
+    ({'x_plugins': [{'name': 'a', 'args': {'b': 'c'}}]}, {'x_plugins.a.b': 'd'},
+        {'x_plugins': [{'name': 'a', 'args': {'b': 'd'}}]}),
+    # substituting plugins doesn't add new params
+    ({'x_plugins': [{'name': 'a', 'args': {'b': 'c'}}]}, {'x_plugins.a.c': 'd'},
+        {'x_plugins': [{'name': 'a', 'args': {'b': 'c'}}]}),
+    ({'x_plugins': [{'name': 'a', 'args': {'b': 'c'}}]}, {'x_plugins.X': 'd'},
+        ValueError()),
+])
+def test_process_substitutions(dct, subst, expected):
+    if isinstance(expected, Exception):
+        with pytest.raises(type(expected)):
+            process_substitutions(dct, subst)
+    else:
+        process_substitutions(dct, subst)
+        assert dct == expected
