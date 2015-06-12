@@ -48,12 +48,16 @@ def add_yum_repos_to_dockerfile(yumrepos, df):
         raise RuntimeError("No FROM line in Dockerfile")
 
     # Look for the last 'yum' invocation
-    postinsert = None  # append by default
+    postinsert = None
     yumre = re.compile(r'^.*\byum\b')
     for insndesc in structure:
         if insndesc['instruction'].lower() == 'run' and \
            yumre.match(insndesc['content']):
             postinsert = insndesc['endline'] + 1
+
+    if postinsert is None:
+        # No yum invocations. Don't change anything.
+        return df_lines[:]
 
     newdf = df_lines[:preinsert]
     newdf.append("ADD %s* '%s'\n" % (RELATIVE_REPOS_PATH, YUM_REPOS_DIR))
