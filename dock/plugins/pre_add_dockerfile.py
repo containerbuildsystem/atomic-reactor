@@ -11,7 +11,7 @@ Include user-provided Dockerfile in the /root/buildinfo/
 This is accomplished by appending an ADD command to it.
 Name of the Dockerfile is changed to include N-V-R of the build.
 N-V-R is specified either by nvr argument OR from
-Name/Version/Release labels in Deckerfile.
+Name/Version/Release labels in Dockerfile.
 If you run add_labels_in_dockerfile to add Name/Version/Release labels
 you have to run it BEFORE this one.
 
