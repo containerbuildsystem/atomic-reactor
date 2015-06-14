@@ -34,12 +34,12 @@ def add_yum_repos_to_dockerfile(yumrepos, df, inherited_user):
     preinsert = None
     structure = df.structure
     for insndesc in structure:
-        insn = insndesc['instruction'].lower()
-        if insn == 'maintainer':
+        insn = insndesc['instruction']
+        if insn == 'MAINTAINER':
             # MAINTAINER line: stop looking
             preinsert = insndesc['endline'] + 1
             break
-        elif insn == 'from':
+        elif insn == 'FROM':
             # FROM line: can use this, but keep looking in case there
             # is a MAINTAINER line
             preinsert = insndesc['endline'] + 1
@@ -54,7 +54,7 @@ def add_yum_repos_to_dockerfile(yumrepos, df, inherited_user):
         final_user = None
 
     for insndesc in structure:
-        if insndesc['instruction'].lower() == 'user':
+        if insndesc['instruction'] == 'USER':
             final_user = insndesc['content']
 
     # Insert the ADD line

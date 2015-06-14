@@ -170,21 +170,23 @@ class DockerfileParser(object):
         """
         Returns a list of dicts describing the commands:
         [
-            {"instruction": "FROM",
-             "startline": 0,
-             "endline": 0,
-             "content": "FROM fedora\n"},
+            {"instruction": "FROM",       # always upper-case
+             "startline": 0,              # 0-based
+             "endline": 0,                # 0-based
+             "content": "From fedora\n"},
 
             {"instruction": "CMD",
              "startline": 1,
              "endline": 2,
              "content": "CMD yum -y update && \\\n    yum clean all\n"}
         ]
+
+        Comments are ignored.
         """
         instructions = []
         lineno = -1
-        insnre = re.compile(r'^\s*(\w+)\s.*$') # matched group is insn
-        contre = re.compile(r'^.*\\\s*$')
+        insnre = re.compile(r'^\s*(\w+)\s.*$')  # matched group is insn
+        contre = re.compile(r'^.*\\\s*$')       # line continues?
         in_continuation = False
         current_instruction = None
         for line in self.lines:
@@ -194,7 +196,7 @@ class DockerfileParser(object):
                 if not m:
                     continue
 
-                current_instruction = {'instruction': m.groups()[0],
+                current_instruction = {'instruction': m.groups()[0].upper(),
                                        'startline': lineno,
                                        'endline': lineno,
                                        'content': line}
