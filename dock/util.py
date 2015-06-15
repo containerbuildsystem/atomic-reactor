@@ -188,16 +188,16 @@ class DockerfileParser(object):
 
         Comments are ignored.
         """
-        def _strip_backslash(l):
-            l = l.strip()
+        def _rstrip_backslash(l):
+            l = l.rstrip()
             if l.endswith('\\'):
                 return l[:-1]
             return l
 
         instructions = []
         lineno = -1
-        insnre = re.compile(r'^\s*(\w+)\s(.*)$')  # matched group is insn
-        contre = re.compile(r'^.*\\\s*$')       # line continues?
+        insnre = re.compile(r'^\s*(\w+)\s+(.*)$')  # matched group is insn
+        contre = re.compile(r'^.*\\\s*$')          # line continues?
         in_continuation = False
         current_instruction = None
         for line in self.lines:
@@ -211,11 +211,14 @@ class DockerfileParser(object):
                                        'startline': lineno,
                                        'endline': lineno,
                                        'content': line,
-                                       'value': _strip_backslash(m.groups()[1])}
+                                       'value': _rstrip_backslash(m.groups()[1])}
             else:
                 current_instruction['content'] += line
                 current_instruction['endline'] = lineno
-                current_instruction['value'] += _strip_backslash(line)
+                if current_instruction['value']:
+                    current_instruction['value'] += _rstrip_backslash(line)
+                else:
+                    current_instruction['value'] = _rstrip_backslash(line.lstrip())
 
             in_continuation = contre.match(line)
             if not in_continuation and current_instruction is not None:
