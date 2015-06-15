@@ -176,19 +176,27 @@ class DockerfileParser(object):
             {"instruction": "FROM",       # always upper-case
              "startline": 0,              # 0-based
              "endline": 0,                # 0-based
-             "content": "From fedora\n"},
+             "content": "From fedora\n",
+             "value": "fedora"},
 
             {"instruction": "CMD",
              "startline": 1,
              "endline": 2,
-             "content": "CMD yum -y update && \\\n    yum clean all\n"}
+             "content": "CMD yum -y update && \\\n    yum clean all\n",
+             "value": "yum -y update && yum clean all"}
         ]
 
         Comments are ignored.
         """
+        def _strip_backslash(l):
+            l = l.strip()
+            if l.endswith('\\'):
+                return l[:-1]
+            return l
+
         instructions = []
         lineno = -1
-        insnre = re.compile(r'^\s*(\w+)\s.*$')  # matched group is insn
+        insnre = re.compile(r'^\s*(\w+)\s(.*)$')  # matched group is insn
         contre = re.compile(r'^.*\\\s*$')       # line continues?
         in_continuation = False
         current_instruction = None
@@ -202,10 +210,12 @@ class DockerfileParser(object):
                 current_instruction = {'instruction': m.groups()[0].upper(),
                                        'startline': lineno,
                                        'endline': lineno,
-                                       'content': line}
+                                       'content': line,
+                                       'value': _strip_backslash(m.groups()[1])}
             else:
                 current_instruction['content'] += line
                 current_instruction['endline'] = lineno
+                current_instruction['value'] += _strip_backslash(line)
 
             in_continuation = contre.match(line)
             if not in_continuation and current_instruction is not None:
@@ -214,11 +224,11 @@ class DockerfileParser(object):
         return instructions
 
     def get_baseimage(self):
-        for line in self.lines:
-            if line.startswith("FROM"):
-                return line.split()[1]
+        for insndesc in self.structure:
+            if insndesc['instruction'] == 'FROM':
+                return insndesc['value']
 
-    def _split(self, string):
+    def _shlex_split(self, string):
         if PY2 and isinstance(string, unicode):
             # Python2's shlex doesn't like unicode
             string = self.u2b(string)
@@ -228,33 +238,13 @@ class DockerfileParser(object):
             return shlex.split(string)
 
     def get_labels(self):
-        """ opposite of AddLabelsPlugin, i.e. return dict of labels from dockerfile
+        """ return dict of labels from dockerfile
         :return: dictionary of label:value or label:'' if there's no value
         """
         labels = {}
-        multiline = False
-        processed_instr = ""
-        for line in self.lines:
-            line = line.rstrip()  # docker does this
-            logger.debug("processing line %s", repr(line))
-            if multiline:
-                processed_instr += line
-                if line.endswith("\\"):  # does multiline continue?
-                    # docker strips single \
-                    processed_instr = processed_instr[:-1]
-                    continue
-                else:
-                    multiline = False
-            else:
-                processed_instr = line
-            if processed_instr.startswith("LABEL"):
-                if processed_instr.endswith("\\"):
-                    logger.debug("multiline LABEL")
-                    # docker strips single \
-                    processed_instr = processed_instr[:-1]
-                    multiline = True
-                    continue
-                for token in self._split(processed_instr[len("LABEL "):]):
+        for insndesc in self.structure:
+            if insndesc['instruction'] == 'LABEL':
+                for token in self._shlex_split(insndesc['value']):
                     key_val = token.split("=", 1)
                     if len(key_val) == 2:
                         labels[key_val[0]] = key_val[1]
