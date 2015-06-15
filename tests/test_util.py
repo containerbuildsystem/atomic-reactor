@@ -23,7 +23,6 @@ from dock.util import ImageName, DockerfileParser, \
     wait_for_command, clone_git_repo, LazyGit, figure_out_dockerfile, render_yum_repo, \
     process_substitutions
 from tests.constants import NON_ASCII, DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1
-from tests.constants import DOCKERFILE_FILENAME
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -163,7 +162,7 @@ def test_dockerfile_structure(tmpdir):
                          {'instruction': 'LABEL',
                           'startline': 4,
                           'endline': 5,
-                          'content': ' label  foo  \\\n    bar\n',
+                          'content': ' label  foo  \\\n    bar  \n',
                           'value': 'foo      bar'},
                          {'instruction': 'USER',
                           'startline': 6,
