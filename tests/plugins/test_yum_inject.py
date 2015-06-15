@@ -319,18 +319,18 @@ DOCKERFILES = {
 
     "user":
         Dockerfile('',
-                   ["FROM base\n",
-                    "MAINTAINER Example <example@example.com\n"],
+                   [" From base\n",
+                    " Maintainer Example <example@example.com\n"],
                    # add goes here
-                   ["RUN yum update -y\n",
-                    "ENV asd qwe\n",
-                    "USER foo\n",
-                    "RUN uname\n",
-                    "LABEL x y\n",
-                    "CMD ['/bin/ls']\n"],
+                   [" Run yum update -y\n",
+                    " Env asd qwe\n",
+                    " User foo\n",
+                    " Run uname\n",
+                    " Label x y\n",
+                    " Cmd ['/bin/ls']\n"],
                    ["USER root\n",
                     "RUN rm ...\n",
-                    "USER foo\n"]),
+                    " User foo\n"]),
 
     "root":
         Dockerfile('',
