@@ -23,6 +23,7 @@ from dock.util import ImageName, DockerfileParser, \
     wait_for_command, clone_git_repo, LazyGit, figure_out_dockerfile, render_yum_repo, \
     process_substitutions
 from tests.constants import NON_ASCII, DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1
+from tests.constants import DOCKERFILE_FILENAME
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -141,6 +142,35 @@ def test_get_labels_from_df(tmpdir):
     assert labels.get('label8') == ''
     assert labels.get('label9') == 'asd qwe'
     assert labels.get('label10') == '{0}'.format(NON_ASCII)
+
+
+def test_dockerfile_structure(tmpdir):
+    dockerfile = os.path.join(str(tmpdir), DOCKERFILE_FILENAME)
+    with open(dockerfile, "wt") as fp:
+        fp.writelines(["# comment\n",        # should be ignored
+                       " From  \\\n",        # mixed-case
+                       "   base\n",          # extra ws, continuation line
+                       " # comment\n",
+                       " label  foo  \\\n",  # extra ws
+                       "    bar  \n",        # extra ws, continuation line
+                       "USER  no-newline"])  # extra ws, no newline
+    df = DockerfileParser(str(tmpdir))
+    structure = df.structure
+    assert structure == [{'instruction': 'FROM',
+                          'startline': 1,  # 0-based
+                          'endline': 2,
+                          'content': ' From  \\\n   base\n',
+                          'value': 'base'},
+                         {'instruction': 'LABEL',
+                          'startline': 4,
+                          'endline': 5,
+                          'content': ' label  foo  \\\n    bar\n',
+                          'value': 'foo      bar'},
+                         {'instruction': 'USER',
+                          'startline': 6,
+                          'endline': 6,
+                          'content': 'USER  no-newline',
+                          'value': 'no-newline'}]
 
 
 def test_figure_out_dockerfile(tmpdir):
