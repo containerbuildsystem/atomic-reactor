@@ -145,16 +145,15 @@ def test_get_labels_from_df(tmpdir):
 
 
 def test_dockerfile_structure(tmpdir):
-    dockerfile = os.path.join(str(tmpdir), DOCKERFILE_FILENAME)
-    with open(dockerfile, "wt") as fp:
-        fp.writelines(["# comment\n",        # should be ignored
-                       " From  \\\n",        # mixed-case
-                       "   base\n",          # extra ws, continuation line
-                       " # comment\n",
-                       " label  foo  \\\n",  # extra ws
-                       "    bar  \n",        # extra ws, continuation line
-                       "USER  no-newline"])  # extra ws, no newline
     df = DockerfileParser(str(tmpdir))
+    df.lines = ["# comment\n",        # should be ignored
+                " From  \\\n",        # mixed-case
+                "   base\n",          # extra ws, continuation line
+                " # comment\n",
+                " label  foo  \\\n",  # extra ws
+                "    bar  \n",        # extra ws, continuation line
+                "USER  no-newline"]   # extra ws, no newline
+
     structure = df.structure
     assert structure == [{'instruction': 'FROM',
                           'startline': 1,  # 0-based
