@@ -38,7 +38,7 @@ def _install_requirements():
 
 setup(
     name='dock',
-    version='1.3.4',
+    version='1.3.5',
     description=DESCRIPTION,
     author='Tomas Tomecek',  # FIXME: when under project atomic
     author_email='ttomecek@redhat.com',
