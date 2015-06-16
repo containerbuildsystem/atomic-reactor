@@ -235,6 +235,7 @@ class DockerfileParser(object):
         if PY2 and isinstance(string, unicode):
             # Python2's shlex doesn't like unicode
             string = self.u2b(string)
+            # this takes care of quotes
             splits = shlex.split(string)
             return map(self.b2u, splits)
         else:
@@ -247,13 +248,18 @@ class DockerfileParser(object):
         labels = {}
         for insndesc in self.structure:
             if insndesc['instruction'] == 'LABEL':
-                for token in self._shlex_split(insndesc['value']):
-                    key_val = token.split("=", 1)
-                    if len(key_val) == 2:
-                        labels[key_val[0]] = key_val[1]
-                    else:
-                        labels[key_val[0]] = ''
+                if '=' not in insndesc['value'].split()[0]:  # LABEL name value
+                    # remove (double-)quotes
+                    value = insndesc['value'].replace("'", "").replace('"', '')
+                    # split it to first and the rest
+                    key_val = value.split(None, 1)
+                    labels[key_val[0]] = key_val[1] if len(key_val) > 1 else ''
                     logger.debug("new label %s=%s", repr(key_val[0]), repr(labels[key_val[0]]))
+                else:  # LABEL "name"="value"
+                    for token in self._shlex_split(insndesc['value']):
+                        key_val = token.split("=", 1)
+                        labels[key_val[0]] = key_val[1] if len(key_val) > 1 else ''
+                        logger.debug("new label %s=%s", repr(key_val[0]), repr(labels[key_val[0]]))
         return labels
 
 
