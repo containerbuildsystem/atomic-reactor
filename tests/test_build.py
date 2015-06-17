@@ -7,6 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 from __future__ import unicode_literals
 
+import os
 import pytest
 
 from dock.build import InsideBuilder
@@ -14,7 +15,7 @@ from dock.core import DockerTasker
 from dock.source import get_source_instance_for
 from dock.util import ImageName
 from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, DOCKERFILE_OK_PATH,\
-        DOCKERFILE_ERROR_BUILD_PATH, MOCK, SOURCE
+        DOCKERFILE_ERROR_BUILD_PATH, MOCK, SOURCE, DOCKERFILE_FILENAME
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -51,6 +52,21 @@ def test_pull_base_image(tmpdir, source_params):
         assert reg_img_name.tag == git_base_image.tag
     # clean
     t.remove_image(git_base_image)
+
+
+def test_pull_base_image_with_registry(tmpdir):
+    mock_docker()
+    source_params = {'provider': 'path',
+                     'uri': 'file://%s' % str(tmpdir),
+                     'tmpdir': str(tmpdir)}
+    with open(os.path.join(str(tmpdir), DOCKERFILE_FILENAME), 'wt') as fp:
+        fp.writelines(['FROM %s/namespace/repo:tag\n' % LOCALHOST_REGISTRY])
+
+    s = get_source_instance_for(source_params)
+    t = DockerTasker()
+    b = InsideBuilder(s, "")
+    pulled_tags = b.pull_base_image(LOCALHOST_REGISTRY, insecure=True)
+    assert isinstance(pulled_tags, set)
 
 
 @with_all_sources

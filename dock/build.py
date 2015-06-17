@@ -128,8 +128,9 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         if not self.base_image.registry:
             response = self.tasker.tag_image(base_image_with_registry, self.base_image, force=True)
             pulled_tags.add(response)
+            base_image = response
 
-        logger.debug("image '%s' is available", response)
+        logger.debug("image '%s' is available", base_image)
         return pulled_tags
 
     def build(self):
