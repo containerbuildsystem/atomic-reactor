@@ -5,12 +5,12 @@
 %global owner DBuildService
 %global project dock
 
-%global commit 10fa56d1b412b6df5e807b1f2a42311992f68d99
+%global commit 9be74a251b8cd9226ae50802ee8f8b70b4989cd8
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 
 Name:           dock
 Version:        1.3.6
-Release:        1%{?dist}
+Release:        2%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -232,13 +232,16 @@ cp -a docs/manpage/dock.1 %{buildroot}%{_mandir}/man1/
 
 
 %changelog
+* Wed Jun 17 2015 Jiri Popelka <jpopelka@redhat.com> - 1.3.6-2
+- update hash
+
 * Wed Jun 17 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.3.6-1
 - new upstream release 1.3.6
 
 * Tue Jun 16 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.3.5-1
 - new upstream release 1.3.5
 
-* Fri Jun 12 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.3.3-3
+* Fri Jun 12 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.3.4-1
 - new upstream release 1.3.4
 
 * Wed Jun 10 2015 Jiri Popelka <jpopelka@redhat.com> - 1.3.3-2
