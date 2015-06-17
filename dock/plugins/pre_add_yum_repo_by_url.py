@@ -7,7 +7,11 @@ of the BSD license. See the LICENSE file for details.
 
 
 Add arbitrary yum repo, specified by URL of repo file, to a list of
-repos which should be injected into built image.
+repos which should be injected into built image by the inject_yum_repo
+plugin.
+
+This plugin has to run _BEFORE_ the inject_yum_repo plugin, which
+actually places the repo file in the build environment.
 
 Example configuration to add content of repo file at URL:
 
