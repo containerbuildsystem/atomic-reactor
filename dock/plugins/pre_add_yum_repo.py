@@ -8,7 +8,8 @@ of the BSD license. See the LICENSE file for details.
 
 Add arbitrary yum repo to a list of repos which should be injected into built image.
 
-This plugin has to run _BEFORE_ yum inject plugin.
+This plugin has to run _BEFORE_ the inject_yum_repo plugin, which
+actually places the repo file in the build environment.
 """
 import os
 from dock.constants import YUM_REPOS_DIR
