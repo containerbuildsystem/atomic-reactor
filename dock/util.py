@@ -248,7 +248,8 @@ class DockerfileParser(object):
         labels = {}
         for insndesc in self.structure:
             if insndesc['instruction'] == 'LABEL':
-                if '=' not in insndesc['value'].split()[0]:  # LABEL name value
+                shlex_splits = self._shlex_split(insndesc['value'])
+                if '=' not in shlex_splits[0]:  # LABEL name value
                     # remove (double-)quotes
                     value = insndesc['value'].replace("'", "").replace('"', '')
                     # split it to first and the rest
@@ -256,7 +257,7 @@ class DockerfileParser(object):
                     labels[key_val[0]] = key_val[1] if len(key_val) > 1 else ''
                     logger.debug("new label %s=%s", repr(key_val[0]), repr(labels[key_val[0]]))
                 else:  # LABEL "name"="value"
-                    for token in self._shlex_split(insndesc['value']):
+                    for token in shlex_splits:
                         key_val = token.split("=", 1)
                         labels[key_val[0]] = key_val[1] if len(key_val) > 1 else ''
                         logger.debug("new label %s=%s", repr(key_val[0]), repr(labels[key_val[0]]))

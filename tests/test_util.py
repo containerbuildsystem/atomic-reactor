@@ -128,15 +128,17 @@ def test_get_labels_from_df(tmpdir):
     lines.insert(-1, 'LABEL "label8"\n')
     lines.insert(-1, 'LABEL "label9"="asd \  \nqwe"\n')
     lines.insert(-1, 'LABEL "label10"="{0}"\n'.format(NON_ASCII))
+    lines.insert(-1, 'LABEL "label1 1"=1\n')
     # old syntax (without =)
-    lines.insert(-1, 'LABEL label11 11\n')
-    lines.insert(-1, 'LABEL label12 1 2\n')
-    lines.insert(-1, 'LABEL "label13" 1 3\n')
-    lines.insert(-1, 'LABEL label14 "1" 4\n')
-    lines.insert(-1, 'LABEL label15 1 \'5\'\n')
+    lines.insert(-1, 'LABEL label101 11\n')
+    lines.insert(-1, 'LABEL label102 1 2\n')
+    lines.insert(-1, 'LABEL "label103" 1 3\n')
+    lines.insert(-1, 'LABEL label104 "1" 4\n')
+    lines.insert(-1, 'LABEL label105 1 \'5\'\n')
+    lines.insert(-1, 'LABEL label106 1 \'0\'   6\n')
     df.lines = lines
     labels = df.get_labels()
-    assert len(labels) == 15
+    assert len(labels) == 17
     assert labels.get('label1') == 'value 1'
     assert labels.get('label2') == 'myself'
     assert labels.get('label3') == ''
@@ -147,11 +149,13 @@ def test_get_labels_from_df(tmpdir):
     assert labels.get('label8') == ''
     assert labels.get('label9') == 'asd qwe'
     assert labels.get('label10') == '{0}'.format(NON_ASCII)
-    assert labels.get('label11') == '11'
-    assert labels.get('label12') == '1 2'
-    assert labels.get('label13') == '1 3'
-    assert labels.get('label14') == '1 4'
-    assert labels.get('label15') == '1 5'
+    assert labels.get('label1 1') == '1'
+    assert labels.get('label101') == '11'
+    assert labels.get('label102') == '1 2'
+    assert labels.get('label103') == '1 3'
+    assert labels.get('label104') == '1 4'
+    assert labels.get('label105') == '1 5'
+    assert labels.get('label106') == '1 0   6'
 
 
 def test_dockerfile_structure(tmpdir):
