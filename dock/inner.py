@@ -217,7 +217,6 @@ class DockerBuildWorkflow(object):
         self.exported_squashed_image = {}
 
         self.tag_conf = TagConf()
-        self.tag_conf.add_image(self.image)
         self.push_conf = PushConf()
         if target_registries:
             self.push_conf.add_docker_registries(target_registries, insecure=target_registries_insecure)

@@ -49,8 +49,11 @@ class TagByLabelsPlugin(PostBuildPlugin):
         version = get_label("Version")
         release = get_label("Release")
 
+        unique_tag = self.workflow.builder.image.tag
+
         nvr = "%s:%s_%s" % (name, version, release)
         nv = "%s:%s" % (name, version)
         n = "%s:latest" % name
+        n_unique = "%s:%s" % (name, unique_tag)
 
-        self.workflow.tag_conf.add_images([nvr, nv, n])
+        self.workflow.tag_conf.add_images([nvr, nv, n, n_unique])
