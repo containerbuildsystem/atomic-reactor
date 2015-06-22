@@ -103,11 +103,11 @@ class PrePublishSquashPlugin(PrePublishPlugin):
             # squash the image, don't load it back to docker
             Squash(log=self.log, image=self.image, from_layer=self.from_layer,
                    tag=self.tag, output_path=self.workflow.exported_squashed_image.get("path")).run()
-            self._get_tarball_metadata()
         else:
             # squash the image and load it back to engine
             new_id = Squash(log=self.log, image=self.image, from_layer=self.from_layer,
                             tag=self.tag).run()
             self.workflow.builder.image_id = new_id
+        self._get_tarball_metadata()
         if self.remove_former_image:
             self.tasker.remove_image(self.image)
