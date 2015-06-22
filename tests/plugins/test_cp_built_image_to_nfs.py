@@ -13,13 +13,13 @@ import subprocess
 
 import pytest
 from flexmock import flexmock
-from dock.constants import EXPORTED_SQUASHED_IMAGE_NAME
+from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME
 
-from dock.util import ImageName
-from dock.core import DockerTasker
-from dock.inner import DockerBuildWorkflow
-from dock.plugin import PostBuildPluginsRunner
-from dock.plugins.post_cp_built_image_to_nfs import CopyBuiltImageToNFSPlugin
+from atomic_reactor.util import ImageName
+from atomic_reactor.core import DockerTasker
+from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.plugin import PostBuildPluginsRunner
+from atomic_reactor.plugins.post_cp_built_image_to_nfs import CopyBuiltImageToNFSPlugin
 from tests.constants import INPUT_IMAGE
 
 

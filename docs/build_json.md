@@ -1,6 +1,6 @@
 ## build.json
 
-If you want to take advantage of _inner_ part logic of dock, you can do that pretty easily. All you need to know, is the structure of json, which is used within build container. Here it is:
+If you want to take advantage of _inner_ part logic of Atomic Reactor, you can do that pretty easily. All you need to know, is the structure of json, which is used within build container. Here it is:
 
 ```json
 {
@@ -33,7 +33,7 @@ If you want to take advantage of _inner_ part logic of dock, you can do that pre
  * prebuild_plugins - list of dicts
   * list of plugins which are executed prior to build, order _matters_! In this case, first there is generated yum repo for koji f22 tag and then it is injected into dockerfile
 
-dock is able to read this build json from various places (see input plugins in source code). There is argument for command `inside-build` called `--input`. Currently there are 3 available inputs:
+Atomic Reactor is able to read this build json from various places (see input plugins in source code). There is argument for command `inside-build` called `--input`. Currently there are 3 available inputs:
 
  1. `--input path` load build json from arbitrary path (if not specified, it tries to load it from `/run/share/build.json`). You can specify the path like this: `--input-arg path=/my/cool/path/with/build.json`.
  2. `--input env` load it from environment variable: `--input-arg env_name=HERE_IS_THE_JSON`

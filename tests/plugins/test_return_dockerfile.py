@@ -8,11 +8,11 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
-from dock.core import DockerTasker
-from dock.inner import DockerBuildWorkflow
-from dock.plugin import PreBuildPluginsRunner
-from dock.plugins.pre_return_dockerfile import CpDockerfilePlugin
-from dock.util import ImageName, DockerfileParser
+from atomic_reactor.core import DockerTasker
+from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.plugin import PreBuildPluginsRunner
+from atomic_reactor.plugins.pre_return_dockerfile import CpDockerfilePlugin
+from atomic_reactor.util import ImageName, DockerfileParser
 from tests.constants import MOCK_SOURCE
 
 class Y(object):

@@ -13,13 +13,13 @@ except ImportError:
     KOJI_FOUND = False
 else:
     KOJI_FOUND = True
-    from dock.plugins.pre_koji import KojiPlugin
+    from atomic_reactor.plugins.pre_koji import KojiPlugin
 
 
-from dock.core import DockerTasker
-from dock.inner import DockerBuildWorkflow
-from dock.plugin import PreBuildPluginsRunner
-from dock.util import ImageName
+from atomic_reactor.core import DockerTasker
+from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.plugin import PreBuildPluginsRunner
+from atomic_reactor.util import ImageName
 from tests.constants import SOURCE
 
 from flexmock import flexmock
@@ -85,8 +85,8 @@ def test_koji_plugin():
     }])
     runner.run()
     assert list(workflow.files.keys())[0] == "/etc/yum.repos.d/target.repo"
-    assert list(workflow.files.values())[0].startswith("[dock-koji-plugin-target]\n")
+    assert list(workflow.files.values())[0].startswith("[atomic-reactor-koji-plugin-target]\n")
     assert "gpgcheck=0\n" in list(workflow.files.values())[0]
     assert "enabled=1\n" in list(workflow.files.values())[0]
-    assert "name=dock-koji-plugin-target\n" in list(workflow.files.values())[0]
+    assert "name=atomic-reactor-koji-plugin-target\n" in list(workflow.files.values())[0]
     assert "baseurl=http://example.com/repos/tag/2/$basearch\n" in list(workflow.files.values())[0]

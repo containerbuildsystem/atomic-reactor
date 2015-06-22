@@ -2,5 +2,5 @@ include LICENSE
 include README.md
 include requirements.txt
 include docs/*.md
-include docs/manpage/dock.1
+include docs/manpage/atomic-reactor.1
 recursive-include images *

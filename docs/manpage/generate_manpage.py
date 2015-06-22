@@ -9,15 +9,15 @@ https://github.com/pwman3/pwman3/blob/d718a01fa8038893e42416b59cdfcda3935fe878/b
 import datetime
 import argparse
 
-from dock.cli.main import CLI
-from dock.constants import MANPAGE_AUTHORS, DESCRIPTION, PROG, MANPAGE_SECTION
+from atomic_reactor.cli.main import CLI
+from atomic_reactor.constants import MANPAGE_AUTHORS, DESCRIPTION, PROG, MANPAGE_SECTION
 
 
 class ManPageGenerator(object):
     def __init__(self):
         self.cli = CLI()
         self.cli.set_arguments()
-        self.output = "dock.%d" % MANPAGE_SECTION
+        self.output = "atomic-reactor.%d" % MANPAGE_SECTION
         self.today = datetime.date.today()
 
     def run(self):

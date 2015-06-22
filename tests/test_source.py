@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from dock.source import (Source, GitSource, PathSource, get_source_instance_for,
+from atomic_reactor.source import (Source, GitSource, PathSource, get_source_instance_for,
                          validate_source_dict_schema)
 
 from tests.constants import DOCKERFILE_GIT

@@ -12,7 +12,7 @@ import os
 import docker
 from flexmock import flexmock
 
-from dock.constants import DOCKER_SOCKET_PATH
+from atomic_reactor.constants import DOCKER_SOCKET_PATH
 
 from tests.constants import COMMAND
 
@@ -62,9 +62,9 @@ mock_pull_logs = \
      b'{"status":"Status: Image is up to date for localhost:5000/busybox:latest"}\r\n']
 
 mock_push_logs = \
-    b'{"status":"The push refers to a repository [localhost:5000/dock-tests-b3a11e13d27c428f8fa2914c8c6a6d96] (len: 1)"}\r\n' \
-    b'{"errorDetail":{"message":"Repository does not exist: localhost:5000/dock-tests-b3a11e13d27c428f8fa2914c8c6a6d96"},' \
-    b'"error":"Repository does not exist: localhost:5000/dock-tests-b3a11e13d27c428f8fa2914c8c6a6d96"}\r\n'
+    b'{"status":"The push refers to a repository [localhost:5000/atomic-reactor-tests-b3a11e13d27c428f8fa2914c8c6a6d96] (len: 1)"}\r\n' \
+    b'{"errorDetail":{"message":"Repository does not exist: localhost:5000/atomic-reactor-tests-b3a11e13d27c428f8fa2914c8c6a6d96"},' \
+    b'"error":"Repository does not exist: localhost:5000/atomic-reactor-tests-b3a11e13d27c428f8fa2914c8c6a6d96"}\r\n'
 
 
 def mock_docker(build_should_fail=False,

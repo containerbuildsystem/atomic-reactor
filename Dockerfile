@@ -1,7 +1,7 @@
 FROM fedora:latest
 # e2fsprogs -- docker @ F20 wants it
 RUN yum -y install docker-io git python-docker-py python-setuptools GitPython e2fsprogs koji python-pip
-RUN mkdir /tmp/dock
-ADD . /tmp/dock
-RUN cd /tmp/dock && python setup.py install
-CMD ["dock", "--verbose", "inside-build", "--input", "path"]
+RUN mkdir /tmp/atomic-reactor
+ADD . /tmp/atomic-reactor
+RUN cd /tmp/atomic-reactor && python setup.py install
+CMD ["atomic-reactor", "--verbose", "inside-build", "--input", "path"]

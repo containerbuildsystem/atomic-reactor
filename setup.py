@@ -10,14 +10,14 @@ of the BSD license. See the LICENSE file for details.
 import re
 
 from setuptools import setup, find_packages
-from dock.constants import DESCRIPTION, HOMEPAGE
+from atomic_reactor.constants import DESCRIPTION, HOMEPAGE
 
 data_files = {
-    "share/dock/images/privileged-builder": [
+    "share/atomic-reactor/images/privileged-builder": [
         "images/privileged-builder/Dockerfile",
         "images/privileged-builder/docker.sh",
     ],
-    "share/dock/images/dockerhost-builder": [
+    "share/atomic-reactor/images/dockerhost-builder": [
         "images/dockerhost-builder/Dockerfile",
     ],
 }
@@ -37,7 +37,7 @@ def _install_requirements():
     return requirements
 
 setup(
-    name='dock',
+    name='atomic-reactor',
     version='1.3.7',
     description=DESCRIPTION,
     author='Tomas Tomecek',  # FIXME: when under project atomic
@@ -45,8 +45,8 @@ setup(
     url=HOMEPAGE,
     license="BSD",
     entry_points={
-        'console_scripts': ['dock=dock.cli.main:run',
-                            'pulpsecret-gen=dock.cli.secret:run'],
+        'console_scripts': ['atomic-reactor=atomic_reactor.cli.main:run',
+                            'pulpsecret-gen=atomic_reactor.cli.secret:run'],
     },
     packages=find_packages(exclude=["tests", "tests.plugins"]),
     install_requires=_install_requirements(),

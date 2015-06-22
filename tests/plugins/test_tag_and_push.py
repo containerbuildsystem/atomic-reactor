@@ -8,11 +8,11 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import print_function, unicode_literals
 
-from dock.core import DockerTasker
-from dock.inner import DockerBuildWorkflow
-from dock.plugin import PostBuildPluginsRunner
-from dock.plugins.post_tag_and_push import TagAndPushPlugin
-from dock.util import ImageName
+from atomic_reactor.core import DockerTasker
+from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.plugin import PostBuildPluginsRunner
+from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
+from atomic_reactor.util import ImageName
 from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE, MOCK
 
 if MOCK:

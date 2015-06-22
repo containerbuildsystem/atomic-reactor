@@ -10,10 +10,10 @@ from __future__ import unicode_literals
 import os
 import pytest
 
-from dock.build import InsideBuilder
-from dock.core import DockerTasker
-from dock.source import get_source_instance_for
-from dock.util import ImageName
+from atomic_reactor.build import InsideBuilder
+from atomic_reactor.core import DockerTasker
+from atomic_reactor.source import get_source_instance_for
+from atomic_reactor.util import ImageName
 from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, DOCKERFILE_OK_PATH,\
         DOCKERFILE_ERROR_BUILD_PATH, MOCK, SOURCE, DOCKERFILE_FILENAME
 

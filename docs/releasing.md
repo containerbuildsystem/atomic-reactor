@@ -18,7 +18,7 @@ tito build --rpm --test
 Build RPM using mock:
 
 ```bash
-SRPM=`tito build --srpm --test | egrep -o '/tmp/tito/dock-.*\.src\.rpm'`
+SRPM=`tito build --srpm --test | egrep -o '/tmp/tito/atomic-reactor-.*\.src\.rpm'`
 sudo mock -r fedora-21-x86_64 $SRPM
 ```
 

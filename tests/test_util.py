@@ -19,7 +19,7 @@ except ImportError:
     # Python 2.6
     from ordereddict import OrderedDict
 import docker
-from dock.util import ImageName, DockerfileParser, \
+from atomic_reactor.util import ImageName, DockerfileParser, \
     wait_for_command, clone_git_repo, LazyGit, figure_out_dockerfile, render_yum_repo, \
     process_substitutions
 from tests.constants import NON_ASCII, DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1

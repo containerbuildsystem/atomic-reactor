@@ -14,9 +14,9 @@ import sys
 
 import pytest
 
-from dock.buildimage import BuildImageBuilder
-from dock.core import DockerTasker
-import dock.cli.main
+from atomic_reactor.buildimage import BuildImageBuilder
+from atomic_reactor.core import DockerTasker
+import atomic_reactor.cli.main
 
 from tests.fixtures import is_registry_running, temp_image_name, get_uuid
 from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, DOCKERFILE_OK_PATH, FILES, MOCK
@@ -28,9 +28,9 @@ PRIV_BUILD_IMAGE = None
 DH_BUILD_IMAGE = None
 
 
-logger = logging.getLogger('dock.tests')
+logger = logging.getLogger('atomic_reactor.tests')
 dt = DockerTasker()
-dock_root = os.path.dirname(os.path.dirname(__file__))
+reactor_root = os.path.dirname(os.path.dirname(__file__))
 
 with_all_sources = pytest.mark.parametrize('source_provider, uri', [
     ('git', DOCKERFILE_GIT),
@@ -46,12 +46,12 @@ def setup_module(module):
     if MOCK:
         return
 
-    b = BuildImageBuilder(dock_local_path=dock_root)
-    b.create_image(os.path.join(dock_root, 'images', 'privileged-builder'),
+    b = BuildImageBuilder(reactor_local_path=reactor_root)
+    b.create_image(os.path.join(reactor_root, 'images', 'privileged-builder'),
                    PRIV_BUILD_IMAGE, use_cache=True)
 
-    b2 = BuildImageBuilder(dock_local_path=dock_root)
-    b2.create_image(os.path.join(dock_root, 'images', 'dockerhost-builder'),
+    b2 = BuildImageBuilder(reactor_local_path=reactor_root)
+    b2.create_image(os.path.join(reactor_root, 'images', 'dockerhost-builder'),
                     DH_BUILD_IMAGE, use_cache=True)
 
 
@@ -69,7 +69,7 @@ class TestCLISuite(object):
     def exec_cli(self, command):
         saved_args = sys.argv
         sys.argv = command
-        dock.cli.main.run()
+        atomic_reactor.cli.main.run()
         sys.argv = saved_args
 
     @with_all_sources
@@ -156,12 +156,12 @@ class TestCLISuite(object):
             mock_docker()
 
         temp_image = temp_image_name
-        priv_builder_path = os.path.join(dock_root, 'images', 'privileged-builder')
+        priv_builder_path = os.path.join(reactor_root, 'images', 'privileged-builder')
         command = [
             "main.py",
             "--verbose",
             "create-build-image",
-            "--dock-local-path", dock_root,
+            "--reactor-local-path", reactor_root,
             priv_builder_path,
             temp_image.to_str(),
         ]

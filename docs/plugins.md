@@ -1,13 +1,13 @@
 Plugins
 =======
 
-One of the biggest strength of dock is its plugin system.
+One of the biggest strength of Atomic Reactor is its plugin system.
 
 ## Plugin types
 
 There are 4 types of plugins:
 
-1. **Input** — when running dock inside a build container, input plugin fetches build input (it can live in [path](https://github.com/DBuildService/dock/blob/master/dock/plugins/input_path.py), [environment variable](https://github.com/DBuildService/dock/blob/master/dock/plugins/input_env.py), ...)
+1. **Input** — when running Atomic Reactor inside a build container, input plugin fetches build input (it can live in [path](https://github.com/DBuildService/atomic-reactor/blob/master/atomic_reactor/plugins/input_path.py), [environment variable](https://github.com/DBuildService/atomic-reactor/blob/master/atomic_reactor/plugins/input_env.py), ...)
 2. **Pre-build** — this plugin is executed after cloning a git repo (so you can edit sources, Dockerfile, ...), prior to build
 3. **Pre-publish** — once build finishes, the built image is pushed to registry, but prior to that, pre-publish plugins are executed (time for some simple tests)
 4. **Post-build** — these are run as a last thing of build process (when build is finished and image was pushed to registries)

@@ -6,7 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from dock import set_logging
+from atomic_reactor import set_logging
 
-set_logging(name="dock.tests")
-set_logging(name="dock")
+set_logging(name="atomic_reactor.tests")
+set_logging(name="atomic_reactor")

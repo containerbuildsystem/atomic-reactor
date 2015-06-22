@@ -1,20 +1,20 @@
-Writing plugins for dock
-========================
+Writing plugins for Atomic Reactor
+==================================
 
-For more information about plugins, see [plugins](https://github.com/DBuildService/dock/blob/master/docs/plugins.md) document.
+For more information about plugins, see [plugins](https://github.com/DBuildService/atomic-reactor/blob/master/docs/plugins.md) document.
 
 Let's create a plugin, which sends build log to provided URL.
 
-## Clone dock
+## Clone Atomic Reactor
 
-We'll use dock from git (you can also get it from your distribution, once it's there):
+We'll use Atomic Reactor from git (you can also get it from your distribution, once it's there):
 
 ```
-git clone https://github.com/DBuildService/dock.git
-cd dock
+git clone https://github.com/DBuildService/atomic-reactor.git
+cd atomic-reactor
 ```
 
-Python should know where it can find our local copy of dock:
+Python should know where it can find our local copy of Atomic Reactor:
 
 ```
 export PYTHONPATH="$(pwd):${PYTHONPATH}"
@@ -25,14 +25,14 @@ export PYTHONPATH="$(pwd):${PYTHONPATH}"
 Time to create the plugin itself. Let's setup the directory first:
 
 ```
-mkdir dock-plugin-logs-submitter
-cd dock-plugin-logs-submitter/
+mkdir atomic-reactor-plugin-logs-submitter
+cd atomic-reactor-plugin-logs-submitter/
 ```
 
 Plugin code:
 
 ```python
-from dock.plugin import PostBuildPlugin
+from atomic_reactor.plugin import PostBuildPlugin
 
 import requests
 
@@ -66,10 +66,10 @@ class LogSubmitter(PostBuildPlugin):
         return requests.post(self.url, json=json_data).content
 ```
 
-There are two objects which enable you access to all the dock's magic:
+There are two objects which enable you access to all the Atomic Reactor's magic:
 
-1. **self.tasker** — instance of `dock.core.DockerTasker`: it is a thin wrapper on top of [docker-py](https://github.com/docker/docker-py) — this is your access to docker
-2. **self.workflow** — instance of `dock.inner.DockerBuildWorkflow`: also contains a link, `self.workflow.builder`, to instance of `dock.build.InsideBuilder` — these instances contain whole configuration, go ahead and change it however you want
+1. **self.tasker** — instance of `atomic_reactor.core.DockerTasker`: it is a thin wrapper on top of [docker-py](https://github.com/docker/docker-py) — this is your access to docker
+2. **self.workflow** — instance of `atomic_reactor.inner.DockerBuildWorkflow`: also contains a link, `self.workflow.builder`, to instance of `atomic_reactor.build.InsideBuilder` — these instances contain whole configuration, go ahead and change it however you want
 
 Neat! Let's try our plugin. We'll have a webserver in terminal 1:
 
@@ -92,12 +92,12 @@ We also need an input json for the build itself (let's use my [hello world docke
 }
 ```
 
-Time to run the build (we'll build an image, `test-image`, in current environment (not inside a build container), getting data from `./build.json` and finally, we'll tell dock to load our plugin):
+Time to run the build (we'll build an image, `test-image`, in current environment (not inside a build container), getting data from `./build.json` and finally, we'll tell Atomic Reactor to load our plugin):
 
 ```
-terminal2 $ dock -v build --method here --json ./build.json --load-plugin ./post_logs_submitter.py
+terminal2 $ atomic-reactor -v build --method here --json ./build.json --load-plugin ./post_logs_submitter.py
 ...
-2015-02-19 13:26:05,450 - dock.plugin - DEBUG - running plugin 'logs_submitter' with args: '{u'url': u'http://localhost:9099'}'
+2015-02-19 13:26:05,450 - atomic_reactor.plugin - DEBUG - running plugin 'logs_submitter' with args: '{u'url': u'http://localhost:9099'}'
 ```
 
 What's in terminal 1?
@@ -117,7 +117,7 @@ Content-Type: application/json
 {"logs": ["{\"stream\":\"Step 0 : FROM fedora:latest\\n\"}\r\n", "{\"stream\":\" ---\\u003e 834629358fe2\\n\"}\r\n", "{\"stream\":\"Step 1 : RUN uname -a\\n\"}\r\n", "{\"stream\":\" ---\\u003e Running in b9207945f6fd\\n\"}\r\n", "{\"stream\":\"Linux c4e263145f81 3.18.6-200.fc21.x86_64 #1 SMP Fri Feb 6 22:59:42 UTC 2015 x86_64 x86_64 x86_64 GNU/Linux\\n\"}\r\n", "{\"stream\":\" ---\\u003e 48c3bcd190b1\\n\"}\r\n", "{\"stream\":\"Removing intermediate container b9207945f6fd\\n\"}\r\n", "{\"stream\":\"Successfully built 48c3bcd190b1\\n\"}\r\n"]}
 ```
 
-As you can see, dock posted the json to the provided URL. Sweet!
+As you can see, Atomic Reactor posted the json to the provided URL. Sweet!
 
 '...now's ncat waiting with response — it may actually look stuck. Just hit "enter" or `ctrl+c`.'
 

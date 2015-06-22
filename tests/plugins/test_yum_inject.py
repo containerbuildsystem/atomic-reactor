@@ -10,18 +10,18 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function, unicode_literals
 
 import os
-from dock.constants import YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME, RELATIVE_REPOS_PATH
+from atomic_reactor.constants import YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME, RELATIVE_REPOS_PATH
 
 try:
     from collections import OrderedDict
 except ImportError:
     # Python 2.6
     from ordereddict import OrderedDict
-from dock.core import DockerTasker
-from dock.inner import DockerBuildWorkflow
-from dock.plugin import PreBuildPluginsRunner
-from dock.plugins.pre_inject_yum_repo import InjectYumRepoPlugin, alter_yum_commands
-from dock.util import ImageName, render_yum_repo, DockerfileParser
+from atomic_reactor.core import DockerTasker
+from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.plugin import PreBuildPluginsRunner
+from atomic_reactor.plugins.pre_inject_yum_repo import InjectYumRepoPlugin, alter_yum_commands
+from atomic_reactor.util import ImageName, render_yum_repo, DockerfileParser
 from tests.constants import DOCKERFILE_GIT
 import os.path
 from collections import namedtuple
@@ -86,10 +86,10 @@ CMD blabla"""
     assert InjectYumRepoPlugin.key is not None
 
     expected_output = r"""FROM fedora
-ADD dock-repos/* '/etc/yum.repos.d/'
+ADD atomic-reactor-repos/* '/etc/yum.repos.d/'
 RUN yum install -y python-django
 CMD blabla
-RUN rm -f '/etc/yum.repos.d/dock-injected.repo'
+RUN rm -f '/etc/yum.repos.d/atomic-reactor-injected.repo'
 """
     assert expected_output == df.content
 
@@ -132,7 +132,7 @@ CMD blabla"""
     assert InjectYumRepoPlugin.key is not None
 
     expected_output = """FROM fedora
-RUN printf "[my-repo]\nname=my-repo\nmetalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-\\$releasever&arch=\\$basearch\nenabled=1\ngpgcheck=0\n" >/etc/yum.repos.d/dock-injected.repo && yum install -y python-django && yum clean all && rm -f /etc/yum.repos.d/dock-injected.repo
+RUN printf "[my-repo]\nname=my-repo\nmetalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-\\$releasever&arch=\\$basearch\nenabled=1\ngpgcheck=0\n" >/etc/yum.repos.d/atomic-reactor-injected.repo && yum install -y python-django && yum clean all && rm -f /etc/yum.repos.d/atomic-reactor-injected.repo
 CMD blabla"""
     assert df.content == expected_output
 
@@ -173,7 +173,7 @@ CMD blabla"""
     assert InjectYumRepoPlugin.key is not None
 
     expected_output = """FROM fedora
-RUN printf "[my-repo]\nname=my-repo\nmetalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-\\$releasever&arch=\\$basearch\nenabled=1\ngpgcheck=0\n" >/etc/yum.repos.d/dock-injected.repo && yum install -y httpd                    uwsgi && yum clean all && rm -f /etc/yum.repos.d/dock-injected.repo
+RUN printf "[my-repo]\nname=my-repo\nmetalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-\\$releasever&arch=\\$basearch\nenabled=1\ngpgcheck=0\n" >/etc/yum.repos.d/atomic-reactor-injected.repo && yum install -y httpd                    uwsgi && yum clean all && rm -f /etc/yum.repos.d/atomic-reactor-injected.repo
 CMD blabla"""
     assert df.content == expected_output
 
@@ -205,10 +205,10 @@ CMD blabla"""
     assert InjectYumRepoPlugin.key is not None
 
     expected_output = r"""FROM fedora
-ADD dock-repos/* '/etc/yum.repos.d/'
+ADD atomic-reactor-repos/* '/etc/yum.repos.d/'
 RUN yum install -y httpd                    uwsgi
 CMD blabla
-RUN rm -f '/etc/yum.repos.d/dock-injected.repo'
+RUN rm -f '/etc/yum.repos.d/atomic-reactor-injected.repo'
 """
     assert df.content == expected_output
 
@@ -255,12 +255,12 @@ CMD blabla"""
 
     expected_output = """FROM fedora
 RUN printf "[my-repo]\nname=my-repo\nmetalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-\\$releasever&arch=\
-\\$basearch\nenabled=1\ngpgcheck=0\n" >/etc/yum.repos.d/dock-injected.repo && \
+\\$basearch\nenabled=1\ngpgcheck=0\n" >/etc/yum.repos.d/atomic-reactor-injected.repo && \
 yum install -y --setopt=tsflags=nodocs bind-utils gettext iproute v8314 mongodb24-mongodb mongodb24 &&     \
 yum clean all &&     mkdir -p /var/lib/mongodb/data && chown -R mongodb:mongodb /var/lib/mongodb/ &&     \
 test "$(id mongodb)" = "uid=184(mongodb) gid=998(mongodb) groups=998(mongodb)" &&     \
 chmod o+w -R /var/lib/mongodb && chmod o+w -R /opt/rh/mongodb24/root/var/lib/mongodb && \
-yum clean all && rm -f /etc/yum.repos.d/dock-injected.repo
+yum clean all && rm -f /etc/yum.repos.d/atomic-reactor-injected.repo
 CMD blabla"""
     assert df.content == expected_output
 

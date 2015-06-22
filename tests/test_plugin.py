@@ -10,11 +10,11 @@ from __future__ import unicode_literals
 
 import json
 import os
-from dock.core import DockerTasker
-from dock.inner import DockerBuildWorkflow
-from dock.plugin import PreBuildPluginsRunner, PostBuildPluginsRunner, InputPluginsRunner
-from dock.plugins.post_rpmqa import PostBuildRPMqaPlugin
-from dock.util import ImageName
+from atomic_reactor.core import DockerTasker
+from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.plugin import PreBuildPluginsRunner, PostBuildPluginsRunner, InputPluginsRunner
+from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
+from atomic_reactor.util import ImageName
 from tests.constants import DOCKERFILE_GIT
 
 

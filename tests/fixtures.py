@@ -14,7 +14,7 @@ import requests
 import requests.exceptions
 from tests.constants import LOCALHOST_REGISTRY_HTTP, DOCKER0_REGISTRY_HTTP
 
-from dock.util import ImageName
+from atomic_reactor.util import ImageName
 
 
 def get_uuid():
@@ -23,7 +23,7 @@ def get_uuid():
 
 @pytest.fixture()
 def temp_image_name():
-    return ImageName(repo=("dock-tests-%s" % get_uuid()))
+    return ImageName(repo=("atomic-reactor-tests-%s" % get_uuid()))
 
 
 @pytest.fixture()

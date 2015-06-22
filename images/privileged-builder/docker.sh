@@ -114,7 +114,7 @@ ensure_loop $LOOP_B
 
 docker -d --insecure-registry 172.17.42.1:5000 &
 
-dock --verbose inside-build --input path
+atomic-reactor --verbose inside-build --input path
 
 kill -15 %1
 

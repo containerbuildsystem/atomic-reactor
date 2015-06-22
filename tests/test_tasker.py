@@ -10,8 +10,8 @@ from __future__ import print_function, unicode_literals
 
 from tests.fixtures import temp_image_name
 
-from dock.core import DockerTasker
-from dock.util import ImageName, clone_git_repo
+from atomic_reactor.core import DockerTasker
+from atomic_reactor.util import ImageName, clone_git_repo
 from tests.constants import LOCALHOST_REGISTRY, INPUT_IMAGE, DOCKERFILE_GIT, MOCK, COMMAND
 
 import docker, docker.errors
@@ -252,7 +252,7 @@ def test_get_image_info_by_name_tag_in_name():
     assert len(response) == 1
 
 
-# https://github.com/DBuildService/dock/issues/45
+# https://github.com/DBuildService/atomic-reactor/issues/45
 def test_get_image_info_by_name_tag_in_name_library():
     if MOCK:
         mock_docker()

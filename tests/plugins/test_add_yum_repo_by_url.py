@@ -8,13 +8,13 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
-from dock.constants import YUM_REPOS_DIR
+from atomic_reactor.constants import YUM_REPOS_DIR
 
-from dock.core import DockerTasker
-from dock.inner import DockerBuildWorkflow
-from dock.plugin import PreBuildPluginsRunner, PreBuildPlugin
-from dock.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
-from dock.util import ImageName
+from atomic_reactor.core import DockerTasker
+from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.plugin import PreBuildPluginsRunner, PreBuildPlugin
+from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
+from atomic_reactor.util import ImageName
 from tests.constants import DOCKERFILE_GIT
 import requests
 from flexmock import flexmock

@@ -11,10 +11,10 @@ from __future__ import unicode_literals
 import os
 import logging
 
-from dock.core import DockerTasker
-from dock.inner import DockerBuildWorkflow
-from dock.plugin import PostBuildPluginsRunner
-from dock.util import ImageName
+from atomic_reactor.core import DockerTasker
+from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.plugin import PostBuildPluginsRunner
+from atomic_reactor.util import ImageName
 from tests.constants import INPUT_IMAGE, SOURCE, LOCALHOST_REGISTRY_HTTP
 try:
     import dockpulp

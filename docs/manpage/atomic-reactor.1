@@ -1,0 +1,65 @@
+.TH atomic-reactor 1 2015\-06\-22
+.SH SYNOPSIS
+ \fBatomic\-reactor\fR [-h] [-q | -v | -V] {build,create-build-image,inside-build} ...
+
+
+.SH OPTIONS
+  {build,create-build-image,inside-build}
+                        commands
+
+  -h, --help            show this help message and exit
+  -q, --quiet
+  -v, --verbose
+  -V, --version         show program's version number and exit
+
+
+.SH COMMANDS
+
+
+\fBatomic-reactor [OPTIONS] build
+.PP\fR
+  This command enables you to build images. Currently, you can build images
+  from git repo or from local path. There are several methods for performing
+  the build: inside a build container using docker from host, inside a build
+  container using new instance of docker, or within current environment.
+  -h, --help  show this help message and exit
+
+
+\fBatomic-reactor [OPTIONS] create-build-image
+.PP\fR
+  Create build image; atomic-reactor installs itself inside and is capable
+  of building images within this image.
+  -h, --help            show this help message and exit
+  --reactor-latest      put latest atomic-reactor inside (from public git)
+  --reactor-remote-git REACTOR_REMOTE_GIT
+                        URL to git repo with atomic-reactor (has to contain
+                        setup.py)
+  --reactor-local-path REACTOR_LOCAL_PATH
+                        path to directory with atomic-reactor (has to contain
+                        setup.py)
+  --reactor-tarball-path REACTOR_TARBALL_PATH
+                        path to distribution tarball with atomic-reactor
+  --use-cache           use cache to build image (may be faster, but not up to
+                        date)
+
+
+\fBatomic-reactor [OPTIONS] inside-build
+.PP\fR
+  We do expect we are inside container, therefore we'll read build
+  configuration from json at '/run/share/build.json'and when the build is
+  done, results are written in that dir so atomic-reactor from host may read
+  those.
+  -h, --help            show this help message and exit
+  --input INPUT         input plugin name
+  --input-arg INPUT_ARG
+                        argument for input plugin (in form of 'key=value'),
+                        see input plugins to know what arguments they accept
+                        (can be specified multiple times)
+  --dont-pull-base-image
+                        don't pull or update base image specified in
+                        dockerfile
+  --substitute SUBSTITUTE
+                        substitute values in build json (key=value, or
+                        plugin_type.plugin_name.key=value)
+.SH AUTHORS
+ Jiri Popelka <jpopelka@redhat.com>, Martin Milata <mmilata@redhat.com>, Tim Waugh <twaug@redhat.com>, Tomas Tomecek <ttomecek@redhat.com>

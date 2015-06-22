@@ -13,7 +13,7 @@ build: clean api.md
 api.md:
 	@echo "Generating documentation for API"
 	cat $(ROOT_DIR)/top.md >api.md
-	pdoc $(ROOT_DIR)/../../dock/api.py --template-dir $(ROOT_DIR)/ >>api.md
-	pdoc $(ROOT_DIR)/../../dock/core.py DockerTasker --template-dir $(ROOT_DIR) >>api.md
-	pdoc $(ROOT_DIR)/../../dock/inner.py DockerBuildWorkflow --template-dir $(ROOT_DIR) >>api.md
-	pdoc $(ROOT_DIR)/../../dock/build.py InsideBuilder --template-dir $(ROOT_DIR) >>api.md
+	pdoc $(ROOT_DIR)/../../atomic_reactor/api.py --template-dir $(ROOT_DIR)/ >>api.md
+	pdoc $(ROOT_DIR)/../../atomic_reactor/core.py DockerTasker --template-dir $(ROOT_DIR) >>api.md
+	pdoc $(ROOT_DIR)/../../atomic_reactor/inner.py DockerBuildWorkflow --template-dir $(ROOT_DIR) >>api.md
+	pdoc $(ROOT_DIR)/../../atomic_reactor/build.py InsideBuilder --template-dir $(ROOT_DIR) >>api.md

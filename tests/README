@@ -7,7 +7,7 @@ By default all docker.Client methods are mocked, so you don't need docker to run
 If you want to run 'integration' tests, i.e. test with running docker instance, you need:
 $ yum install docker docker-registry
 $ systemctl start docker docker-registry
-$ dock create-build-image --dock-local-path ${PATH_TO_DOCK_GIT} ${PATH_TO_DOCK_GIT}/images/dockerhost-builder buildroot
+$ atomic-reactor create-build-image --reactor-local-path ${PATH_TO_REACTOR_GIT} ${PATH_TO_REACTOR_GIT}/images/dockerhost-builder buildroot
 $ docker tag buildroot:latest buildroot-dh-fedora
 $ docker tag buildroot:latest buildroot-fedora
 $ docker pull fedora:latest
