@@ -9,8 +9,8 @@
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 
 Name:           dock
-Version:        1.3.6
-Release:        2%{?dist}
+Version:        1.3.7
+Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -232,6 +232,9 @@ cp -a docs/manpage/dock.1 %{buildroot}%{_mandir}/man1/
 
 
 %changelog
+* Mon Jun 22 2015 Martin Milata <mmilata@redhat.com> - 1.3.7-1
+- new upstream release 1.3.7
+
 * Wed Jun 17 2015 Jiri Popelka <jpopelka@redhat.com> - 1.3.6-2
 - update hash
 
