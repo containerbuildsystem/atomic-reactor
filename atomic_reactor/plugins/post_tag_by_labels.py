@@ -56,4 +56,5 @@ class TagByLabelsPlugin(PostBuildPlugin):
         n = "%s:latest" % name
         n_unique = "%s:%s" % (name, unique_tag)
 
-        self.workflow.tag_conf.add_images([nvr, nv, n, n_unique])
+        self.workflow.tag_conf.add_primary_images([nvr, nv, n])
+        self.workflow.tag_conf.add_unique_image(n_unique)

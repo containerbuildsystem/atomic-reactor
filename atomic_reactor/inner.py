@@ -69,24 +69,75 @@ class TagConf(object):
     """
 
     def __init__(self):
-        self.images = []  # list of ImageName instances
+        # list of ImageNames with predictable names
+        self._primary_images = []
+        # list if ImageName instances with unpredictable names
+        self._unique_images = []
 
-    def add_image(self, image):
+    @property
+    def primary_images(self):
         """
+        primary image names are predictable and should be used for layering
+
+        this is consumed by metadata plugin
+
+        :return: list of ImageName
+        """
+        return self._primary_images
+
+    @property
+    def images(self):
+        """
+        list of all ImageNames
+
+        :return: list of ImageName
+        """
+        return self._primary_images + self._unique_images
+
+    @property
+    def unique_images(self):
+        """
+        unique image names are unpredictable and should be used for tracking only
+
+        this is consumed by metadata plugin
+
+        :return: list of ImageName
+        """
+        return self._unique_images
+
+    def add_primary_image(self, image):
+        """
+        add new primary image
+
+        used by tag_by_labels plugin
 
         :param image: str, name of image (e.g. "namespace/httpd:2.4")
         :return: None
         """
-        self.images.append(ImageName.parse(image))
+        self._primary_images.append(ImageName.parse(image))
 
-    def add_images(self, images):
+    def add_unique_image(self, image):
         """
+        add image with unpredictable name
+
+        used by tag_by_labels plugin
+
+        :param image: str, name of image (e.g. "namespace/httpd:2.4")
+        :return: None
+        """
+        self._unique_images.append(ImageName.parse(image))
+
+    def add_primary_images(self, images):
+        """
+        add new primary images in bulk
+
+        used by tag_by_labels plugin
 
         :param images: list of str, list of image names
         :return: None
         """
         for image in images:
-            self.add_image(image)
+            self.add_primary_image(image)
 
 
 class Registry(object):
