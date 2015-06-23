@@ -165,7 +165,8 @@ class CLI(object):
                         "build configuration from json at '%s'" % CONTAINER_BUILD_JSON_PATH +
                         "and when the build is done, "
                         "results are written in that dir so Atomic Reactor from host may read those.")
-        self.ib_parser.add_argument("--input", action='store', help="input plugin name")
+        self.ib_parser.add_argument("--input", action='store', default="auto",
+                                    help="input plugin name (determined automatically unless given)")
         self.ib_parser.add_argument("--input-arg", action='append',
                                     help="argument for input plugin (in form of 'key=value'), see input plugins "
                                          " to know what arguments they accept (can be specified multiple times)")

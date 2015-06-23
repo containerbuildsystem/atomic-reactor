@@ -42,3 +42,7 @@ class EnvInputPlugin(InputPlugin):
             except ValueError:
                 self.log.error("Couldn't load build config: invalid json")
                 return None
+
+    @classmethod
+    def is_autousable(cls):
+        return BUILD_JSON_ENV in os.environ

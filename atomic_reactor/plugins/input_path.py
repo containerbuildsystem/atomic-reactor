@@ -9,6 +9,8 @@ of the BSD license. See the LICENSE file for details.
 Reads input from provided path
 """
 import json
+import os
+
 from atomic_reactor.constants import CONTAINER_BUILD_JSON_PATH
 
 from atomic_reactor.plugin import InputPlugin
@@ -41,3 +43,7 @@ class PathInputPlugin(InputPlugin):
             return None
         else:
             return self.substitute_configuration(build_cfg_json)
+
+    @classmethod
+    def is_autousable(cls):
+        return os.path.exists(CONTAINER_BUILD_JSON_PATH)

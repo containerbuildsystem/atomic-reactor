@@ -10,9 +10,14 @@ from __future__ import unicode_literals
 
 import json
 import os
+
+from flexmock import flexmock
+import pytest
+
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PreBuildPluginsRunner, PostBuildPluginsRunner, InputPluginsRunner
+from atomic_reactor.plugin import PreBuildPluginsRunner, PostBuildPluginsRunner, \
+        InputPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.util import ImageName
 from tests.constants import DOCKERFILE_GIT
@@ -56,41 +61,65 @@ def test_rpmqa_plugin():
     assert len(results[PostBuildRPMqaPlugin.key]) > 0
 
 
-def test_substitution(tmpdir):
-    tmpdir_path = str(tmpdir)
-    build_json_path = os.path.join(tmpdir_path, "build.json")
-    with open(build_json_path, 'w') as fp:
-        json.dump({
-            "image": "some-image"
-        }, fp)
-    changed_image_name = "changed-image-name"
-    runner = InputPluginsRunner([{"name": "path",
-                                  "args": {
-                                      "path": build_json_path,
-                                      "substitutions": {
-                                          "image": changed_image_name
-    }}}])
-    results = runner.run()
-    assert results['path']['image'] == changed_image_name
+class TestInputPluginsRunner(object):
+    def test_substitution(self, tmpdir):
+        tmpdir_path = str(tmpdir)
+        build_json_path = os.path.join(tmpdir_path, "build.json")
+        with open(build_json_path, 'w') as fp:
+            json.dump({
+                "image": "some-image"
+            }, fp)
+        changed_image_name = "changed-image-name"
+        runner = InputPluginsRunner([{"name": "path",
+                                      "args": {
+                                          "path": build_json_path,
+                                          "substitutions": {
+                                              "image": changed_image_name
+        }}}])
+        results = runner.run()
+        assert results['path']['image'] == changed_image_name
 
 
-def test_substitution_on_plugins(tmpdir):
-    tmpdir_path = str(tmpdir)
-    build_json_path = os.path.join(tmpdir_path, "build.json")
-    with open(build_json_path, 'w') as fp:
-        json.dump({
-            "image": "some-image",
-            "prebuild_plugins": [{
-                'name': 'asd',
-                'args': {
-                    'key': 'value1'
-                }
-            }]
-        }, fp)
-    changed_value = "value-123"
-    runner = InputPluginsRunner([{"name": "path",
-                                  "args": {"path": build_json_path,
-                                           "substitutions": {
-                                               "prebuild_plugins.asd.key": changed_value}}}])
-    results = runner.run()
-    assert results['path']['prebuild_plugins'][0]['args']['key'] == changed_value
+    def test_substitution_on_plugins(self, tmpdir):
+        tmpdir_path = str(tmpdir)
+        build_json_path = os.path.join(tmpdir_path, "build.json")
+        with open(build_json_path, 'w') as fp:
+            json.dump({
+                "image": "some-image",
+                "prebuild_plugins": [{
+                    'name': 'asd',
+                    'args': {
+                        'key': 'value1'
+                    }
+                }]
+            }, fp)
+        changed_value = "value-123"
+        runner = InputPluginsRunner([{"name": "path",
+                                      "args": {"path": build_json_path,
+                                               "substitutions": {
+                                                   "prebuild_plugins.asd.key": changed_value}}}])
+        results = runner.run()
+        assert results['path']['prebuild_plugins'][0]['args']['key'] == changed_value
+
+    def test_autoinput_no_autousable(self):
+        flexmock(os, environ={})
+        runner = InputPluginsRunner([{'name': 'auto', 'args': {}}])
+        with pytest.raises(PluginFailedException) as e:
+            runner.run()
+        assert 'No autousable input plugin' in str(e)
+
+    def test_autoinput_more_autousable(self):
+        # mock env vars checked by both env and osv3 input plugins
+        flexmock(os, environ={'BUILD': 'a', 'SOURCE_URI': 'b', 'OUTPUT_IMAGE': 'c', 'BUILD_JSON': 'd'})
+        runner = InputPluginsRunner([{'name': 'auto', 'args': {}}])
+        with pytest.raises(PluginFailedException) as e:
+            runner.run()
+        assert 'More than one usable plugin with "auto" input' in str(e)
+        assert 'osv3, env' in str(e) or 'env, osv3' in str(e)
+
+    def test_autoinput_one_autousable(self):
+        # mock env var for env input plugin
+        flexmock(os, environ={'BUILD_JSON': json.dumps({'image': 'some-image'})})
+        runner = InputPluginsRunner([{'name': 'auto', 'args': {'substitutions': {}}}])
+        results = runner.run()
+        assert results == {'auto': {'image': 'some-image'}}
