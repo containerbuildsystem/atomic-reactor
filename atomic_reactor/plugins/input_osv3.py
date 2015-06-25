@@ -65,3 +65,7 @@ class OSv3InputPlugin(InputPlugin):
         self.log.debug("build json: %s", input_json)
 
         return input_json
+
+    @classmethod
+    def is_autousable(cls):
+        return 'BUILD' in os.environ and 'SOURCE_URI' in os.environ and 'OUTPUT_IMAGE' in os.environ

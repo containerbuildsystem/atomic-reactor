@@ -139,8 +139,6 @@ class PluginsRunner(object):
         """
         create instance from plugin using the plugin class and configuration passed to for it
 
-        input plugins and build plugins initialize differently
-
         :param plugin_class: plugin class
         :param plugin_conf: dict, configuration for plugin
         :return:
@@ -312,9 +310,51 @@ class InputPlugin(Plugin):
         process_substitutions(build_json, self.substitutions)
         return build_json
 
+    @classmethod
+    def is_autousable(cls):
+        """
+        Determine if this plugin can run without providing any further user input,
+        e.g. if expected default environment variables are defined, if expected default
+        files exist etc
+
+        :return: True if this plugin is autousable, False otherwise
+        """
+        raise NotImplementedError('is_autousable not implemented in {0}'.format(type(self)))
+
 
 class InputPluginsRunner(PluginsRunner):
-
     def __init__(self, plugins_conf, *args, **kwargs):
-        self.plugins_results = {}
         super(InputPluginsRunner, self).__init__('InputPlugin', plugins_conf, *args, **kwargs)
+        self.plugins_results = {}
+        self.autoinput = self.plugins_conf[0]['name'] == 'auto'
+
+    def run(self):
+        """Wrap `PluginsRunner.run()` while implementing the `auto` input behaviour.
+
+        If input plugin name is `auto`, then call `is_autousable` on all input plugins.
+        Assuming exactly one of these returns `True`, then use that as input plugin, else raise.
+        """
+        # implement the "auto" input behavior
+        if self.autoinput:
+            logger.debug('"auto" input used, determining what input plugin to use.')
+            autousable = None
+            for clsname, clsobj in self.plugin_classes.items():
+                logger.debug('Checking if "%s" plugin is autousable ...', clsname)
+                if clsobj.is_autousable():
+                    if autousable:
+                        raise PluginFailedException('More than one usable plugin with "auto" '
+                                                    'input: {0}, {1}. Please specify --input '
+                                                    'explicitly.'.format(autousable, clsname))
+                    else:
+                        autousable = clsname
+            if not autousable:
+                raise PluginFailedException('No autousable input plugin. '
+                                            'Please specify --input explicitly')
+            logger.debug('Using "%s" for input', autousable)
+            self.plugins_conf[0]['name'] = autousable
+
+        result = super(InputPluginsRunner, self).run()
+
+        if self.autoinput:
+            result['auto'] = result.pop(autousable)
+        return result
