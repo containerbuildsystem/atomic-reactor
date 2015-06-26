@@ -74,7 +74,7 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         self.dont_load = dont_load
 
     def _get_tarball_metadata(self):
-        self.log.info("Getting exported squashed tarball metadata")
+        self.log.info("getting exported squashed tarball metadata")
         path = self.workflow.exported_squashed_image.get("path")
         if not path or not isfile(path):
             self.log.error("%s is not a file.", path)

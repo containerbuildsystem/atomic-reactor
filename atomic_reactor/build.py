@@ -30,6 +30,7 @@ class ImageNotBuilt(Exception):
 class BuilderStateMachine(object):
     def __init__(self):
         self.is_built = False
+        self.image = None
 
     def _ensure_is_built(self):
         """
@@ -38,7 +39,7 @@ class BuilderStateMachine(object):
         :return: None
         """
         if not self.is_built:
-            logger.error("Image is not built yet!")
+            logger.error("Image '%s' is not built yet!", self.image)
             raise ImageNotBuilt()
 
     def _ensure_not_built(self):
@@ -48,7 +49,7 @@ class BuilderStateMachine(object):
         :return: None
         """
         if self.is_built:
-            logger.error("Image is already built!")
+            logger.error("Image '%s' is already built!", self.image)
             raise ImageAlreadyBuilt()
 
 
@@ -93,7 +94,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         # get info about base image from dockerfile
         self.df_path, self.df_dir = self.source.get_dockerfile_path()
         self.base_image = ImageName.parse(DockerfileParser(self.df_path).get_baseimage())
-        logger.debug("image specified in dockerfile = '%s'", self.base_image)
+        logger.debug("base image specified in dockerfile = '%s'", self.base_image)
         if not self.base_image.tag:
             self.base_image.tag = 'latest'
 
@@ -105,7 +106,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         :param insecure: bool, allow connecting to registry over plain http
         :return:
         """
-        logger.info("pull base image from registry")
+        logger.info("pulling base image '%s' from registry '%s'", self.base_image, source_registry)
         self._ensure_not_built()
 
         base_image_with_registry = self.base_image.copy()
@@ -140,16 +141,16 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
 
         :return: image string (e.g. fedora-python:34)
         """
-        logger.info("build image inside current environment")
+        logger.info("building image '%s' inside current environment", self.image)
         self._ensure_not_built()
-        logger.debug("Using dockerfile:\n%s", DockerfileParser(self.df_path).content)
+        logger.debug("using dockerfile:\n%s", DockerfileParser(self.df_path).content)
         logs_gen = self.tasker.build_image_from_path(
             self.df_dir,
             self.image,
         )
         logger.debug("build is submitted, waiting for it to finish")
         command_result = wait_for_command(logs_gen)  # wait for build to finish
-        logger.info("was build successful? %s", not command_result.is_failed())
+        logger.info("build was %ssuccesful!", 'un' if command_result.is_failed() else '')
         self.is_built = True
         if not command_result.is_failed():
             self.built_image_info = self.get_built_image_info()
@@ -166,7 +167,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         :param insecure: bool, allow connecting to registry over plain http
         :return: str, image
         """
-        logger.info("push built image to registry")
+        logger.info("pushing built image '%s' to registry '%s'", self.image, registry)
         self._ensure_is_built()
         if not registry:
             logger.warning("no registry specified; skipping")
@@ -193,7 +194,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
 
         :return: dict
         """
-        logger.info("inspect base image")
+        logger.info("inspecting base image '%s'", self.base_image)
         inspect_data = self.tasker.inspect_image(self.base_image)
         return inspect_data
 
@@ -203,7 +204,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
 
         :return: dict
         """
-        logger.info("inspect built image")
+        logger.info("inspecting built image '%s'", self.image_id)
         self._ensure_is_built()
         inspect_data = self.tasker.inspect_image(self.image_id)  # dict with lots of data, see man docker-inspect
         return inspect_data
@@ -214,7 +215,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
 
         :return dict
         """
-        logger.info("get information about base image")
+        logger.info("getting information about base image '%s'", self.base_image)
         image_info = self.tasker.get_image_info_by_image_name(self.base_image)
         items_count = len(image_info)
         if items_count == 1:
@@ -232,7 +233,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
 
         :return dict
         """
-        logger.info("get information about built image")
+        logger.info("getting information about built image '%s'", self.image)
         self._ensure_is_built()
         image_info = self.tasker.get_image_info_by_image_name(self.image)
         items_count = len(image_info)

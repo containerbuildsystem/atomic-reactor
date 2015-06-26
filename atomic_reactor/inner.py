@@ -248,7 +248,7 @@ class DockerBuildWorkflow(object):
             try:
                 prebuild_runner.run()
             except PluginFailedException as ex:
-                logger.error("One or more prebuild plugins failed: %s", ex)
+                logger.error("one or more prebuild plugins failed: %s", ex)
                 return
 
             build_result = self.builder.build()
@@ -263,7 +263,7 @@ class DockerBuildWorkflow(object):
             try:
                 prepublish_runner.run()
             except PluginFailedException as ex:
-                logger.error("One or more prepublish plugins failed: %s", ex)
+                logger.error("one or more prepublish plugins failed: %s", ex)
                 return
 
             if not build_result.is_failed():
@@ -276,7 +276,7 @@ class DockerBuildWorkflow(object):
             try:
                 postbuild_runner.run()
             except PluginFailedException as ex:
-                logger.error("One or more postbuild plugins failed: %s", ex)
+                logger.error("one or more postbuild plugins failed: %s", ex)
                 return
 
             return build_result
@@ -328,7 +328,7 @@ def build_inside(input, input_args=None, substitutions=None):
 
         input_runner = InputPluginsRunner([{'name': input, 'args': cleaned_input_args}])
         build_json = input_runner.run()[input]
-        logger.debug("Build json: %s", build_json)
+        logger.debug("build json: %s", build_json)
     if not build_json:
         raise RuntimeError("No valid build json!")
     # TODO: validate json
@@ -337,4 +337,4 @@ def build_inside(input, input_args=None, substitutions=None):
     if not build_result or build_result.is_failed():
         raise RuntimeError("no image built")
     else:
-        logger.info("Build has finished successfully \o/")
+        logger.info("build has finished successfully \o/")

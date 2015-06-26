@@ -138,7 +138,7 @@ class DockerfileParser(object):
             with open(self.dockerfile_path, 'r') as dockerfile:
                 return [self.b2u(l) for l in dockerfile.readlines()]
         except (IOError, OSError) as ex:
-            logger.error("Couldn't retrieve lines from dockerfile: %s" % repr(ex))
+            logger.error("couldn't retrieve lines from Dockerfile: %s" % repr(ex))
             raise
 
     @lines.setter
@@ -147,7 +147,7 @@ class DockerfileParser(object):
             with open(self.dockerfile_path, 'w') as dockerfile:
                 dockerfile.writelines([self.u2b(l) for l in lines])
         except (IOError, OSError) as ex:
-            logger.error("Couldn't write lines to dockerfile: %s" % repr(ex))
+            logger.error("couldn't write lines to Dockerfile: %s" % repr(ex))
             raise
 
     @property
@@ -156,7 +156,7 @@ class DockerfileParser(object):
             with open(self.dockerfile_path, 'r') as dockerfile:
                 return self.b2u(dockerfile.read())
         except (IOError, OSError) as ex:
-            logger.error("Couldn't retrieve content of dockerfile: %s" % repr(ex))
+            logger.error("couldn't retrieve content of Dockerfile: %s" % repr(ex))
             raise
 
     @content.setter
@@ -165,7 +165,7 @@ class DockerfileParser(object):
             with open(self.dockerfile_path, 'w') as dockerfile:
                 dockerfile.write(self.u2b(content))
         except (IOError, OSError) as ex:
-            logger.error("Couldn't write content to dockerfile: %s" % repr(ex))
+            logger.error("couldn't write content to Dockerfile: %s" % repr(ex))
             raise
 
     @property
@@ -274,7 +274,7 @@ def figure_out_dockerfile(absolute_path, local_path=None):
     :param local_path:
     :return: tuple, (dockerfile_path, dir_with_dockerfile_path)
     """
-    logger.info("find dockerfile")
+    logger.info("searching for dockerfile in '%s' (local path %s)", absolute_path, local_path)
     logger.debug("abs path = '%s', local path = '%s'", absolute_path, local_path)
     if local_path:
         if local_path.endswith(DOCKERFILE_FILENAME):
@@ -289,7 +289,7 @@ def figure_out_dockerfile(absolute_path, local_path=None):
     df_path = os.path.join(df_dir, DOCKERFILE_FILENAME)
     if not os.path.isfile(df_path):
         raise IOError("Dockerfile '%s' doesn't exist." % df_path)
-    logger.debug("dockerfile found: '%s'", df_path)
+    logger.debug("Dockerfile found: '%s'", df_path)
     return df_path, df_dir
 
 
@@ -394,27 +394,27 @@ def clone_git_repo(git_url, target_dir, commit=None):
     :return: str, commit ID of HEAD
     """
     commit = commit or "master"
-    logger.info("clone git repo")
+    logger.info("cloning git repo '%s'", git_url)
     logger.debug("url = '%s', dir = '%s', commit = '%s'",
                  git_url, target_dir, commit)
 
     # http://stackoverflow.com/questions/1911109/clone-a-specific-git-branch/4568323#4568323
     # -b takes only refs, not SHA-1
     cmd = ["git", "clone", "-b", commit, "--single-branch", git_url, quote(target_dir)]
-    logger.debug("Cloning single branch: %s", cmd)
+    logger.debug("cloning single branch '%s'", cmd)
     try:
         subprocess.check_call(cmd)
     except subprocess.CalledProcessError as ex:
         logger.warning(repr(ex))
         # let's try again with plain `git clone $url && git checkout`
         cmd = ["git", "clone", git_url, quote(target_dir)]
-        logger.debug("Cloning: %s", cmd)
+        logger.debug("cloning '%s'", cmd)
         subprocess.check_call(cmd)
         cmd = ["git", "reset", "--hard", commit]
-        logger.debug("Checking out branch: %s", cmd)
+        logger.debug("checking out branch '%s'", cmd)
         subprocess.check_call(cmd, cwd=target_dir)
     cmd = ["git", "rev-parse", "HEAD"]
-    logger.debug("getting SHA-1 of provided ref: %s", cmd)
+    logger.debug("getting SHA-1 of provided ref '%s'", cmd)
     try:
         commit_id = subprocess.check_output(cmd, cwd=target_dir)  # py 2.7
     except AttributeError:

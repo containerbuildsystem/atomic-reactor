@@ -55,7 +55,7 @@ class BuildImageBuilder(object):
         :param image:
         :return:
         """
-        logger.debug("df_dir_path = '%s', image = '%s'", df_dir_path, image)
+        logger.debug("Creating build image: df_dir_path = '%s', image = '%s'", df_dir_path, image)
 
         if not os.path.isdir(df_dir_path):
             raise RuntimeError("Directory '%s' does not exist.", df_dir_path)

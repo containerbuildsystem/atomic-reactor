@@ -29,7 +29,7 @@ class TagAndPushPlugin(PostBuildPlugin):
         """
         # call parent constructor
         super(TagAndPushPlugin, self).__init__(tasker, workflow)
-        self.log.warning("Ignoring arguments %s", kwargs)
+        self.log.warning("ignoring arguments '%s'", kwargs)
 
     def run(self):
         pushed_images = []

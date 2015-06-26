@@ -43,7 +43,7 @@ class DistgitFetchArtefactsPlugin(PreBuildPlugin):
         try:
             with open(sources_file_path, 'r') as f:
                 artefacts = f.read()
-                self.log.info('Sources file:\n%s', artefacts)
+                self.log.info('sources file:\n%s', artefacts)
         except IOError as ex:
             if ex.errno == 2:
                 self.log.info("no sources file")

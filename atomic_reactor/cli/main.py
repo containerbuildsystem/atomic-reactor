@@ -32,7 +32,7 @@ def cli_create_build_image(args):
     try:
         b.create_image(args.dockerfile_dir_path, args.image, use_cache=args.use_cache)
     except RuntimeError:
-        logger.error("Build failed.")
+        logger.error("build failed")
         sys.exit(1)
     sys.exit(0)
 
@@ -276,7 +276,7 @@ class CLI(object):
             if args.verbose:
                 raise
             else:
-                logger.error("Exception caught: %s", repr(ex))
+                logger.error("exception caught: %s", repr(ex))
 
 
 def run():

@@ -101,6 +101,6 @@ class AddDockerfilePlugin(PreBuildPlugin):
 
         dockerfile.lines = lines
 
-        self.log.info("Added %s", self.df_path)
+        self.log.info("added %s", self.df_path)
 
         return content

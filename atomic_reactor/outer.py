@@ -46,7 +46,7 @@ class BuildManager(BuilderStateMachine):
 
         :return: BuildResults
         """
-        logger.info("build image")
+        logger.info("building image '%s'", self.image)
         self._ensure_not_built()
         self.temp_dir = tempfile.mkdtemp()
         temp_path = os.path.join(self.temp_dir, BUILD_JSON)
@@ -59,7 +59,7 @@ class BuildManager(BuilderStateMachine):
                 wait_for_command(logs_gen)
                 return_code = self.dt.wait(self.build_container_id)
             except KeyboardInterrupt:
-                logger.info("Killing build container on user's request")
+                logger.info("killing build container on user's request")
                 self.dt.remove_container(self.build_container_id, force=True)
                 results = BuildResults()
                 results.return_code = 1
@@ -102,7 +102,7 @@ class BuildManager(BuilderStateMachine):
 
         :return:
         """
-        logger.info("commit buildroot")
+        logger.info("committing buildroot")
         self._ensure_is_built()
 
         commit_message = "docker build of '%s' (%s)" % (self.image, self.uri)
@@ -114,7 +114,7 @@ class BuildManager(BuilderStateMachine):
         return self.buildroot_image_id
 
     def push_buildroot(self, registry):
-        logger.info("push buildroot to registry")
+        logger.info("pushing buildroot to registry")
         self._ensure_is_built()
 
         image_name_with_registry = self.buildroot_image_name.copy()

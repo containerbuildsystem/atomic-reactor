@@ -40,7 +40,7 @@ class EnvInputPlugin(InputPlugin):
             try:
                 return self.substitute_configuration(json.loads(build_cfg_json))
             except ValueError:
-                self.log.error("Couldn't load build config: invalid json")
+                self.log.error("couldn't load build config: invalid json")
                 return None
 
     @classmethod

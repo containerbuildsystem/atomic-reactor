@@ -77,13 +77,13 @@ class BuildContainerFactory(object):
         """
         try:
             with open(os.path.join(args_path, BUILD_JSON)) as json_args:
-                logger.debug("build image = '%s', args = '%s'", image, json_args.read())
+                logger.debug("build input: image = '%s', args = '%s'", image, json_args.read())
         except (IOError, OSError) as ex:
-            logger.error("Unable to open json arguments: '%s'", repr(ex))
+            logger.error("unable to open json arguments: '%s'", repr(ex))
             raise RuntimeError("Unable to open json arguments: '%s'" % repr(ex))
 
         if not self.tasker.image_exists(image):
-            logger.error("Provided build image doesn't exist: '%s'", image)
+            logger.error("provided build image doesn't exist: '%s'", image)
             raise RuntimeError("Provided build image doesn't exist: '%s'" % image)
 
     def _obtain_source_from_path_if_needed(self, local_path, container_path=CONTAINER_SHARE_PATH):
@@ -94,9 +94,9 @@ class BuildContainerFactory(object):
             build_json = json.load(fp)
         source = get_source_instance_for(build_json['source'], tmpdir=local_path)
         if source.provider == 'path':
-            logger.debug('Copying source from %s to %s', source.schemeless_path, local_path)
+            logger.debug('copying source from %s to %s', source.schemeless_path, local_path)
             source.get()
-            logger.debug('Verifying that %s exists: %s', local_path, os.path.exists(local_path))
+            logger.debug('verifying that %s exists: %s', local_path, os.path.exists(local_path))
             # now modify the build json
             build_json['source']['uri'] =\
                     'file://' + os.path.join(container_path, CONTAINER_SHARE_SOURCE_SUBDIR)
@@ -118,13 +118,13 @@ class BuildContainerFactory(object):
                                is used to feed build
         :return: str, container id
         """
-        logger.info("build image in container using docker from host")
+        logger.info("building image '%s' in container using docker from host", build_image)
 
         self._check_build_input(build_image, json_args_path)
         self._obtain_source_from_path_if_needed(json_args_path, CONTAINER_SHARE_PATH)
 
         if not os.path.exists(DOCKER_SOCKET_PATH):
-            logger.error("Looks like docker is not running because there is no socket at: %s", DOCKER_SOCKET_PATH)
+            logger.error("looks like docker is not running because there is no socket at: %s", DOCKER_SOCKET_PATH)
             raise RuntimeError("docker socket not found: %s" % DOCKER_SOCKET_PATH)
 
         volume_bindings = {
@@ -161,7 +161,7 @@ class BuildContainerFactory(object):
                                is used to feed build
         :return: dict, keys container_id and stream
         """
-        logger.info("build image inside privileged container")
+        logger.info("building image '%s' inside privileged container", build_image)
 
         self._check_build_input(build_image, json_args_path)
         self._obtain_source_from_path_if_needed(json_args_path, CONTAINER_SHARE_PATH)
@@ -202,8 +202,7 @@ class DockerTasker(LastLogger):
         :param remove_im: bool, remove intermediate containers produced during docker build
         :return: generator
         """
-        logger.info("build image from provided path")
-        logger.debug("image = '%s', path = '%s'", image, path)
+        logger.info("building image '%s' from path '%s'", image, path)
         try:
             response = self.d.build(path=path, tag=image.to_str(), stream=stream, nocache=not use_cache,
                                     rm=remove_im, pull=False)  # returns generator
@@ -229,9 +228,9 @@ class DockerTasker(LastLogger):
         :param use_cache: bool, True if you want to use cache
         :return: generator
         """
-        logger.info("build image from provided git repo specified as URL")
-        logger.debug("url = '%s', image = '%s', git_path = '%s', copy_df_to='%s'",
-                     url, image, git_path, copy_dockerfile_to)
+        logger.info("building image '%s' from git repo '%s' specified as URL '%s'",
+                image, git_path, url)
+        logger.info("will copy Dockerfile to '%s'", copy_dockerfile_to)
         temp_dir = tempfile.mkdtemp()
         response = None
         try:
@@ -263,7 +262,7 @@ class DockerTasker(LastLogger):
         :param start_kwargs: dict, kwargs for docker.start
         :return: str, container id
         """
-        logger.info("create container from image and run it")
+        logger.info("creating container from image '%s' and running it", image)
         create_kwargs = create_kwargs or {}
         start_kwargs = start_kwargs or {}
         logger.debug("image = '%s', command = '%s', create_kwargs = '%s', start_kwargs = '%s'",
@@ -285,7 +284,7 @@ class DockerTasker(LastLogger):
         :param message: str
         :return: image_id
         """
-        logger.info("commit container")
+        logger.info("committing container '%s'", container_id)
         logger.debug("container_id = '%s', image = '%s', message = '%s'",
                      container_id, image, message)
         tag = None
@@ -307,7 +306,7 @@ class DockerTasker(LastLogger):
         :param image_id: str, hash of image to get info
         :return: str or None
         """
-        logger.info("get info about provided image specified by image_id")
+        logger.info("getting info about provided image specified by image_id '%s'", image_id)
         logger.debug("image_id = '%s'", image_id)
         # returns list of
         # {u'Created': 1414577076,
@@ -334,7 +333,7 @@ class DockerTasker(LastLogger):
                           given name regardless what their tag is
         :return: list of dicts
         """
-        logger.info("get info about provided image specified by name")
+        logger.info("getting info about provided image specified by name '%s'", image)
         logger.debug("image_name = '%s'", image)
 
         # returns list of
@@ -364,7 +363,7 @@ class DockerTasker(LastLogger):
         :param insecure: bool, allow connecting to registry over plain http
         :return: str, image (reg.om/img:v1)
         """
-        logger.info("pull image from registry")
+        logger.info("pulling image '%s' from registry", image)
         logger.debug("image = '%s', insecure = '%s'", image, insecure)
         try:
             logs_gen = self.d.pull(image.to_str(tag=False), tag=image.tag, insecure_registry=insecure, stream=True)
@@ -384,12 +383,12 @@ class DockerTasker(LastLogger):
         :param force: bool, force tag the image?
         :return: str, image (reg.om/img:v1)
         """
-        logger.info("tag image")
+        logger.info("tagging image '%s' as '%s'", image, target_image)
+        logger.debug("image = '%s', target_image_name = '%s'", image, target_image)
         if not isinstance(image, ImageName):
             image = ImageName.parse(image)
 
         if image != target_image:
-            logger.debug("image = '%s', target_image_name = '%s'", image, target_image)
             response = self.d.tag(
                 image.to_str(),
                 target_image.to_str(tag=False),
@@ -411,7 +410,7 @@ class DockerTasker(LastLogger):
         :param insecure: bool, allow connecting to registry over plain http
         :return: str, logs from push
         """
-        logger.info("push image")
+        logger.info("pushing image '%s'", image)
         logger.debug("image: '%s', insecure: '%s'", image, insecure)
         try:
             # push returns string composed of newline separated jsons; exactly what 'docker push' outputs
@@ -431,7 +430,7 @@ class DockerTasker(LastLogger):
         :param force: bool, force the tag?
         :return: str, image (reg.com/img:v1)
         """
-        logger.info("tag and push image")
+        logger.info("tagging and pushing image '%s' as '%s'", image, target_image)
         logger.debug("image = '%s', target_image = '%s'", image, target_image)
         self.tag_image(image, target_image, force=force)
         return self.push_image(target_image, insecure=insecure)
@@ -443,7 +442,7 @@ class DockerTasker(LastLogger):
         :param image_id: str or ImageName, id or name of the image
         :return: dict
         """
-        logger.info("inspect image")
+        logger.info("inspecting image '%s'", image_id)
         logger.debug("image_id = '%s'", image_id)
         if isinstance(image_id, ImageName):
             image_id = image_id.to_str()
@@ -459,7 +458,7 @@ class DockerTasker(LastLogger):
         :param force: bool, force remove -- just trash it no matter what
         :return: None
         """
-        logger.info("remove image from filesystem")
+        logger.info("removing image '%s' from filesystem", image_id)
         logger.debug("image_id = '%s'", image_id)
         if isinstance(image_id, ImageName):
             image_id = image_id.to_str()
@@ -473,7 +472,7 @@ class DockerTasker(LastLogger):
         :param force: bool, remove forcefully?
         :return: None
         """
-        logger.info("remove container from filesystem")
+        logger.info("removing container '%s' from filesystem", container_id)
         logger.debug("container_id = '%s'", container_id)
         self.d.remove_container(container_id, force=force)  # returns None
 
@@ -486,7 +485,7 @@ class DockerTasker(LastLogger):
         :param stream: if True, return as generator
         :return: either generator, or list of strings
         """
-        logger.info("get stdout of container")
+        logger.info("getting stdout of container '%s'", container_id)
         logger.debug("container_id = '%s', stream = '%s'", container_id, stream)
         response = self.d.logs(container_id, stdout=True, stderr=stderr, stream=stream)
         if not stream:
@@ -501,7 +500,7 @@ class DockerTasker(LastLogger):
         :param container_id: str
         :return: int, exit code
         """
-        logger.info("wait for container to finish")
+        logger.info("waiting for container '%s' to finish", container_id)
         logger.debug("container = '%s'", container_id)
         response = self.d.wait(container_id)  # returns exit code as int
         logger.debug("container finished with exit code %s", response)
@@ -514,7 +513,7 @@ class DockerTasker(LastLogger):
         :param image_id: str or ImageName
         :return: True if exists, False if not
         """
-        logger.info("does image exists?")
+        logger.info("checking whether image '%s' exists", image_id)
         logger.debug("image_id = '%s'", image_id)
         try:
             response = self.d.inspect_image(image_id)
