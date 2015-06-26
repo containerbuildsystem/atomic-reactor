@@ -9,7 +9,6 @@ from __future__ import unicode_literals
 
 import json
 import os
-from osbs.core import Openshift
 
 try:
     # py2
@@ -17,6 +16,9 @@ try:
 except Exception:
     # py3
     from urllib.parse import urljoin
+
+from osbs.api import OSBS
+from osbs.conf import Configuration
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.pre_return_dockerfile import CpDockerfilePlugin
@@ -55,13 +57,11 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
             return
         self.log.info("build id = %s", build_id)
 
-        api_url = urljoin(self.url, "/osapi/v1beta1/")
-        oauth_url = urljoin(self.url, "/oauth/authorize")  # MUST NOT END WITH SLASH
-
         # initial setup will use host based auth: apache will be set to accept everything
         # from specific IP and will set specific X-Remote-User for such requests
-        # FIXME: use OSBS here
-        o = Openshift(api_url, oauth_url, None, use_auth=self.use_auth, verify_ssl=self.verify_ssl)
+        osbs_conf = Configuration(conf_file=None, openshift_uri=self.url,
+                                  use_auth=self.use_auth, verify_ssl=self.verify_ssl)
+        osbs = OSBS(osbs_conf, osbs_conf)
 
         # usually repositories formed from NVR labels
         # these should be used for pulling and layering
@@ -111,4 +111,4 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
                 "sha256sum": tar_sha256sum,
                 "filename": os.path.basename(tar_path),
             })
-        o.set_annotations_on_build(build_id, labels)
+        osbs.set_annotations_on_build(build_id, labels)
