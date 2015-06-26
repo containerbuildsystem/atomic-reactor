@@ -115,7 +115,7 @@ class PulpUploader(object):
 
         # release
         self.log.info("Releasing to crane")
-        p.crane()
+        p.crane(repos=repos_tags_mapping.keys())
 
         # Store the registry URI in the push configuration
 
