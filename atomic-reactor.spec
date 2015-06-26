@@ -58,7 +58,7 @@ Koji plugin for Atomic Reactor
 
 
 %package -n python-atomic-reactor-metadata
-Summary:        Plugin for submitting metada to OSBS
+Summary:        Plugin for submitting metadata to OSBS
 Group:          Development/Tools
 Requires:       python-atomic-reactor = %{version}-%{release}
 Requires:       osbs
@@ -68,7 +68,7 @@ Obsoletes:      dock-metadata < 1.2.0-3
 Obsoletes:      python-dock-metadata = %{dock_obsolete_vr}
 
 %description -n python-atomic-reactor-metadata
-Plugin for submitting metada to OSBS
+Plugin for submitting metadata to OSBS
 
 
 %package -n python-atomic-reactor
@@ -121,7 +121,7 @@ Koji plugin for Atomic Reactor
 
 
 %package -n python3-atomic-reactor-metadata
-Summary:        Plugin for submitting metada to OSBS
+Summary:        Plugin for submitting metadata to OSBS
 Group:          Development/Tools
 Requires:       python3-atomic-reactor = %{version}-%{release}
 Requires:       osbs
@@ -129,7 +129,7 @@ Provides:       python3-dock = %{version}-%{release}
 Obsoletes:      python3-dock = %{dock_obsolete_vr}
 
 %description -n python3-atomic-reactor-metadata
-Plugin for submitting metada to OSBS
+Plugin for submitting metadata to OSBS
 %endif # with_python3
 
 
