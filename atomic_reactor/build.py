@@ -39,7 +39,7 @@ class BuilderStateMachine(object):
         :return: None
         """
         if not self.is_built:
-            logger.error("Image '%s' is not built yet!", self.image)
+            logger.error("image '%s' is not built yet!", self.image)
             raise ImageNotBuilt()
 
     def _ensure_not_built(self):
@@ -49,7 +49,7 @@ class BuilderStateMachine(object):
         :return: None
         """
         if self.is_built:
-            logger.error("Image '%s' is already built!", self.image)
+            logger.error("image '%s' is already built!", self.image)
             raise ImageAlreadyBuilt()
 
 
