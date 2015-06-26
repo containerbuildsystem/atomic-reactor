@@ -109,7 +109,7 @@ class CopyBuiltImageToNFSPlugin(PostBuildPlugin):
             try:
                 mkdir_p(self.absolute_dest_dir)
             except (IOError, OSError) as ex:
-                self.log.error("Couldn't create %s: %s", self.dest_dir, repr(ex))
+                self.log.error("couldn't create %s: %s", self.dest_dir, repr(ex))
                 raise
 
         fname = os.path.basename(source_path)
@@ -121,7 +121,7 @@ class CopyBuiltImageToNFSPlugin(PostBuildPlugin):
         try:
             shutil.copy2(source_path, self.absolute_dest_dir)
         except (IOError, OSError) as ex:
-            self.log.error("Couldn't copy %s into %s: %s", source_path, self.dest_dir, repr(ex))
+            self.log.error("couldn't copy %s into %s: %s", source_path, self.dest_dir, repr(ex))
             raise
 
         if os.path.isfile(os.path.join(self.absolute_dest_dir, fname)):

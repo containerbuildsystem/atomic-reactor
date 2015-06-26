@@ -41,12 +41,12 @@ class ChangeFromPlugin(PreBuildPlugin):
         except KeyError:
             self.log.error("Id is missing in inspection: '%s'", base_image_inspect)
             return
-        self.log.debug("Using base image '%s', id '%s'", base_image, base_image_id)
+        self.log.debug("using base image '%s', id '%s'", base_image, base_image_id)
         for line in fileinput.input(self.workflow.builder.df_path, inplace=1):
             re_match = re.match(r"^FROM .+$", line)
             if re_match:
                 new_from = "FROM %s" % base_image_id
                 sys.stdout.write(new_from + '\n')
-                self.log.info("Changed FROM: '%s' -> '%s'", re_match.group(0), new_from)
+                self.log.info("changed FROM: '%s' -> '%s'", re_match.group(0), new_from)
             else:
                 sys.stdout.write(line)

@@ -71,7 +71,7 @@ class PulpUploader(object):
         else:
             if self.pulp_secret_path is not None:
                 path = self.pulp_secret_path
-                self.log.info("Using configured path %s for secrets" % path)
+                self.log.info("using configured path %s for secrets" % path)
             else:
                 path = os.environ["SOURCE_SECRET_PATH"]
                 self.log.info("SOURCE_SECRET_PATH=%s from environment" % path)
@@ -90,7 +90,7 @@ class PulpUploader(object):
             p.key = key
 
     def push_tarball_to_pulp(self, image_names):
-        self.log.info("Checking image before upload")
+        self.log.info("checking image before upload")
         self._check_file()
 
         p = dockpulp.Pulp(env=self.pulp_instance)
@@ -114,7 +114,7 @@ class PulpUploader(object):
         p.push_tar_to_pulp(repos_tags_mapping, self.filename)
 
         # release
-        self.log.info("Releasing to crane")
+        self.log.info("releasing to crane")
         p.crane(repos=repos_tags_mapping.keys())
 
         # Store the registry URI in the push configuration
@@ -176,11 +176,11 @@ class PulpPushPlugin(PostBuildPlugin):
         with NamedTemporaryFile(prefix='docker-image-',
                                 suffix='.tar.gz') as targz:
             # Compress the tarball docker gave us.
-            self.log.info("Compressing tarball to %s", targz.name)
+            self.log.info("compressing tarball to %s", targz.name)
             compress(targz.name, image_stream)
 
             # Find out how to tag this image.
-            self.log.info("Image names: %s", [str(image_name)
+            self.log.info("image names: %s", [str(image_name)
                                               for image_name in image_names])
 
             # Give that compressed tarball to pulp.
@@ -207,6 +207,6 @@ class PulpPushPlugin(PostBuildPlugin):
                 crane_repos = self.push_tar(image_stream, image_names)
 
         for image_name in crane_repos:
-            self.log.info("Image available at %s", str(image_name))
+            self.log.info("image available at %s", str(image_name))
 
         return crane_repos

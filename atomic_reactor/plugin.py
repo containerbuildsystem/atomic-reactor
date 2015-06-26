@@ -155,17 +155,17 @@ class PluginsRunner(object):
             try:
                 plugin_name = plugin_request['name']
             except (TypeError, KeyError):
-                logger.error("Invalid plugin request, no key 'name': %s", plugin_request)
+                logger.error("invalid plugin request, no key 'name': %s", plugin_request)
                 continue
             try:
                 plugin_conf = plugin_request.get("args", {})
             except AttributeError:
-                logger.error("Invalid plugin request, no key 'args': %s", plugin_request)
+                logger.error("invalid plugin request, no key 'args': %s", plugin_request)
                 continue
             try:
                 plugin_class = self.plugin_classes[plugin_name]
             except KeyError:
-                logger.error("No such plugin: '%s', did you set the correct plugin type?", plugin_name)
+                logger.error("no such plugin: '%s', did you set the correct plugin type?", plugin_name)
                 continue
             try:
                 plugin_can_fail = plugin_request['can_fail']
@@ -179,13 +179,13 @@ class PluginsRunner(object):
             try:
                 plugin_response = plugin_instance.run()
             except Exception as ex:
-                msg = "Plugin '%s' raised an exception: '%s'" % (plugin_instance.key, repr(ex))
+                msg = "plugin '%s' raised an exception: '%s'" % (plugin_instance.key, repr(ex))
                 logger.warning(msg)
                 logger.debug(traceback.format_exc())
                 if not plugin_can_fail:
                     failed_msgs.append(msg)
                 else:
-                    logger.info("Error is not fatal. Continuing...")
+                    logger.info("error is not fatal, continuing...")
                 plugin_response = msg
 
             self.plugins_results[plugin_instance.key] = plugin_response
@@ -339,7 +339,7 @@ class InputPluginsRunner(PluginsRunner):
             logger.debug('"auto" input used, determining what input plugin to use.')
             autousable = None
             for clsname, clsobj in self.plugin_classes.items():
-                logger.debug('Checking if "%s" plugin is autousable ...', clsname)
+                logger.debug('checking if "%s" plugin is autousable ...', clsname)
                 if clsobj.is_autousable():
                     if autousable:
                         raise PluginFailedException('More than one usable plugin with "auto" '
@@ -350,7 +350,7 @@ class InputPluginsRunner(PluginsRunner):
             if not autousable:
                 raise PluginFailedException('No autousable input plugin. '
                                             'Please specify --input explicitly')
-            logger.debug('Using "%s" for input', autousable)
+            logger.debug('using "%s" for input', autousable)
             self.plugins_conf[0]['name'] = autousable
 
         result = super(InputPluginsRunner, self).run()
