@@ -2,6 +2,8 @@ Atomic Reactor
 ==============
 
 [![Build Status](https://travis-ci.org/DBuildService/atomic-reactor.svg?branch=master)](https://travis-ci.org/DBuildService/atomic-reactor)
+[![Code Health](https://landscape.io/github/DBuildService/atomic-reactor/master/landscape.svg?style=flat)](https://landscape.io/github/DBuildService/atomic-reactor/master)
+[![Coverage Status](https://coveralls.io/repos/DBuildService/atomic-reactor/badge.svg?branch=master)](https://coveralls.io/r/DBuildService/atomic-reactor?branch=master)
 
 Python library with command line interface for building docker images.
 
