@@ -10,13 +10,6 @@ from __future__ import unicode_literals
 import json
 import os
 
-try:
-    # py2
-    from urlparse import urljoin
-except Exception:
-    # py3
-    from urllib.parse import urljoin
-
 from osbs.api import OSBS
 from osbs.conf import Configuration
 
