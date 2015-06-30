@@ -11,9 +11,9 @@ Logic above these classes has to set the workflow itself.
 """
 
 import logging
-
+from dockerfile_parse import DockerfileParser
 from atomic_reactor.core import DockerTasker, LastLogger
-from atomic_reactor.util import DockerfileParser, wait_for_command, ImageName
+from atomic_reactor.util import wait_for_command, ImageName
 
 
 logger = logging.getLogger(__name__)
@@ -93,7 +93,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
 
         # get info about base image from dockerfile
         self.df_path, self.df_dir = self.source.get_dockerfile_path()
-        self.base_image = ImageName.parse(DockerfileParser(self.df_path).get_baseimage())
+        self.base_image = ImageName.parse(DockerfileParser(self.df_path).baseimage)
         logger.debug("base image specified in dockerfile = '%s'", self.base_image)
         if not self.base_image.tag:
             self.base_image.tag = 'latest'

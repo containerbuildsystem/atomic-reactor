@@ -38,7 +38,7 @@ CMD date
 
 Keys and values are quoted as necessary.
 """
-from atomic_reactor.util import DockerfileParser
+from dockerfile_parse import DockerfileParser
 from atomic_reactor.plugin import PreBuildPlugin
 import json
 

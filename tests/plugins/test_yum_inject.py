@@ -17,11 +17,12 @@ try:
 except ImportError:
     # Python 2.6
     from ordereddict import OrderedDict
+from dockerfile_parse import DockerfileParser
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_inject_yum_repo import InjectYumRepoPlugin, alter_yum_commands
-from atomic_reactor.util import ImageName, render_yum_repo, DockerfileParser
+from atomic_reactor.util import ImageName, render_yum_repo
 from tests.constants import DOCKERFILE_GIT
 import os.path
 from collections import namedtuple

@@ -10,8 +10,8 @@ Pre build plugin which injects custom yum repository in dockerfile.
 """
 import os
 import re
+from dockerfile_parse import DockerfileParser
 from atomic_reactor.constants import YUM_REPOS_DIR, RELATIVE_REPOS_PATH
-from atomic_reactor.util import DockerfileParser
 from atomic_reactor.plugin import PreBuildPlugin
 
 

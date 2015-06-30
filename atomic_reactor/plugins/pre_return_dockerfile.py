@@ -8,7 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 It returns content of dockerfile and therefore displays it in results.
 """
-from atomic_reactor.util import DockerfileParser
+from dockerfile_parse import DockerfileParser
 from atomic_reactor.plugin import PreBuildPlugin
 
 

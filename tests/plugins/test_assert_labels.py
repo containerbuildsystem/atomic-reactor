@@ -9,11 +9,12 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 import pytest
+from dockerfile_parse import DockerfileParser
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_assert_labels import AssertLabelsPlugin
-from atomic_reactor.util import ImageName, DockerfileParser
+from atomic_reactor.util import ImageName
 from tests.constants import MOCK_SOURCE
 
 

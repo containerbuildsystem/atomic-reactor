@@ -84,6 +84,7 @@ License:        BSD
 Requires:       python-docker-py
 Requires:       python-requests
 Requires:       python-setuptools
+Requires:       python-dockerfile-parse
 # Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
 Requires:       nfs-utils
 Provides:       python-dock = %{version}-%{release}
@@ -103,6 +104,7 @@ License:        BSD
 Requires:       python3-docker-py
 Requires:       python3-requests
 Requires:       python3-setuptools
+Requires:       python3-dockerfile-parse
 # Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
 Requires:       nfs-utils
 Provides:       python3-dock = %{version}-%{release}

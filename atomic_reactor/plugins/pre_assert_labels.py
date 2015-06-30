@@ -12,7 +12,7 @@ Make sure Dockerfile contains Name/Version/Release
 
 from __future__ import unicode_literals
 
-from atomic_reactor.util import DockerfileParser
+from dockerfile_parse import DockerfileParser
 from atomic_reactor.plugin import PreBuildPlugin
 
 class AssertLabelsPlugin(PreBuildPlugin):
@@ -36,7 +36,7 @@ class AssertLabelsPlugin(PreBuildPlugin):
         """
         run the plugin
         """
-        labels = DockerfileParser(self.workflow.builder.df_path).get_labels()
+        labels = DockerfileParser(self.workflow.builder.df_path).labels
         for label in self.required_labels:
             if labels.get(label) is None:
                 msg = "Dockerfile is missing '{0}' label.".format(label)
