@@ -1,3 +1,9 @@
+%if 0%{?rhel} && 0%{?rhel} <= 6
+%{!?__python2: %global __python2 /usr/bin/python2}
+%{!?python2_sitelib: %global python2_sitelib %(%{__python2} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
+%{!?python2_sitearch: %global python2_sitearch %(%{__python2} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(1))")}
+%endif
+
 %if (0%{?fedora} >= 23 || 0%{?rhel} >= 8)
 %global with_python3 1
 %endif
@@ -12,7 +18,7 @@
 
 Name:           %{project}
 Version:        1.3.7
-Release:        1%{?dist}
+Release:        3%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -220,6 +226,7 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %{_bindir}/pulpsecret-gen3
 %{_mandir}/man1/atomic-reactor.1*
 %dir %{python3_sitelib}/atomic_reactor
+%dir %{python3_sitelib}/atomic_reactor/__pycache__
 %{python3_sitelib}/atomic_reactor/*.*
 %{python3_sitelib}/atomic_reactor/cli
 %{python3_sitelib}/atomic_reactor/plugins
@@ -249,6 +256,9 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 
 
 %changelog
+* Tue Jun 30 2015 Jiri Popelka <jpopelka@redhat.com> - 1.3.7-3
+- define macros for RHEL-6
+
 * Mon Jun 22 2015 Slavek Kabrda <bkabrda@redhat.com> - 1.3.7-2
 - rename to atomic-reactor
 
