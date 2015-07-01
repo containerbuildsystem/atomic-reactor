@@ -106,3 +106,4 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
                 "filename": os.path.basename(tar_path),
             })
         osbs.set_annotations_on_build(build_id, labels)
+        return labels
