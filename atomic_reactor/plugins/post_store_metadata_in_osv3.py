@@ -60,17 +60,18 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
         # these should be used for pulling and layering
         primary_repositories = []
         for registry in self.workflow.push_conf.all_registries:
-            for image in self.workflow.tag_conf.images:
+            for image in self.workflow.tag_conf.primary_images:
                 registry_image = image.copy()
                 registry_image.registry = registry.uri
                 primary_repositories.append(registry_image.to_str())
 
         # unique unpredictable repositories
         unique_repositories = []
-        target_image = self.workflow.builder.image.copy()
         for registry in self.workflow.push_conf.all_registries:
-            target_image.registry = registry.uri
-            unique_repositories.append(target_image.to_str())
+            for image in self.workflow.tag_conf.unique_images:
+                registry_image = image.copy()
+                registry_image.registry = registry.uri
+                unique_repositories.append(registry_image.to_str())
 
         repositories = {
             "primary": primary_repositories,
@@ -105,3 +106,4 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
                 "filename": os.path.basename(tar_path),
             })
         osbs.set_annotations_on_build(build_id, labels)
+        return labels

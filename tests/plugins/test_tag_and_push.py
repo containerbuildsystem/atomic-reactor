@@ -37,7 +37,7 @@ def test_tag_and_push_plugin(tmpdir):
 
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
-    workflow.tag_conf.add_image(TEST_IMAGE)
+    workflow.tag_conf.add_primary_image(TEST_IMAGE)
     workflow.push_conf.add_docker_registry(LOCALHOST_REGISTRY, insecure=True)
     setattr(workflow, 'builder', X)
 
