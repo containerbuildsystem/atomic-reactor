@@ -1,4 +1,4 @@
-.TH atomic-reactor 1 2015\-06\-22
+.TH atomic-reactor 1 2015\-07\-02
 .SH SYNOPSIS
  \fBatomic\-reactor\fR [-h] [-q | -v | -V] {build,create-build-image,inside-build} ...
 
@@ -19,26 +19,115 @@
 \fBatomic-reactor [OPTIONS] build
 .PP\fR
   This command enables you to build images. Currently, you can build images
-  from git repo or from local path. There are several methods for performing
-  the build: inside a build container using docker from host, inside a build
-  container using new instance of docker, or within current environment.
+  from git repo, local path or a json file with full build specification.
+  There are several methods for performing the build: inside a build
+  container using docker from host, inside a build container using new
+  instance of docker, or within current environment.
   -h, --help  show this help message and exit
+
+
+.SH COMMANDS
+
+
+\fBatomic-reactor [OPTIONS] build git
+.PP\fR
+  -h, --help            show this help message and exit
+  --image IMAGE         name under which the image will be accessible
+  --uri URI             URI of the git repo
+  --df-path SOURCE__DOCKERFILE_PATH
+                        path to Dockerfile within git repo (default is ./)
+  --source-registry REGISTRY
+                        registry to pull base image from
+  --source-registry-insecure
+                        allow connecting to source registry over plain http
+  --target-registries [REGISTRY [REGISTRY ...]]
+                        list of registries to push image to
+  --target-registries-insecure
+                        allow connecting to target registries over plain http
+  --dont-pull-base-image
+                        don't pull or update base image specified in
+                        dockerfile
+  --build-image BUILD_IMAGE
+                        name of build image to use (build image type has to
+                        match method)
+  --load-plugin [PLUGIN_FILE [PLUGIN_FILE ...]]
+                        list of files where plugins live
+  --method {hostdocker,privileged,here}
+                        choose method for building image: 'hostdocker' mounts
+                        socket inside container, 'privileged' spawns
+                        privileged container and runs separate docker instance
+                        inside and finally 'here' executesbuild in current
+                        environment
+  --commit SOURCE__PROVIDER_PARAMS__GIT_COMMIT
+                        checkout this commit (default is master)
+
+
+\fBatomic-reactor [OPTIONS] build json
+.PP\fR
+  -h, --help            show this help message and exit
+  --build-image BUILD_IMAGE
+                        name of build image to use (build image type has to
+                        match method)
+  --load-plugin [PLUGIN_FILE [PLUGIN_FILE ...]]
+                        list of files where plugins live
+  --method {hostdocker,privileged,here}
+                        choose method for building image: 'hostdocker' mounts
+                        socket inside container, 'privileged' spawns
+                        privileged container and runs separate docker instance
+                        inside and finally 'here' executesbuild in current
+                        environment
+  --substitute [SUBSTITUTE [SUBSTITUTE ...]]
+                        provide substitutions for json in form "foo.bar=spam"
+
+
+\fBatomic-reactor [OPTIONS] build path
+.PP\fR
+  -h, --help            show this help message and exit
+  --image IMAGE         name under which the image will be accessible
+  --uri URI             URI of the directory with source (e.g.
+                        "file:///foo/bar") or path (e.g. "/foo/bar"); path can
+                        be relative
+  --df-path SOURCE__DOCKERFILE_PATH
+                        path to Dockerfile within given directory (default is
+                        ./)
+  --source-registry REGISTRY
+                        registry to pull base image from
+  --source-registry-insecure
+                        allow connecting to source registry over plain http
+  --target-registries [REGISTRY [REGISTRY ...]]
+                        list of registries to push image to
+  --target-registries-insecure
+                        allow connecting to target registries over plain http
+  --dont-pull-base-image
+                        don't pull or update base image specified in
+                        dockerfile
+  --build-image BUILD_IMAGE
+                        name of build image to use (build image type has to
+                        match method)
+  --load-plugin [PLUGIN_FILE [PLUGIN_FILE ...]]
+                        list of files where plugins live
+  --method {hostdocker,privileged,here}
+                        choose method for building image: 'hostdocker' mounts
+                        socket inside container, 'privileged' spawns
+                        privileged container and runs separate docker instance
+                        inside and finally 'here' executesbuild in current
+                        environment
 
 
 \fBatomic-reactor [OPTIONS] create-build-image
 .PP\fR
-  Create build image; atomic-reactor installs itself inside and is capable
+  Create build image; Atomic Reactor installs itself inside and is capable
   of building images within this image.
   -h, --help            show this help message and exit
-  --reactor-latest      put latest atomic-reactor inside (from public git)
+  --reactor-latest      put latest Atomic Reactor inside (from public git)
   --reactor-remote-git REACTOR_REMOTE_GIT
-                        URL to git repo with atomic-reactor (has to contain
+                        URL to git repo with Atomic Reactor (has to contain
                         setup.py)
   --reactor-local-path REACTOR_LOCAL_PATH
-                        path to directory with atomic-reactor (has to contain
+                        path to directory with Atomic Reactor (has to contain
                         setup.py)
   --reactor-tarball-path REACTOR_TARBALL_PATH
-                        path to distribution tarball with atomic-reactor
+                        path to distribution tarball with Atomic Reactor
   --use-cache           use cache to build image (may be faster, but not up to
                         date)
 
@@ -47,10 +136,11 @@
 .PP\fR
   We do expect we are inside container, therefore we'll read build
   configuration from json at '/run/share/build.json'and when the build is
-  done, results are written in that dir so atomic-reactor from host may read
+  done, results are written in that dir so Atomic Reactor from host may read
   those.
   -h, --help            show this help message and exit
-  --input INPUT         input plugin name
+  --input INPUT         input plugin name (determined automatically unless
+                        given)
   --input-arg INPUT_ARG
                         argument for input plugin (in form of 'key=value'),
                         see input plugins to know what arguments they accept
@@ -62,4 +152,4 @@
                         substitute values in build json (key=value, or
                         plugin_type.plugin_name.key=value)
 .SH AUTHORS
- Jiri Popelka <jpopelka@redhat.com>, Martin Milata <mmilata@redhat.com>, Tim Waugh <twaug@redhat.com>, Tomas Tomecek <ttomecek@redhat.com>
+ Jiri Popelka <jpopelka@redhat.com>, Martin Milata <mmilata@redhat.com>, Slavek Kabrda <slavek@redhat.com>, Tim Waugh <twaug@redhat.com>, Tomas Tomecek <ttomecek@redhat.com>
