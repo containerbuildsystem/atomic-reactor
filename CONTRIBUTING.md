@@ -17,14 +17,15 @@ Also note: while this seems to be an awfully long text, chances are you adhere t
 We try to write good code. This is what it means to us:
 
 * Maximum line length is 100 characters
-* Pull Request must pass following checks:
+* Pull Request *must* pass following checks:
   * [Travis CI test](https://travis-ci.org/DBuildService/atomic-reactor) - This means that no tests fail on Python 2.6, 2.7 and >= 3.4
     * You can run tests locally using `pytest`
   * [Landscape test](https://landscape.io/github/DBuildService/atomic-reactor) - This means that code follows pep8 and is otherwise sane. To check this, run these commands:
     * `pyflakes atomic_reactor`
     * `pep8 --max-line-length=100 atomic_reactor`
     * Landscape runs some more tests, which aren't reproducible locally (as far as we know). Feel free to rebase your pull request if Landscape finds issues that you couldn't find while testing on your machine
-  * [Coveralls test](https://coveralls.io/r/DBuildService/atomic-reactor) - This means that code coverage doesn't decrease. You can check that by running `py.test --cov atomic_reactor` without your patch and then with it
+* Pull Request *should* pass following checks:
+  * [Coveralls test](https://coveralls.io/r/DBuildService/atomic-reactor) - This means that code coverage doesn't decrease. You can check that by running `py.test --cov atomic_reactor` without your patch and then with it. Coveralls tend to give false positives, so even if they report failure, we will still accept your pull request assuming it has decent tests
 * Methods and functions that are to be called from different modules in Atomic Reactor must have docstrings.
 * Code should be readable, meaning:
   * Comment where appropriate
