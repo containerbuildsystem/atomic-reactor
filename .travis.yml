@@ -9,6 +9,7 @@ install:
   - "pip install -r tests/requirements.txt"
   - "pip install pytest-cov coveralls"
   - "pip install git+https://github.com/DBuildService/osbs-client"
+  - "pip install git+https://github.com/release-engineering/dockpulp"
 # command to run tests
 script: "py.test -vv tests --cov atomic_reactor"
 # run in a docker container

@@ -117,7 +117,7 @@ class PluginsRunner(object):
             module_name = os.path.basename(f).rsplit('.', 1)[0]
             try:
                 f_module = imp.load_source(module_name, f)
-            except (IOError, OSError, ImportError) as ex:
+            except (IOError, OSError, ImportError, SyntaxError) as ex:
                 logger.warning("can't load module '%s': %s", f, repr(ex))
                 continue
             for name in dir(f_module):

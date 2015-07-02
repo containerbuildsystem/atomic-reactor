@@ -19,7 +19,7 @@ from tests.constants import INPUT_IMAGE, SOURCE, LOCALHOST_REGISTRY_HTTP
 try:
     import dockpulp
     from dock.plugins.post_push_to_pulp import PulpPushPlugin
-except ImportError:
+except (ImportError, SyntaxError):
     dockpulp = None
 
 import pytest
