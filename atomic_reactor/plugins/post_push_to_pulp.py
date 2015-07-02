@@ -7,6 +7,8 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from __future__ import print_function, unicode_literals
+from dockpulp import setup_logger
+
 """
 Push built image to pulp registry
 """
@@ -149,7 +151,8 @@ class PulpPushPlugin(PostBuildPlugin):
     can_fail = False
 
     def __init__(self, tasker, workflow, pulp_registry_name, load_squashed_image=False,
-                 image_names=None, pulp_secret_path=None, username=None, password=None):
+                 image_names=None, pulp_secret_path=None, username=None, password=None,
+                 dockpulp_loglevel=None):
         """
         constructor
 
@@ -171,6 +174,14 @@ class PulpPushPlugin(PostBuildPlugin):
         self.pulp_secret_path = pulp_secret_path
         self.username = username
         self.password = password
+
+        if dockpulp_loglevel is not None:
+            logger = setup_logger(dockpulp.log)
+            try:
+                logger.setLevel(dockpulp_loglevel)
+            except (ValueError, TypeError) as ex:
+                self.log.error("Can't set provided log level %s: %s",
+                               repr(dockpulp_loglevel), repr(ex))
 
     def push_tar(self, image_stream, image_names=None):
         with NamedTemporaryFile(prefix='docker-image-',
