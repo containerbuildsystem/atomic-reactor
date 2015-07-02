@@ -125,7 +125,8 @@ class CLI(object):
             'build',
             usage="%s [OPTIONS] build" % PROG,
             description='This command enables you to build images. '
-                        'Currently, you can build images from git repo or from local path. '
+                        'Currently, you can build images from git repo, local path or '
+                        'a json file with full build specification. '
                         'There are several methods for performing the build: '
                         'inside a build container using docker from host, '
                         'inside a build container using new instance of docker, '
@@ -181,8 +182,14 @@ class CLI(object):
         build_subparsers = self.build_parser.add_subparsers(help='select source provider to use',
                                                             dest='source__provider')
         self.source_types_parsers = {
-            'git': build_subparsers.add_parser('git', help='build from a git repo'),
-            'path': build_subparsers.add_parser('path', help='build from a local path'),
+            'git': build_subparsers.add_parser(
+                'git',
+                help='build from a git repo',
+                usage="%s [OPTIONS] build git" % PROG),
+            'path': build_subparsers.add_parser(
+                'path',
+                help='build from a local path',
+                usage="%s [OPTIONS] build path" % PROG),
         }
         source_types_uri_help = {
             'git': 'URI of the git repo',
@@ -224,7 +231,8 @@ class CLI(object):
         # add the "json" subparser that allows to build from a json build file
         self.source_types_parsers['json'] = build_subparsers.add_parser(
             'json',
-            help='load build configuration from json file')
+            help='load build configuration from json file',
+            usage="%s [OPTIONS] build json" % PROG)
 
         # add arguments common to both non-json and json source types
         for stp in self.source_types_parsers.values():

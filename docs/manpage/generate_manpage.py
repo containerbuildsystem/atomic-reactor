@@ -6,6 +6,7 @@ https://github.com/pwman3/pwman3/blob/d718a01fa8038893e42416b59cdfcda3935fe878/b
 
 """
 
+from collections import OrderedDict
 import datetime
 import argparse
 
@@ -27,11 +28,15 @@ class ManPageGenerator(object):
                                    "authors": MANPAGE_AUTHORS,
                                })
 
-        m = mpf.format_man_page(main_parser=self.cli.parser, subparsers=[
-            self.cli.build_parser,
-            self.cli.bi_parser,
-            self.cli.ib_parser,
-        ])
+        build_subparsers = OrderedDict(sorted(
+            [(p, OrderedDict()) for p in self.cli.source_types_parsers.values()],
+            key=lambda p: p[0].prog
+        ))
+        m = mpf.format_man_page(main_parser=self.cli.parser, subparsers=OrderedDict([
+            (self.cli.build_parser, build_subparsers),
+            (self.cli.bi_parser, OrderedDict()),
+            (self.cli.ib_parser, OrderedDict()),
+        ]))
         with open(self.output, 'w') as f:
             f.write(m)
 
@@ -142,7 +147,7 @@ class ManPageFormatter(argparse.HelpFormatter):
 
     def create_commands(self, subparsers):
         formatted_helps = ""
-        for parser in subparsers:
+        for parser, nested_subparsers in subparsers.items():
             formatter = parser._get_formatter()
             # mention optional arguments only, not positional: those should be in usage
             action_group = parser._action_groups[1]
@@ -166,6 +171,8 @@ class ManPageFormatter(argparse.HelpFormatter):
                 if line:
                     formatted_help += line + "\n"
             formatted_helps += formatted_help
+            if nested_subparsers:
+                formatted_helps += self.create_commands(nested_subparsers)
         return '\n\n.SH COMMANDS\n' + formatted_helps
 
     def _format_action_invocation(self, action):

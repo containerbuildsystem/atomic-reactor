@@ -126,18 +126,22 @@ $ docker build -t buildroot-hostdocker .
 As soon as our build image is built, we can start building stuff in it:
 
 ```bash
-$ atomic-reactor build --method hostdocker --build-image buildroot --image test-image --git-url "https://github.com/TomasTomecek/docker-hello-world.git"
+$ atomic-reactor build git --method hostdocker --build-image buildroot --image test-image --uri "https://github.com/TomasTomecek/docker-hello-world.git"
 ```
 
 Built image will be in the build container. Therefore this example doesn't make much sense. If you would like to access the built image, you should probably push it to your registry and build it like this:
 
 ```bash
-$ atomic-reactor build --method hostdocker \
+$ atomic-reactor build git --method hostdocker \
              --build-image buildroot \
              --image test-image \
              --target-registries 172.17.42.1:5000 \
-             --git-url "https://github.com/TomasTomecek/docker-hello-world.git"
+             --uri "https://github.com/TomasTomecek/docker-hello-world.git"
 ```
+
+Both of these examples use the `git` source provider (`atomic-reactor build git`), which gets the source code to put in the image from a git repo. There are also other providers:
+ * `path` - uses source code from local path
+ * `json` - accepts a path to build json file with all info needed for build
 
 IP address `172.17.42.1` should be address of docker0 network interface. Update it if yours is different. Also, don't forget to start the registry.
 
