@@ -18,7 +18,7 @@ from atomic_reactor.util import ImageName
 from tests.constants import INPUT_IMAGE, SOURCE, LOCALHOST_REGISTRY_HTTP
 try:
     import dockpulp
-    from dock.plugins.post_push_to_pulp import PulpPushPlugin
+    from atomic_reactor.plugins.post_push_to_pulp import PulpPushPlugin
 except (ImportError, SyntaxError):
     dockpulp = None
 
@@ -62,7 +62,9 @@ def test_pulp(tmpdir):
     (flexmock(dockpulp.Pulp)
      .should_receive('push_tar_to_pulp')
      .with_args(object, object))
-    flexmock(dockpulp.Pulp).should_receive('crane').with_args()
+    (flexmock(dockpulp.Pulp)
+     .should_receive('crane')
+     .with_args(repos=list))
     mock_docker()
 
     os.environ['SOURCE_SECRET_PATH'] = str(tmpdir)
