@@ -58,7 +58,11 @@ def test_pulp(tmpdir):
     (flexmock(dockpulp.imgutils).should_receive('get_versions')
      .with_args(object)
      .and_return({'id': '1.6.0'}))
-    flexmock(dockpulp.imgutils).should_receive('check_repo').and_return(0)
+    (flexmock(dockpulp.imgutils).should_receive('check_repo')
+     .and_return(3)
+     .and_return(2)
+     .and_return(1)
+     .and_return(0))
     (flexmock(dockpulp.Pulp)
      .should_receive('push_tar_to_pulp')
      .with_args(object, object))
@@ -78,6 +82,12 @@ def test_pulp(tmpdir):
         'args': {
             'pulp_registry_name': 'test'
         }}])
+    with pytest.raises(Exception) as rc3:
+        runner.run()
+    with pytest.raises(Exception) as rc2:
+        runner.run()
+    with pytest.raises(Exception) as rc1:
+        runner.run()
     runner.run()
     assert PulpPushPlugin.key is not None
     images = [i.to_str() for i in workflow.postbuild_results[PulpPushPlugin.key]]
