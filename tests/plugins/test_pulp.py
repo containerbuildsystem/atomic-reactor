@@ -18,7 +18,7 @@ from atomic_reactor.util import ImageName
 from tests.constants import INPUT_IMAGE, SOURCE, LOCALHOST_REGISTRY_HTTP
 try:
     import dockpulp
-    from dock.plugins.post_push_to_pulp import PulpPushPlugin
+    from atomic_reactor.plugins.post_push_to_pulp import PulpPushPlugin
 except (ImportError, SyntaxError):
     dockpulp = None
 
@@ -58,11 +58,17 @@ def test_pulp(tmpdir):
     (flexmock(dockpulp.imgutils).should_receive('get_versions')
      .with_args(object)
      .and_return({'id': '1.6.0'}))
-    flexmock(dockpulp.imgutils).should_receive('check_repo').and_return(0)
+    (flexmock(dockpulp.imgutils).should_receive('check_repo')
+     .and_return(3)
+     .and_return(2)
+     .and_return(1)
+     .and_return(0))
     (flexmock(dockpulp.Pulp)
      .should_receive('push_tar_to_pulp')
      .with_args(object, object))
-    flexmock(dockpulp.Pulp).should_receive('crane').with_args()
+    (flexmock(dockpulp.Pulp)
+     .should_receive('crane')
+     .with_args(repos=list))
     mock_docker()
 
     os.environ['SOURCE_SECRET_PATH'] = str(tmpdir)
@@ -76,6 +82,12 @@ def test_pulp(tmpdir):
         'args': {
             'pulp_registry_name': 'test'
         }}])
+    with pytest.raises(Exception) as rc3:
+        runner.run()
+    with pytest.raises(Exception) as rc2:
+        runner.run()
+    with pytest.raises(Exception) as rc1:
+        runner.run()
     runner.run()
     assert PulpPushPlugin.key is not None
     images = [i.to_str() for i in workflow.postbuild_results[PulpPushPlugin.key]]
