@@ -36,7 +36,13 @@ class X(object):
 
 @pytest.mark.skipif(dockpulp is None,
                     reason='dockpulp module not available')
-def test_pulp(tmpdir):
+@pytest.mark.parametrize(("check_repo_retval", "should_raise"), [
+    (3, True),
+    (2, True),
+    (1, True),
+    (0, False),
+])
+def test_pulp(tmpdir, check_repo_retval, should_raise):
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     setattr(workflow, 'builder', X())
@@ -59,10 +65,7 @@ def test_pulp(tmpdir):
      .with_args(object)
      .and_return({'id': '1.6.0'}))
     (flexmock(dockpulp.imgutils).should_receive('check_repo')
-     .and_return(3)
-     .and_return(2)
-     .and_return(1)
-     .and_return(0))
+     .and_return(check_repo_retval))
     (flexmock(dockpulp.Pulp)
      .should_receive('push_tar_to_pulp')
      .with_args(object, object))
@@ -82,12 +85,13 @@ def test_pulp(tmpdir):
         'args': {
             'pulp_registry_name': 'test'
         }}])
-    with pytest.raises(Exception) as rc3:
-        runner.run()
-    with pytest.raises(Exception) as rc2:
-        runner.run()
-    with pytest.raises(Exception) as rc1:
-        runner.run()
+
+    if should_raise:
+        with pytest.raises(Exception) as exc:
+            runner.run()
+
+        return
+
     runner.run()
     assert PulpPushPlugin.key is not None
     images = [i.to_str() for i in workflow.postbuild_results[PulpPushPlugin.key]]
