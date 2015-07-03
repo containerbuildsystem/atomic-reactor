@@ -135,13 +135,13 @@ class PulpUploader(object):
 
 def compress(filename, ifp):
     _chunk_size = 1024*1024  # 1Mb buffer for writing file
-    with gzip.open(filename, "wb", compresslevel=6) as wfp:
-        while True:
-            data = ifp.read(_chunk_size)
-            if data == b'':
-                break
+    wfp = gzip.open(filename, "wb", compresslevel=6)
+    while True:
+        data = ifp.read(_chunk_size)
+        if data == b'':
+            break
 
-            wfp.write(data)
+        wfp.write(data)
 
 
 class PulpPushPlugin(PostBuildPlugin):
