@@ -9,13 +9,12 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 import os
-import logging
 
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.util import ImageName
-from tests.constants import INPUT_IMAGE, SOURCE, LOCALHOST_REGISTRY_HTTP
+from tests.constants import INPUT_IMAGE, SOURCE
 try:
     import dockpulp
     from atomic_reactor.plugins.post_push_to_pulp import PulpPushPlugin
