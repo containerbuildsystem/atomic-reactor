@@ -67,7 +67,7 @@ def test_pulp(tmpdir, check_repo_retval, should_raise):
     (flexmock(dockpulp.imgutils).should_receive('check_repo')
      .and_return(check_repo_retval))
     (flexmock(dockpulp.Pulp)
-     .should_receive('push_tar_to_pulp')
+     .should_receive('set_certs')
      .with_args(object, object))
     (flexmock(dockpulp.Pulp)
      .should_receive('push_tar_to_pulp')

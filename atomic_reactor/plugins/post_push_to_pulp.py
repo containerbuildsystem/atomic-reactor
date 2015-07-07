@@ -88,8 +88,7 @@ class PulpUploader(object):
                 raise RuntimeError("Key does not exist.")
 
             # Tell dockpulp.
-            p.certificate = cer
-            p.key = key
+            p.set_certs(cer, key)
 
     def push_tarball_to_pulp(self, image_names):
         self.log.info("checking image before upload")
