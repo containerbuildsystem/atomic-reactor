@@ -70,7 +70,7 @@ def test_pulp(tmpdir, check_repo_retval, should_raise):
      .with_args(object, object))
     (flexmock(dockpulp.Pulp)
      .should_receive('push_tar_to_pulp')
-     .with_args(object, object)
+     .with_args(object, object, repo_prefix=unicode)
      .and_return([1, 2, 3]))
     (flexmock(dockpulp.Pulp)
      .should_receive('watch_tasks')
