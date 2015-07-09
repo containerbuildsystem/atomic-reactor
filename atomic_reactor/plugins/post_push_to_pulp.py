@@ -30,7 +30,7 @@ class PulpUploader(object):
     KEY = 'pulp.key'
 
     def __init__(self, workflow, pulp_instance, filename, log, pulp_secret_path=None, username=None,
-                 password=None):
+                 password=None, scratch_build=False):
         self.workflow = workflow
         self.pulp_instance = pulp_instance
         self.filename = filename
@@ -39,6 +39,7 @@ class PulpUploader(object):
         # U/N & password has bigger prio than secret cert
         self.username = username
         self.password = password
+        self.scratch_build = scratch_build
 
     def _check_file(self):
         # Sanity-check image
@@ -112,7 +113,9 @@ class PulpUploader(object):
             repos_tags_mapping[repo].setdefault("tags", [])
             repos_tags_mapping[repo]["tags"].append(image.tag)
         self.log.info("repo_tags_mapping = %s", repos_tags_mapping)
-        task_ids = p.push_tar_to_pulp(repos_tags_mapping, self.filename)
+
+        kwargs = {'repo_prefix': 'scratch-'} if self.scratch_build else {}
+        task_ids = p.push_tar_to_pulp(repos_tags_mapping, self.filename, **kwargs)
 
         self.log.info("waiting for repos to be published to crane")
         p.watch_tasks(task_ids)
@@ -150,7 +153,7 @@ class PulpPushPlugin(PostBuildPlugin):
 
     def __init__(self, tasker, workflow, pulp_registry_name, load_squashed_image=False,
                  image_names=None, pulp_secret_path=None, username=None, password=None,
-                 dockpulp_loglevel=None):
+                 dockpulp_loglevel=None, scratch_build=False):
         """
         constructor
 
@@ -163,6 +166,7 @@ class PulpPushPlugin(PostBuildPlugin):
         :param pulp_secret_path: path to pulp.cer and pulp.key; $SOURCE_SECRET_PATH otherwise
         :param username: pulp username, used in preference to certificate and key
         :param password: pulp password, used in preference to certificate and key
+        :param scratch_build: bool, whether we are pushing a scratch build (changes repo prefix)
         """
         # call parent constructor
         super(PulpPushPlugin, self).__init__(tasker, workflow)
@@ -172,6 +176,7 @@ class PulpPushPlugin(PostBuildPlugin):
         self.pulp_secret_path = pulp_secret_path
         self.username = username
         self.password = password
+        self.scratch_build = scratch_build
 
         if dockpulp_loglevel is not None:
             logger = setup_logger(dockpulp.log)
@@ -195,7 +200,7 @@ class PulpPushPlugin(PostBuildPlugin):
             # Give that compressed tarball to pulp.
             uploader = PulpUploader(self.workflow, self.pulp_registry_name, targz.name, self.log,
                                     pulp_secret_path=self.pulp_secret_path, username=self.username,
-                                    password=self.password)
+                                    password=self.password, scratch_build=self.scratch_build)
             return uploader.push_tarball_to_pulp(image_names)
 
     def run(self):

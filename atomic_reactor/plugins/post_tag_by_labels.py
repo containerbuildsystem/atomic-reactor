@@ -21,16 +21,17 @@ class TagByLabelsPlugin(PostBuildPlugin):
     key = "tag_by_labels"
     can_fail = False
 
-    def __init__(self, tasker, workflow, **kwargs):
+    def __init__(self, tasker, workflow, scratch_build=False, **kwargs):
         """
         constructor
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
+        :param scratch_build: bool, whether we are tagging a scratch build
         """
         # call parent constructor
         super(TagByLabelsPlugin, self).__init__(tasker, workflow)
-        self.log.warning("ignoring arguments %s", kwargs)
+        self.scratch_build = scratch_build
 
     def run(self):
         if not self.workflow.built_image_inspect:
@@ -56,5 +57,11 @@ class TagByLabelsPlugin(PostBuildPlugin):
         n = "%s:latest" % name
         n_unique = "%s:%s" % (name, unique_tag)
 
-        self.workflow.tag_conf.add_primary_images([nvr, nv, n])
+        primary_tags = [nvr, nv, n]
+
+        if self.scratch_build:
+            primary_tags = map(lambda tag: 'scratch-' + tag, primary_tags)
+            n_unique = 'scratch-' + n_unique
+
+        self.workflow.tag_conf.add_primary_images(primary_tags)
         self.workflow.tag_conf.add_unique_image(n_unique)
