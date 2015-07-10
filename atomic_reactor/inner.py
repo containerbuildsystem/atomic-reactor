@@ -334,25 +334,6 @@ class DockerBuildWorkflow(object):
         finally:
             self.source.remove_tmpdir()
 
-    def _prepare_response(self):
-        """
-        prepare response for build: gather info about images
-
-        :return BuildResults
-        """
-        # FIXME: everything in here should be in separate postbuild plugin
-        assert self.builder is not None
-        runner = PostBuildPluginsRunner(self.builder.tasker, self, self.postbuild_plugins_conf,
-                                        plugin_files=self.plugin_files)
-        results = BuildResults()
-        results.built_img_inspect = self.builder.inspect_built_image()
-        results.built_img_info = self.builder.get_built_image_info()
-        results.base_img_inspect = self.builder.inspect_base_image()
-        results.base_img_info = self.builder.get_base_image_info()
-        results.base_plugins_output = runner.run()  # self.builder.base_image_name
-        results.built_img_plugins_output = runner.run()  # self.builder.image
-        return results
-
 
 def build_inside(input, input_args=None, substitutions=None):
     """
