@@ -62,6 +62,7 @@ def test_add_labels_plugin(tmpdir, labels_conf, expected_output):
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     setattr(workflow, 'builder', X)
+    workflow.base_image_inspect = {"Config": {"Labels": {}}}
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
 
     runner = PreBuildPluginsRunner(
@@ -80,3 +81,38 @@ def test_add_labels_plugin(tmpdir, labels_conf, expected_output):
         runner.run()
         assert AddLabelsPlugin.key is not None
         assert df.content in expected_output
+
+
+def test_addlabels_plugin_ignore_labels(tmpdir):
+    df_content = """\
+FROM fedora
+RUN yum install -y python-django
+CMD blabla"""
+    df = DockerfileParser(str(tmpdir))
+    df.content = df_content
+
+    tasker = DockerTasker()
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    setattr(workflow, 'builder', X)
+    workflow.base_image_inspect = {"Config": {"Labels": {"label1": "value2"}}}
+    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+
+    labels_conf = OrderedDict({'label1': 'value 1', 'label2': 'long value'})
+
+    runner = PreBuildPluginsRunner(
+        tasker,
+        workflow,
+        [{
+            'name': AddLabelsPlugin.key,
+            'args': {'labels': labels_conf, "dont_overwrite": ["label1",]}
+        }]
+    )
+    runner.run()
+    assert AddLabelsPlugin.key is not None
+
+    # Can't be sure of the order of the labels, expect either
+    expected_output = [r"""FROM fedora
+RUN yum install -y python-django
+LABEL "label2"="long value"
+CMD blabla"""]
+    assert df.content in expected_output

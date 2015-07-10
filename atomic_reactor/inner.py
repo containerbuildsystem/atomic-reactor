@@ -259,6 +259,7 @@ class DockerBuildWorkflow(object):
         self.builder = None
         self.build_logs = None
         self.built_image_inspect = None
+        self.base_image_inspect = None
 
         self.dont_pull_base_image = dont_pull_base_image
         self.pulled_base_images = set()
@@ -290,6 +291,8 @@ class DockerBuildWorkflow(object):
             if not self.dont_pull_base_image:
                 self.pulled_base_images = self.builder.pull_base_image(self.parent_registry,
                                                                        insecure=self.parent_registry_insecure)
+
+            self.base_image_inspect = self.builder.tasker.inspect_image(self.builder.base_image)
 
             # time to run pre-build plugins, so they can access cloned repo,
             # base image
