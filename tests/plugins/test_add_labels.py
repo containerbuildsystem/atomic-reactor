@@ -36,85 +36,33 @@ class X(object):
     source.path = None
     base_image = ImageName(repo="qwe", tag="asd")
 
-
-def test_addlabels_plugin(tmpdir):
-    df_content = """\
+DF_CONTENT = """\
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
-    df = DockerfileParser(str(tmpdir))
-    df.content = df_content
-
-    tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
-    setattr(workflow, 'builder', X)
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
-
-    labels_conf = OrderedDict({'label1': 'value 1', 'label2': 'long value'})
-
-    runner = PreBuildPluginsRunner(
-        tasker,
-        workflow,
-        [{
-            'name': AddLabelsPlugin.key,
-            'args': {'labels': labels_conf}
-        }]
-    )
-    runner.run()
-    assert AddLabelsPlugin.key is not None
-
-    # Can't be sure of the order of the labels, expect either
-    expected_output = [r"""FROM fedora
+LABELS_CONF = OrderedDict({'label1': 'value 1', 'label2': 'long value'})
+LABELS_CONF_WRONG = [('label1', 'value1'), ('label2', 'value2')]
+# Can't be sure of the order of the labels, expect either
+EXPECTED_OUTPUT = [r"""FROM fedora
 RUN yum install -y python-django
 LABEL "label1"="value 1" "label2"="long value"
-CMD blabla""",
-                       r"""FROM fedora
+CMD blabla""", r"""FROM fedora
 RUN yum install -y python-django
 LABEL "label2"="long value" "label1"="value 1"
 CMD blabla"""]
-    assert df.content in expected_output
-
-def test_addlabels_string_args(tmpdir):
-    df_content = """\
-FROM fedora
-RUN yum install -y python-django
-CMD blabla"""
+@pytest.mark.parametrize('labels_conf, expected_output', [
+    (LABELS_CONF, EXPECTED_OUTPUT),
+    (json.dumps(LABELS_CONF), EXPECTED_OUTPUT),
+    (LABELS_CONF_WRONG, RuntimeError())
+])
+def test_add_labels_plugin(tmpdir, labels_conf, expected_output):
     df = DockerfileParser(str(tmpdir))
-    df.content = df_content
+    df.content = DF_CONTENT
 
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     setattr(workflow, 'builder', X)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
-
-    labels_conf = OrderedDict({'label1': 'value 1', 'label2': 'long value'})
-
-    runner = PreBuildPluginsRunner(
-        tasker,
-        workflow,
-        [{
-            'name': AddLabelsPlugin.key,
-            'args': {'labels': json.dumps(labels_conf)}
-        }]
-    )
-    # Should not raise exception even though we pass a string instead
-    # of a dict, because it can be decoded as JSON.
-    runner.run()
-
-def test_addlabels_bad_args(tmpdir):
-    df_content = """\
-FROM fedora
-RUN yum install -y python-django
-CMD blabla"""
-    df = DockerfileParser(str(tmpdir))
-    df.content = df_content
-
-    tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
-    setattr(workflow, 'builder', X)
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
-
-    labels_conf = [('label1', 'value1'), ('label2', 'value2')]
 
     runner = PreBuildPluginsRunner(
         tasker,
@@ -124,6 +72,11 @@ CMD blabla"""
             'args': {'labels': labels_conf}
         }]
     )
-    # Should fail: labels_conf is not a dict
-    with pytest.raises(Exception) as excinfo:
+
+    if isinstance(expected_output, RuntimeError):
+        with pytest.raises(RuntimeError):
+            runner.run()
+    else:
         runner.run()
+        assert AddLabelsPlugin.key is not None
+        assert df.content in expected_output
