@@ -37,6 +37,9 @@ DOCKER0_REGISTRY = "%s:%s" % (DOCKER0_IP, REGISTRY_PORT)
 LOCALHOST_REGISTRY_HTTP = "http://%s" % LOCALHOST_REGISTRY
 DOCKER0_REGISTRY_HTTP = "http://%s" % DOCKER0_REGISTRY
 
+BASE_IMAGE = "fedora:latest"
+BASE_IMAGE_W_REGISTRY = LOCALHOST_REGISTRY + "/" + BASE_IMAGE
+
 COMMAND = "eporeporjgpeorjgpeorjgpeorjgpeorjgpeorjg"
 
 NON_ASCII = "žluťoučký"

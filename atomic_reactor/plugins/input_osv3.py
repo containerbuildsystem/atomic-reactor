@@ -12,6 +12,7 @@ import json
 import os
 
 from atomic_reactor.plugin import InputPlugin
+from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
 
 
 class OSv3InputPlugin(InputPlugin):
@@ -61,6 +62,14 @@ class OSv3InputPlugin(InputPlugin):
             'parent_registry_insecure': source_registry_insecure,
         }
         input_json.update(plugins_json)
+
+        # XXX: Remove this after Sep 2015
+        has_pull_base_plugin = any(p['name'] == PullBaseImagePlugin.key
+                                   for p in input_json.setdefault('prebuild_plugins', {}))
+        if not has_pull_base_plugin:
+            self.log.warning("%s is missing in prebuild_plugins - please update your osbs-client!",
+                             PullBaseImagePlugin.key)
+            input_json['prebuild_plugins'].insert(0, { "name": PullBaseImagePlugin.key })
 
         self.log.debug("build json: %s", input_json)
 

@@ -34,42 +34,6 @@ with_all_sources = pytest.mark.parametrize('source_params', [
 
 
 @with_all_sources
-def test_pull_base_image(tmpdir, source_params):
-    if MOCK:
-        mock_docker()
-
-    source_params.update({'tmpdir': str(tmpdir)})
-    s = get_source_instance_for(source_params)
-    t = DockerTasker()
-    b = InsideBuilder(s, "")
-    pulled_tags = b.pull_base_image(LOCALHOST_REGISTRY, insecure=True)
-    assert isinstance(pulled_tags, set)
-    assert len(pulled_tags) == 2
-    for reg_img_name in pulled_tags:
-        reg_img_name = ImageName.parse(reg_img_name)
-        assert t.inspect_image(reg_img_name) is not None
-        assert reg_img_name.repo == git_base_image.repo
-        assert reg_img_name.tag == git_base_image.tag
-    # clean
-    t.remove_image(git_base_image)
-
-
-def test_pull_base_image_with_registry(tmpdir):
-    mock_docker()
-    source_params = {'provider': 'path',
-                     'uri': 'file://%s' % str(tmpdir),
-                     'tmpdir': str(tmpdir)}
-    with open(os.path.join(str(tmpdir), DOCKERFILE_FILENAME), 'wt') as fp:
-        fp.writelines(['FROM %s/namespace/repo:tag\n' % LOCALHOST_REGISTRY])
-
-    s = get_source_instance_for(source_params)
-    t = DockerTasker()
-    b = InsideBuilder(s, "")
-    pulled_tags = b.pull_base_image(LOCALHOST_REGISTRY, insecure=True)
-    assert isinstance(pulled_tags, set)
-
-
-@with_all_sources
 def test_build_image(tmpdir, source_params):
     provided_image = "test-build:test_tag"
     if MOCK:

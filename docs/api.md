@@ -414,15 +414,6 @@ Python API for dock. This is the official way of interacting with dock.
     :return: dict
 ```
 
-**pull\_base\_image**(self, source\_registry, insecure=False):
-```
-    pull base image
-
-    :param source_registry: str, registry to pull from
-    :param insecure: bool, allow connecting to registry over plain http
-    :return:
-```
-
 **push\_built\_image**(self, registry, insecure=False):
 ```
     push built image to provided registry

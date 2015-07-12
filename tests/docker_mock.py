@@ -39,6 +39,8 @@ mock_image = \
      'Size': 0,
      'VirtualSize': 856564160}
 
+mock_images = None
+
 mock_logs = b'uid=0(root) gid=0(root) groups=10(wheel)'
 
 mock_build_logs = \
@@ -66,12 +68,63 @@ mock_push_logs = \
     b'{"errorDetail":{"message":"Repository does not exist: localhost:5000/atomic-reactor-tests-b3a11e13d27c428f8fa2914c8c6a6d96"},' \
     b'"error":"Repository does not exist: localhost:5000/atomic-reactor-tests-b3a11e13d27c428f8fa2914c8c6a6d96"}\r\n'
 
+def _find_image(img):
+    global mock_images
+
+    for im in mock_images:
+        if im['RepoTags'][0] == img:
+            return im
+
+    return None
+
+def _docker_exception(code=404, content='not found'):
+    response = flexmock(content=content, status_code=code)
+    return docker.errors.APIError(code, response)
+
+def _mock_pull(repo, tag='latest', **kwargs):
+    repotag = '%s:%s' % (repo, tag)
+    if _find_image(repotag) is None:
+        new_image = mock_image.copy()
+        new_image['RepoTags'] = [repotag]
+        mock_images.append(new_image)
+
+    return iter(mock_pull_logs)
+
+def _mock_remove_image(img, **kwargs):
+    i = _find_image(img)
+    if i is not None:
+        mock_images.remove(i)
+        return None
+
+    raise _docker_exception()
+
+def _mock_inspect(img, **kwargs):
+    i = _find_image(img)
+    if i is not None:
+        return i
+
+    raise _docker_exception()
+
+def _mock_tag(src_img, dest_repo, dest_tag='latest', **kwargs):
+    i = _find_image(src_img)
+    if i is None:
+        raise _docker_exception()
+
+    dst_img = "%s:%s" % (dest_repo, dest_tag)
+    i = _find_image(dst_img)
+    if i is None:
+        new_image = mock_image.copy()
+        new_image['RepoTags'] = [dst_img]
+        mock_images.append(new_image)
+
+    return True
 
 def mock_docker(build_should_fail=False,
                 inspect_should_fail=False,
                 wait_should_fail=False,
                 provided_image_repotags=None,
-                should_raise_error={}):
+                should_raise_error={},
+                remember_images=False):
     """
     mock all used docker.Client methods
 
@@ -80,6 +133,7 @@ def mock_docker(build_should_fail=False,
     :param wait_should_fail: True == wait() will return 1 instead of 0
     :param provided_image_repotags: images() will contain provided image
     :param should_raise_error: methods (with args) to raise docker.errors.APIError
+    :param remember_images: keep track of available image tags
     """
     if provided_image_repotags:
         mock_image['RepoTags'] = provided_image_repotags
@@ -110,3 +164,12 @@ def mock_docker(build_should_fail=False,
             flexmock(docker.Client).should_receive(method).with_args(*args).and_raise(docker.errors.APIError, "xyz", response)
         else:
             flexmock(docker.Client).should_receive(method).and_raise(docker.errors.APIError, "xyz", response)
+
+    if remember_images:
+        global mock_images
+        mock_images = [mock_image]
+
+        flexmock(docker.Client, inspect_image=_mock_inspect)
+        flexmock(docker.Client, pull=_mock_pull)
+        flexmock(docker.Client, remove_image=_mock_remove_image)
+        flexmock(docker.Client, tag=_mock_tag)
