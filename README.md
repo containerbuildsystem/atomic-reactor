@@ -1,9 +1,9 @@
 Atomic Reactor
 ==============
 
-[![Build Status](https://travis-ci.org/DBuildService/atomic-reactor.svg?branch=master)](https://travis-ci.org/DBuildService/atomic-reactor)
-[![Code Health](https://landscape.io/github/DBuildService/atomic-reactor/master/landscape.svg?style=flat)](https://landscape.io/github/DBuildService/atomic-reactor/master)
-[![Coverage Status](https://coveralls.io/repos/DBuildService/atomic-reactor/badge.svg?branch=master)](https://coveralls.io/r/DBuildService/atomic-reactor?branch=master)
+[![Build Status](https://travis-ci.org/projectatomic/atomic-reactor.svg?branch=master)](https://travis-ci.org/projectatomic/atomic-reactor)
+[![Code Health](https://landscape.io/github/projectatomic/atomic-reactor/master/landscape.svg?style=flat)](https://landscape.io/github/projectatomic/atomic-reactor/master)
+[![Coverage Status](https://coveralls.io/repos/projectatomic/atomic-reactor/badge.svg?branch=master)](https://coveralls.io/r/projectatomic/atomic-reactor?branch=master)
 
 Python library with command line interface for building docker images.
 
@@ -40,7 +40,7 @@ $ yum install atomic-reactor python-atomic-reactor-koji
 Clone this git repo and install Atomic Reactor using python installer:
 
 ```bash
-$ git clone https://github.com/DBuildService/atomic-reactor.git
+$ git clone https://github.com/projectatomic/atomic-reactor.git
 $ cd atomic-reactor
 $ sudo pip install .
 ```
@@ -56,7 +56,7 @@ $ alias atomic-reactor="python ${REACTOR_PATH}/atomic-reactor/cli/main.py"
 
  * [GitPython](https://github.com/gitpython-developers/GitPython/)
  * [docker-py](https://github.com/docker/docker-py).
- * [koji](https://github.com/DBuildService/atomic-reactor/blob/master/atomic_reactor/plugins/pre_koji.py) plugin requires `koji` package, which is not available on PyPI: you have to install it manually:
+ * [koji](https://github.com/projectatomic/atomic-reactor/blob/master/atomic_reactor/plugins/pre_koji.py) plugin requires `koji` package, which is not available on PyPI: you have to install it manually:
 ```
 $ yum install koji
 ```
@@ -72,13 +72,13 @@ You can either get the build image from Dockerhub or create it yourself.
 Just use
 
 ```bash
-$ docker pull slavek/buildroot
+$ docker pull slavek/atomic-reactor
 ```
 
 This will pull the `buildroot` image with the latest Atomic Reactor commits. Images with stable releases are available since version 1.3.3 and you can access them by using the version specifier as a tag, such as
 
 ```bash
-$ docker pull slavek/buildroot:1.3.3
+$ docker pull slavek/atomic-reactor:1.3.3
 ```
 
 ### installation from git
@@ -89,7 +89,7 @@ $ atomic-reactor create-build-image --reactor-local-path ${PATH_TO_REACTOR_GIT} 
 
 Why is it so long? Okay, let's get through. First thing is that Atomic Reactor needs to install itself inside the build image. You can pick several sources for Atomic Reactor: your local copy, (this) official upstream repo, your forked repo or even distribution tarball. In the example above, we are using our locally cloned git repo (`--reactor-local-path ${PATH_TO_REACTOR_GIT}`).
 
-You have to provide Dockerfile too. Luckily these are part of upstream repo (see folder [images](https://github.com/DBuildService/atomic-reactor/tree/master/images)). It's the first argument: `${PATH_TO_REACTOR_GIT}/images/dockerhost-builder`.
+You have to provide Dockerfile too. Luckily these are part of upstream repo (see folder [images](https://github.com/projectatomic/atomic-reactor/tree/master/images)). It's the first argument: `${PATH_TO_REACTOR_GIT}/images/dockerhost-builder`.
 
 And finally, you need to name the image: `buildroot`.
 
@@ -151,8 +151,8 @@ Bear in mind that you shouldn't mix build methods: if you use _hostdocker_ metho
 
 ## Further reading
 
- * [plugins](https://github.com/DBuildService/atomic-reactor/blob/master/docs/plugins.md)
- * [plugin development](https://github.com/DBuildService/atomic-reactor/blob/master/docs/plugin_development.md)
- * [api](https://github.com/DBuildService/atomic-reactor/blob/master/docs/api.md)
- * [build json](https://github.com/DBuildService/atomic-reactor/blob/master/docs/build_json.md)
- * [building Atomic Reactor](https://github.com/DBuildService/atomic-reactor/blob/master/docs/releasing.md)
+ * [plugins](https://github.com/projectatomic/atomic-reactor/blob/master/docs/plugins.md)
+ * [plugin development](https://github.com/projectatomic/atomic-reactor/blob/master/docs/plugin_development.md)
+ * [api](https://github.com/projectatomic/atomic-reactor/blob/master/docs/api.md)
+ * [build json](https://github.com/projectatomic/atomic-reactor/blob/master/docs/build_json.md)
+ * [building Atomic Reactor](https://github.com/projectatomic/atomic-reactor/blob/master/docs/releasing.md)

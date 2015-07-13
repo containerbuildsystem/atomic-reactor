@@ -8,7 +8,7 @@
 %global with_python3 1
 %endif
 
-%global owner DBuildService
+%global owner projectatomic
 %global project atomic-reactor
 
 %global commit 9b7fc79daa7aaa68286d042ef6667d10bfd55c2b

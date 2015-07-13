@@ -1,7 +1,7 @@
 Writing plugins for Atomic Reactor
 ==================================
 
-For more information about plugins, see [plugins](https://github.com/DBuildService/atomic-reactor/blob/master/docs/plugins.md) document.
+For more information about plugins, see [plugins](https://github.com/projectatomic/atomic-reactor/blob/master/docs/plugins.md) document.
 
 Let's create a plugin, which sends build log to provided URL.
 
@@ -10,7 +10,7 @@ Let's create a plugin, which sends build log to provided URL.
 We'll use Atomic Reactor from git (you can also get it from your distribution, once it's there):
 
 ```
-git clone https://github.com/DBuildService/atomic-reactor.git
+git clone https://github.com/projectatomic/atomic-reactor.git
 cd atomic-reactor
 ```
 
