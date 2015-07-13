@@ -13,7 +13,7 @@ import docker
 from flexmock import flexmock
 
 from atomic_reactor.constants import DOCKER_SOCKET_PATH
-
+from atomic_reactor.util import ImageName
 from tests.constants import COMMAND
 
 old_ope = os.path.exists
@@ -68,12 +68,17 @@ mock_push_logs = \
     b'{"errorDetail":{"message":"Repository does not exist: localhost:5000/atomic-reactor-tests-b3a11e13d27c428f8fa2914c8c6a6d96"},' \
     b'"error":"Repository does not exist: localhost:5000/atomic-reactor-tests-b3a11e13d27c428f8fa2914c8c6a6d96"}\r\n'
 
-def _find_image(img):
+def _find_image(img, ignore_registry=False):
     global mock_images
 
     for im in mock_images:
-        if im['RepoTags'][0] == img:
+        im_name = im['RepoTags'][0]
+        if im_name == img:
             return im
+        if ignore_registry:
+            im_name_wo_reg = ImageName.parse(im_name).to_str(registry=False)
+            if im_name_wo_reg == img:
+                return im
 
     return None
 
@@ -99,7 +104,8 @@ def _mock_remove_image(img, **kwargs):
     raise _docker_exception()
 
 def _mock_inspect(img, **kwargs):
-    i = _find_image(img)
+    # real 'docker inspect busybox' returns info even there's only localhost:5000/busybox
+    i = _find_image(img, ignore_registry=True)
     if i is not None:
         return i
 
