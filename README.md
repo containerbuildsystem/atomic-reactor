@@ -72,13 +72,13 @@ You can either get the build image from Dockerhub or create it yourself.
 Just use
 
 ```bash
-$ docker pull slavek/buildroot
+$ docker pull slavek/atomic-reactor
 ```
 
 This will pull the `buildroot` image with the latest Atomic Reactor commits. Images with stable releases are available since version 1.3.3 and you can access them by using the version specifier as a tag, such as
 
 ```bash
-$ docker pull slavek/buildroot:1.3.3
+$ docker pull slavek/atomic-reactor:1.3.3
 ```
 
 ### installation from git
