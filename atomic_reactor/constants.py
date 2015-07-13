@@ -38,7 +38,7 @@ SOURCE_DIRECTORY_NAME = "source"
 # docs constants
 
 DESCRIPTION = "Python library with command line interface for building docker images."
-HOMEPAGE = "https://github.com/DBuildService/atomic-reactor"
+HOMEPAGE = "https://github.com/projectatomic/atomic-reactor"
 PROG = "atomic-reactor"
 MANPAGE_AUTHORS = "Jiri Popelka <jpopelka@redhat.com>, " \
                   "Martin Milata <mmilata@redhat.com>, " \

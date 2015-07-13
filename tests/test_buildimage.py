@@ -32,7 +32,6 @@ def test_tarball_generation_local_repo(tmpdir):
     assert len(glob(os.path.join(str(tmpdir), 'atomic-reactor-*.tar.gz'))) == 1
 
 
-@pytest.mark.skipif(True, reason='skip untile we rename GH repo')
 def test_tarball_generation_upstream_repo(tmpdir):
     b = BuildImageBuilder(use_official_reactor_git=True)
     tarball_path = b.get_reactor_tarball_path(str(tmpdir))
@@ -40,7 +39,6 @@ def test_tarball_generation_upstream_repo(tmpdir):
     assert len(glob(os.path.join(str(tmpdir), 'atomic-reactor-*.tar.gz'))) == 1
 
 
-@pytest.mark.skipif(True, reason='skip until we rename GH repo')
 def test_image_creation_upstream_repo():
     if MOCK:
         mock_docker()

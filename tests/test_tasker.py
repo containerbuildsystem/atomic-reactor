@@ -252,7 +252,7 @@ def test_get_image_info_by_name_tag_in_name():
     assert len(response) == 1
 
 
-# https://github.com/DBuildService/atomic-reactor/issues/45
+# https://github.com/projectatomic/atomic-reactor/issues/45
 def test_get_image_info_by_name_tag_in_name_library():
     if MOCK:
         mock_docker()

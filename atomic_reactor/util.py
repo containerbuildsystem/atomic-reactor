@@ -47,7 +47,7 @@ class ImageName(object):
             result.registry = s[0]
             result.namespace = s[1]
         if result.namespace == 'library':
-            # https://github.com/DBuildService/atomic-reactor/issues/45
+            # https://github.com/projectatomic/atomic-reactor/issues/45
             logger.debug("namespace 'library' -> ''")
             result.namespace = None
         result.repo = s[-1]
