@@ -136,6 +136,7 @@ CMD blabla"""
 
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    workflow.base_image_inspect = {"Config": {"Labels": {}}}
     workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)

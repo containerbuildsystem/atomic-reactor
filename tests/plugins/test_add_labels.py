@@ -8,7 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import print_function, unicode_literals
 
-import os
 try:
     from collections import OrderedDict
 except ImportError:
@@ -40,6 +39,7 @@ DF_CONTENT = """\
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
+LABELS_CONF_BASE = {"Config": {"Labels": {"label1": "base value"}}}
 LABELS_CONF = OrderedDict({'label1': 'value 1', 'label2': 'long value'})
 LABELS_CONF_WRONG = [('label1', 'value1'), ('label2', 'value2')]
 # Can't be sure of the order of the labels, expect either
@@ -50,18 +50,25 @@ CMD blabla""", r"""FROM fedora
 RUN yum install -y python-django
 LABEL "label2"="long value" "label1"="value 1"
 CMD blabla"""]
-@pytest.mark.parametrize('labels_conf, expected_output', [
-    (LABELS_CONF, EXPECTED_OUTPUT),
-    (json.dumps(LABELS_CONF), EXPECTED_OUTPUT),
-    (LABELS_CONF_WRONG, RuntimeError())
+EXPECTED_OUTPUT2 = [r"""FROM fedora
+RUN yum install -y python-django
+LABEL "label2"="long value"
+CMD blabla"""]
+
+@pytest.mark.parametrize('labels_conf_base, labels_conf, dont_overwrite, expected_output', [
+    (LABELS_CONF_BASE, LABELS_CONF, [], EXPECTED_OUTPUT),
+    (LABELS_CONF_BASE, json.dumps(LABELS_CONF), [], EXPECTED_OUTPUT),
+    (LABELS_CONF_BASE, LABELS_CONF_WRONG, [], RuntimeError()),
+    (LABELS_CONF_BASE, LABELS_CONF, ["label1", ], EXPECTED_OUTPUT2)
 ])
-def test_add_labels_plugin(tmpdir, labels_conf, expected_output):
+def test_add_labels_plugin(tmpdir, labels_conf_base, labels_conf, dont_overwrite, expected_output):
     df = DockerfileParser(str(tmpdir))
     df.content = DF_CONTENT
 
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     setattr(workflow, 'builder', X)
+    workflow.base_image_inspect = labels_conf_base
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
 
     runner = PreBuildPluginsRunner(
@@ -69,7 +76,7 @@ def test_add_labels_plugin(tmpdir, labels_conf, expected_output):
         workflow,
         [{
             'name': AddLabelsPlugin.key,
-            'args': {'labels': labels_conf}
+            'args': {'labels': labels_conf, "dont_overwrite": dont_overwrite}
         }]
     )
 

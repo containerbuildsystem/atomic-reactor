@@ -38,20 +38,25 @@ CMD date
 
 Keys and values are quoted as necessary.
 """
+
+from __future__ import unicode_literals
+
 from dockerfile_parse import DockerfileParser
 from atomic_reactor.plugin import PreBuildPlugin
 import json
 
+
 class AddLabelsPlugin(PreBuildPlugin):
     key = "add_labels_in_dockerfile"
 
-    def __init__(self, tasker, workflow, labels):
+    def __init__(self, tasker, workflow, labels, dont_overwrite=("Architecture", )):
         """
         constructor
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param labels: dict, key value pairs to set as labels; or str, JSON-encoded dict
+        :param dont_overwrite: iterable, list of label keys which should not be overwritten
         """
         # call parent constructor
         super(AddLabelsPlugin, self).__init__(tasker, workflow)
@@ -60,6 +65,7 @@ class AddLabelsPlugin(PreBuildPlugin):
         if not isinstance(labels, dict):
             raise RuntimeError("labels have to be dict")
         self.labels = labels
+        self.dont_overwrite = dont_overwrite
 
     def run(self):
         """
@@ -87,6 +93,22 @@ class AddLabelsPlugin(PreBuildPlugin):
 
         content = 'LABEL'
         for key, value in self.labels.items():
+            try:
+                base_image_value = self.workflow.base_image_inspect["Config"]["Labels"][key]
+            except KeyError:
+                self.log.info("label %s not present in base image", repr(key))
+            except AttributeError:
+                self.log.warning("base image was not inspected")
+            else:
+                if base_image_value == value:
+                    self.log.info("label %s is already set to %s", repr(key), repr(value))
+                    continue
+                else:
+                    self.log.info("base image has label %s set to %s", repr(key), repr(base_image_value))
+                    if key in self.dont_overwrite:
+                        self.log.info("denying overwrite of label %s", repr(key))
+                        continue
+
             label = '"%s"="%s"' % (escape(key), escape(value))
             self.log.info("setting label %s", label)
             content += " " + label
