@@ -17,3 +17,10 @@ sudo: false
 notifications:
   email: false
 after_success: "coveralls"
+deploy:
+  provider: pypi
+  user: bkabrda
+  on:
+    tags: true
+  password:
+    secure: Q4pXe0ARf2Mj7ZEqEICpzW6SBB554PxVPKErJkUcaD4V3zO3e/Ckbrk0aHeCMCPZlD5i/tfBXRMsMJhcvQht+jXTwUo5VD55WvkKBmpvQbJBsvmrIvrX+3C8SxVYXyLiSklQxCdGMCE/EN9dmQVI2574BQsXR43uVhwOzuL2V3k=
