@@ -42,6 +42,7 @@ CMD blabla"""
 LABELS_CONF_BASE = {"Config": {"Labels": {"label1": "base value"}}}
 LABELS_CONF = OrderedDict({'label1': 'value 1', 'label2': 'long value'})
 LABELS_CONF_WRONG = [('label1', 'value1'), ('label2', 'value2')]
+LABELS_BLANK = {}
 # Can't be sure of the order of the labels, expect either
 EXPECTED_OUTPUT = [r"""FROM fedora
 RUN yum install -y python-django
@@ -54,12 +55,14 @@ EXPECTED_OUTPUT2 = [r"""FROM fedora
 RUN yum install -y python-django
 LABEL "label2"="long value"
 CMD blabla"""]
+EXPECTED_OUTPUT3 = [DF_CONTENT]
 
 @pytest.mark.parametrize('labels_conf_base, labels_conf, dont_overwrite, expected_output', [
     (LABELS_CONF_BASE, LABELS_CONF, [], EXPECTED_OUTPUT),
     (LABELS_CONF_BASE, json.dumps(LABELS_CONF), [], EXPECTED_OUTPUT),
     (LABELS_CONF_BASE, LABELS_CONF_WRONG, [], RuntimeError()),
-    (LABELS_CONF_BASE, LABELS_CONF, ["label1", ], EXPECTED_OUTPUT2)
+    (LABELS_CONF_BASE, LABELS_CONF, ["label1", ], EXPECTED_OUTPUT2),
+    (LABELS_CONF_BASE, LABELS_BLANK, ["label1", ], EXPECTED_OUTPUT3),
 ])
 def test_add_labels_plugin(tmpdir, labels_conf_base, labels_conf, dont_overwrite, expected_output):
     df = DockerfileParser(str(tmpdir))

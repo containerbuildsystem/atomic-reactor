@@ -91,7 +91,7 @@ class AddLabelsPlugin(PreBuildPlugin):
                 return s.translate(env_trans)
             return s.replace('\\', '\\\\').replace('"', '\\"')
 
-        content = 'LABEL'
+        labels = []
         for key, value in self.labels.items():
             try:
                 base_image_value = self.workflow.base_image_inspect["Config"]["Labels"][key]
@@ -111,11 +111,14 @@ class AddLabelsPlugin(PreBuildPlugin):
 
             label = '"%s"="%s"' % (escape(key), escape(value))
             self.log.info("setting label %s", label)
-            content += " " + label
+            labels.append(label)
 
-        # put it before last instruction
-        lines.insert(-1, content + '\n')
+        content = ""
+        if labels:
+            content = 'LABEL ' + " ".join(labels)
+            # put it before last instruction
+            lines.insert(-1, content + '\n')
 
-        dockerfile.lines = lines
+            dockerfile.lines = lines
 
         return content
