@@ -40,8 +40,8 @@ setup(
     name='atomic-reactor',
     version='1.3.7',
     description=DESCRIPTION,
-    author='Tomas Tomecek',  # FIXME: when under project atomic
-    author_email='ttomecek@redhat.com',
+    author='Red Hat, Inc.',
+    author_email='atomic-devel@projectatomic.io',
     url=HOMEPAGE,
     license="BSD",
     entry_points={
