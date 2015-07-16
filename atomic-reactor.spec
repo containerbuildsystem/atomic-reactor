@@ -17,8 +17,8 @@
 %global dock_obsolete_vr 1.3.7-2
 
 Name:           %{project}
-Version:        1.3.7
-Release:        3%{?dist}
+Version:        1.4.0
+Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -258,6 +258,9 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 
 
 %changelog
+* Thu Jul 16 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.4.0-1
+- new upstream release 1.4.0
+
 * Tue Jun 30 2015 Jiri Popelka <jpopelka@redhat.com> - 1.3.7-3
 - define macros for RHEL-6
 
