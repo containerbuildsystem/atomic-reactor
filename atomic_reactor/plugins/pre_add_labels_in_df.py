@@ -97,8 +97,9 @@ class AddLabelsPlugin(PreBuildPlugin):
                 base_image_value = self.workflow.base_image_inspect["Config"]["Labels"][key]
             except KeyError:
                 self.log.info("label %s not present in base image", repr(key))
-            except AttributeError:
+            except (AttributeError, TypeError):
                 self.log.warning("base image was not inspected")
+                break
             else:
                 if base_image_value == value:
                     self.log.info("label %s is already set to %s", repr(key), repr(value))
