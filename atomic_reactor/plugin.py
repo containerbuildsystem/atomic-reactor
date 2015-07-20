@@ -319,7 +319,7 @@ class InputPlugin(Plugin):
 
         :return: True if this plugin is autousable, False otherwise
         """
-        raise NotImplementedError('is_autousable not implemented in {0}'.format(type(self)))
+        raise NotImplementedError('is_autousable not implemented in {0}'.format(cls))
 
 
 class InputPluginsRunner(PluginsRunner):
