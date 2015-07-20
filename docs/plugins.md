@@ -5,12 +5,13 @@ One of the biggest strength of Atomic Reactor is its plugin system.
 
 ## Plugin types
 
-There are 4 types of plugins:
+There are 5 types of plugins:
 
 1. **Input** — when running Atomic Reactor inside a build container, input plugin fetches build input (it can live in [path](https://github.com/projectatomic/atomic-reactor/blob/master/atomic_reactor/plugins/input_path.py), [environment variable](https://github.com/projectatomic/atomic-reactor/blob/master/atomic_reactor/plugins/input_env.py), ...)
 2. **Pre-build** — this plugin is executed after cloning a git repo (so you can edit sources, Dockerfile, ...), prior to build
 3. **Pre-publish** — once build finishes, the built image is pushed to registry, but prior to that, pre-publish plugins are executed (time for some simple tests)
-4. **Post-build** — these are run as a last thing of build process (when build is finished and image was pushed to registries)
+4. **Post-build** — these are run when the build is finished and the image was pushed to registries
+5. **Exit** — these are run last of all, and will always run even if a previous build step failed
 
 ## Plugin configuration
 
@@ -26,7 +27,7 @@ Build plugins are requested and configured via input json: key `prebuild_plugins
 }
 ```
 
-Order is important, because plugins are executed in the order as they are specified (one plugin can use input from another plugin). `args` are directly passed to a plugin in constructor. If `can_fail` is set to `false`, once the plugin raises an exception, build process is halted.
+Order is important, because plugins are executed in the order as they are specified (one plugin can use input from another plugin). `args` are directly passed to a plugin in constructor. Any plugin with `can_fail` is set to `false` that raises an exception causes the build process to proceed directly to the stage of running exit plugins.
 
 
 ## Input plugins

@@ -277,6 +277,27 @@ class PostBuildPluginsRunner(BuildPluginsRunner):
         self.plugins_results = workflow.postbuild_results
         super(PostBuildPluginsRunner, self).__init__(dt, workflow, 'PostBuildPlugin', plugins_conf, *args, **kwargs)
 
+    def create_instance_from_plugin(self, plugin_class, plugin_conf):
+        instance = super(PostBuildPluginsRunner, self).create_instance_from_plugin(plugin_class, plugin_conf)
+        if isinstance(instance, ExitPlugin):
+            logger.error("running exit plugin '%s' as post-build plugin", plugin_class.key)
+
+        return instance
+
+
+class ExitPlugin(PostBuildPlugin):
+    """
+    Plugin base class for plugins which should be run just before
+    exit. It is flavored with DockerTasker and DockerBuildWorkflow instances.
+    """
+
+
+class ExitPluginsRunner(BuildPluginsRunner):
+    def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
+        logger.info("initializing runner of exit plugins")
+        super(ExitPluginsRunner, self).__init__(dt, workflow, 'ExitPlugin',
+                                                plugins_conf, *args, **kwargs)
+
 
 class InputPlugin(Plugin):
 

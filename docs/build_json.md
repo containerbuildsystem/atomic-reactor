@@ -40,9 +40,11 @@ If you want to take advantage of _inner_ part logic of Atomic Reactor, you can d
  * prebuild_plugins - list of dicts, optional
   * list of plugins which are executed prior to build, order _matters_! In this case, first there is generated yum repo for koji f22 tag and then it is injected into dockerfile
  * prepublish_plugins - list of dicts, optional
-  * these plugins are executed after the prebuild plugins but before the postbuild plugins
+  * these plugins are executed after the prebuild plugins but before the image is pushed to the registry
  * postbuild_plugins - list of dicts, optional
-  * these plugins are executed last
+  * these plugins are executed after the image is pushed to the registry
+ * exit_plugins - list of dicts, optional
+  * these plugins are executed last of all and will always be run, even for a failed build
 
 Atomic Reactor is able to read this build json from various places (see input plugins in source code). There is an argument for command `inside-build` called `--input`. Currently there are 3 available inputs:
 
