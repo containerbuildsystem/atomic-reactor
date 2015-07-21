@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 import pytest
+from flexmock import flexmock
 from dockerfile_parse import DockerfileParser
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
@@ -136,7 +137,7 @@ CMD blabla"""
 
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
-    workflow.base_image_inspect = {"Config": {"Labels": {}}}
+    flexmock(workflow, base_image_inspect={"Config": {"Labels": {}}})
     workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
