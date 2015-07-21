@@ -71,7 +71,7 @@ Requires:       osbs
 Provides:       dock-metadata = %{version}-%{release}
 Provides:       python-dock-metadata = %{version}-%{release}
 Obsoletes:      dock-metadata < 1.2.0-3
-Obsoletes:      python-dock-metadata = %{dock_obsolete_vr}
+Obsoletes:      python-dock-metadata < %{dock_obsolete_vr}
 
 %description -n python-atomic-reactor-metadata
 Plugin for submitting metadata to OSBS
@@ -88,7 +88,7 @@ Requires:       python-dockerfile-parse
 # Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
 Requires:       nfs-utils
 Provides:       python-dock = %{version}-%{release}
-Obsoletes:      python-dock = %{dock_obsolete_vr}
+Obsoletes:      python-dock < %{dock_obsolete_vr}
 
 %description -n python-atomic-reactor
 Simple Python 2 library for building Docker images. It contains
@@ -108,7 +108,7 @@ Requires:       python3-dockerfile-parse
 # Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
 Requires:       nfs-utils
 Provides:       python3-dock = %{version}-%{release}
-Obsoletes:      python3-dock = %{dock_obsolete_vr}
+Obsoletes:      python3-dock < %{dock_obsolete_vr}
 
 %description -n python3-atomic-reactor
 Simple Python 3 library for building Docker images. It contains
@@ -122,7 +122,7 @@ Group:          Development/Tools
 Requires:       python3-atomic-reactor = %{version}-%{release}
 Requires:       koji
 Provides:       python3-dock-koji = %{version}-%{release}
-Obsoletes:      python3-dock-koji = %{dock_obsolete_vr}
+Obsoletes:      python3-dock-koji < %{dock_obsolete_vr}
 
 %description -n python3-atomic-reactor-koji
 Koji plugin for Atomic Reactor
@@ -133,8 +133,8 @@ Summary:        Plugin for submitting metadata to OSBS
 Group:          Development/Tools
 Requires:       python3-atomic-reactor = %{version}-%{release}
 Requires:       osbs
-Provides:       python3-dock = %{version}-%{release}
-Obsoletes:      python3-dock = %{dock_obsolete_vr}
+Provides:       python3-dock-metadata = %{version}-%{release}
+Obsoletes:      python3-dock-metadata < %{dock_obsolete_vr}
 
 %description -n python3-atomic-reactor-metadata
 Plugin for submitting metadata to OSBS
