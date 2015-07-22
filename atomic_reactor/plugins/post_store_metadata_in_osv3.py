@@ -43,8 +43,14 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
         except KeyError:
             self.log.error("No $BUILD env variable. Probably not running in build container.")
             return
+
+        kwargs = {}
+        metadata = build_json.get("metadata", {})
+        if 'namespace' in metadata:
+            kwargs['namespace'] = metadata['namespace']
+
         try:
-            build_id = build_json["metadata"]["name"]
+            build_id = metadata["name"]
         except KeyError:
             self.log.error("malformed build json")
             return
@@ -105,5 +111,5 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
                 "sha256sum": tar_sha256sum,
                 "filename": os.path.basename(tar_path),
             })
-        osbs.set_annotations_on_build(build_id, labels)
+        osbs.set_annotations_on_build(build_id, labels, **kwargs)
         return labels

@@ -38,10 +38,17 @@ class X(object):
 
 
 def test_metadata_plugin(tmpdir):
-    def set_annotations_on_build(build_id, labels):
-        pass
+    def set_annotations_on_build(build_id, labels, namespace='default'):
+        assert namespace == 'namespace'
     new_environ = deepcopy(os.environ)
-    new_environ["BUILD"] = '{"metadata": {"name": "asd"}}'
+    new_environ["BUILD"] = '''
+{
+  "metadata": {
+    "name": "asd",
+    "namespace": "namespace"
+  }
+}
+'''
     flexmock(OSBS, set_annotations_on_build=set_annotations_on_build)
     flexmock(os)
     os.should_receive("environ").and_return(new_environ)
