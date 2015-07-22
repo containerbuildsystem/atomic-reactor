@@ -43,7 +43,6 @@ def test_pull_base_image_plugin(df_base, parent_registry, expected_w_reg, expect
 
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
-    workflow.parent_registry = parent_registry
     workflow.builder = MockBuilder()
     workflow.builder.base_image = ImageName.parse(df_base)
 
@@ -55,7 +54,7 @@ def test_pull_base_image_plugin(df_base, parent_registry, expected_w_reg, expect
         workflow,
         [{
             'name': PullBaseImagePlugin.key,
-            'args': {'parent_registry_insecure': True}
+            'args': {'parent_registry': parent_registry, 'parent_registry_insecure': True}
         }]
     )
 

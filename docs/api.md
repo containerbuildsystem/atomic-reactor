@@ -302,10 +302,6 @@ Python API for dock. This is the official way of interacting with dock.
 
 * kwargs
 
-* parent_registry
-
-* parent_registry_insecure
-
 * plugin_files
 
 * postbuild_plugins_conf
@@ -335,13 +331,11 @@ Python API for dock. This is the official way of interacting with dock.
 ```
     :param source: dict, where/how to get source code to put in image
     :param image: str, tag for built image ([registry/]image_name[:tag])
-    :param parent_registry: str, registry to pull base image from
     :param target_registries: list of str, list of registries to push image to (might change in future)
     :param prebuild_plugins: dict, arguments for pre-build plugins
     :param prepublish_plugins: dict, arguments for test-build plugins
     :param postbuild_plugins: dict, arguments for post-build plugins
     :param plugin_files: list of str, load plugins also from these files
-    :param parent_registry_insecure: bool, allow connecting to parent registry over plain http
     :param target_registries_insecure: bool, allow connecting to target registries over plain http
 ```
 

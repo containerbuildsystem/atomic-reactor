@@ -25,15 +25,18 @@ def _prepare_build_json(image, source, parent_registry, target_registries,
     build_json = {
         "image": image,
         "source": source,
-        "parent_registry": parent_registry,
         "target_registries": target_registries,
-        "parent_registry_insecure": parent_registry_insecure,
         "target_registries_insecure": target_registries_insecure,
     }
 
     if not dont_pull_base_image:
-        #FIXME parent_registry and parent_registry_insecure also go here?
-        build_json["prebuild_plugins"] = [{ "name": PullBaseImagePlugin.key }]
+        build_json["prebuild_plugins"] = [{
+            "name": PullBaseImagePlugin.key,
+            "args": {
+                "parent_registry": parent_registry,
+                "parent_registry_insecure": parent_registry_insecure,
+            }
+        }]
 
     build_json.update(kwargs)
     return build_json

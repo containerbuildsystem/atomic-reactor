@@ -13,15 +13,21 @@ If you want to take advantage of _inner_ part logic of Atomic Reactor, you can d
         }
     },
     "image": "my-test-image",
-    "parent_registry": "registry.example.com:5000",
     "target_registries": ["registry.example2.com:5000"],
-    "prebuild_plugins": [{
-        "name": "koji",
-        "args": {
-            "target": "f22",
-            "hub": "http://koji.fedoraproject.org/kojihub",
-            "root": "https://kojipkgs.fedoraproject.org/"
-        }}, {
+    "prebuild_plugins": [
+        {
+            "name": "pull_base_image",
+            "args": {
+                "parent_registry": "registry.example.com:5000",
+            }
+        }, {
+            "name": "koji",
+            "args": {
+                "target": "f22",
+                "hub": "http://koji.fedoraproject.org/kojihub",
+                "root": "https://kojipkgs.fedoraproject.org/"
+            }
+        }, {
             "name": "inject_yum_repo",
             "args": {}
         }
@@ -35,10 +41,9 @@ If you want to take advantage of _inner_ part logic of Atomic Reactor, you can d
  * provider_params - dict, optional, extra parameters that may be different across providers
   * git_commit - string, allowed for `git` source, git commit to checkout
  * image - string, tag for built image
- * parent_registry - string, optional, registry to pull base image from
  * target_registries - list of strings, optional, registries where built image should be pushed
  * prebuild_plugins - list of dicts, optional
-  * list of plugins which are executed prior to build, order _matters_! In this case, first there is generated yum repo for koji f22 tag and then it is injected into dockerfile
+  * list of plugins which are executed prior to build, order _matters_! First plugin pulls base image from the given registry (optional). The second plugin generates yum repo for koji f22 tag and the third injects it into dockerfile.
  * prepublish_plugins - list of dicts, optional
   * these plugins are executed after the prebuild plugins but before the image is pushed to the registry
  * postbuild_plugins - list of dicts, optional

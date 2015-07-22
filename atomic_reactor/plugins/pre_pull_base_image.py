@@ -29,9 +29,8 @@ class PullBaseImagePlugin(PreBuildPlugin):
         # call parent constructor
         super(PullBaseImagePlugin, self).__init__(tasker, workflow)
 
-        self.parent_registry = parent_registry or self.workflow.parent_registry
-        self.parent_registry_insecure = parent_registry_insecure \
-                                        or self.workflow.parent_registry_insecure
+        self.parent_registry = parent_registry
+        self.parent_registry_insecure = parent_registry_insecure
 
     def run(self):
         """

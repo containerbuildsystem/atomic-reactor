@@ -224,27 +224,21 @@ class DockerBuildWorkflow(object):
     6. push it to registries
     """
 
-    def __init__(self, source, image, parent_registry=None, target_registries=None,
-                 prebuild_plugins=None, prepublish_plugins=None, postbuild_plugins=None,
-                 exit_plugins=None, plugin_files=None, parent_registry_insecure=False,
-                 target_registries_insecure=False, **kwargs):
+    def __init__(self, source, image, target_registries=None, prebuild_plugins=None,
+                 prepublish_plugins=None, postbuild_plugins=None, exit_plugins=None,
+                 plugin_files=None, target_registries_insecure=False, **kwargs):
         """
         :param source: dict, where/how to get source code to put in image
         :param image: str, tag for built image ([registry/]image_name[:tag])
-        :param parent_registry: str, registry to pull base image from
         :param target_registries: list of str, list of registries to push image to (might change in future)
         :param prebuild_plugins: dict, arguments for pre-build plugins
         :param prepublish_plugins: dict, arguments for test-build plugins
         :param postbuild_plugins: dict, arguments for post-build plugins
         :param plugin_files: list of str, load plugins also from these files
-        :param parent_registry_insecure: bool, allow connecting to parent registry over plain http
         :param target_registries_insecure: bool, allow connecting to target registries over plain http
         """
         self.source = get_source_instance_for(source, tmpdir=tempfile.mkdtemp())
         self.image = image
-
-        self.parent_registry = parent_registry
-        self.parent_registry_insecure = parent_registry_insecure
 
         self.prebuild_plugins_conf = prebuild_plugins
         self.prepublish_plugins_conf = prepublish_plugins
