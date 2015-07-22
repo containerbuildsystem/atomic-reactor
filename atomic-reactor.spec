@@ -6,6 +6,9 @@
 
 %if (0%{?fedora} >= 23 || 0%{?rhel} >= 8)
 %global with_python3 1
+%global binaries_py_version 3
+%else
+%global binaries_py_version 2
 %endif
 
 %global owner projectatomic
@@ -30,8 +33,12 @@ BuildArch:      noarch
 
 BuildRequires:  python2-devel
 BuildRequires:  python-setuptools
-Requires:       python-atomic-reactor
 
+%if 0%{?with_python3}
+Requires:       python3-atomic-reactor
+%else
+Requires:       python-atomic-reactor
+%endif
 Requires:       git >= 1.7.10
 
 %if 0%{?with_python3}
@@ -171,10 +178,10 @@ popd
 
 %{__python} setup.py install --skip-build --root %{buildroot}
 mv %{buildroot}%{_bindir}/atomic-reactor %{buildroot}%{_bindir}/atomic-reactor2
-ln -s %{_bindir}/atomic-reactor2 %{buildroot}%{_bindir}/atomic-reactor
+ln -s %{_bindir}/atomic-reactor%{binaries_py_version} %{buildroot}%{_bindir}/atomic-reactor
 
 mv %{buildroot}%{_bindir}/pulpsecret-gen %{buildroot}%{_bindir}/pulpsecret-gen2
-ln -s %{_bindir}/pulpsecret-gen2 %{buildroot}%{_bindir}/pulpsecret-gen
+ln -s %{_bindir}/pulpsecret-gen%{binaries_py_version} %{buildroot}%{_bindir}/pulpsecret-gen
 
 # ship reactor in form of tarball so it can be installed within build image
 cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/atomic-reactor.tar.gz
