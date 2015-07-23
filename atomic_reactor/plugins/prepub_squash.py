@@ -11,11 +11,10 @@ It returns the dockerfile itself and therefore displays it in results.
 from __future__ import unicode_literals
 import os
 
-from os.path import getsize, isfile
-from hashlib import md5, sha256
 from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME
 from atomic_reactor.plugin import PrePublishPlugin
 from docker_scripts.squash import Squash
+from atomic_reactor.util import get_exported_image_metadata
 
 __all__ = ('PrePublishSquashPlugin', )
 
@@ -73,29 +72,6 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         self.remove_former_image = remove_former_image
         self.dont_load = dont_load
 
-    def _get_tarball_metadata(self):
-        self.log.info("getting exported squashed tarball metadata")
-        path = self.workflow.exported_squashed_image.get("path")
-        if not path or not isfile(path):
-            self.log.error("%s is not a file.", path)
-            return
-
-        self.workflow.exported_squashed_image["size"] = getsize(path)
-        self.log.debug("size: %d bytes", self.workflow.exported_squashed_image["size"])
-        m = md5()
-        s = sha256()
-        blocksize = 65536
-        with open(path, mode='rb') as f:
-            buf = f.read(blocksize)
-            while len(buf) > 0:
-                m.update(buf)
-                s.update(buf)
-                buf = f.read(blocksize)
-        self.workflow.exported_squashed_image["md5sum"] = m.hexdigest()
-        self.log.debug("md5sum: %s", self.workflow.exported_squashed_image["md5sum"])
-        self.workflow.exported_squashed_image["sha256sum"] = s.hexdigest()
-        self.log.debug("sha256sum: %s", self.workflow.exported_squashed_image["sha256sum"])
-
     def run(self):
         if self.dont_load:
             self.workflow.exported_squashed_image["path"] = \
@@ -103,7 +79,8 @@ class PrePublishSquashPlugin(PrePublishPlugin):
             # squash the image, don't load it back to docker
             Squash(log=self.log, image=self.image, from_layer=self.from_layer,
                    tag=self.tag, output_path=self.workflow.exported_squashed_image.get("path")).run()
-            self._get_tarball_metadata()
+            self.workflow.exported_squashed_image.update(get_exported_image_metadata(
+                self.workflow.exported_squashed_image["path"]))
         else:
             # squash the image and load it back to engine
             new_id = Squash(log=self.log, image=self.image, from_layer=self.from_layer,

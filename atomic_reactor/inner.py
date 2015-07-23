@@ -271,6 +271,10 @@ class DockerBuildWorkflow(object):
         # set by squash plugin
         self.exported_squashed_image = {}
 
+        # compressed image tarball
+        # set by compress plugin
+        self.exported_compressed_image = {}
+
         self.tag_conf = TagConf()
         self.push_conf = PushConf()
         if target_registries:
