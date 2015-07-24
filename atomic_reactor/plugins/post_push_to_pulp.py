@@ -136,17 +136,17 @@ class PulpPushPlugin(PostBuildPlugin):
     key = "pulp_push"
     can_fail = False
 
-    def __init__(self, tasker, workflow, pulp_registry_name, load_squashed_image=False,
-                 image_names=None, pulp_secret_path=None, username=None, password=None,
-                 dockpulp_loglevel=None):
+    def __init__(self, tasker, workflow, pulp_registry_name, load_squashed_image=None,
+                 load_exported_image=None, image_names=None, pulp_secret_path=None,
+                 username=None, password=None, dockpulp_loglevel=None):
         """
         constructor
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param pulp_registry_name: str, name of pulp registry to use, specified in /etc/dockpulp.conf
-        :param load_squashed_image: bool, when running squash plugin with `dont_load=True`,
-                                    you may load the squashed tar with this switch
+        :param load_squashed_image: obsolete name for load_exported_image, please don't use
+        :param load_exported_image: bool, use exported tar instead of image from Docker
         :param image_names: list of additional image names
         :param pulp_secret_path: path to pulp.cer and pulp.key; $SOURCE_SECRET_PATH otherwise
         :param username: pulp username, used in preference to certificate and key
@@ -156,7 +156,15 @@ class PulpPushPlugin(PostBuildPlugin):
         super(PulpPushPlugin, self).__init__(tasker, workflow)
         self.pulp_registry_name = pulp_registry_name
         self.image_names = image_names
-        self.load_squashed_image = load_squashed_image
+        if load_squashed_image is not None and load_exported_image is not None and \
+                (load_squashed_image != load_exported_image):
+            raise RuntimeError(
+                'Can\'t use load_squashed_image and load_exported_image with different values')
+        if load_squashed_image is not None:
+            self.log.warning(
+                'load_squashed_image argument is obsolete and will be removed in a future version;'
+                'please use load_exported_image instead')
+        self.load_exported_image = load_exported_image or load_squashed_image or False
         self.pulp_secret_path = pulp_secret_path
         self.username = username
         self.password = password
@@ -186,7 +194,7 @@ class PulpPushPlugin(PostBuildPlugin):
             self.log.info("extending image names: %s", self.image_names)
             image_names += [ImageName.parse(x) for x in self.image_names]
 
-        if self.load_squashed_image:
+        if self.load_exported_image:
             if len(self.workflow.exported_image_sequence) == 0:
                 raise RuntimeError('no exported image to push to pulp')
             crane_repos = self.push_tar(self.workflow.exported_image_sequence[-1].get("path"),
