@@ -8,9 +8,11 @@ of the BSD license. See the LICENSE file for details.
 
 import gzip
 try:
-    import lzma
-except ImportError:
+    # if we import "lzma" first, we get pyliblzma on Py2, but we want backports.lzma
+    #  so first try to import backports.lzma on Py2 and then 'lzma' on Py3
     from backports import lzma
+except ImportError:
+    import lzma
 import os
 
 from atomic_reactor.constants import EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE

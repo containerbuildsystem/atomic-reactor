@@ -106,6 +106,10 @@ def mock_docker(build_should_fail=False,
             self.fp = open('/dev/null', 'rb')
         def __getattr__(self, attr):
             return getattr(self, self.fp, attr)
+        def __enter__(self):
+            return self.fp
+        def __exit__(self, tp, val, tb):
+            self.fp.close()
     flexmock(docker.Client, get_image=lambda img, **kwargs: GetImageResult())
     flexmock(os.path, exists=lambda p: True if p == DOCKER_SOCKET_PATH else old_ope(p))
 
