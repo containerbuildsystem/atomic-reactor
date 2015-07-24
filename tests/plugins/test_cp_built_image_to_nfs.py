@@ -54,9 +54,9 @@ def test_cp_built_image_to_nfs(tmpdir, dest_dir):
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, "test-image")
     workflow.builder = X()
-    workflow.exported_squashed_image = {"path": os.path.join(str(tmpdir),
-                                                             EXPORTED_SQUASHED_IMAGE_NAME)}
-    open(workflow.exported_squashed_image.get("path"), 'a').close()
+    workflow.exported_image_sequence.append({"path": os.path.join(str(tmpdir),
+                                                             EXPORTED_SQUASHED_IMAGE_NAME)})
+    open(workflow.exported_image_sequence[-1].get("path"), 'a').close()
 
     runner = PostBuildPluginsRunner(
         tasker,

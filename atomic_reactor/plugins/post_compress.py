@@ -25,27 +25,27 @@ class CompressPlugin(PostBuildPlugin):
             "name": "compress",
             "args": {
                     "method": "gzip",
-                    "load_squashed_image": true
+                    "load_exported_image": true
             }
     }]
 
     Currently supported compression methods are gzip and lzma; gzip is default.
-    By default, the plugin doesn't work on squashed image, you have to explicitly
-    ask for it by using `load_squashed_image: true`.
+    By default, the plugin doesn't work on exported image, you have to explicitly
+    ask for it by using `load_exported_image: true`.
     """
     key = 'compress'
     can_fail = False
 
     # TODO: add remove_former_image?
-    def __init__(self, tasker, workflow, load_squashed_image=False, method='gzip'):
+    def __init__(self, tasker, workflow, load_exported_image=False, method='gzip'):
         """
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param load_squashed_image: bool, when running squash plugin with `dont_load=True`,
-                                    you may load the squashed tar with this switch
+        :param load_exported_image: bool, when running squash plugin with `dont_load=True`,
+                                    you may load the exported tar with this switch
         """
         super(CompressPlugin, self).__init__(tasker, workflow)
-        self.load_squashed_image = load_squashed_image
+        self.load_exported_image = load_exported_image
         self.method = method
 
     def _compress_image_stream(self, stream):
@@ -58,7 +58,7 @@ class CompressPlugin(PostBuildPlugin):
             outfile = outfile.format('xz')
             fp = lzma.open(outfile, 'wb')
         else:
-            raise  # TODO
+            raise RuntimeError('Unsupported compression format {0}'.format(self.method))
 
         _chunk_size = 1024**2  # 1 MB chunk size for reading/writing
         self.log.info('compressing image %s to %s using %s method',
@@ -71,8 +71,10 @@ class CompressPlugin(PostBuildPlugin):
         return outfile
 
     def run(self):
-        if self.load_squashed_image:
-            image = self.workflow.exported_squashed_image.get('path')
+        if self.load_exported_image:
+            if len(self.workflow.exported_image_sequence) == 0:
+                raise RuntimeError('load_exported_image used, but no exported image')
+            image = self.workflow.exported_image_sequence[-1].get('path')
             self.log.info('preparing to compress image %s', image)
             with open(image, 'rb') as image_stream:
                 outfile = self._compress_image_stream(image_stream)
@@ -81,6 +83,5 @@ class CompressPlugin(PostBuildPlugin):
             self.log.info('fetching image %s from docker', image)
             with self.tasker.d.get_image(image) as image_stream:
                 outfile = self._compress_image_stream(image_stream)
-        self.workflow.exported_compressed_image.update(get_exported_image_metadata(outfile))
-        print(self.workflow.exported_compressed_image)
+        self.workflow.exported_image_sequence.append(get_exported_image_metadata(outfile))
         self.log.info('compressed image is available as %s', outfile)

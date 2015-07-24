@@ -74,13 +74,14 @@ class PrePublishSquashPlugin(PrePublishPlugin):
 
     def run(self):
         if self.dont_load:
-            self.workflow.exported_squashed_image["path"] = \
+            metadata = {}
+            self.workflow.exported_image_sequence.append(metadata)
+            metadata["path"] = \
                 os.path.join(self.workflow.source.workdir, EXPORTED_SQUASHED_IMAGE_NAME)
             # squash the image, don't load it back to docker
             Squash(log=self.log, image=self.image, from_layer=self.from_layer,
-                   tag=self.tag, output_path=self.workflow.exported_squashed_image.get("path")).run()
-            self.workflow.exported_squashed_image.update(get_exported_image_metadata(
-                self.workflow.exported_squashed_image["path"]))
+                   tag=self.tag, output_path=metadata["path"]).run()
+            metadata.update(get_exported_image_metadata(metadata["path"]))
         else:
             # squash the image and load it back to engine
             new_id = Squash(log=self.log, image=self.image, from_layer=self.from_layer,

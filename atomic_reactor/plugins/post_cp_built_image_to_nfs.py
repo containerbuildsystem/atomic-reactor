@@ -98,7 +98,9 @@ class CopyBuiltImageToNFSPlugin(PostBuildPlugin):
         mount(self.nfs_server_path, self.mountpoint)
 
     def run(self):
-        source_path = self.workflow.exported_squashed_image.get("path")
+        if len(self.workflow.exported_image_sequence) == 0:
+            raise RuntimeError('no exported image to upload to nfs')
+        source_path = self.workflow.exported_image_sequence[-1].get("path")
         if not source_path or not os.path.isfile(source_path):
             self.log.error("squashed image does not exist: %s", source_path)
             return
