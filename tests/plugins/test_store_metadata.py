@@ -37,7 +37,7 @@ class X(object):
     # image = ImageName.parse("test-image:unique_tag_123")
 
 
-def test_metadata_plugin(tmpdir):
+def prepare():
     def set_annotations_on_build(build_id, labels, namespace='default'):
         assert namespace == 'namespace'
     new_environ = deepcopy(os.environ)
@@ -64,6 +64,13 @@ def test_metadata_plugin(tmpdir):
     workflow.source.lg = LazyGit(None, commit="commit")
     flexmock(workflow.source.lg)
     workflow.source.lg.should_receive("_commit_id").and_return("commit")
+
+    return workflow
+
+
+def test_metadata_plugin(tmpdir):
+    workflow = prepare()
+
     workflow.prebuild_results = {
         CpDockerfilePlugin.key: "dockerfile-content",
         DistgitFetchArtefactsPlugin.key: "artefact1\nartefact2",
@@ -91,3 +98,38 @@ def test_metadata_plugin(tmpdir):
     assert "rpm-packages" in labels
     assert "repositories" in labels
     assert "commit_id" in labels
+
+
+def test_metadata_plugin_rpmqa_failure(tmpdir):
+    workflow = prepare()
+
+    workflow.prebuild_results = {
+        CpDockerfilePlugin.key: "dockerfile-content",
+        DistgitFetchArtefactsPlugin.key: "artefact1\nartefact2",
+    }
+    workflow.postbuild_results = {
+        PostBuildRPMqaPlugin.key: RuntimeError(),
+    }
+
+    runner = PostBuildPluginsRunner(
+        None,
+        workflow,
+        [{
+            'name': StoreMetadataInOSv3Plugin.key,
+            "args": {
+                "url": "http://example.com/"
+            }
+        }]
+    )
+    output = runner.run()
+    assert StoreMetadataInOSv3Plugin.key in output
+    labels = output[StoreMetadataInOSv3Plugin.key]
+    assert "dockerfile" in labels
+    assert "artefacts" in labels
+    assert "logs" in labels
+    assert "rpm-packages" in labels
+    assert "repositories" in labels
+    assert "commit_id" in labels
+
+    # On rpmqa failure, rpm-packages should be empty
+    assert len(labels["rpm-packages"]) == 0

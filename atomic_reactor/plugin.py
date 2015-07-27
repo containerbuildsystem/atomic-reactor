@@ -186,7 +186,7 @@ class PluginsRunner(object):
                     failed_msgs.append(msg)
                 else:
                     logger.info("error is not fatal, continuing...")
-                plugin_response = msg
+                plugin_response = ex
 
             self.plugins_results[plugin_instance.key] = plugin_response
         if len(failed_msgs) == 1:
