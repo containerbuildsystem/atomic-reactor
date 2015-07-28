@@ -15,7 +15,7 @@ import tempfile
 
 from atomic_reactor.build import InsideBuilder
 from atomic_reactor.plugin import PostBuildPluginsRunner, PreBuildPluginsRunner, InputPluginsRunner, PrePublishPluginsRunner, \
-    PluginFailedException
+    ExitPluginsRunner, PluginFailedException
 from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.util import ImageName
 
@@ -226,7 +226,7 @@ class DockerBuildWorkflow(object):
 
     def __init__(self, source, image, parent_registry=None, target_registries=None,
                  prebuild_plugins=None, prepublish_plugins=None, postbuild_plugins=None,
-                 plugin_files=None, parent_registry_insecure=False,
+                 exit_plugins=None, plugin_files=None, parent_registry_insecure=False,
                  target_registries_insecure=False, dont_pull_base_image=False, **kwargs):
         """
         :param source: dict, where/how to get source code to put in image
@@ -250,8 +250,11 @@ class DockerBuildWorkflow(object):
         self.prebuild_plugins_conf = prebuild_plugins
         self.prepublish_plugins_conf = prepublish_plugins
         self.postbuild_plugins_conf = postbuild_plugins
+        self.exit_plugins_conf = exit_plugins
         self.prebuild_results = {}
         self.postbuild_results = {}
+        self.build_failed = False
+        self.plugin_failed = False
         self.plugin_files = plugin_files
 
         self.kwargs = kwargs
@@ -280,6 +283,13 @@ class DockerBuildWorkflow(object):
         if kwargs:
             logger.warning("unprocessed keyword arguments: %s", kwargs)
 
+    @property
+    def build_process_failed(self):
+        """
+        Has any aspect of the build process failed?
+        """
+        return self.build_failed or self.plugin_failed
+
     def build_docker_image(self):
         """
         build docker image
@@ -303,10 +313,12 @@ class DockerBuildWorkflow(object):
                 prebuild_runner.run()
             except PluginFailedException as ex:
                 logger.error("one or more prebuild plugins failed: %s", ex)
-                return
+                raise
 
             build_result = self.builder.build()
             self.build_logs = build_result.logs
+
+            self.build_failed = build_result.is_failed()
 
             if not build_result.is_failed():
                 self.built_image_inspect = self.builder.inspect_built_image()
@@ -318,7 +330,7 @@ class DockerBuildWorkflow(object):
                 prepublish_runner.run()
             except PluginFailedException as ex:
                 logger.error("one or more prepublish plugins failed: %s", ex)
-                return
+                raise
 
             if not build_result.is_failed():
                 for registry in self.push_conf.docker_registries:
@@ -331,11 +343,19 @@ class DockerBuildWorkflow(object):
                 postbuild_runner.run()
             except PluginFailedException as ex:
                 logger.error("one or more postbuild plugins failed: %s", ex)
-                return
+                raise
 
             return build_result
         finally:
             self.source.remove_tmpdir()
+
+            exit_runner = ExitPluginsRunner(self.builder.tasker, self,
+                                            self.exit_plugins_conf,
+                                            plugin_files=self.plugin_files)
+            try:
+                exit_runner.run()
+            except PluginFailedException as ex:
+                logger.error("one or more exit plugins failed: %s", ex)
 
 
 def build_inside(input, input_args=None, substitutions=None):

@@ -13,13 +13,13 @@ import os
 from osbs.api import OSBS
 from osbs.conf import Configuration
 
-from atomic_reactor.plugin import PostBuildPlugin
+from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.plugins.pre_return_dockerfile import CpDockerfilePlugin
 from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 
 
-class StoreMetadataInOSv3Plugin(PostBuildPlugin):
+class StoreMetadataInOSv3Plugin(ExitPlugin):
     key = "store_metadata_in_osv3"
 
     def __init__(self, tasker, workflow, url, verify_ssl=True, use_auth=True):

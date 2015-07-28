@@ -146,6 +146,9 @@ class PluginsRunner(object):
         plugin_instance = plugin_class(**plugin_conf)
         return plugin_instance
 
+    def on_plugin_failed(self):
+        pass
+
     def run(self):
         """
         run all requested plugins
@@ -184,6 +187,7 @@ class PluginsRunner(object):
                 logger.debug(traceback.format_exc())
                 if not plugin_can_fail:
                     failed_msgs.append(msg)
+                    self.on_plugin_failed()
                 else:
                     logger.info("error is not fatal, continuing...")
                 plugin_response = ex
@@ -209,6 +213,9 @@ class BuildPluginsRunner(PluginsRunner):
         self.dt = dt
         self.workflow = workflow
         super(BuildPluginsRunner, self).__init__(plugin_class_name, plugins_conf, *args, **kwargs)
+
+    def on_plugin_failed(self):
+        self.workflow.plugin_failed = True
 
     def _translate_special_values(self, obj_to_translate):
         """
@@ -276,6 +283,27 @@ class PostBuildPluginsRunner(BuildPluginsRunner):
         logger.info("initializing runner of post-build plugins")
         self.plugins_results = workflow.postbuild_results
         super(PostBuildPluginsRunner, self).__init__(dt, workflow, 'PostBuildPlugin', plugins_conf, *args, **kwargs)
+
+    def create_instance_from_plugin(self, plugin_class, plugin_conf):
+        instance = super(PostBuildPluginsRunner, self).create_instance_from_plugin(plugin_class, plugin_conf)
+        if isinstance(instance, ExitPlugin):
+            logger.error("running exit plugin '%s' as post-build plugin", plugin_class.key)
+
+        return instance
+
+
+class ExitPlugin(PostBuildPlugin):
+    """
+    Plugin base class for plugins which should be run just before
+    exit. It is flavored with DockerTasker and DockerBuildWorkflow instances.
+    """
+
+
+class ExitPluginsRunner(BuildPluginsRunner):
+    def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
+        logger.info("initializing runner of exit plugins")
+        super(ExitPluginsRunner, self).__init__(dt, workflow, 'ExitPlugin',
+                                                plugins_conf, *args, **kwargs)
 
 
 class InputPlugin(Plugin):
