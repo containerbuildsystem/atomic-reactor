@@ -253,6 +253,8 @@ class DockerBuildWorkflow(object):
         self.exit_plugins_conf = exit_plugins
         self.prebuild_results = {}
         self.postbuild_results = {}
+        self.build_failed = False
+        self.plugin_failed = False
         self.plugin_files = plugin_files
 
         self.kwargs = kwargs
@@ -281,6 +283,13 @@ class DockerBuildWorkflow(object):
         if kwargs:
             logger.warning("unprocessed keyword arguments: %s", kwargs)
 
+    @property
+    def build_process_failed(self):
+        """
+        Has any aspect of the build process failed?
+        """
+        return self.build_failed or self.plugin_failed
+
     def build_docker_image(self):
         """
         build docker image
@@ -308,6 +317,8 @@ class DockerBuildWorkflow(object):
 
             build_result = self.builder.build()
             self.build_logs = build_result.logs
+
+            self.build_failed = build_result.is_failed()
 
             if not build_result.is_failed():
                 self.built_image_inspect = self.builder.inspect_built_image()

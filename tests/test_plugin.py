@@ -19,6 +19,7 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PostBuildPluginsRunner, \
         InputPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
+from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
 from atomic_reactor.util import ImageName
 from tests.constants import DOCKERFILE_GIT
 
@@ -41,6 +42,24 @@ def test_load_postbuild_plugins():
 
 class X(object):
     pass
+
+
+def test_build_plugin_failure():
+    tasker = DockerTasker()
+    workflow = DockerBuildWorkflow(SOURCE, "test-image")
+    assert workflow.build_process_failed is False
+    setattr(workflow, 'builder', X())
+    setattr(workflow.builder, 'image_id', "asd123")
+    setattr(workflow.builder, 'base_image', ImageName(repo='fedora', tag='21'))
+    setattr(workflow.builder, "source", X())
+    setattr(workflow.builder.source, 'dockerfile_path', "/non/existent")
+    setattr(workflow.builder.source, 'path', "/non/existent")
+    runner = PreBuildPluginsRunner(tasker, workflow,
+                                   [{"name": AddYumRepoByUrlPlugin.key,
+                                     "args": {'repourls': True}}])
+    with pytest.raises(PluginFailedException):
+        results = runner.run()
+    assert workflow.build_process_failed is True
 
 
 class TestInputPluginsRunner(object):

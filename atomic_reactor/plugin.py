@@ -146,6 +146,9 @@ class PluginsRunner(object):
         plugin_instance = plugin_class(**plugin_conf)
         return plugin_instance
 
+    def on_plugin_failed(self):
+        pass
+
     def run(self):
         """
         run all requested plugins
@@ -184,6 +187,7 @@ class PluginsRunner(object):
                 logger.debug(traceback.format_exc())
                 if not plugin_can_fail:
                     failed_msgs.append(msg)
+                    self.on_plugin_failed()
                 else:
                     logger.info("error is not fatal, continuing...")
                 plugin_response = ex
@@ -209,6 +213,9 @@ class BuildPluginsRunner(PluginsRunner):
         self.dt = dt
         self.workflow = workflow
         super(BuildPluginsRunner, self).__init__(plugin_class_name, plugins_conf, *args, **kwargs)
+
+    def on_plugin_failed(self):
+        self.workflow.plugin_failed = True
 
     def _translate_special_values(self, obj_to_translate):
         """
