@@ -4,7 +4,7 @@
 %{!?python2_sitearch: %global python2_sitearch %(%{__python2} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(1))")}
 %endif
 
-%if (0%{?fedora} >= 23 || 0%{?rhel} >= 8)
+%if (0%{?fedora} >= 22 || 0%{?rhel} >= 8)
 %global with_python3 1
 %global binaries_py_version 3
 %else
@@ -21,7 +21,7 @@
 
 Name:           %{project}
 Version:        1.4.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -150,30 +150,21 @@ Plugin for submitting metadata to OSBS
 
 %prep
 %setup -qn %{name}-%{commit}
-%if 0%{?with_python3}
-rm -rf %{py3dir}
-cp -a . %{py3dir}
-find %{py3dir} -name '*.py' | xargs sed -i '1s|^#!python|#!%{__python3}|'
-%endif # with_python3
 
 
 %build
 # build python package
 %{__python} setup.py build
 %if 0%{?with_python3}
-pushd %{py3dir}
 %{__python3} setup.py build
-popd
 %endif # with_python3
 
 
 %install
 %if 0%{?with_python3}
-pushd %{py3dir}
 %{__python3} setup.py install --skip-build --root %{buildroot}
 mv %{buildroot}%{_bindir}/atomic-reactor %{buildroot}%{_bindir}/atomic-reactor3
 mv %{buildroot}%{_bindir}/pulpsecret-gen %{buildroot}%{_bindir}/pulpsecret-gen3
-popd
 %endif # with_python3
 
 %{__python} setup.py install --skip-build --root %{buildroot}
@@ -265,6 +256,9 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 
 
 %changelog
+* Tue Jul 28 2015 bkabrda <bkabrda@redhat.com> - 1.4.0-2
+- fix issues found during Fedora re-review (rhbz#1246702)
+
 * Thu Jul 16 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.4.0-1
 - new upstream release 1.4.0
 
