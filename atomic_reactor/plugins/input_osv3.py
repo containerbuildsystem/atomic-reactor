@@ -12,6 +12,7 @@ import json
 import os
 
 from atomic_reactor.plugin import InputPlugin
+from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
 
 
 class OSv3InputPlugin(InputPlugin):
@@ -39,14 +40,34 @@ class OSv3InputPlugin(InputPlugin):
         plugins_json = os.environ.get('DOCK_PLUGINS', '{}')
         plugins_json = json.loads(plugins_json)
 
-        source_registry = None
-        source_registry_insecure = None
+        plugins_json.setdefault('prebuild_plugins', {})
+
+        # XXX: Remove the two try-except blocks after Sep 2015
         try:
-            match = [x for x in plugins_json['prebuild_plugins'] if x.get('name', None) == 'change_source_registry']
-            source_registry = match[0]['args']['registry_uri']
-            source_registry_insecure = match[0]['args'].get('insecure_registry', False)
-        except (IndexError, KeyError) as ex:
-            self.log.error("source registry is not configured: '%s'", repr(ex))
+            pull_plugin = [p for p in plugins_json['prebuild_plugins']
+                           if p.get('name', None) == PullBaseImagePlugin.key][0]
+        except IndexError:
+            self.log.warning("%s is missing in prebuild_plugins - please update your osbs-client!",
+                             PullBaseImagePlugin.key)
+            pull_plugin = { "name": PullBaseImagePlugin.key }
+            plugins_json['prebuild_plugins'].insert(0, pull_plugin)
+
+        try:
+            change_plugin = [p for p in plugins_json['prebuild_plugins']
+                             if p.get('name', None) == 'change_source_registry'][0]
+        except IndexError:
+            pass
+        else:
+            if 'registry_uri' in change_plugin.get('args', {}):
+                pull_plugin.setdefault('args', {})['parent_registry'] = \
+                    change_plugin['args']['registry_uri']
+            if 'insecure_registry' in change_plugin.get('args', {}):
+                pull_plugin.setdefault('args', {})['parent_registry_insecure'] = \
+                    change_plugin['args']['insecure_registry']
+            plugins_json['prebuild_plugins'].remove(change_plugin)
+
+        if 'parent_registry' not in pull_plugin.get('args', {}):
+            self.log.error("source registry is not configured")
 
         input_json = {
             'source': {
@@ -57,8 +78,6 @@ class OSv3InputPlugin(InputPlugin):
             'image': image,
             'target_registries': [target_registry] if target_registry else None,
             'target_registries_insecure': True,  # FIXME: create plugin for this
-            'parent_registry': source_registry,
-            'parent_registry_insecure': source_registry_insecure,
         }
         input_json.update(plugins_json)
 

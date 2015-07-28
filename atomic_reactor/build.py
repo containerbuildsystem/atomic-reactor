@@ -98,42 +98,6 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         if not self.base_image.tag:
             self.base_image.tag = 'latest'
 
-    def pull_base_image(self, source_registry, insecure=False):
-        """
-        pull base image
-
-        :param source_registry: str, registry to pull from
-        :param insecure: bool, allow connecting to registry over plain http
-        :return:
-        """
-        logger.info("pulling base image '%s' from registry '%s'", self.base_image, source_registry)
-        self._ensure_not_built()
-
-        base_image_with_registry = self.base_image.copy()
-
-        if source_registry:
-            # registry in dockerfile doesn't match provided source registry
-            if self.base_image.registry and self.base_image.registry != source_registry:
-                logger.error("registry in dockerfile doesn't match provided source registry, "
-                             "dockerfile = '%s', provided = '%s'",
-                             self.base_image.registry, source_registry)
-                raise RuntimeError(
-                    "Registry specified in dockerfile doesn't match provided one. Dockerfile: '%s', Provided: '%s'"
-                    % (self.base_image.registry, source_registry))
-
-            base_image_with_registry.registry = source_registry
-
-        base_image = self.tasker.pull_image(base_image_with_registry, insecure=insecure)
-        pulled_tags = set([base_image])
-
-        if not self.base_image.registry:
-            response = self.tasker.tag_image(base_image_with_registry, self.base_image, force=True)
-            pulled_tags.add(response)
-            base_image = response
-
-        logger.debug("image '%s' is available", base_image)
-        return pulled_tags
-
     def build(self):
         """
         build image inside current environment;

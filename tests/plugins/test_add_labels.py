@@ -22,6 +22,7 @@ from atomic_reactor.util import ImageName
 from tests.constants import MOCK_SOURCE
 import json
 import pytest
+from flexmock import flexmock
 
 
 class Y(object):
@@ -71,7 +72,7 @@ def test_add_labels_plugin(tmpdir, labels_conf_base, labels_conf, dont_overwrite
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     setattr(workflow, 'builder', X)
-    workflow.base_image_inspect = labels_conf_base
+    flexmock(workflow, base_image_inspect=labels_conf_base)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
 
     runner = PreBuildPluginsRunner(

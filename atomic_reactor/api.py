@@ -10,6 +10,7 @@ Python API for atomic_reactor. This is the official way of interacting with atom
 """
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.outer import PrivilegedBuildManager, DockerhostBuildManager
+from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
 
 
 __all__ = (
@@ -17,6 +18,28 @@ __all__ = (
     'build_image_using_hosts_docker',
     'build_image_here',
 )
+
+def _prepare_build_json(image, source, parent_registry, target_registries,
+                        parent_registry_insecure, target_registries_insecure,
+                        dont_pull_base_image, **kwargs):
+    build_json = {
+        "image": image,
+        "source": source,
+        "target_registries": target_registries,
+        "target_registries_insecure": target_registries_insecure,
+    }
+
+    if not dont_pull_base_image:
+        build_json["prebuild_plugins"] = [{
+            "name": PullBaseImagePlugin.key,
+            "args": {
+                "parent_registry": parent_registry,
+                "parent_registry_insecure": parent_registry_insecure,
+            }
+        }]
+
+    build_json.update(kwargs)
+    return build_json
 
 
 def build_image_in_privileged_container(build_image, source, image,
@@ -38,16 +61,9 @@ def build_image_in_privileged_container(build_image, source, image,
 
     :return: BuildResults
     """
-    build_json = {
-        "image": image,
-        "source": source,
-        "parent_registry": parent_registry,
-        "target_registries": target_registries,
-        "parent_registry_insecure": parent_registry_insecure,
-        "target_registries_insecure": target_registries_insecure,
-        "dont_pull_base_image": dont_pull_base_image,
-    }
-    build_json.update(kwargs)
+    build_json = _prepare_build_json(image, source, parent_registry, target_registries,
+                                     parent_registry_insecure, target_registries_insecure,
+                                     dont_pull_base_image, **kwargs)
     m = PrivilegedBuildManager(build_image, build_json)
     build_response = m.build()
     if push_buildroot_to:
@@ -76,16 +92,9 @@ def build_image_using_hosts_docker(build_image, source, image,
 
     :return: BuildResults
     """
-    build_json = {
-        "image": image,
-        "source": source,
-        "parent_registry": parent_registry,
-        "target_registries": target_registries,
-        "parent_registry_insecure": parent_registry_insecure,
-        "target_registries_insecure": target_registries_insecure,
-        "dont_pull_base_image": dont_pull_base_image,
-    }
-    build_json.update(kwargs)
+    build_json = _prepare_build_json(image, source, parent_registry, target_registries,
+                                     parent_registry_insecure, target_registries_insecure,
+                                     dont_pull_base_image, **kwargs)
     m = DockerhostBuildManager(build_image, build_json)
     build_response = m.build()
     if push_buildroot_to:
@@ -110,16 +119,9 @@ def build_image_here(source, image,
 
     :return: BuildResults
     """
-    build_json = {
-        "image": image,
-        "source": source,
-        "parent_registry": parent_registry,
-        "target_registries": target_registries,
-        "parent_registry_insecure": parent_registry_insecure,
-        "target_registries_insecure": target_registries_insecure,
-        "dont_pull_base_image": dont_pull_base_image,
-    }
-    build_json.update(kwargs)
+    build_json = _prepare_build_json(image, source, parent_registry, target_registries,
+                                     parent_registry_insecure, target_registries_insecure,
+                                     dont_pull_base_image, **kwargs)
     m = DockerBuildWorkflow(**build_json)
     return m.build_docker_image()
 
