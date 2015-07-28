@@ -8,14 +8,23 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function, unicode_literals
 
 try:
-    import koji
+    import koji as koji
 except ImportError:
-    KOJI_FOUND = False
-else:
-    KOJI_FOUND = True
-    from atomic_reactor.plugins.pre_koji import KojiPlugin
+    import inspect
+    import os
+    import sys
 
+    # Find our mocked koji module
+    import tests.koji as koji
+    mock_koji_path = os.path.dirname(inspect.getfile(koji.ClientSession))
+    if mock_koji_path not in sys.path:
+        sys.path.append(os.path.dirname(mock_koji_path))
 
+    # Now load it properly, the same way the plugin will
+    del koji
+    import koji as koji
+
+from atomic_reactor.plugins.pre_koji import KojiPlugin
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
@@ -55,6 +64,14 @@ class MockedClientSession(object):
         return GET_REPO_RESPONSE
 
 
+class MockedPathInfo(object):
+    def __init__(self, topdir=None):
+        self.topdir = topdir
+
+    def repo(self, repo_id, name):
+        return "{0}/repos/{1}/{2}".format(self.topdir, name, repo_id)
+
+
 def prepare():
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
@@ -66,13 +83,13 @@ def prepare():
     setattr(workflow.builder.source, 'dockerfile_path', None)
     setattr(workflow.builder.source, 'path', None)
 
-    flexmock(koji, ClientSession=MockedClientSession)
+    flexmock(koji,
+             ClientSession=MockedClientSession,
+             PathInfo=MockedPathInfo)
 
     return tasker, workflow
 
 
-@pytest.mark.skipif(not KOJI_FOUND,
-                    reason="koji module is not present in PyPI")
 def test_koji_plugin():
     tasker, workflow = prepare()
     runner = PreBuildPluginsRunner(tasker, workflow, [{
