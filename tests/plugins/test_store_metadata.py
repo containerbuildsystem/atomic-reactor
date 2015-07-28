@@ -14,10 +14,10 @@ from copy import deepcopy
 from flexmock import flexmock
 from osbs.api import OSBS
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PostBuildPluginsRunner
+from atomic_reactor.plugin import ExitPluginsRunner
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 
-from atomic_reactor.plugins.post_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
+from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
 from atomic_reactor.plugins.pre_cp_dockerfile import CpDockerfilePlugin
 from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
 from atomic_reactor.util import ImageName, LazyGit
@@ -79,7 +79,7 @@ def test_metadata_plugin(tmpdir):
         PostBuildRPMqaPlugin.key: "rpm1\nrpm2",
     }
 
-    runner = PostBuildPluginsRunner(
+    runner = ExitPluginsRunner(
         None,
         workflow,
         [{
@@ -111,7 +111,7 @@ def test_metadata_plugin_rpmqa_failure(tmpdir):
         PostBuildRPMqaPlugin.key: RuntimeError(),
     }
 
-    runner = PostBuildPluginsRunner(
+    runner = ExitPluginsRunner(
         None,
         workflow,
         [{

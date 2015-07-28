@@ -8,7 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 Remove built image (this only makes sense if you store the image in some registry first)
 """
-from atomic_reactor.plugin import PostBuildPlugin
+from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import ImageName
 
 from docker.errors import APIError
@@ -16,7 +16,7 @@ from docker.errors import APIError
 __all__ = ('GarbageCollectionPlugin', )
 
 
-class GarbageCollectionPlugin(PostBuildPlugin):
+class GarbageCollectionPlugin(ExitPlugin):
     key = "remove_built_image"
     can_fail = True
 

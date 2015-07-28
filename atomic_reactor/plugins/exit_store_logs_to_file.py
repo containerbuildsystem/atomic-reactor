@@ -9,13 +9,13 @@ of the BSD license. See the LICENSE file for details.
 import json
 from atomic_reactor.constants import CONTAINER_RESULTS_JSON_PATH
 from atomic_reactor.inner import BuildResultsEncoder
-from atomic_reactor.plugin import PostBuildPlugin
+from atomic_reactor.plugin import ExitPlugin
 
 
 __all__ = ('StoreLogsToFilePlugin', )
 
 
-class StoreLogsToFilePlugin(PostBuildPlugin):
+class StoreLogsToFilePlugin(ExitPlugin):
     key = "store_logs_to_file"
 
     def __init__(self, tasker, workflow, file_path):
