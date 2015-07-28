@@ -43,24 +43,6 @@ class X(object):
     pass
 
 
-def test_rpmqa_plugin():
-    tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
-    setattr(workflow, 'builder', X())
-    setattr(workflow.builder, 'image_id', "asd123")
-    setattr(workflow.builder, 'base_image', ImageName(repo='fedora', tag='21'))
-    setattr(workflow.builder, "source", X())
-    setattr(workflow.builder.source, 'dockerfile_path', "/non/existent")
-    setattr(workflow.builder.source, 'path', "/non/existent")
-    runner = PostBuildPluginsRunner(tasker, workflow,
-                                    [{"name": PostBuildRPMqaPlugin.key,
-                                      "args": {'image_id': TEST_IMAGE}}])
-    results = runner.run()
-    assert results is not None
-    assert results[PostBuildRPMqaPlugin.key] is not None
-    assert len(results[PostBuildRPMqaPlugin.key]) > 0
-
-
 class TestInputPluginsRunner(object):
     def test_substitution(self, tmpdir):
         tmpdir_path = str(tmpdir)

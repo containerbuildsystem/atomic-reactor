@@ -37,6 +37,18 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
         self.verify_ssl = verify_ssl
         self.use_auth = use_auth
 
+    def get_result(self, result):
+        if isinstance(result, Exception):
+            result = ''
+
+        return result
+
+    def get_pre_result(self, key):
+        return self.get_result(self.workflow.prebuild_results.get(key, ''))
+
+    def get_post_result(self, key):
+        return self.get_result(self.workflow.postbuild_results.get(key, ''))
+
     def run(self):
         try:
             build_json = json.loads(os.environ["BUILD"])
@@ -90,10 +102,10 @@ class StoreMetadataInOSv3Plugin(PostBuildPlugin):
             commit_id = ""
 
         labels = {
-            "dockerfile": self.workflow.prebuild_results.get(CpDockerfilePlugin.key, ""),
-            "artefacts": self.workflow.prebuild_results.get(DistgitFetchArtefactsPlugin.key, ""),
+            "dockerfile": self.get_pre_result(CpDockerfilePlugin.key),
+            "artefacts": self.get_pre_result(DistgitFetchArtefactsPlugin.key),
             "logs": "\n".join(self.workflow.build_logs),
-            "rpm-packages": "\n".join(self.workflow.postbuild_results.get(PostBuildRPMqaPlugin.key, "")),
+            "rpm-packages": "\n".join(self.get_post_result(PostBuildRPMqaPlugin.key)),
             "repositories": json.dumps(repositories),
             "commit_id": commit_id,
         }
