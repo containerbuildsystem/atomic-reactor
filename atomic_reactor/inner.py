@@ -267,9 +267,13 @@ class DockerBuildWorkflow(object):
         self.dont_pull_base_image = dont_pull_base_image
         self.pulled_base_images = set()
 
-        # squashed image tarball
-        # set by squash plugin
-        self.exported_squashed_image = {}
+        # When an image is exported into tarball, it can then be processed by various plugins.
+        #  Each plugin that transforms the image should save it as a new file and append it to
+        #  the end of exported_image_sequence. Other plugins should then operate with last
+        #  member of this structure. Example:
+        #  [{'path': '/tmp/foo.tar', 'size': 12345678, 'md5sum': '<md5>', 'sha256sum': '<sha256>'}]
+        #  You can use util.get_exported_image_metadata to create a dict to append to this list.
+        self.exported_image_sequence = []
 
         self.tag_conf = TagConf()
         self.push_conf = PushConf()

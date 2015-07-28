@@ -19,10 +19,9 @@ from atomic_reactor.util import ImageName
 import dockpulp
 import dockpulp.imgutils
 
-import gzip
 import os
 import re
-from tempfile import NamedTemporaryFile
+import tempfile
 
 
 class PulpUploader(object):
@@ -133,32 +132,21 @@ class PulpUploader(object):
                 for tag in repodata['tags']]
 
 
-def compress(filename, ifp):
-    _chunk_size = 1024*1024  # 1Mb buffer for writing file
-    wfp = gzip.open(filename, "wb", compresslevel=6)
-    while True:
-        data = ifp.read(_chunk_size)
-        if data == b'':
-            break
-
-        wfp.write(data)
-
-
 class PulpPushPlugin(PostBuildPlugin):
     key = "pulp_push"
     can_fail = False
 
-    def __init__(self, tasker, workflow, pulp_registry_name, load_squashed_image=False,
-                 image_names=None, pulp_secret_path=None, username=None, password=None,
-                 dockpulp_loglevel=None):
+    def __init__(self, tasker, workflow, pulp_registry_name, load_squashed_image=None,
+                 load_exported_image=None, image_names=None, pulp_secret_path=None,
+                 username=None, password=None, dockpulp_loglevel=None):
         """
         constructor
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param pulp_registry_name: str, name of pulp registry to use, specified in /etc/dockpulp.conf
-        :param load_squashed_image: bool, when running squash plugin with `dont_load=True`,
-                                    you may load the squashed tar with this switch
+        :param load_squashed_image: obsolete name for load_exported_image, please don't use
+        :param load_exported_image: bool, use exported tar instead of image from Docker
         :param image_names: list of additional image names
         :param pulp_secret_path: path to pulp.cer and pulp.key; $SOURCE_SECRET_PATH otherwise
         :param username: pulp username, used in preference to certificate and key
@@ -168,7 +156,15 @@ class PulpPushPlugin(PostBuildPlugin):
         super(PulpPushPlugin, self).__init__(tasker, workflow)
         self.pulp_registry_name = pulp_registry_name
         self.image_names = image_names
-        self.load_squashed_image = load_squashed_image
+        if load_squashed_image is not None and load_exported_image is not None and \
+                (load_squashed_image != load_exported_image):
+            raise RuntimeError(
+                'Can\'t use load_squashed_image and load_exported_image with different values')
+        if load_squashed_image is not None:
+            self.log.warning(
+                'load_squashed_image argument is obsolete and will be removed in a future version;'
+                'please use load_exported_image instead')
+        self.load_exported_image = load_exported_image or load_squashed_image or False
         self.pulp_secret_path = pulp_secret_path
         self.username = username
         self.password = password
@@ -181,22 +177,15 @@ class PulpPushPlugin(PostBuildPlugin):
                 self.log.error("Can't set provided log level %s: %s",
                                repr(dockpulp_loglevel), repr(ex))
 
-    def push_tar(self, image_stream, image_names=None):
-        with NamedTemporaryFile(prefix='docker-image-',
-                                suffix='.tar.gz') as targz:
-            # Compress the tarball docker gave us.
-            self.log.info("compressing tarball to %s", targz.name)
-            compress(targz.name, image_stream)
+    def push_tar(self, image_path, image_names=None):
+        # Find out how to tag this image.
+        self.log.info("image names: %s", [str(image_name) for image_name in image_names])
 
-            # Find out how to tag this image.
-            self.log.info("image names: %s", [str(image_name)
-                                              for image_name in image_names])
-
-            # Give that compressed tarball to pulp.
-            uploader = PulpUploader(self.workflow, self.pulp_registry_name, targz.name, self.log,
-                                    pulp_secret_path=self.pulp_secret_path, username=self.username,
-                                    password=self.password)
-            return uploader.push_tarball_to_pulp(image_names)
+        # Give that compressed tarball to pulp.
+        uploader = PulpUploader(self.workflow, self.pulp_registry_name, image_path, self.log,
+                                pulp_secret_path=self.pulp_secret_path, username=self.username,
+                                password=self.password)
+        return uploader.push_tarball_to_pulp(image_names)
 
     def run(self):
         image_names = self.workflow.tag_conf.images[:]
@@ -205,15 +194,18 @@ class PulpPushPlugin(PostBuildPlugin):
             self.log.info("extending image names: %s", self.image_names)
             image_names += [ImageName.parse(x) for x in self.image_names]
 
-        if self.load_squashed_image:
-            with open(self.workflow.exported_squashed_image.get("path"), "r") as image_stream:
-                crane_repos = self.push_tar(image_stream, image_names)
+        if self.load_exported_image:
+            if len(self.workflow.exported_image_sequence) == 0:
+                raise RuntimeError('no exported image to push to pulp')
+            crane_repos = self.push_tar(self.workflow.exported_image_sequence[-1].get("path"),
+                                        image_names)
         else:
             # Work out image ID
             image = self.workflow.image
             self.log.info("fetching image %s from docker", image)
-            with self.tasker.d.get_image(image) as image_stream:
-                crane_repos = self.push_tar(image_stream, image_names)
+            with tempfile.NamedTemporaryFile(prefix='docker-image-', suffix='.tar') as image_file:
+                image_file.write(self.tasker.d.get_image(image).data)
+                crane_repos = self.push_tar(image_file.name, image_names)
 
         for image_name in crane_repos:
             self.log.info("image available at %s", str(image_name))

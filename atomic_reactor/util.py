@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import print_function, unicode_literals
 
+import hashlib
 import json
 import os
 from pipes import quote
@@ -419,3 +420,28 @@ def _process_plugin_substitution(mapping, key_parts, value):
                      plugin_name)
         raise RuntimeError("plugin '%s' was specified multiple (%d) times, can't pick one",
                            plugin_name, plugins_num)
+
+
+def get_exported_image_metadata(path):
+    logger.info('getting metadata for tarball %s', path)
+    metadata = {'path': path}
+    if not path or not os.path.isfile(path):
+        logger.error('%s is not a file', path)
+        return
+
+    metadata['size'] = os.path.getsize(path)
+    logger.debug('size: %d bytes', metadata['size'])
+    m = hashlib.md5()
+    s = hashlib.sha256()
+    blocksize = 65536
+    with open(path, mode='rb') as f:
+        buf = f.read(blocksize)
+        while len(buf) > 0:
+            m.update(buf)
+            s.update(buf)
+            buf = f.read(blocksize)
+    metadata['md5sum'] = m.hexdigest()
+    logger.debug('md5sum: %s', metadata['md5sum'])
+    metadata['sha256sum'] = s.hexdigest()
+    logger.debug('sha256sum: %s', metadata['sha256sum'])
+    return metadata

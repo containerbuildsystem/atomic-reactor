@@ -100,8 +100,17 @@ def mock_docker(build_should_fail=False,
     flexmock(docker.Client, start=lambda cid, **kwargs: None)
     flexmock(docker.Client, tag=lambda img, rep, **kwargs: True)
     flexmock(docker.Client, wait=lambda cid: 1 if wait_should_fail else 0)
-    flexmock(docker.Client, get_image=lambda img, **kwargs: open("/dev/null",
-                                                                 "rb"))
+    class GetImageResult(object):
+        data = b''
+        def __init__(self):
+            self.fp = open('/dev/null', 'rb')
+        def __getattr__(self, attr):
+            return getattr(self, self.fp, attr)
+        def __enter__(self):
+            return self.fp
+        def __exit__(self, tp, val, tb):
+            self.fp.close()
+    flexmock(docker.Client, get_image=lambda img, **kwargs: GetImageResult())
     flexmock(os.path, exists=lambda p: True if p == DOCKER_SOCKET_PATH else old_ope(p))
 
     for method, args in should_raise_error.items():

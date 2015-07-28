@@ -110,10 +110,12 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             "commit_id": commit_id,
         }
 
-        tar_path = self.workflow.exported_squashed_image.get("path")
-        tar_size = self.workflow.exported_squashed_image.get("size")
-        tar_md5sum = self.workflow.exported_squashed_image.get("md5sum")
-        tar_sha256sum = self.workflow.exported_squashed_image.get("sha256sum")
+        tar_path = tar_size = tar_md5sum = tar_sha256sum = None
+        if len(self.workflow.exported_image_sequence) > 0:
+            tar_path = self.workflow.exported_image_sequence[-1].get("path")
+            tar_size = self.workflow.exported_image_sequence[-1].get("size")
+            tar_md5sum = self.workflow.exported_image_sequence[-1].get("md5sum")
+            tar_sha256sum = self.workflow.exported_image_sequence[-1].get("sha256sum")
         # looks like that openshift can't handle value being None (null in json)
         if tar_size is not None and tar_md5sum is not None and tar_sha256sum is not None and \
                 tar_path is not None:
