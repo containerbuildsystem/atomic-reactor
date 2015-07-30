@@ -79,6 +79,8 @@ def test_bad_setup():
     flexmock(OSBS, import_image=must_not_be_called)
 
     # No build JSON
+    if "BUILD" in os.environ:
+        del os.environ["BUILD"]
     with pytest.raises(PluginFailedException):
         runner.run()
 
