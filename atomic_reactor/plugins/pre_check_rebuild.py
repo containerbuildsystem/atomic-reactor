@@ -70,10 +70,9 @@ class CheckRebuildPlugin(PreBuildPlugin):
             raise
 
         metadata = build_json.get("metadata", {})
-        if self.label_key in metadata:
-            if metadata[self.label_key] == self.label_value:
-                self.log.info("This is not a rebuild")
-                return False
+        if metadata.get(self.label_key) == self.label_value:
+            self.log.info("This is not a rebuild")
+            return False
 
         self.log.info("This is a rebuild")
         return True
