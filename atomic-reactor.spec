@@ -92,6 +92,7 @@ Requires:       python-docker-py
 Requires:       python-requests
 Requires:       python-setuptools
 Requires:       python-dockerfile-parse
+Requires:       python-backports-lzma
 # Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
 Requires:       nfs-utils
 Provides:       python-dock = %{version}-%{release}
