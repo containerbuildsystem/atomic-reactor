@@ -51,7 +51,7 @@ setup(
         'console_scripts': ['atomic-reactor=atomic_reactor.cli.main:run',
                             'pulpsecret-gen=atomic_reactor.cli.secret:run'],
     },
-    packages=find_packages(exclude=["tests", "tests.plugins"]),
+    packages=find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests"]),
     install_requires=_install_requirements(),
     data_files=data_files.items(),
 )
