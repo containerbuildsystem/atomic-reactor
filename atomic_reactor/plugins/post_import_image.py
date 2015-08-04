@@ -13,6 +13,7 @@ import os
 
 from osbs.api import OSBS
 from osbs.conf import Configuration
+from osbs.exceptions import OsbsResponseException
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.util import ImageName
@@ -20,24 +21,30 @@ from atomic_reactor.util import ImageName
 
 class ImportImagePlugin(PostBuildPlugin):
     """
-    Import image tags from external docker registry into OpenShift.
+    Import image tags from external docker registry into Origin,
+    creating an ImageStream if one does not already exist.
     """
 
     key = "import_image"
     can_fail = False
 
-    def __init__(self, tasker, workflow, url, verify_ssl=True, use_auth=True):
+    def __init__(self, tasker, workflow, imagestream, docker_image_repo,
+                 url, verify_ssl=True, use_auth=True):
         """
         constructor
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
+        :param imagestream: str, name of ImageStream
+        :param docker_image_repo: str, image repository to import tags from
         :param url: str, URL to OSv3 instance
         :param verify_ssl: bool, verify SSL certificate?
         :param use_auth: bool, initiate authentication with openshift?
         """
         # call parent constructor
         super(ImportImagePlugin, self).__init__(tasker, workflow)
+        self.imagestream = imagestream
+        self.docker_image_repo = docker_image_repo
         self.url = url
         self.verify_ssl = verify_ssl
         self.use_auth = use_auth
@@ -50,22 +57,25 @@ class ImportImagePlugin(PostBuildPlugin):
                            "Probably not running in build container.")
             raise
 
-        osbs_conf = Configuration(conf_file=None, openshift_uri=self.url,
-                                  use_auth=self.use_auth,
-                                  verify_ssl=self.verify_ssl)
-        osbs = OSBS(osbs_conf, osbs_conf)
-
         metadata = build_json.get("metadata", {})
         kwargs = {}
         if 'namespace' in metadata:
             kwargs['namespace'] = metadata['namespace']
 
-        labels = metadata.get("labels", {})
-        try:
-            imagestream = labels["imagestream"]
-        except KeyError:
-            self.log.error("No imagestream label set for this Build")
-            raise
+        osbs_conf = Configuration(openshift_uri=self.url,
+                                  use_auth=self.use_auth,
+                                  verify_ssl=self.verify_ssl)
+        osbs = OSBS(osbs_conf, osbs_conf)
 
-        self.log.info("Importing tags for %s", imagestream)
-        osbs.import_image(imagestream, **kwargs)
+        try:
+            osbs.get_image_stream(self.imagestream, **kwargs)
+        except OsbsResponseException:
+            self.log.info("Creating ImageStream %s for %s", self.imagestream,
+                          self.docker_image_repo)
+
+            # Tags are imported automatically on creation
+            osbs.create_image_stream(self.imagestream, self.docker_image_repo,
+                                     **kwargs)
+        else:
+            self.log.info("Importing tags for %s", self.imagestream)
+            osbs.import_image(self.imagestream, **kwargs)
