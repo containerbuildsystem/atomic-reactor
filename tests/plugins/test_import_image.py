@@ -42,13 +42,7 @@ def prepare():
     setattr(workflow.builder, 'source', X())
     setattr(workflow.builder.source, 'dockerfile_path', None)
     setattr(workflow.builder.source, 'path', None)
-
     flexmock(OSBS)
-
-    # No-op implementation until this is implemented in osbs-client
-    setattr(OSBS, 'import_image', lambda **kwargs: None)
-
-    flexmock(OSBS, import_image=lambda name: None)
 
     runner = PostBuildPluginsRunner(tasker, workflow, [{
         'name': ImportImagePlugin.key,
@@ -61,14 +55,6 @@ def prepare():
     return runner
 
 
-def must_not_be_called(*_):
-    """
-    Set as implementation for methods than must not be called
-    """
-
-    assert False
-
-
 def test_bad_setup():
     """
     Try all the early-fail paths.
@@ -76,7 +62,9 @@ def test_bad_setup():
 
     runner = prepare()
 
-    flexmock(OSBS, import_image=must_not_be_called)
+    (flexmock(OSBS)
+     .should_receive('import_image')
+     .never())
 
     # No build JSON
     if "BUILD" in os.environ:
@@ -100,24 +88,6 @@ def test_bad_setup():
         runner.run()
 
 
-class Collect(object):
-    """
-    Collect the values a method is called with.
-    """
-
-    def __init__(self):
-        self.called_with = []
-
-    def called(self, *args, **kwargs):
-        """
-        Set this as the implementation for the method to watch.
-        """
-        self.called_with.append((args, kwargs))
-
-    def raise_exc(self, *args, **kwargs):
-        raise RuntimeError        
-
-
 def test_import_image():
     """
     Test action of plugin.
@@ -127,8 +97,11 @@ def test_import_image():
 
     my_imagestream = 'fedora'
 
-    collect = Collect()
-    flexmock(OSBS, import_image=collect.called)
+    # Check import_image() is called with the correct arguments
+    # (no namespace keyword)
+    (flexmock(OSBS)
+     .should_receive('import_image')
+     .with_args(my_imagestream))
 
     # No namespace in metadata
     os.environ["BUILD"] = json.dumps({
@@ -140,14 +113,15 @@ def test_import_image():
     })
     runner.run()
 
-    # import_image() is called with the correct arguments
-    # (no namespace keyword)
-    assert collect.called_with == [((my_imagestream,), {})]
-
     # Namespace in metadata
-    collect = Collect()
-    flexmock(OSBS, import_image=collect.called)
     namespace = 'namespace'
+
+    # Check import_image() is called with the correct arguments
+    # (including namespace keyword)
+    (flexmock(OSBS)
+     .should_receive('import_image')
+     .with_args(my_imagestream, namespace=namespace))
+
     os.environ["BUILD"] = json.dumps({
         "metadata": {
             "namespace": namespace,
@@ -158,11 +132,6 @@ def test_import_image():
     })
     runner.run()
 
-    # import_image() is called with the correct arguments
-    # (including namespace keyword)
-    assert collect.called_with == [((my_imagestream,),
-                                    {'namespace': namespace})]
-
 
 def test_exception_during_import():
     """
@@ -172,8 +141,9 @@ def test_exception_during_import():
     runner = prepare()
 
     my_imagestream = 'fedora'
-    collect = Collect()
-    flexmock(OSBS, import_image=collect.raise_exc)
+    (flexmock(OSBS)
+     .should_receive('import_image')
+     .and_raise(RuntimeError))
 
     os.environ["BUILD"] = json.dumps({
         "metadata": {
