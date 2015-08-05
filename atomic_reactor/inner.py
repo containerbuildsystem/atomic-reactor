@@ -253,7 +253,7 @@ class DockerBuildWorkflow(object):
         self.kwargs = kwargs
 
         self.builder = None
-        self.build_logs = None
+        self.build_logs = []
         self.built_image_inspect = None
         self._base_image_inspect = None
 
