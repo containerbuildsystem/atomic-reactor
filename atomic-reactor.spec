@@ -203,7 +203,6 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %{python2_sitelib}/atomic_reactor/plugins
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
-%exclude %{python2_sitelib}/tests
 %{python2_sitelib}/atomic_reactor-%{version}-py2.*.egg-info
 %dir %{_datadir}/%{name}
 %{_datadir}/%{name}/atomic-reactor.tar.gz
@@ -236,7 +235,6 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_koji.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_store_metadata_in_osv3*.py*
-%exclude %{python3_sitelib}/tests
 %{python3_sitelib}/atomic_reactor-%{version}-py3.*.egg-info
 %dir %{_datadir}/%{name}
 # ship reactor in form of tarball so it can be installed within build image
