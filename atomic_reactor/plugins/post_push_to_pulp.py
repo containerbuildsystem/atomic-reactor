@@ -113,7 +113,8 @@ class PulpUploader(object):
         self.log.info("repo_tags_mapping = %s", repos_tags_mapping)
         task_ids = p.push_tar_to_pulp(repos_tags_mapping, self.filename)
 
-        self.log.info("waiting for repos to be published to crane")
+        self.log.info("waiting for repos to be published to crane, tasks: %s",
+                      ", ".join(map(str, task_ids)))
         p.watch_tasks(task_ids)
 
         # Store the registry URI in the push configuration
