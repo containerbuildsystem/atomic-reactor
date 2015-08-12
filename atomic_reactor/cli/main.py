@@ -245,10 +245,10 @@ class CLI(object):
             stp.add_argument(
                 "--method", action='store', required=True,
                 choices=["hostdocker", "privileged", "here"],
-                help="choose method for building image: 'hostdocker' mounts socket "
-                     "inside container, 'privileged' spawns privileged container and "
-                     "runs separate docker instance inside and finally 'here' executes"
-                     "build in current environment")
+                help="choose method for building image: "
+                     "'hostdocker' mounts socket inside privileged container to use docker from host, "
+                     "'privileged' runs separate docker instance inside privileged container "
+                     "and 'here' executes build in current environment")
 
         # add sourcetype-specific arguments now
         self.source_types_parsers['git'].add_argument(

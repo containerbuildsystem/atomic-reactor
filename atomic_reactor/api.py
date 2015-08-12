@@ -47,7 +47,8 @@ def build_image_in_privileged_container(build_image, source, image,
         parent_registry_insecure=False, target_registries_insecure=False,
         dont_pull_base_image=False, **kwargs):
     """
-    build image from provided dockerfile (specified by `source`) in privileged image
+    build image from provided dockerfile (specified by `source`) in privileged container by
+    running another docker instance inside the container
 
     :param build_image: str, image where target image should be built
     :param source: dict, where/how to get source code to put in image
@@ -77,7 +78,7 @@ def build_image_using_hosts_docker(build_image, source, image,
         parent_registry_insecure=False, target_registries_insecure=False,
         dont_pull_base_image=False, **kwargs):
     """
-    build image from provided dockerfile (specified by `source`) in container
+    build image from provided dockerfile (specified by `source`) in privileged container
     using docker from host
 
     :param build_image: str, image where target image should be built

@@ -115,7 +115,8 @@ class BuildContainerFactory(object):
 
     def build_image_dockerhost(self, build_image, json_args_path):
         """
-        Build docker image within a build image using docker from host (mount docker socket inside container).
+        Build docker image inside privileged container using docker from host
+        (mount docker socket inside container).
         There are possible races here. Use wisely.
 
         This operation is asynchronous and you should wait for container to finish.
@@ -157,14 +158,15 @@ class BuildContainerFactory(object):
         container_id = self.tasker.run(
             ImageName.parse(build_image),
             create_kwargs={'volumes': [DOCKER_SOCKET_PATH, json_args_path]},
-            start_kwargs={'binds': volume_bindings},
+            start_kwargs={'binds': volume_bindings,
+                          'privileged': True}
         )
 
         return container_id
 
     def build_image_privileged_container(self, build_image, json_args_path):
         """
-        build image inside privileged container: this will run another docker instance inside
+        Build image inside privileged container: this will run another docker instance inside
 
         This operation is asynchronous and you should wait for container to finish.
 
