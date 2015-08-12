@@ -95,7 +95,7 @@ We also need an input json for the build itself (let's use my [hello world docke
 Time to run the build (we'll build an image, `test-image`, in current environment (not inside a build container), getting data from `./build.json` and finally, we'll tell Atomic Reactor to load our plugin):
 
 ```
-terminal2 $ atomic-reactor -v build --method here --json ./build.json --load-plugin ./post_logs_submitter.py
+terminal2 $ atomic-reactor -v build json --method here ./build.json --load-plugin ./post_logs_submitter.py
 ...
 2015-02-19 13:26:05,450 - atomic_reactor.plugin - DEBUG - running plugin 'logs_submitter' with args: '{u'url': u'http://localhost:9099'}'
 ```
