@@ -32,7 +32,7 @@ Order is important, because plugins are executed in the order as they are specif
 
 ## Input plugins
 
-Input plugin is requested via command line: command `inside-build`, option `--input`. Some input plugins require configuration, e.g. path plugins requires a file path to the file with build json. This is done via argument `--input-arg`. It has special syntax: `--input-arg key=value`.
+Input plugin is requested via command line: command `inside-build`, option `--input`. If this option is not given, atomic-reactor tries to autodetect which input plugin to run. If the autodetection fails, atomic-reactor exits and asks you to explicitly specify `--input`. Some input plugins require configuration, e.g. path plugins requires a file path to the file with build json. This is done via argument `--input-arg`. It has special syntax: `--input-arg key=value`.
 
 ### path input plugin
 
@@ -46,6 +46,14 @@ This input plugin reads specified file from filesystem and uses it as build json
 Loads specified environment variable as build json. Sample usage:
 ```
 --input env --input-arg env_name=MY_BUILD_JSON
+```
+
+### osv3 input plugin
+
+Loads build configuration from environment variables provided by OpenShift v3. Sample usage:
+
+```
+--input osv3
 ```
 
 ### Configuration substitution
