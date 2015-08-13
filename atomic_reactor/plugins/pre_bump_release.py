@@ -70,8 +70,6 @@ class BumpReleasePlugin(PreBuildPlugin):
     key = "bump_release"
     can_fail = False  # We really want to stop the process
 
-    commit_message = "Bumped release for automated rebuild"
-
     def __init__(self, tasker, workflow,
                  git_ref,
                  author_name, author_email,
@@ -97,16 +95,11 @@ class BumpReleasePlugin(PreBuildPlugin):
         self.git_ref = git_ref
         self.author_name = author_name
         self.author_email = author_email
-        self.committer_name = committer_name
-        self.commiter_email = committer_email
-        if committer_name is None:
-            self.committer_name = author_name
-        if committer_email is None:
-            self.committer_email = author_email
-
+        self.committer_name = committer_name or author_name
+        self.committer_email = committer_email or author_email
         self.push_url = push_url
-        if commit_message is not None:
-            self.commit_message = commit_message
+        self.commit_message = (commit_message or
+                               "Bumped release for automated rebuild")
 
     def bump_local_file(self, parser, label_key, next_release):
         """
