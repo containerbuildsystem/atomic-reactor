@@ -1,2 +1,3 @@
 docker-py
 dockerfile-parse
+#pygit2

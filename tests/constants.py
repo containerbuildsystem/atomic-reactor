@@ -25,7 +25,14 @@ DOCKERFILE_ERROR_BUILD_PATH = os.path.join(FILES, 'docker-hello-world-error-buil
 DOCKERFILE_SUBDIR_PATH = os.path.join(FILES, 'df-in-subdir')
 DOCKERFILE_SHA1 = "6e592f1420efcd331cd28b360a7e02f669caf540"
 
-SOURCE = {'provider': 'git', 'uri': DOCKERFILE_GIT}
+SOURCE = {
+    'provider': 'git',
+    'uri': DOCKERFILE_GIT,
+    'provider_params': {
+        'git_commit': 'master',
+    }
+}
+
 MOCK_SOURCE = {'provider': 'git', 'uri': 'asd'}
 
 REGISTRY_PORT = "5000"
