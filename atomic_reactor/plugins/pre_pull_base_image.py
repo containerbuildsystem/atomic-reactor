@@ -37,8 +37,11 @@ class PullBaseImagePlugin(PreBuildPlugin):
         pull base image
         """
         base_image = self.workflow.builder.base_image
-        self.log.info("pulling base image '%s' from registry '%s'",
-                      base_image, self.parent_registry)
+        if self.parent_registry is not None:
+            self.log.info("pulling base image '%s' from registry '%s'",
+                          base_image, self.parent_registry)
+        else:
+            self.log.info("pulling base image '%s'", base_image)
 
         base_image_with_registry = base_image.copy()
 
