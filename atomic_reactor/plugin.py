@@ -193,6 +193,10 @@ class PluginsRunner(object):
                 plugin_response = plugin_instance.run()
             except AutoRebuildCanceledException as ex:
                 # if auto rebuild is canceled, then just reraise
+                # NOTE: We need to catch and reraise explicitly, so that the below except clause
+                #   doesn't catch this and make PluginFailedException out of it in the end
+                #   (calling methods would then need to parse exception message to see if
+                #   AutoRebuildCanceledException was raised here)
                 raise
             except Exception as ex:
                 msg = "plugin '%s' raised an exception: '%s'" % (plugin_instance.key, repr(ex))
