@@ -15,7 +15,7 @@ import tempfile
 
 from atomic_reactor.build import InsideBuilder
 from atomic_reactor.plugin import PostBuildPluginsRunner, PreBuildPluginsRunner, InputPluginsRunner, PrePublishPluginsRunner, \
-    ExitPluginsRunner, PluginFailedException
+    ExitPluginsRunner, PluginFailedException, AutoRebuildCanceledException
 from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.util import ImageName
 
@@ -246,6 +246,7 @@ class DockerBuildWorkflow(object):
         self.exit_plugins_conf = exit_plugins
         self.prebuild_results = {}
         self.postbuild_results = {}
+        self.autorebuild_canceled = False
         self.build_failed = False
         self.plugin_failed = False
         self.plugin_files = plugin_files
@@ -309,6 +310,10 @@ class DockerBuildWorkflow(object):
                 prebuild_runner.run()
             except PluginFailedException as ex:
                 logger.error("one or more prebuild plugins failed: %s", ex)
+                raise
+            except AutoRebuildCanceledException as ex:
+                logger.info(str(ex))
+                self.autorebuild_canceled = True
                 raise
 
             build_result = self.builder.build()

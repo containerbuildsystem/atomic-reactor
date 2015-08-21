@@ -11,7 +11,8 @@ from __future__ import unicode_literals
 import json
 from atomic_reactor.build import InsideBuilder
 from atomic_reactor.util import ImageName
-from atomic_reactor.plugin import PreBuildPlugin, PrePublishPlugin, PostBuildPlugin, ExitPlugin
+from atomic_reactor.plugin import (PreBuildPlugin, PrePublishPlugin, PostBuildPlugin, ExitPlugin,
+                                   AutoRebuildCanceledException)
 from atomic_reactor.plugin import PluginFailedException
 import atomic_reactor.plugin
 import logging
@@ -320,6 +321,51 @@ def test_plugin_errors():
 
     workflow.build_docker_image()
     assert len(fake_logger.errors) > 0
+
+
+class StopAutorebuildPlugin(PreBuildPlugin):
+    key = 'stopstopstop'
+
+    def run(self):
+        raise AutoRebuildCanceledException(self.key, 'message')
+
+
+def test_autorebuild_stop_prevents_build():
+    """
+    test that a plugin that raises AutoRebuildCanceledException results in actually skipped build
+    """
+    this_file = inspect.getfile(PreWatched)
+    mock_docker()
+    fake_builder = MockInsideBuilder()
+    flexmock(InsideBuilder).new_instances(fake_builder)
+    watch_prepub = Watcher()
+    watch_post = Watcher()
+    watch_exit = Watcher()
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+                                   prebuild_plugins=[{'name': 'stopstopstop',
+                                                      'args': {
+                                                      }}],
+                                   postbuild_plugins=[{'name': 'post_watched',
+                                                       'args': {
+                                                           'watcher': watch_post
+                                                       }}],
+                                   prepublish_plugins=[{'name': 'prepub_watched',
+                                                        'args': {
+                                                            'watcher': watch_prepub,
+                                                        }}],
+                                   exit_plugins=[{'name': 'exit_watched',
+                                                  'args': {
+                                                      'watcher': watch_exit
+                                                  }}],
+                                   plugin_files=[this_file])
+
+    with pytest.raises(AutoRebuildCanceledException):
+        workflow.build_docker_image()
+
+    assert not watch_prepub.was_called()
+    assert not watch_post.was_called()
+    assert watch_exit.was_called()
+    assert workflow.autorebuild_canceled == True
 
 
 def test_workflow_errors():

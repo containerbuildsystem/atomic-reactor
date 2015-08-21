@@ -22,6 +22,16 @@ MODULE_EXTENSIONS = ('.py', '.pyc', '.pyo')
 logger = logging.getLogger(__name__)
 
 
+class AutoRebuildCanceledException(Exception):
+    """Raised if a plugin cancels autorebuild"""
+    def __init__(self, plugin_key, msg):
+        self.plugin_key = plugin_key
+        self.msg = msg
+
+    def __str__(self):
+        return 'plugin %s canceled autorebuild: %s' % (self.plugin_key, self.msg)
+
+
 class PluginFailedException(Exception):
     """ There was an error during plugin execution """
 
@@ -181,6 +191,9 @@ class PluginsRunner(object):
 
             try:
                 plugin_response = plugin_instance.run()
+            except AutoRebuildCanceledException as ex:
+                # if auto rebuild is canceled, then just reraise
+                raise
             except Exception as ex:
                 msg = "plugin '%s' raised an exception: '%s'" % (plugin_instance.key, repr(ex))
                 logger.warning(msg)
