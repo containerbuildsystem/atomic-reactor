@@ -164,8 +164,8 @@ class BumpReleasePlugin(PreBuildPlugin):
     def bump(self, repo, branch):
         # Look in the git repository
         remote = repo.remotes['origin']
+        repo.config['push.default'] = 'simple'
         if self.push_url:
-            repo.config['push.default'] = 'simple'
             remote.push_url = self.push_url
             remote.save()
 
