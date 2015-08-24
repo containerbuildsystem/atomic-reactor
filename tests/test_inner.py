@@ -374,8 +374,9 @@ def test_workflow_errors():
     """
     This is a test for what happens when plugins fail.
 
-    When a prebuild plugin fails, no postbuild plugins should run.
-    However, all the exit plugins should run.
+    When a prebuild or postbuild plugin fails, and doesn't have
+    can_fail=True set, the whole build should fail. However, all the
+    exit plugins should run.
     """
 
     this_file = inspect.getfile(PreRaises)
@@ -416,9 +417,9 @@ def test_workflow_errors():
     # an exception.
     assert watch_exit.was_called()
 
-    # All plugins of the same type (e.g. pre-build) are run, even if
-    # one of them failed.
-    assert watch_pre.was_called()
+    # Other than exit plugins, any unexpected plugin failure stops the
+    # whole build immediately.
+    assert not watch_pre.was_called()
 
 
 class ExitUsesSource(ExitWatched):

@@ -352,7 +352,7 @@ class DockerBuildWorkflow(object):
                                             self.exit_plugins_conf,
                                             plugin_files=self.plugin_files)
             try:
-                exit_runner.run()
+                exit_runner.run(keep_going=True)
             except PluginFailedException as ex:
                 logger.error("one or more exit plugins failed: %s", ex)
             finally:

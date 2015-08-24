@@ -159,9 +159,11 @@ class PluginsRunner(object):
     def on_plugin_failed(self):
         pass
 
-    def run(self):
+    def run(self, keep_going=False):
         """
         run all requested plugins
+
+        :param keep_going: bool, whether to keep going after failure
         """
         failed_msgs = []
         for plugin_request in self.plugins_conf:
@@ -200,13 +202,17 @@ class PluginsRunner(object):
                 raise
             except Exception as ex:
                 msg = "plugin '%s' raised an exception: '%s'" % (plugin_instance.key, repr(ex))
-                logger.warning(msg)
                 logger.debug(traceback.format_exc())
-                if not plugin_can_fail:
-                    failed_msgs.append(msg)
-                    self.on_plugin_failed()
-                else:
+                if plugin_can_fail or keep_going:
+                    logger.warning(msg)
                     logger.info("error is not fatal, continuing...")
+                    if not plugin_can_fail:
+                        failed_msgs.append(msg)
+                else:
+                    self.on_plugin_failed()
+                    logger.error(msg)
+                    raise PluginFailedException(msg)
+
                 plugin_response = ex
 
             self.plugins_results[plugin_instance.key] = plugin_response
@@ -373,7 +379,7 @@ class InputPluginsRunner(PluginsRunner):
         self.plugins_results = {}
         self.autoinput = self.plugins_conf[0]['name'] == 'auto'
 
-    def run(self):
+    def run(self, keep_going=False):
         """Wrap `PluginsRunner.run()` while implementing the `auto` input behaviour.
 
         If input plugin name is `auto`, then call `is_autousable` on all input plugins.
@@ -398,7 +404,7 @@ class InputPluginsRunner(PluginsRunner):
             logger.debug('using "%s" for input', autousable)
             self.plugins_conf[0]['name'] = autousable
 
-        result = super(InputPluginsRunner, self).run()
+        result = super(InputPluginsRunner, self).run(keep_going=keep_going)
 
         if self.autoinput:
             result['auto'] = result.pop(autousable)
