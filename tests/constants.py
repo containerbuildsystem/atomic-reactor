@@ -45,5 +45,3 @@ LOCALHOST_REGISTRY_HTTP = "http://%s" % LOCALHOST_REGISTRY
 DOCKER0_REGISTRY_HTTP = "http://%s" % DOCKER0_REGISTRY
 
 COMMAND = "eporeporjgpeorjgpeorjgpeorjgpeorjgpeorjg"
-
-NON_ASCII = "žluťoučký"

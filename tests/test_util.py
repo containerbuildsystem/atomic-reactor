@@ -22,7 +22,7 @@ import docker
 from atomic_reactor.util import ImageName, \
     wait_for_command, clone_git_repo, LazyGit, figure_out_dockerfile, render_yum_repo, \
     process_substitutions
-from tests.constants import NON_ASCII, DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1
+from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1
 
 if MOCK:
     from tests.docker_mock import mock_docker
