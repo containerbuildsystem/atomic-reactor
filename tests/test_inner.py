@@ -9,6 +9,8 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 import json
+import os
+
 from atomic_reactor.build import InsideBuilder
 from atomic_reactor.util import ImageName
 from atomic_reactor.plugin import (PreBuildPlugin, PrePublishPlugin, PostBuildPlugin, ExitPlugin,
@@ -18,7 +20,7 @@ import atomic_reactor.plugin
 import logging
 from flexmock import flexmock
 import pytest
-from tests.constants import MOCK_SOURCE
+from tests.constants import MOCK_SOURCE, SOURCE
 from tests.docker_mock import mock_docker
 import inspect
 
@@ -100,7 +102,7 @@ class RaisesMixIn(object):
     can_fail = False
 
     def __init__(self, tasker, workflow, *args, **kwargs):
-        super(RaisesMixIn, self).__init__(self, tasker, workflow,
+        super(RaisesMixIn, self).__init__(tasker, workflow,
                                           *args, **kwargs)
 
     def run(self):
@@ -121,7 +123,7 @@ class WatchedMixIn(object):
     """
 
     def __init__(self, tasker, workflow, watcher, *args, **kwargs):
-        super(WatchedMixIn, self).__init__(self, tasker, workflow,
+        super(WatchedMixIn, self).__init__(tasker, workflow,
                                            *args, **kwargs)
         self.watcher = watcher
 
@@ -417,3 +419,30 @@ def test_workflow_errors():
     # All plugins of the same type (e.g. pre-build) are run, even if
     # one of them failed.
     assert watch_pre.was_called()
+
+
+class ExitUsesSource(ExitWatched):
+    key = 'uses_source'
+
+    def run(self):
+        assert os.path.exists(self.workflow.source.get_dockerfile_path()[0])
+        WatchedMixIn.run(self)
+
+
+def test_source_not_removed_for_exit_plugins():
+    this_file = inspect.getfile(PreRaises)
+    mock_docker()
+    fake_builder = MockInsideBuilder()
+    flexmock(InsideBuilder).new_instances(fake_builder)
+    watch_exit = Watcher()
+    workflow = DockerBuildWorkflow(SOURCE, 'test-image',
+                                   exit_plugins=[{'name': 'uses_source',
+                                                  'args': {
+                                                      'watcher': watch_exit,
+                                                  }}],
+                                   plugin_files=[this_file])
+
+    workflow.build_docker_image()
+
+    # Make sure that the plugin was actually run
+    assert watch_exit.was_called()
