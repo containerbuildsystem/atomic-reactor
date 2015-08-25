@@ -348,8 +348,6 @@ class DockerBuildWorkflow(object):
 
             return build_result
         finally:
-            self.source.remove_tmpdir()
-
             exit_runner = ExitPluginsRunner(self.builder.tasker, self,
                                             self.exit_plugins_conf,
                                             plugin_files=self.plugin_files)
@@ -357,6 +355,9 @@ class DockerBuildWorkflow(object):
                 exit_runner.run()
             except PluginFailedException as ex:
                 logger.error("one or more exit plugins failed: %s", ex)
+            finally:
+                self.source.remove_tmpdir()
+
 
 
 def build_inside(input, input_args=None, substitutions=None):
