@@ -226,7 +226,8 @@ class DockerBuildWorkflow(object):
 
     def __init__(self, source, image, target_registries=None, prebuild_plugins=None,
                  prepublish_plugins=None, postbuild_plugins=None, exit_plugins=None,
-                 plugin_files=None, target_registries_insecure=False, **kwargs):
+                 plugin_files=None, target_registries_insecure=False,
+                 openshift_build_selflink=None, **kwargs):
         """
         :param source: dict, where/how to get source code to put in image
         :param image: str, tag for built image ([registry/]image_name[:tag])
@@ -236,6 +237,8 @@ class DockerBuildWorkflow(object):
         :param postbuild_plugins: dict, arguments for post-build plugins
         :param plugin_files: list of str, load plugins also from these files
         :param target_registries_insecure: bool, allow connecting to target registries over plain http
+        :param openshift_build_selflink: str, link to openshift build (if we're actually running
+            on openshift) without the actual hostname/IP address
         """
         self.source = get_source_instance_for(source, tmpdir=tempfile.mkdtemp())
         self.image = image
@@ -276,6 +279,8 @@ class DockerBuildWorkflow(object):
         # mapping of downloaded files; DON'T PUT ANYTHING BIG HERE!
         # "path/to/file" -> "content"
         self.files = {}
+
+        self.openshift_build_selflink = openshift_build_selflink
 
         if kwargs:
             logger.warning("unprocessed keyword arguments: %s", kwargs)

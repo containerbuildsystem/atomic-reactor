@@ -40,7 +40,7 @@ class OSv3InputPlugin(InputPlugin):
         plugins_json = os.environ.get('DOCK_PLUGINS', '{}')
         plugins_json = json.loads(plugins_json)
 
-        plugins_json.setdefault('prebuild_plugins', {})
+        plugins_json.setdefault('prebuild_plugins', [])
 
         # XXX: Remove the two try-except blocks after Sep 2015
         try:
@@ -78,6 +78,7 @@ class OSv3InputPlugin(InputPlugin):
             'image': image,
             'target_registries': [target_registry] if target_registry else None,
             'target_registries_insecure': True,  # FIXME: create plugin for this
+            'openshift_build_selflink': build_json.get('metadata', {}).get('selfLink', None)
         }
         input_json.update(plugins_json)
 

@@ -14,6 +14,7 @@ If you want to take advantage of _inner_ part logic of Atomic Reactor, you can d
     },
     "image": "my-test-image",
     "target_registries": ["registry.example2.com:5000"],
+    "openshift_build_selflink": "/oapi/v1/namespaces/default/builds/build-20150826112654-1",
     "prebuild_plugins": [
         {
             "name": "pull_base_image",
@@ -42,6 +43,7 @@ If you want to take advantage of _inner_ part logic of Atomic Reactor, you can d
   * git_commit - string, allowed for `git` source, git commit to checkout
  * image - string, tag for built image
  * target_registries - list of strings, optional, registries where built image should be pushed
+ * openshift_build_selflink - string, optional; link to the build that is being done (without the actual hostname/IP address)
  * prebuild_plugins - list of dicts, optional
   * list of plugins which are executed prior to build, order _matters_! First plugin pulls base image from the given registry (optional). The second plugin generates yum repo for koji f22 tag and the third injects it into dockerfile.
  * prepublish_plugins - list of dicts, optional

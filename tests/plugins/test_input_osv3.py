@@ -43,7 +43,7 @@ def test_prebuild_plugins_rewrite(prebuild_json, expected_json):
     }
 
     mock_env = {
-        'BUILD': '"UNUSED"',
+        'BUILD': '{}',
         'SOURCE_URI': 'https://github.com/foo/bar.git',
         'SOURCE_REF': 'master',
         'OUTPUT_IMAGE': 'asdf:fdsa',
@@ -54,3 +54,38 @@ def test_prebuild_plugins_rewrite(prebuild_json, expected_json):
 
     plugin = OSv3InputPlugin()
     assert plugin.run()['prebuild_plugins'] == expected_json
+
+
+def test_doesnt_fail_if_no_plugins():
+    mock_env = {
+        'BUILD': '{}',
+        'SOURCE_URI': 'https://github.com/foo/bar.git',
+        'SOURCE_REF': 'master',
+        'OUTPUT_IMAGE': 'asdf:fdsa',
+        'OUTPUT_REGISTRY': 'localhost:5000',
+        'DOCK_PLUGINS': '{}',
+    }
+    flexmock(os, environ=mock_env)
+
+    plugin = OSv3InputPlugin()
+    assert plugin.run()['prebuild_plugins'] == [{'name': 'pull_base_image'}]
+
+
+@pytest.mark.parametrize('build, expected', [
+    ('{"metadata": {"selfLink": "/foo/bar"}}', '/foo/bar'),
+    ('{"metadata": {}}', None),
+    ('{}', None),
+])
+def test_sets_selflink(build, expected):
+    mock_env = {
+        'BUILD': build,
+        'SOURCE_URI': 'https://github.com/foo/bar.git',
+        'SOURCE_REF': 'master',
+        'OUTPUT_IMAGE': 'asdf:fdsa',
+        'OUTPUT_REGISTRY': 'localhost:5000',
+        'DOCK_PLUGINS': '{}',
+    }
+    flexmock(os, environ=mock_env)
+
+    plugin = OSv3InputPlugin()
+    assert plugin.run()['openshift_build_selflink'] == expected
