@@ -163,25 +163,33 @@ class PluginsRunner(object):
         """
         run all requested plugins
 
-        :param keep_going: bool, whether to keep going after failure
+        :param keep_going: bool, whether to keep going after unexpected
+                                 failure (only used for exit plugins)
         """
         failed_msgs = []
         for plugin_request in self.plugins_conf:
             try:
                 plugin_name = plugin_request['name']
             except (TypeError, KeyError):
-                logger.error("invalid plugin request, no key 'name': %s", plugin_request)
-                continue
-            try:
-                plugin_conf = plugin_request.get("args", {})
-            except AttributeError:
-                logger.error("invalid plugin request, no key 'args': %s", plugin_request)
-                continue
+                self.on_plugin_failed()
+                msg = "invalid plugin request, no key 'name': %s" % plugin_request
+                logger.error(msg)
+                if keep_going:
+                    continue
+
+                raise PluginFailedException(msg)
+
+            plugin_conf = plugin_request.get("args", {})
             try:
                 plugin_class = self.plugin_classes[plugin_name]
             except KeyError:
-                logger.error("no such plugin: '%s', did you set the correct plugin type?", plugin_name)
-                continue
+                self.on_plugin_failed()
+                msg = "no such plugin: '%s', did you set the correct plugin type?" %plugin_name
+                logger.error(msg)
+                if keep_going:
+                    continue
+
+                raise PluginFailedException(msg)
             try:
                 plugin_can_fail = plugin_request['can_fail']
             except (TypeError, KeyError):

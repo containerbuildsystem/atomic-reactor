@@ -287,7 +287,132 @@ class Pre(PreBuildPlugin):
     key = 'pre'
 
 
-def test_plugin_errors():
+class Post(PostBuildPlugin):
+    """
+    This plugin does nothing. It's only used for configuration testing.
+    """
+
+    key = 'post'
+
+
+class Exit(ExitPlugin):
+    """
+    This plugin does nothing. It's only used for configuration testing.
+    """
+
+    key = 'exit'
+
+
+@pytest.mark.parametrize(('plugins', 'should_fail', 'should_log'), [
+    # No 'name' key, prebuild
+    ({
+        'prebuild_plugins': [{'args': {}},
+                             {'name': 'pre_watched',
+                              'args': {
+                                  'watcher': Watcher(),
+                              }
+                             }],
+      },
+     True,  # is fatal
+     True,  # logs error
+    ),
+
+    # No 'name' key, postbuild
+    ({
+        'postbuild_plugins': [{'args': {}},
+                              {'name': 'post_watched',
+                               'args': {
+                                   'watcher': Watcher(),
+                               }
+                              }],
+      },
+     True,  # is fatal
+     True,  # logs error
+    ),
+
+    # No 'name' key, exit
+    ({
+        'exit_plugins': [{'args': {}},
+                         {'name': 'exit_watched',
+                          'args': {
+                              'watcher': Watcher(),
+                          }
+                         }],
+      },
+     False,  # not fatal
+     True,   # logs error
+    ),
+
+    # No 'args' key, prebuild
+    ({'prebuild_plugins': [{'name': 'pre'},
+                           {'name': 'pre_watched',
+                            'args': {
+                                'watcher': Watcher(),
+                            }
+                           }]},
+     False,  # not fatal
+     False,  # no error logged
+    ),
+
+    # No 'args' key, postbuild
+    ({'postbuild_plugins': [{'name': 'post'},
+                            {'name': 'post_watched',
+                             'args': {
+                                 'watcher': Watcher(),
+                             }
+                            }]},
+     False,  # not fatal,
+     False,  # no error logged
+    ),
+
+    # No 'args' key, exit
+    ({'exit_plugins': [{'name': 'exit'},
+                       {'name': 'exit_watched',
+                        'args': {
+                            'watcher': Watcher(),
+                        }
+                       }]},
+     False,  # not fatal
+     False,  # no error logged
+    ),
+
+    # No such plugin, prebuild
+    ({'prebuild_plugins': [{'name': 'no plugin',
+                            'args': {}},
+                           {'name': 'pre_watched',
+                            'args': {
+                                'watcher': Watcher(),
+                            }
+                           }]},
+     True,  # is fatal
+     True,  # logs error
+    ),
+
+    # No such plugin, postbuild
+    ({'postbuild_plugins': [{'name': 'no plugin',
+                             'args': {}},
+                            {'name': 'post_watched',
+                             'args': {
+                                 'watcher': Watcher(),
+                             }
+                            }]},
+     True,  # is fatal
+     True,  # logs error
+    ),
+
+    # No such plugin, exit
+    ({'exit_plugins': [{'name': 'no plugin',
+                        'args': {}},
+                       {'name': 'exit_watched',
+                        'args': {
+                            'watcher': Watcher(),
+                        }
+                       }]},
+     False,  # not fatal
+     True,   # logs error
+    ),
+])
+def test_plugin_errors(plugins, should_fail, should_log):
     """
     Try bad plugin configuration.
     """
@@ -299,30 +424,29 @@ def test_plugin_errors():
     fake_logger = FakeLogger()
     atomic_reactor.plugin.logger = fake_logger
 
-    # No 'name' key
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
-                                   prebuild_plugins=[{'args': {}}],
-                                   plugin_files=[this_file])
+                                   plugin_files=[this_file],
+                                   **plugins)
 
-    workflow.build_docker_image()
-    assert len(fake_logger.errors) > 0
+    # Find the 'watcher' parameter
+    watchers = [conf.get('args', {}).get('watcher')
+                for plugin in plugins.values()
+                for conf in plugin]
+    watcher = [x for x in watchers if x][0]
 
-    # No 'args' key
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
-                                   prebuild_plugins=[{'name': 'pre'}],
-                                   plugin_files=[this_file])
+    if should_fail:
+        with pytest.raises(PluginFailedException):
+            workflow.build_docker_image()
 
-    workflow.build_docker_image()
-    assert len(fake_logger.errors) > 0
+        assert not watcher.was_called()
+    else:
+        workflow.build_docker_image()
+        assert watcher.was_called()
 
-    # No such plugin
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
-                                   prebuild_plugins=[{'name': 'no plugin',
-                                                      'args': {}}],
-                                   plugin_files=[this_file])
-
-    workflow.build_docker_image()
-    assert len(fake_logger.errors) > 0
+    if should_log:
+        assert len(fake_logger.errors) > 0
+    else:
+        assert len(fake_logger.errors) == 0
 
 
 class StopAutorebuildPlugin(PreBuildPlugin):
