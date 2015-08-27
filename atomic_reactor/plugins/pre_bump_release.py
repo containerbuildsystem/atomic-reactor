@@ -8,13 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
-import shlex
-try:
-    # py3
-    from shlex import quote
-except ImportError:
-    from pipes import quote
-
 import os
 from pygit2 import init_repository, Signature
 import subprocess
@@ -22,17 +15,7 @@ import subprocess
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
-from atomic_reactor.constants import PY2
 from dockerfile_parse import DockerfileParser
-
-
-def shlex_splits(value):
-    if PY2 and isinstance(value, unicode):
-        value = value.encode('utf-8')
-        splits = shlex.split(value)
-        return [split.decode('utf-8') for split in splits]
-    else:
-        return shlex.split(value)
 
 
 class BumpReleasePlugin(PreBuildPlugin):
@@ -101,56 +84,6 @@ class BumpReleasePlugin(PreBuildPlugin):
         self.commit_message = (commit_message or
                                "Bumped release for automated rebuild")
 
-    def bump_local_file(self, parser, label_key, next_release):
-        """
-        Rewrite a local Dockerfile with an incremented Release label
-        """
-
-        # Find where in the file to put the next release
-        content = startline = endline = None
-        cmd = 'LABEL'
-        for candidate in [insn for insn in parser.structure
-                          if insn['instruction'] == cmd]:
-            splits = shlex_splits(candidate['value'])
-
-            # LABEL syntax is one of two types:
-            if '=' not in splits[0]:  # LABEL name value
-                # remove (double-)quotes
-                value = candidate['value'].replace("'", "").replace('"', '')
-                words = value.split(None, 1)
-                if words[0] == label_key:
-                    # Adjust label value
-                    words[1] = next_release
-
-                    # Now reconstruct the line
-                    content = " ".join([cmd] + words) + '\n'
-                    startline = candidate['startline']
-                    endline = candidate['endline']
-                    break
-            else:  # LABEL "name"="value"
-                for token in splits:
-                    words = token.split("=", 1)
-                    if words[0] == label_key:
-                        # Adjust label value
-                        words[1] = next_release
-                        n = splits.index(token)
-                        splits[n] = "=".join(map(quote, words))
-
-                        # Now reconstruct the line
-                        content = " ".join([cmd] + splits) + '\n'
-                        startline = candidate['startline']
-                        endline = candidate['endline']
-                        break
-
-        # We know the label we're looking for is there
-        assert content and startline and endline
-
-        # Re-write the Dockerfile
-        lines = parser.lines
-        del lines[startline:endline + 1]
-        lines.insert(startline, content)
-        parser.lines = lines
-
     @staticmethod
     def get_next_release(current_release):
         try:
@@ -176,7 +109,7 @@ class BumpReleasePlugin(PreBuildPlugin):
         current_release = parser.labels[label_key]
         next_release = self.get_next_release(current_release)
         self.log.info("New Release: %s", next_release)
-        self.bump_local_file(parser, label_key, next_release)
+        parser.labels[label_key] = next_release
 
         # Stage it
         index = repo.index
