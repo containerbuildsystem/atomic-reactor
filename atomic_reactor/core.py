@@ -514,6 +514,7 @@ class DockerTasker(LastLogger):
         """
         logger.info("getting stdout of container '%s'", container_id)
         logger.debug("container_id = '%s', stream = '%s'", container_id, stream)
+        # returns bytes
         response = self.d.logs(container_id, stdout=True, stderr=stderr, stream=stream)
         if not stream:
             response = response.decode("utf-8")  # py2 & 3 compat
