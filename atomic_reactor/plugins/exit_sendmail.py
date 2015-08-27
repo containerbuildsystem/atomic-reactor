@@ -1,0 +1,207 @@
+"""
+Copyright (c) 2015 Red Hat, Inc
+All rights reserved.
+
+This software may be modified and distributed under the terms
+of the BSD license. See the LICENSE file for details.
+"""
+
+from email.mime.text import MIMEText
+import smtplib
+import socket
+try:
+    from urlparse import urljoin
+except ImportError:
+    from urllib.parse import urljoin
+
+from dockerfile_parse import DockerfileParser
+import requests
+
+from atomic_reactor.plugin import ExitPlugin, PluginFailedException
+from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
+from atomic_reactor.source import GitSource
+
+
+class SendMailPlugin(ExitPlugin):
+    key = "sendmail"
+    allowed_states = set(['manual_success', 'manual_fail', 'auto_success', 'auto_fail',
+                          'auto_canceled'])
+
+    def __init__(self, tasker, workflow, send_on=None, url=None, pdc_url=None,
+                 pdc_component_df_label=None, smtp_url=None, from_address=None,
+                 error_addresses=None):
+        """
+        constructor
+
+        :param tasker: DockerTasker instance
+        :param workflow: DockerBuildWorkflow instance
+        :param url: URL to OSv3 instance where the build logs are stored
+        :param send_on: list of build states when a notification should be sent
+        :param pdc_url: URL of PDC to query for contact information
+        :param pdc_component_df_label: name of Dockerfile label to use as PDC global_component
+        :param smtp_url: URL of SMTP server to use to send the message (e.g. "foo.com:25")
+        :param from_address: the "From" of the notification email
+        :param error_addresses: list of email addresses where to send an email if there's an error
+            (e.g. if we can't find out who to notify about the failed build)
+        """
+        super(SendMailPlugin, self).__init__(tasker, workflow)
+        self.url = url
+        self.send_on = send_on
+        self.pdc_url = pdc_url
+        self.pdc_component_df_label = pdc_component_df_label
+        self.smtp_url = smtp_url
+        self.from_address = from_address
+        self.error_addresses = error_addresses
+
+    def _should_send(self, rebuild, success, canceled):
+        should_send = False
+
+        should_send_mapping = {
+            'manual_success': not rebuild and success,
+            'manual_fail': not rebuild and not success,
+            'auto_success': rebuild and success,
+            'auto_fail': rebuild and not success,
+            'auto_canceled': rebuild and canceled
+        }
+
+        for state in self.send_on:
+            should_send |= should_send_mapping[state]
+        return should_send
+
+    def _render_mail(self, rebuild, success, canceled):
+        subject_template = 'Image %(image)s; Status %(endstate)s; Submitted by %(user)s'
+        body_template = '\n'.join([
+            'Image: %(image)s',
+            'Status: %(endstate)s',
+            'Submitted by: %(user)s',
+            'Logs: %(logs)s',
+        ])
+
+        endstate = None
+        if canceled:
+            endstate = 'canceled'
+        else:
+            endstate = 'successful' if success else 'failed'
+        url = None
+        if self.url and self.workflow.openshift_build_selflink:
+            url = urljoin(self.url, self.workflow.openshift_build_selflink + '/log')
+
+        formatting_dict = {
+            'image': self.workflow.image,
+            'endstate': endstate,
+            'user': 'autorebuild submitter' if rebuild else 'TODO user',
+            'logs': url
+        }
+        return (subject_template % formatting_dict, body_template % formatting_dict)
+
+    def _get_pdc_token(self):
+        # TODO: get token from file mounted inside the build container?
+        return ''
+
+    def _get_component_label(self):
+        labels = DockerfileParser(self.workflow.builder.df_path).labels
+        if self.pdc_component_df_label not in labels:
+            raise PluginFailedException('No %s label in Dockerfile, can\'t get PDC component',
+                                        self.pdc_component_df_label)
+        return labels[self.pdc_component_df_label]
+
+    def _get_receivers_list(self):
+        # TODO: document what this plugin expects to be in Dockerfile/where it gets info from
+        global_component = self._get_component_label()
+        # this relies on bump_release plugin configuring source.git_commit to actually be
+        #  branch name, not a commit
+        if not isinstance(self.workflow.source, GitSource):
+            raise RuntimeError('')
+        git_branch = self.workflow.source.git_commit
+        try:
+            # TODO: verify=False should be removed and proper certificates added
+            r = requests.get(urljoin(self.pdc_url, 'rest_api/v1/release-components/'),
+                             headers={'Authorization': 'Token %s' % self._get_pdc_token()},
+                             params={'global_component': global_component},
+                             verify=False)
+        except requests.RequestException as e:
+            self.log.error('failed to get contact for package: %s', str(e))
+            raise RuntimeError(e)
+
+        if r.status_code != 200:
+            self.log.error('PDC returned status code %s, full response: %s' %
+                           (r.status_code, r.text))
+            raise RuntimeError('PDC returned non-200 status code (%s), see referenced build log' %
+                               r.status_code)
+        # TODO: open an RFE for PDC to allow querying by dist_git_branch, now we have to filter
+        #  the correct result manually
+        found = []
+        for result in r.json()['results']:
+            if result['dist_git_branch'] == git_branch:
+                found.append(result)
+
+        if len(found) != 1:
+            self.log.error('expected 1 PDC release components, found %s: %s' %
+                           (len(found), found))
+            raise RuntimeError('expected to find exactly 1 PDC component, found %s, '
+                               'see referenced build log')
+
+        send_to = []
+        contacts = found[0].get('contacts', [])
+        for contact in contacts:
+            # TODO: find out if Build_Owner is the correct role (make this configurable?)
+            # I'm not sure, but it seems that there can be more people with the role
+            if contact['contact_role'] == 'Build_Owner':
+                send_to.append(contact['email'])
+
+        if len(send_to) == 0:
+            self.log.error('no Build_Owner role for the component')
+            raise RuntimeError('no Build_Owner role for the component')
+
+        return send_to
+
+    def _send_mail(self, receivers_list, subject, body):
+        msg = MIMEText(body)
+        msg['Subject'] = subject
+        msg['From'] = self.from_address
+        msg['To'] = ', '.join(receivers_list)
+
+        s = None
+        try:
+            s = smtplib.SMTP(self.smtp_url)
+            s.sendmail(self.from_address, receivers_list, msg.as_string())
+        except (socket.gaierror, smtplib.SMTPException) as e:
+            raise PluginFailedException('Error communicating with SMTP server: %s' % str(e))
+        finally:
+            if s is not None:
+                s.quit()
+
+    def run(self):
+        # verify that given states are subset of allowed states
+        unknown_states = set(self.send_on) - self.allowed_states
+        if len(unknown_states) > 0:
+            raise PluginFailedException('Unknow state(s) "%s" for notify plugin' %
+                                        '", "'.join(sorted(unknown_states)))
+
+        rebuild = is_rebuild(self.workflow)
+        success = not self.workflow.build_failed
+        canceled = self.workflow.autorebuild_canceled
+
+        self.log.info('checking conditions for sending notification ...')
+        if self._should_send(rebuild, success, canceled):
+            self.log.info('notification about build result will be sent')
+            subject, body = self._render_mail(rebuild, success, canceled)
+            try:
+                self.log.debug('getting list of receivers for this component ...')
+                receivers = self._get_receivers_list()
+            except RuntimeError as e:
+                self.log.error('couldn\'t get list of receivers, sending error message ...')
+                # TODO: maybe improve the error message/subject
+                body = '\n'.join([
+                    'Failed to get contact for %s, error: %s' % (str(self.workflow.image), str(e)),
+                    'Since your address is in "error_addresses", this email was sent to you to '
+                    'take action on this.',
+                    'Wanted to send following mail:',
+                    '',
+                    body
+                ])
+                receivers = self.error_addresses
+            self.log.info('sending notification to %s ...' % receivers)
+            self._send_mail(receivers, subject, body)
+        else:
+            self.log.info('conditions for sending notification not met, doing nothing')
