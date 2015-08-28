@@ -23,6 +23,22 @@ from atomic_reactor.source import GitSource
 
 
 class SendMailPlugin(ExitPlugin):
+    """This plugins sends notifications about build results.
+
+    Example configuration (see arguments for init for detailed explanation):
+        "exit_plugins": [{
+                "name": "sendmail",
+                "args": {
+                    "send_on": ["auto_canceled", "auto_fail"],
+                    "url": "https://openshift-instance.com",
+                    "pdc_url": "https://pdc-instance.com",
+                    "pdc_component_df_label": "BZComponent",
+                    "smtp_url": "smtp-server.com",
+                    "from_address": "osbs@mycompany.com",
+                    "error_addresses": ["admin@mycompany.com"]
+                }
+        }]
+    """
     key = "sendmail"
 
     # symbolic constants for states
@@ -61,6 +77,7 @@ class SendMailPlugin(ExitPlugin):
         self.error_addresses = error_addresses
 
     def _should_send(self, rebuild, success, canceled):
+        """Return True if mail should be sent under given conditions and `self.send_on`."""
         should_send = False
 
         should_send_mapping = {
@@ -76,6 +93,7 @@ class SendMailPlugin(ExitPlugin):
         return should_send
 
     def _render_mail(self, rebuild, success, canceled):
+        """Render and return subject and body of the mail to send."""
         subject_template = 'Image %(image)s; Status %(endstate)s; Submitted by %(user)s'
         body_template = '\n'.join([
             'Image: %(image)s',
@@ -106,6 +124,9 @@ class SendMailPlugin(ExitPlugin):
         return ''
 
     def _get_component_label(self):
+        """Get value of Dockerfile label that is to be used as `global_component` to query
+        PDC release-components API endpoint.
+        """
         labels = DockerfileParser(self.workflow.builder.df_path).labels
         if self.pdc_component_df_label not in labels:
             raise PluginFailedException('No %s label in Dockerfile, can\'t get PDC component',
@@ -113,6 +134,12 @@ class SendMailPlugin(ExitPlugin):
         return labels[self.pdc_component_df_label]
 
     def _get_receivers_list(self):
+        """Return list of receivers of the notification.
+
+        :raises RuntimeError: if PDC can't be contacted or doesn't provide sufficient data
+        :raises PluginFailedException: if there's a critical error while getting PDC data
+        """
+
         # TODO: document what this plugin expects to be in Dockerfile/where it gets info from
         global_component = self._get_component_label()
         # this relies on bump_release plugin configuring source.git_commit to actually be
@@ -163,6 +190,7 @@ class SendMailPlugin(ExitPlugin):
         return send_to
 
     def _send_mail(self, receivers_list, subject, body):
+        """Actually sends the mail with `subject` and `body` to all members of `receivers_list`."""
         msg = MIMEText(body)
         msg['Subject'] = subject
         msg['From'] = self.from_address
