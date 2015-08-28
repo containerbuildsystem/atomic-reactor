@@ -89,7 +89,7 @@ class SendMailPlugin(ExitPlugin):
         formatting_dict = {
             'image': self.workflow.image,
             'endstate': endstate,
-            'user': 'autorebuild submitter' if rebuild else 'TODO user',
+            'user': '<autorebuild>' if rebuild else 'TODO user',
             'logs': url
         }
         return (subject_template % formatting_dict, body_template % formatting_dict)
@@ -111,7 +111,7 @@ class SendMailPlugin(ExitPlugin):
         # this relies on bump_release plugin configuring source.git_commit to actually be
         #  branch name, not a commit
         if not isinstance(self.workflow.source, GitSource):
-            raise RuntimeError('')
+            raise PluginFailedException('Source is not of type "GitSource", panic!')
         git_branch = self.workflow.source.git_commit
         try:
             # TODO: verify=False should be removed and proper certificates added
@@ -120,7 +120,7 @@ class SendMailPlugin(ExitPlugin):
                              params={'global_component': global_component},
                              verify=False)
         except requests.RequestException as e:
-            self.log.error('failed to get contact for package: %s', str(e))
+            self.log.error('failed to connect to PDC: %s', str(e))
             raise RuntimeError(e)
 
         if r.status_code != 200:
@@ -136,10 +136,10 @@ class SendMailPlugin(ExitPlugin):
                 found.append(result)
 
         if len(found) != 1:
-            self.log.error('expected 1 PDC release components, found %s: %s' %
+            self.log.error('expected 1 PDC component, found %s: %s' %
                            (len(found), found))
-            raise RuntimeError('expected to find exactly 1 PDC component, found %s, '
-                               'see referenced build log')
+            raise RuntimeError('Expected to find exactly 1 PDC component, found %s, '
+                               'see referenced build log' % len(found))
 
         send_to = []
         contacts = found[0].get('contacts', [])
@@ -175,7 +175,7 @@ class SendMailPlugin(ExitPlugin):
         # verify that given states are subset of allowed states
         unknown_states = set(self.send_on) - self.allowed_states
         if len(unknown_states) > 0:
-            raise PluginFailedException('Unknow state(s) "%s" for notify plugin' %
+            raise PluginFailedException('Unknown state(s) "%s" for sendmail plugin' %
                                         '", "'.join(sorted(unknown_states)))
 
         rebuild = is_rebuild(self.workflow)
