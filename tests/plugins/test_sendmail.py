@@ -89,6 +89,21 @@ class TestSendMailPlugin(object):
             p._get_receivers_list()
         assert str(e.value) == 'Source is not of type "GitSource", panic!'
 
+    @pytest.mark.parametrize('value', [
+        True,
+        False
+    ])
+    def test_get_receivers_list_passes_verify_cert(self, value):
+        class WF(object):
+            source = GitSource('git', 'foo', provider_params={'git_commit': 'foo'})
+        p = SendMailPlugin(None, WF(), pdc_verify_cert=value)
+        flexmock(p).should_receive('_get_component_label').and_return('foo')
+        flexmock(requests).should_receive('get').with_args(object, headers=object, params=object,
+                                                           verify=value).and_raise(RuntimeError)
+
+        with pytest.raises(RuntimeError):
+            p._get_receivers_list()
+
     def test_get_receivers_list_request_exception(self):
         class WF(object):
             source = GitSource('git', 'foo', provider_params={'git_commit': 'foo'})

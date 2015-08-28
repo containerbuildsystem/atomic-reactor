@@ -32,6 +32,7 @@ class SendMailPlugin(ExitPlugin):
                     "send_on": ["auto_canceled", "auto_fail"],
                     "url": "https://openshift-instance.com",
                     "pdc_url": "https://pdc-instance.com",
+                    "pdc_verify_cert": true,
                     "pdc_component_df_label": "BZComponent",
                     "smtp_url": "smtp-server.com",
                     "from_address": "osbs@mycompany.com",
@@ -51,8 +52,8 @@ class SendMailPlugin(ExitPlugin):
     allowed_states = set([MANUAL_SUCCESS, MANUAL_FAIL, AUTO_SUCCESS, AUTO_FAIL, AUTO_CANCELED])
 
     def __init__(self, tasker, workflow, send_on=None, url=None, pdc_url=None,
-                 pdc_component_df_label=None, smtp_url=None, from_address=None,
-                 error_addresses=None):
+                 pdc_verify_cert=True, pdc_component_df_label=None, smtp_url=None,
+                 from_address=None, error_addresses=None):
         """
         constructor
 
@@ -61,6 +62,7 @@ class SendMailPlugin(ExitPlugin):
         :param url: URL to OSv3 instance where the build logs are stored
         :param send_on: list of build states when a notification should be sent
         :param pdc_url: URL of PDC to query for contact information
+        :param pdc_verify_cert: whether or not to verify SSL cert of PDC (defaults to True)
         :param pdc_component_df_label: name of Dockerfile label to use as PDC global_component
         :param smtp_url: URL of SMTP server to use to send the message (e.g. "foo.com:25")
         :param from_address: the "From" of the notification email
@@ -71,6 +73,7 @@ class SendMailPlugin(ExitPlugin):
         self.url = url
         self.send_on = send_on
         self.pdc_url = pdc_url
+        self.pdc_verify_cert = pdc_verify_cert
         self.pdc_component_df_label = pdc_component_df_label
         self.smtp_url = smtp_url
         self.from_address = from_address
@@ -152,7 +155,7 @@ class SendMailPlugin(ExitPlugin):
             r = requests.get(urljoin(self.pdc_url, 'rest_api/v1/release-components/'),
                              headers={'Authorization': 'Token %s' % self._get_pdc_token()},
                              params={'global_component': global_component},
-                             verify=False)
+                             verify=self.pdc_verify_cert)
         except requests.RequestException as e:
             self.log.error('failed to connect to PDC: %s', str(e))
             raise RuntimeError(e)
