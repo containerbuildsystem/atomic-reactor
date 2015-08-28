@@ -12,34 +12,33 @@ from atomic_reactor.plugins.exit_sendmail import SendMailPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.util import ImageName
 
+MS, MF = SendMailPlugin.MANUAL_SUCCESS, SendMailPlugin.MANUAL_FAIL
+AS, AF = SendMailPlugin.AUTO_SUCCESS, SendMailPlugin.AUTO_FAIL
+AC = SendMailPlugin.AUTO_CANCELED
+
 
 class TestSendMailPlugin(object):
     def test_fails_with_unknown_states(self):
-        p = SendMailPlugin(None, None, send_on=['unknown_state', 'manual_fail'])
+        p = SendMailPlugin(None, None, send_on=['unknown_state', MS])
         with pytest.raises(PluginFailedException) as e:
             p.run()
         assert str(e.value) == 'Unknown state(s) "unknown_state" for sendmail plugin'
 
     @pytest.mark.parametrize('rebuild, success, canceled, send_on, expected', [
         # make sure that right combinations only succeed for the specific state
-        (False, True, False, ['manual_success'], True),
-        (False, True, False, ['manual_fail', 'auto_success', 'auto_fail', 'auto_canceled'],
-         False),
-        (False, False, False, ['manual_fail'], True),
-        (False, False, False, ['manual_success', 'auto_success', 'auto_fail', 'auto_canceled'],
-         False),
-        (True, True, False, ['auto_success'], True),
-        (True, True, False, ['manual_success', 'manual_fail', 'auto_fail', 'auto_canceled'],
-         False),
-        (True, False, False, ['auto_fail'], True),
-        (True, False, False, ['manual_success', 'manual_fail', 'auto_success', 'auto_canceled'],
-         False),
-        (True, False, True, ['auto_canceled'], True),
+        (False, True, False, [MS], True),
+        (False, True, False, [MF, AS, AF, AC], False),
+        (False, False, False, [MF], True),
+        (False, False, False, [MS, AS, AF, AC], False),
+        (True, True, False, [AS], True),
+        (True, True, False, [MS, MF, AF, AC], False),
+        (True, False, False, [AF], True),
+        (True, False, False, [MS, MF, AS, AC], False),
+        (True, False, True, [AC], True),
         # auto_fail would also give us True in this case
-        (True, False, True, ['manual_success', 'manual_fail', 'auto_success'],
-         False),
+        (True, False, True, [MS, MF, AS], False),
         # also make sure that a random combination of more plugins works ok
-        (True, False, False, ['auto_fail', 'manual_success'], True)
+        (True, False, False, [AF, MS], True)
     ])
     def test_should_send(self, rebuild, success, canceled, send_on, expected):
         p = SendMailPlugin(None, None, send_on=send_on)
@@ -177,7 +176,7 @@ class TestSendMailPlugin(object):
             prebuild_results = {CheckAndSetRebuildPlugin.key: True}
             image = ImageName.parse('repo/name')
         receivers = ['foo@bar.com', 'x@y.com']
-        p = SendMailPlugin(None, WF(), send_on=['auto_fail'])
+        p = SendMailPlugin(None, WF(), send_on=[AF])
 
         flexmock(p).should_receive('_should_send').with_args(True, False, False).and_return(True)
         flexmock(p).should_receive('_get_receivers_list').and_return(receivers)
@@ -192,7 +191,7 @@ class TestSendMailPlugin(object):
             prebuild_results = {CheckAndSetRebuildPlugin.key: True}
             image = ImageName.parse('repo/name')
         error_addresses = ['error@address.com']
-        p = SendMailPlugin(None, WF(), send_on=['auto_fail'], error_addresses=error_addresses)
+        p = SendMailPlugin(None, WF(), send_on=[AF], error_addresses=error_addresses)
 
         flexmock(p).should_receive('_should_send').with_args(True, False, False).and_return(True)
         flexmock(p).should_receive('_get_receivers_list').and_raise(RuntimeError())
@@ -207,7 +206,7 @@ class TestSendMailPlugin(object):
             autorebuild_canceled = False
             prebuild_results = {CheckAndSetRebuildPlugin.key: True}
             image = ImageName.parse('repo/name')
-        p = SendMailPlugin(None, WF(), send_on=['manual_success'])
+        p = SendMailPlugin(None, WF(), send_on=[MS])
 
         flexmock(p).should_receive('_should_send').with_args(True, False, False).and_return(False)
         flexmock(p).should_receive('_get_receivers_list').times(0)

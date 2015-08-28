@@ -24,8 +24,15 @@ from atomic_reactor.source import GitSource
 
 class SendMailPlugin(ExitPlugin):
     key = "sendmail"
-    allowed_states = set(['manual_success', 'manual_fail', 'auto_success', 'auto_fail',
-                          'auto_canceled'])
+
+    # symbolic constants for states
+    MANUAL_SUCCESS = 'manual_success'
+    MANUAL_FAIL = 'manual_fail'
+    AUTO_SUCCESS = 'auto_success'
+    AUTO_FAIL = 'auto_fail'
+    AUTO_CANCELED = 'auto_canceled'
+
+    allowed_states = set([MANUAL_SUCCESS, MANUAL_FAIL, AUTO_SUCCESS, AUTO_FAIL, AUTO_CANCELED])
 
     def __init__(self, tasker, workflow, send_on=None, url=None, pdc_url=None,
                  pdc_component_df_label=None, smtp_url=None, from_address=None,
@@ -57,11 +64,11 @@ class SendMailPlugin(ExitPlugin):
         should_send = False
 
         should_send_mapping = {
-            'manual_success': not rebuild and success,
-            'manual_fail': not rebuild and not success,
-            'auto_success': rebuild and success,
-            'auto_fail': rebuild and not success,
-            'auto_canceled': rebuild and canceled
+            self.MANUAL_SUCCESS: not rebuild and success,
+            self.MANUAL_FAIL: not rebuild and not success,
+            self.AUTO_SUCCESS: rebuild and success,
+            self.AUTO_FAIL: rebuild and not success,
+            self.AUTO_CANCELED: rebuild and canceled
         }
 
         for state in self.send_on:
