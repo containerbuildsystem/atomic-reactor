@@ -13,8 +13,9 @@ import os
 
 from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME
 from atomic_reactor.plugin import PrePublishPlugin
-from docker_scripts.squash import Squash
 from atomic_reactor.util import get_exported_image_metadata
+from docker_scripts.squash import Squash
+from dockerfile_parse import DockerfileParser
 
 __all__ = ('PrePublishSquashPlugin', )
 
@@ -34,7 +35,7 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         "name": "squash",
           "args": {
             "tag": "SQUASH_TAG",
-            "from_layer": "FROM_LAYER",
+            "from_base": true,
             "remove_former_image": false,
             "dont_load": false
           }
@@ -55,20 +56,28 @@ class PrePublishSquashPlugin(PrePublishPlugin):
     # Fail the build in case of squashing error
     can_fail = False
 
-    def __init__(self, tasker, workflow, tag=None, from_layer=None, remove_former_image=True,
-                 dont_load=False):
+    def __init__(self, tasker, workflow, tag=None, from_base=False, from_layer=None,
+                 remove_former_image=True, dont_load=False):
         """
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param from_layer: The layer from we will squash - by default it'll be the first layer
+        :param from_base: bool, squash from base-image layer, can't be specified with from_layer
+        :param from_layer: layer from we will squash - by default it'll be the first layer
         :param tag: str, new name of the image - by default use the former one
         :param remove_former_image: bool, remove unsquashed image?
         :param dont_load: bool, don't load squashed image into Docker, place it to `$tmpdir/image.tar` instead
         """
         super(PrePublishSquashPlugin, self).__init__(tasker, workflow)
         self.image = self.workflow.builder.image_id
-        self.from_layer = from_layer
         self.tag = tag or str(self.workflow.builder.image)
+        if from_base and from_layer is not None:
+            raise RuntimeError("Both: 'from_base' and 'from_layer' specified.")
+        self.from_layer = from_layer
+        if from_base:
+            df_path, _ = self.workflow.source.get_dockerfile_path()
+            base_image = DockerfileParser(df_path).baseimage
+            self.log.info("will squash from base-image, i.e. '%s'", base_image)
+            self.from_layer = base_image
         self.remove_former_image = remove_former_image
         self.dont_load = dont_load
 
