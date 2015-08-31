@@ -15,7 +15,6 @@ from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME
 from atomic_reactor.plugin import PrePublishPlugin
 from atomic_reactor.util import get_exported_image_metadata
 from docker_scripts.squash import Squash
-from dockerfile_parse import DockerfileParser
 
 __all__ = ('PrePublishSquashPlugin', )
 
@@ -74,10 +73,13 @@ class PrePublishSquashPlugin(PrePublishPlugin):
             raise RuntimeError("Both: 'from_base' and 'from_layer' specified.")
         self.from_layer = from_layer
         if from_base:
-            df_path, _ = self.workflow.source.get_dockerfile_path()
-            base_image = DockerfileParser(df_path).baseimage
-            self.log.info("will squash from base-image, i.e. '%s'", base_image)
-            self.from_layer = base_image
+            try:
+                base_image_id = self.workflow.base_image_inspect['Id']
+            except KeyError:
+                self.log.error("Missing Id in inspection: '%s'", self.workflow.base_image_inspect)
+                raise
+            self.log.info("will squash from base-image: '%s'", base_image_id)
+            self.from_layer = base_image_id
         self.remove_former_image = remove_former_image
         self.dont_load = dont_load
 
