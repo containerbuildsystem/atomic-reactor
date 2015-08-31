@@ -71,11 +71,11 @@ def test_tag_by_labels_plugin(tmpdir):
     primary_images = [i.to_str() for i in workflow.tag_conf.primary_images]
     unique_images = [i.to_str() for i in workflow.tag_conf.unique_images]
     assert ("%s:%s" % (TEST_IMAGE, "unique_tag_123")) in images
-    assert ("%s:%s_%s" % (TEST_IMAGE, version, release)) in images
+    assert ("%s:%s-%s" % (TEST_IMAGE, version, release)) in images
     assert ("%s:%s" % (TEST_IMAGE, version)) in images
     assert ("%s:latest" % (TEST_IMAGE, )) in images
     assert ("%s:%s" % (TEST_IMAGE, "unique_tag_123")) in unique_images
-    assert ("%s:%s_%s" % (TEST_IMAGE, version, release)) in primary_images
+    assert ("%s:%s-%s" % (TEST_IMAGE, version, release)) in primary_images
     assert ("%s:%s" % (TEST_IMAGE, version)) in primary_images
     assert ("%s:latest" % (TEST_IMAGE, )) in primary_images
     tasker.remove_image(image)

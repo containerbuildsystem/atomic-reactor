@@ -16,7 +16,7 @@ class TagByLabelsPlugin(PostBuildPlugin):
     """
     Use labels Name, Version and Release of final image and create tags:
      * Name:Version
-     * Name:Version_Release
+     * Name:Version-Release
     """
     key = "tag_by_labels"
     can_fail = False
@@ -51,7 +51,7 @@ class TagByLabelsPlugin(PostBuildPlugin):
 
         unique_tag = self.workflow.builder.image.tag
 
-        nvr = "%s:%s_%s" % (name, version, release)
+        nvr = "%s:%s-%s" % (name, version, release)
         nv = "%s:%s" % (name, version)
         n = "%s:latest" % name
         n_unique = "%s:%s" % (name, unique_tag)
