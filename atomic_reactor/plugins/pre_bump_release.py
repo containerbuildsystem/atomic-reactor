@@ -96,11 +96,17 @@ class BumpReleasePlugin(PreBuildPlugin):
 
     def bump(self, repo, branch):
         # Look in the git repository
-        remote = repo.remotes['origin']
+        origin = 'origin'
+        remote = repo.remotes[origin]
         repo.config['push.default'] = 'simple'
         if self.push_url:
-            remote.push_url = self.push_url
-            remote.save()
+            try:
+                # pygit2 0.23
+                repo.remotes.set_push_url(origin, self.push_url)
+            except AttributeError:
+                # pygit2 0.22
+                remote.push_url = self.push_url
+                remote.save()
 
         # Bump the Release label
         label_key = 'Release'
