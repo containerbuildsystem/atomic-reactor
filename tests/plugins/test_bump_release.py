@@ -100,19 +100,39 @@ class X(object):
 
 
 class MockRemote(object):
-    def push(self, name):
+    def __init__(self, has_set_push_url=False):
+        self.has_set_push_url = has_set_push_url
+
+    def push(self, name, has_set_push_url=False):
         pass
 
+    @property
+    def push_url(self):
+        return ''
+
+    @push_url.setter
+    def push_url(self, url):
+        if self.has_set_push_url:
+            raise AttributeError("can't set attribute")
+
     def save(self):
-        pass
+        if self.has_set_push_url:
+            raise AttributeError("must not call save()")
 
 
 class MockRemotesCollection(object):
+    def __init__(self, has_set_push_url=False):
+        self.has_set_push_url = has_set_push_url
+
     def create(self, name, url):
         pass
 
+    def set_push_url(self, name, url):
+        if not self.has_set_push_url:
+            raise AttributeError("no such attribute 'set_push_url'")
+
     def __getitem__(self, item):
-        return MockRemote()
+        return MockRemote(has_set_push_url=self.has_set_push_url)
 
 
 class MockIndex(object):
@@ -148,7 +168,8 @@ class MockBranch(object):
 
 class MockRepository(object):
     def __init__(self, *args, **kwargs):
-        self.remotes = MockRemotesCollection()
+        has_set_push_url = kwargs.get('has_set_push_url')
+        self.remotes = MockRemotesCollection(has_set_push_url=has_set_push_url)
         self.index = MockIndex()
         self.head = flexmock()
         commit = MockCommit()
@@ -175,11 +196,16 @@ class MockRepository(object):
         pass
 
 
-def maybe_mock_pygit2():
-    if NO_PYGIT2:
-        flexmock(pygit2.Remote, push=lambda name: None)
+def maybe_mock_pygit2(has_set_push_url=None):
+    flexmock(pygit2.Remote, push=lambda name: None)
+    if NO_PYGIT2 or has_set_push_url is not None:
         flexmock(pygit2, Signature=MockSignature)
-        flexmock(pygit2, init_repository=MockRepository)
+
+        def do_init_repository(*args, **kwargs):
+            kwargs['has_set_push_url'] = has_set_push_url
+            return MockRepository(*args, **kwargs)
+
+        flexmock(pygit2, init_repository=do_init_repository)
 
 
 class MockedPopen(object):
@@ -284,6 +310,28 @@ def test_bump_release_branch_not_found(tmpdir):
                                          git_commit='wrong')
         with pytest.raises(PluginFailedException):
             runner.run()
+
+
+@pytest.mark.parametrize('has_set_push_url', [True, False])
+def test_bump_release_set_push_url(tmpdir, has_set_push_url):
+    """
+    pygit2-0.22 provides a settable Remote.push_url attribute and a
+    save() method, but no RemoteCollection.set_push_url() method.
+
+    pygit2-0.23 provides a RemoteCollection.set_push_url() method, but
+    Remote.push_url is not settable and Remote.save() raises an
+    exception.
+
+    Test that we can cope with either situation.
+
+    """
+
+    maybe_mock_pygit2(has_set_push_url=has_set_push_url)
+    with DFWithRelease() as (df_path, commit):
+        workflow, args, runner = prepare(tmpdir, df_path, commit,
+                                         commit_message='foo')
+        # Test that it doesn't raise an exception
+        runner.run()
 
 
 @pytest.mark.parametrize(('label', 'expected'), [
