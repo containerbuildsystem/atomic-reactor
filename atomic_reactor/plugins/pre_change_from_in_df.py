@@ -35,11 +35,10 @@ class ChangeFromPlugin(PreBuildPlugin):
         run the plugin
         """
         base_image = self.base_image or self.workflow.builder.base_image
-        base_image_inspect = self.tasker.inspect_image(base_image)
         try:
-            base_image_id = base_image_inspect['Id']
+            base_image_id = self.workflow.base_image_inspect['Id']
         except KeyError:
-            self.log.error("Id is missing in inspection: '%s'", base_image_inspect)
+            self.log.error("Id is missing in inspection: '%s'", self.workflow.base_image_inspect)
             return
         self.log.debug("using base image '%s', id '%s'", base_image, base_image_id)
         for line in fileinput.input(self.workflow.builder.df_path, inplace=1):
