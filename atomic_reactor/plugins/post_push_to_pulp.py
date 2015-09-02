@@ -24,6 +24,13 @@ import re
 import tempfile
 
 
+# let's silence warnings from dockpulp: there is one warning for every request
+# which may result in tenths of messages: very annoying
+# with "module", it just prints one warning -- this should balance security and UX
+import warnings
+warnings.filterwarnings("module")
+
+
 class PulpUploader(object):
     CER = 'pulp.cer'
     KEY = 'pulp.key'
