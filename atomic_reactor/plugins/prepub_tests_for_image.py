@@ -76,8 +76,7 @@ class ImageTestPlugin(PrePublishPlugin):
 
         """
         if not self.image_id:
-            self.log.warning("no image_id specified (build probably failed)")
-            return
+            raise RuntimeError("no image_id specified (build probably failed)")
         tmpdir = tempfile.mkdtemp()
         g = LazyGit(self.git_uri, self.git_commit, tmpdir)
         with g:

@@ -39,7 +39,7 @@ class ChangeFromPlugin(PreBuildPlugin):
             base_image_id = self.workflow.base_image_inspect['Id']
         except KeyError:
             self.log.error("Id is missing in inspection: '%s'", self.workflow.base_image_inspect)
-            return
+            raise
         self.log.debug("using base image '%s', id '%s'", base_image, base_image_id)
         for line in fileinput.input(self.workflow.builder.df_path, inplace=1):
             re_match = re.match(r"^FROM .+$", line)
