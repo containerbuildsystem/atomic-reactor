@@ -130,10 +130,8 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         run the plugin
         """
         # dict comprehension is syntax error on 2.6
-        yum_repos = {}
-        for key, value in self.workflow.files.items():
-            if key.startswith(YUM_REPOS_DIR):
-                yum_repos[key] = value
+        yum_repos = dict((k, v) for (k, v) in self.workflow.files.items()
+                                           if k.startswith(YUM_REPOS_DIR))
         if self.wrap_commands:
             wrap_yum_commands(yum_repos, self.workflow.builder.df_path)
         else:
