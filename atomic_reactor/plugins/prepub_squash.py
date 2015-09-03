@@ -34,7 +34,7 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         "name": "squash",
           "args": {
             "tag": "SQUASH_TAG",
-            "from_base": true,
+            "from_layer": "FROM_LAYER",
             "remove_former_image": false,
             "dont_load": false
           }
@@ -55,13 +55,13 @@ class PrePublishSquashPlugin(PrePublishPlugin):
     # Fail the build in case of squashing error
     can_fail = False
 
-    def __init__(self, tasker, workflow, tag=None, from_base=False, from_layer=None,
+    def __init__(self, tasker, workflow, tag=None, from_base=True, from_layer=None,
                  remove_former_image=True, dont_load=False):
         """
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param from_base: bool, squash from base-image layer, can't be specified with from_layer
-        :param from_layer: layer from we will squash - by default it'll be the first layer
+        :param from_base: bool, squash from base-image layer, on by default
+        :param from_layer: layer from we will squash - if specified, takes precedence over from_base
         :param tag: str, new name of the image - by default use the former one
         :param remove_former_image: bool, remove unsquashed image?
         :param dont_load: bool, don't load squashed image into Docker, place it to `$tmpdir/image.tar` instead
@@ -69,10 +69,8 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         super(PrePublishSquashPlugin, self).__init__(tasker, workflow)
         self.image = self.workflow.builder.image_id
         self.tag = tag or str(self.workflow.builder.image)
-        if from_base and from_layer is not None:
-            raise RuntimeError("Both: 'from_base' and 'from_layer' specified.")
         self.from_layer = from_layer
-        if from_base:
+        if from_base and from_layer is None:
             try:
                 base_image_id = self.workflow.base_image_inspect['Id']
             except KeyError:
