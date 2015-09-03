@@ -22,13 +22,16 @@ from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 class StoreMetadataInOSv3Plugin(ExitPlugin):
     key = "store_metadata_in_osv3"
 
-    def __init__(self, tasker, workflow, url, verify_ssl=True, use_auth=True):
+    def __init__(self, tasker, workflow, url, verify_ssl=True,
+                 username=None, password=None, use_auth=True):
         """
         constructor
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param url: str, URL to OSv3 instance
+        :param username: str, for basic auth
+        :param password: str, for basic auth
         :param use_auth: bool, initiate authentication with openshift?
         """
         # call parent constructor
@@ -36,6 +39,11 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         self.url = url
         self.verify_ssl = verify_ssl
         self.use_auth = use_auth
+        self.username = username
+        self.password = password
+        if not self.use_auth and self.username and self.password:
+            raise RuntimeError("`use_auth` is false while username and password are set. "
+                               "That doesn't make any sense.")
 
     def get_result(self, result):
         if isinstance(result, Exception):
@@ -71,7 +79,8 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         # initial setup will use host based auth: apache will be set to accept everything
         # from specific IP and will set specific X-Remote-User for such requests
         osbs_conf = Configuration(conf_file=None, openshift_uri=self.url,
-                                  use_auth=self.use_auth, verify_ssl=self.verify_ssl)
+                                  use_auth=self.use_auth, verify_ssl=self.verify_ssl,
+                                  username=self.username, password=self.password)
         osbs = OSBS(osbs_conf, osbs_conf)
 
         # usually repositories formed from NVR labels
