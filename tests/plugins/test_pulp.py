@@ -33,15 +33,7 @@ class X(object):
     base_image = ImageName(repo="qwe", tag="asd")
 
 
-@pytest.mark.skipif(dockpulp is None,
-                    reason='dockpulp module not available')
-@pytest.mark.parametrize(("check_repo_retval", "should_raise"), [
-    (3, True),
-    (2, True),
-    (1, True),
-    (0, False),
-])
-def test_pulp(tmpdir, check_repo_retval, should_raise):
+def prepare(check_repo_retval=0):
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     setattr(workflow, 'builder', X())
@@ -76,7 +68,19 @@ def test_pulp(tmpdir, check_repo_retval, should_raise):
      .should_receive('watch_tasks')
      .with_args(list))
     mock_docker()
+    return tasker, workflow
 
+
+@pytest.mark.skipif(dockpulp is None,
+                    reason='dockpulp module not available')
+@pytest.mark.parametrize(("check_repo_retval", "should_raise"), [
+    (3, True),
+    (2, True),
+    (1, True),
+    (0, False),
+])
+def test_pulp_source_secret(tmpdir, check_repo_retval, should_raise):
+    tasker, workflow = prepare(check_repo_retval=check_repo_retval)
     os.environ['SOURCE_SECRET_PATH'] = str(tmpdir)
     with open(os.path.join(str(tmpdir), "pulp.cer"), "wt") as cer:
         cer.write("pulp certificate\n")
@@ -97,6 +101,30 @@ def test_pulp(tmpdir, check_repo_retval, should_raise):
 
     runner.run()
     assert PulpPushPlugin.key is not None
+    images = [i.to_str() for i in workflow.postbuild_results[PulpPushPlugin.key]]
+    assert "registry.example.com/image-name1" in images
+    assert "registry.example.com/prefix/image-name2" in images
+    assert "registry.example.com/image-name3:asd" in images
+
+
+@pytest.mark.skipif(dockpulp is None,
+                    reason='dockpulp module not available')
+def test_pulp_service_account_secret(tmpdir):
+    tasker, workflow = prepare()
+    os.environ['SOURCE_SECRET_PATH'] = str(tmpdir) + "/not-used"
+    with open(os.path.join(str(tmpdir), "pulp.cer"), "wt") as cer:
+        cer.write("pulp certificate\n")
+    with open(os.path.join(str(tmpdir), "pulp.key"), "wt") as key:
+        key.write("pulp key\n")
+
+    runner = PostBuildPluginsRunner(tasker, workflow, [{
+        'name': PulpPushPlugin.key,
+        'args': {
+            'pulp_registry_name': 'test',
+            'pulp_secret_path': str(tmpdir),
+        }}])
+
+    runner.run()
     images = [i.to_str() for i in workflow.postbuild_results[PulpPushPlugin.key]]
     assert "registry.example.com/image-name1" in images
     assert "registry.example.com/prefix/image-name2" in images

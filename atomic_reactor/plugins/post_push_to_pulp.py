@@ -11,6 +11,36 @@ from dockpulp import setup_logger
 
 """
 Push built image to pulp registry
+
+Several authentication schemes are possible, including
+username+password and key/certificate via sourceSecret.
+
+However, the recommended scheme (since Origin 1.0.6) is to store a
+key and certificate in a secret which the builder service account is
+allowed to mount:
+
+$ oc secrets new pulp ./pulp.key ./pulp.cer
+secrets/pulp
+$ oc secrets add serviceaccount/builder secret/pulp --for=mount
+
+In the BuildConfig for atomic-reactor, specify the secret in the
+strategy's 'secrets' array, specifying a mount path:
+
+"secrets": [{
+  "secretSource": {
+    "name": "pulp"
+  },
+  "mountPath": "/var/run/secrets/pulp"
+}]
+
+In the configuration for this plugin, specify the same path for
+pulp_secret_path:
+
+"pulp_push": {
+  "pulp_registry_name": ...,
+  ...
+  "pulp_secret_path": "/var/run/secrets/pulp"
+}
 """
 
 from atomic_reactor.plugin import PostBuildPlugin
@@ -64,9 +94,7 @@ class PulpUploader(object):
 
     def _set_auth(self, p):
         # The pulp.cer and pulp.key values must be set in a
-        # 'Secret'-type resource, and referenced by the sourceSecret
-        # for the build. The path to our files is now given in the
-        # environment variable SOURCE_SECRET_PATH.
+        # 'Secret'-type resource and mounted somewhere we can get at them.
         if self.username and self.password:
             p.login(self.username, self.password)
         else:
