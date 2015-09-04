@@ -56,6 +56,25 @@ probably implement if you started hooking Docker into your
 infrastructure.
 
 
+%package -n python-atomic-reactor
+Summary:        Python 2 Atomic Reactor library
+Group:          Development/Tools
+License:        BSD
+Requires:       python-docker-py
+Requires:       python-requests
+Requires:       python-setuptools
+Requires:       python-dockerfile-parse >= 0.0.5
+Requires:       python-backports-lzma
+# Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
+Requires:       nfs-utils
+Provides:       python-dock = %{version}-%{release}
+Obsoletes:      python-dock < %{dock_obsolete_vr}
+
+%description -n python-atomic-reactor
+Simple Python 2 library for building Docker images. It contains
+a lot of helpful functions which you would probably implement if
+you started hooking Docker into your infrastructure.
+
 %package -n python-atomic-reactor-koji
 Summary:        Koji plugin for Atomic Reactor
 Group:          Development/Tools
@@ -84,24 +103,14 @@ Obsoletes:      python-dock-metadata < %{dock_obsolete_vr}
 Plugin for submitting metadata to OSBS
 
 
-%package -n python-atomic-reactor
-Summary:        Python 2 Atomic Reactor library
+%package -n python-atomic-reactor-rebuilds
+Summary:        Plugins for automated rebuilds
 Group:          Development/Tools
-License:        BSD
-Requires:       python-docker-py
-Requires:       python-requests
-Requires:       python-setuptools
-Requires:       python-dockerfile-parse >= 0.0.5
-Requires:       python-backports-lzma
-# Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
-Requires:       nfs-utils
-Provides:       python-dock = %{version}-%{release}
-Obsoletes:      python-dock < %{dock_obsolete_vr}
+Requires:       python-atomic-reactor = %{version}-%{release}
+Requires:       osbs >= 0.15
 
-%description -n python-atomic-reactor
-Simple Python 2 library for building Docker images. It contains
-a lot of helpful functions which you would probably implement if
-you started hooking Docker into your infrastructure.
+%description -n python-atomic-reactor-rebuilds
+Plugins for automated rebuilds
 
 
 %if 0%{?with_python3}
@@ -146,6 +155,15 @@ Obsoletes:      python3-dock-metadata < %{dock_obsolete_vr}
 
 %description -n python3-atomic-reactor-metadata
 Plugin for submitting metadata to OSBS
+
+%package -n python3-atomic-reactor-rebuilds
+Summary:        Plugins for automated rebuilds
+Group:          Development/Tools
+Requires:       python3-atomic-reactor = %{version}-%{release}
+Requires:       osbs >= 0.15
+
+%description -n python3-atomic-reactor-rebuilds
+Plugins for automated rebuilds
 %endif # with_python3
 
 
@@ -203,6 +221,11 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %{python2_sitelib}/atomic_reactor/plugins
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/post_import_image.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py
+
 %{python2_sitelib}/atomic_reactor-%{version}-py2.*.egg-info
 %dir %{_datadir}/%{name}
 %{_datadir}/%{name}/atomic-reactor.tar.gz
@@ -215,6 +238,12 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 
 %files -n python-atomic-reactor-metadata
 %{python2_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
+
+%files -n python-atomic-reactor-rebuilds
+%{python2_sitelib}/atomic_reactor/plugins/post_import_image.py*
+%{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
+%{python2_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py*
+%{python2_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py
 
 
 %if 0%{?with_python3}
@@ -235,6 +264,11 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_koji.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_store_metadata_in_osv3*.py*
+%exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/post_import_image*.py*
+%exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_bump_release*.py*
+%exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_check_and_set_rebuild*.py*
+%exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_stop_autorebuild_if_disabled*.py*
+
 %{python3_sitelib}/atomic_reactor-%{version}-py3.*.egg-info
 %dir %{_datadir}/%{name}
 # ship reactor in form of tarball so it can be installed within build image
@@ -253,6 +287,14 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %files -n python3-atomic-reactor-metadata
 %{python3_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_store_metadata_in_osv3*.py*
+
+%files -n python3-atomic-reactor-rebuilds
+%{python3_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
+%{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_store_metadata_in_osv3*.py*
+%{python3_sitelib}/atomic_reactor/plugins/__pycache__/post_import_image*.py*
+%{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_bump_release*.py*
+%{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_check_and_set_rebuild*.py*
+%{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_stop_autorebuild_if_disabled*.py*
 %endif  # with_python3
 
 
