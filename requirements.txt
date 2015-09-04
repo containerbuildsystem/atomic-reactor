@@ -1,3 +1,2 @@
 docker-py
 dockerfile-parse>=0.0.4
-#pygit2
