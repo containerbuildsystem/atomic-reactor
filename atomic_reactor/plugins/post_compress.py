@@ -36,7 +36,7 @@ class CompressPlugin(PostBuildPlugin):
     ask for it by using `load_exported_image: true`.
     """
     key = 'compress'
-    can_fail = False
+    is_allowed_to_fail = False
 
     # TODO: add remove_former_image?
     def __init__(self, tasker, workflow, load_exported_image=False, method='gzip'):

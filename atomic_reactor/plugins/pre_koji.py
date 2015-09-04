@@ -18,7 +18,7 @@ from atomic_reactor.util import render_yum_repo
 
 class KojiPlugin(PreBuildPlugin):
     key = "koji"
-    can_fail = False
+    is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, target, hub, root):
         """

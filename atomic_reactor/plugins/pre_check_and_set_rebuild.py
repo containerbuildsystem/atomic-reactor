@@ -48,7 +48,7 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
     """
 
     key = "check_and_set_rebuild"
-    can_fail = False  # We really want to stop the process
+    is_allowed_to_fail = False  # We really want to stop the process
 
     def __init__(self, tasker, workflow, label_key, label_value,
                  url, verify_ssl=True, use_auth=True):

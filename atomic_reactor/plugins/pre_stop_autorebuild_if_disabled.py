@@ -29,9 +29,9 @@ class StopAutorebuildIfDisabledPlugin(PreBuildPlugin):
     (case insensitive).
     """
     key = 'stop_autorebuild_if_disabled'
-    # set can_fail to False, so that the actual build is skipped if this plugin raises
-    #  AutoRebuildCanceledException
-    can_fail = False
+    # set is_allowed_to_fail to False, so that the actual build is skipped
+    # if this plugin raises AutoRebuildCanceledException
+    is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, config_file='.osbs-repo-config'):
         super(StopAutorebuildIfDisabledPlugin, self).__init__(tasker, workflow)

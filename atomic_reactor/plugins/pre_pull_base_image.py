@@ -15,7 +15,7 @@ from atomic_reactor.plugin import PreBuildPlugin
 
 class PullBaseImagePlugin(PreBuildPlugin):
     key = "pull_base_image"
-    can_fail = False
+    is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, parent_registry=None, parent_registry_insecure=False):
         """

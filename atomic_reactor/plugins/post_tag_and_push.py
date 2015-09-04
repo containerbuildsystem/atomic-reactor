@@ -18,7 +18,7 @@ class TagAndPushPlugin(PostBuildPlugin):
     """
 
     key = "tag_and_push"
-    can_fail = False
+    is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, **kwargs):
         """

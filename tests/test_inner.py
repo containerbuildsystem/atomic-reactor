@@ -99,7 +99,7 @@ class RaisesMixIn(object):
     Mix-in class for plugins that should raise exceptions.
     """
 
-    can_fail = False
+    is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, *args, **kwargs):
         super(RaisesMixIn, self).__init__(tasker, workflow,
@@ -499,8 +499,8 @@ def test_workflow_errors():
     This is a test for what happens when plugins fail.
 
     When a prebuild or postbuild plugin fails, and doesn't have
-    can_fail=True set, the whole build should fail. However, all the
-    exit plugins should run.
+    is_allowed_to_fail=True set, the whole build should fail.
+    However, all the exit plugins should run.
     """
 
     this_file = inspect.getfile(PreRaises)

@@ -67,7 +67,7 @@ class CopyBuiltImageToNFSPlugin(PostBuildPlugin):
     """
 
     key = "cp_built_image_to_nfs"
-    can_fail = False
+    is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, nfs_server_path, dest_dir=None,
                  mountpoint=DEFAULT_MOUNTPOINT):

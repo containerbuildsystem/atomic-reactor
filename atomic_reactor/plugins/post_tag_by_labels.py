@@ -19,7 +19,7 @@ class TagByLabelsPlugin(PostBuildPlugin):
      * Name:Version-Release
     """
     key = "tag_by_labels"
-    can_fail = False
+    is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, **kwargs):
         """

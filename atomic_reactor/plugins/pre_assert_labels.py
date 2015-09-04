@@ -17,7 +17,7 @@ from atomic_reactor.plugin import PreBuildPlugin
 
 class AssertLabelsPlugin(PreBuildPlugin):
     key = "assert_labels"
-    can_fail = False  # We really want to stop the process
+    is_allowed_to_fail = False  # We really want to stop the process
 
     def __init__(self, tasker, workflow, required_labels=None):
         """

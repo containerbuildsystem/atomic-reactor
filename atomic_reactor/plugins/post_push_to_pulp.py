@@ -170,7 +170,7 @@ class PulpUploader(object):
 
 class PulpPushPlugin(PostBuildPlugin):
     key = "pulp_push"
-    can_fail = False
+    is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, pulp_registry_name, load_squashed_image=None,
                  load_exported_image=None, image_names=None, pulp_secret_path=None,

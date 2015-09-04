@@ -51,7 +51,7 @@ class BumpReleasePlugin(PreBuildPlugin):
     """
 
     key = "bump_release"
-    can_fail = False  # We really want to stop the process
+    is_allowed_to_fail = False  # We really want to stop the process
 
     def __init__(self, tasker, workflow,
                  git_ref,

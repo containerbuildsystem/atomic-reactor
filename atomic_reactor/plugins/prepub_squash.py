@@ -53,7 +53,7 @@ class PrePublishSquashPlugin(PrePublishPlugin):
 
     key = "squash"
     # Fail the build in case of squashing error
-    can_fail = False
+    is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, tag=None, from_base=True, from_layer=None,
                  remove_former_image=True, dont_load=False):

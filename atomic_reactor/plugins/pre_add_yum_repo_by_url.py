@@ -60,7 +60,7 @@ class YumRepo(object):
 
 class AddYumRepoByUrlPlugin(PreBuildPlugin):
     key = "add_yum_repo_by_url"
-    can_fail = False
+    is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, repourls):
         """

@@ -18,7 +18,6 @@ __all__ = ('GarbageCollectionPlugin', )
 
 class GarbageCollectionPlugin(ExitPlugin):
     key = "remove_built_image"
-    can_fail = True
 
     def __init__(self, tasker, workflow, remove_pulled_base_image=True):
         """

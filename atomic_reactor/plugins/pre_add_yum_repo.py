@@ -19,7 +19,7 @@ from atomic_reactor.util import render_yum_repo
 
 class AddYumRepoPlugin(PreBuildPlugin):
     key = "add_yum_repo"
-    can_fail = False
+    is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, repo_name, baseurl):
         """

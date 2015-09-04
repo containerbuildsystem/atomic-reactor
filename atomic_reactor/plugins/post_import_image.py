@@ -26,7 +26,7 @@ class ImportImagePlugin(PostBuildPlugin):
     """
 
     key = "import_image"
-    can_fail = False
+    is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, imagestream, docker_image_repo,
                  url, verify_ssl=True, use_auth=True):

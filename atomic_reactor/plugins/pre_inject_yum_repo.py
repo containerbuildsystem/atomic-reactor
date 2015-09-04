@@ -107,7 +107,7 @@ def wrap_yum_commands(yum_repos, df_path):
 
 class InjectYumRepoPlugin(PreBuildPlugin):
     key = "inject_yum_repo"
-    can_fail = False
+    is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, wrap_commands=False):
         """

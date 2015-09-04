@@ -20,14 +20,14 @@ Build plugins are requested and configured via input json: key `prebuild_plugins
 ```
 {
     "name": "plugin_name",
-    "can_fail": false,
+    "is_allowed_to_fail": false,
     "args": {
         "args1": "value"
     }
 }
 ```
 
-Order is important, because plugins are executed in the order as they are specified (one plugin can use input from another plugin). `args` are directly passed to a plugin in constructor. Any plugin with `can_fail` is set to `false` that raises an exception causes the build process to proceed directly to the stage of running exit plugins.
+Order is important, because plugins are executed in the order as they are specified (one plugin can use input from another plugin). `args` are directly passed to a plugin in constructor. Any plugin with `is_allowed_to_fail` set to `false` that raises an exception causes the build process to proceed directly to the stage of running exit plugins.
 
 
 ## Input plugins

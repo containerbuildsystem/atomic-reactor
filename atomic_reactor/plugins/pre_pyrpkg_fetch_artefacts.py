@@ -18,7 +18,7 @@ from atomic_reactor.plugin import PreBuildPlugin
 
 class DistgitFetchArtefactsPlugin(PreBuildPlugin):
     key = "distgit_fetch_artefacts"
-    can_fail = False
+    is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, command):
         """

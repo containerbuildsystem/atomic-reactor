@@ -44,7 +44,7 @@ class Plugin(object):
     # same thing goes for input: use this key for providing input for this plugin
     key = None
     # by default, if plugin fails (raises exc), execution continues
-    can_fail = True
+    is_allowed_to_fail = True
 
     def __init__(self, *args, **kwargs):
         """
@@ -191,9 +191,9 @@ class PluginsRunner(object):
 
                 raise PluginFailedException(msg)
             try:
-                plugin_can_fail = plugin_request['can_fail']
+                plugin_is_allowed_to_fail = plugin_request['is_allowed_to_fail']
             except (TypeError, KeyError):
-                plugin_can_fail = getattr(plugin_class, "can_fail", True)
+                plugin_is_allowed_to_fail = getattr(plugin_class, "is_allowed_to_fail", True)
 
             logger.debug("running plugin '%s'", plugin_name)
 
@@ -211,10 +211,10 @@ class PluginsRunner(object):
             except Exception as ex:
                 msg = "plugin '%s' raised an exception: '%s'" % (plugin_instance.key, repr(ex))
                 logger.debug(traceback.format_exc())
-                if plugin_can_fail or keep_going:
+                if plugin_is_allowed_to_fail or keep_going:
                     logger.warning(msg)
                     logger.info("error is not fatal, continuing...")
-                    if not plugin_can_fail:
+                    if not plugin_is_allowed_to_fail:
                         failed_msgs.append(msg)
                 else:
                     self.on_plugin_failed()
