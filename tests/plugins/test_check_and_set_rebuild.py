@@ -36,9 +36,6 @@ def prepare(key, value, set_labels_args=None, set_labels_kwargs=None):
     setattr(workflow.builder, 'source', X())
     setattr(workflow.builder.source, 'path', '/tmp')
     setattr(workflow.builder.source, 'dockerfile_path', None)
-    # No-op implementation until implemented in osbs-client
-    flexmock(OSBS)
-    setattr(OSBS, 'set_labels_on_build_config', lambda **kwargs: None)
     expectation = flexmock(OSBS).should_receive('set_labels_on_build_config')
     if set_labels_args is not None:
         if set_labels_kwargs is None:
