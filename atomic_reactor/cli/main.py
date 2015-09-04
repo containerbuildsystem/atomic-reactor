@@ -17,7 +17,7 @@ from atomic_reactor import set_logging
 from atomic_reactor.api import build_image_here, build_image_in_privileged_container, build_image_using_hosts_docker
 from atomic_reactor.constants import CONTAINER_BUILD_JSON_PATH, CONTAINER_RESULTS_JSON_PATH, DESCRIPTION, PROG
 from atomic_reactor.buildimage import BuildImageBuilder
-from atomic_reactor.inner import BuildResultsEncoder, build_inside, BuildResults
+from atomic_reactor.inner import build_inside, BuildResults
 from atomic_reactor.util import process_substitutions
 
 
@@ -87,12 +87,6 @@ def construct_kwargs(**kwargs):
 
 def cli_inside_build(args):
     build_inside(input=args.input, input_args=args.input_arg, substitutions=args.substitute)
-
-
-def store_result(results):
-    # TODO: move this to api, it shouldnt be part of CLI
-    with open(CONTAINER_RESULTS_JSON_PATH, 'w') as results_json_fd:
-        json.dump(results, results_json_fd, cls=BuildResultsEncoder)
 
 
 class CLI(object):
