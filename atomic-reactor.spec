@@ -20,8 +20,8 @@
 %global dock_obsolete_vr 1.3.7-2
 
 Name:           %{project}
-Version:        1.4.0
-Release:        2%{?dist}
+Version:        1.5.0
+Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -261,6 +261,9 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 
 
 %changelog
+* Fri Sep 04 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.5.0-1
+- 1.5.0 release
+
 * Tue Jul 28 2015 bkabrda <bkabrda@redhat.com> - 1.4.0-2
 - fix issues found during Fedora re-review (rhbz#1246702)
 
