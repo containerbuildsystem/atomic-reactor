@@ -11,13 +11,13 @@ from __future__ import unicode_literals
 import pytest
 from flexmock import flexmock
 from dockerfile_parse import DockerfileParser
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_dockerfile import AddDockerfilePlugin
 from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
 from atomic_reactor.util import ImageName
 from tests.constants import MOCK_SOURCE
+from tests.fixtures import docker_tasker
 
 
 class Y(object):
@@ -32,7 +32,7 @@ class X(object):
     base_image = ImageName(repo="qwe", tag="asd")
 
 
-def test_adddockerfile_plugin(tmpdir):
+def test_adddockerfile_plugin(tmpdir, docker_tasker):
     df_content = """
 FROM fedora
 RUN yum install -y python-django
@@ -40,14 +40,13 @@ CMD blabla"""
     df = DockerfileParser(str(tmpdir))
     df.content = df_content
 
-    tasker = DockerTasker()
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
 
     runner = PreBuildPluginsRunner(
-        tasker,
+        docker_tasker,
         workflow,
         [{
             'name': AddDockerfilePlugin.key,
@@ -65,7 +64,7 @@ CMD blabla"""
     assert df.content == expected_output
 
 
-def test_adddockerfile_todest(tmpdir):
+def test_adddockerfile_todest(tmpdir, docker_tasker):
     df_content = """
 FROM fedora
 RUN yum install -y python-django
@@ -73,14 +72,13 @@ CMD blabla"""
     df = DockerfileParser(str(tmpdir))
     df.content = df_content
 
-    tasker = DockerTasker()
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
 
     runner = PreBuildPluginsRunner(
-        tasker,
+        docker_tasker,
         workflow,
         [{
             'name': AddDockerfilePlugin.key,
@@ -99,7 +97,7 @@ CMD blabla"""
     assert df.content == expected_output
 
 
-def test_adddockerfile_nvr_from_labels(tmpdir):
+def test_adddockerfile_nvr_from_labels(tmpdir, docker_tasker):
     df_content = """
 FROM fedora
 RUN yum install -y python-django
@@ -108,14 +106,13 @@ CMD blabla"""
     df = DockerfileParser(str(tmpdir))
     df.content = df_content
 
-    tasker = DockerTasker()
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
 
     runner = PreBuildPluginsRunner(
-        tasker,
+        docker_tasker,
         workflow,
         [{
             'name': AddDockerfilePlugin.key
@@ -127,7 +124,7 @@ CMD blabla"""
     assert "ADD Dockerfile-jboss-eap-6-docker-6.4-77 /root/buildinfo/Dockerfile-jboss-eap-6-docker-6.4-77" in df.content
 
 
-def test_adddockerfile_nvr_from_labels2(tmpdir):
+def test_adddockerfile_nvr_from_labels2(tmpdir, docker_tasker):
     df_content = """
 FROM fedora
 RUN yum install -y python-django
@@ -135,7 +132,6 @@ CMD blabla"""
     df = DockerfileParser(str(tmpdir))
     df.content = df_content
 
-    tasker = DockerTasker()
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     flexmock(workflow, base_image_inspect={"Config": {"Labels": {}}})
     workflow.builder = X
@@ -143,7 +139,7 @@ CMD blabla"""
     workflow.builder.df_dir = str(tmpdir)
 
     runner = PreBuildPluginsRunner(
-        tasker,
+        docker_tasker,
         workflow,
         [{
             'name': AddLabelsPlugin.key,
@@ -161,7 +157,7 @@ CMD blabla"""
     assert "ADD Dockerfile-jboss-eap-6-docker-6.4-77 /root/buildinfo/Dockerfile-jboss-eap-6-docker-6.4-77" in df.content
 
 
-def test_adddockerfile_fails(tmpdir):
+def test_adddockerfile_fails(tmpdir, docker_tasker):
     df_content = """
 FROM fedora
 RUN yum install -y python-django
@@ -169,14 +165,13 @@ CMD blabla"""
     df = DockerfileParser(str(tmpdir))
     df.content = df_content
 
-    tasker = DockerTasker()
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
 
     runner = PreBuildPluginsRunner(
-        tasker,
+        docker_tasker,
         workflow,
         [{
             'name': AddDockerfilePlugin.key
@@ -186,7 +181,7 @@ CMD blabla"""
         runner.run()
 
 
-def test_adddockerfile_final(tmpdir):
+def test_adddockerfile_final(tmpdir, docker_tasker):
     df_content = """
 FROM fedora
 RUN yum install -y python-django
@@ -194,14 +189,13 @@ CMD blabla"""
     df = DockerfileParser(str(tmpdir))
     df.content = df_content
 
-    tasker = DockerTasker()
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
 
     runner = PreBuildPluginsRunner(
-        tasker,
+        docker_tasker,
         workflow,
         [{
              'name': AddDockerfilePlugin.key,

@@ -37,7 +37,9 @@ from atomic_reactor.plugins.\
 from atomic_reactor.plugins.pre_bump_release import BumpReleasePlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.util import ImageName
-from tests.constants import SOURCE
+from tests.constants import SOURCE, MOCK
+if MOCK:
+    from tests.docker_mock import mock_docker
 
 from copy import deepcopy
 import os
@@ -244,6 +246,8 @@ def prepare(tmpdir, df_path, git_ref, source=None,
     if author_email is None:
         author_email = "root@example.com"
 
+    if MOCK:
+        mock_docker()
     tasker = DockerTasker()
     source = deepcopy(SOURCE)
     source['provider_params']['git_commit'] = git_commit or BRANCH

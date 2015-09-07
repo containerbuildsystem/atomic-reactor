@@ -29,10 +29,11 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.util import ImageName
-from tests.constants import SOURCE
-
 from flexmock import flexmock
 import pytest
+from tests.constants import SOURCE, MOCK
+if MOCK:
+    from tests.docker_mock import mock_docker
 
 
 class X(object):
@@ -73,6 +74,8 @@ class MockedPathInfo(object):
 
 
 def prepare():
+    if MOCK:
+        mock_docker()
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     setattr(workflow, 'builder', X())

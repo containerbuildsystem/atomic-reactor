@@ -14,15 +14,15 @@ except ImportError:
     # Python 2.6
     from ordereddict import OrderedDict
 from dockerfile_parse import DockerfileParser
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
 from atomic_reactor.util import ImageName
-from tests.constants import MOCK_SOURCE
 import json
 import pytest
 from flexmock import flexmock
+from tests.constants import MOCK_SOURCE
+from tests.fixtures import docker_tasker
 
 
 class Y(object):
@@ -65,18 +65,18 @@ EXPECTED_OUTPUT3 = [DF_CONTENT]
     (LABELS_CONF_BASE, LABELS_CONF, ["label1", ], EXPECTED_OUTPUT2),
     (LABELS_CONF_BASE, LABELS_BLANK, ["label1", ], EXPECTED_OUTPUT3),
 ])
-def test_add_labels_plugin(tmpdir, labels_conf_base, labels_conf, dont_overwrite, expected_output):
+def test_add_labels_plugin(tmpdir, docker_tasker,
+                           labels_conf_base, labels_conf, dont_overwrite, expected_output):
     df = DockerfileParser(str(tmpdir))
     df.content = DF_CONTENT
 
-    tasker = DockerTasker()
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     setattr(workflow, 'builder', X)
     flexmock(workflow, base_image_inspect=labels_conf_base)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
 
     runner = PreBuildPluginsRunner(
-        tasker,
+        docker_tasker,
         workflow,
         [{
             'name': AddLabelsPlugin.key,

@@ -15,7 +15,6 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.util import ImageName
-from tests.constants import INPUT_IMAGE, SOURCE
 from atomic_reactor.plugins.post_import_image import ImportImagePlugin
 
 import osbs.conf
@@ -23,6 +22,9 @@ from osbs.api import OSBS
 from osbs.exceptions import OsbsResponseException
 from flexmock import flexmock
 import pytest
+from tests.constants import INPUT_IMAGE, SOURCE, MOCK
+if MOCK:
+    from tests.docker_mock import mock_docker
 
 
 TEST_IMAGESTREAM = "library-imagestream1"
@@ -40,7 +42,8 @@ def prepare():
     """
     Boiler-plate test set-up
     """
-
+    if MOCK:
+        mock_docker()
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     setattr(workflow, 'builder', X())

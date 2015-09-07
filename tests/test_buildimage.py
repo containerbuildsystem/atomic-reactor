@@ -26,6 +26,8 @@ TEST_BUILD_IMAGE = "test-build-image"
 
 
 def test_tarball_generation_local_repo(tmpdir):
+    if MOCK:
+        mock_docker()
     b = BuildImageBuilder(reactor_local_path=PARENT_DIR)
     tarball_path = b.get_reactor_tarball_path(str(tmpdir))
     assert os.path.exists(tarball_path)
@@ -33,6 +35,8 @@ def test_tarball_generation_local_repo(tmpdir):
 
 
 def test_tarball_generation_upstream_repo(tmpdir):
+    if MOCK:
+        mock_docker()
     b = BuildImageBuilder(use_official_reactor_git=True)
     tarball_path = b.get_reactor_tarball_path(str(tmpdir))
     assert os.path.exists(tarball_path)

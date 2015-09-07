@@ -10,12 +10,12 @@ from __future__ import unicode_literals
 
 import pytest
 from dockerfile_parse import DockerfileParser
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_assert_labels import AssertLabelsPlugin
 from atomic_reactor.util import ImageName
 from tests.constants import MOCK_SOURCE
+from tests.fixtures import docker_tasker
 
 
 class Y(object):
@@ -40,18 +40,17 @@ DF_CONTENT_LABELS = DF_CONTENT+'\nLABEL "Name"="rainbow" "Version"="123" "Releas
     (DF_CONTENT_LABELS, None, None),
     (DF_CONTENT_LABELS, ['xyz'], PluginFailedException())
 ])
-def test_assertlabels_plugin(tmpdir, df_content, req_labels, expected):
+def test_assertlabels_plugin(tmpdir, docker_tasker, df_content, req_labels, expected):
     df = DockerfileParser(str(tmpdir))
     df.content = df_content
 
-    tasker = DockerTasker()
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
 
     runner = PreBuildPluginsRunner(
-        tasker,
+        docker_tasker,
         workflow,
         [{
             'name': AssertLabelsPlugin.key,

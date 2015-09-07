@@ -23,18 +23,22 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_inject_yum_repo import InjectYumRepoPlugin, alter_yum_commands
 from atomic_reactor.util import ImageName, render_yum_repo
-from tests.constants import DOCKERFILE_GIT
 import os.path
 from collections import namedtuple
 import requests
 from flexmock import flexmock
-from tests.constants import SOURCE
+from tests.fixtures import docker_tasker
+from tests.constants import SOURCE, MOCK
+if MOCK:
+    from tests.docker_mock import mock_docker
 
 class X(object):
     pass
 
 
 def prepare(df_path, inherited_user=''):
+    if MOCK:
+        mock_docker()
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     setattr(workflow, 'builder', X())
@@ -56,7 +60,6 @@ def prepare(df_path, inherited_user=''):
      .and_return(None))
     (flexmock(requests, get=lambda *_: requests.Response()))
     return tasker, workflow
-
 
 def test_yuminject_plugin_notwrapped(tmpdir):
     df_content = """\
@@ -95,7 +98,7 @@ RUN rm -f '/etc/yum.repos.d/atomic-reactor-injected.repo'
     assert expected_output == df.content
 
 
-def test_yuminject_plugin_wrapped(tmpdir):
+def test_yuminject_plugin_wrapped(tmpdir, docker_tasker):
     df_content = """\
 FROM fedora
 RUN yum install -y python-django
@@ -103,7 +106,6 @@ CMD blabla"""
     df = DockerfileParser(str(tmpdir))
     df.content = df_content
 
-    tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     setattr(workflow, 'builder', X())
     workflow.builder.source = workflow.source
@@ -123,7 +125,7 @@ CMD blabla"""
     setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
     setattr(workflow.builder, 'git_dockerfile_path', None)
     setattr(workflow.builder, 'git_path', None)
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
+    runner = PreBuildPluginsRunner(docker_tasker, workflow, [{
         'name': InjectYumRepoPlugin.key,
         'args': {
             "wrap_commands": True
@@ -138,7 +140,7 @@ CMD blabla"""
     assert df.content == expected_output
 
 
-def test_yuminject_multiline_wrapped(tmpdir):
+def test_yuminject_multiline_wrapped(tmpdir, docker_tasker):
     df_content = """\
 FROM fedora
 RUN yum install -y httpd \
@@ -147,7 +149,6 @@ CMD blabla"""
     df = DockerfileParser(str(tmpdir))
     df.content = df_content
 
-    tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     setattr(workflow, 'builder', X())
 
@@ -166,7 +167,7 @@ CMD blabla"""
     setattr(workflow.builder, 'source', X())
     setattr(workflow.builder.source, 'dockerfile_path', None)
     setattr(workflow.builder.source, 'path', None)
-    runner = PreBuildPluginsRunner(tasker, workflow,
+    runner = PreBuildPluginsRunner(docker_tasker, workflow,
                                    [{'name': InjectYumRepoPlugin.key, 'args': {
                                        "wrap_commands": True
                                    }}])
@@ -214,7 +215,7 @@ RUN rm -f '/etc/yum.repos.d/atomic-reactor-injected.repo'
     assert df.content == expected_output
 
 
-def test_yuminject_multiline_wrapped_with_chown(tmpdir):
+def test_yuminject_multiline_wrapped_with_chown(tmpdir, docker_tasker):
     df_content = """\
 FROM fedora
 RUN yum install -y --setopt=tsflags=nodocs bind-utils gettext iproute v8314 mongodb24-mongodb mongodb24 && \
@@ -226,7 +227,6 @@ CMD blabla"""
     df = DockerfileParser(str(tmpdir))
     df.content = df_content
 
-    tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     setattr(workflow, 'builder', X())
 
@@ -247,7 +247,7 @@ CMD blabla"""
     setattr(workflow.builder, 'source', X())
     setattr(workflow.builder.source, 'dockerfile_path', None)
     setattr(workflow.builder.source, 'path', '')
-    runner = PreBuildPluginsRunner(tasker, workflow,
+    runner = PreBuildPluginsRunner(docker_tasker, workflow,
                                    [{'name': InjectYumRepoPlugin.key, 'args': {
                                        "wrap_commands": True
                                    }}])
