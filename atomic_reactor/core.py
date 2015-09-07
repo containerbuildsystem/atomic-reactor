@@ -208,12 +208,17 @@ class BuildContainerFactory(object):
 class DockerTasker(LastLogger):
     def __init__(self, base_url=None, **kwargs):
         super(DockerTasker, self).__init__(**kwargs)
+
+        client_kwargs = {}
         if base_url:
-            self.d = docker.Client(base_url=base_url)
+            client_kwargs['base_url'] = base_url
         elif os.environ.get('DOCKER_CONNECTION'):
-            self.d = docker.Client(base_url=os.environ['DOCKER_CONNECTION'])
-        else:
-            self.d = docker.Client()
+            client_kwargs['base_url'] = os.environ['DOCKER_CONNECTION']
+
+        if hasattr(docker, 'AutoVersionClient'):
+            client_kwargs['version'] = 'auto'
+
+        self.d = docker.Client(**client_kwargs)
 
     def build_image_from_path(self, path, image, stream=False, use_cache=False, remove_im=True):
         """
