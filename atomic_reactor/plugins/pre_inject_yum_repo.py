@@ -150,6 +150,7 @@ class InjectYumRepoPlugin(PreBuildPlugin):
                 self.log.info("writing repo to '%s'", repo_host_path)
                 with open(repo_host_path, "wb") as fp:
                     fp.write(repo_content.encode("utf-8"))
+                self.log.debug("%s\n%s", repo, repo_content.strip())
                 repos_host_cont_mapping[repo] = repo_relative_path
 
             # Find out the USER inherited from the base image
