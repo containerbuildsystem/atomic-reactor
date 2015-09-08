@@ -198,7 +198,7 @@ class CLI(object):
         # add arguments that are common to non-json source types
         for st, stp in self.source_types_parsers.items():
             stp.add_argument(
-                "--image", action='store',
+                "--image", action='store', required=True,
                 help="name under which the image will be accessible")
             stp.add_argument(
                 "--uri", action='store', metavar="URI", required=True,
