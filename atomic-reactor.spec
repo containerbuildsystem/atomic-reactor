@@ -95,8 +95,6 @@ Requires:       python-dockerfile-parse >= 0.0.4
 Requires:       python-backports-lzma
 # Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
 Requires:       nfs-utils
-# Due to BumpReleasePlugin
-Requires:       python-pygit2
 Provides:       python-dock = %{version}-%{release}
 Obsoletes:      python-dock < %{dock_obsolete_vr}
 
@@ -117,8 +115,6 @@ Requires:       python3-setuptools
 Requires:       python3-dockerfile-parse >= 0.0.4
 # Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
 Requires:       nfs-utils
-# Due to BumpReleasePlugin
-Requires:       python3-pygit2
 Provides:       python3-dock = %{version}-%{release}
 Obsoletes:      python3-dock < %{dock_obsolete_vr}
 

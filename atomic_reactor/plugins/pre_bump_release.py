@@ -8,14 +8,55 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
+from copy import deepcopy
 import os
-from pygit2 import init_repository, Signature
 import subprocess
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from dockerfile_parse import DockerfileParser
+
+
+class GitRepo(object):
+    """
+    In an ideal world, pygit2 would be everywhere we'd need it to be,
+    and we could just use that. Meanwhile, in this world, here's a
+    wrapper around the git binary.
+    """
+
+    def __init__(self, workdir, log, cmd='/usr/bin/git'):
+        self.workdir = workdir
+        self.log = log
+        self.cmd = cmd
+
+    def git(self, args):
+        """
+        Run git with arguments.
+
+        :param args: list, argument strings
+        :return: str, output (including stderr)
+        """
+
+        argv = [self.cmd] + args
+        env = deepcopy(os.environ)
+        env['GIT_SSH_COMMAND'] = '/usr/bin/ssh -o StrictHostKeyChecking=no'
+        self.log.debug("executing command: %r", argv)
+        try:
+            with open('/dev/null', 'r+') as devnull:
+                output = subprocess.check_output(argv,
+                                                 stdin=devnull,
+                                                 stderr=subprocess.STDOUT,
+                                                 cwd=self.workdir,
+                                                 env=env)
+        except subprocess.CalledProcessError as ex:
+            self.log.debug("command failed, exit code %s", ex.returncode)
+            self.log.debug("output: %r", ex.output)
+            raise
+
+        output = output.decode().rstrip()
+        self.log.debug("git output: %r", output)
+        return output
 
 
 class BumpReleasePlugin(PreBuildPlugin):
@@ -86,27 +127,35 @@ class BumpReleasePlugin(PreBuildPlugin):
 
     @staticmethod
     def get_next_release(current_release):
+        """
+        Calculate the incremented value.
+
+        :param current_release: str, current value
+        :return: str, incremented value
+        """
+
         try:
             return str(int(current_release) + 1)
         except ValueError:
             isdigit = type(current_release).isdigit
             first_nondigit = [isdigit(x) for x in current_release].index(False)
-            n = str(int(current_release[:first_nondigit]) + 1)
-            return n + current_release[first_nondigit:]
+            next_int = str(int(current_release[:first_nondigit]) + 1)
+            return next_int + current_release[first_nondigit:]
 
-    def bump(self, repo, branch):
-        # Look in the git repository
-        origin = 'origin'
-        remote = repo.remotes[origin]
-        repo.config['push.default'] = 'simple'
+    def bump(self, repo, remote):
+        """
+        Push a commit with an incremented release value.
+
+        :param repo: str, GitRepo instance
+        :param remote: str, git remote to push to
+        """
+
+        # Set up configuration
+        repo.git(['config', 'push.default', 'simple'])
+        repo.git(['config', 'user.email', self.committer_email])
+        repo.git(['config', 'user.name', self.committer_name])
         if self.push_url:
-            try:
-                # pygit2 0.23
-                repo.remotes.set_push_url(origin, self.push_url)
-            except AttributeError:
-                # pygit2 0.22
-                remote.push_url = self.push_url
-                remote.save()
+            repo.git(['remote', 'set-url', '--push', remote, self.push_url])
 
         # Bump the Release label
         label_key = 'Release'
@@ -118,50 +167,33 @@ class BumpReleasePlugin(PreBuildPlugin):
         parser.labels[label_key] = next_release
 
         # Stage it
-        index = repo.index
-        index.add(os.path.basename(df_path))
+        repo.git(['add', os.path.basename(df_path)])
 
         # Commit the change
-        author = Signature(self.author_name, self.author_email)
-        committer = Signature(self.committer_name, self.committer_email)
-        repo.create_commit(branch.name, author, committer, self.commit_message,
-                           index.write_tree(), [repo.head.peel().hex])
+        repo.git(['commit',
+                  '--author={name} <{email}>'.format(name=self.author_name,
+                                                     email=self.author_email),
+                  '--message={message}'.format(message=self.commit_message)])
 
         # Push it
         self.log.info("Pushing to git repository")
-        ssh_command = '/usr/bin/ssh -o StrictHostKeyChecking=no'
-        os.environ['GIT_SSH_COMMAND'] = ssh_command
+        repo.git(['push', remote])
 
-        # This doesn't seem to work:
-        #   remote.push([branch.name])
-        # because it uses libssh rather than /usr/bin/ssh and so krb5
-        # auth fails.
-        # Instead, run the git command to do it
-        cmd = ['/usr/bin/git', 'push', 'origin']
-        with open('/dev/null', 'r+') as devnull:
-            p = subprocess.Popen(cmd,
-                                 stdin=devnull,
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT,
-                                 cwd=repo.workdir)
+    def verify_branch(self, branch, branch_sha):
+        """
+        Raise exception if the branch is not at the correct commit.
 
-        (output, dummy) = p.communicate()
-        status = p.wait()
-        if status != 0:
-            self.log.error("git (%d): %r", status, output)
-            raise RuntimeError("exit code %d" % status)
+        :param branch: str, branch name
+        :param branch_sha: str, commit hash expected
+        """
 
-        self.log.debug("git (success): %r", output)
-
-    def verify_branch(self, branch):
-        commit = branch.target.hex
-        if commit != self.git_ref:
+        if branch_sha != self.git_ref:
             self.log.error("Branch '%s' is at commit %s (expected %s)",
-                           branch.shorthand, commit, self.git_ref)
+                           branch, branch_sha, self.git_ref)
             raise RuntimeError("Not at expected commit")
 
         self.log.info("Branch '%s' is at expected commit (%s)",
-                      branch.shorthand, self.git_ref)
+                      branch, self.git_ref)
 
     def run(self):
         """
@@ -175,28 +207,33 @@ class BumpReleasePlugin(PreBuildPlugin):
         # Ensure we can use the git repository already checked out for us
         source = self.workflow.source
         assert isinstance(source, GitSource)
-        repo = init_repository(source.get())
+        repo = GitRepo(source.get(), self.log)
 
         # Note: when this plugin is configured by osbs-client,
         # source.git_commit (the Build's source git ref) comes from
         # --git-branch not --git-commit. The value from --git-commit
         # went into our self.git_ref.
-        branch = repo.lookup_branch(source.git_commit)
-
-        if branch is None:
+        branch = source.git_commit
+        try:
+            branch_sha = repo.git(['rev-parse', branch])
+        except subprocess.CalledProcessError:
             self.log.error("Branch '%s' not found in git repo",
                            source.git_commit)
-            raise RuntimeError("Branch '%s' not found" % source.git_commit)
+            raise RuntimeError("Branch '%s' not found" % branch)
 
         # We checked out the right branch
-        assert repo.head.peel().hex == branch.target.hex
+        assert repo.git(['rev-parse', 'HEAD']) == branch_sha
 
         # We haven't reset it to an earlier commit
-        assert branch.target.hex == branch.upstream.target.hex
+        remote = repo.git(['config', '--get',
+                           'branch.{branch}.remote'.format(branch=branch)])
+        upstream = '{remote}/{branch}'.format(remote=remote, branch=branch)
+        upstream_sha = repo.git(['rev-parse', upstream])
+        assert branch_sha == upstream_sha
 
         if is_rebuild(self.workflow):
             self.log.info("Incrementing release label")
-            self.bump(repo, branch)
+            self.bump(repo, remote)
         else:
             self.log.info("Verifying branch is at specified commit")
-            self.verify_branch(branch)
+            self.verify_branch(branch, branch_sha)
