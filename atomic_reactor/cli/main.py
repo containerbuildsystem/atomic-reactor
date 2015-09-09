@@ -126,7 +126,13 @@ class CLI(object):
                         'inside a build container using new instance of docker, '
                         'or within current environment.'
         )
-        self.build_parser.set_defaults(func=cli_build_image)
+        def cli_build_with_source(args):
+            if args.source__provider is None:
+                self.build_parser.print_help()
+            else:
+                cli_build_image(args)
+
+        self.build_parser.set_defaults(func=cli_build_with_source)
         self.generate_source_types_subparsers()
 
         # CREATE BUILD IMAGE
