@@ -69,10 +69,11 @@ class X(object):
 
 
 class MockInsideBuilder(object):
-    def __init__(self):
+    def __init__(self, failed=False):
         self.tasker = MockDockerTasker()
         self.base_image = ImageName(repo='Fedora', tag='22')
         self.image_id = 'asd'
+        self.failed = failed
 
     @property
     def source(self):
@@ -87,7 +88,7 @@ class MockInsideBuilder(object):
     def build(self):
         result = X()
         setattr(result, 'logs', None)
-        setattr(result, 'is_failed', lambda: False)
+        setattr(result, 'is_failed', lambda: self.failed)
         return result
 
     def inspect_built_image(self):
@@ -587,6 +588,43 @@ def test_workflow_plugin_error(fail_at):
 
     # But all exit plugins should run, even if one of them also raises
     # an exception.
+    assert watch_exit.was_called()
+
+
+@pytest.mark.xfail(reason='#320')
+def test_workflow_docker_build_error():
+    """
+    This is a test for what happens when the docker build fails.
+    """
+
+    this_file = inspect.getfile(PreRaises)
+    mock_docker()
+    fake_builder = MockInsideBuilder(failed=True)
+    flexmock(InsideBuilder).new_instances(fake_builder)
+    watch_prepub = Watcher()
+    watch_post = Watcher()
+    watch_exit = Watcher()
+
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+                                   prepublish_plugins=[{'name': 'prepub_watched',
+                                                        'args': {
+                                                            'watcher': watch_prepub,
+                                                        }}],
+                                   postbuild_plugins=[{'name': 'post_watched',
+                                                       'args': {
+                                                           'watcher': watch_post
+                                                       }}],
+                                   exit_plugins=[{'name': 'exit_watched',
+                                                  'args': {
+                                                      'watcher': watch_exit
+                                                  }}],
+                                   plugin_files=[this_file])
+
+    assert workflow.build_docker_image().is_failed()
+
+    # No subsequent build phases should have run except 'exit'
+    assert not watch_prepub.was_called()
+    assert not watch_post.was_called()
     assert watch_exit.was_called()
 
 
