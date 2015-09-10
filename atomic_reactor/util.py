@@ -19,7 +19,7 @@ import subprocess
 import tempfile
 import logging
 import uuid
-from atomic_reactor.constants import DOCKERFILE_FILENAME, PY2
+from atomic_reactor.constants import DOCKERFILE_FILENAME
 
 
 logger = logging.getLogger(__name__)
