@@ -327,7 +327,8 @@ class DockerBuildWorkflow(object):
             self.build_failed = build_result.is_failed()
 
             if build_result.is_failed():
-                # The docker build failed
+                # The docker build failed. Finish here, just run the
+                # exit plugins (from the 'finally:' block below).
                 return build_result
 
             self.built_image_inspect = self.builder.inspect_built_image()
