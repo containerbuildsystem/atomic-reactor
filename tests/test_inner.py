@@ -591,7 +591,6 @@ def test_workflow_plugin_error(fail_at):
     assert watch_exit.was_called()
 
 
-@pytest.mark.xfail(reason='#320')
 def test_workflow_docker_build_error():
     """
     This is a test for what happens when the docker build fails.
