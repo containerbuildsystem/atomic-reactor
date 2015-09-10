@@ -7,10 +7,6 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import os
-from sys import version_info
-
-# from python-six
-PY2 = version_info[0] == 2
 
 DOCKER_SOCKET_PATH = '/var/run/docker.sock'
 DOCKERFILE_FILENAME = 'Dockerfile'
