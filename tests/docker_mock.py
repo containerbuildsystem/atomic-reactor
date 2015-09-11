@@ -188,3 +188,5 @@ def mock_docker(build_should_fail=False,
         flexmock(docker.Client, pull=_mock_pull)
         flexmock(docker.Client, remove_image=_mock_remove_image)
         flexmock(docker.Client, tag=_mock_tag)
+
+    flexmock(docker.Client, _retrieve_server_version=lambda: '1.20')

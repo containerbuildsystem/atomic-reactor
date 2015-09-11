@@ -14,28 +14,30 @@ import os
 from flexmock import flexmock
 import pytest
 
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PostBuildPluginsRunner, \
         InputPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
 from atomic_reactor.util import ImageName
-from tests.constants import DOCKERFILE_GIT
+from tests.fixtures import docker_tasker
+from tests.constants import DOCKERFILE_GIT, MOCK
+if MOCK:
+    from tests.docker_mock import mock_docker
 
 
 TEST_IMAGE = "fedora:latest"
 SOURCE = {"provider": "git", "uri": DOCKERFILE_GIT}
 
 
-def test_load_prebuild_plugins():
-    runner = PreBuildPluginsRunner(DockerTasker(), DockerBuildWorkflow(SOURCE, ""), None)
+def test_load_prebuild_plugins(docker_tasker):
+    runner = PreBuildPluginsRunner(docker_tasker, DockerBuildWorkflow(SOURCE, ""), None)
     assert runner.plugin_classes is not None
     assert len(runner.plugin_classes) > 0
 
 
-def test_load_postbuild_plugins():
-    runner = PostBuildPluginsRunner(DockerTasker(), DockerBuildWorkflow(SOURCE, ""), None)
+def test_load_postbuild_plugins(docker_tasker):
+    runner = PostBuildPluginsRunner(docker_tasker, DockerBuildWorkflow(SOURCE, ""), None)
     assert runner.plugin_classes is not None
     assert len(runner.plugin_classes) > 0
 
@@ -44,8 +46,7 @@ class X(object):
     pass
 
 
-def test_build_plugin_failure():
-    tasker = DockerTasker()
+def test_build_plugin_failure(docker_tasker):
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     assert workflow.build_process_failed is False
     setattr(workflow, 'builder', X())
@@ -54,7 +55,7 @@ def test_build_plugin_failure():
     setattr(workflow.builder, "source", X())
     setattr(workflow.builder.source, 'dockerfile_path', "/non/existent")
     setattr(workflow.builder.source, 'path', "/non/existent")
-    runner = PreBuildPluginsRunner(tasker, workflow,
+    runner = PreBuildPluginsRunner(docker_tasker, workflow,
                                    [{"name": AddYumRepoByUrlPlugin.key,
                                      "args": {'repourls': True}}])
     with pytest.raises(PluginFailedException):

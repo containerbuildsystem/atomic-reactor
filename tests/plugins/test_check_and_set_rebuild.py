@@ -15,12 +15,13 @@ from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_check_and_set_rebuild import (is_rebuild,
                                                               CheckAndSetRebuildPlugin)
 from atomic_reactor.util import ImageName
-from tests.constants import SOURCE
 import json
 import os
-
 from osbs.api import OSBS
 from flexmock import flexmock
+from tests.constants import SOURCE, MOCK
+if MOCK:
+    from tests.docker_mock import mock_docker
 
 
 class X(object):
@@ -28,6 +29,8 @@ class X(object):
 
 
 def prepare(key, value, set_labels_args=None, set_labels_kwargs=None):
+    if MOCK:
+        mock_docker()
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     setattr(workflow, 'builder', X())

@@ -12,9 +12,12 @@ import uuid
 import pytest
 import requests
 import requests.exceptions
-from tests.constants import LOCALHOST_REGISTRY_HTTP, DOCKER0_REGISTRY_HTTP
+from tests.constants import LOCALHOST_REGISTRY_HTTP, DOCKER0_REGISTRY_HTTP, MOCK
+if MOCK:
+    from tests.docker_mock import mock_docker
 
 from atomic_reactor.util import ImageName
+from atomic_reactor.core import DockerTasker
 
 
 def get_uuid():
@@ -44,3 +47,10 @@ def is_registry_running():
     if not lo_response.ok:
         return False
     return True
+
+
+@pytest.fixture(scope="module")
+def docker_tasker():
+    if MOCK:
+        mock_docker()
+    return DockerTasker()

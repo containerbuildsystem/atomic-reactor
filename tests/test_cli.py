@@ -29,6 +29,9 @@ DH_BUILD_IMAGE = None
 
 
 logger = logging.getLogger('atomic_reactor.tests')
+
+if MOCK:
+    mock_docker()
 dt = DockerTasker()
 reactor_root = os.path.dirname(os.path.dirname(__file__))
 

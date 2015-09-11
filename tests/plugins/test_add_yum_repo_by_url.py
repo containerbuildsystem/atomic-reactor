@@ -15,10 +15,12 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PreBuildPlugin
 from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
 from atomic_reactor.util import ImageName
-from tests.constants import DOCKERFILE_GIT
 import requests
 from flexmock import flexmock
 import os.path
+from tests.constants import DOCKERFILE_GIT, MOCK
+if MOCK:
+    from tests.docker_mock import mock_docker
 
 
 repocontent = b'''[repo]\n'''
@@ -29,6 +31,8 @@ class X(object):
 
 
 def prepare():
+    if MOCK:
+        mock_docker()
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow({"provider": "git", "uri": DOCKERFILE_GIT}, "test-image")
     setattr(workflow, 'builder', X())

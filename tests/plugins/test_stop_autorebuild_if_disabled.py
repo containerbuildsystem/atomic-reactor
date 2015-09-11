@@ -24,7 +24,8 @@ from atomic_reactor.plugins.pre_stop_autorebuild_if_disabled import StopAutorebu
 from atomic_reactor.util import ImageName
 
 from tests.constants import INPUT_IMAGE, MOCK, MOCK_SOURCE
-from tests.docker_mock import mock_docker
+if MOCK:
+    from tests.docker_mock import mock_docker
 
 
 @contextmanager
@@ -65,6 +66,8 @@ class TestStopAutorebuildIfDisabledPlugin(object):
         assert any([msg in l.getMessage() for l in cplog.records()])
 
     def setup_method(self, method):
+        if MOCK:
+            mock_docker()
         self.tasker = DockerTasker()
         self.workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
         self.workflow.builder = X()

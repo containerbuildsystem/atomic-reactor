@@ -14,7 +14,6 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.util import ImageName
-from tests.constants import INPUT_IMAGE, SOURCE
 try:
     import dockpulp
     from atomic_reactor.plugins.post_push_to_pulp import PulpPushPlugin
@@ -23,7 +22,9 @@ except (ImportError, SyntaxError):
 
 import pytest
 from flexmock import flexmock
-from tests.docker_mock import mock_docker
+from tests.constants import INPUT_IMAGE, SOURCE, MOCK
+if MOCK:
+    from tests.docker_mock import mock_docker
 
 
 class X(object):
@@ -34,6 +35,8 @@ class X(object):
 
 
 def prepare(check_repo_retval=0):
+    if MOCK:
+        mock_docker()
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     setattr(workflow, 'builder', X())

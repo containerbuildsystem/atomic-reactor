@@ -16,12 +16,11 @@ from flexmock import flexmock
 from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME
 
 from atomic_reactor.util import ImageName
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.plugins.post_cp_built_image_to_nfs import CopyBuiltImageToNFSPlugin
 from tests.constants import INPUT_IMAGE
-
+from tests.fixtures import docker_tasker
 
 class Y(object):
     pass
@@ -39,7 +38,7 @@ NFS_SERVER_PATH = "server:path"
 
 
 @pytest.mark.parametrize('dest_dir', [None, "test_directory"])
-def test_cp_built_image_to_nfs(tmpdir, dest_dir):
+def test_cp_built_image_to_nfs(tmpdir, docker_tasker, dest_dir):
     mountpoint = tmpdir.join("mountpoint")
 
     def fake_check_call(cmd):
@@ -51,7 +50,6 @@ def test_cp_built_image_to_nfs(tmpdir, dest_dir):
             mountpoint,
         ]
     flexmock(subprocess, check_call=fake_check_call)
-    tasker = DockerTasker()
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, "test-image")
     workflow.builder = X()
     workflow.exported_image_sequence.append({"path": os.path.join(str(tmpdir),
@@ -59,7 +57,7 @@ def test_cp_built_image_to_nfs(tmpdir, dest_dir):
     open(workflow.exported_image_sequence[-1].get("path"), 'a').close()
 
     runner = PostBuildPluginsRunner(
-        tasker,
+        docker_tasker,
         workflow,
         [{
             'name': CopyBuiltImageToNFSPlugin.key,
