@@ -326,8 +326,12 @@ class DockerBuildWorkflow(object):
 
             self.build_failed = build_result.is_failed()
 
-            if not build_result.is_failed():
-                self.built_image_inspect = self.builder.inspect_built_image()
+            if build_result.is_failed():
+                # The docker build failed. Finish here, just run the
+                # exit plugins (from the 'finally:' block below).
+                return build_result
+
+            self.built_image_inspect = self.builder.inspect_built_image()
 
             # run prepublish plugins
             prepublish_runner = PrePublishPluginsRunner(self.builder.tasker, self, self.prepublish_plugins_conf,

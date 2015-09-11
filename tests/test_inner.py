@@ -69,10 +69,11 @@ class X(object):
 
 
 class MockInsideBuilder(object):
-    def __init__(self):
+    def __init__(self, failed=False):
         self.tasker = MockDockerTasker()
         self.base_image = ImageName(repo='Fedora', tag='22')
         self.image_id = 'asd'
+        self.failed = failed
 
     @property
     def source(self):
@@ -87,7 +88,7 @@ class MockInsideBuilder(object):
     def build(self):
         result = X()
         setattr(result, 'logs', None)
-        setattr(result, 'is_failed', lambda: False)
+        setattr(result, 'is_failed', lambda: self.failed)
         return result
 
     def inspect_built_image(self):
@@ -115,6 +116,22 @@ class PreRaises(RaisesMixIn, PreBuildPlugin):
     """
 
     key = 'pre_raises'
+
+
+class PostRaises(RaisesMixIn, PostBuildPlugin):
+    """
+    This plugin must run and cause the build to abort.
+    """
+
+    key = 'post_raises'
+
+
+class PrePubRaises(RaisesMixIn, PrePublishPlugin):
+    """
+    This plugin must run and cause the build to abort.
+    """
+
+    key = 'prepub_raises'
 
 
 class WatchedMixIn(object):
@@ -208,14 +225,14 @@ def test_workflow():
                                                       'args': {
                                                           'watcher': watch_pre
                                                       }}],
-                                   postbuild_plugins=[{'name': 'post_watched',
-                                                       'args': {
-                                                           'watcher': watch_post
-                                                       }}],
                                    prepublish_plugins=[{'name': 'prepub_watched',
                                                         'args': {
                                                             'watcher': watch_prepub,
                                                         }}],
+                                   postbuild_plugins=[{'name': 'post_watched',
+                                                       'args': {
+                                                           'watcher': watch_post
+                                                       }}],
                                    exit_plugins=[{'name': 'exit_watched',
                                                   'args': {
                                                       'watcher': watch_exit
@@ -471,14 +488,14 @@ def test_autorebuild_stop_prevents_build():
                                    prebuild_plugins=[{'name': 'stopstopstop',
                                                       'args': {
                                                       }}],
-                                   postbuild_plugins=[{'name': 'post_watched',
-                                                       'args': {
-                                                           'watcher': watch_post
-                                                       }}],
                                    prepublish_plugins=[{'name': 'prepub_watched',
                                                         'args': {
                                                             'watcher': watch_prepub,
                                                         }}],
+                                   postbuild_plugins=[{'name': 'post_watched',
+                                                       'args': {
+                                                           'watcher': watch_post
+                                                       }}],
                                    exit_plugins=[{'name': 'exit_watched',
                                                   'args': {
                                                       'watcher': watch_exit
@@ -494,7 +511,8 @@ def test_autorebuild_stop_prevents_build():
     assert workflow.autorebuild_canceled == True
 
 
-def test_workflow_errors():
+@pytest.mark.parametrize('fail_at', ['pre', 'prepub', 'post', 'exit'])
+def test_workflow_plugin_error(fail_at):
     """
     This is a test for what happens when plugins fail.
 
@@ -508,42 +526,105 @@ def test_workflow_errors():
     fake_builder = MockInsideBuilder()
     flexmock(InsideBuilder).new_instances(fake_builder)
     watch_pre = Watcher()
+    watch_prepub = Watcher()
     watch_post = Watcher()
     watch_exit = Watcher()
+    prebuild_plugins = [{'name': 'pre_watched',
+                         'args': {
+                             'watcher': watch_pre,
+                         }}]
+    prepublish_plugins = [{'name': 'prepub_watched',
+                           'args': {
+                               'watcher': watch_prepub,
+                           }}]
+    postbuild_plugins = [{'name': 'post_watched',
+                          'args': {
+                              'watcher': watch_post
+                          }}]
+    exit_plugins = [{'name': 'exit_watched',
+                     'args': {
+                         'watcher': watch_exit
+                     }}]
+
+    # Insert a failing plugin into one of the build phases
+    if fail_at == 'pre':
+        prebuild_plugins.insert(0, {'name': 'pre_raises', 'args': {}})
+    elif fail_at == 'prepub':
+        prepublish_plugins.insert(0, {'name': 'prepub_raises', 'args': {}})
+    elif fail_at == 'post':
+        postbuild_plugins.insert(0, {'name': 'post_raises', 'args': {}})
+    elif fail_at == 'exit':
+        exit_plugins.insert(0, {'name': 'exit_raises', 'args': {}})
+    else:
+        # Typo in the parameter list?
+        assert False
+
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
-                                   prebuild_plugins=[{'name': 'pre_raises',
-                                                      'args': {}},
-                                                     {'name': 'pre_watched',
-                                                      'args': {
-                                                          'watcher': watch_pre
-                                                      }}],
-                                   postbuild_plugins=[{'name': 'post_watched',
-                                                       'args': {
-                                                           'watcher': watch_post
-                                                       }}],
-                                   exit_plugins=[{'name': 'exit_raises',
-                                                  'args': {}
-                                                  },
-                                                 {'name': 'exit_watched',
-                                                  'args': {
-                                                      'watcher': watch_exit
-                                                  }}],
+                                   prebuild_plugins=prebuild_plugins,
+                                   prepublish_plugins=prepublish_plugins,
+                                   postbuild_plugins=postbuild_plugins,
+                                   exit_plugins=exit_plugins,
                                    plugin_files=[this_file])
 
-    with pytest.raises(PluginFailedException):
+    # Failures in any phase except 'exit' cause the build process to
+    # abort.
+    if fail_at == 'exit':
         workflow.build_docker_image()
+    else:
+        with pytest.raises(PluginFailedException):
+            workflow.build_docker_image()
 
-    # A pre-build plugin caused the build to fail, so post-build
-    # plugins should not run.
-    assert not watch_post.was_called()
+    # The pre-build phase should only complete if there were no
+    # earlier plugin failures.
+    assert watch_pre.was_called() == (fail_at != 'pre')
+
+    # The prepublish phase should only complete if there were no
+    # earlier plugin failures.
+    assert watch_prepub.was_called() == (fail_at not in ('pre', 'prepub'))
+
+    # The post-build phase should only complete if there were no
+    # earlier plugin failures.
+    assert watch_post.was_called() == (fail_at not in ('pre', 'prepub', 'post'))
 
     # But all exit plugins should run, even if one of them also raises
     # an exception.
     assert watch_exit.was_called()
 
-    # Other than exit plugins, any unexpected plugin failure stops the
-    # whole build immediately.
-    assert not watch_pre.was_called()
+
+def test_workflow_docker_build_error():
+    """
+    This is a test for what happens when the docker build fails.
+    """
+
+    this_file = inspect.getfile(PreRaises)
+    mock_docker()
+    fake_builder = MockInsideBuilder(failed=True)
+    flexmock(InsideBuilder).new_instances(fake_builder)
+    watch_prepub = Watcher()
+    watch_post = Watcher()
+    watch_exit = Watcher()
+
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+                                   prepublish_plugins=[{'name': 'prepub_watched',
+                                                        'args': {
+                                                            'watcher': watch_prepub,
+                                                        }}],
+                                   postbuild_plugins=[{'name': 'post_watched',
+                                                       'args': {
+                                                           'watcher': watch_post
+                                                       }}],
+                                   exit_plugins=[{'name': 'exit_watched',
+                                                  'args': {
+                                                      'watcher': watch_exit
+                                                  }}],
+                                   plugin_files=[this_file])
+
+    assert workflow.build_docker_image().is_failed()
+
+    # No subsequent build phases should have run except 'exit'
+    assert not watch_prepub.was_called()
+    assert not watch_post.was_called()
+    assert watch_exit.was_called()
 
 
 class ExitUsesSource(ExitWatched):
