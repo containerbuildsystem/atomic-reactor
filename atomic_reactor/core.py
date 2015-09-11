@@ -557,3 +557,19 @@ class DockerTasker(LastLogger):
             response = response is not None
         logger.debug("image exists: %s", response)
         return response
+
+    def get_info(self):
+        """
+        get info about used docker environment
+
+        :return: dict, json output of `docker info`
+        """
+        return self.d.info()
+
+    def get_version(self):
+        """
+        get version of used docker environment
+
+        :return: dict, json output of `docker version`
+        """
+        return self.d.version()

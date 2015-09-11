@@ -9,12 +9,12 @@ of the BSD license. See the LICENSE file for details.
 Classes which implement tasks which builder has to be capable of doing.
 Logic above these classes has to set the workflow itself.
 """
+import json
 
 import logging
 from dockerfile_parse import DockerfileParser
 from atomic_reactor.core import DockerTasker, LastLogger
-from atomic_reactor.util import wait_for_command, ImageName
-
+from atomic_reactor.util import wait_for_command, ImageName, print_version_of_tools
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,13 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         LastLogger.__init__(self)
         BuilderStateMachine.__init__(self)
 
+        print_version_of_tools()
+
         self.tasker = DockerTasker()
+
+        info, version = self.tasker.get_info(), self.tasker.get_version()
+        logger.debug(json.dumps(info, indent=2))
+        logger.info(json.dumps(version, indent=2))
 
         # arguments for build
         self.source = source

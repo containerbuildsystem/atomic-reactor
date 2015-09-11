@@ -68,6 +68,77 @@ mock_push_logs = \
     b'{"errorDetail":{"message":"Repository does not exist: localhost:5000/atomic-reactor-tests-b3a11e13d27c428f8fa2914c8c6a6d96"},' \
     b'"error":"Repository does not exist: localhost:5000/atomic-reactor-tests-b3a11e13d27c428f8fa2914c8c6a6d96"}\r\n'
 
+mock_info = {
+    'BridgeNfIp6tables': True,
+    'BridgeNfIptables': True,
+    'Containers': 18,
+    'CpuCfsPeriod': True,
+    'CpuCfsQuota': True,
+    'Debug': False,
+    'DockerRootDir': '/var/lib/docker',
+    'Driver': 'overlay',
+    'DriverStatus': [['Backing Filesystem', 'xfs']],
+    'ExecutionDriver': 'native-0.2',
+    'ExperimentalBuild': False,
+    'HttpProxy': '',
+    'HttpsProxy': '',
+    'ID': 'YC7N:MYIE:6SEL:JYLU:SRIG:PCVV:APZD:WTH4:4MGR:N4BG:CT53:ZW2O',
+    'IPv4Forwarding': True,
+    'Images': 162,
+    'IndexServerAddress': 'https://index.docker.io/v1/',
+    'InitPath': '/usr/libexec/docker/dockerinit',
+    'InitSha1': 'eb5677df79a87639f30ab5c2c01e5170abc96af2',
+    'KernelVersion': '4.1.4-200.fc22.x86_64',
+    'Labels': None,
+    'LoggingDriver': 'json-file',
+    'MemTotal': 12285665280,
+    'MemoryLimit': True,
+    'NCPU': 4,
+    'NEventsListener': 0,
+    'NFd': 15,
+    'NGoroutines': 31,
+    'Name': 'asd',
+    'NoProxy': '',
+    'OomKillDisable': True,
+    'OperatingSystem': 'Fedora 24 (Rawhide) (containerized)',
+    'RegistryConfig': {'IndexConfigs': {'127.0.0.1:5000': {'Mirrors': [],
+        'Name': '127.0.0.1:5000',
+        'Official': False,
+        'Secure': False},
+        '172.17.0.1:5000': {'Mirrors': [],
+            'Name': '172.17.0.1:5000',
+            'Official': False,
+            'Secure': False},
+        '172.17.0.2:5000': {'Mirrors': [],
+            'Name': '172.17.0.2:5000',
+            'Official': False,
+            'Secure': False},
+        '172.17.0.3:5000': {'Mirrors': [],
+            'Name': '172.17.0.3:5000',
+            'Official': False,
+            'Secure': False},
+        'docker.io': {'Mirrors': None,
+            'Name': 'docker.io',
+            'Official': True,
+            'Secure': True}},
+        'InsecureRegistryCIDRs': ['127.0.0.0/8'],
+        'Mirrors': None},
+    'SwapLimit': True,
+    'SystemTime': '2015-09-15T16:38:50.585211559+02:00'
+}
+
+mock_version = {
+    'ApiVersion': '1.21',
+    'Arch': 'amd64',
+    'BuildTime': 'Thu Sep 10 17:53:19 UTC 2015',
+    'GitCommit': 'af9b534-dirty',
+    'GoVersion': 'go1.5.1',
+    'KernelVersion': '4.1.4-200.fc22.x86_64',
+    'Os': 'linux',
+    'Version': '1.9.0-dev-fc24'
+}
+
+
 def _find_image(img, ignore_registry=False):
     global mock_images
 
@@ -160,6 +231,8 @@ def mock_docker(build_should_fail=False,
     flexmock(docker.Client, start=lambda cid, **kwargs: None)
     flexmock(docker.Client, tag=lambda img, rep, **kwargs: True)
     flexmock(docker.Client, wait=lambda cid: 1 if wait_should_fail else 0)
+    flexmock(docker.Client, version=lambda **kwargs: mock_version)
+    flexmock(docker.Client, info=lambda **kwargs: mock_info)
     class GetImageResult(object):
         data = b''
         def __init__(self):

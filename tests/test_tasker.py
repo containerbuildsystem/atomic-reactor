@@ -298,3 +298,21 @@ def test_build_image_from_git(temp_image_name):
     assert response is not None
     assert t.image_exists(temp_image_name)
     t.remove_image(temp_image_name)
+
+
+def test_get_info():
+    if MOCK:
+        mock_docker()
+
+    t = DockerTasker()
+    response = t.get_info()
+    assert isinstance(response, dict)
+
+
+def test_get_version():
+    if MOCK:
+        mock_docker()
+
+    t = DockerTasker()
+    response = t.get_info()
+    assert isinstance(response, dict)

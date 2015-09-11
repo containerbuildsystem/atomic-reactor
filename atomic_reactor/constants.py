@@ -43,3 +43,13 @@ MANPAGE_AUTHORS = "Jiri Popelka <jpopelka@redhat.com>, " \
                   "Tim Waugh <twaug@redhat.com>, " \
                   "Tomas Tomecek <ttomecek@redhat.com>"
 MANPAGE_SECTION = 1
+
+
+# debug print of tools reactor uses
+
+TOOLS_USED = (
+    "docker",
+    "docker_scripts",
+    "atomic_reactor",
+    "osbs",
+)
