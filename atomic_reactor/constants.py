@@ -40,6 +40,6 @@ PROG = "atomic-reactor"
 MANPAGE_AUTHORS = "Jiri Popelka <jpopelka@redhat.com>, " \
                   "Martin Milata <mmilata@redhat.com>, " \
                   "Slavek Kabrda <slavek@redhat.com>, " \
-                  "Tim Waugh <twaug@redhat.com>, " \
+                  "Tim Waugh <twaugh@redhat.com>, " \
                   "Tomas Tomecek <ttomecek@redhat.com>"
 MANPAGE_SECTION = 1
