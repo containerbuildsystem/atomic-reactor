@@ -21,7 +21,7 @@ except ImportError:
 import docker
 from atomic_reactor.util import ImageName, \
     wait_for_command, clone_git_repo, LazyGit, figure_out_dockerfile, render_yum_repo, \
-    process_substitutions
+    process_substitutions, print_version_of_tools, get_version_of_tools
 from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1
 
 if MOCK:
@@ -153,3 +153,12 @@ def test_process_substitutions(dct, subst, expected):
     else:
         process_substitutions(dct, subst)
         assert dct == expected
+
+
+def test_get_versions_of_tools():
+    response = get_version_of_tools()
+    assert isinstance(response, dict)
+
+
+def test_print_versions_of_tools():
+    print_version_of_tools()

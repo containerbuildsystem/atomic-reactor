@@ -19,7 +19,13 @@ import subprocess
 import tempfile
 import logging
 import uuid
-from atomic_reactor.constants import DOCKERFILE_FILENAME
+
+from atomic_reactor.constants import DOCKERFILE_FILENAME, TOOLS_USED
+
+try:
+    from importlib import import_module
+except ImportError:
+    import_module = __import__  # I love python 2.6
 
 
 logger = logging.getLogger(__name__)
@@ -445,3 +451,33 @@ def get_exported_image_metadata(path):
     metadata['sha256sum'] = s.hexdigest()
     logger.debug('sha256sum: %s', metadata['sha256sum'])
     return metadata
+
+
+def get_version_of_tools():
+    """
+    obtain versions of software reactor is using (specified in constants.TOOLS_USED)
+
+    :returns dict, {"tool": "version", ...}
+    """
+    response = {}
+    for tool in TOOLS_USED:
+        try:
+            tool_module = import_module(tool)
+        except ImportError as ex:
+            logger.warning("can't import module %s: %s", tool, repr(ex))
+        else:
+            version = getattr(tool_module, "__version__", None)
+            if version is None:
+                logger.warning("tool %s doesn't have __version__")
+            else:
+                response[tool] = version
+    return response
+
+
+def print_version_of_tools():
+    """
+    print versions of used tools to logger
+    """
+    logger.info("Using these tools:")
+    for tool, version in get_version_of_tools().items():
+        logger.info("%s-%s", tool, version)
