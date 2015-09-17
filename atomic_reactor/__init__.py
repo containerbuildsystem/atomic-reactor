@@ -11,6 +11,10 @@ constants
 
 import logging
 
+
+__version__ = "1.5.1"
+
+
 def set_logging(name="atomic_reactor", level=logging.DEBUG, handler=None):
     # create logger
     logger = logging.getLogger(name)
