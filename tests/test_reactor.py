@@ -9,6 +9,7 @@ from __future__ import unicode_literals
 
 import os
 import re
+import inspect
 
 import pytest
 
@@ -182,3 +183,24 @@ def test_privileged_build(caplog, source_params):
     # assert len(results.built_img_plugins_output) > 0
     dt.remove_container(results.container_id)
     dt.remove_image(remote_image)
+
+
+def test_if_all_versions_match():
+    def read_version(fp, regex):
+        with open(fp, "r") as fd:
+            content = fd.read()
+            found = re.findall(regex, content)
+            if len(found) == 1:
+                return found[0]
+            else:
+                raise Exception("Version not found!")
+    import atomic_reactor
+    from atomic_reactor import __version__
+    fp = inspect.getfile(atomic_reactor)
+    project_dir = os.path.dirname(os.path.dirname(fp))
+    specfile = os.path.join(project_dir, "atomic-reactor.spec")
+    setup_py = os.path.join(project_dir, "setup.py")
+    spec_version = read_version(specfile, r"\nVersion:\s*(.+?)\s*\n")
+    setup_py_version = read_version(setup_py, r"version=['\"](.+)['\"]")
+    assert spec_version == __version__
+    assert setup_py_version == __version__
