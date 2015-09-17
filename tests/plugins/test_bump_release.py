@@ -27,7 +27,9 @@ if MOCK:
     from tests.docker_mock import mock_docker
 
 from copy import deepcopy
+from dockerfile_parse import DockerfileParser
 import os
+from pkg_resources import parse_version, get_distribution
 import shutil
 import tempfile
 import subprocess
@@ -36,14 +38,21 @@ from flexmock import flexmock
 
 
 BRANCH = 'branch'
+DOCKERFILE_PARSE_VER = parse_version(get_distribution('dockerfile-parse')
+                                     .version)
 
 
 class DFWithRelease(object):
-    def __init__(self, label=None):
+    def __init__(self, label=None, lines=None):
         self.path = tempfile.mkdtemp()
-        if label is None:
+        if label is None and lines is None:
             label = "LABEL Release 1"
-        self.label = label
+
+        if lines is None:
+            lines = ['FROM baseimage\n',
+                     '{0}\n'.format(label)]
+
+        self.lines = lines
 
     def __fini__(self):
         shutil.rmtree(self.path)
@@ -67,8 +76,7 @@ class DFWithRelease(object):
         # Now set up our branch
         branch = repo.create_branch(BRANCH, repo.get(oid))
         repo.checkout(refname=branch)
-        with open(dockerfile_path, mode="w+t") as dockerfile:
-            dockerfile.write('FROM baseimage\n{0}\n'.format(self.label))
+        DockerfileParser(dockerfile_path).lines = self.lines
 
         index = repo.index
         index.add(filename)
@@ -219,7 +227,7 @@ def test_bump_release_branch_not_found(tmpdir):
     ('LABEL Release=1.1',
      'LABEL Release=2.1'),
 ])
-def test_bump_release(tmpdir, label, expected):
+def test_bump_release_direct(tmpdir, label, expected):
     with DFWithRelease(label=label) as (df_path, commit):
         workflow, args, runner = prepare(tmpdir, df_path, commit,
                                          commit_message='foo')
@@ -246,3 +254,71 @@ def test_bump_release(tmpdir, label, expected):
 
         if 'commit_message' in args:
             assert repo.head.peel().message.rstrip() == args['commit_message']
+
+
+@pytest.mark.skipif(DOCKERFILE_PARSE_VER < parse_version('0.0.5'),
+                    reason="dockerfile-parse 0.0.5 required for this test")
+@pytest.mark.parametrize('labelval', [
+    # Simple case, no quotes
+    '$RELEASE',
+
+    # Double quotes
+    '"$RELEASE"',
+
+    # Braces, no quotes
+    '${RELEASE}',
+
+    # Braces, double quotes
+    '"${RELEASE}"',
+])
+def test_bump_release_indirect_correct(tmpdir, labelval):
+    dflines = ['FROM fedora\n',
+               'ENV RELEASE=1\n',
+               'LABEL Release={0}\n'.format(labelval)]
+    with DFWithRelease(lines=dflines) as (df_path, commit):
+        dummy_workflow, dummy_args, runner = prepare(tmpdir, df_path, commit)
+        labels_before = DockerfileParser(df_path).labels
+
+        runner.run()
+
+        parser = DockerfileParser(df_path)
+        assert parser.envs['RELEASE'] == '2'
+        assert parser.labels == labels_before
+
+
+@pytest.mark.parametrize('labelval', [
+    # Single quotes
+    "'$RELEASE'",
+
+    # Braces, single quotes
+    "'${RELEASE}'",
+
+    # Escaped, no quotes
+    '\\$RELEASE',
+
+    # Escaped, single quotes
+    "'\\$RELEASE'",
+
+    # Escaped, double quotes
+    '"\\$RELEASE"',
+
+    # Escaped, braces, no quotes
+    "\\${RELEASE}",
+
+    # Escaped, braces, single quotes
+    "'\\${RELEASE}'",
+
+    # Escaped, braces, double quotes
+    '"\\${RELEASE}"',
+])
+def test_bump_release_indirect_incorrect(tmpdir, labelval):
+    dflines = ['FROM fedora\n',
+               'ENV RELEASE=1\n',
+               'LABEL Release={0}\n'.format(labelval)]
+    with DFWithRelease(lines=dflines) as (df_path, commit):
+        dummy_workflow, dummy_args, runner = prepare(tmpdir, df_path, commit)
+
+        with pytest.raises(PluginFailedException):
+            runner.run()
+
+        assert DockerfileParser(df_path).lines == dflines
