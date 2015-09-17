@@ -455,22 +455,23 @@ def get_exported_image_metadata(path):
 
 def get_version_of_tools():
     """
-    obtain versions of software reactor is using (specified in constants.TOOLS_USED)
+    get versions of tools reactor is using (specified in constants.TOOLS_USED)
 
-    :returns dict, {"tool": "version", ...}
+    :returns list of dicts, [{"name": "docker-py", "version": "1.2.3"}, ...]
     """
-    response = {}
+    response = []
     for tool in TOOLS_USED:
+        pkg_name = tool["pkg_name"]
         try:
-            tool_module = import_module(tool)
+            tool_module = import_module(pkg_name)
         except ImportError as ex:
-            logger.warning("can't import module %s: %s", tool, repr(ex))
+            logger.warning("can't import module %s: %r", pkg_name, ex)
         else:
             version = getattr(tool_module, "__version__", None)
             if version is None:
-                logger.warning("tool %s doesn't have __version__")
+                logger.warning("tool %s doesn't have __version__", pkg_name)
             else:
-                response[tool] = version
+                response.append({"name": tool.get("display_name", pkg_name), "version": version})
     return response
 
 
@@ -479,5 +480,5 @@ def print_version_of_tools():
     print versions of used tools to logger
     """
     logger.info("Using these tools:")
-    for tool, version in get_version_of_tools().items():
-        logger.info("%s-%s", tool, version)
+    for tool in get_version_of_tools():
+        logger.info("%s-%s", tool["name"], tool["version"])

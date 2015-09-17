@@ -157,7 +157,10 @@ def test_process_substitutions(dct, subst, expected):
 
 def test_get_versions_of_tools():
     response = get_version_of_tools()
-    assert isinstance(response, dict)
+    assert isinstance(response, list)
+    for t in response:
+        assert t["name"]
+        assert t["version"]
 
 
 def test_print_versions_of_tools():
