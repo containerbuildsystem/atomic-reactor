@@ -7,6 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from email.mime.text import MIMEText
+import os
 import smtplib
 import socket
 try:
@@ -51,9 +52,11 @@ class SendMailPlugin(ExitPlugin):
 
     allowed_states = set([MANUAL_SUCCESS, MANUAL_FAIL, AUTO_SUCCESS, AUTO_FAIL, AUTO_CANCELED])
 
+    PDC_TOKEN_FILE = 'pdc.token'
+
     def __init__(self, tasker, workflow, send_on=None, url=None, pdc_url=None,
-                 pdc_verify_cert=True, pdc_component_df_label=None, smtp_url=None,
-                 from_address=None, error_addresses=None):
+                 pdc_verify_cert=True, pdc_component_df_label=None, pdc_secret_path=None,
+                 smtp_url=None, from_address=None, error_addresses=None):
         """
         constructor
 
@@ -64,6 +67,7 @@ class SendMailPlugin(ExitPlugin):
         :param pdc_url: URL of PDC to query for contact information
         :param pdc_verify_cert: whether or not to verify SSL cert of PDC (defaults to True)
         :param pdc_component_df_label: name of Dockerfile label to use as PDC global_component
+        :param pdc_secret_path: path to pdc.token file; $SOURCE_SECRET_PATH otherwise
         :param smtp_url: URL of SMTP server to use to send the message (e.g. "foo.com:25")
         :param from_address: the "From" of the notification email
         :param error_addresses: list of email addresses where to send an email if there's an error
@@ -75,6 +79,7 @@ class SendMailPlugin(ExitPlugin):
         self.pdc_url = pdc_url
         self.pdc_verify_cert = pdc_verify_cert
         self.pdc_component_df_label = pdc_component_df_label
+        self.pdc_secret_path = pdc_secret_path
         self.smtp_url = smtp_url
         self.from_address = from_address
         self.error_addresses = error_addresses
@@ -123,8 +128,15 @@ class SendMailPlugin(ExitPlugin):
         return (subject_template % formatting_dict, body_template % formatting_dict)
 
     def _get_pdc_token(self):
-        # TODO: get token from file mounted inside the build container?
-        return ''
+        if self.pdc_secret_path is not None:
+            token_file = os.path.join(self.pdc_secret_path, self.PDC_TOKEN_FILE)
+        else:
+            token_file = os.path.join(os.environ['SOURCE_SECRET_PATH'], self.PDC_TOKEN_FILE)
+
+        self.log.debug('getting PDC token from file %s', token_file)
+
+        with open(token_file, 'r') as f:
+            return f.read().strip()
 
     def _get_component_label(self):
         """Get value of Dockerfile label that is to be used as `global_component` to query

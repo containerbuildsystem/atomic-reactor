@@ -1,3 +1,4 @@
+import os
 import smtplib
 
 from dockerfile_parse import DockerfileParser
@@ -60,8 +61,20 @@ class TestSendMailPlugin(object):
             'Logs: https://something.com/builds/blablabla/log'
         ])
 
-    def test_get_pdc_token(self):
-        pass  # TODO
+    def test_get_pdc_token_from_conf(self, tmpdir):
+        tokenfile = os.path.join(str(tmpdir), SendMailPlugin.PDC_TOKEN_FILE)
+        p = SendMailPlugin(None, None, pdc_secret_path=str(tmpdir))
+        with open(tokenfile, 'w') as f:
+            f.write('thisistoken')
+        assert p._get_pdc_token() == 'thisistoken'
+
+    def test_get_pdc_token_from_env(self, tmpdir, monkeypatch):
+        monkeypatch.setenv('SOURCE_SECRET_PATH', str(tmpdir))
+        tokenfile = os.path.join(str(tmpdir), SendMailPlugin.PDC_TOKEN_FILE)
+        p = SendMailPlugin(None, None, pdc_secret_path=None)
+        with open(tokenfile, 'w') as f:
+            f.write('thisistoken')
+        assert p._get_pdc_token() == 'thisistoken'
 
     @pytest.mark.parametrize('df_labels, pdc_component_df_label, expected', [
         ({}, 'Foo', None),
@@ -98,8 +111,22 @@ class TestSendMailPlugin(object):
             source = GitSource('git', 'foo', provider_params={'git_commit': 'foo'})
         p = SendMailPlugin(None, WF(), pdc_verify_cert=value)
         flexmock(p).should_receive('_get_component_label').and_return('foo')
+        flexmock(p).should_receive('_get_pdc_token').and_return('foo')
         flexmock(requests).should_receive('get').with_args(object, headers=object, params=object,
                                                            verify=value).and_raise(RuntimeError)
+
+        with pytest.raises(RuntimeError):
+            p._get_receivers_list()
+
+    def test_get_receivers_list_passes_pdc_token(self):
+        class WF(object):
+            source = GitSource('git', 'foo', provider_params={'git_commit': 'foo'})
+        p = SendMailPlugin(None, WF())
+        flexmock(p).should_receive('_get_component_label').and_return('foo')
+        flexmock(p).should_receive('_get_pdc_token').and_return('thisistoken')
+        headers = {'Authorization': 'Token thisistoken'}
+        flexmock(requests).should_receive('get').with_args(object, headers=headers, params=object,
+                                                           verify=True).and_raise(RuntimeError)
 
         with pytest.raises(RuntimeError):
             p._get_receivers_list()
@@ -109,6 +136,7 @@ class TestSendMailPlugin(object):
             source = GitSource('git', 'foo', provider_params={'git_commit': 'foo'})
         p = SendMailPlugin(None, WF())
         flexmock(p).should_receive('_get_component_label').and_return('foo')
+        flexmock(p).should_receive('_get_pdc_token').and_return('foo')
         flexmock(requests).should_receive('get').and_raise(requests.RequestException('foo'))
 
         with pytest.raises(RuntimeError) as e:
@@ -120,6 +148,7 @@ class TestSendMailPlugin(object):
             source = GitSource('git', 'foo', provider_params={'git_commit': 'foo'})
         p = SendMailPlugin(None, WF())
         flexmock(p).should_receive('_get_component_label').and_return('foo')
+        flexmock(p).should_receive('_get_pdc_token').and_return('foo')
 
         class R(object):
             status_code = 404
@@ -152,6 +181,7 @@ class TestSendMailPlugin(object):
             source = GitSource('git', 'foo', provider_params={'git_commit': 'foo'})
         p = SendMailPlugin(None, WF())
         flexmock(p).should_receive('_get_component_label').and_return('foo')
+        flexmock(p).should_receive('_get_pdc_token').and_return('foo')
 
         class R(object):
             status_code = 200
