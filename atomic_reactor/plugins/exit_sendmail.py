@@ -33,11 +33,14 @@ class SendMailPlugin(ExitPlugin):
                     "send_on": ["auto_canceled", "auto_fail"],
                     "url": "https://openshift-instance.com",
                     "pdc_url": "https://pdc-instance.com",
-                    "pdc_verify_cert": true,
-                    "pdc_component_df_label": "BZComponent",
+                    # pdc_secret_path is filled in automatically by osbs-client
+                    "pdc_secret_path": "/path/to/file/with/pdc/token",
                     "smtp_url": "smtp-server.com",
                     "from_address": "osbs@mycompany.com",
-                    "error_addresses": ["admin@mycompany.com"]
+                    "error_addresses": ["admin@mycompany.com"],
+                    # optional arguments follow
+                    "pdc_verify_cert": true,
+                    "pdc_component_df_label": "BZComponent"
                 }
         }]
     """
@@ -55,7 +58,7 @@ class SendMailPlugin(ExitPlugin):
     PDC_TOKEN_FILE = 'pdc.token'
 
     def __init__(self, tasker, workflow, send_on=None, url=None, pdc_url=None,
-                 pdc_verify_cert=True, pdc_component_df_label=None, pdc_secret_path=None,
+                 pdc_verify_cert=True, pdc_component_df_label="BZComponent", pdc_secret_path=None,
                  smtp_url=None, from_address=None, error_addresses=None):
         """
         constructor
