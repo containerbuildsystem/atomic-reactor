@@ -1,2 +1,2 @@
 docker-py
-dockerfile-parse>=0.0.4
+dockerfile-parse>=0.0.5

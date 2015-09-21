@@ -8,8 +8,10 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
+from contextlib import contextmanager
 from copy import deepcopy
 import os
+import re
 import subprocess
 
 from atomic_reactor.plugin import PreBuildPlugin
@@ -72,6 +74,12 @@ class BumpReleasePlugin(PreBuildPlugin):
     original SHA-1. The SHA-1 specified by --git-commit is stored in
     the configuration for this plugin.
 
+    Some developers will want to specify the release as an ENV
+    variable and reference it in the LABEL. This is supported for
+    simple situations in which the $VAR reference is at the very
+    beginning of the label. In this case, the ENV variable will be
+    modified instead of the LABEL.
+
     Example configuration:
 
     {
@@ -125,6 +133,65 @@ class BumpReleasePlugin(PreBuildPlugin):
         self.commit_message = (commit_message or
                                "Bumped release for automated rebuild")
 
+    @contextmanager
+    def no_env_replace(self, parser):
+        """
+        Context manager for temporarily disabling env_replace
+        """
+        old_val = parser.env_replace
+        parser.env_replace = False
+        try:
+            yield
+        finally:
+            parser.env_replace = old_val
+
+    def find_current_release(self, parser, label_key):
+        """
+        Find the attribute set and key name containing the current release.
+
+        This is either the set of labels and the `label_key` we were
+        given, or the set of environment variables and the name of the
+        environment variable holding the value to change.
+
+        :param parser: DockerfileParser instance
+        :param label_key: str, name of release label
+        :returns: 2-tuple, attribute set and key name
+        """
+
+        attrs = parser.labels
+        key = label_key
+        value_subst = attrs[key]
+
+        with self.no_env_replace(parser):
+            value_nosubst = parser.labels[key]
+
+        # Is the real value stored in an environment variable?
+        if value_subst != value_nosubst and value_nosubst.startswith('$'):
+            # Yes, but which one?
+
+            # Braced form: a dollar sign, an open brace, the group
+            # we're interested in (letters numbers, underscores),
+            # followed by a closing brace.
+            braced_re = r"\$\{([A-Za-z0-9_]+)\}"
+
+            # Unbraced form: a dollar sign, followed by the group
+            # we're interested in (letters, numbers, underscores).
+            unbraced_re = r"\$([A-Za-z0-9_]+)"
+
+            match = None
+            for pattern in [braced_re, unbraced_re]:
+                match = re.match(pattern, value_nosubst)
+                self.log.debug("Match %r against %r: %s",
+                               value_nosubst, pattern, bool(match))
+                if match:
+                    break
+
+            if match:
+                attrs = parser.envs
+                key = match.groups()[0]
+
+        return attrs, key
+
     @staticmethod
     def get_next_release(current_release):
         """
@@ -161,10 +228,10 @@ class BumpReleasePlugin(PreBuildPlugin):
         label_key = 'Release'
         df_path = self.workflow.builder.df_path
         parser = DockerfileParser(df_path)
-        current_release = parser.labels[label_key]
-        next_release = self.get_next_release(current_release)
+        attrs, key = self.find_current_release(parser, label_key)
+        next_release = self.get_next_release(attrs[key])
         self.log.info("New Release: %s", next_release)
-        parser.labels[label_key] = next_release
+        attrs[key] = next_release  # this modifies the file
 
         # Stage it
         repo.git(['add', os.path.basename(df_path)])

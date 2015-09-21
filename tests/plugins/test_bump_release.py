@@ -29,7 +29,6 @@ if MOCK:
 from copy import deepcopy
 from dockerfile_parse import DockerfileParser
 import os
-from pkg_resources import parse_version, get_distribution
 import shutil
 import tempfile
 import subprocess
@@ -38,8 +37,6 @@ from flexmock import flexmock
 
 
 BRANCH = 'branch'
-DOCKERFILE_PARSE_VER = parse_version(get_distribution('dockerfile-parse')
-                                     .version)
 
 
 class DFWithRelease(object):
@@ -256,8 +253,8 @@ def test_bump_release_direct(tmpdir, label, expected):
             assert repo.head.peel().message.rstrip() == args['commit_message']
 
 
-@pytest.mark.skipif(DOCKERFILE_PARSE_VER < parse_version('0.0.5'),
-                    reason="dockerfile-parse 0.0.5 required for this test")
+@pytest.mark.skipif(pygit2 is None,
+                    reason="pygit2 required for this test")
 @pytest.mark.parametrize('labelval', [
     # Simple case, no quotes
     '$RELEASE',
@@ -277,15 +274,19 @@ def test_bump_release_indirect_correct(tmpdir, labelval):
                'LABEL Release={0}\n'.format(labelval)]
     with DFWithRelease(lines=dflines) as (df_path, commit):
         dummy_workflow, dummy_args, runner = prepare(tmpdir, df_path, commit)
-        labels_before = DockerfileParser(df_path).labels
+        labels_before = DockerfileParser(df_path, env_replace=False).labels
 
         runner.run()
 
         parser = DockerfileParser(df_path)
         assert parser.envs['RELEASE'] == '2'
+
+        parser.env_replace = False
         assert parser.labels == labels_before
 
 
+@pytest.mark.skipif(pygit2 is None,
+                    reason="pygit2 required for this test")
 @pytest.mark.parametrize('labelval', [
     # Single quotes
     "'$RELEASE'",
@@ -322,3 +323,38 @@ def test_bump_release_indirect_incorrect(tmpdir, labelval):
             runner.run()
 
         assert DockerfileParser(df_path).lines == dflines
+
+
+@pytest.mark.parametrize(('labelval', 'expected_attr', 'expected_key'), [
+    # Direct
+    ('1', 'labels', 'Label'),
+
+    # Simple case, no quotes
+    ('$ENV', 'envs', 'ENV'),
+
+    # Check word boundaries
+    ('$ENV-dev', 'envs', 'ENV'),
+
+    # Double quotes
+    ('"$ENV"', 'envs', 'ENV'),
+
+    # Braces, no quotes
+    ('${ENV}', 'envs', 'ENV'),
+
+    # Braces, double quotes
+    ('"${ENV}"', 'envs', 'ENV'),
+])
+def test_bump_release_find_current_release(tmpdir,
+                                           labelval,
+                                           expected_attr,
+                                           expected_key):
+    dflines = ['FROM fedora\n',
+               'ENV ENV=1\n',
+               'LABEL Label={0}\n'.format(labelval)]
+    df_path = os.path.join(str(tmpdir), 'Dockerfile')
+    DockerfileParser(df_path).lines = dflines
+    plugin = BumpReleasePlugin(None, None, None, None, None)
+    parser = DockerfileParser(df_path)
+    attrs, key = plugin.find_current_release(parser, 'Label')
+    assert attrs == getattr(parser, expected_attr)
+    assert key == expected_key

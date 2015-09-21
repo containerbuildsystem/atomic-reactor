@@ -91,7 +91,7 @@ License:        BSD
 Requires:       python-docker-py
 Requires:       python-requests
 Requires:       python-setuptools
-Requires:       python-dockerfile-parse >= 0.0.4
+Requires:       python-dockerfile-parse >= 0.0.5
 Requires:       python-backports-lzma
 # Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
 Requires:       nfs-utils
@@ -112,7 +112,7 @@ License:        BSD
 Requires:       python3-docker-py
 Requires:       python3-requests
 Requires:       python3-setuptools
-Requires:       python3-dockerfile-parse >= 0.0.4
+Requires:       python3-dockerfile-parse >= 0.0.5
 # Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
 Requires:       nfs-utils
 Provides:       python3-dock = %{version}-%{release}
