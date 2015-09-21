@@ -40,7 +40,8 @@ class SendMailPlugin(ExitPlugin):
                     "error_addresses": ["admin@mycompany.com"],
                     # optional arguments follow
                     "pdc_verify_cert": true,
-                    "pdc_component_df_label": "BZComponent"
+                    "pdc_component_df_label": "BZComponent",
+                    "pdc_contact_role": "Build_Owner"
                 }
         }]
     """
@@ -59,7 +60,8 @@ class SendMailPlugin(ExitPlugin):
 
     def __init__(self, tasker, workflow, send_on=None, url=None, pdc_url=None,
                  pdc_verify_cert=True, pdc_component_df_label="BZComponent", pdc_secret_path=None,
-                 smtp_url=None, from_address=None, error_addresses=None):
+                 pdc_contact_role="Build_Owner", smtp_url=None, from_address=None,
+                 error_addresses=None):
         """
         constructor
 
@@ -71,6 +73,7 @@ class SendMailPlugin(ExitPlugin):
         :param pdc_verify_cert: whether or not to verify SSL cert of PDC (defaults to True)
         :param pdc_component_df_label: name of Dockerfile label to use as PDC global_component
         :param pdc_secret_path: path to pdc.token file; $SOURCE_SECRET_PATH otherwise
+        :param pdc_contact_role: name of PDC role to contact
         :param smtp_url: URL of SMTP server to use to send the message (e.g. "foo.com:25")
         :param from_address: the "From" of the notification email
         :param error_addresses: list of email addresses where to send an email if there's an error
@@ -83,6 +86,7 @@ class SendMailPlugin(ExitPlugin):
         self.pdc_verify_cert = pdc_verify_cert
         self.pdc_component_df_label = pdc_component_df_label
         self.pdc_secret_path = pdc_secret_path
+        self.pdc_contact_role = pdc_contact_role
         self.smtp_url = smtp_url
         self.from_address = from_address
         self.error_addresses = error_addresses
@@ -196,14 +200,13 @@ class SendMailPlugin(ExitPlugin):
         send_to = []
         contacts = found[0].get('contacts', [])
         for contact in contacts:
-            # TODO: find out if Build_Owner is the correct role (make this configurable?)
             # I'm not sure, but it seems that there can be more people with the role
-            if contact['contact_role'] == 'Build_Owner':
+            if contact['contact_role'] == self.pdc_contact_role:
                 send_to.append(contact['email'])
 
         if len(send_to) == 0:
-            self.log.error('no Build_Owner role for the component')
-            raise RuntimeError('no Build_Owner role for the component')
+            self.log.error('no %s role for the component', self.pdc_contact_role)
+            raise RuntimeError('no %s role for the component' % self.pdc_contact_role)
 
         return send_to
 

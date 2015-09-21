@@ -159,27 +159,36 @@ class TestSendMailPlugin(object):
             p._get_receivers_list()
         assert str(e.value) == 'PDC returned non-200 status code (404), see referenced build log'
 
-    @pytest.mark.parametrize('pdc_response, expected', [
+    @pytest.mark.parametrize('pdc_response, pdc_contact_role, expected', [
         ({'results': []},
+         'Build_Owner',
          'Expected to find exactly 1 PDC component, found 0, see referenced build log'),
         ({'results': [{'dist_git_branch': 'foo'}, {'dist_git_branch': 'foo'}]},
+         'Build_Owner',
          'Expected to find exactly 1 PDC component, found 2, see referenced build log'),
         ({'results': [{'dist_git_branch': 'foo', 'contacts': []}]},
+         'Build_Owner',
          'no Build_Owner role for the component'),
         ({'results': [{'dist_git_branch': 'foo',
                        'contacts': [{'contact_role': 'Build_Owner', 'email': 'foo@bar.com'}]}]},
+         'Build_Owner',
          ['foo@bar.com']),
+        ({'results': [{'dist_git_branch': 'foo',
+                       'contacts': [{'contact_role': 'Build_Owner', 'email': 'foo@bar.com'}]}]},
+         'Foo_Bar',
+         'no Foo_Bar role for the component'),
         ({'results': [{'dist_git_branch': 'foo',
                        'contacts':
                        [{'contact_role': 'Build_Owner', 'email': 'foo@bar.com'},
                         {'contact_role': 'Build_Owner', 'email': 'spam@spam.com'},
                         {'contact_role': 'different', 'email': 'other@baz.com'}]}]},
+         'Build_Owner',
          ['foo@bar.com', 'spam@spam.com']),
     ])
-    def test_get_receivers_pdc_actually_responds(self, pdc_response, expected):
+    def test_get_receivers_pdc_actually_responds(self, pdc_response, pdc_contact_role, expected):
         class WF(object):
             source = GitSource('git', 'foo', provider_params={'git_commit': 'foo'})
-        p = SendMailPlugin(None, WF())
+        p = SendMailPlugin(None, WF(), pdc_contact_role=pdc_contact_role)
         flexmock(p).should_receive('_get_component_label').and_return('foo')
         flexmock(p).should_receive('_get_pdc_token').and_return('foo')
 
