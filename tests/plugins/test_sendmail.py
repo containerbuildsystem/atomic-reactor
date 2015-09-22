@@ -45,21 +45,43 @@ class TestSendMailPlugin(object):
         p = SendMailPlugin(None, None, send_on=send_on)
         assert p._should_send(rebuild, success, canceled) == expected
 
-    def test_render_mail(self):
+    @pytest.mark.parametrize('autorebuild, submitter', [
+        (True, 'John Smith <jsmith@foobar.com>'),
+        (False, 'John Smith <jsmith@foobar.com>'),
+        (True, None),
+        (False, None),
+    ])
+    def test_render_mail(self, autorebuild, submitter):
         # just test a random combination of the method inputs and hope it's ok for other
         #   combinations
         class WF(object):
             image = ImageName.parse('foo/bar:baz')
             openshift_build_selflink = '/builds/blablabla'
-        p = SendMailPlugin(None, WF(), url='https://something.com')
-        subject, body = p._render_mail(True, False, False)
-        assert subject == 'Image foo/bar:baz; Status failed; Submitted by <autorebuild>'
-        assert body == '\n'.join([
+        kwargs = {'url': 'https://something.com'}
+        if submitter:
+            kwargs['submitter'] = submitter
+        p = SendMailPlugin(None, WF(), **kwargs)
+        subject, body = p._render_mail(autorebuild, False, False)
+
+        exp_subject = 'Image foo/bar:baz; Status failed; Submitted by '
+        exp_body = [
             'Image: foo/bar:baz',
             'Status: failed',
-            'Submitted by: <autorebuild>',
+            'Submitted by: ',
             'Logs: https://something.com/builds/blablabla/log'
-        ])
+        ]
+        if autorebuild:
+            exp_subject += '<autorebuild>'
+            exp_body[2] += '<autorebuild>'
+        elif submitter:
+            exp_subject += submitter
+            exp_body[2] += submitter
+        else:
+            exp_subject += 'unknown'
+            exp_body[2] += 'unknown'
+
+        assert subject == exp_subject
+        assert body == '\n'.join(exp_body)
 
     def test_get_pdc_token_from_conf(self, tmpdir):
         tokenfile = os.path.join(str(tmpdir), SendMailPlugin.PDC_TOKEN_FILE)
@@ -69,7 +91,7 @@ class TestSendMailPlugin(object):
         assert p._get_pdc_token() == 'thisistoken'
 
     def test_get_pdc_token_from_env(self, tmpdir, monkeypatch):
-        monkeypatch.setenv('SOURCE_SECRET_PATH', str(tmpdir))
+        monkeypatch.setenv('PDC_SECRET_PATH', str(tmpdir))
         tokenfile = os.path.join(str(tmpdir), SendMailPlugin.PDC_TOKEN_FILE)
         p = SendMailPlugin(None, None, pdc_secret_path=None)
         with open(tokenfile, 'w') as f:

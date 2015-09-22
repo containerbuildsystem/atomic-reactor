@@ -39,6 +39,7 @@ class SendMailPlugin(ExitPlugin):
                     "from_address": "osbs@mycompany.com",
                     "error_addresses": ["admin@mycompany.com"],
                     # optional arguments follow
+                    "submitter": "John Smith <jsmith@mycompany.com>",
                     "pdc_verify_cert": true,
                     "pdc_component_df_label": "BZComponent",
                     "pdc_contact_role": "Build_Owner"
@@ -58,7 +59,7 @@ class SendMailPlugin(ExitPlugin):
 
     PDC_TOKEN_FILE = 'pdc.token'
 
-    def __init__(self, tasker, workflow, send_on=None, url=None, pdc_url=None,
+    def __init__(self, tasker, workflow, send_on=None, url=None, submitter='unknown', pdc_url=None,
                  pdc_verify_cert=True, pdc_component_df_label="BZComponent", pdc_secret_path=None,
                  pdc_contact_role="Build_Owner", smtp_url=None, from_address=None,
                  error_addresses=None):
@@ -67,8 +68,9 @@ class SendMailPlugin(ExitPlugin):
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param url: URL to OSv3 instance where the build logs are stored
         :param send_on: list of build states when a notification should be sent
+        :param url: URL to OSv3 instance where the build logs are stored
+        :param submitter: name of user who submitted a build (plain string)
         :param pdc_url: URL of PDC to query for contact information
         :param pdc_verify_cert: whether or not to verify SSL cert of PDC (defaults to True)
         :param pdc_component_df_label: name of Dockerfile label to use as PDC global_component
@@ -80,8 +82,9 @@ class SendMailPlugin(ExitPlugin):
             (e.g. if we can't find out who to notify about the failed build)
         """
         super(SendMailPlugin, self).__init__(tasker, workflow)
-        self.url = url
         self.send_on = send_on
+        self.url = url
+        self.submitter = submitter
         self.pdc_url = pdc_url
         self.pdc_verify_cert = pdc_verify_cert
         self.pdc_component_df_label = pdc_component_df_label
@@ -92,7 +95,9 @@ class SendMailPlugin(ExitPlugin):
         self.error_addresses = error_addresses
 
     def _should_send(self, rebuild, success, canceled):
-        """Return True if mail should be sent under given conditions and `self.send_on`."""
+        """Return True if any state in `self.send_on` meets given conditions, thus meaning
+        that a notification mail should be sent.
+        """
         should_send = False
 
         should_send_mapping = {
@@ -129,7 +134,7 @@ class SendMailPlugin(ExitPlugin):
         formatting_dict = {
             'image': self.workflow.image,
             'endstate': endstate,
-            'user': '<autorebuild>' if rebuild else 'TODO user',
+            'user': '<autorebuild>' if rebuild else self.submitter,
             'logs': url
         }
         return (subject_template % formatting_dict, body_template % formatting_dict)
@@ -138,7 +143,7 @@ class SendMailPlugin(ExitPlugin):
         if self.pdc_secret_path is not None:
             token_file = os.path.join(self.pdc_secret_path, self.PDC_TOKEN_FILE)
         else:
-            token_file = os.path.join(os.environ['SOURCE_SECRET_PATH'], self.PDC_TOKEN_FILE)
+            token_file = os.path.join(os.environ['PDC_SECRET_PATH'], self.PDC_TOKEN_FILE)
 
         self.log.debug('getting PDC token from file %s', token_file)
 
@@ -257,7 +262,7 @@ class SendMailPlugin(ExitPlugin):
                     body
                 ])
                 receivers = self.error_addresses
-            self.log.info('sending notification to %s ...' % receivers)
+            self.log.info('sending notification to %s ...', receivers)
             self._send_mail(receivers, subject, body)
         else:
             self.log.info('conditions for sending notification not met, doing nothing')
