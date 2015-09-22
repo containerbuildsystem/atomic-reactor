@@ -156,3 +156,7 @@ Bear in mind that you shouldn't mix build methods: if you use _hostdocker_ metho
  * [api](https://github.com/projectatomic/atomic-reactor/blob/master/docs/api.md)
  * [build json](https://github.com/projectatomic/atomic-reactor/blob/master/docs/build_json.md)
  * [building Atomic Reactor](https://github.com/projectatomic/atomic-reactor/blob/master/docs/releasing.md)
+
+## Contact
+
+Get in touch with us via [atomic-devel@projectatomic.io](https://lists.projectatomic.io/mailman/listinfo/atomic-devel) mailing list.
