@@ -140,10 +140,12 @@ class SendMailPlugin(ExitPlugin):
         return (subject_template % formatting_dict, body_template % formatting_dict)
 
     def _get_pdc_token(self):
-        if self.pdc_secret_path is not None:
-            token_file = os.path.join(self.pdc_secret_path, self.PDC_TOKEN_FILE)
-        else:
-            token_file = os.path.join(os.environ['PDC_SECRET_PATH'], self.PDC_TOKEN_FILE)
+        # we want to allow pdc_secret_path to be None in __init__ - I'm assuming that in future
+        #  we'll want different sources of contact info, so we only want to raise when
+        #  the plugin actually tries to authenticate against PDC and doesn't have pdc_secret_path
+        if self.pdc_secret_path is None:
+            raise PluginFailedException('Getting PDC token, but pdc_secret_path is unspecified')
+        token_file = os.path.join(self.pdc_secret_path, self.PDC_TOKEN_FILE)
 
         self.log.debug('getting PDC token from file %s', token_file)
 
@@ -175,7 +177,6 @@ class SendMailPlugin(ExitPlugin):
             raise PluginFailedException('Source is not of type "GitSource", panic!')
         git_branch = self.workflow.source.git_commit
         try:
-            # TODO: verify=False should be removed and proper certificates added
             r = requests.get(urljoin(self.pdc_url, 'rest_api/v1/release-components/'),
                              headers={'Authorization': 'Token %s' % self._get_pdc_token()},
                              params={'global_component': global_component},

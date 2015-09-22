@@ -83,17 +83,9 @@ class TestSendMailPlugin(object):
         assert subject == exp_subject
         assert body == '\n'.join(exp_body)
 
-    def test_get_pdc_token_from_conf(self, tmpdir):
+    def test_get_pdc_token(self, tmpdir):
         tokenfile = os.path.join(str(tmpdir), SendMailPlugin.PDC_TOKEN_FILE)
         p = SendMailPlugin(None, None, pdc_secret_path=str(tmpdir))
-        with open(tokenfile, 'w') as f:
-            f.write('thisistoken')
-        assert p._get_pdc_token() == 'thisistoken'
-
-    def test_get_pdc_token_from_env(self, tmpdir, monkeypatch):
-        monkeypatch.setenv('PDC_SECRET_PATH', str(tmpdir))
-        tokenfile = os.path.join(str(tmpdir), SendMailPlugin.PDC_TOKEN_FILE)
-        p = SendMailPlugin(None, None, pdc_secret_path=None)
         with open(tokenfile, 'w') as f:
             f.write('thisistoken')
         assert p._get_pdc_token() == 'thisistoken'
