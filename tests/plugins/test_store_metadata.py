@@ -22,6 +22,7 @@ from atomic_reactor.plugins.pre_cp_dockerfile import CpDockerfilePlugin
 from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
 from atomic_reactor.util import ImageName, LazyGit
 from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE
+from tests.util import is_string_type
 
 
 class Y(object):
@@ -60,6 +61,7 @@ def prepare():
     workflow.tag_conf.add_unique_image("namespace/image:asd123")
 
     setattr(workflow, 'builder', X)
+    setattr(workflow, '_base_image_inspect', {'Id': '01234567'})
     workflow.build_logs = ["a", "b"]
     workflow.source.lg = LazyGit(None, commit="commit")
     flexmock(workflow.source.lg)
@@ -93,11 +95,23 @@ def test_metadata_plugin(tmpdir):
     assert StoreMetadataInOSv3Plugin.key in output
     labels = output[StoreMetadataInOSv3Plugin.key]
     assert "dockerfile" in labels
+    assert is_string_type(labels['dockerfile'])
     assert "artefacts" in labels
+    assert is_string_type(labels['artefacts'])
     assert "logs" in labels
+    assert is_string_type(labels['logs'])
     assert "rpm-packages" in labels
+    assert is_string_type(labels['rpm-packages'])
     assert "repositories" in labels
+    assert is_string_type(labels['repositories'])
     assert "commit_id" in labels
+    assert is_string_type(labels['commit_id'])
+    assert "base-image-id" in labels
+    assert is_string_type(labels['base-image-id'])
+    assert "base-image-name" in labels
+    assert is_string_type(labels['base-image-name'])
+    assert "image-id" in labels
+    assert is_string_type(labels['image-id'])
 
 
 def test_metadata_plugin_rpmqa_failure(tmpdir):
@@ -130,6 +144,9 @@ def test_metadata_plugin_rpmqa_failure(tmpdir):
     assert "rpm-packages" in labels
     assert "repositories" in labels
     assert "commit_id" in labels
+    assert "base-image-id" in labels
+    assert "base-image-name" in labels
+    assert "image-id" in labels
 
     # On rpmqa failure, rpm-packages should be empty
     assert len(labels["rpm-packages"]) == 0
