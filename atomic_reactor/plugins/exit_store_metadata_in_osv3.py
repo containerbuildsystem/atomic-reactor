@@ -108,6 +108,9 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             "rpm-packages": "\n".join(self.get_post_result(PostBuildRPMqaPlugin.key)),
             "repositories": json.dumps(repositories),
             "commit_id": commit_id,
+            "base-image-id": self.workflow.base_image_inspect['Id'],
+            "base-image-name": self.workflow.builder.base_image.to_str(),
+            "image-id": self.workflow.builder.image_id,
         }
 
         tar_path = tar_size = tar_md5sum = tar_sha256sum = None
