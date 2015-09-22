@@ -113,7 +113,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         osbs = OSBS(osbs_conf, osbs_conf)
 
         try:
-            commit_id = self.workflow.source.lg.commit_id
+            commit_id = self.workflow.source.commit_id
         except AttributeError:
             commit_id = ""
 

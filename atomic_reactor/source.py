@@ -71,6 +71,10 @@ class GitSource(Source):
         self.git_commit = self.provider_params.get('git_commit', None)
         self.lg = util.LazyGit(self.uri, self.git_commit, self.source_path)
 
+    @property
+    def commit_id(self):
+        return self.lg.commit_id
+
     def get(self):
         return self.lg.git_path
 
