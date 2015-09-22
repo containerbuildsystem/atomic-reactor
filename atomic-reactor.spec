@@ -228,6 +228,7 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
 
 %{python2_sitelib}/atomic_reactor-%{version}-py2.*.egg-info
 %dir %{_datadir}/%{name}
@@ -248,6 +249,7 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py*
+%{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
 
 
 %if 0%{?with_python3}
