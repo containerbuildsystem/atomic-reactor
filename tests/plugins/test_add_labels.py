@@ -18,22 +18,27 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
 from atomic_reactor.util import ImageName
+from atomic_reactor.source import VcsInfo
+import re
 import json
 import pytest
 from flexmock import flexmock
-from tests.constants import MOCK_SOURCE
+from tests.constants import MOCK_SOURCE, DOCKERFILE_GIT, DOCKERFILE_SHA1, MOCK
 from tests.fixtures import docker_tasker
+if MOCK:
+    from tests.docker_mock import mock_docker
 
 
-class Y(object):
-    pass
+class MockSource(object):
+    dockerfile_path = None
+    path = None
+    def get_vcs_info(self):
+        return VcsInfo(vcs_type="git", vcs_url=DOCKERFILE_GIT, vcs_ref=DOCKERFILE_SHA1)
 
 
 class X(object):
     image_id = "xxx"
-    source = Y()
-    source.dockerfile_path = None
-    source.path = None
+    source = MockSource()
     base_image = ImageName(repo="qwe", tag="asd")
 
 DF_CONTENT = """\
@@ -76,6 +81,9 @@ def test_add_labels_plugin(tmpdir, docker_tasker,
     df = DockerfileParser(str(tmpdir))
     df.content = df_content
 
+    if MOCK:
+        mock_docker()
+
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     setattr(workflow, 'builder', X)
     flexmock(workflow, base_image_inspect=labels_conf_base)
@@ -86,7 +94,7 @@ def test_add_labels_plugin(tmpdir, docker_tasker,
         workflow,
         [{
             'name': AddLabelsPlugin.key,
-            'args': {'labels': labels_conf, "dont_overwrite": dont_overwrite}
+            'args': {'labels': labels_conf, "dont_overwrite": dont_overwrite, "auto_labels": []}
         }]
     )
 
@@ -97,3 +105,35 @@ def test_add_labels_plugin(tmpdir, docker_tasker,
         runner.run()
         assert AddLabelsPlugin.key is not None
         assert df.content in expected_output
+
+@pytest.mark.parametrize('auto_label, value_re_part', [
+    ('build-date', r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z'),
+    ('architecture', 'x86_64'),
+    ('vcs-type', 'git'),
+    ('vcs-url', DOCKERFILE_GIT),
+    ('vcs-ref', DOCKERFILE_SHA1),
+])
+def test_add_labels_plugin_generated(tmpdir, docker_tasker, auto_label, value_re_part):
+    df = DockerfileParser(str(tmpdir))
+    df.content = DF_CONTENT
+
+    if MOCK:
+        mock_docker()
+
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    setattr(workflow, 'builder', X)
+    flexmock(workflow, source=MockSource())
+    flexmock(workflow, base_image_inspect=LABELS_CONF_BASE)
+    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': AddLabelsPlugin.key,
+            'args': {'labels': {}, "dont_overwrite": [], "auto_labels": [auto_label]}
+        }]
+    )
+
+    runner.run()
+    assert re.search('LABEL "{0}"="{1}"'.format(auto_label, value_re_part), df.content)

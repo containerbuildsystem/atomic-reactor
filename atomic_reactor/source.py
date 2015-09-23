@@ -14,12 +14,18 @@ import copy
 import os
 import shutil
 import tempfile
+import collections
 
 from atomic_reactor import util
 from atomic_reactor.constants import SOURCE_DIRECTORY_NAME
 
 
 logger = logging.getLogger(__name__)
+
+
+# Intended for use as vcs-type, vcs-url and vcs-ref docker labels as defined
+# in https://github.com/projectatomic/ContainerApplicationGenericLabels
+VcsInfo = collections.namedtuple('VcsInfo', ['vcs_type', 'vcs_url', 'vcs_ref'])
 
 
 class Source(object):
@@ -53,6 +59,10 @@ class Source(object):
     def remove_tmpdir(self):
         shutil.rmtree(self.tmpdir)
 
+    def get_vcs_info(self):
+        """Returns VcsInfo namedtuple or None if not applicable."""
+        return None
+
 
 class GitSource(Source):
     def __init__(self, provider, uri, dockerfile_path=None, provider_params=None, tmpdir=None):
@@ -63,6 +73,13 @@ class GitSource(Source):
 
     def get(self):
         return self.lg.git_path
+
+    def get_vcs_info(self):
+        return VcsInfo(
+            vcs_type='git',
+            vcs_url=self.lg.git_url,
+            vcs_ref=self.lg.commit_id
+        )
 
 
 class PathSource(Source):
