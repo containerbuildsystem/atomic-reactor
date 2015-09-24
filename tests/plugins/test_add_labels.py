@@ -40,6 +40,8 @@ DF_CONTENT = """\
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
+DF_CONTENT_SINGLE_LINE = """\
+FROM fedora"""
 LABELS_CONF_BASE = {"Config": {"Labels": {"label1": "base value"}}}
 LABELS_CONF = OrderedDict({'label1': 'value 1', 'label2': 'long value'})
 LABELS_CONF_WRONG = [('label1', 'value1'), ('label2', 'value2')]
@@ -57,18 +59,22 @@ RUN yum install -y python-django
 LABEL "label2"="long value"
 CMD blabla"""]
 EXPECTED_OUTPUT3 = [DF_CONTENT]
+EXPECTED_OUTPUT4 = [r"""FROM fedora
+LABEL "label2"="long value"
+"""]
 
-@pytest.mark.parametrize('labels_conf_base, labels_conf, dont_overwrite, expected_output', [
-    (LABELS_CONF_BASE, LABELS_CONF, [], EXPECTED_OUTPUT),
-    (LABELS_CONF_BASE, json.dumps(LABELS_CONF), [], EXPECTED_OUTPUT),
-    (LABELS_CONF_BASE, LABELS_CONF_WRONG, [], RuntimeError()),
-    (LABELS_CONF_BASE, LABELS_CONF, ["label1", ], EXPECTED_OUTPUT2),
-    (LABELS_CONF_BASE, LABELS_BLANK, ["label1", ], EXPECTED_OUTPUT3),
+@pytest.mark.parametrize('df_content, labels_conf_base, labels_conf, dont_overwrite, expected_output', [
+    (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF, [], EXPECTED_OUTPUT),
+    (DF_CONTENT, LABELS_CONF_BASE, json.dumps(LABELS_CONF), [], EXPECTED_OUTPUT),
+    (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF_WRONG, [], RuntimeError()),
+    (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF, ["label1", ], EXPECTED_OUTPUT2),
+    (DF_CONTENT, LABELS_CONF_BASE, LABELS_BLANK, ["label1", ], EXPECTED_OUTPUT3),
+    (DF_CONTENT_SINGLE_LINE, LABELS_CONF_BASE, LABELS_CONF, ["label1", ], EXPECTED_OUTPUT4),
 ])
 def test_add_labels_plugin(tmpdir, docker_tasker,
-                           labels_conf_base, labels_conf, dont_overwrite, expected_output):
+                           df_content, labels_conf_base, labels_conf, dont_overwrite, expected_output):
     df = DockerfileParser(str(tmpdir))
-    df.content = DF_CONTENT
+    df.content = df_content
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     setattr(workflow, 'builder', X)

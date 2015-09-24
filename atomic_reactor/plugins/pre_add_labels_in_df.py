@@ -117,8 +117,13 @@ class AddLabelsPlugin(PreBuildPlugin):
         content = ""
         if labels:
             content = 'LABEL ' + " ".join(labels)
-            # put it before last instruction
-            lines.insert(-1, content + '\n')
+            num_lines = len(lines)
+            if num_lines < 2:
+                # ensure label is after FROM if its the only instruction in the Docker
+                lines.append('\n' + content + '\n')
+            else:
+                # put it before last instruction
+                lines.insert(-1, content + '\n')
 
             dockerfile.lines = lines
 
