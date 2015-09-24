@@ -42,7 +42,7 @@ class SendMailPlugin(ExitPlugin):
                     "submitter": "John Smith <jsmith@mycompany.com>",
                     "pdc_verify_cert": true,
                     "pdc_component_df_label": "BZComponent",
-                    "pdc_contact_role": "Build_Owner"
+                    "pdc_contact_role": "Devel_Owner"
                 }
         }]
     """
@@ -58,10 +58,11 @@ class SendMailPlugin(ExitPlugin):
     allowed_states = set([MANUAL_SUCCESS, MANUAL_FAIL, AUTO_SUCCESS, AUTO_FAIL, AUTO_CANCELED])
 
     PDC_TOKEN_FILE = 'pdc.token'
+    PDC_CONTACT_ROLE = 'Devel_Owner'
 
     def __init__(self, tasker, workflow, send_on=None, url=None, submitter='unknown', pdc_url=None,
                  pdc_verify_cert=True, pdc_component_df_label="BZComponent", pdc_secret_path=None,
-                 pdc_contact_role="Build_Owner", smtp_url=None, from_address=None,
+                 pdc_contact_role=None, smtp_url=None, from_address=None,
                  error_addresses=None):
         """
         constructor
@@ -89,7 +90,7 @@ class SendMailPlugin(ExitPlugin):
         self.pdc_verify_cert = pdc_verify_cert
         self.pdc_component_df_label = pdc_component_df_label
         self.pdc_secret_path = pdc_secret_path
-        self.pdc_contact_role = pdc_contact_role
+        self.pdc_contact_role = pdc_contact_role or self.PDC_CONTACT_ROLE
         self.smtp_url = smtp_url
         self.from_address = from_address
         self.error_addresses = error_addresses
