@@ -35,12 +35,15 @@ RUN yum install -y python-django
 CMD blabla"""
 DF_CONTENT_LABELS = DF_CONTENT+'\nLABEL "Name"="rainbow" "Version"="123" "Release"="1"'
 
-@pytest.mark.parametrize('df_content, req_labels, expected', [
-    (DF_CONTENT, None, PluginFailedException()),
-    (DF_CONTENT_LABELS, None, None),
-    (DF_CONTENT_LABELS, ['xyz'], PluginFailedException())
+@pytest.mark.parametrize('df_content, req_labels, depr_labels, expected', [
+    (DF_CONTENT, None, None, PluginFailedException()),
+    (DF_CONTENT_LABELS, None, None, None),
+    (DF_CONTENT_LABELS, ['xyz'], None, PluginFailedException()),
+    (DF_CONTENT_LABELS, ['unicorn'], {'Name': 'unicorn'}, None),
+    (DF_CONTENT_LABELS, ['n', 'v', 'r'], {'Name': 'n', 'Version': 'v', 'Release': 'r'}, None),
+    (DF_CONTENT_LABELS, ['unicorn'], {'unicorn': 'Name'}, PluginFailedException()),
 ])
-def test_assertlabels_plugin(tmpdir, docker_tasker, df_content, req_labels, expected):
+def test_assertlabels_plugin(tmpdir, docker_tasker, df_content, req_labels, depr_labels, expected):
     df = DockerfileParser(str(tmpdir))
     df.content = df_content
 
@@ -54,7 +57,7 @@ def test_assertlabels_plugin(tmpdir, docker_tasker, df_content, req_labels, expe
         workflow,
         [{
             'name': AssertLabelsPlugin.key,
-            'args': {'required_labels': req_labels}
+            'args': {'required_labels': req_labels, 'deprecated_labels': depr_labels}
         }]
     )
 
