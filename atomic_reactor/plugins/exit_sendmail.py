@@ -35,7 +35,7 @@ class SendMailPlugin(ExitPlugin):
                     "pdc_url": "https://pdc-instance.com",
                     # pdc_secret_path is filled in automatically by osbs-client
                     "pdc_secret_path": "/path/to/file/with/pdc/token",
-                    "smtp_url": "smtp-server.com",
+                    "smtp_uri": "smtp-server.com",
                     "from_address": "osbs@mycompany.com",
                     "error_addresses": ["admin@mycompany.com"],
                     # optional arguments follow
@@ -62,7 +62,7 @@ class SendMailPlugin(ExitPlugin):
 
     def __init__(self, tasker, workflow, send_on=None, url=None, submitter='unknown', pdc_url=None,
                  pdc_verify_cert=True, pdc_component_df_label="BZComponent", pdc_secret_path=None,
-                 pdc_contact_role=None, smtp_url=None, from_address=None,
+                 pdc_contact_role=None, smtp_uri=None, from_address=None,
                  error_addresses=None):
         """
         constructor
@@ -77,7 +77,7 @@ class SendMailPlugin(ExitPlugin):
         :param pdc_component_df_label: name of Dockerfile label to use as PDC global_component
         :param pdc_secret_path: path to pdc.token file; $SOURCE_SECRET_PATH otherwise
         :param pdc_contact_role: name of PDC role to contact
-        :param smtp_url: URL of SMTP server to use to send the message (e.g. "foo.com:25")
+        :param smtp_uri: URL of SMTP server to use to send the message (e.g. "foo.com:25")
         :param from_address: the "From" of the notification email
         :param error_addresses: list of email addresses where to send an email if there's an error
             (e.g. if we can't find out who to notify about the failed build)
@@ -91,7 +91,7 @@ class SendMailPlugin(ExitPlugin):
         self.pdc_component_df_label = pdc_component_df_label
         self.pdc_secret_path = pdc_secret_path
         self.pdc_contact_role = pdc_contact_role or self.PDC_CONTACT_ROLE
-        self.smtp_url = smtp_url
+        self.smtp_uri = smtp_uri
         self.from_address = from_address
         self.error_addresses = error_addresses
 
@@ -226,7 +226,7 @@ class SendMailPlugin(ExitPlugin):
 
         s = None
         try:
-            s = smtplib.SMTP(self.smtp_url)
+            s = smtplib.SMTP(self.smtp_uri)
             s.sendmail(self.from_address, receivers_list, msg.as_string())
         except (socket.gaierror, smtplib.SMTPException) as e:
             raise PluginFailedException('Error communicating with SMTP server: %s' % str(e))

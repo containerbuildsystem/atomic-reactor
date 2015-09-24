@@ -224,7 +224,7 @@ class TestSendMailPlugin(object):
             assert p._get_receivers_list() == expected
 
     def test_send_mail(self):
-        p = SendMailPlugin(None, None, from_address='foo@bar.com', smtp_url='smtp.spam.com')
+        p = SendMailPlugin(None, None, from_address='foo@bar.com', smtp_uri='smtp.spam.com')
 
         class SMTP(object):
             def sendmail(self, from_addr, to, msg):
