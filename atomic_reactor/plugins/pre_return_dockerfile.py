@@ -33,4 +33,4 @@ class CpDockerfilePlugin(PreBuildPlugin):
         try:
             return DockerfileParser(self.workflow.builder.df_path).content
         except (IOError, OSError) as ex:
-            return "Couldn't retrieve dockerfile: %s" % repr(ex)
+            return "Couldn't retrieve dockerfile: %r" % ex

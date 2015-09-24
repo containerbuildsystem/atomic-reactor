@@ -94,7 +94,7 @@ class CopyBuiltImageToNFSPlugin(PostBuildPlugin):
     def mount_nfs(self):
         self.log.debug("create mountpoint %s", self.mountpoint)
         mkdir_p(self.mountpoint)
-        self.log.debug("mount NFS %s at %s", repr(self.nfs_server_path), self.mountpoint)
+        self.log.debug("mount NFS %r at %s", self.nfs_server_path, self.mountpoint)
         mount(self.nfs_server_path, self.mountpoint)
 
     def run(self):
@@ -110,7 +110,7 @@ class CopyBuiltImageToNFSPlugin(PostBuildPlugin):
             try:
                 mkdir_p(self.absolute_dest_dir)
             except (IOError, OSError) as ex:
-                self.log.error("couldn't create %s: %s", self.dest_dir, repr(ex))
+                self.log.error("couldn't create %s: %r", self.dest_dir, ex)
                 raise
 
         fname = os.path.basename(source_path)
@@ -122,7 +122,7 @@ class CopyBuiltImageToNFSPlugin(PostBuildPlugin):
         try:
             shutil.copy2(source_path, self.absolute_dest_dir)
         except (IOError, OSError) as ex:
-            self.log.error("couldn't copy %s into %s: %s", source_path, self.dest_dir, repr(ex))
+            self.log.error("couldn't copy %s into %s: %r", source_path, self.dest_dir, ex)
             raise
 
         if os.path.isfile(os.path.join(self.absolute_dest_dir, fname)):

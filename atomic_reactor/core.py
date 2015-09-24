@@ -79,8 +79,8 @@ class BuildContainerFactory(object):
             with open(os.path.join(args_path, BUILD_JSON)) as json_args:
                 logger.debug("build input: image = '%s', args = '%s'", image, json_args.read())
         except (IOError, OSError) as ex:
-            logger.error("unable to open json arguments: '%s'", repr(ex))
-            raise RuntimeError("Unable to open json arguments: '%s'" % repr(ex))
+            logger.error("unable to open json arguments: %r", ex)
+            raise RuntimeError("Unable to open json arguments: %r" % ex)
 
         if not self.tasker.image_exists(image):
             logger.error("provided build image doesn't exist: '%s'", image)
@@ -276,7 +276,7 @@ class DockerTasker(LastLogger):
                 shutil.rmtree(temp_dir)
             except (IOError, OSError) as ex:
                 # no idea why this is happening
-                logger.warning("Failed to remove dir '%s': '%s'", temp_dir, repr(ex))
+                logger.warning("Failed to remove dir '%s': %r", temp_dir, ex)
         logger.info("build finished")
         return response
 

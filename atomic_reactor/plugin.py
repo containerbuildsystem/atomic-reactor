@@ -128,7 +128,7 @@ class PluginsRunner(object):
             try:
                 f_module = imp.load_source(module_name, f)
             except (IOError, OSError, ImportError, SyntaxError) as ex:
-                logger.warning("can't load module '%s': %s", f, repr(ex))
+                logger.warning("can't load module '%s': %r", f, ex)
                 continue
             for name in dir(f_module):
                 binding = getattr(f_module, name, None)
@@ -209,7 +209,7 @@ class PluginsRunner(object):
                 #   AutoRebuildCanceledException was raised here)
                 raise
             except Exception as ex:
-                msg = "plugin '%s' raised an exception: '%s'" % (plugin_instance.key, repr(ex))
+                msg = "plugin '%s' raised an exception: %r" % (plugin_instance.key, ex)
                 logger.debug(traceback.format_exc())
                 if plugin_is_allowed_to_fail or keep_going:
                     logger.warning(msg)

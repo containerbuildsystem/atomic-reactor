@@ -284,7 +284,7 @@ class CLI(object):
             if args.verbose:
                 raise
             else:
-                logger.error("exception caught: %s", repr(ex))
+                logger.error("exception caught: %r", ex)
 
 
 def run():

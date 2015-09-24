@@ -210,8 +210,7 @@ class PulpPushPlugin(PostBuildPlugin):
             try:
                 logger.setLevel(dockpulp_loglevel)
             except (ValueError, TypeError) as ex:
-                self.log.error("Can't set provided log level %s: %s",
-                               repr(dockpulp_loglevel), repr(ex))
+                self.log.error("Can't set provided log level %r: %r", dockpulp_loglevel, ex)
 
     def push_tar(self, image_path, image_names=None):
         # Find out how to tag this image.
