@@ -98,7 +98,7 @@ def wrap_yum_commands(yum_repos, df_path):
         "clean_repos": clean_repos,
     }
 
-    logger.debug("wrap cmd is %s", repr(wrap_cmd))
+    logger.debug("wrap cmd is %r", wrap_cmd)
 
     df = DockerfileParser(df_path)
     df_content = df.content

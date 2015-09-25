@@ -39,7 +39,7 @@ class CpDockerfilePlugin(PreBuildPlugin):
         try:
             shutil.copyfile(self.workflow.builder.df_path, self.path)
         except (IOError, OSError) as ex:
-            msg = "Couldn't copy dockerfile: %s" % repr(ex)
+            msg = "Couldn't copy dockerfile: %r" % ex
             self.log.error(msg)
             return msg
         else:

@@ -30,9 +30,9 @@ class Source(object):
         self.provider_params = provider_params or {}
         # TODO: do we want to delete tmpdir when destroying the object?
         self.tmpdir = tmpdir or tempfile.mkdtemp()
-        logger.debug("workdir is %s", repr(self.tmpdir))
+        logger.debug("workdir is %r", self.tmpdir)
         self.source_path = os.path.join(self.tmpdir, SOURCE_DIRECTORY_NAME)
-        logger.debug("source path is %s", repr(self.source_path))
+        logger.debug("source path is %r", self.source_path)
 
     @property
     def path(self):

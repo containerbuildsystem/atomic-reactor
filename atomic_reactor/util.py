@@ -96,7 +96,7 @@ class ImageName(object):
         return self.to_str(registry=True, tag=True)
 
     def __repr__(self):
-        return "ImageName(image=%s)" % repr(self.to_str())
+        return "ImageName(image=%r)" % self.to_str()
 
     def __eq__(self, other):
         return type(self) == type(other) and self.__dict__ == other.__dict__
@@ -341,7 +341,7 @@ def render_yum_repo(repo, escape_dollars=True):
         if escape_dollars:
             value = escape_dollar(value)
         rendered_repo += "%s=%s\n" % (key, value)
-    logger.info("rendered repo: %s", repr(rendered_repo))
+    logger.info("rendered repo: %r", rendered_repo)
     return rendered_repo
 
 
