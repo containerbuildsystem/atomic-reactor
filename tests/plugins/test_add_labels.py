@@ -52,17 +52,21 @@ LABELS_CONF = OrderedDict({'label1': 'value 1', 'label2': 'long value'})
 LABELS_CONF_WRONG = [('label1', 'value1'), ('label2', 'value2')]
 LABELS_BLANK = {}
 # Can't be sure of the order of the labels, expect either
-EXPECTED_OUTPUT = [r"""FROM fedora
+EXPECTED_OUTPUT = ["""FROM fedora
 RUN yum install -y python-django
+CMD blabla
 LABEL "label1"="value 1" "label2"="long value"
-CMD blabla""", r"""FROM fedora
+""", """\
+FROM fedora
 RUN yum install -y python-django
+CMD blabla
 LABEL "label2"="long value" "label1"="value 1"
-CMD blabla"""]
+"""]
 EXPECTED_OUTPUT2 = [r"""FROM fedora
 RUN yum install -y python-django
+CMD blabla
 LABEL "label2"="long value"
-CMD blabla"""]
+"""]
 EXPECTED_OUTPUT3 = [DF_CONTENT]
 EXPECTED_OUTPUT4 = [r"""FROM fedora
 LABEL "label2"="long value"

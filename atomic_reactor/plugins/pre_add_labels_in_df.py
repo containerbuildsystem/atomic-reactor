@@ -155,14 +155,9 @@ class AddLabelsPlugin(PreBuildPlugin):
         content = ""
         if labels:
             content = 'LABEL ' + " ".join(labels)
-            num_lines = len(lines)
-            if num_lines < 2:
-                # ensure label is after FROM if its the only instruction in the Docker
-                lines.append('\n' + content + '\n')
-            else:
-                # put it before last instruction
-                lines.insert(-1, content + '\n')
-
+            # put labels at the end of dockerfile (since they change metadata and do not interact
+            # with FS, this should cause no harm)
+            lines.append('\n' + content + '\n')
             dockerfile.lines = lines
 
         return content
