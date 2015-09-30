@@ -16,8 +16,10 @@ from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_dockerfile import AddDockerfilePlugin
 from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
 from atomic_reactor.util import ImageName
-from tests.constants import MOCK_SOURCE
+from tests.constants import MOCK_SOURCE, MOCK
 from tests.fixtures import docker_tasker
+if MOCK:
+    from tests.docker_mock import mock_docker
 
 
 class Y(object):
@@ -132,6 +134,9 @@ CMD blabla"""
     df = DockerfileParser(str(tmpdir))
     df.content = df_content
 
+    if MOCK:
+        mock_docker()
+
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     flexmock(workflow, base_image_inspect={"Config": {"Labels": {}}})
     workflow.builder = X
@@ -145,7 +150,8 @@ CMD blabla"""
             'name': AddLabelsPlugin.key,
             'args': {'labels': {'Name': 'jboss-eap-6-docker',
                                 'Version': '6.4',
-                                'Release': '77'}}
+                                'Release': '77'},
+                     'auto_labels': []}
          },
          {
             'name': AddDockerfilePlugin.key

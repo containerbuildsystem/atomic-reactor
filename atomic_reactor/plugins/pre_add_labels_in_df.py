@@ -44,12 +44,14 @@ from __future__ import unicode_literals
 from dockerfile_parse import DockerfileParser
 from atomic_reactor.plugin import PreBuildPlugin
 import json
+import datetime
 
 
 class AddLabelsPlugin(PreBuildPlugin):
     key = "add_labels_in_dockerfile"
 
-    def __init__(self, tasker, workflow, labels, dont_overwrite=("Architecture", )):
+    def __init__(self, tasker, workflow, labels, dont_overwrite=("Architecture", ),
+                 auto_labels=("build-date", "architecture", "vcs-type", "vcs-ref")):
         """
         constructor
 
@@ -57,6 +59,7 @@ class AddLabelsPlugin(PreBuildPlugin):
         :param workflow: DockerBuildWorkflow instance
         :param labels: dict, key value pairs to set as labels; or str, JSON-encoded dict
         :param dont_overwrite: iterable, list of label keys which should not be overwritten
+        :param auto_labels: iterable, list of labels to be determined automatically, if supported
         """
         # call parent constructor
         super(AddLabelsPlugin, self).__init__(tasker, workflow)
@@ -66,6 +69,41 @@ class AddLabelsPlugin(PreBuildPlugin):
             raise RuntimeError("labels have to be dict")
         self.labels = labels
         self.dont_overwrite = dont_overwrite
+
+        self.generate_auto_labels(auto_labels)
+
+    def generate_auto_labels(self, auto_labels):
+        generated = {}
+
+        # build date
+        rfc3339_ts = datetime.datetime.utcnow().isoformat()
+        rfc3339_ts += 'Z'
+        generated['build-date'] = rfc3339_ts
+
+        # architecture - assuming host and image architecture is the same
+        # TODO: this code is also in plugins/exit_koji_promote.py, factor it out
+        docker_version = self.tasker.get_version()
+        host_arch = docker_version['Arch']
+        if host_arch == 'amd64':
+            host_arch = 'x86_64'
+        generated['architecture'] = host_arch
+
+        # VCS info
+        vcs = self.workflow.source.get_vcs_info()
+        if vcs:
+            generated['vcs-type'] = vcs.vcs_type
+            generated['vcs-url'] = vcs.vcs_url
+            generated['vcs-ref'] = vcs.vcs_ref
+
+        for lbl in auto_labels:
+            if lbl in self.labels:
+                self.log.info("label %s is set explicitly, not using generated value", lbl)
+                continue
+
+            if lbl in generated:
+                self.labels[lbl] = generated[lbl]
+            else:
+                self.log.warning("requested automatic label %s is not available", lbl)
 
     def run(self):
         """
