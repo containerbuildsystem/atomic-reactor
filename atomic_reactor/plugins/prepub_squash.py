@@ -83,8 +83,8 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         self.dont_load = dont_load
 
     def run(self):
-        metadata = {}
-        metadata["path"] = os.path.join(self.workflow.source.workdir, EXPORTED_SQUASHED_IMAGE_NAME)
+        metadata = {"path":
+                    os.path.join(self.workflow.source.workdir, EXPORTED_SQUASHED_IMAGE_NAME)}
 
         if self.dont_load:
             # squash the image, don't load it back to docker
