@@ -96,7 +96,9 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
             if 'namespace' in metadata:
                 kwargs['namespace'] = metadata['namespace']
 
+            # FIXME: remove `openshift_uri` once osbs-client is released
             osbs_conf = Configuration(conf_file=None, openshift_uri=self.url,
+                                      openshift_url=self.url,
                                       use_auth=self.use_auth,
                                       verify_ssl=self.verify_ssl)
             osbs = OSBS(osbs_conf, osbs_conf)
