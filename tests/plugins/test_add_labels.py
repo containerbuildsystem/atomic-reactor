@@ -47,8 +47,12 @@ RUN yum install -y python-django
 CMD blabla"""
 DF_CONTENT_SINGLE_LINE = """\
 FROM fedora"""
+DF_CONTENT_LABEL = '''\
+FROM fedora
+LABEL "label2"="df value"'''
 LABELS_CONF_BASE = {"Config": {"Labels": {"label1": "base value"}}}
 LABELS_CONF = OrderedDict({'label1': 'value 1', 'label2': 'long value'})
+LABELS_CONF_ONE = {'label2': 'long value'}
 LABELS_CONF_WRONG = [('label1', 'value1'), ('label2', 'value2')]
 LABELS_BLANK = {}
 # Can't be sure of the order of the labels, expect either
@@ -71,17 +75,35 @@ EXPECTED_OUTPUT3 = [DF_CONTENT]
 EXPECTED_OUTPUT4 = [r"""FROM fedora
 LABEL "label2"="long value"
 """]
+EXPECTED_OUTPUT5 = [r"""FROM fedora
+LABEL "labelnew"="base value"
+"""]
+EXPECTED_OUTPUT6 = [r"""FROM fedora
+LABEL "labelnew"="long value" "label2"="long value"
+""", r"""FROM fedora
+LABEL "label2"="long value" "labelnew"="long value"
+"""]
+EXPECTED_OUTPUT7 = [r"""FROM fedora
+LABEL "label2"="df value"
+LABEL "labelnew"="df value"
+"""]
 
-@pytest.mark.parametrize('df_content, labels_conf_base, labels_conf, dont_overwrite, expected_output', [
-    (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF, [], EXPECTED_OUTPUT),
-    (DF_CONTENT, LABELS_CONF_BASE, json.dumps(LABELS_CONF), [], EXPECTED_OUTPUT),
-    (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF_WRONG, [], RuntimeError()),
-    (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF, ["label1", ], EXPECTED_OUTPUT2),
-    (DF_CONTENT, LABELS_CONF_BASE, LABELS_BLANK, ["label1", ], EXPECTED_OUTPUT3),
-    (DF_CONTENT_SINGLE_LINE, LABELS_CONF_BASE, LABELS_CONF, ["label1", ], EXPECTED_OUTPUT4),
+@pytest.mark.parametrize('df_content, labels_conf_base, labels_conf, dont_overwrite, aliases, expected_output', [
+    (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF, [], {}, EXPECTED_OUTPUT),
+    (DF_CONTENT, LABELS_CONF_BASE, json.dumps(LABELS_CONF), [], {}, EXPECTED_OUTPUT),
+    (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF_WRONG, [], {}, RuntimeError()),
+    (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF, ["label1", ], {}, EXPECTED_OUTPUT2),
+    (DF_CONTENT, LABELS_CONF_BASE, LABELS_BLANK, ["label1", ], {}, EXPECTED_OUTPUT3),
+    (DF_CONTENT_SINGLE_LINE, LABELS_CONF_BASE, LABELS_CONF, ["label1", ], {}, EXPECTED_OUTPUT4),
+    (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF, [], {"not": "present"}, EXPECTED_OUTPUT),
+    (DF_CONTENT_SINGLE_LINE, LABELS_CONF_BASE, LABELS_BLANK, [], {"label1": "labelnew"}, EXPECTED_OUTPUT5),
+    (DF_CONTENT_SINGLE_LINE, LABELS_CONF_BASE, LABELS_CONF_ONE, [], {"label2": "labelnew"}, EXPECTED_OUTPUT6),
+    (DF_CONTENT_LABEL, LABELS_CONF_BASE, LABELS_BLANK, [], {"label2": "labelnew"}, EXPECTED_OUTPUT7),
+    (DF_CONTENT_LABEL, LABELS_CONF_BASE, LABELS_BLANK, [], {"label2": "labelnew", "x": "y"}, EXPECTED_OUTPUT7),
+    (DF_CONTENT_LABEL, LABELS_CONF_BASE, LABELS_BLANK, [], {"label2": "label1"}, DF_CONTENT_LABEL),
 ])
 def test_add_labels_plugin(tmpdir, docker_tasker,
-                           df_content, labels_conf_base, labels_conf, dont_overwrite, expected_output):
+                           df_content, labels_conf_base, labels_conf, dont_overwrite, aliases, expected_output):
     df = DockerfileParser(str(tmpdir))
     df.content = df_content
 
@@ -98,7 +120,12 @@ def test_add_labels_plugin(tmpdir, docker_tasker,
         workflow,
         [{
             'name': AddLabelsPlugin.key,
-            'args': {'labels': labels_conf, "dont_overwrite": dont_overwrite, "auto_labels": []}
+            'args': {
+                'labels': labels_conf,
+                'dont_overwrite': dont_overwrite,
+                'auto_labels': [],
+                'aliases': aliases,
+            }
         }]
     )
 
