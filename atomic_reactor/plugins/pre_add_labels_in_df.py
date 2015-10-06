@@ -97,13 +97,13 @@ class AddLabelsPlugin(PreBuildPlugin):
 
         for lbl in auto_labels:
             if lbl in self.labels:
-                self.log.info("label %s is set explicitly, not using generated value", lbl)
+                self.log.info("label %r is set explicitly, not using generated value", lbl)
                 continue
 
             if lbl in generated:
                 self.labels[lbl] = generated[lbl]
             else:
-                self.log.warning("requested automatic label %s is not available", lbl)
+                self.log.warning("requested automatic label %r is not available", lbl)
 
     def run(self):
         """
@@ -149,7 +149,7 @@ class AddLabelsPlugin(PreBuildPlugin):
                         continue
 
             label = '"%s"="%s"' % (escape(key), escape(value))
-            self.log.info("setting label %s", label)
+            self.log.info("setting label %r", label)
             labels.append(label)
 
         content = ""
