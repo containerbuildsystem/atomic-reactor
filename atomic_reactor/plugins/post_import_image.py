@@ -29,7 +29,7 @@ class ImportImagePlugin(PostBuildPlugin):
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, imagestream, docker_image_repo,
-                 url, verify_ssl=True, use_auth=True):
+                 url, build_json_dir, verify_ssl=True, use_auth=True):
         """
         constructor
 
@@ -38,6 +38,7 @@ class ImportImagePlugin(PostBuildPlugin):
         :param imagestream: str, name of ImageStream
         :param docker_image_repo: str, image repository to import tags from
         :param url: str, URL to OSv3 instance
+        :param build_json_dir: str, path to directory with input json
         :param verify_ssl: bool, verify SSL certificate?
         :param use_auth: bool, initiate authentication with openshift?
         """
@@ -48,6 +49,7 @@ class ImportImagePlugin(PostBuildPlugin):
         self.url = url
         self.verify_ssl = verify_ssl
         self.use_auth = use_auth
+        self.build_json_dir = build_json_dir
 
     def run(self):
         try:
@@ -64,7 +66,8 @@ class ImportImagePlugin(PostBuildPlugin):
 
         osbs_conf = Configuration(openshift_uri=self.url,
                                   use_auth=self.use_auth,
-                                  verify_ssl=self.verify_ssl)
+                                  verify_ssl=self.verify_ssl,
+                                  build_json_dir=self.build_json_dir)
         osbs = OSBS(osbs_conf, osbs_conf)
 
         try:
