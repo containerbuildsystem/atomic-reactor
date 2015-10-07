@@ -471,7 +471,11 @@ def get_version_of_tools():
             if version is None:
                 logger.warning("tool %s doesn't have __version__", pkg_name)
             else:
-                response.append({"name": tool.get("display_name", pkg_name), "version": version})
+                response.append({
+                    "name": tool.get("display_name", pkg_name),
+                    "version": version,
+                    "path": tool_module.__file__,
+                })
     return response
 
 
@@ -481,4 +485,4 @@ def print_version_of_tools():
     """
     logger.info("Using these tools:")
     for tool in get_version_of_tools():
-        logger.info("%s-%s", tool["name"], tool["version"])
+        logger.info("%s-%s at %s", tool["name"], tool["version"], tool["path"])
