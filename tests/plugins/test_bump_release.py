@@ -43,7 +43,7 @@ class DFWithRelease(object):
     def __init__(self, label=None, lines=None):
         self.path = tempfile.mkdtemp()
         if label is None and lines is None:
-            label = "LABEL Release 1"
+            label = "LABEL release 1"
 
         if lines is None:
             lines = ['FROM baseimage\n',
@@ -193,36 +193,36 @@ def test_bump_release_branch_not_found(tmpdir):
                     reason="pygit2 required for this test")
 @pytest.mark.parametrize(('label', 'expected'), [
     # Simple case, no '=' or quotes
-    ('LABEL Release 1',
-     'LABEL Release 2'),
+    ('LABEL release 1',
+     'LABEL release 2'),
 
     # No '=' but quotes
-    ('LABEL "Release" "2"',
-     'LABEL Release 3'),
+    ('LABEL "release" "2"',
+     'LABEL release 3'),
 
     # Deal with another label
-    ('LABEL Release 3\nLABEL Name foo',
-     'LABEL Release 4'),
+    ('LABEL release 3\nLABEL Name foo',
+     'LABEL release 4'),
 
     # Simple case, '=' but no quotes
-    ('LABEL Release=1',
-     'LABEL Release=2'),
+    ('LABEL release=1',
+     'LABEL release=2'),
 
     # '=' and quotes
-    ('LABEL "Release"="2"',
-     'LABEL Release=3'),
+    ('LABEL "release"="2"',
+     'LABEL release=3'),
 
     # '=', multiple labels, no quotes
-    ('LABEL Name=foo Release=3',
-     'LABEL Name=foo Release=4'),
+    ('LABEL Name=foo release=3',
+     'LABEL Name=foo release=4'),
 
     # '=', multiple labels and quotes
-    ('LABEL Name=foo "Release"="4"',
-     'LABEL Name=foo Release=5'),
+    ('LABEL Name=foo "release"="4"',
+     'LABEL Name=foo release=5'),
 
-    # Release that's not entirely numeric
-    ('LABEL Release=1.1',
-     'LABEL Release=2.1'),
+    # release that's not entirely numeric
+    ('LABEL release=1.1',
+     'LABEL release=2.1'),
 ])
 def test_bump_release_direct(tmpdir, label, expected):
     with DFWithRelease(label=label) as (df_path, commit):
@@ -271,7 +271,7 @@ def test_bump_release_direct(tmpdir, label, expected):
 def test_bump_release_indirect_correct(tmpdir, labelval):
     dflines = ['FROM fedora\n',
                'ENV RELEASE=1\n',
-               'LABEL Release={0}\n'.format(labelval)]
+               'LABEL release={0}\n'.format(labelval)]
     with DFWithRelease(lines=dflines) as (df_path, commit):
         dummy_workflow, dummy_args, runner = prepare(tmpdir, df_path, commit)
         labels_before = DockerfileParser(df_path, env_replace=False).labels
@@ -315,7 +315,7 @@ def test_bump_release_indirect_correct(tmpdir, labelval):
 def test_bump_release_indirect_incorrect(tmpdir, labelval):
     dflines = ['FROM fedora\n',
                'ENV RELEASE=1\n',
-               'LABEL Release={0}\n'.format(labelval)]
+               'LABEL release={0}\n'.format(labelval)]
     with DFWithRelease(lines=dflines) as (df_path, commit):
         dummy_workflow, dummy_args, runner = prepare(tmpdir, df_path, commit)
 
