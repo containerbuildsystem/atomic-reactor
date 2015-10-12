@@ -569,7 +569,8 @@ def test_workflow_plugin_error(fail_at):
     # Failures in any phase except 'exit' cause the build process to
     # abort.
     if fail_at == 'exit':
-        workflow.build_docker_image()
+        build_result = workflow.build_docker_image()
+        assert build_result and not build_result.is_failed()
     else:
         with pytest.raises(PluginFailedException):
             workflow.build_docker_image()
