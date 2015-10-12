@@ -452,11 +452,20 @@ class DockerTasker(LastLogger):
         logger.debug("image: '%s', insecure: '%s'", image, insecure)
         try:
             # push returns string composed of newline separated jsons; exactly what 'docker push' outputs
-            logs = self.d.push(image.to_str(tag=False), tag=image.tag, insecure_registry=insecure, stream=False)
+            logs = self.d.push(image.to_str(tag=False), tag=image.tag, insecure_registry=insecure, stream=True)
         except TypeError:
             # because changing api is fun
-            logs = self.d.push(image.to_str(tag=False), tag=image.tag, stream=False)
-        return logs
+            logs = self.d.push(image.to_str(tag=False), tag=image.tag, stream=True)
+
+        parsed_logs = []
+        for line in logs:
+            try:
+                j = json.loads(line.decode('utf-8'))
+            except (ValueError, UnicodeDecodeError):
+                logger.error("cannot parse push logs line: %r", line)
+            else:
+                parsed_logs.append(j)
+        return parsed_logs
 
     def tag_and_push_image(self, image, target_image, insecure=False, force=False):
         """
