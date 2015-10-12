@@ -11,6 +11,7 @@ Python API for atomic_reactor. This is the official way of interacting with atom
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.outer import PrivilegedBuildManager, DockerhostBuildManager
 from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
+from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
 
 
 __all__ = (
@@ -22,11 +23,20 @@ __all__ = (
 def _prepare_build_json(image, source, parent_registry, target_registries,
                         parent_registry_insecure, target_registries_insecure,
                         dont_pull_base_image, **kwargs):
+
+    target_registries = target_registries or []
+    registries = dict([(registry, {"insecure": target_registries_insecure})
+                       for registry in target_registries])
+
     build_json = {
         "image": image,
         "source": source,
-        "target_registries": target_registries,
-        "target_registries_insecure": target_registries_insecure,
+        "postbuild_plugins": [{
+            "name": TagAndPushPlugin.key,
+            "args": {
+                "registries": registries
+            }
+        }]
     }
 
     if not dont_pull_base_image:

@@ -129,35 +129,6 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         build_result = BuildResult(command_result, self.image_id)
         return build_result
 
-    def push_built_image(self, registry, insecure=False):
-        """
-        push built image to provided registry
-
-        :param registry: str
-        :param insecure: bool, allow connecting to registry over plain http
-        :return: str, image
-        """
-        logger.info("pushing built image '%s' to registry '%s'", self.image, registry)
-        self._ensure_is_built()
-        if not registry:
-            logger.warning("no registry specified; skipping")
-            return
-
-        if self.image.registry and self.image.registry != registry:
-            logger.error("registry in image name doesn't match provided target registry, "
-                         "image registry = '%s', target = '%s'",
-                         self.image.registry, registry)
-            raise RuntimeError(
-                "Registry in image name doesn't match target registry. Image: '%s', Target: '%s'"
-                % (self.image.registry, registry))
-
-        target_image = self.image.copy()
-        target_image.registry = registry
-
-        response = self.tasker.tag_and_push_image(self.image, target_image, insecure=insecure)
-        self.tasker.remove_image(target_image)
-        return response
-
     def inspect_base_image(self):
         """
         inspect base image

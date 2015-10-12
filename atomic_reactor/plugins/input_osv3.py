@@ -13,6 +13,7 @@ import os
 
 from atomic_reactor.plugin import InputPlugin
 from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
+from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
 
 
 class OSv3InputPlugin(InputPlugin):
@@ -36,7 +37,7 @@ class OSv3InputPlugin(InputPlugin):
         git_url = os.environ['SOURCE_URI']
         git_ref = os.environ.get('SOURCE_REF', None)
         image = os.environ['OUTPUT_IMAGE']
-        target_registry = os.environ.get('OUTPUT_REGISTRY', None)
+        self.target_registry = os.environ.get('OUTPUT_REGISTRY', None)
         self.plugins_json = os.environ.get('DOCK_PLUGINS', '{}')
         self.plugins_json = json.loads(self.plugins_json)
 
@@ -49,8 +50,6 @@ class OSv3InputPlugin(InputPlugin):
                 'provider_params': {'git_commit': git_ref}
             },
             'image': image,
-            'target_registries': [target_registry] if target_registry else None,
-            'target_registries_insecure': True,  # FIXME: create plugin for this
             'openshift_build_selflink': build_json.get('metadata', {}).get('selfLink', None)
         }
         input_json.update(self.plugins_json)
@@ -68,7 +67,8 @@ class OSv3InputPlugin(InputPlugin):
             return plugin
 
     def preprocess_plugins(self):
-        self.plugins_json.setdefault('prebuild_plugins', [])
+        for typ in ('prebuild', 'postbuild', 'prepublish', 'exit'):
+            self.plugins_json.setdefault('{0}_plugins'.format(typ), [])
 
         # XXX: Remove the two if blocks after we stop using super old osbs:(
         pull_plugin = self.get_plugin('prebuild_plugins', PullBaseImagePlugin.key)
@@ -90,6 +90,18 @@ class OSv3InputPlugin(InputPlugin):
 
         if 'parent_registry' not in pull_plugin.get('args', {}):
             self.log.error("source registry is not configured")
+
+        push_plugin = self.get_plugin('postbuild_plugins', TagAndPushPlugin.key)
+        if not push_plugin and self.target_registry:
+            self.log.warning("%s is missing in postbuild_plugins - please update your osbs-client!",
+                             TagAndPushPlugin.key)
+            push_plugin = { "name": TagAndPushPlugin.key }
+            self.plugins_json['postbuild_plugins'].insert(0, push_plugin)
+
+        if push_plugin and self.target_registry:
+            push_plugin.setdefault('args', {}).setdefault('registries', {})
+            if not push_plugin['args']['registries']:
+                push_plugin['args']['registries'][self.target_registry] = {"insecure": True}
 
     @classmethod
     def is_autousable(cls):

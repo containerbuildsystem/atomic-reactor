@@ -13,7 +13,6 @@ If you want to take advantage of _inner_ part logic of Atomic Reactor, you can d
         }
     },
     "image": "my-test-image",
-    "target_registries": ["registry.example2.com:5000"],
     "openshift_build_selflink": "/oapi/v1/namespaces/default/builds/build-20150826112654-1",
     "prebuild_plugins": [
         {
@@ -32,6 +31,18 @@ If you want to take advantage of _inner_ part logic of Atomic Reactor, you can d
             "name": "inject_yum_repo",
             "args": {}
         }
+    ],
+    "postbuild_plugins": [
+        {
+            "name": "tag_and_push",
+            "args": {
+                "registries": {
+                    "registry.example2.com:5000": {
+                        "insecure": true
+                    }
+                }
+            }
+        }
     ]
 }
 ```
@@ -49,7 +60,7 @@ If you want to take advantage of _inner_ part logic of Atomic Reactor, you can d
  * prepublish_plugins - list of dicts, optional
   * these plugins are executed after the prebuild plugins but before the image is pushed to the registry
  * postbuild_plugins - list of dicts, optional
-  * these plugins are executed after the image is pushed to the registry
+  * these plugins are executed after/during the image is pushed to the registry (done by the `tag_and_push` plugin). The `tag_and_push` has a `registries` argument which is a dictionary that maps target registries to registry-specific options.
  * exit_plugins - list of dicts, optional
   * these plugins are executed last of all and will always be run, even for a failed build
 

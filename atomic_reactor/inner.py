@@ -224,19 +224,16 @@ class DockerBuildWorkflow(object):
     6. push it to registries
     """
 
-    def __init__(self, source, image, target_registries=None, prebuild_plugins=None,
-                 prepublish_plugins=None, postbuild_plugins=None, exit_plugins=None,
-                 plugin_files=None, target_registries_insecure=False,
+    def __init__(self, source, image, prebuild_plugins=None, prepublish_plugins=None,
+                 postbuild_plugins=None, exit_plugins=None, plugin_files=None,
                  openshift_build_selflink=None, **kwargs):
         """
         :param source: dict, where/how to get source code to put in image
         :param image: str, tag for built image ([registry/]image_name[:tag])
-        :param target_registries: list of str, list of registries to push image to (might change in future)
         :param prebuild_plugins: dict, arguments for pre-build plugins
         :param prepublish_plugins: dict, arguments for test-build plugins
         :param postbuild_plugins: dict, arguments for post-build plugins
         :param plugin_files: list of str, load plugins also from these files
-        :param target_registries_insecure: bool, allow connecting to target registries over plain http
         :param openshift_build_selflink: str, link to openshift build (if we're actually running
             on openshift) without the actual hostname/IP address
         """
@@ -273,8 +270,6 @@ class DockerBuildWorkflow(object):
 
         self.tag_conf = TagConf()
         self.push_conf = PushConf()
-        if target_registries:
-            self.push_conf.add_docker_registries(target_registries, insecure=target_registries_insecure)
 
         # mapping of downloaded files; DON'T PUT ANYTHING BIG HERE!
         # "path/to/file" -> "content"
@@ -341,11 +336,6 @@ class DockerBuildWorkflow(object):
             except PluginFailedException as ex:
                 logger.error("one or more prepublish plugins failed: %s", ex)
                 raise
-
-            if not build_result.is_failed():
-                for registry in self.push_conf.docker_registries:
-                    self.builder.push_built_image(registry.uri,
-                                                  insecure=registry.insecure)
 
             postbuild_runner = PostBuildPluginsRunner(self.builder.tasker, self, self.postbuild_plugins_conf,
                                                       plugin_files=self.plugin_files)

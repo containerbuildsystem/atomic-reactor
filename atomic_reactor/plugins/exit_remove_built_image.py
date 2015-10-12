@@ -10,6 +10,7 @@ Remove built image (this only makes sense if you store the image in some registr
 """
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import ImageName
+from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
 
 from docker.errors import APIError
 
@@ -43,6 +44,14 @@ class GarbageCollectionPlugin(ExitPlugin):
             # FIXME: when ID of pulled img matches an ID of an image already present, don't remove
             for base_image_tag in self.workflow.pulled_base_images:
                 self.remove_image(ImageName.parse(base_image_tag), force=False)
+
+        if TagAndPushPlugin.key in self.workflow.postbuild_results:
+            for registry in self.workflow.push_conf.docker_registries:
+                for image in self.workflow.tag_conf.images:
+                    registry_image = image.copy()
+                    registry_image.registry = registry.uri
+
+                    self.remove_image(registry_image, force=True)
 
     def remove_image(self, image, force=False):
         try:
