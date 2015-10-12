@@ -37,37 +37,10 @@ class OSv3InputPlugin(InputPlugin):
         git_ref = os.environ.get('SOURCE_REF', None)
         image = os.environ['OUTPUT_IMAGE']
         target_registry = os.environ.get('OUTPUT_REGISTRY', None)
-        plugins_json = os.environ.get('DOCK_PLUGINS', '{}')
-        plugins_json = json.loads(plugins_json)
+        self.plugins_json = os.environ.get('DOCK_PLUGINS', '{}')
+        self.plugins_json = json.loads(self.plugins_json)
 
-        plugins_json.setdefault('prebuild_plugins', [])
-
-        # XXX: Remove the two try-except blocks after Sep 2015
-        try:
-            pull_plugin = [p for p in plugins_json['prebuild_plugins']
-                           if p.get('name', None) == PullBaseImagePlugin.key][0]
-        except IndexError:
-            self.log.warning("%s is missing in prebuild_plugins - please update your osbs-client!",
-                             PullBaseImagePlugin.key)
-            pull_plugin = { "name": PullBaseImagePlugin.key }
-            plugins_json['prebuild_plugins'].insert(0, pull_plugin)
-
-        try:
-            change_plugin = [p for p in plugins_json['prebuild_plugins']
-                             if p.get('name', None) == 'change_source_registry'][0]
-        except IndexError:
-            pass
-        else:
-            if 'registry_uri' in change_plugin.get('args', {}):
-                pull_plugin.setdefault('args', {})['parent_registry'] = \
-                    change_plugin['args']['registry_uri']
-            if 'insecure_registry' in change_plugin.get('args', {}):
-                pull_plugin.setdefault('args', {})['parent_registry_insecure'] = \
-                    change_plugin['args']['insecure_registry']
-            plugins_json['prebuild_plugins'].remove(change_plugin)
-
-        if 'parent_registry' not in pull_plugin.get('args', {}):
-            self.log.error("source registry is not configured")
+        self.preprocess_plugins()
 
         input_json = {
             'source': {
@@ -80,11 +53,43 @@ class OSv3InputPlugin(InputPlugin):
             'target_registries_insecure': True,  # FIXME: create plugin for this
             'openshift_build_selflink': build_json.get('metadata', {}).get('selfLink', None)
         }
-        input_json.update(plugins_json)
+        input_json.update(self.plugins_json)
 
         self.log.debug("build json: %s", input_json)
 
         return input_json
+
+    def get_plugin(self, section, name):
+        try:
+            plugin = [p for p in self.plugins_json[section] if p.get('name') == name][0]
+        except IndexError:
+            return None
+        else:
+            return plugin
+
+    def preprocess_plugins(self):
+        self.plugins_json.setdefault('prebuild_plugins', [])
+
+        # XXX: Remove the two if blocks after we stop using super old osbs:(
+        pull_plugin = self.get_plugin('prebuild_plugins', PullBaseImagePlugin.key)
+        if not pull_plugin:
+            self.log.warning("%s is missing in prebuild_plugins - please update your osbs-client!",
+                             PullBaseImagePlugin.key)
+            pull_plugin = { "name": PullBaseImagePlugin.key }
+            self.plugins_json['prebuild_plugins'].insert(0, pull_plugin)
+
+        change_plugin = self.get_plugin('prebuild_plugins', 'change_source_registry')
+        if change_plugin:
+            if 'registry_uri' in change_plugin.get('args', {}):
+                pull_plugin.setdefault('args', {})['parent_registry'] = \
+                    change_plugin['args']['registry_uri']
+            if 'insecure_registry' in change_plugin.get('args', {}):
+                pull_plugin.setdefault('args', {})['parent_registry_insecure'] = \
+                    change_plugin['args']['insecure_registry']
+            self.plugins_json['prebuild_plugins'].remove(change_plugin)
+
+        if 'parent_registry' not in pull_plugin.get('args', {}):
+            self.log.error("source registry is not configured")
 
     @classmethod
     def is_autousable(cls):
