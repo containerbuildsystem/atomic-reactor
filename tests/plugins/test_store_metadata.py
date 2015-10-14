@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function, unicode_literals
 
 import os
+import json
 from copy import deepcopy
 
 from flexmock import flexmock
@@ -21,8 +22,11 @@ from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOS
 from atomic_reactor.plugins.pre_cp_dockerfile import CpDockerfilePlugin
 from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
 from atomic_reactor.util import ImageName, LazyGit
-from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE
+from tests.constants import LOCALHOST_REGISTRY, DOCKER0_REGISTRY, TEST_IMAGE, INPUT_IMAGE
 from tests.util import is_string_type
+
+DIGEST1 = "sha256:1da9b9e1c6bf6ab40f1627d76e2ad58e9b2be14351ef4ff1ed3eb4a156138189"
+DIGEST2 = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 
 
 class Y(object):
@@ -59,6 +63,10 @@ def prepare():
     workflow.push_conf.add_pulp_registry("test", LOCALHOST_REGISTRY)
     workflow.tag_conf.add_primary_image(TEST_IMAGE)
     workflow.tag_conf.add_unique_image("namespace/image:asd123")
+
+    r = workflow.push_conf.add_docker_registry(DOCKER0_REGISTRY)
+    r.digests[TEST_IMAGE] = DIGEST1
+    r.digests["namespace/image:asd123"] = DIGEST2
 
     setattr(workflow, 'builder', X)
     setattr(workflow, '_base_image_inspect', {'Id': '01234567'})
@@ -113,6 +121,21 @@ def test_metadata_plugin(tmpdir):
     assert "image-id" in labels
     assert is_string_type(labels['image-id'])
 
+    assert "digests" in labels
+    assert is_string_type(labels['digests'])
+    digests = json.loads(labels['digests'])
+    expected = [{
+        "registry": DOCKER0_REGISTRY,
+        "repository": TEST_IMAGE,
+        "tag": 'latest',
+        "digest": DIGEST1,
+    },{
+        "registry": DOCKER0_REGISTRY,
+        "repository": "namespace/image",
+        "tag": 'asd123',
+        "digest": DIGEST2,
+    }]
+    assert digests == expected or digests == reversed(expected)
 
 def test_metadata_plugin_rpmqa_failure(tmpdir):
     workflow = prepare()

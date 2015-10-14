@@ -49,6 +49,43 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
     def get_post_result(self, key):
         return self.get_result(self.workflow.postbuild_results.get(key, ''))
 
+    def get_repositories(self):
+        # usually repositories formed from NVR labels
+        # these should be used for pulling and layering
+        primary_repositories = []
+        for registry in self.workflow.push_conf.all_registries:
+            for image in self.workflow.tag_conf.primary_images:
+                registry_image = image.copy()
+                registry_image.registry = registry.uri
+                primary_repositories.append(registry_image.to_str())
+
+        # unique unpredictable repositories
+        unique_repositories = []
+        for registry in self.workflow.push_conf.all_registries:
+            for image in self.workflow.tag_conf.unique_images:
+                registry_image = image.copy()
+                registry_image.registry = registry.uri
+                unique_repositories.append(registry_image.to_str())
+
+        return {
+            "primary": primary_repositories,
+            "unique": unique_repositories,
+        }
+
+    def get_digests(self):
+        # v2 registry digests
+        digests = []
+        for registry in self.workflow.push_conf.docker_registries:
+            for image in self.workflow.tag_conf.images:
+                if image.to_str() in registry.digests:
+                    digests.append({
+                        "registry": registry.uri,
+                        "repository": image.to_str(registry=False, tag=False),
+                        "tag": image.tag or 'latest',
+                        "digest": registry.digests[image.to_str()]
+                    })
+        return digests
+
     def run(self):
         try:
             build_json = json.loads(os.environ["BUILD"])
@@ -75,28 +112,6 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
                                   use_auth=self.use_auth, verify_ssl=self.verify_ssl)
         osbs = OSBS(osbs_conf, osbs_conf)
 
-        # usually repositories formed from NVR labels
-        # these should be used for pulling and layering
-        primary_repositories = []
-        for registry in self.workflow.push_conf.all_registries:
-            for image in self.workflow.tag_conf.primary_images:
-                registry_image = image.copy()
-                registry_image.registry = registry.uri
-                primary_repositories.append(registry_image.to_str())
-
-        # unique unpredictable repositories
-        unique_repositories = []
-        for registry in self.workflow.push_conf.all_registries:
-            for image in self.workflow.tag_conf.unique_images:
-                registry_image = image.copy()
-                registry_image.registry = registry.uri
-                unique_repositories.append(registry_image.to_str())
-
-        repositories = {
-            "primary": primary_repositories,
-            "unique": unique_repositories,
-        }
-
         try:
             commit_id = self.workflow.source.lg.commit_id
         except AttributeError:
@@ -107,11 +122,12 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             "artefacts": self.get_pre_result(DistgitFetchArtefactsPlugin.key),
             "logs": "\n".join(self.workflow.build_logs),
             "rpm-packages": "\n".join(self.get_post_result(PostBuildRPMqaPlugin.key)),
-            "repositories": json.dumps(repositories),
+            "repositories": json.dumps(self.get_repositories()),
             "commit_id": commit_id,
             "base-image-id": self.workflow.base_image_inspect['Id'],
             "base-image-name": self.workflow.builder.base_image.to_str(),
             "image-id": self.workflow.builder.image_id,
+            "digests": json.dumps(self.get_digests()),
         }
 
         tar_path = tar_size = tar_md5sum = tar_sha256sum = None
