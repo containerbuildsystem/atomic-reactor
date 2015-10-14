@@ -206,7 +206,13 @@ class BuildContainerFactory(object):
 
 
 class DockerTasker(LastLogger):
-    def __init__(self, base_url=None, **kwargs):
+    def __init__(self, base_url=None, timeout=120, **kwargs):
+        """
+        Constructor
+
+        :param base_url: str, docker connection URL
+        :param timeout: int, timeout for docker client
+        """
         super(DockerTasker, self).__init__(**kwargs)
 
         client_kwargs = {}
@@ -218,7 +224,7 @@ class DockerTasker(LastLogger):
         if hasattr(docker, 'AutoVersionClient'):
             client_kwargs['version'] = 'auto'
 
-        self.d = docker.Client(**client_kwargs)
+        self.d = docker.Client(timeout=timeout, **client_kwargs)
 
     def build_image_from_path(self, path, image, stream=False, use_cache=False, remove_im=True):
         """
