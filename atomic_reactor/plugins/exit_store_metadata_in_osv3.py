@@ -70,7 +70,8 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         # initial setup will use host based auth: apache will be set to accept everything
         # from specific IP and will set specific X-Remote-User for such requests
-        osbs_conf = Configuration(conf_file=None, openshift_uri=self.url,
+        # FIXME: remove `openshift_uri` once osbs-client is released
+        osbs_conf = Configuration(conf_file=None, openshift_uri=self.url, openshift_url=self.url,
                                   use_auth=self.use_auth, verify_ssl=self.verify_ssl)
         osbs = OSBS(osbs_conf, osbs_conf)
 
