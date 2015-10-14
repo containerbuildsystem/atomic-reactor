@@ -7,6 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from copy import deepcopy
+import re
 
 from atomic_reactor.plugin import PostBuildPlugin
 
@@ -45,7 +46,8 @@ class TagAndPushPlugin(PostBuildPlugin):
 
         for registry, registry_conf in self.registries.items():
             insecure = registry_conf.get('insecure', False)
-            self.workflow.push_conf.add_docker_registry(registry, insecure=insecure)
+            push_conf_registry = \
+                self.workflow.push_conf.add_docker_registry(registry, insecure=insecure)
 
             for image in self.workflow.tag_conf.images:
                 if image.registry:
@@ -53,9 +55,27 @@ class TagAndPushPlugin(PostBuildPlugin):
 
                 registry_image = image.copy()
                 registry_image.registry = registry
-                self.tasker.tag_and_push_image(self.workflow.builder.image_id, registry_image,
-                                               insecure=insecure, force=True)
+                logs = self.tasker.tag_and_push_image(self.workflow.builder.image_id,
+                                                      registry_image, insecure=insecure,
+                                                      force=True)
 
                 pushed_images.append(registry_image.to_str())
 
+                digest = self.extract_digest(logs)
+                if digest:
+                    tag = registry_image.to_str(registry=False)
+                    push_conf_registry.digests[tag] = digest
+
         return pushed_images
+
+    @staticmethod
+    def extract_digest(logs):
+        for j in reversed(logs):
+            if "status" not in j:
+                continue
+
+            m = re.match(r'^Digest: ([a-z0-9]+:[a-f0-9]+)$', j['status'])
+            if m:
+                return m.group(1)
+
+        return None

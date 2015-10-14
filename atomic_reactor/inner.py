@@ -165,7 +165,14 @@ class PulpRegistry(Registry):
 
 
 class DockerRegistry(Registry):
-    """ v1 docker registry """
+    """ v1/v2 docker registry """
+    def __init__(self, uri, insecure=False):
+        """
+        :param uri: str, uri for pushing/pulling
+        :param insecure: bool
+        """
+        super(DockerRegistry, self).__init__(uri, insecure=insecure)
+        self.digests = {}  # maps tags (str) to their digest, if available
 
 
 class PushConf(object):
@@ -184,6 +191,7 @@ class PushConf(object):
             raise RuntimeError("registry URI cannot be None")
         r = DockerRegistry(registry_uri, insecure=insecure)
         self._registries["docker"].append(r)
+        return r
 
     def add_docker_registries(self, registry_uris, insecure=False):
         for registry_uri in registry_uris:
@@ -194,6 +202,7 @@ class PushConf(object):
             raise RuntimeError("registry URI cannot be None")
         r = PulpRegistry(name, crane_uri)
         self._registries["pulp"].append(r)
+        return r
 
     @property
     def has_some_docker_registry(self):
