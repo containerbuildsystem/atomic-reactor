@@ -316,3 +316,19 @@ def test_get_version():
     t = DockerTasker()
     response = t.get_info()
     assert isinstance(response, dict)
+
+
+@pytest.mark.parametrize(('timeout', 'expected_timeout'), [
+    (None, 120),
+    (60, 60),
+])
+def test_timeout(timeout, expected_timeout):
+    (flexmock(docker.Client)
+        .should_receive('__init__')
+        .with_args(version=str, timeout=expected_timeout))
+
+    kwargs = {}
+    if timeout is not None:
+        kwargs['timeout'] = timeout
+
+    t = DockerTasker(**kwargs)
