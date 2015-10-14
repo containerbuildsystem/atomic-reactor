@@ -60,6 +60,7 @@ def prepare():
             'imagestream': TEST_IMAGESTREAM,
             'docker_image_repo': TEST_REPO,
             'url': '',
+            'build_json_dir': "",
             'verify_ssl': False,
             'use_auth': False
         }}])
