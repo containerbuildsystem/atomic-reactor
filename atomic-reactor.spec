@@ -21,7 +21,7 @@
 
 Name:           %{project}
 Version:        1.6.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -64,6 +64,7 @@ Requires:       python-docker-py
 Requires:       python-requests
 Requires:       python-setuptools
 Requires:       python-dockerfile-parse >= 0.0.5
+Requires:       python-docker-scripts >= 0.4.4
 Requires:       python-backports-lzma
 # Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
 Requires:       nfs-utils
@@ -122,6 +123,7 @@ Requires:       python3-docker-py
 Requires:       python3-requests
 Requires:       python3-setuptools
 Requires:       python3-dockerfile-parse >= 0.0.5
+Requires:       python3-docker-scripts >= 0.4.4
 # Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
 Requires:       nfs-utils
 Provides:       python3-dock = %{version}-%{release}
@@ -299,6 +301,9 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 
 
 %changelog
+* Mon Oct 19 2015 Slavek Kabrda <bkabrda@redhat.com> - 1.6.0-2
+- add requirements on python{,3}-docker-scripts
+
 * Mon Oct 19 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.6.0-1
 - 1.6.0 release
 

@@ -64,7 +64,8 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         :param from_layer: layer from we will squash - if specified, takes precedence over from_base
         :param tag: str, new name of the image - by default use the former one
         :param remove_former_image: bool, remove unsquashed image?
-        :param dont_load: bool, don't load squashed image into Docker, place it to `$tmpdir/image.tar` instead
+        :param dont_load: if `False` (default), squashed image is loaded into Docker *and* saved
+            to `$tmpdir/image.tar`; if `True`, squashed image is only saved as a file
         """
         super(PrePublishSquashPlugin, self).__init__(tasker, workflow)
         self.image = self.workflow.builder.image_id
@@ -82,19 +83,21 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         self.dont_load = dont_load
 
     def run(self):
+        metadata = {"path":
+                    os.path.join(self.workflow.source.workdir, EXPORTED_SQUASHED_IMAGE_NAME)}
+
         if self.dont_load:
-            metadata = {}
-            self.workflow.exported_image_sequence.append(metadata)
-            metadata["path"] = \
-                os.path.join(self.workflow.source.workdir, EXPORTED_SQUASHED_IMAGE_NAME)
             # squash the image, don't load it back to docker
             Squash(log=self.log, image=self.image, from_layer=self.from_layer,
                    tag=self.tag, output_path=metadata["path"]).run()
-            metadata.update(get_exported_image_metadata(metadata["path"]))
         else:
-            # squash the image and load it back to engine
+            # squash the image and output both tarfile and Docker engine image
             new_id = Squash(log=self.log, image=self.image, from_layer=self.from_layer,
-                            tag=self.tag).run()
+                            tag=self.tag, output_path=metadata["path"], load_image=True).run()
             self.workflow.builder.image_id = new_id
+
+        metadata.update(get_exported_image_metadata(metadata["path"]))
+        self.workflow.exported_image_sequence.append(metadata)
+
         if self.remove_former_image:
             self.tasker.remove_image(self.image)
