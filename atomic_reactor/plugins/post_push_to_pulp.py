@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import print_function, unicode_literals
 from dockpulp import setup_logger
+from atomic_reactor import set_logging
 
 """
 Push built image to pulp registry
@@ -75,6 +76,8 @@ class PulpUploader(object):
         # U/N & password has bigger prio than secret cert
         self.username = username
         self.password = password
+
+        set_logging("dockpulp")
 
     def _check_file(self):
         # Sanity-check image
