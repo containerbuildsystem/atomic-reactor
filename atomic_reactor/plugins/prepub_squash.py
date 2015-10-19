@@ -93,8 +93,7 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         else:
             # squash the image and output both tarfile and Docker engine image
             new_id = Squash(log=self.log, image=self.image, from_layer=self.from_layer,
-                            tag=self.tag, output_path=metadata["path"], load_output_back=True
-                            ).run()
+                            tag=self.tag, output_path=metadata["path"], load_image=True).run()
             self.workflow.builder.image_id = new_id
 
         metadata.update(get_exported_image_metadata(metadata["path"]))
