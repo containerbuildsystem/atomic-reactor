@@ -13,6 +13,8 @@ from copy import deepcopy
 import os
 import re
 import subprocess
+from shutil import rmtree
+from tempfile import mkdtemp
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.source import GitSource
@@ -31,6 +33,19 @@ class GitRepo(object):
         self.workdir = workdir
         self.log = log
         self.cmd = cmd
+        self.tmpdir = mkdtemp()
+        self.git_wrapper = os.path.join(self.tmpdir, 'git-wrapper.sh')
+        with open(self.git_wrapper, mode='wt') as gitfp:
+            gitfp.write('#!/bin/sh\n'
+                        'exec /usr/bin/ssh -o StrictHostKeyChecking=no "$@"\n')
+
+        os.chmod(self.git_wrapper, 0o755)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc, value, tb):
+        rmtree(self.tmpdir)
 
     def git(self, args):
         """
@@ -42,7 +57,7 @@ class GitRepo(object):
 
         argv = [self.cmd] + args
         env = deepcopy(os.environ)
-        env['GIT_SSH_COMMAND'] = '/usr/bin/ssh -o StrictHostKeyChecking=no'
+        env['GIT_SSH'] = self.git_wrapper
         self.log.debug("executing command: %r", argv)
         try:
             with open('/dev/null', 'r+') as devnull:
@@ -274,33 +289,32 @@ class BumpReleasePlugin(PreBuildPlugin):
         # Ensure we can use the git repository already checked out for us
         source = self.workflow.source
         assert isinstance(source, GitSource)
-        repo = GitRepo(source.get(), self.log)
+        with GitRepo(source.get(), self.log) as repo:
+            # Note: when this plugin is configured by osbs-client,
+            # source.git_commit (the Build's source git ref) comes from
+            # --git-branch not --git-commit. The value from --git-commit
+            # went into our self.git_ref.
+            branch = source.git_commit
+            try:
+                branch_sha = repo.git(['rev-parse', branch])
+            except subprocess.CalledProcessError:
+                self.log.error("Branch '%s' not found in git repo",
+                               source.git_commit)
+                raise RuntimeError("Branch '%s' not found" % branch)
 
-        # Note: when this plugin is configured by osbs-client,
-        # source.git_commit (the Build's source git ref) comes from
-        # --git-branch not --git-commit. The value from --git-commit
-        # went into our self.git_ref.
-        branch = source.git_commit
-        try:
-            branch_sha = repo.git(['rev-parse', branch])
-        except subprocess.CalledProcessError:
-            self.log.error("Branch '%s' not found in git repo",
-                           source.git_commit)
-            raise RuntimeError("Branch '%s' not found" % branch)
+            # We checked out the right branch
+            assert repo.git(['rev-parse', 'HEAD']) == branch_sha
 
-        # We checked out the right branch
-        assert repo.git(['rev-parse', 'HEAD']) == branch_sha
+            # We haven't reset it to an earlier commit
+            remote = repo.git(['config', '--get',
+                               'branch.{branch}.remote'.format(branch=branch)])
+            upstream = '{remote}/{branch}'.format(remote=remote, branch=branch)
+            upstream_sha = repo.git(['rev-parse', upstream])
+            assert branch_sha == upstream_sha
 
-        # We haven't reset it to an earlier commit
-        remote = repo.git(['config', '--get',
-                           'branch.{branch}.remote'.format(branch=branch)])
-        upstream = '{remote}/{branch}'.format(remote=remote, branch=branch)
-        upstream_sha = repo.git(['rev-parse', upstream])
-        assert branch_sha == upstream_sha
-
-        if is_rebuild(self.workflow):
-            self.log.info("Incrementing release label")
-            self.bump(repo, remote)
-        else:
-            self.log.info("Verifying branch is at specified commit")
-            self.verify_branch(branch, branch_sha)
+            if is_rebuild(self.workflow):
+                self.log.info("Incrementing release label")
+                self.bump(repo, remote)
+            else:
+                self.log.info("Verifying branch is at specified commit")
+                self.verify_branch(branch, branch_sha)
