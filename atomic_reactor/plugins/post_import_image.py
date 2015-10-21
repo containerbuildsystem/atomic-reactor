@@ -16,7 +16,6 @@ from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException
 
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.util import ImageName
 
 
 class ImportImagePlugin(PostBuildPlugin):

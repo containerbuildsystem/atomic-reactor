@@ -82,7 +82,7 @@ class ImageTestPlugin(PrePublishPlugin):
         with g:
             tests_file = os.path.abspath(os.path.join(g.git_path, self.tests_git_path))
             self.log.debug("loading file with tests: '%s'", tests_file)
-            module_name, module_ext = os.path.splitext(self.tests_git_path)
+            module_name, dummy_module_ext = os.path.splitext(self.tests_git_path)
             tests_module = imp.load_source(module_name, tests_file)
 
             results, passed = tests_module.run(image_id=self.image_id, tests=self.tests,

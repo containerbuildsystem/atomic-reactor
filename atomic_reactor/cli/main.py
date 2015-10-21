@@ -15,7 +15,7 @@ import pkg_resources
 
 from atomic_reactor import set_logging
 from atomic_reactor.api import build_image_here, build_image_in_privileged_container, build_image_using_hosts_docker
-from atomic_reactor.constants import CONTAINER_BUILD_JSON_PATH, CONTAINER_RESULTS_JSON_PATH, DESCRIPTION, PROG
+from atomic_reactor.constants import CONTAINER_BUILD_JSON_PATH, DESCRIPTION, PROG
 from atomic_reactor.buildimage import BuildImageBuilder
 from atomic_reactor.inner import build_inside, BuildResults
 from atomic_reactor.util import process_substitutions
@@ -86,7 +86,7 @@ def construct_kwargs(**kwargs):
 
 
 def cli_inside_build(args):
-    build_inside(input=args.input, input_args=args.input_arg, substitutions=args.substitute)
+    build_inside(input_method=args.input, input_args=args.input_arg, substitutions=args.substitute)
 
 
 class CLI(object):

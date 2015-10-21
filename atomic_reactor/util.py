@@ -13,7 +13,6 @@ import json
 import os
 from pipes import quote
 import re
-import shlex
 import shutil
 import subprocess
 import tempfile
@@ -396,8 +395,9 @@ def _process_plugin_substitution(mapping, key_parts, value):
     try:
         plugin_type, plugin_name, arg_name = key_parts
     except ValueError:
-        logger.error("invalid absolute path '{0}': it requires exactly three parts: "
-                     "plugin type, plugin name, argument name (dot separated)".format(key_parts))
+        logger.error("invalid absolute path '%s': it requires exactly three parts: "
+                     "plugin type, plugin name, argument name (dot separated)",
+                     key_parts)
         raise ValueError("invalid absolute path to plugin, it should be "
                          "plugin_type.plugin_name.argument_name")
 
