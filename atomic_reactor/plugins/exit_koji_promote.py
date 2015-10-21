@@ -249,7 +249,12 @@ class KojiPromotePlugin(ExitPlugin):
                 'type': 'docker',
                 'arch': os.uname()[4],
             },
-            'tools': get_version_of_tools() + [
+            'tools': [
+                {
+                    'name': tool['name'],
+                    'version': tool['version'],
+                }
+                for tool in get_version_of_tools()] + [
                 {
                     'name': 'docker',
                     'version': docker_version['Version'],

@@ -364,6 +364,13 @@ def test_koji_promote_success(tmpdir):
     runner.run()
 
     data = session.metadata
+    assert set(data.keys()) == set([
+        'metadata_version',
+        'build',
+        'buildroots',
+        'output',
+    ])
+
     assert data['metadata_version'] in ['0', 0]
 
     build = data['build']
@@ -376,87 +383,113 @@ def test_koji_promote_success(tmpdir):
     output_files = data['output']
     assert isinstance(output_files, list)
 
-    assert 'name' in build
+    assert set(build.keys()) == set([
+        'name',
+        'version',
+        'release',
+        'source',
+        'start_time',
+        'end_time',
+        'extra',
+    ])
+
     assert build['name'] == name
-    assert 'version' in build
     assert build['version'] == version
-    assert 'release' in build
     assert build['release'] == release
-    assert 'source' in build
     assert build['source'] == 'git://hostname/path#123456'
-    assert 'start_time' in build
     assert int(build['start_time']) > 0
-    assert 'end_time' in build
     assert int(build['end_time']) > 0
-    assert 'extra' in build
     extra = build['extra']
     assert isinstance(extra, dict)
 
     for buildroot in buildroots:
         assert isinstance(buildroot, dict)
 
-        assert 'id' in buildroot
+        assert set(buildroot.keys()) == set([
+            'id',
+            'host',
+            'content_generator',
+            'container',
+            'tools',
+            'components',
+            'extra',
+        ])
+
         # Unique within buildroots in this metadata
         assert len([b for b in buildroots if b['id'] == buildroot['id']]) == 1
 
-        assert 'host' in buildroot
         host = buildroot['host']
         assert isinstance(host, dict)
-        assert 'os' in host
+        assert set(host.keys()) == set([
+            'os',
+            'arch',
+        ])
+
         assert host['os']
         assert is_string_type(host['os'])
-        assert 'arch' in host
         assert host['arch']
         assert is_string_type(host['arch'])
         assert host['arch'] != 'amd64'
 
-        assert 'content_generator' in buildroot
         content_generator = buildroot['content_generator']
         assert isinstance(content_generator, dict)
-        assert 'name' in content_generator
+        assert set(content_generator.keys()) == set([
+            'name',
+            'version',
+        ])
+
         assert content_generator['name']
         assert is_string_type(content_generator['name'])
-        assert 'version' in content_generator
         assert content_generator['version']
         assert is_string_type(content_generator['version'])
 
-        assert 'container' in buildroot
         container = buildroot['container']
         assert isinstance(container, dict)
-        assert 'type' in container
+        assert set(container.keys()) == set([
+            'type',
+            'arch',
+        ])
+
         assert container['type'] == 'docker'
-        assert 'arch' in container
         assert container['arch']
         assert is_string_type(container['arch'])
 
-        assert 'tools' in buildroot
         assert isinstance(buildroot['tools'], list)
         assert len(buildroot['tools']) > 0
         for tool in buildroot['tools']:
             assert isinstance(tool, dict)
-            assert 'name' in tool
+            assert set(tool.keys()) == set([
+                'name',
+                'version',
+            ])
+
             assert tool['name']
             assert is_string_type(tool['name'])
-            assert 'version' in tool
             assert tool['version']
             assert is_string_type(tool['version'])
 
-        assert 'components' in buildroot
         check_components(buildroot['components'])
 
-        assert 'extra' in buildroot
         extra = buildroot['extra']
         assert isinstance(extra, dict)
+        assert set(extra.keys()) == set([
+            'osbs',
+        ])
+
         assert 'osbs' in extra
         osbs = extra['osbs']
         assert isinstance(osbs, dict)
-        assert 'build_id' in osbs
+        assert set(osbs.keys()) == set([
+            'build_id',
+            'builder_image_id',
+        ])
+
         assert is_string_type(osbs['build_id'])
-        assert 'builder_image_id' in osbs
         assert is_string_type(osbs['builder_image_id'])
 
     for output in output_files:
         assert isinstance(output, dict)
+        assert 'type' in output
         assert 'buildroot_id' in output
         buildroot_id = output['buildroot_id']
         # References one of the buildroots
@@ -478,34 +511,61 @@ def test_koji_promote_success(tmpdir):
         assert is_string_type(output['checksum_type'])
         assert 'type' in output
         if output['type'] == 'log':
+            assert set(output.keys()) == set([
+                'buildroot_id',
+                'filename',
+                'filesize',
+                'arch',
+                'checksum',
+                'checksum_type',
+                'type',
+            ])
             assert output['arch'] == 'noarch'
         else:
+            assert set(output.keys()) == set([
+                'buildroot_id',
+                'filename',
+                'filesize',
+                'arch',
+                'checksum',
+                'checksum_type',
+                'type',
+                'components',
+                'extra',
+            ])
             assert output['type'] == 'docker-image'
             assert is_string_type(output['arch'])
             assert output['arch'] != 'noarch'
-            assert 'components' in output
             check_components(output['components'])
 
-            assert 'extra' in output
             extra = output['extra']
             assert isinstance(extra, dict)
+            assert set(extra.keys()) == set([
+                'image',
+                'docker',
+            ])
 
-            assert 'image' in extra
             image = extra['image']
             assert isinstance(image, dict)
-            assert 'arch' in image
+            assert set(image.keys()) == set([
+                'arch',
+            ])
+
             assert image['arch'] == output['arch']  # what else?
 
             assert 'docker' in extra
             docker = extra['docker']
             assert isinstance(docker, dict)
-            assert 'parent_id' in docker
+            assert set(docker.keys()) == set([
+                'parent_id',
+                'tag',
+                'id',
+                'destination_repo',
+            ])
+
             assert is_string_type(docker['parent_id'])
-            assert 'tag' in docker
             assert is_string_type(docker['tag'])
-            assert 'id' in docker
             assert is_string_type(docker['id'])
-            assert 'destination_repo' in docker
             assert is_string_type(docker['destination_repo'])
 
     files = session.uploaded_files
