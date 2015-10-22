@@ -263,7 +263,12 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %{python3_sitelib}/atomic_reactor/cli
 %{python3_sitelib}/atomic_reactor/plugins
 %{python3_sitelib}/atomic_reactor/__pycache__/*.py*
-%exclude %{python3_sitelib}/atomic_reactor/plugins/pre_koji.py*
+%exclude %{python3_sitelib}/atomic_reactor/plugins/pre_koji.py
+%exclude %{python3_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py
+%exclude %{python3_sitelib}/atomic_reactor/plugins/post_import_image.py
+%exclude %{python3_sitelib}/atomic_reactor/plugins/pre_bump_release.py
+%exclude %{python3_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py
+%exclude %{python3_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_store_metadata_in_osv3*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/post_import_image*.py*
@@ -282,17 +287,19 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 
 
 %files -n python3-atomic-reactor-koji
-%{python3_sitelib}/atomic_reactor/plugins/pre_koji.py*
+%{python3_sitelib}/atomic_reactor/plugins/pre_koji.py
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji*.py*
 
 
 %files -n python3-atomic-reactor-metadata
-%{python3_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
+%{python3_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_store_metadata_in_osv3*.py*
 
 %files -n python3-atomic-reactor-rebuilds
-%{python3_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
-%{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_store_metadata_in_osv3*.py*
+%{python3_sitelib}/atomic_reactor/plugins/post_import_image.py
+%{python3_sitelib}/atomic_reactor/plugins/pre_bump_release.py
+%{python3_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py
+%{python3_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/post_import_image*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_bump_release*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_check_and_set_rebuild*.py*
