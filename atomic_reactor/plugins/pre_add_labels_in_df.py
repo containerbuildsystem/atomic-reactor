@@ -51,7 +51,8 @@ class AddLabelsPlugin(PreBuildPlugin):
     key = "add_labels_in_dockerfile"
 
     def __init__(self, tasker, workflow, labels, dont_overwrite=("Architecture", ),
-                 auto_labels=("build-date", "architecture", "vcs-type", "vcs-ref")):
+                 auto_labels=("build-date", "architecture", "vcs-type", "vcs-ref"),
+                 aliases=None):
         """
         constructor
 
@@ -60,6 +61,9 @@ class AddLabelsPlugin(PreBuildPlugin):
         :param labels: dict, key value pairs to set as labels; or str, JSON-encoded dict
         :param dont_overwrite: iterable, list of label keys which should not be overwritten
         :param auto_labels: iterable, list of labels to be determined automatically, if supported
+        :param aliases: dict, maps old label names to new label names - for each old name found in
+                        base image, dockerfile, or labels argument, a label with the new name is
+                        added (with the same value)
         """
         # call parent constructor
         super(AddLabelsPlugin, self).__init__(tasker, workflow)
@@ -69,6 +73,7 @@ class AddLabelsPlugin(PreBuildPlugin):
             raise RuntimeError("labels have to be dict")
         self.labels = labels
         self.dont_overwrite = dont_overwrite
+        self.aliases = aliases or {}
 
         self.generate_auto_labels(auto_labels)
 
@@ -97,20 +102,52 @@ class AddLabelsPlugin(PreBuildPlugin):
 
         for lbl in auto_labels:
             if lbl in self.labels:
-                self.log.info("label %s is set explicitly, not using generated value", lbl)
+                self.log.info("label %r is set explicitly, not using generated value", lbl)
                 continue
 
             if lbl in generated:
                 self.labels[lbl] = generated[lbl]
             else:
-                self.log.warning("requested automatic label %s is not available", lbl)
+                self.log.warning("requested automatic label %r is not available", lbl)
+
+    def add_aliases(self, base_labels, df_labels, new_labels):
+        all_labels = base_labels.copy()
+        # changing dockerfile.labels writes out modified Dockerfile - err on
+        # the safe side and make a copy
+        all_labels.update(df_labels.copy())
+        all_labels.update(new_labels)
+        applied_alias = False
+        not_applied = []
+
+        for old, new in self.aliases.items():
+            if old in all_labels:
+                if new in all_labels:
+                    if all_labels[old] != all_labels[new]:
+                        self.log.warning("labels %r=%r and %r=%r should probably have same value",
+                                         old, all_labels[old], new, all_labels[new])
+                    self.log.debug("alias label %r for %r already exists, skipping", new, old)
+                    continue
+
+                self.log.warning("adding label %r as an alias for label %r", new, old)
+                self.labels[new] = all_labels[old]
+                applied_alias = True
+            else:
+                not_applied.append(old)
+
+        # warn if we applied only some aliases
+        if applied_alias and not_applied:
+            self.log.debug("applied only some aliases, following old labels were not found: %s",
+                           ", ".join(not_applied))
 
     def run(self):
         """
         run the plugin
         """
+        base_image_labels = self.workflow.base_image_inspect["Config"]["Labels"]
         dockerfile = DockerfileParser(self.workflow.builder.df_path)
         lines = dockerfile.lines
+
+        self.add_aliases(base_image_labels, dockerfile.labels, self.labels)
 
         # correct syntax is:
         #   LABEL "key"="value" "key2"="value2"
@@ -132,7 +169,7 @@ class AddLabelsPlugin(PreBuildPlugin):
         labels = []
         for key, value in self.labels.items():
             try:
-                base_image_value = self.workflow.base_image_inspect["Config"]["Labels"][key]
+                base_image_value = base_image_labels[key]
             except KeyError:
                 self.log.info("label %r not present in base image", key)
             except (AttributeError, TypeError):
@@ -149,7 +186,7 @@ class AddLabelsPlugin(PreBuildPlugin):
                         continue
 
             label = '"%s"="%s"' % (escape(key), escape(value))
-            self.log.info("setting label %s", label)
+            self.log.info("setting label %r", label)
             labels.append(label)
 
         content = ""
