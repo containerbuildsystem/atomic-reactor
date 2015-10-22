@@ -187,8 +187,8 @@ class SendMailPlugin(ExitPlugin):
             raise RuntimeError(e)
 
         if r.status_code != 200:
-            self.log.error('PDC returned status code %s, full response: %s' %
-                           (r.status_code, r.text))
+            self.log.error('PDC returned status code %s, full response: %s',
+                           r.status_code, r.text)
             raise RuntimeError('PDC returned non-200 status code (%s), see referenced build log' %
                                r.status_code)
         # TODO: open an RFE for PDC to allow querying by dist_git_branch, now we have to filter
@@ -199,8 +199,8 @@ class SendMailPlugin(ExitPlugin):
                 found.append(result)
 
         if len(found) != 1:
-            self.log.error('expected 1 PDC component, found %s: %s' %
-                           (len(found), found))
+            self.log.error('expected 1 PDC component, found %s: %s',
+                           len(found), found)
             raise RuntimeError('Expected to find exactly 1 PDC component, found %s, '
                                'see referenced build log' % len(found))
 

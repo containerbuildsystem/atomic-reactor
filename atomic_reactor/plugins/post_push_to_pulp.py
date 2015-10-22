@@ -4,13 +4,7 @@ All rights reserved.
 
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
-"""
 
-from __future__ import print_function, unicode_literals
-from dockpulp import setup_logger
-from atomic_reactor import set_logging
-
-"""
 Push built image to pulp registry
 
 Several authentication schemes are possible, including
@@ -43,6 +37,10 @@ pulp_secret_path:
   "pulp_secret_path": "/var/run/secrets/pulp"
 }
 """
+
+from __future__ import print_function, unicode_literals
+from dockpulp import setup_logger
+from atomic_reactor import set_logging
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.util import ImageName
@@ -167,7 +165,7 @@ class PulpUploader(object):
 
         # Return the set of qualified repo names for this image
         return [ImageName(registry=pulp_registry, repo=repodata["registry-id"], tag=tag)
-                for repo, repodata in repos_tags_mapping.items()
+                for dummy_repo, repodata in repos_tags_mapping.items()
                 for tag in repodata['tags']]
 
 
