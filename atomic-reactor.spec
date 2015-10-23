@@ -35,9 +35,9 @@ BuildRequires:  python2-devel
 BuildRequires:  python-setuptools
 
 %if 0%{?with_python3}
-Requires:       python3-atomic-reactor
+Requires:       python3-atomic-reactor = %{version}-%{release}
 %else
-Requires:       python-atomic-reactor
+Requires:       python-atomic-reactor = %{version}-%{release}
 %endif
 Requires:       git >= 1.7.10
 
