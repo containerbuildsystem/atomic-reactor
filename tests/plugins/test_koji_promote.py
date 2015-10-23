@@ -115,6 +115,37 @@ def fake_Popen(cmd, *args, **kwargs):
     return MockedPopen(cmd, *args, **kwargs)
 
 
+
+
+def is_string_type(obj):
+    return any(isinstance(obj, strtype)
+               for strtype in string_types)
+
+
+def check_components(components):
+    assert isinstance(components, list)
+    assert len(components) > 0
+    for component_rpm in components:
+        assert isinstance(component_rpm, dict)
+        assert 'type' in component_rpm
+        assert component_rpm['type'] == 'rpm'
+        assert 'name' in component_rpm
+        assert component_rpm['name']
+        assert is_string_type(component_rpm['name'])
+        assert component_rpm['name'] != 'gpg-pubkey'
+        assert 'version' in component_rpm
+        assert component_rpm['version']
+        assert is_string_type(component_rpm['version'])
+        assert 'release' in component_rpm
+        assert component_rpm['release']
+        assert 'epoch' in component_rpm
+        assert 'arch' in component_rpm
+        assert is_string_type(component_rpm['arch'])
+        assert 'sigmd5' in component_rpm
+        assert 'signature' in component_rpm
+        assert component_rpm['signature'] != '(none)'
+
+
 def prepare(tmpdir, session=None, name=None, version=None, release=None,
             source=None, build_process_failed=False, is_rebuild=True,
             ssl_certs=False):
@@ -214,362 +245,310 @@ def prepare(tmpdir, session=None, name=None, version=None, release=None,
 
 @pytest.mark.skipif(PULP_PUSH_KEY is None,
                     reason="plugin requires push_pulp")
-def test_koji_promote_failed_build(tmpdir):
-    session = MockedClientSession('')
-    runner = prepare(tmpdir, build_process_failed=True,
-                     name='name', version='1.0', release='1')
-    runner.run()
-
-    # Must not have promoted this build
-    assert not hasattr(session, 'metadata')
-
-
-@pytest.mark.skipif(PULP_PUSH_KEY is None,
-                    reason="plugin requires push_pulp")
-def test_koji_promote_not_rebuild(tmpdir):
-    session = MockedClientSession('')
-    runner = prepare(tmpdir, session, is_rebuild=False, name='name',
-                     version='1.0', release='1')
-    runner.run()
-
-    # Must not have promoted this build
-    assert not hasattr(session, 'metadata')
-
-
-@pytest.mark.skipif(PULP_PUSH_KEY is None,
-                    reason="plugin requires push_pulp")
-def test_koji_promote_no_tagconf(tmpdir):
-    runner = prepare(tmpdir)
-    with pytest.raises(PluginFailedException):
+class TestKojiPromote(object):
+    def test_koji_promote_failed_build(self, tmpdir):
+        session = MockedClientSession('')
+        runner = prepare(tmpdir, build_process_failed=True,
+                         name='name', version='1.0', release='1')
         runner.run()
 
+        # Must not have promoted this build
+        assert not hasattr(session, 'metadata')
 
-@pytest.mark.skipif(PULP_PUSH_KEY is None,
-                    reason="plugin requires push_pulp")
-def test_koji_promote_no_build_env(tmpdir):
-    runner = prepare(tmpdir, name='name', version='1.0', release='1')
-
-    # No BUILD environment variable
-    if "BUILD" in os.environ:
-        del os.environ["BUILD"]
-    with pytest.raises(PluginFailedException):
+    def test_koji_promote_not_rebuild(self, tmpdir):
+        session = MockedClientSession('')
+        runner = prepare(tmpdir, session, is_rebuild=False, name='name',
+                         version='1.0', release='1')
         runner.run()
 
+        # Must not have promoted this build
+        assert not hasattr(session, 'metadata')
 
-@pytest.mark.skipif(PULP_PUSH_KEY is None,
-                    reason="plugin requires push_pulp")
-def test_koji_promote_no_build_metadata(tmpdir, ):
-    runner = prepare(tmpdir, name='name', version='1.0', release='1')
+    def test_koji_promote_no_tagconf(self, tmpdir):
+        runner = prepare(tmpdir)
+        with pytest.raises(PluginFailedException):
+            runner.run()
 
-    # No BUILD metadata
-    os.environ["BUILD"] = json.dumps({})
-    with pytest.raises(PluginFailedException):
+    def test_koji_promote_no_build_env(self, tmpdir):
+        runner = prepare(tmpdir, name='name', version='1.0', release='1')
+
+        # No BUILD environment variable
+        if "BUILD" in os.environ:
+            del os.environ["BUILD"]
+        with pytest.raises(PluginFailedException):
+            runner.run()
+
+    def test_koji_promote_no_build_metadata(self, tmpdir):
+        runner = prepare(tmpdir, name='name', version='1.0', release='1')
+
+        # No BUILD metadata
+        os.environ["BUILD"] = json.dumps({})
+        with pytest.raises(PluginFailedException):
+            runner.run()
+
+    def test_koji_promote_invalid_creation_timestamp(self, tmpdir):
+        runner = prepare(tmpdir, name='name', version='1.0', release='1')
+
+        # Invalid timestamp format
+        os.environ["BUILD"] = json.dumps({
+            "metadata": {
+                "creationTimestamp": "2015-07-27 09:24 UTC"
+            }
+        })
+        with pytest.raises(PluginFailedException):
+            runner.run()
+
+    def test_koji_promote_wrong_source_type(self, tmpdir):
+        runner = prepare(tmpdir, name='name', version='1.0', release='1',
+                         source=PathSource('path', 'file:///dev/null'))
+        with pytest.raises(PluginFailedException):
+            runner.run()
+
+    def test_koji_promote_krb_fail(self, tmpdir):
+        session = MockedClientSession('')
+        (flexmock(session)
+            .should_receive('krb_login')
+            .and_raise(RuntimeError)
+            .once())
+        name = 'name'
+        version = '1.0'
+        release = '1'
+        runner = prepare(tmpdir, session, name=name, version=version,
+                         release=release)
+        with pytest.raises(PluginFailedException):
+            runner.run()
+
+    def test_koji_promote_ssl_fail(self, tmpdir):
+        session = MockedClientSession('')
+        (flexmock(session)
+            .should_receive('ssl_login')
+            .and_raise(RuntimeError)
+            .once())
+        name = 'name'
+        version = '1.0'
+        release = '1'
+        runner = prepare(tmpdir, session, name=name, version=version,
+                         release=release, ssl_certs=True)
+        with pytest.raises(PluginFailedException):
+            runner.run()
+
+    def test_koji_promote_success(self, tmpdir):
+        session = MockedClientSession('')
+        name = 'name'
+        version = '1.0'
+        release = '1'
+        runner = prepare(tmpdir, session, name=name, version=version,
+                         release=release)
         runner.run()
 
+        data = session.metadata
+        assert set(data.keys()) == set([
+            'metadata_version',
+            'build',
+            'buildroots',
+            'output',
+        ])
 
-@pytest.mark.skipif(PULP_PUSH_KEY is None,
-                    reason="plugin requires push_pulp")
-def test_koji_promote_invalid_creation_timestamp(tmpdir):
-    runner = prepare(tmpdir, name='name', version='1.0', release='1')
+        assert data['metadata_version'] in ['0', 0]
 
-    # Invalid timestamp format
-    os.environ["BUILD"] = json.dumps({
-        "metadata": {
-            "creationTimestamp": "2015-07-27 09:24 UTC"
-        }
-    })
-    with pytest.raises(PluginFailedException):
-        runner.run()
+        build = data['build']
+        assert isinstance(build, dict)
 
+        buildroots = data['buildroots']
+        assert isinstance(buildroots, list)
+        assert len(buildroots) > 0
 
-@pytest.mark.skipif(PULP_PUSH_KEY is None,
-                    reason="plugin requires push_pulp")
-def test_koji_promote_wrong_source_type(tmpdir):
-    runner = prepare(tmpdir, name='name', version='1.0', release='1',
-                     source=PathSource('path', 'file:///dev/null'))
-    with pytest.raises(PluginFailedException):
-        runner.run()
+        output_files = data['output']
+        assert isinstance(output_files, list)
 
-
-def is_string_type(obj):
-    return any(isinstance(obj, strtype)
-               for strtype in string_types)
-
-
-def check_components(components):
-    assert isinstance(components, list)
-    assert len(components) > 0
-    for component_rpm in components:
-        assert isinstance(component_rpm, dict)
-        assert 'type' in component_rpm
-        assert component_rpm['type'] == 'rpm'
-        assert 'name' in component_rpm
-        assert component_rpm['name']
-        assert is_string_type(component_rpm['name'])
-        assert component_rpm['name'] != 'gpg-pubkey'
-        assert 'version' in component_rpm
-        assert component_rpm['version']
-        assert is_string_type(component_rpm['version'])
-        assert 'release' in component_rpm
-        assert component_rpm['release']
-        assert 'epoch' in component_rpm
-        assert 'arch' in component_rpm
-        assert is_string_type(component_rpm['arch'])
-        assert 'sigmd5' in component_rpm
-        assert 'signature' in component_rpm
-        assert component_rpm['signature'] != '(none)'
-
-
-@pytest.mark.skipif(PULP_PUSH_KEY is None,
-                    reason="plugin requires push_pulp")
-def test_koji_promote_krb_fail(tmpdir):
-    session = MockedClientSession('')
-    (flexmock(session)
-        .should_receive('krb_login')
-        .and_raise(RuntimeError)
-        .once())
-    name = 'name'
-    version = '1.0'
-    release = '1'
-    runner = prepare(tmpdir, session, name=name, version=version,
-                     release=release)
-    with pytest.raises(PluginFailedException):
-        runner.run()
-
-@pytest.mark.skipif(PULP_PUSH_KEY is None,
-                    reason="plugin requires push_pulp")
-def test_koji_promote_ssl_fail(tmpdir):
-    session = MockedClientSession('')
-    (flexmock(session)
-        .should_receive('ssl_login')
-        .and_raise(RuntimeError)
-        .once())
-    name = 'name'
-    version = '1.0'
-    release = '1'
-    runner = prepare(tmpdir, session, name=name, version=version,
-                     release=release, ssl_certs=True)
-    with pytest.raises(PluginFailedException):
-        runner.run()
-
-@pytest.mark.skipif(PULP_PUSH_KEY is None,
-                    reason="plugin requires push_pulp")
-def test_koji_promote_success(tmpdir):
-    session = MockedClientSession('')
-    name = 'name'
-    version = '1.0'
-    release = '1'
-    runner = prepare(tmpdir, session, name=name, version=version,
-                     release=release)
-    runner.run()
-
-    data = session.metadata
-    assert set(data.keys()) == set([
-        'metadata_version',
-        'build',
-        'buildroots',
-        'output',
-    ])
-
-    assert data['metadata_version'] in ['0', 0]
-
-    build = data['build']
-    assert isinstance(build, dict)
-
-    buildroots = data['buildroots']
-    assert isinstance(buildroots, list)
-    assert len(buildroots) > 0
-
-    output_files = data['output']
-    assert isinstance(output_files, list)
-
-    assert set(build.keys()) == set([
-        'name',
-        'version',
-        'release',
-        'source',
-        'start_time',
-        'end_time',
-        'extra',
-    ])
-
-    assert build['name'] == name
-    assert build['version'] == version
-    assert build['release'] == release
-    assert build['source'] == 'git://hostname/path#123456'
-    assert int(build['start_time']) > 0
-    assert int(build['end_time']) > 0
-    extra = build['extra']
-    assert isinstance(extra, dict)
-
-    for buildroot in buildroots:
-        assert isinstance(buildroot, dict)
-
-        assert set(buildroot.keys()) == set([
-            'id',
-            'host',
-            'content_generator',
-            'container',
-            'tools',
-            'components',
+        assert set(build.keys()) == set([
+            'name',
+            'version',
+            'release',
+            'source',
+            'start_time',
+            'end_time',
             'extra',
         ])
 
-        # Unique within buildroots in this metadata
-        assert len([b for b in buildroots if b['id'] == buildroot['id']]) == 1
+        assert build['name'] == name
+        assert build['version'] == version
+        assert build['release'] == release
+        assert build['source'] == 'git://hostname/path#123456'
+        assert int(build['start_time']) > 0
+        assert int(build['end_time']) > 0
+        extra = build['extra']
+        assert isinstance(extra, dict)
 
-        host = buildroot['host']
-        assert isinstance(host, dict)
-        assert set(host.keys()) == set([
-            'os',
-            'arch',
-        ])
+        for buildroot in buildroots:
+            assert isinstance(buildroot, dict)
 
-        assert host['os']
-        assert is_string_type(host['os'])
-        assert host['arch']
-        assert is_string_type(host['arch'])
-        assert host['arch'] != 'amd64'
+            assert set(buildroot.keys()) == set([
+                'id',
+                'host',
+                'content_generator',
+                'container',
+                'tools',
+                'components',
+                'extra',
+            ])
 
-        content_generator = buildroot['content_generator']
-        assert isinstance(content_generator, dict)
-        assert set(content_generator.keys()) == set([
-            'name',
-            'version',
-        ])
+            # Unique within buildroots in this metadata
+            assert len([b for b in buildroots
+                        if b['id'] == buildroot['id']]) == 1
 
-        assert content_generator['name']
-        assert is_string_type(content_generator['name'])
-        assert content_generator['version']
-        assert is_string_type(content_generator['version'])
+            host = buildroot['host']
+            assert isinstance(host, dict)
+            assert set(host.keys()) == set([
+                'os',
+                'arch',
+            ])
 
-        container = buildroot['container']
-        assert isinstance(container, dict)
-        assert set(container.keys()) == set([
-            'type',
-            'arch',
-        ])
+            assert host['os']
+            assert is_string_type(host['os'])
+            assert host['arch']
+            assert is_string_type(host['arch'])
+            assert host['arch'] != 'amd64'
 
-        assert container['type'] == 'docker'
-        assert container['arch']
-        assert is_string_type(container['arch'])
-
-        assert isinstance(buildroot['tools'], list)
-        assert len(buildroot['tools']) > 0
-        for tool in buildroot['tools']:
-            assert isinstance(tool, dict)
-            assert set(tool.keys()) == set([
+            content_generator = buildroot['content_generator']
+            assert isinstance(content_generator, dict)
+            assert set(content_generator.keys()) == set([
                 'name',
                 'version',
             ])
 
-            assert tool['name']
-            assert is_string_type(tool['name'])
-            assert tool['version']
-            assert is_string_type(tool['version'])
+            assert content_generator['name']
+            assert is_string_type(content_generator['name'])
+            assert content_generator['version']
+            assert is_string_type(content_generator['version'])
 
-        check_components(buildroot['components'])
-
-        extra = buildroot['extra']
-        assert isinstance(extra, dict)
-        assert set(extra.keys()) == set([
-            'osbs',
-        ])
-
-        assert 'osbs' in extra
-        osbs = extra['osbs']
-        assert isinstance(osbs, dict)
-        assert set(osbs.keys()) == set([
-            'build_id',
-            'builder_image_id',
-        ])
-
-        assert is_string_type(osbs['build_id'])
-        assert is_string_type(osbs['builder_image_id'])
-
-    for output in output_files:
-        assert isinstance(output, dict)
-        assert 'type' in output
-        assert 'buildroot_id' in output
-        buildroot_id = output['buildroot_id']
-        # References one of the buildroots
-        assert len([buildroot for buildroot in buildroots
-                    if buildroot['id'] == buildroot_id]) == 1
-        assert 'filename' in output
-        assert output['filename']
-        assert is_string_type(output['filename'])
-        assert 'filesize' in output
-        assert int(output['filesize']) > 0
-        assert 'arch' in output
-        assert output['arch']
-        assert is_string_type(output['arch'])
-        assert 'checksum' in output
-        assert output['checksum']
-        assert is_string_type(output['checksum'])
-        assert 'checksum_type' in output
-        assert output['checksum_type'] == 'md5'
-        assert is_string_type(output['checksum_type'])
-        assert 'type' in output
-        if output['type'] == 'log':
-            assert set(output.keys()) == set([
-                'buildroot_id',
-                'filename',
-                'filesize',
-                'arch',
-                'checksum',
-                'checksum_type',
+            container = buildroot['container']
+            assert isinstance(container, dict)
+            assert set(container.keys()) == set([
                 'type',
-            ])
-            assert output['arch'] == 'noarch'
-        else:
-            assert set(output.keys()) == set([
-                'buildroot_id',
-                'filename',
-                'filesize',
                 'arch',
-                'checksum',
-                'checksum_type',
-                'type',
-                'components',
-                'extra',
             ])
-            assert output['type'] == 'docker-image'
-            assert is_string_type(output['arch'])
-            assert output['arch'] != 'noarch'
-            check_components(output['components'])
 
-            extra = output['extra']
+            assert container['type'] == 'docker'
+            assert container['arch']
+            assert is_string_type(container['arch'])
+
+            assert isinstance(buildroot['tools'], list)
+            assert len(buildroot['tools']) > 0
+            for tool in buildroot['tools']:
+                assert isinstance(tool, dict)
+                assert set(tool.keys()) == set([
+                    'name',
+                    'version',
+                ])
+
+                assert tool['name']
+                assert is_string_type(tool['name'])
+                assert tool['version']
+                assert is_string_type(tool['version'])
+
+            check_components(buildroot['components'])
+
+            extra = buildroot['extra']
             assert isinstance(extra, dict)
             assert set(extra.keys()) == set([
-                'image',
-                'docker',
+                'osbs',
             ])
 
-            image = extra['image']
-            assert isinstance(image, dict)
-            assert set(image.keys()) == set([
-                'arch',
+            assert 'osbs' in extra
+            osbs = extra['osbs']
+            assert isinstance(osbs, dict)
+            assert set(osbs.keys()) == set([
+                'build_id',
+                'builder_image_id',
             ])
 
-            assert image['arch'] == output['arch']  # what else?
+            assert is_string_type(osbs['build_id'])
+            assert is_string_type(osbs['builder_image_id'])
 
-            assert 'docker' in extra
-            docker = extra['docker']
-            assert isinstance(docker, dict)
-            assert set(docker.keys()) == set([
-                'parent_id',
-                'tag',
-                'id',
-                'destination_repo',
-            ])
+        for output in output_files:
+            assert isinstance(output, dict)
+            assert 'type' in output
+            assert 'buildroot_id' in output
+            buildroot_id = output['buildroot_id']
+            # References one of the buildroots
+            assert len([buildroot for buildroot in buildroots
+                        if buildroot['id'] == buildroot_id]) == 1
+            assert 'filename' in output
+            assert output['filename']
+            assert is_string_type(output['filename'])
+            assert 'filesize' in output
+            assert int(output['filesize']) > 0
+            assert 'arch' in output
+            assert output['arch']
+            assert is_string_type(output['arch'])
+            assert 'checksum' in output
+            assert output['checksum']
+            assert is_string_type(output['checksum'])
+            assert 'checksum_type' in output
+            assert output['checksum_type'] == 'md5'
+            assert is_string_type(output['checksum_type'])
+            assert 'type' in output
+            if output['type'] == 'log':
+                assert set(output.keys()) == set([
+                    'buildroot_id',
+                    'filename',
+                    'filesize',
+                    'arch',
+                    'checksum',
+                    'checksum_type',
+                    'type',
+                ])
+                assert output['arch'] == 'noarch'
+            else:
+                assert set(output.keys()) == set([
+                    'buildroot_id',
+                    'filename',
+                    'filesize',
+                    'arch',
+                    'checksum',
+                    'checksum_type',
+                    'type',
+                    'components',
+                    'extra',
+                ])
+                assert output['type'] == 'docker-image'
+                assert is_string_type(output['arch'])
+                assert output['arch'] != 'noarch'
+                check_components(output['components'])
 
-            assert is_string_type(docker['parent_id'])
-            assert is_string_type(docker['tag'])
-            assert is_string_type(docker['id'])
-            assert is_string_type(docker['destination_repo'])
+                extra = output['extra']
+                assert isinstance(extra, dict)
+                assert set(extra.keys()) == set([
+                    'image',
+                    'docker',
+                ])
 
-    files = session.uploaded_files
+                image = extra['image']
+                assert isinstance(image, dict)
+                assert set(image.keys()) == set([
+                    'arch',
+                ])
 
-    # There should be a file in the list for each output
-    assert isinstance(files, list)
-    assert len(files) == len(output_files)
+                assert image['arch'] == output['arch']  # what else?
+
+                assert 'docker' in extra
+                docker = extra['docker']
+                assert isinstance(docker, dict)
+                assert set(docker.keys()) == set([
+                    'parent_id',
+                    'tag',
+                    'id',
+                    'destination_repo',
+                ])
+
+                assert is_string_type(docker['parent_id'])
+                assert is_string_type(docker['tag'])
+                assert is_string_type(docker['id'])
+                assert is_string_type(docker['destination_repo'])
+
+        files = session.uploaded_files
+
+        # There should be a file in the list for each output
+        assert isinstance(files, list)
+        assert len(files) == len(output_files)
