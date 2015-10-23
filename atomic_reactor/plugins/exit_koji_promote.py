@@ -351,10 +351,10 @@ class KojiPromotePlugin(ExitPlugin):
         output_files = [add_log_type(add_buildroot_id(metadata))
                         for metadata in self.get_logs()]
 
-        image_path = self.workflow.exported_image_sequence[-1].get('path')
-        metadata = self.get_output_metadata(image_path,
-                                            os.path.basename(image_path))
         image_id = self.workflow.builder.image_id
+        v1_image = self.workflow.exported_image_sequence[-1].get('path')
+        v1_image_name = 'docker-v1-image-{0}'.format(image_id)
+        metadata = self.get_output_metadata(v1_image, v1_image_name)
         # Parent of squashed built image is base image
         parent_id = self.workflow.base_image_inspect['Id']
         pulp_result = None
@@ -386,7 +386,6 @@ class KojiPromotePlugin(ExitPlugin):
         })
 
         # Add the (v1) image to the output
-        v1_image = self.workflow.exported_image_sequence[-1]['path']
         image = add_buildroot_id(Output(file=open(v1_image),
                                         metadata=metadata))
         output_files.append(image)
