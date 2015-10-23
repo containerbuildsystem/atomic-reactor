@@ -178,9 +178,11 @@ class SendMailPlugin(ExitPlugin):
             raise PluginFailedException('Source is not of type "GitSource", panic!')
         git_branch = self.workflow.source.git_commit
         try:
-            r = requests.get(urljoin(self.pdc_url, 'rest_api/v1/release-components/'),
+            r = requests.get(urljoin(self.pdc_url, 'rest_api/v1/release-component-contacts/'),
                              headers={'Authorization': 'Token %s' % self._get_pdc_token()},
-                             params={'global_component': global_component},
+                             params={'global_component': global_component,
+                                     'dist_git_branch': git_branch,
+                                     'role': self.pdc_contact_role},
                              verify=self.pdc_verify_cert)
         except requests.RequestException as e:
             self.log.error('failed to connect to PDC: %s', str(e))
@@ -191,29 +193,16 @@ class SendMailPlugin(ExitPlugin):
                            r.status_code, r.text)
             raise RuntimeError('PDC returned non-200 status code (%s), see referenced build log' %
                                r.status_code)
-        # TODO: open an RFE for PDC to allow querying by dist_git_branch, now we have to filter
-        #  the correct result manually
-        found = []
-        for result in r.json()['results']:
-            if result['dist_git_branch'] == git_branch:
-                found.append(result)
 
-        if len(found) != 1:
-            self.log.error('expected 1 PDC component, found %s: %s',
-                           len(found), found)
-            raise RuntimeError('Expected to find exactly 1 PDC component, found %s, '
-                               'see referenced build log' % len(found))
+        contacts = r.json()
 
-        send_to = []
-        contacts = found[0].get('contacts', [])
-        for contact in contacts:
-            # I'm not sure, but it seems that there can be more people with the role
-            if contact['contact_role'] == self.pdc_contact_role:
-                send_to.append(contact['email'])
-
-        if len(send_to) == 0:
+        if contacts['count'] == 0:
             self.log.error('no %s role for the component', self.pdc_contact_role)
             raise RuntimeError('no %s role for the component' % self.pdc_contact_role)
+
+        send_to = []
+        for contact in contacts['results']:
+            send_to.append(contact['contact']['email'])
 
         return send_to
 
