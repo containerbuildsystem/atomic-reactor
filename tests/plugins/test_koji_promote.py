@@ -65,7 +65,7 @@ class MockedClientSession(object):
     def __init__(self, hub):
         self.uploaded_files = []
 
-    def krb_login(self, proxyuser=None):
+    def krb_login(self, principal=None, keytab=None, proxyuser=None):
         pass
 
     def ssl_login(self, cert, ca, serverca, proxyuser=None):
@@ -148,7 +148,7 @@ def check_components(components):
 
 def prepare(tmpdir, session=None, name=None, version=None, release=None,
             source=None, build_process_failed=False, is_rebuild=True,
-            ssl_certs=False):
+            ssl_certs=False, principal=None, keytab=None):
     if session is None:
         session = MockedClientSession('')
     if source is None:
@@ -220,6 +220,12 @@ def prepare(tmpdir, session=None, name=None, version=None, release=None,
     }
     if ssl_certs:
         args['koji_ssl_certs'] = '/'
+
+    if principal:
+        args['koji_principal'] = principal
+
+    if keytab:
+        args['koji_keytab'] = keytab
 
     runner = ExitPluginsRunner(tasker, workflow,
                                     [
@@ -302,6 +308,49 @@ class TestKojiPromote(object):
         runner = prepare(tmpdir, name='name', version='1.0', release='1',
                          source=PathSource('path', 'file:///dev/null'))
         with pytest.raises(PluginFailedException):
+            runner.run()
+
+    @pytest.mark.parametrize('params', [
+        {
+            'should_raise': False,
+            'principal': None,
+            'keytab': None,
+        },
+
+        {
+            'should_raise': False,
+            'principal': 'principal@EXAMPLE.COM',
+            'keytab': 'FILE:/var/run/secrets/mysecret',
+        },
+
+        {
+            'should_raise': True,
+            'principal': 'principal@EXAMPLE.COM',
+            'keytab': None,
+        },
+
+        {
+            'should_raise': True,
+            'principal': None,
+            'keytab': 'FILE:/var/run/secrets/mysecret',
+        },
+    ])
+    def test_koji_promote_krb_args(self, tmpdir, params):
+        session = MockedClientSession('')
+        expectation = flexmock(session).should_receive('krb_login')
+        name = 'name'
+        version = '1.0'
+        release = '1'
+        runner = prepare(tmpdir, session, name=name, version=version,
+                         release=release, principal=params['principal'],
+                         keytab=params['keytab'])
+
+        if params['should_raise']:
+            expectation.never()
+            with pytest.raises(PluginFailedException):
+                runner.run()
+        else:
+            expectation.once()
             runner.run()
 
     def test_koji_promote_krb_fail(self, tmpdir):

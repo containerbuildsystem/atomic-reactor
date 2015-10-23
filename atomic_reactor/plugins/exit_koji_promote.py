@@ -52,6 +52,12 @@ class KojiPromotePlugin(ExitPlugin):
     path at which 'cert', 'ca', and 'serverca' are the certificates
     for SSL authentication.
 
+    If Kerberos is used for authentication, the default principal will
+    be used (from the kernel keyring) unless both koji_keytab and
+    koji_principal are specified. The koji_keytab parameter is a
+    keytab name like 'type:name', and so can be used to specify a key
+    in a Kubernetes secret by specifying 'FILE:/path/to/key'.
+
     Runs as an exit plugin in order to capture logs from all other
     plugins.
     """
@@ -61,7 +67,8 @@ class KojiPromotePlugin(ExitPlugin):
 
     def __init__(self, tasker, workflow, kojihub, url,
                  verify_ssl=True, use_auth=True,
-                 koji_ssl_certs=None, koji_proxy_user=None):
+                 koji_ssl_certs=None, koji_proxy_user=None,
+                 koji_principal=None, koji_keytab=None):
         """
         constructor
 
@@ -73,12 +80,16 @@ class KojiPromotePlugin(ExitPlugin):
         :param use_auth: bool, initiate authentication with OSv3?
         :param koji_ssl_certs: str, path to 'cert', 'ca', 'serverca'
         :param koji_proxy_user: str, user to log in as (requires hub config)
+        :param koji_principal: str, Kerberos principal (must specify keytab)
+        :param koji_keytab: str, keytab name (must specify principal)
         """
         super(KojiPromotePlugin, self).__init__(tasker, workflow)
 
         self.kojihub = kojihub
         self.koji_ssl_certs = koji_ssl_certs
         self.koji_proxy_user = koji_proxy_user
+        self.koji_principal = koji_principal
+        self.koji_keytab = koji_keytab
 
         osbs_conf = Configuration(conf_file=None, openshift_uri=url,
                                   use_auth=use_auth, verify_ssl=verify_ssl)
@@ -496,14 +507,19 @@ class KojiPromotePlugin(ExitPlugin):
             kwargs['proxyuser'] = self.koji_proxy_user
 
         if self.koji_ssl_certs:
+            # Use certificates
             self.log.info("Using SSL certificates for Koji authentication")
             session.ssl_login(os.path.join(self.koji_ssl_certs, 'cert'),
                               os.path.join(self.koji_ssl_certs, 'ca'),
                               os.path.join(self.koji_ssl_certs, 'serverca'),
                               **kwargs)
         else:
-            # Assume Kerberos
+            # Use Kerberos
             self.log.info("Using Kerberos for Koji authentication")
+            if self.koji_principal and self.koji_keytab:
+                kwargs['principal'] = self.koji_principal
+                kwargs['keytab'] = self.koji_keytab
+
             session.krb_login(**kwargs)
 
         return session
@@ -512,6 +528,11 @@ class KojiPromotePlugin(ExitPlugin):
         """
         Run the plugin.
         """
+
+        if ((self.koji_principal and not self.koji_keytab) or
+                (self.koji_keytab and not self.koji_principal)):
+            raise RuntimeError("specify both koji_principal and koji_keytab "
+                               "or neither")
 
         # Only run if the build was successful
         if self.workflow.build_process_failed:
