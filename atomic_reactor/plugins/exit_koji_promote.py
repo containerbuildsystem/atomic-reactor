@@ -58,6 +58,9 @@ class KojiPromotePlugin(ExitPlugin):
     keytab name like 'type:name', and so can be used to specify a key
     in a Kubernetes secret by specifying 'FILE:/path/to/key'.
 
+    If metadata_only is set, the v1 image will not be uploaded, only
+    the logs. The import will be marked as metadata-only.
+
     Runs as an exit plugin in order to capture logs from all other
     plugins.
     """
@@ -68,7 +71,8 @@ class KojiPromotePlugin(ExitPlugin):
     def __init__(self, tasker, workflow, kojihub, url,
                  verify_ssl=True, use_auth=True,
                  koji_ssl_certs=None, koji_proxy_user=None,
-                 koji_principal=None, koji_keytab=None):
+                 koji_principal=None, koji_keytab=None,
+                 metadata_only=False):
         """
         constructor
 
@@ -82,6 +86,7 @@ class KojiPromotePlugin(ExitPlugin):
         :param koji_proxy_user: str, user to log in as (requires hub config)
         :param koji_principal: str, Kerberos principal (must specify keytab)
         :param koji_keytab: str, keytab name (must specify principal)
+        :param metadata_only: bool, whether to omit the v1 image
         """
         super(KojiPromotePlugin, self).__init__(tasker, workflow)
 
@@ -90,6 +95,7 @@ class KojiPromotePlugin(ExitPlugin):
         self.koji_proxy_user = koji_proxy_user
         self.koji_principal = koji_principal
         self.koji_keytab = koji_keytab
+        self.metadata_only = metadata_only
 
         osbs_conf = Configuration(conf_file=None, openshift_uri=url,
                                   use_auth=use_auth, verify_ssl=verify_ssl)
@@ -192,8 +198,7 @@ class KojiPromotePlugin(ExitPlugin):
 
         return self.parse_rpm_output(output.splitlines(), tags, separator=sep)
 
-    @staticmethod
-    def get_output_metadata(path, filename):
+    def get_output_metadata(self, path, filename):
         """
         Describe a file by its metadata.
 
@@ -212,6 +217,10 @@ class KojiPromotePlugin(ExitPlugin):
 
         metadata.update({'checksum': md5.hexdigest(),
                          'checksum_type': 'md5'})
+
+        if self.metadata_only:
+            metadata['metadata_only'] = True
+
         return metadata
 
     def get_builder_image_id(self):
@@ -352,9 +361,16 @@ class KojiPromotePlugin(ExitPlugin):
                         for metadata in self.get_logs()]
 
         image_id = self.workflow.builder.image_id
-        v1_image = self.workflow.exported_image_sequence[-1].get('path')
-        v1_image_name = 'docker-v1-image-{0}'.format(image_id)
-        metadata = self.get_output_metadata(v1_image, v1_image_name)
+        if self.metadata_only:
+            v2_image_name = 'docker-v2-image-{0}'.format(image_id)
+            metadata = self.get_output_metadata(os.path.devnull, v2_image_name)
+            output = Output(file=None, metadata=metadata)
+        else:
+            v1_image = self.workflow.exported_image_sequence[-1].get('path')
+            v1_image_name = 'docker-v1-image-{0}'.format(image_id)
+            metadata = self.get_output_metadata(v1_image, v1_image_name)
+            output = Output(file=open(v1_image), metadata=metadata)
+
         # Parent of squashed built image is base image
         parent_id = self.workflow.base_image_inspect['Id']
         pulp_result = None
@@ -386,8 +402,7 @@ class KojiPromotePlugin(ExitPlugin):
         })
 
         # Add the (v1) image to the output
-        image = add_buildroot_id(Output(file=open(v1_image),
-                                        metadata=metadata))
+        image = add_buildroot_id(output)
         output_files.append(image)
 
         return output_files
@@ -419,7 +434,7 @@ class KojiPromotePlugin(ExitPlugin):
         if not isinstance(source, GitSource):
             raise RuntimeError('git source required')
 
-        return {
+        build = {
             'name': name,
             'version': version,
             'release': release,
@@ -430,6 +445,11 @@ class KojiPromotePlugin(ExitPlugin):
                 'image': {},
             },
         }
+
+        if self.metadata_only:
+            build['metadata_only'] = True
+
+        return build
 
     def get_metadata(self):
         """
@@ -548,10 +568,12 @@ class KojiPromotePlugin(ExitPlugin):
             session = self.login()
             server_dir = self.get_upload_server_dir()
             for output in output_files:
-                self.upload_file(session, output, server_dir)
+                if output.file:
+                    self.upload_file(session, output, server_dir)
         finally:
             for output in output_files:
-                output.file.close()
+                if output.file:
+                    output.file.close()
 
         session.CGImport(koji_metadata, server_dir)
 

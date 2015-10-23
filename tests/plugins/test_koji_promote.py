@@ -151,7 +151,8 @@ def check_components(components):
 
 def prepare(tmpdir, session=None, name=None, version=None, release=None,
             source=None, build_process_failed=False, is_rebuild=True,
-            ssl_certs=False, principal=None, keytab=None):
+            ssl_certs=False, principal=None, keytab=None,
+            metadata_only=False):
     if session is None:
         session = MockedClientSession('')
     if source is None:
@@ -229,6 +230,9 @@ def prepare(tmpdir, session=None, name=None, version=None, release=None,
 
     if keytab:
         args['koji_keytab'] = keytab
+
+    if metadata_only:
+        args['metadata_only'] = True
 
     runner = ExitPluginsRunner(tasker, workflow,
                                     [
@@ -384,13 +388,14 @@ class TestKojiPromote(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_promote_success(self, tmpdir):
+    @pytest.mark.parametrize('metadata_only', [False, True])
+    def test_koji_promote_success(self, tmpdir, metadata_only):
         session = MockedClientSession('')
         name = 'name'
         version = '1.0'
         release = '1'
         runner = prepare(tmpdir, session, name=name, version=version,
-                         release=release)
+                         release=release, metadata_only=metadata_only)
         runner.run()
 
         data = session.metadata
@@ -413,6 +418,11 @@ class TestKojiPromote(object):
         output_files = data['output']
         assert isinstance(output_files, list)
 
+        if metadata_only:
+            mdonly = set()
+        else:
+            mdonly = set(['metadata_only'])
+
         assert set(build.keys()) == set([
             'name',
             'version',
@@ -421,7 +431,8 @@ class TestKojiPromote(object):
             'start_time',
             'end_time',
             'extra',
-        ])
+            'metadata_only',  # only when True
+        ]) - mdonly
 
         assert build['name'] == name
         assert build['version'] == version
@@ -429,6 +440,10 @@ class TestKojiPromote(object):
         assert build['source'] == 'git://hostname/path#123456'
         assert int(build['start_time']) > 0
         assert int(build['end_time']) > 0
+        if metadata_only:
+            assert isinstance(build['metadata_only'], bool)
+            assert build['metadata_only']
+
         extra = build['extra']
         assert isinstance(extra, dict)
 
@@ -530,7 +545,7 @@ class TestKojiPromote(object):
             assert output['filename']
             assert is_string_type(output['filename'])
             assert 'filesize' in output
-            assert int(output['filesize']) > 0
+            assert int(output['filesize']) > 0 or metadata_only
             assert 'arch' in output
             assert output['arch']
             assert is_string_type(output['arch'])
@@ -550,7 +565,8 @@ class TestKojiPromote(object):
                     'checksum',
                     'checksum_type',
                     'type',
-                ])
+                    'metadata_only',  # only when True
+                ]) - mdonly
                 assert output['arch'] == 'noarch'
             else:
                 assert set(output.keys()) == set([
@@ -563,7 +579,8 @@ class TestKojiPromote(object):
                     'type',
                     'components',
                     'extra',
-                ])
+                    'metadata_only',  # only when True
+                ]) - mdonly
                 assert output['type'] == 'docker-image'
                 assert is_string_type(output['arch'])
                 assert output['arch'] != 'noarch'
@@ -599,8 +616,18 @@ class TestKojiPromote(object):
                 assert is_string_type(docker['id'])
                 assert is_string_type(docker['destination_repo'])
 
+            if metadata_only:
+                assert isinstance(output['metadata_only'], bool)
+                assert output['metadata_only']
+
         files = session.uploaded_files
 
         # There should be a file in the list for each output
+        # except for metadata-only imports, in which case there
+        # will be no upload for the image itself
         assert isinstance(files, list)
-        assert len(files) == len(output_files)
+        expected_uploads = len(output_files)
+        if metadata_only:
+            expected_uploads -= 1
+
+        assert len(files) == expected_uploads
