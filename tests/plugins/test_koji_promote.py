@@ -127,22 +127,25 @@ def check_components(components):
     assert len(components) > 0
     for component_rpm in components:
         assert isinstance(component_rpm, dict)
-        assert 'type' in component_rpm
+        assert set(component_rpm.keys()) == set([
+            'type',
+            'name',
+            'version',
+            'release',
+            'epoch',
+            'arch',
+            'sigmd5',
+            'signature',
+        ])
+
         assert component_rpm['type'] == 'rpm'
-        assert 'name' in component_rpm
         assert component_rpm['name']
         assert is_string_type(component_rpm['name'])
         assert component_rpm['name'] != 'gpg-pubkey'
-        assert 'version' in component_rpm
         assert component_rpm['version']
         assert is_string_type(component_rpm['version'])
-        assert 'release' in component_rpm
         assert component_rpm['release']
-        assert 'epoch' in component_rpm
-        assert 'arch' in component_rpm
         assert is_string_type(component_rpm['arch'])
-        assert 'sigmd5' in component_rpm
-        assert 'signature' in component_rpm
         assert component_rpm['signature'] != '(none)'
 
 
