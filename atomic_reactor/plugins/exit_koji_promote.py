@@ -340,6 +340,29 @@ class KojiPromotePlugin(ExitPlugin):
         return self.parse_rpm_output(output, PostBuildRPMqaPlugin.rpm_tags,
                                      separator=',')
 
+    def get_image_output(self):
+        """
+        Create the output for the image
+
+        For v1, this is the v1 image. For v2, this is the v2 metadata
+        with the checksum of an empty file, and no actual upload.
+
+        :return: tuple, (metadata dict, Output instance)
+        """
+
+        image_id = self.workflow.builder.image_id
+        if self.metadata_only:
+            v2_image_name = 'docker-v2-image-{0}'.format(image_id)
+            metadata = self.get_output_metadata(os.path.devnull, v2_image_name)
+            output = Output(file=None, metadata=metadata)
+        else:
+            v1_image = self.workflow.exported_image_sequence[-1].get('path')
+            v1_image_name = 'docker-v1-image-{0}'.format(image_id)
+            metadata = self.get_output_metadata(v1_image, v1_image_name)
+            output = Output(file=open(v1_image), metadata=metadata)
+
+        return metadata, output
+
     def get_output(self, buildroot_id):
         """
         Build the 'output' section of the metadata.
@@ -360,18 +383,8 @@ class KojiPromotePlugin(ExitPlugin):
         output_files = [add_log_type(add_buildroot_id(metadata))
                         for metadata in self.get_logs()]
 
-        image_id = self.workflow.builder.image_id
-        if self.metadata_only:
-            v2_image_name = 'docker-v2-image-{0}'.format(image_id)
-            metadata = self.get_output_metadata(os.path.devnull, v2_image_name)
-            output = Output(file=None, metadata=metadata)
-        else:
-            v1_image = self.workflow.exported_image_sequence[-1].get('path')
-            v1_image_name = 'docker-v1-image-{0}'.format(image_id)
-            metadata = self.get_output_metadata(v1_image, v1_image_name)
-            output = Output(file=open(v1_image), metadata=metadata)
-
         # Parent of squashed built image is base image
+        image_id = self.workflow.builder.image_id
         parent_id = self.workflow.base_image_inspect['Id']
         pulp_result = None
         if PULP_PUSH_KEY is not None:
@@ -384,6 +397,7 @@ class KojiPromotePlugin(ExitPlugin):
         destination_repo = pulp_result[0].to_str()
         tag = self.workflow.tag_conf.unique_images[0].to_str()
         arch = os.uname()[4]
+        metadata, output = self.get_image_output()
         metadata.update({
             'arch': arch,
             'type': 'docker-image',
@@ -401,7 +415,7 @@ class KojiPromotePlugin(ExitPlugin):
             },
         })
 
-        # Add the (v1) image to the output
+        # Add the v1 image (or v2 metadata) to the output
         image = add_buildroot_id(output)
         output_files.append(image)
 
