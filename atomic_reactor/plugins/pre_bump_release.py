@@ -19,6 +19,7 @@ from tempfile import mkdtemp
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
+from atomic_reactor.util import get_preferred_label_key
 from dockerfile_parse import DockerfileParser
 
 
@@ -244,9 +245,8 @@ class BumpReleasePlugin(PreBuildPlugin):
         # XXX: remove the logic after transition to the new label set
         df_path = self.workflow.builder.df_path
         parser = DockerfileParser(df_path)
-        label_key = 'release'
-        if label_key not in parser.labels:
-            label_key = 'Release'
+
+        label_key = get_preferred_label_key(parser.labels, 'release')
 
         # Bump the release label
         attrs, key = self.find_current_release(parser, label_key)
