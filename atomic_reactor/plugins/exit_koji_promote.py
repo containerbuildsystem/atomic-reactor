@@ -351,13 +351,14 @@ class KojiPromotePlugin(ExitPlugin):
         """
 
         image_id = self.workflow.builder.image_id
+        v1_image = self.workflow.exported_image_sequence[-1].get('path')
+        ext = v1_image.split('.', 1)[1]
         if self.metadata_only:
-            v2_image_name = 'docker-v2-image-{0}'.format(image_id)
+            v2_image_name = 'docker-v2-image-{0}.{1}'.format(image_id, ext)
             metadata = self.get_output_metadata(os.path.devnull, v2_image_name)
             output = Output(file=None, metadata=metadata)
         else:
-            v1_image = self.workflow.exported_image_sequence[-1].get('path')
-            v1_image_name = 'docker-v1-image-{0}'.format(image_id)
+            v1_image_name = 'docker-v1-image-{0}.{1}'.format(image_id, ext)
             metadata = self.get_output_metadata(v1_image, v1_image_name)
             output = Output(file=open(v1_image), metadata=metadata)
 
