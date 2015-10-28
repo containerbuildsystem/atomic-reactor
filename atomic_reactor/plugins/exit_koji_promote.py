@@ -37,7 +37,7 @@ except (ImportError, SyntaxError):
 
 
 # An output file and its metadata
-Output = namedtuple('output', ['file', 'metadata'])
+Output = namedtuple('Output', ['file', 'metadata'])
 
 
 class KojiPromotePlugin(ExitPlugin):
