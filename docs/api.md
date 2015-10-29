@@ -1,16 +1,16 @@
 # API
 
-dock has proper python API. You can use it in your scripts or services without invoking shell:
+atomic-reactor has proper python API. You can use it in your scripts or services without invoking shell:
 
 ```python
-from dock.api import build_image_in_privileged_container
+from atomic_reactor.api import build_image_in_privileged_container
 response = build_image_in_privileged_container(
     "privileged-buildroot",
     source={
         'provider': 'git',
         'uri': 'https://github.com/TomasTomecek/docker-hello-world.git',
     }
-    image="dock-test-image",
+    image="atomic-reactor-test-image",
 )
 ```
 
@@ -53,7 +53,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 
-Python API for dock. This is the official way of interacting with dock.
+Python API for atomic-reactor. This is the official way of interacting with atomic-reactor.
 
 ### Functions
 **build\_image\_here**(source, image, parent\_registry=None, target\_registries=None, parent\_registry\_insecure=False, target\_registries\_insecure=False, \*\*kwargs):

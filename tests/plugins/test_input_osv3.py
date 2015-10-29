@@ -50,7 +50,7 @@ def test_prebuild_plugins_rewrite(prebuild_json, expected_json):
         'SOURCE_REF': 'master',
         'OUTPUT_IMAGE': 'asdf:fdsa',
         'OUTPUT_REGISTRY': 'localhost:5000',
-        'DOCK_PLUGINS': json.dumps(plugins_json),
+        'ATOMIC_REACTOR_PLUGINS': json.dumps(plugins_json),
     }
     flexmock(os, environ=mock_env)
 
@@ -91,12 +91,13 @@ def test_postbuild_plugins_rewrite(output_registry, postbuild_json, expected_jso
         'SOURCE_REF': 'master',
         'OUTPUT_IMAGE': 'asdf:fdsa',
         'OUTPUT_REGISTRY': output_registry,
-        'DOCK_PLUGINS': json.dumps(plugins_json),
+        'ATOMIC_REACTOR_PLUGINS': json.dumps(plugins_json),
     }
     flexmock(os, environ=mock_env)
 
     plugin = OSv3InputPlugin()
     assert plugin.run()['postbuild_plugins'] == expected_json
+
 
 def test_doesnt_fail_if_no_plugins():
     mock_env = {
@@ -105,7 +106,7 @@ def test_doesnt_fail_if_no_plugins():
         'SOURCE_REF': 'master',
         'OUTPUT_IMAGE': 'asdf:fdsa',
         'OUTPUT_REGISTRY': 'localhost:5000',
-        'DOCK_PLUGINS': '{}',
+        'ATOMIC_REACTOR_PLUGINS': '{}',
     }
     flexmock(os, environ=mock_env)
 
@@ -125,9 +126,29 @@ def test_sets_selflink(build, expected):
         'SOURCE_REF': 'master',
         'OUTPUT_IMAGE': 'asdf:fdsa',
         'OUTPUT_REGISTRY': 'localhost:5000',
-        'DOCK_PLUGINS': '{}',
+        'ATOMIC_REACTOR_PLUGINS': '{}',
     }
     flexmock(os, environ=mock_env)
 
     plugin = OSv3InputPlugin()
     assert plugin.run()['openshift_build_selflink'] == expected
+
+
+@pytest.mark.parametrize('plugins_variable', ['ATOMIC_REACTOR_PLUGINS', 'DOCK_PLUGINS'])
+def test_plugins_variable(plugins_variable):
+    plugins_json = {
+        'postbuild_plugins': [],
+    }
+
+    mock_env = {
+        'BUILD': '{}',
+        'SOURCE_URI': 'https://github.com/foo/bar.git',
+        'SOURCE_REF': 'master',
+        'OUTPUT_IMAGE': 'asdf:fdsa',
+        'OUTPUT_REGISTRY': 'localhost:5000',
+        plugins_variable: json.dumps(plugins_json),
+    }
+    flexmock(os, environ=mock_env)
+
+    plugin = OSv3InputPlugin()
+    assert plugin.run()['postbuild_plugins'] is not None

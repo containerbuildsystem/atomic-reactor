@@ -38,7 +38,7 @@ class OSv3InputPlugin(InputPlugin):
         git_ref = os.environ.get('SOURCE_REF', None)
         image = os.environ['OUTPUT_IMAGE']
         self.target_registry = os.environ.get('OUTPUT_REGISTRY', None)
-        self.plugins_json = os.environ.get('DOCK_PLUGINS', '{}')
+        self.plugins_json = os.environ.get('ATOMIC_REACTOR_PLUGINS', os.environ.get('DOCK_PLUGINS', '{}'))
         self.plugins_json = json.loads(self.plugins_json)
 
         self.preprocess_plugins()

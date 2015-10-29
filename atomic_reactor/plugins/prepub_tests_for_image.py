@@ -50,7 +50,7 @@ class ImageTestPlugin(PrePublishPlugin):
         constructor
 
         :param tasker: DockerTasker instance
-        :param workflow: DockurBuildWorkflow instance
+        :param workflow: DockerBuildWorkflow instance
         :param git_uri: str, URI to git repo (URL, path -- this is passed to 'git clone')
         :param image_id: str, ID of image to process
         :param tests_git_path: str, relative path within git repo to file with tests (default=tests.py)
