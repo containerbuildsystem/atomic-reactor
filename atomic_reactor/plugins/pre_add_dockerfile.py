@@ -11,8 +11,8 @@ Include user-provided Dockerfile in the /root/buildinfo/
 This is accomplished by appending an ADD command to it.
 Name of the Dockerfile is changed to include N-V-R of the build.
 N-V-R is specified either by nvr argument OR from
-Name/Version/Release labels in Dockerfile.
-If you run add_labels_in_dockerfile to add Name/Version/Release labels
+name/version/release labels in Dockerfile.
+If you run add_labels_in_dockerfile to add name/version/release labels
 you have to run it BEFORE this one.
 
 
@@ -26,9 +26,9 @@ or
 
 [{
    'name': 'add_labels_in_dockerfile',
-   'args': {'labels': {'Name': 'jboss-eap-6-docker',
-                       'Version': '6.4',
-                       'Release': '77'}}
+   'args': {'labels': {'name': 'jboss-eap-6-docker',
+                       'version': '6.4',
+                       'release': '77'}}
 },
 {
    'name': 'add_dockerfile'
@@ -41,6 +41,7 @@ import shutil
 from dockerfile_parse import DockerfileParser
 from atomic_reactor.constants import DOCKERFILE_FILENAME
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.util import get_preferred_label
 
 
 class AddDockerfilePlugin(PreBuildPlugin):
@@ -54,7 +55,7 @@ class AddDockerfilePlugin(PreBuildPlugin):
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param nvr: name-version-release, will be appended to Dockerfile-.
-                    If not specified, try to get it from Name, Version, Release labels.
+                    If not specified, try to get it from name, version, release labels.
         :param destdir: directory in the image to put Dockerfile-N-V-R into
         :param use_final_dockerfile: bool, when set to True, uses final version of processed dockerfile,
                                      when set to False, uses Dockerfile from time when this plugin was executed
@@ -66,11 +67,11 @@ class AddDockerfilePlugin(PreBuildPlugin):
 
         if nvr is None:
             labels = DockerfileParser(self.workflow.builder.df_path).labels
-            name = labels.get('Name')
-            version = labels.get('Version')
-            release = labels.get('Release')
+            name = get_preferred_label(labels, 'name')
+            version = get_preferred_label(labels, 'version')
+            release = get_preferred_label(labels, 'release')
             if name is None or version is None or release is None:
-                raise ValueError("You have to specify either nvr arg or Name/Version/Release labels.")
+                raise ValueError("You have to specify either nvr arg or name/version/release labels.")
             nvr = "{0}-{1}-{2}".format(name, version, release)
             nvr = nvr.replace("/", "-")
         self.df_name = '{0}-{1}'.format(DOCKERFILE_FILENAME, nvr)

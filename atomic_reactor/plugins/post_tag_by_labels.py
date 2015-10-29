@@ -14,9 +14,9 @@ __all__ = ('TagByLabelsPlugin', )
 
 class TagByLabelsPlugin(PostBuildPlugin):
     """
-    Use labels Name, Version and Release of final image and create tags:
-     * Name:Version
-     * Name:Version-Release
+    Use labels name, version and release of final image and create tags:
+     * name:version
+     * name:version-release
     """
     key = "tag_by_labels"
     is_allowed_to_fail = False
@@ -45,9 +45,9 @@ class TagByLabelsPlugin(PostBuildPlugin):
             except KeyError:
                 raise RuntimeError("Missing label '%s'.", label_name)
 
-        name = get_label("Name")
-        version = get_label("Version")
-        release = get_label("Release")
+        name = get_label("name")
+        version = get_label("version")
+        release = get_label("release")
 
         unique_tag = self.workflow.builder.image.tag
 

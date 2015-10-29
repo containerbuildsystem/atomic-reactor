@@ -19,6 +19,7 @@ from tempfile import mkdtemp
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
+from atomic_reactor.util import get_preferred_label_key
 from dockerfile_parse import DockerfileParser
 
 
@@ -79,7 +80,7 @@ class GitRepo(object):
 class BumpReleasePlugin(PreBuildPlugin):
     """Git branch management plugin
 
-    For rebuilds, push a new commit incrementing the Release label.
+    For rebuilds, push a new commit incrementing the "release" label.
 
     For initial builds, verify the branch is at the specified commit
     hash.
@@ -239,10 +240,15 @@ class BumpReleasePlugin(PreBuildPlugin):
         if self.push_url:
             repo.git(['remote', 'set-url', '--push', remote, self.push_url])
 
-        # Bump the Release label
-        label_key = 'Release'
+        # Find out which label to use - we can't rely on pre_add_labels_in_df adding alias as it
+        # will run after the bump plugin
+        # XXX: remove the logic after transition to the new label set
         df_path = self.workflow.builder.df_path
         parser = DockerfileParser(df_path)
+
+        label_key = get_preferred_label_key(parser.labels, 'release')
+
+        # Bump the release label
         attrs, key = self.find_current_release(parser, label_key)
         next_release = self.get_next_release(attrs[key])
         self.log.info("New Release: %s", next_release)
