@@ -23,6 +23,7 @@ from atomic_reactor import __version__ as atomic_reactor_version
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
+from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.constants import PROG
 from atomic_reactor.util import get_version_of_tools
@@ -376,6 +377,32 @@ class KojiPromotePlugin(ExitPlugin):
 
         return metadata, output
 
+    def get_output_images(self):
+        output_images = []
+        pulp_images = None
+
+        if PULP_SYNC_KEY in self.workflow.postbuild_results:
+            pulp_images = self.workflow.postbuild_results[PULP_SYNC_KEY]
+            output_images += pulp_images
+
+        if PULP_PUSH_KEY in self.workflow.postbuild_results:
+            pulp_images = self.workflow.postbuild_results[PULP_PUSH_KEY]
+
+            # Don't add duplicates, but keep the order of the list
+            for image in pulp_images:
+                if image not in output_images:
+                    output_images.append(image)
+
+        tag_and_push = TagAndPushPlugin.key
+        if (pulp_images is None and
+                tag_and_push in self.workflow.postbuild_results):
+            # If pulp wasn't used, report the docker registry images we pushed
+            for image in self.workflow.postbuild_results[tag_and_push]:
+                if image not in output_images:
+                    output_images.append(image)
+
+        return output_images
+
     def get_output(self, buildroot_id):
         """
         Build the 'output' section of the metadata.
@@ -399,18 +426,8 @@ class KojiPromotePlugin(ExitPlugin):
         # Parent of squashed built image is base image
         image_id = self.workflow.builder.image_id
         parent_id = self.workflow.base_image_inspect['Id']
-        pulp_result = None
-        if PULP_SYNC_KEY:
-            pulp_result = self.workflow.postbuild_results.get(PULP_SYNC_KEY)
-
-        if pulp_result is None and PULP_PUSH_KEY:
-            pulp_result = self.workflow.postbuild_results.get(PULP_PUSH_KEY)
-
-        if pulp_result is None:
-            # Pulp plugin not installed or not configured
-            raise NotImplementedError
-
-        repositories = [image.to_str() for image in pulp_result
+        output_images = self.get_output_images()
+        repositories = [image.to_str() for image in output_images
                         if image.tag != 'latest']
         arch = os.uname()[4]
         metadata, output = self.get_image_output()

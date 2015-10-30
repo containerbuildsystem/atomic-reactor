@@ -59,7 +59,7 @@ class TagAndPushPlugin(PostBuildPlugin):
                                                       registry_image, insecure=insecure,
                                                       force=True)
 
-                pushed_images.append(registry_image.to_str())
+                pushed_images.append(registry_image)
 
                 digest = self.extract_digest(logs)
                 if digest:
