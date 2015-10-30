@@ -410,7 +410,8 @@ class KojiPromotePlugin(ExitPlugin):
             # Pulp plugin not installed or not configured
             raise NotImplementedError
 
-        repositories = [image.to_str() for image in pulp_result]
+        repositories = [image.to_str() for image in pulp_result
+                        if image.tag != 'latest']
         arch = os.uname()[4]
         metadata, output = self.get_image_output()
         metadata.update({
