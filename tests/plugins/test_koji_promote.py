@@ -135,35 +135,6 @@ def is_string_type(obj):
                for strtype in string_types)
 
 
-def check_components(components):
-    assert isinstance(components, list)
-    assert len(components) > 0
-    for component_rpm in components:
-        assert isinstance(component_rpm, dict)
-        assert set(component_rpm.keys()) == set([
-            'type',
-            'name',
-            'version',
-            'release',
-            'epoch',
-            'arch',
-            'sigmd5',
-            'signature',
-        ])
-
-        assert component_rpm['type'] == 'rpm'
-        assert component_rpm['name']
-        assert is_string_type(component_rpm['name'])
-        assert component_rpm['name'] != 'gpg-pubkey'
-        assert component_rpm['version']
-        assert is_string_type(component_rpm['version'])
-        assert component_rpm['release']
-        epoch = component_rpm['epoch']
-        assert epoch is None or isinstance(epoch, int)
-        assert is_string_type(component_rpm['arch'])
-        assert component_rpm['signature'] != '(none)'
-
-
 def mock_environment(tmpdir, session=None, name=None, version=None,
                      release=None, source=None, build_process_failed=False,
                      is_rebuild=True, image_keys=None):
@@ -443,6 +414,207 @@ class TestKojiPromote(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
+    @staticmethod
+    def check_components(components):
+        assert isinstance(components, list)
+        assert len(components) > 0
+        for component_rpm in components:
+            assert isinstance(component_rpm, dict)
+            assert set(component_rpm.keys()) == set([
+                'type',
+                'name',
+                'version',
+                'release',
+                'epoch',
+                'arch',
+                'sigmd5',
+                'signature',
+            ])
+
+            assert component_rpm['type'] == 'rpm'
+            assert component_rpm['name']
+            assert is_string_type(component_rpm['name'])
+            assert component_rpm['name'] != 'gpg-pubkey'
+            assert component_rpm['version']
+            assert is_string_type(component_rpm['version'])
+            assert component_rpm['release']
+            epoch = component_rpm['epoch']
+            assert epoch is None or isinstance(epoch, int)
+            assert is_string_type(component_rpm['arch'])
+            assert component_rpm['signature'] != '(none)'
+
+    def validate_buildroot(self, buildroot):
+        assert isinstance(buildroot, dict)
+
+        assert set(buildroot.keys()) == set([
+            'id',
+            'host',
+            'content_generator',
+            'container',
+            'tools',
+            'components',
+            'extra',
+        ])
+
+        host = buildroot['host']
+        assert isinstance(host, dict)
+        assert set(host.keys()) == set([
+            'os',
+            'arch',
+        ])
+
+        assert host['os']
+        assert is_string_type(host['os'])
+        assert host['arch']
+        assert is_string_type(host['arch'])
+        assert host['arch'] != 'amd64'
+
+        content_generator = buildroot['content_generator']
+        assert isinstance(content_generator, dict)
+        assert set(content_generator.keys()) == set([
+            'name',
+            'version',
+        ])
+
+        assert content_generator['name']
+        assert is_string_type(content_generator['name'])
+        assert content_generator['version']
+        assert is_string_type(content_generator['version'])
+
+        container = buildroot['container']
+        assert isinstance(container, dict)
+        assert set(container.keys()) == set([
+            'type',
+            'arch',
+        ])
+
+        assert container['type'] == 'docker'
+        assert container['arch']
+        assert is_string_type(container['arch'])
+
+        assert isinstance(buildroot['tools'], list)
+        assert len(buildroot['tools']) > 0
+        for tool in buildroot['tools']:
+            assert isinstance(tool, dict)
+            assert set(tool.keys()) == set([
+                'name',
+                'version',
+            ])
+
+            assert tool['name']
+            assert is_string_type(tool['name'])
+            assert tool['version']
+            assert is_string_type(tool['version'])
+
+        self.check_components(buildroot['components'])
+
+        extra = buildroot['extra']
+        assert isinstance(extra, dict)
+        assert set(extra.keys()) == set([
+            'osbs',
+        ])
+
+        assert 'osbs' in extra
+        osbs = extra['osbs']
+        assert isinstance(osbs, dict)
+        assert set(osbs.keys()) == set([
+            'build_id',
+            'builder_image_id',
+        ])
+
+        assert is_string_type(osbs['build_id'])
+        assert is_string_type(osbs['builder_image_id'])
+
+    def validate_output(self, output, metadata_only):
+        if metadata_only:
+            mdonly = set()
+        else:
+            mdonly = set(['metadata_only'])
+
+        assert isinstance(output, dict)
+        assert 'type' in output
+        assert 'buildroot_id' in output
+        assert 'filename' in output
+        assert output['filename']
+        assert is_string_type(output['filename'])
+        assert 'filesize' in output
+        assert int(output['filesize']) > 0 or metadata_only
+        assert 'arch' in output
+        assert output['arch']
+        assert is_string_type(output['arch'])
+        assert 'checksum' in output
+        assert output['checksum']
+        assert is_string_type(output['checksum'])
+        assert 'checksum_type' in output
+        assert output['checksum_type'] == 'md5'
+        assert is_string_type(output['checksum_type'])
+        assert 'type' in output
+        if output['type'] == 'log':
+            assert set(output.keys()) == set([
+                'buildroot_id',
+                'filename',
+                'filesize',
+                'arch',
+                'checksum',
+                'checksum_type',
+                'type',
+                'metadata_only',  # only when True
+            ]) - mdonly
+            assert output['arch'] == 'noarch'
+        else:
+            assert set(output.keys()) == set([
+                'buildroot_id',
+                'filename',
+                'filesize',
+                'arch',
+                'checksum',
+                'checksum_type',
+                'type',
+                'components',
+                'extra',
+                'metadata_only',  # only when True
+            ]) - mdonly
+            assert output['type'] == 'docker-image'
+            assert is_string_type(output['arch'])
+            assert output['arch'] != 'noarch'
+            self.check_components(output['components'])
+
+            extra = output['extra']
+            assert isinstance(extra, dict)
+            assert set(extra.keys()) == set([
+                'image',
+                'docker',
+            ])
+
+            image = extra['image']
+            assert isinstance(image, dict)
+            assert set(image.keys()) == set([
+                'arch',
+            ])
+
+            assert image['arch'] == output['arch']  # what else?
+
+            assert 'docker' in extra
+            docker = extra['docker']
+            assert isinstance(docker, dict)
+            assert set(docker.keys()) == set([
+                'parent_id',
+                'id',
+                'repositories',
+            ])
+
+            assert is_string_type(docker['parent_id'])
+            assert is_string_type(docker['id'])
+            repositories = docker['repositories']
+            assert isinstance(repositories, list)
+            for repository in repositories:
+                assert is_string_type(repository)
+                image = ImageName.parse(repository)
+                assert image.registry
+                assert image.namespace
+                assert image.repo
+                assert image.tag and image.tag != 'latest'
+
     @pytest.mark.parametrize(('apis', 'image_keys', 'metadata_only'), [
         ('v1-only',
          [PULP_PUSH_KEY],
@@ -527,179 +699,19 @@ class TestKojiPromote(object):
         assert isinstance(extra, dict)
 
         for buildroot in buildroots:
-            assert isinstance(buildroot, dict)
-
-            assert set(buildroot.keys()) == set([
-                'id',
-                'host',
-                'content_generator',
-                'container',
-                'tools',
-                'components',
-                'extra',
-            ])
+            self.validate_buildroot(buildroot)
 
             # Unique within buildroots in this metadata
             assert len([b for b in buildroots
                         if b['id'] == buildroot['id']]) == 1
 
-            host = buildroot['host']
-            assert isinstance(host, dict)
-            assert set(host.keys()) == set([
-                'os',
-                'arch',
-            ])
-
-            assert host['os']
-            assert is_string_type(host['os'])
-            assert host['arch']
-            assert is_string_type(host['arch'])
-            assert host['arch'] != 'amd64'
-
-            content_generator = buildroot['content_generator']
-            assert isinstance(content_generator, dict)
-            assert set(content_generator.keys()) == set([
-                'name',
-                'version',
-            ])
-
-            assert content_generator['name']
-            assert is_string_type(content_generator['name'])
-            assert content_generator['version']
-            assert is_string_type(content_generator['version'])
-
-            container = buildroot['container']
-            assert isinstance(container, dict)
-            assert set(container.keys()) == set([
-                'type',
-                'arch',
-            ])
-
-            assert container['type'] == 'docker'
-            assert container['arch']
-            assert is_string_type(container['arch'])
-
-            assert isinstance(buildroot['tools'], list)
-            assert len(buildroot['tools']) > 0
-            for tool in buildroot['tools']:
-                assert isinstance(tool, dict)
-                assert set(tool.keys()) == set([
-                    'name',
-                    'version',
-                ])
-
-                assert tool['name']
-                assert is_string_type(tool['name'])
-                assert tool['version']
-                assert is_string_type(tool['version'])
-
-            check_components(buildroot['components'])
-
-            extra = buildroot['extra']
-            assert isinstance(extra, dict)
-            assert set(extra.keys()) == set([
-                'osbs',
-            ])
-
-            assert 'osbs' in extra
-            osbs = extra['osbs']
-            assert isinstance(osbs, dict)
-            assert set(osbs.keys()) == set([
-                'build_id',
-                'builder_image_id',
-            ])
-
-            assert is_string_type(osbs['build_id'])
-            assert is_string_type(osbs['builder_image_id'])
-
         for output in output_files:
-            assert isinstance(output, dict)
-            assert 'type' in output
-            assert 'buildroot_id' in output
+            self.validate_output(output, metadata_only)
             buildroot_id = output['buildroot_id']
+
             # References one of the buildroots
             assert len([buildroot for buildroot in buildroots
                         if buildroot['id'] == buildroot_id]) == 1
-            assert 'filename' in output
-            assert output['filename']
-            assert is_string_type(output['filename'])
-            assert 'filesize' in output
-            assert int(output['filesize']) > 0 or metadata_only
-            assert 'arch' in output
-            assert output['arch']
-            assert is_string_type(output['arch'])
-            assert 'checksum' in output
-            assert output['checksum']
-            assert is_string_type(output['checksum'])
-            assert 'checksum_type' in output
-            assert output['checksum_type'] == 'md5'
-            assert is_string_type(output['checksum_type'])
-            assert 'type' in output
-            if output['type'] == 'log':
-                assert set(output.keys()) == set([
-                    'buildroot_id',
-                    'filename',
-                    'filesize',
-                    'arch',
-                    'checksum',
-                    'checksum_type',
-                    'type',
-                    'metadata_only',  # only when True
-                ]) - mdonly
-                assert output['arch'] == 'noarch'
-            else:
-                assert set(output.keys()) == set([
-                    'buildroot_id',
-                    'filename',
-                    'filesize',
-                    'arch',
-                    'checksum',
-                    'checksum_type',
-                    'type',
-                    'components',
-                    'extra',
-                    'metadata_only',  # only when True
-                ]) - mdonly
-                assert output['type'] == 'docker-image'
-                assert is_string_type(output['arch'])
-                assert output['arch'] != 'noarch'
-                check_components(output['components'])
-
-                extra = output['extra']
-                assert isinstance(extra, dict)
-                assert set(extra.keys()) == set([
-                    'image',
-                    'docker',
-                ])
-
-                image = extra['image']
-                assert isinstance(image, dict)
-                assert set(image.keys()) == set([
-                    'arch',
-                ])
-
-                assert image['arch'] == output['arch']  # what else?
-
-                assert 'docker' in extra
-                docker = extra['docker']
-                assert isinstance(docker, dict)
-                assert set(docker.keys()) == set([
-                    'parent_id',
-                    'id',
-                    'repositories',
-                ])
-
-                assert is_string_type(docker['parent_id'])
-                assert is_string_type(docker['id'])
-                repositories = docker['repositories']
-                assert isinstance(repositories, list)
-                for repository in repositories:
-                    assert is_string_type(repository)
-                    image = ImageName.parse(repository)
-                    assert image.registry
-                    assert image.namespace
-                    assert image.repo
-                    assert image.tag and image.tag != 'latest'
 
             if metadata_only:
                 assert isinstance(output['metadata_only'], bool)
