@@ -638,7 +638,7 @@ class TestKojiPromote(object):
                     assert image.registry
                     assert image.namespace
                     assert image.repo
-                    assert image.tag
+                    assert image.tag and image.tag != 'latest'
 
             if metadata_only:
                 assert isinstance(output['metadata_only'], bool)
