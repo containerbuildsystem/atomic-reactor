@@ -15,7 +15,6 @@ try:
     import koji
 except ImportError:
     import inspect
-    import os
     import sys
 
     # Find out mocked koji module
@@ -83,10 +82,17 @@ class MockedClientSession(object):
         self.server_dir = server_dir
 
 
-FAKE_RPM_OUTPUT = (b'name1;1.0;1;x86_64;0;01234567;(none);RSA/SHA256, Mon 29 Jun 2015 13:58:22 BST, Key ID abcdef01234567\n'
-                   b'gpg-pubkey;01234567;01234567;(none);(none);(none);(none);(none)\n'
-                   b'gpg-pubkey-doc;01234567;01234567;noarch;(none);(none);(none);(none)\n'
-                   b'name2;2.0;2;x86_64;0;12345678;RSA/SHA256, Mon 29 Jun 2015 13:58:22 BST, Key ID bcdef012345678;(none)\n\n')
+FAKE_RPM_OUTPUT = (
+    b'name1;1.0;1;x86_64;0;01234567;(none);'
+    b'RSA/SHA256, Mon 29 Jun 2015 13:58:22 BST, Key ID abcdef01234567\n'
+
+    b'gpg-pubkey;01234567;01234567;(none);(none);(none);(none);(none)\n'
+
+    b'gpg-pubkey-doc;01234567;01234567;noarch;(none);(none);(none);(none)\n'
+
+    b'name2;2.0;2;x86_64;0;12345678;'
+    b'RSA/SHA256, Mon 29 Jun 2015 13:58:22 BST, Key ID bcdef012345678;(none)\n'
+    b'\n')
 
 FAKE_OS_OUTPUT = 'fedora-22'
 
@@ -113,8 +119,6 @@ class MockedPopen(object):
 
 def fake_Popen(cmd, *args, **kwargs):
     return MockedPopen(cmd, *args, **kwargs)
-
-
 
 
 def is_string_type(obj):
@@ -238,12 +242,12 @@ def prepare(tmpdir, session=None, name=None, version=None, release=None,
         args['metadata_only'] = True
 
     runner = ExitPluginsRunner(tasker, workflow,
-                                    [
-                                        {
-                                            'name': KojiPromotePlugin.key,
-                                            'args': args,
-                                        },
-                                    ])
+                               [
+                                   {
+                                       'name': KojiPromotePlugin.key,
+                                       'args': args,
+                                   },
+                               ])
 
     os.environ.update({
         'BUILD': json.dumps({
