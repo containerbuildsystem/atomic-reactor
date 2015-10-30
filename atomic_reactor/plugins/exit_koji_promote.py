@@ -152,10 +152,16 @@ class KojiPromotePlugin(ExitPlugin):
                 'version': field('VERSION'),
                 'release': field('RELEASE'),
                 'arch': field('ARCH'),
-                'epoch': field('EPOCH'),
                 'sigmd5': field('SIGMD5'),
                 'signature': signature,
             }
+
+            # Special handling for epoch as it must be an integer or None
+            epoch = field('EPOCH')
+            if epoch is not None:
+                epoch = int(epoch)
+
+            component_rpm['epoch'] = epoch
 
             if component_rpm['name'] != 'gpg-pubkey':
                 components.append(component_rpm)
@@ -404,8 +410,7 @@ class KojiPromotePlugin(ExitPlugin):
             # Pulp plugin not installed or not configured
             raise NotImplementedError
 
-        destination_repo = pulp_result[0].to_str()
-        tag = self.workflow.tag_conf.unique_images[0].to_str()
+        repositories = [image.to_str() for image in pulp_result]
         arch = os.uname()[4]
         metadata, output = self.get_image_output()
         metadata.update({
@@ -419,8 +424,7 @@ class KojiPromotePlugin(ExitPlugin):
                 'docker': {
                     'id': image_id,
                     'parent_id': parent_id,
-                    'destination_repo': destination_repo,
-                    'tag': tag,
+                    'repositories': repositories,
                 },
             },
         })
@@ -438,7 +442,7 @@ class KojiPromotePlugin(ExitPlugin):
             # (the format we expect)
             start_time_struct = time.strptime(build_start_time,
                                               '%Y-%m-%dT%H:%M:%SZ')
-            start_time = str(int(time.mktime(start_time_struct)))
+            start_time = int(time.mktime(start_time_struct))
         except ValueError:
             self.log.error("Invalid time format (%s)", build_start_time)
             raise
@@ -464,7 +468,7 @@ class KojiPromotePlugin(ExitPlugin):
             'release': release,
             'source': "{0}#{1}".format(source.uri, source.commit_id),
             'start_time': start_time,
-            'end_time': str(int(time.time())),
+            'end_time': int(time.time()),
             'extra': {
                 'image': {},
             },

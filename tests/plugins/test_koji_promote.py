@@ -15,7 +15,6 @@ try:
     import koji
 except ImportError:
     import inspect
-    import os
     import sys
 
     # Find out mocked koji module
@@ -89,10 +88,19 @@ class MockedClientSession(object):
         self.server_dir = server_dir
 
 
-FAKE_RPM_OUTPUT = (b'name1;1.0;1;x86_64;0;01234567;(none);RSA/SHA256, Mon 29 Jun 2015 13:58:22 BST, Key ID abcdef01234567\n'
-                   b'gpg-pubkey;01234567;01234567;(none);(none);(none);(none);(none)\n'
-                   b'gpg-pubkey-doc;01234567;01234567;noarch;(none);(none);(none);(none)\n'
-                   b'name2;2.0;2;x86_64;0;12345678;RSA/SHA256, Mon 29 Jun 2015 13:58:22 BST, Key ID bcdef012345678;(none)\n\n')
+FAKE_SIGMD5 = b'0' * 32
+FAKE_RPM_OUTPUT = (
+    b'name1;1.0;1;x86_64;0;' + FAKE_SIGMD5 + b';(none);'
+    b'RSA/SHA256, Mon 29 Jun 2015 13:58:22 BST, Key ID abcdef01234567\n'
+
+    b'gpg-pubkey;01234567;01234567;(none);(none);(none);(none);(none)\n'
+
+    b'gpg-pubkey-doc;01234567;01234567;noarch;(none);' + FAKE_SIGMD5 +
+    b';(none);(none)\n'
+
+    b'name2;2.0;2;x86_64;0;' + FAKE_SIGMD5 + b';' +
+    b'RSA/SHA256, Mon 29 Jun 2015 13:58:22 BST, Key ID bcdef012345678;(none)\n'
+    b'\n')
 
 FAKE_OS_OUTPUT = 'fedora-22'
 
@@ -119,8 +127,6 @@ class MockedPopen(object):
 
 def fake_Popen(cmd, *args, **kwargs):
     return MockedPopen(cmd, *args, **kwargs)
-
-
 
 
 def is_string_type(obj):
@@ -151,6 +157,8 @@ def check_components(components):
         assert component_rpm['version']
         assert is_string_type(component_rpm['version'])
         assert component_rpm['release']
+        epoch = component_rpm['epoch']
+        assert epoch is None or isinstance(epoch, int)
         assert is_string_type(component_rpm['arch'])
         assert component_rpm['signature'] != '(none)'
 
@@ -207,10 +215,13 @@ def prepare(tmpdir, session=None, name=None, version=None, release=None,
     setattr(workflow.source.lg, 'commit_id', '123456')
     setattr(workflow, 'build_logs', ['docker build log\n'])
     setattr(workflow, 'postbuild_results', {})
-    if pulp_key is not None:
-        workflow.postbuild_results[pulp_key] = [
-            ImageName(registry='registry.example.com', namespace='namespace',
-                      repo='repo', tag='tag')
+    if PULP_PUSH_KEY is not None:
+        workflow.postbuild_results[PULP_PUSH_KEY] = [
+            ImageName(registry='registry.example.com',
+                      namespace='namespace',
+                      repo='repo',
+                      tag=tag)
+            for tag in ['1.0-1', '1.0', 'latest']
         ]
 
     with open(os.path.join(str(tmpdir), 'image.tar.xz'), 'wt') as fp:
@@ -220,8 +231,8 @@ def prepare(tmpdir, session=None, name=None, version=None, release=None,
     setattr(workflow, 'build_failed', build_process_failed)
     workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_rebuild
     workflow.postbuild_results[PostBuildRPMqaPlugin.key] = [
-        "name1,1.0,1,x86_64,0,2000,01234567,23000",
-        "name2,2.0,1,x86_64,0,3000,abcdef01,24000",
+        "name1,1.0,1,x86_64,0,2000," + FAKE_SIGMD5.decode() + ",23000",
+        "name2,2.0,1,x86_64,0,3000," + FAKE_SIGMD5.decode() + ",24000",
     ]
 
     args = {
@@ -241,12 +252,12 @@ def prepare(tmpdir, session=None, name=None, version=None, release=None,
         args['metadata_only'] = True
 
     runner = ExitPluginsRunner(tasker, workflow,
-                                    [
-                                        {
-                                            'name': KojiPromotePlugin.key,
-                                            'args': args,
-                                        },
-                                    ])
+                               [
+                                   {
+                                       'name': KojiPromotePlugin.key,
+                                       'args': args,
+                                   },
+                               ])
 
     os.environ.update({
         'BUILD': json.dumps({
@@ -407,6 +418,16 @@ class TestKojiPromote(object):
         runner.run()
 
         data = session.metadata
+        if metadata_only:
+            mdonly = set()
+            output_filename = 'koji_promote-metadata-only.json'
+        else:
+            mdonly = set(['metadata_only'])
+            output_filename = 'koji_promote.json'
+
+        with open(output_filename, 'wb') as out:
+            json.dump(data, out, sort_keys=True, indent=4)
+
         assert set(data.keys()) == set([
             'metadata_version',
             'build',
@@ -426,11 +447,6 @@ class TestKojiPromote(object):
         output_files = data['output']
         assert isinstance(output_files, list)
 
-        if metadata_only:
-            mdonly = set()
-        else:
-            mdonly = set(['metadata_only'])
-
         assert set(build.keys()) == set([
             'name',
             'version',
@@ -446,8 +462,10 @@ class TestKojiPromote(object):
         assert build['version'] == version
         assert build['release'] == release
         assert build['source'] == 'git://hostname/path#123456'
-        assert int(build['start_time']) > 0
-        assert int(build['end_time']) > 0
+        start_time = build['start_time']
+        assert isinstance(start_time, int) and start_time
+        end_time = build['end_time']
+        assert isinstance(end_time, int) and end_time
         if metadata_only:
             assert isinstance(build['metadata_only'], bool)
             assert build['metadata_only']
@@ -614,15 +632,21 @@ class TestKojiPromote(object):
                 assert isinstance(docker, dict)
                 assert set(docker.keys()) == set([
                     'parent_id',
-                    'tag',
                     'id',
-                    'destination_repo',
+                    'repositories',
                 ])
 
                 assert is_string_type(docker['parent_id'])
-                assert is_string_type(docker['tag'])
                 assert is_string_type(docker['id'])
-                assert is_string_type(docker['destination_repo'])
+                repositories = docker['repositories']
+                assert isinstance(repositories, list)
+                for repository in repositories:
+                    assert is_string_type(repository)
+                    image = ImageName.parse(repository)
+                    assert image.registry
+                    assert image.namespace
+                    assert image.repo
+                    assert image.tag
 
             if metadata_only:
                 assert isinstance(output['metadata_only'], bool)
