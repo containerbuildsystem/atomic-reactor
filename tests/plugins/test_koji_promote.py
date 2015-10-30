@@ -203,8 +203,11 @@ def prepare(tmpdir, session=None, name=None, version=None, release=None,
     setattr(workflow, 'postbuild_results', {})
     if PULP_PUSH_KEY is not None:
         workflow.postbuild_results[PULP_PUSH_KEY] = [
-            ImageName(registry='registry.example.com', namespace='namespace',
-                      repo='repo', tag='tag')
+            ImageName(registry='registry.example.com',
+                      namespace='namespace',
+                      repo='repo',
+                      tag=tag)
+            for tag in ['1.0-1', '1.0', 'latest']
         ]
 
     with open(os.path.join(str(tmpdir), 'image.tar.xz'), 'wt') as fp:
@@ -606,15 +609,21 @@ class TestKojiPromote(object):
                 assert isinstance(docker, dict)
                 assert set(docker.keys()) == set([
                     'parent_id',
-                    'tag',
                     'id',
-                    'destination_repo',
+                    'repositories',
                 ])
 
                 assert is_string_type(docker['parent_id'])
-                assert is_string_type(docker['tag'])
                 assert is_string_type(docker['id'])
-                assert is_string_type(docker['destination_repo'])
+                repositories = docker['repositories']
+                assert isinstance(repositories, list)
+                for repository in repositories:
+                    assert is_string_type(repository)
+                    image = ImageName.parse(repository)
+                    assert image.registry
+                    assert image.namespace
+                    assert image.repo
+                    assert image.tag
 
             if metadata_only:
                 assert isinstance(output['metadata_only'], bool)

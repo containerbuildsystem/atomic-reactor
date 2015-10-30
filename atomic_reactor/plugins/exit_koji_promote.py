@@ -395,8 +395,7 @@ class KojiPromotePlugin(ExitPlugin):
             # Pulp plugin not installed or not configured
             raise NotImplementedError
 
-        destination_repo = pulp_result[0].to_str()
-        tag = self.workflow.tag_conf.unique_images[0].to_str()
+        repositories = [image.to_str() for image in pulp_result]
         arch = os.uname()[4]
         metadata, output = self.get_image_output()
         metadata.update({
@@ -410,8 +409,7 @@ class KojiPromotePlugin(ExitPlugin):
                 'docker': {
                     'id': image_id,
                     'parent_id': parent_id,
-                    'destination_repo': destination_repo,
-                    'tag': tag,
+                    'repositories': repositories,
                 },
             },
         })
