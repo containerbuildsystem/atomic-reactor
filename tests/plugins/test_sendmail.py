@@ -173,32 +173,31 @@ class TestSendMailPlugin(object):
             p._get_receivers_list()
         assert str(e.value) == 'PDC returned non-200 status code (404), see referenced build log'
 
+    def test_get_receivers_passes_proper_params(self):
+        class WF(object):
+            source = GitSource('git', 'foo', provider_params={'git_commit': 'branch'})
+        p = SendMailPlugin(None, WF(), pdc_contact_role='role')
+        flexmock(p).should_receive('_get_component_label').and_return('component')
+        flexmock(p).should_receive('_get_pdc_token').and_return('foo')
+
+        params = {'global_component': 'component', 'dist_git_branch': 'branch', 'role': 'role'}
+        flexmock(requests).should_receive('get').with_args(object, headers=object, params=params,
+                                                           verify=object).\
+            and_raise(requests.RequestException())
+
+        with pytest.raises(RuntimeError):
+            p._get_receivers_list()
+
     @pytest.mark.parametrize('pdc_response, pdc_contact_role, expected', [
-        ({'results': []},
+        ({'count': 0, 'results': []},
          SendMailPlugin.PDC_CONTACT_ROLE,
-         'Expected to find exactly 1 PDC component, found 0, see referenced build log'),
-        ({'results': [{'dist_git_branch': 'foo'}, {'dist_git_branch': 'foo'}]},
-         SendMailPlugin.PDC_CONTACT_ROLE,
-         'Expected to find exactly 1 PDC component, found 2, see referenced build log'),
-        ({'results': [{'dist_git_branch': 'foo', 'contacts': []}]},
-         SendMailPlugin.PDC_CONTACT_ROLE,
-         'no %s role for the component' % SendMailPlugin.PDC_CONTACT_ROLE),
-        ({'results': [{'dist_git_branch': 'foo',
-                       'contacts': [{'contact_role': SendMailPlugin.PDC_CONTACT_ROLE,
-                                     'email': 'foo@bar.com'}]}]},
+         'no {0} role for the component'.format(SendMailPlugin.PDC_CONTACT_ROLE)),
+        ({'count': 1, 'results': [{'contact': {'email': 'foo@bar.com'}}]},
          SendMailPlugin.PDC_CONTACT_ROLE,
          ['foo@bar.com']),
-        ({'results': [{'dist_git_branch': 'foo',
-                       'contacts': [{'contact_role': SendMailPlugin.PDC_CONTACT_ROLE,
-                                     'email': 'foo@bar.com'}]}]},
-         'Foo_Bar',
-         'no Foo_Bar role for the component'),
-        ({'results': [{'dist_git_branch': 'foo',
-                       'contacts':
-                       [{'contact_role': SendMailPlugin.PDC_CONTACT_ROLE, 'email': 'foo@bar.com'},
-                        {'contact_role': SendMailPlugin.PDC_CONTACT_ROLE,
-                         'email': 'spam@spam.com'},
-                        {'contact_role': 'different', 'email': 'other@baz.com'}]}]},
+        ({'count': 2,
+          'results':
+            [{'contact': {'email': 'foo@bar.com'}}, {'contact': {'email': 'spam@spam.com'}}]},
          SendMailPlugin.PDC_CONTACT_ROLE,
          ['foo@bar.com', 'spam@spam.com']),
     ])
