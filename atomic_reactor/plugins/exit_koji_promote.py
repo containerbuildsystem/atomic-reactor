@@ -146,10 +146,16 @@ class KojiPromotePlugin(ExitPlugin):
                 'version': field('VERSION'),
                 'release': field('RELEASE'),
                 'arch': field('ARCH'),
-                'epoch': field('EPOCH'),
                 'sigmd5': field('SIGMD5'),
                 'signature': signature,
             }
+
+            # Special handling for epoch as it must be an integer or None
+            epoch = field('EPOCH')
+            if epoch is not None:
+                epoch = int(epoch)
+
+            component_rpm['epoch'] = epoch
 
             if component_rpm['name'] != 'gpg-pubkey':
                 components.append(component_rpm)
@@ -427,7 +433,7 @@ class KojiPromotePlugin(ExitPlugin):
             # (the format we expect)
             start_time_struct = time.strptime(build_start_time,
                                               '%Y-%m-%dT%H:%M:%SZ')
-            start_time = str(int(time.mktime(start_time_struct)))
+            start_time = int(time.mktime(start_time_struct))
         except ValueError:
             self.log.error("Invalid time format (%s)", build_start_time)
             raise
@@ -453,7 +459,7 @@ class KojiPromotePlugin(ExitPlugin):
             'release': release,
             'source': "{0}#{1}".format(source.uri, source.commit_id),
             'start_time': start_time,
-            'end_time': str(int(time.time())),
+            'end_time': int(time.time()),
             'extra': {
                 'image': {},
             },
