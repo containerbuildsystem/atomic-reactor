@@ -163,10 +163,9 @@ def check_components(components):
         assert component_rpm['signature'] != '(none)'
 
 
-def prepare(tmpdir, session=None, name=None, version=None, release=None,
-            source=None, build_process_failed=False, is_rebuild=True,
-            ssl_certs=False, principal=None, keytab=None,
-            metadata_only=False, pulp_key=PULP_PUSH_KEY):
+def mock_environment(tmpdir, session=None, name=None, version=None,
+                     release=None, source=None, build_process_failed=False,
+                     is_rebuild=True, pulp_key=PULP_PUSH_KEY):
     if session is None:
         session = MockedClientSession('')
     if source is None:
@@ -215,8 +214,8 @@ def prepare(tmpdir, session=None, name=None, version=None, release=None,
     setattr(workflow.source.lg, 'commit_id', '123456')
     setattr(workflow, 'build_logs', ['docker build log\n'])
     setattr(workflow, 'postbuild_results', {})
-    if PULP_PUSH_KEY is not None:
-        workflow.postbuild_results[PULP_PUSH_KEY] = [
+    if pulp_key is not None:
+        workflow.postbuild_results[pulp_key] = [
             ImageName(registry='registry.example.com',
                       namespace='namespace',
                       repo='repo',
@@ -235,6 +234,22 @@ def prepare(tmpdir, session=None, name=None, version=None, release=None,
         "name2,2.0,1,x86_64,0,3000," + FAKE_SIGMD5.decode() + ",24000",
     ]
 
+    os.environ.update({
+        'BUILD': json.dumps({
+            "metadata": {
+                "creationTimestamp": "2015-07-27T09:24:00Z",
+                "namespace": namespace,
+                "name": build_id,
+            }
+        }),
+        'OPENSHIFT_CUSTOM_BUILD_BASE_IMAGE': 'buildroot:latest',
+    })
+
+    return tasker, workflow
+
+
+def create_runner(tasker, workflow, ssl_certs=False, principal=None,
+                  keytab=None, metadata_only=False):
     args = {
         'kojihub': '',
         'url': '/',
@@ -259,17 +274,6 @@ def prepare(tmpdir, session=None, name=None, version=None, release=None,
                                    },
                                ])
 
-    os.environ.update({
-        'BUILD': json.dumps({
-            "metadata": {
-                "creationTimestamp": "2015-07-27T09:24:00Z",
-                "namespace": namespace,
-                "name": build_id,
-            }
-        }),
-        'OPENSHIFT_CUSTOM_BUILD_BASE_IMAGE': 'buildroot:latest',
-    })
-
     return runner
 
 
@@ -278,8 +282,13 @@ def prepare(tmpdir, session=None, name=None, version=None, release=None,
 class TestKojiPromote(object):
     def test_koji_promote_failed_build(self, tmpdir):
         session = MockedClientSession('')
-        runner = prepare(tmpdir, build_process_failed=True,
-                         name='name', version='1.0', release='1')
+        tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
+                                            build_process_failed=True,
+                                            name='name',
+                                            version='1.0',
+                                            release='1')
+        runner = create_runner(tasker, workflow)
         runner.run()
 
         # Must not have promoted this build
@@ -287,20 +296,28 @@ class TestKojiPromote(object):
 
     def test_koji_promote_not_rebuild(self, tmpdir):
         session = MockedClientSession('')
-        runner = prepare(tmpdir, session, is_rebuild=False, name='name',
-                         version='1.0', release='1')
+        tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
+                                            is_rebuild=False,
+                                            name='name',
+                                            version='1.0',
+                                            release='1')
+        runner = create_runner(tasker, workflow)
         runner.run()
 
         # Must not have promoted this build
         assert not hasattr(session, 'metadata')
 
     def test_koji_promote_no_tagconf(self, tmpdir):
-        runner = prepare(tmpdir)
+        tasker, workflow = mock_environment(tmpdir)
+        runner = create_runner(tasker, workflow)
         with pytest.raises(PluginFailedException):
             runner.run()
 
     def test_koji_promote_no_build_env(self, tmpdir):
-        runner = prepare(tmpdir, name='name', version='1.0', release='1')
+        tasker, workflow = mock_environment(tmpdir, name='name', version='1.0',
+                                            release='1')
+        runner = create_runner(tasker, workflow)
 
         # No BUILD environment variable
         if "BUILD" in os.environ:
@@ -309,7 +326,9 @@ class TestKojiPromote(object):
             runner.run()
 
     def test_koji_promote_no_build_metadata(self, tmpdir):
-        runner = prepare(tmpdir, name='name', version='1.0', release='1')
+        tasker, workflow = mock_environment(tmpdir, name='name', version='1.0',
+                                            release='1')
+        runner = create_runner(tasker, workflow)
 
         # No BUILD metadata
         os.environ["BUILD"] = json.dumps({})
@@ -317,7 +336,11 @@ class TestKojiPromote(object):
             runner.run()
 
     def test_koji_promote_invalid_creation_timestamp(self, tmpdir):
-        runner = prepare(tmpdir, name='name', version='1.0', release='1')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='name',
+                                            version='1.0',
+                                            release='1')
+        runner = create_runner(tasker, workflow)
 
         # Invalid timestamp format
         os.environ["BUILD"] = json.dumps({
@@ -329,8 +352,13 @@ class TestKojiPromote(object):
             runner.run()
 
     def test_koji_promote_wrong_source_type(self, tmpdir):
-        runner = prepare(tmpdir, name='name', version='1.0', release='1',
-                         source=PathSource('path', 'file:///dev/null'))
+        source = PathSource('path', 'file:///dev/null')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='name',
+                                            version='1.0',
+                                            release='1',
+                                            source=source)
+        runner = create_runner(tasker, workflow)
         with pytest.raises(PluginFailedException):
             runner.run()
 
@@ -365,9 +393,14 @@ class TestKojiPromote(object):
         name = 'name'
         version = '1.0'
         release = '1'
-        runner = prepare(tmpdir, session, name=name, version=version,
-                         release=release, principal=params['principal'],
-                         keytab=params['keytab'])
+        tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
+                                            name=name,
+                                            version=version,
+                                            release=release)
+        runner = create_runner(tasker, workflow,
+                               principal=params['principal'],
+                               keytab=params['keytab'])
 
         if params['should_raise']:
             expectation.never()
@@ -383,11 +416,12 @@ class TestKojiPromote(object):
             .should_receive('krb_login')
             .and_raise(RuntimeError)
             .once())
-        name = 'name'
-        version = '1.0'
-        release = '1'
-        runner = prepare(tmpdir, session, name=name, version=version,
-                         release=release)
+        tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
+                                            name='name',
+                                            version='1.0',
+                                            release='1')
+        runner = create_runner(tasker, workflow)
         with pytest.raises(PluginFailedException):
             runner.run()
 
@@ -397,11 +431,12 @@ class TestKojiPromote(object):
             .should_receive('ssl_login')
             .and_raise(RuntimeError)
             .once())
-        name = 'name'
-        version = '1.0'
-        release = '1'
-        runner = prepare(tmpdir, session, name=name, version=version,
-                         release=release, ssl_certs=True)
+        tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
+                                            name='name',
+                                            version='1.0',
+                                            release='1')
+        runner = create_runner(tasker, workflow, ssl_certs=True)
         with pytest.raises(PluginFailedException):
             runner.run()
 
@@ -412,9 +447,13 @@ class TestKojiPromote(object):
         name = 'name'
         version = '1.0'
         release = '1'
-        runner = prepare(tmpdir, session, name=name, version=version,
-                         release=release, metadata_only=metadata_only,
-                         pulp_key=pulp_key)
+        tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
+                                            name=name,
+                                            version=version,
+                                            release=release,
+                                            pulp_key=pulp_key)
+        runner = create_runner(tasker, workflow, metadata_only=metadata_only)
         runner.run()
 
         data = session.metadata
