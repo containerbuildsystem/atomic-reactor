@@ -34,6 +34,12 @@ try:
 except (ImportError, SyntaxError):
     PULP_PUSH_KEY = None
 
+try:
+    from atomic_reactor.plugins.post_pulp_sync import PulpSyncPlugin
+    PULP_SYNC_KEY = PulpSyncPlugin.key
+except (ImportError, SyntaxError):
+    PULP_SYNC_KEY = None
+
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
@@ -152,7 +158,7 @@ def check_components(components):
 def prepare(tmpdir, session=None, name=None, version=None, release=None,
             source=None, build_process_failed=False, is_rebuild=True,
             ssl_certs=False, principal=None, keytab=None,
-            metadata_only=False):
+            metadata_only=False, pulp_key=PULP_PUSH_KEY):
     if session is None:
         session = MockedClientSession('')
     if source is None:
@@ -201,8 +207,8 @@ def prepare(tmpdir, session=None, name=None, version=None, release=None,
     setattr(workflow.source.lg, 'commit_id', '123456')
     setattr(workflow, 'build_logs', ['docker build log\n'])
     setattr(workflow, 'postbuild_results', {})
-    if PULP_PUSH_KEY is not None:
-        workflow.postbuild_results[PULP_PUSH_KEY] = [
+    if pulp_key is not None:
+        workflow.postbuild_results[pulp_key] = [
             ImageName(registry='registry.example.com', namespace='namespace',
                       repo='repo', tag='tag')
         ]
@@ -388,14 +394,16 @@ class TestKojiPromote(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
+    @pytest.mark.parametrize('pulp_key', [PULP_PUSH_KEY, PULP_SYNC_KEY])
     @pytest.mark.parametrize('metadata_only', [False, True])
-    def test_koji_promote_success(self, tmpdir, metadata_only):
+    def test_koji_promote_success(self, tmpdir, pulp_key, metadata_only):
         session = MockedClientSession('')
         name = 'name'
         version = '1.0'
         release = '1'
         runner = prepare(tmpdir, session, name=name, version=version,
-                         release=release, metadata_only=metadata_only)
+                         release=release, metadata_only=metadata_only,
+                         pulp_key=pulp_key)
         runner.run()
 
         data = session.metadata

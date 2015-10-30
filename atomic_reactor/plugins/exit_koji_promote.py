@@ -35,6 +35,12 @@ try:
 except (ImportError, SyntaxError):
     PULP_PUSH_KEY = None
 
+try:
+    from atomic_reactor.plugins.post_pulp_sync import PulpSyncPlugin
+    PULP_SYNC_KEY = PulpSyncPlugin.key
+except (ImportError, SyntaxError):
+    PULP_SYNC_KEY = None
+
 
 # An output file and its metadata
 Output = namedtuple('Output', ['file', 'metadata'])
@@ -388,7 +394,10 @@ class KojiPromotePlugin(ExitPlugin):
         image_id = self.workflow.builder.image_id
         parent_id = self.workflow.base_image_inspect['Id']
         pulp_result = None
-        if PULP_PUSH_KEY is not None:
+        if PULP_SYNC_KEY:
+            pulp_result = self.workflow.postbuild_results.get(PULP_SYNC_KEY)
+
+        if pulp_result is None and PULP_PUSH_KEY:
             pulp_result = self.workflow.postbuild_results.get(PULP_PUSH_KEY)
 
         if pulp_result is None:
