@@ -632,7 +632,7 @@ class TestKojiPromote(object):
             mdonly = set(['metadata_only'])
 
         output_filename = 'koji_promote-{0}.json'.format(apis)
-        with open(output_filename, 'wb') as out:
+        with open(output_filename, 'w') as out:
             json.dump(data, out, sort_keys=True, indent=4)
 
         assert set(data.keys()) == set([
