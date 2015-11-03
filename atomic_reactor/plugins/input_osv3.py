@@ -38,7 +38,17 @@ class OSv3InputPlugin(InputPlugin):
         git_ref = os.environ.get('SOURCE_REF', None)
         image = os.environ['OUTPUT_IMAGE']
         self.target_registry = os.environ.get('OUTPUT_REGISTRY', None)
-        self.plugins_json = os.environ.get('ATOMIC_REACTOR_PLUGINS', os.environ.get('DOCK_PLUGINS', '{}'))
+
+        try:
+            self.plugins_json = os.environ['ATOMIC_REACTOR_PLUGINS']
+        except KeyError:
+            try:
+                self.plugins_json = os.environ['DOCK_PLUGINS']
+            except KeyError:
+                raise RuntimeError("No plugin configuration found!")
+            else:
+                self.log.warning("DOCK_PLUGINS is deprecated - please update your osbs-client!")
+
         self.plugins_json = json.loads(self.plugins_json)
 
         self.preprocess_plugins()
