@@ -125,6 +125,69 @@ class PulpUploader(object):
             # Tell dockpulp.
             p.set_certs(cer, key)
 
+    def _enforce_repo_name_policy(self, repos, repo_prefix=None):
+        new_repos = []
+        for repo in repos:
+            if not repo.startswith(repo_prefix):
+                new_repo_key = repo_prefix + repo
+            else:
+                new_repo_key = repo
+            new_repos.append(new_repo_key)
+        return new_repos
+
+    def do_push_tar_to_pulp(self, p, repos_tags_mapping, tarfile, missing_repos_info={},
+                            repo_prefix="redhat-"):
+        """
+        repos_tags_mapping is mapping between repo-ids, registry-ids and tags
+        which should be applied to those repos, expected structure:
+        {
+            "my-image": {
+                "registry-id": "nick/my-image",
+                "tags": ["v1", "latest"],
+            },
+            ...
+        }
+        """
+        metadata = dockpulp.imgutils.get_metadata(tarfile)
+        pulp_md = dockpulp.imgutils.get_metadata_pulp(metadata)
+        imgs = pulp_md.keys()
+        mod_repos_tags_mapping = {}
+        repos = self._enforce_repo_name_policy(repos_tags_mapping.keys(),
+                                               repo_prefix=repo_prefix)
+        for new_repo,old_repo in zip(repos,repos_tags_mapping.keys()):
+            mod_repos_tags_mapping[new_repo] = repos_tags_mapping[old_repo]
+
+        #repos = mod_repos_tags_mapping.keys()
+
+        found_repos = p.getRepos(repos, ["id"])
+        found_repo_ids = [repo["id"] for repo in found_repos]
+
+        # create missing repos
+        missing_repos = set(repos) - set(found_repo_ids)
+        self.log.info("Missing repos: %s" % missing_repos)
+        for repo in missing_repos:
+            kwargs = {}
+            #print missing_repos_info
+            if repo in missing_repos_info:
+                kwargs = {"title": missing_repos_info[repo].get("title"),
+                          "desc": missing_repos_info[repo].get("desc")}
+                #print kwargs
+            p.createRepo(repo, "/pulp/docker/%s" % repo,
+                         registry_id=mod_repos_tags_mapping[repo]["registry-id"],
+                         desc=kwargs.get("desc"), title=kwargs.get("title"),
+                         prefix_with=repo_prefix)
+
+        top_layer = dockpulp.imgutils.get_top_layer(pulp_md)
+        p.upload(tarfile)
+
+        for repo, repo_conf in mod_repos_tags_mapping.items():
+            for img in imgs:
+                p.copy(repo, img)
+            p.updateRepo(repo, {"tag": "%s:%s" % (",".join(repo_conf["tags"]),
+                                                  top_layer)})
+
+        return p.crane(mod_repos_tags_mapping.keys(), wait=True)
+
     def push_tarball_to_pulp(self, image_names):
         self.log.info("checking image before upload")
         self._check_file()
@@ -147,7 +210,7 @@ class PulpUploader(object):
             repos_tags_mapping[repo].setdefault("tags", [])
             repos_tags_mapping[repo]["tags"].append(image.tag)
         self.log.info("repo_tags_mapping = %s", repos_tags_mapping)
-        task_ids = p.push_tar_to_pulp(repos_tags_mapping, self.filename)
+        task_ids = self.do_push_tar_to_pulp(p, repos_tags_mapping, self.filename)
 
         self.log.info("waiting for repos to be published to crane, tasks: %s",
                       ", ".join(map(str, task_ids)))
