@@ -23,25 +23,11 @@ from atomic_reactor import __version__ as atomic_reactor_version
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
-from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.constants import PROG
 from atomic_reactor.util import get_version_of_tools
 from osbs.conf import Configuration
 from osbs.api import OSBS
-
-try:
-    from atomic_reactor.plugins.post_push_to_pulp import PulpPushPlugin
-    PULP_PUSH_KEY = PulpPushPlugin.key
-except (ImportError, SyntaxError):
-    PULP_PUSH_KEY = None
-
-try:
-    from atomic_reactor.plugins.post_pulp_sync import PulpSyncPlugin
-    PULP_SYNC_KEY = PulpSyncPlugin.key
-except (ImportError, SyntaxError):
-    PULP_SYNC_KEY = None
-
 
 # An output file and its metadata
 Output = namedtuple('Output', ['file', 'metadata'])
@@ -378,28 +364,21 @@ class KojiPromotePlugin(ExitPlugin):
         return metadata, output
 
     def get_output_images(self):
+        if self.workflow.push_conf.pulp_registries:
+            # If pulp was used, only report pulp images
+            registries = self.workflow.push_conf.pulp_registries
+        else:
+            # Otherwise report all the images we pushed
+            registries = self.workflow.push_conf.all_registries
+
         output_images = []
-        pulp_images = None
-
-        if PULP_SYNC_KEY in self.workflow.postbuild_results:
-            pulp_images = self.workflow.postbuild_results[PULP_SYNC_KEY]
-            output_images += pulp_images
-
-        if PULP_PUSH_KEY in self.workflow.postbuild_results:
-            pulp_images = self.workflow.postbuild_results[PULP_PUSH_KEY]
-
-            # Don't add duplicates, but keep the order of the list
-            for image in pulp_images:
-                if image not in output_images:
-                    output_images.append(image)
-
-        tag_and_push = TagAndPushPlugin.key
-        if (pulp_images is None and
-                tag_and_push in self.workflow.postbuild_results):
-            # If pulp wasn't used, report the docker registry images we pushed
-            for image in self.workflow.postbuild_results[tag_and_push]:
-                if image not in output_images:
-                    output_images.append(image)
+        for registry in registries:
+            for image in (self.workflow.tag_conf.primary_images +
+                          self.workflow.tag_conf.unique_images):
+                registry_image = image.copy()
+                registry_image.registry = registry.uri
+                if registry_image not in output_images:
+                    output_images.append(registry_image)
 
         return output_images
 

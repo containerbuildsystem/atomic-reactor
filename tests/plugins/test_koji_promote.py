@@ -27,25 +27,12 @@ except ImportError:
     del koji
     import koji
 
-try:
-    from atomic_reactor.plugins.post_push_to_pulp import PulpPushPlugin
-    PULP_PUSH_KEY = PulpPushPlugin.key
-except (ImportError, SyntaxError):
-    PULP_PUSH_KEY = None
-
-try:
-    from atomic_reactor.plugins.post_pulp_sync import PulpSyncPlugin
-    PULP_SYNC_KEY = PulpSyncPlugin.key
-except (ImportError, SyntaxError):
-    PULP_SYNC_KEY = None
-
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
-from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
-from atomic_reactor.inner import DockerBuildWorkflow, TagConf
+from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
 from atomic_reactor.util import ImageName
 from atomic_reactor.source import GitSource, PathSource
 from tests.constants import SOURCE, MOCK
@@ -137,13 +124,11 @@ def is_string_type(obj):
 
 def mock_environment(tmpdir, session=None, name=None, version=None,
                      release=None, source=None, build_process_failed=False,
-                     is_rebuild=True, image_keys=None):
+                     is_rebuild=True, pulp_registries=0):
     if session is None:
         session = MockedClientSession('')
     if source is None:
         source = GitSource('git', 'git://hostname/path')
-    if image_keys is None:
-        image_keys = [PULP_PUSH_KEY]
 
     build_id = 'build-1'
     namespace = 'mynamespace'
@@ -187,15 +172,10 @@ def mock_environment(tmpdir, session=None, name=None, version=None,
     setattr(workflow.source, 'lg', X())
     setattr(workflow.source.lg, 'commit_id', '123456')
     setattr(workflow, 'build_logs', ['docker build log\n'])
-    setattr(workflow, 'postbuild_results', {})
-    for image_key in image_keys:
-        workflow.postbuild_results[image_key] = [
-            ImageName(registry='registry.example.com',
-                      namespace='namespace',
-                      repo='repo',
-                      tag=tag)
-            for tag in ['1.0-1', '1.0', 'latest']
-        ]
+    setattr(workflow, 'push_conf', PushConf())
+    workflow.push_conf.add_docker_registry('docker.example.com')
+    for pulp_registry in range(pulp_registries):
+        workflow.push_conf.add_pulp_registry('env', 'pulp.example.com')
 
     with open(os.path.join(str(tmpdir), 'image.tar.xz'), 'wt') as fp:
         fp.write('x' * 2**12)
@@ -251,15 +231,13 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
     return runner
 
 
-@pytest.mark.skipif(PULP_PUSH_KEY is None or PULP_SYNC_KEY is None,
-                    reason="plugin requires push_pulp")
 class TestKojiPromote(object):
     def test_koji_promote_failed_build(self, tmpdir):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
                                             session=session,
                                             build_process_failed=True,
-                                            name='name',
+                                            name='ns/name',
                                             version='1.0',
                                             release='1')
         runner = create_runner(tasker, workflow)
@@ -619,20 +597,20 @@ class TestKojiPromote(object):
                 assert image.repo
                 assert image.tag and image.tag != 'latest'
 
-    @pytest.mark.parametrize(('apis', 'image_keys', 'metadata_only'), [
+    @pytest.mark.parametrize(('apis', 'pulp_registries', 'metadata_only'), [
         ('v1-only',
-         [PULP_PUSH_KEY],
+         1,
          False),
 
         ('v1+v2',
-         [TagAndPushPlugin.key, PULP_PUSH_KEY, PULP_SYNC_KEY],
+         2,
          False),
 
         ('v2-only',
-         [TagAndPushPlugin.key, PULP_SYNC_KEY],
+         1,
          True),
     ])
-    def test_koji_promote_success(self, tmpdir, apis, image_keys,
+    def test_koji_promote_success(self, tmpdir, apis, pulp_registries,
                                   metadata_only):
         session = MockedClientSession('')
         name = 'ns/name'
@@ -643,7 +621,7 @@ class TestKojiPromote(object):
                                             name=name,
                                             version=version,
                                             release=release,
-                                            image_keys=image_keys)
+                                            pulp_registries=pulp_registries)
         runner = create_runner(tasker, workflow, metadata_only=metadata_only)
         runner.run()
 
