@@ -470,7 +470,7 @@ class KojiPromotePlugin(ExitPlugin):
         release = None
         for image_name in self.workflow.tag_conf.primary_images:
             if '-' in image_name.tag:
-                name = image_name.repo
+                name = image_name.to_str(registry=False, tag=False)
                 version, release = image_name.tag.split('-', 1)
 
         if name is None or version is None or release is None:

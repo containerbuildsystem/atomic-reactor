@@ -162,7 +162,7 @@ def mock_environment(tmpdir, session=None, name=None, version=None,
     setattr(workflow.builder.source, 'path', None)
     setattr(workflow, 'tag_conf', TagConf())
     if name and version:
-        workflow.tag_conf.add_unique_image('user/{n}:{v}-timestamp'
+        workflow.tag_conf.add_unique_image('{n}:{v}-timestamp'
                                            .format(n=name,
                                                    v=version))
     if name and version and release:
@@ -273,7 +273,7 @@ class TestKojiPromote(object):
         tasker, workflow = mock_environment(tmpdir,
                                             session=session,
                                             is_rebuild=False,
-                                            name='name',
+                                            name='ns/name',
                                             version='1.0',
                                             release='1')
         runner = create_runner(tasker, workflow)
@@ -289,7 +289,9 @@ class TestKojiPromote(object):
             runner.run()
 
     def test_koji_promote_no_build_env(self, tmpdir):
-        tasker, workflow = mock_environment(tmpdir, name='name', version='1.0',
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
                                             release='1')
         runner = create_runner(tasker, workflow)
 
@@ -300,7 +302,9 @@ class TestKojiPromote(object):
             runner.run()
 
     def test_koji_promote_no_build_metadata(self, tmpdir):
-        tasker, workflow = mock_environment(tmpdir, name='name', version='1.0',
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
                                             release='1')
         runner = create_runner(tasker, workflow)
 
@@ -311,7 +315,7 @@ class TestKojiPromote(object):
 
     def test_koji_promote_invalid_creation_timestamp(self, tmpdir):
         tasker, workflow = mock_environment(tmpdir,
-                                            name='name',
+                                            name='ns/name',
                                             version='1.0',
                                             release='1')
         runner = create_runner(tasker, workflow)
@@ -328,7 +332,7 @@ class TestKojiPromote(object):
     def test_koji_promote_wrong_source_type(self, tmpdir):
         source = PathSource('path', 'file:///dev/null')
         tasker, workflow = mock_environment(tmpdir,
-                                            name='name',
+                                            name='ns/name',
                                             version='1.0',
                                             release='1',
                                             source=source)
@@ -364,7 +368,7 @@ class TestKojiPromote(object):
     def test_koji_promote_krb_args(self, tmpdir, params):
         session = MockedClientSession('')
         expectation = flexmock(session).should_receive('krb_login')
-        name = 'name'
+        name = 'ns/name'
         version = '1.0'
         release = '1'
         tasker, workflow = mock_environment(tmpdir,
@@ -392,7 +396,7 @@ class TestKojiPromote(object):
             .once())
         tasker, workflow = mock_environment(tmpdir,
                                             session=session,
-                                            name='name',
+                                            name='ns/name',
                                             version='1.0',
                                             release='1')
         runner = create_runner(tasker, workflow)
@@ -407,7 +411,7 @@ class TestKojiPromote(object):
             .once())
         tasker, workflow = mock_environment(tmpdir,
                                             session=session,
-                                            name='name',
+                                            name='ns/name',
                                             version='1.0',
                                             release='1')
         runner = create_runner(tasker, workflow, ssl_certs=True)
@@ -631,7 +635,7 @@ class TestKojiPromote(object):
     def test_koji_promote_success(self, tmpdir, apis, image_keys,
                                   metadata_only):
         session = MockedClientSession('')
-        name = 'name'
+        name = 'ns/name'
         version = '1.0'
         release = '1'
         tasker, workflow = mock_environment(tmpdir,
