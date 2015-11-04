@@ -140,6 +140,14 @@ class PulpUploader(object):
                          registry_id=pulp_repos[repo].registry_id,
                          prefix_with=repo_prefix)
 
+    def _get_tar_metadata(self, tarfile):
+        metadata = dockpulp.imgutils.get_metadata(tarfile)
+        pulp_md = dockpulp.imgutils.get_metadata_pulp(metadata)
+        layers = pulp_md.keys()
+        top_layer = dockpulp.imgutils.get_top_layer(pulp_md)
+
+        return top_layer, layers
+
     def do_push_tar_to_pulp(self, p, repos_tags_mapping, tarfile, repo_prefix):
         """
         repos_tags_mapping is mapping between repo-ids, registry-ids and tags
@@ -149,18 +157,15 @@ class PulpUploader(object):
             ...
         }
         """
-        metadata = dockpulp.imgutils.get_metadata(tarfile)
-        pulp_md = dockpulp.imgutils.get_metadata_pulp(metadata)
-        imgs = pulp_md.keys()
 
+        top_layer, layers = self._get_tar_metadata(tarfile)
         self._create_missing_repos(p, repos_tags_mapping, repo_prefix)
 
-        top_layer = dockpulp.imgutils.get_top_layer(pulp_md)
         p.upload(tarfile)
 
         for repo_id, pulp_repo in repos_tags_mapping.items():
-            for img in imgs:
-                p.copy(repo_id, img)
+            for layer in layers:
+                p.copy(repo_id, layer)
             p.updateRepo(repo_id, {"tag": "%s:%s" % (",".join(pulp_repo.tags),
                                                      top_layer)})
 
