@@ -148,29 +148,6 @@ class PulpUploader(object):
 
         return top_layer, layers
 
-    def do_push_tar_to_pulp(self, p, repos_tags_mapping, tarfile, repo_prefix):
-        """
-        repos_tags_mapping is mapping between repo-ids, registry-ids and tags
-        which should be applied to those repos, expected structure:
-        {
-            "my-image": PulpRepo(registry_id="nick/my-image", tags=["v1", "latest"])
-            ...
-        }
-        """
-
-        top_layer, layers = self._get_tar_metadata(tarfile)
-        self._create_missing_repos(p, repos_tags_mapping, repo_prefix)
-
-        p.upload(tarfile)
-
-        for repo_id, pulp_repo in repos_tags_mapping.items():
-            for layer in layers:
-                p.copy(repo_id, layer)
-            p.updateRepo(repo_id, {"tag": "%s:%s" % (",".join(pulp_repo.tags),
-                                                     top_layer)})
-
-        return p.crane(repos_tags_mapping.keys(), wait=True)
-
     def push_tarball_to_pulp(self, image_names, repo_prefix="redhat-"):
         self.log.info("checking image before upload")
         self._check_file()
@@ -178,6 +155,12 @@ class PulpUploader(object):
         p = dockpulp.Pulp(env=self.pulp_instance)
         self._set_auth(p)
 
+        # pulp_repos is mapping from repo-ids to registry-ids and tags
+        # which should be applied to those repos, expected structure:
+        # {
+        #    "my-image": PulpRepo(registry_id="nick/my-image", tags=["v1", "latest"])
+        #    ...
+        # }
         pulp_repos = {}
         for image in image_names:
             repo_id = image.pulp_repo
@@ -193,9 +176,19 @@ class PulpUploader(object):
                     tags=[tag]
                 )
 
+        top_layer, layers = self._get_tar_metadata(self.filename)
         self.log.info("pulp_repos = %s", pulp_repos)
-        task_ids = self.do_push_tar_to_pulp(p, pulp_repos, self.filename, repo_prefix)
+        self._create_missing_repos(p, pulp_repos, repo_prefix)
 
+        p.upload(self.filename)
+
+        for repo_id, pulp_repo in pulp_repos.items():
+            for layer in layers:
+                p.copy(repo_id, layer)
+            p.updateRepo(repo_id, {"tag": "%s:%s" % (",".join(pulp_repo.tags),
+                                                     top_layer)})
+
+        task_ids = p.crane(pulp_repos.keys(), wait=True)
         self.log.info("waiting for repos to be published to crane, tasks: %s",
                       ", ".join(map(str, task_ids)))
         p.watch_tasks(task_ids)
