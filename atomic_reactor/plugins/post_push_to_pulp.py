@@ -135,8 +135,7 @@ class PulpUploader(object):
             new_repos.append(new_repo_key)
         return new_repos
 
-    def do_push_tar_to_pulp(self, p, repos_tags_mapping, tarfile, missing_repos_info={},
-                            repo_prefix="redhat-"):
+    def do_push_tar_to_pulp(self, p, repos_tags_mapping, tarfile, repo_prefix="redhat-"):
         """
         repos_tags_mapping is mapping between repo-ids, registry-ids and tags
         which should be applied to those repos, expected structure:
@@ -166,15 +165,8 @@ class PulpUploader(object):
         missing_repos = set(repos) - set(found_repo_ids)
         self.log.info("Missing repos: %s" % missing_repos)
         for repo in missing_repos:
-            kwargs = {}
-            #print missing_repos_info
-            if repo in missing_repos_info:
-                kwargs = {"title": missing_repos_info[repo].get("title"),
-                          "desc": missing_repos_info[repo].get("desc")}
-                #print kwargs
             p.createRepo(repo, "/pulp/docker/%s" % repo,
                          registry_id=mod_repos_tags_mapping[repo]["registry-id"],
-                         desc=kwargs.get("desc"), title=kwargs.get("title"),
                          prefix_with=repo_prefix)
 
         top_layer = dockpulp.imgutils.get_top_layer(pulp_md)
