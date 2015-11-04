@@ -128,6 +128,18 @@ class PulpUploader(object):
             # Tell dockpulp.
             p.set_certs(cer, key)
 
+    def _create_missing_repos(self, p, pulp_repos, repo_prefix):
+        repos = pulp_repos.keys()
+        found_repos = p.getRepos(repos, fields=["id"])
+        found_repo_ids = [repo["id"] for repo in found_repos]
+
+        missing_repos = set(repos) - set(found_repo_ids)
+        self.log.info("Missing repos: %s" % ", ".join(missing_repos))
+        for repo in missing_repos:
+            p.createRepo(repo, "/pulp/docker/%s" % repo,
+                         registry_id=pulp_repos[repo].registry_id,
+                         prefix_with=repo_prefix)
+
     def do_push_tar_to_pulp(self, p, repos_tags_mapping, tarfile, repo_prefix):
         """
         repos_tags_mapping is mapping between repo-ids, registry-ids and tags
@@ -141,17 +153,7 @@ class PulpUploader(object):
         pulp_md = dockpulp.imgutils.get_metadata_pulp(metadata)
         imgs = pulp_md.keys()
 
-        repos = repos_tags_mapping.keys()
-        found_repos = p.getRepos(repos, ["id"])
-        found_repo_ids = [repo["id"] for repo in found_repos]
-
-        # create missing repos
-        missing_repos = set(repos) - set(found_repo_ids)
-        self.log.info("Missing repos: %s" % missing_repos)
-        for repo in missing_repos:
-            p.createRepo(repo, "/pulp/docker/%s" % repo,
-                         registry_id=mod_repos_tags_mapping[repo].registry_id,
-                         prefix_with=repo_prefix)
+        self._create_missing_repos(p, repos_tags_mapping, repo_prefix)
 
         top_layer = dockpulp.imgutils.get_top_layer(pulp_md)
         p.upload(tarfile)
