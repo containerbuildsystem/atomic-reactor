@@ -2,6 +2,7 @@
 %{!?__python2: %global __python2 /usr/bin/python2}
 %{!?python2_sitelib: %global python2_sitelib %(%{__python2} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
 %{!?python2_sitearch: %global python2_sitearch %(%{__python2} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(1))")}
+%{!?python2_version: %global python2_version %(%{__python2} -c "import sys; sys.stdout.write(sys.version[:3])")}
 %endif
 
 %if (0%{?fedora} >= 22 || 0%{?rhel} >= 8)
@@ -9,6 +10,11 @@
 %global binaries_py_version 3
 %else
 %global binaries_py_version 2
+%endif
+
+%if 0%{?fedora}
+# rhel/epel has no flexmock, pytest-capturelog
+%global with_check 1
 %endif
 
 %global owner projectatomic
@@ -21,7 +27,7 @@
 
 Name:           %{project}
 Version:        1.6.0
-Release:        2%{?dist}
+Release:        3%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -33,18 +39,36 @@ BuildArch:      noarch
 
 BuildRequires:  python2-devel
 BuildRequires:  python-setuptools
+%if 0%{?with_check}
+BuildRequires:  pytest
+BuildRequires:  python-pytest-capturelog
+BuildRequires:  python-dockerfile-parse >= 0.0.5
+BuildRequires:  python-docker-py
+BuildRequires:  python-flexmock
+BuildRequires:  python-six
+BuildRequires:  python-osbs >= 0.15
+%endif # with_check
 
 %if 0%{?with_python3}
 Requires:       python3-atomic-reactor = %{version}-%{release}
 %else
 Requires:       python-atomic-reactor = %{version}-%{release}
-%endif
+%endif # with_python3
 Requires:       git >= 1.7.10
 
 %if 0%{?with_python3}
 BuildRequires:  python3-devel
 BuildRequires:  python3-setuptools
-%endif
+%if 0%{?with_check}
+BuildRequires:  python3-pytest
+BuildRequires:  python3-pytest-capturelog
+BuildRequires:  python3-dockerfile-parse >= 0.0.5
+BuildRequires:  python3-docker-py
+BuildRequires:  python3-flexmock
+BuildRequires:  python3-six
+BuildRequires:  python3-osbs >= 0.15
+%endif # with_check
+%endif # with_python3
 
 Provides:       dock = %{version}-%{release}
 Obsoletes:      dock < %{dock_obsolete_vr}
@@ -202,6 +226,16 @@ mkdir -p %{buildroot}%{_mandir}/man1
 cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 
 
+%if 0%{?with_check}
+%check
+%if 0%{?with_python3}
+LANG=en_US.utf8 py.test-%{python3_version} -vv tests
+%endif # with_python3
+
+LANG=en_US.utf8 py.test-%{python2_version} -vv tests
+%endif # with_check
+
+
 %files
 %doc README.md
 %{_mandir}/man1/atomic-reactor.1*
@@ -316,6 +350,9 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 
 
 %changelog
+* Thu Nov 05 2015 Jiri Popelka <jpopelka@redhat.com> - 1.6.0-3
+- %%check section
+
 * Mon Oct 19 2015 Slavek Kabrda <bkabrda@redhat.com> - 1.6.0-2
 - add requirements on python{,3}-docker-scripts
 
