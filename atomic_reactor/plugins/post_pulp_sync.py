@@ -157,7 +157,7 @@ class PulpSyncPlugin(PostBuildPlugin):
         self.log.info("syncing from docker V2 registry %s",
                       self.docker_registry)
         with dockpulp_config(docker_registry=self.docker_registry) as config:
-            for image in self.workflow.tag_conf.primary_images():
+            for image in self.workflow.tag_conf.primary_images:
                 self.log.info("syncing %s", image.pulp_repo)
                 pulp.syncRepo(config.env, image.pulp_repo,
                               config_file=config.name)
