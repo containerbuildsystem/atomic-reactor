@@ -142,7 +142,8 @@ class TestPostPulpSync(object):
 
     @pytest.mark.parametrize('cer_exists', [True, False])
     @pytest.mark.parametrize('key_exists', [True, False])
-    def test_auth_certs(self, tmpdir, cer_exists, key_exists):
+    @pytest.mark.parametrize('source_secret', [True, False])
+    def test_auth_certs(self, tmpdir, cer_exists, key_exists, source_secret, monkeypatch):
         pulp_secret_path = str(tmpdir)
         cer = pulp_secret_path + '/pulp.cer'
         key = pulp_secret_path + '/pulp.key'
@@ -151,6 +152,12 @@ class TestPostPulpSync(object):
 
         if key_exists:
             open(key, 'w').close()
+
+        if source_secret:
+            monkeypatch.setenv('SOURCE_SECRET_PATH', pulp_secret_path)
+            pulp_secret_path = None
+        else:
+            monkeypatch.delenv('SOURCE_SECRET_PATH', raising=False)
 
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'

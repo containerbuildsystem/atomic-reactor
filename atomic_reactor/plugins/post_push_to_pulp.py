@@ -105,13 +105,13 @@ class PulpUploader(object):
         # 'Secret'-type resource and mounted somewhere we can get at them.
         if self.username and self.password:
             p.login(self.username, self.password)
-        else:
+        elif self.pulp_secret_path or 'SOURCE_SECRET_PATH' in os.environ:
             if self.pulp_secret_path is not None:
                 path = self.pulp_secret_path
-                self.log.info("using configured path %s for secrets" % path)
+                self.log.info("using configured path %s for secrets", path)
             else:
                 path = os.environ["SOURCE_SECRET_PATH"]
-                self.log.info("SOURCE_SECRET_PATH=%s from environment" % path)
+                self.log.info("SOURCE_SECRET_PATH=%s from environment", path)
 
             # Work out the pathnames for the certificate/key pair.
             cer = os.path.join(path, self.CER)

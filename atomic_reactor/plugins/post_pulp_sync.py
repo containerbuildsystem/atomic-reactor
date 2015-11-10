@@ -127,10 +127,17 @@ class PulpSyncPlugin(PostBuildPlugin):
         if self.username and self.password:
             # Use username and password if provided
             pulp.login(self.username, self.password)
-        elif self.pulp_secret_path:
+        elif self.pulp_secret_path or 'SOURCE_SECRET_PATH' in os.environ:
+            if self.pulp_secret_path is not None:
+                path = self.pulp_secret_path
+                self.log.info("using configured path %s for secrets", path)
+            else:
+                path = os.environ["SOURCE_SECRET_PATH"]
+                self.log.info("SOURCE_SECRET_PATH=%s from environment", path)
+
             # Work out the pathnames for the certificate/key pair
-            cer = os.path.join(self.pulp_secret_path, self.CER)
-            key = os.path.join(self.pulp_secret_path, self.KEY)
+            cer = os.path.join(path, self.CER)
+            key = os.path.join(path, self.KEY)
 
             if not os.path.exists(cer):
                 raise RuntimeError("Certificate does not exist")
