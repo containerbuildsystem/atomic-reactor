@@ -9,7 +9,6 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 import json
-import os
 
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
@@ -68,7 +67,7 @@ def prepare():
     return runner
 
 
-def test_bad_setup():
+def test_bad_setup(monkeypatch):
     """
     Try all the early-fail paths.
     """
@@ -86,8 +85,7 @@ def test_bad_setup():
      .never())
 
     # No build JSON
-    if "BUILD" in os.environ:
-        del os.environ["BUILD"]
+    monkeypatch.delenv("BUILD", raising=False)
     with pytest.raises(PluginFailedException):
         runner.run()
 
@@ -96,7 +94,7 @@ def test_bad_setup():
     ({}),
     ({'namespace': 'my_namespace'})
 ])
-def test_create_image(namespace):
+def test_create_image(namespace, monkeypatch):
     """
     Test that an ImageStream is created if not found
     """
@@ -105,7 +103,7 @@ def test_create_image(namespace):
 
     build_json = {"metadata": {}}
     build_json["metadata"].update(namespace)
-    os.environ["BUILD"] = json.dumps(build_json)
+    monkeypatch.setenv("BUILD", json.dumps(build_json))
 
     (flexmock(OSBS)
      .should_receive('get_image_stream')
@@ -126,7 +124,7 @@ def test_create_image(namespace):
     ({}),
     ({'namespace': 'my_namespace'})
 ])
-def test_import_image(namespace):
+def test_import_image(namespace, monkeypatch):
     """
     Test importing tags for an existing ImageStream
     """
@@ -135,7 +133,7 @@ def test_import_image(namespace):
 
     build_json = {"metadata": {}}
     build_json["metadata"].update(namespace)
-    os.environ["BUILD"] = json.dumps(build_json)
+    monkeypatch.setenv("BUILD", json.dumps(build_json))
 
     (flexmock(OSBS)
      .should_receive('get_image_stream')
@@ -151,15 +149,15 @@ def test_import_image(namespace):
     runner.run()
 
 
-def test_exception_during_create():
+def test_exception_during_create(monkeypatch):
     """
     The plugin should fail if the ImageStream creation fails.
     """
 
     runner = prepare()
-    os.environ["BUILD"] = json.dumps({
+    monkeypatch.setenv("BUILD", json.dumps({
         "metadata": {}
-    })
+    }))
     (flexmock(OSBS)
      .should_receive('get_image_stream')
      .with_args(TEST_IMAGESTREAM)
@@ -177,15 +175,15 @@ def test_exception_during_create():
         runner.run()
 
 
-def test_exception_during_import():
+def test_exception_during_import(monkeypatch):
     """
     The plugin should fail if image import fails.
     """
 
     runner = prepare()
-    os.environ["BUILD"] = json.dumps({
+    monkeypatch.setenv("BUILD", json.dumps({
         "metadata": {}
-    })
+    }))
     (flexmock(OSBS)
      .should_receive('get_image_stream')
      .with_args(TEST_IMAGESTREAM)

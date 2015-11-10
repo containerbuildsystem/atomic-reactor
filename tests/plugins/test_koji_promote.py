@@ -44,6 +44,9 @@ import subprocess
 from osbs.api import OSBS
 from six import string_types
 
+NAMESPACE='mynamespace'
+BUILD_ID = 'build-1'
+
 
 class X(object):
     pass
@@ -130,8 +133,6 @@ def mock_environment(tmpdir, session=None, name=None, version=None,
     if source is None:
         source = GitSource('git', 'git://hostname/path')
 
-    build_id = 'build-1'
-    namespace = 'mynamespace'
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
@@ -162,11 +163,11 @@ def mock_environment(tmpdir, session=None, name=None, version=None,
     flexmock(GitSource)
     (flexmock(OSBS)
         .should_receive('get_build_logs')
-        .with_args(build_id, namespace=namespace)
+        .with_args(BUILD_ID, namespace=NAMESPACE)
         .and_return('build logs'))
     (flexmock(OSBS)
         .should_receive('get_pod_for_build')
-        .with_args(build_id, namespace=namespace)
+        .with_args(BUILD_ID, namespace=NAMESPACE)
         .and_return(MockedPodResponse()))
     setattr(workflow, 'source', source)
     setattr(workflow.source, 'lg', X())
@@ -188,18 +189,19 @@ def mock_environment(tmpdir, session=None, name=None, version=None,
         "name2,2.0,1,x86_64,0,3000," + FAKE_SIGMD5.decode() + ",24000",
     ]
 
-    os.environ.update({
-        'BUILD': json.dumps({
-            "metadata": {
-                "creationTimestamp": "2015-07-27T09:24:00Z",
-                "namespace": namespace,
-                "name": build_id,
-            }
-        }),
-        'OPENSHIFT_CUSTOM_BUILD_BASE_IMAGE': 'buildroot:latest',
-    })
-
     return tasker, workflow
+
+
+@pytest.fixture
+def os_env(monkeypatch):
+    monkeypatch.setenv('BUILD', json.dumps({
+        "metadata": {
+            "creationTimestamp": "2015-07-27T09:24:00Z",
+            "namespace": NAMESPACE,
+            "name": BUILD_ID,
+        }
+    }))
+    monkeypatch.setenv('OPENSHIFT_CUSTOM_BUILD_BASE_IMAGE', 'buildroot:latest')
 
 
 def create_runner(tasker, workflow, ssl_certs=False, principal=None,
@@ -232,7 +234,7 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
 
 
 class TestKojiPromote(object):
-    def test_koji_promote_failed_build(self, tmpdir):
+    def test_koji_promote_failed_build(self, tmpdir, os_env):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
                                             session=session,
@@ -246,7 +248,7 @@ class TestKojiPromote(object):
         # Must not have promoted this build
         assert not hasattr(session, 'metadata')
 
-    def test_koji_promote_not_rebuild(self, tmpdir):
+    def test_koji_promote_not_rebuild(self, tmpdir, os_env):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
                                             session=session,
@@ -260,13 +262,13 @@ class TestKojiPromote(object):
         # Must not have promoted this build
         assert not hasattr(session, 'metadata')
 
-    def test_koji_promote_no_tagconf(self, tmpdir):
+    def test_koji_promote_no_tagconf(self, tmpdir, os_env):
         tasker, workflow = mock_environment(tmpdir)
         runner = create_runner(tasker, workflow)
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_promote_no_build_env(self, tmpdir):
+    def test_koji_promote_no_build_env(self, tmpdir, monkeypatch, os_env):
         tasker, workflow = mock_environment(tmpdir,
                                             name='ns/name',
                                             version='1.0',
@@ -274,12 +276,12 @@ class TestKojiPromote(object):
         runner = create_runner(tasker, workflow)
 
         # No BUILD environment variable
-        if "BUILD" in os.environ:
-            del os.environ["BUILD"]
+        monkeypatch.delenv("BUILD", raising=False)
+
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_promote_no_build_metadata(self, tmpdir):
+    def test_koji_promote_no_build_metadata(self, tmpdir, monkeypatch, os_env):
         tasker, workflow = mock_environment(tmpdir,
                                             name='ns/name',
                                             version='1.0',
@@ -287,11 +289,11 @@ class TestKojiPromote(object):
         runner = create_runner(tasker, workflow)
 
         # No BUILD metadata
-        os.environ["BUILD"] = json.dumps({})
+        monkeypatch.setenv("BUILD", json.dumps({}))
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_promote_invalid_creation_timestamp(self, tmpdir):
+    def test_koji_promote_invalid_creation_timestamp(self, tmpdir, monkeypatch, os_env):
         tasker, workflow = mock_environment(tmpdir,
                                             name='ns/name',
                                             version='1.0',
@@ -299,15 +301,15 @@ class TestKojiPromote(object):
         runner = create_runner(tasker, workflow)
 
         # Invalid timestamp format
-        os.environ["BUILD"] = json.dumps({
+        monkeypatch.setenv("BUILD", json.dumps({
             "metadata": {
                 "creationTimestamp": "2015-07-27 09:24 UTC"
             }
-        })
+        }))
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_promote_wrong_source_type(self, tmpdir):
+    def test_koji_promote_wrong_source_type(self, tmpdir, os_env):
         source = PathSource('path', 'file:///dev/null')
         tasker, workflow = mock_environment(tmpdir,
                                             name='ns/name',
@@ -343,7 +345,7 @@ class TestKojiPromote(object):
             'keytab': 'FILE:/var/run/secrets/mysecret',
         },
     ])
-    def test_koji_promote_krb_args(self, tmpdir, params):
+    def test_koji_promote_krb_args(self, tmpdir, params, os_env):
         session = MockedClientSession('')
         expectation = flexmock(session).should_receive('krb_login')
         name = 'ns/name'
@@ -366,7 +368,7 @@ class TestKojiPromote(object):
             expectation.once()
             runner.run()
 
-    def test_koji_promote_krb_fail(self, tmpdir):
+    def test_koji_promote_krb_fail(self, tmpdir, os_env):
         session = MockedClientSession('')
         (flexmock(session)
             .should_receive('krb_login')
@@ -381,7 +383,7 @@ class TestKojiPromote(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_promote_ssl_fail(self, tmpdir):
+    def test_koji_promote_ssl_fail(self, tmpdir, os_env):
         session = MockedClientSession('')
         (flexmock(session)
             .should_receive('ssl_login')
@@ -611,7 +613,7 @@ class TestKojiPromote(object):
          True),
     ])
     def test_koji_promote_success(self, tmpdir, apis, pulp_registries,
-                                  metadata_only):
+                                  metadata_only, os_env):
         session = MockedClientSession('')
         name = 'ns/name'
         version = '1.0'

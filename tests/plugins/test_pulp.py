@@ -82,9 +82,9 @@ def prepare(check_repo_retval=0):
     (1, True),
     (0, False),
 ])
-def test_pulp_source_secret(tmpdir, check_repo_retval, should_raise):
+def test_pulp_source_secret(tmpdir, check_repo_retval, should_raise, monkeypatch):
     tasker, workflow = prepare(check_repo_retval=check_repo_retval)
-    os.environ['SOURCE_SECRET_PATH'] = str(tmpdir)
+    monkeypatch.setenv('SOURCE_SECRET_PATH', str(tmpdir))
     with open(os.path.join(str(tmpdir), "pulp.cer"), "wt") as cer:
         cer.write("pulp certificate\n")
     with open(os.path.join(str(tmpdir), "pulp.key"), "wt") as key:
@@ -112,9 +112,9 @@ def test_pulp_source_secret(tmpdir, check_repo_retval, should_raise):
 
 @pytest.mark.skipif(dockpulp is None,
                     reason='dockpulp module not available')
-def test_pulp_service_account_secret(tmpdir):
+def test_pulp_service_account_secret(tmpdir, monkeypatch):
     tasker, workflow = prepare()
-    os.environ['SOURCE_SECRET_PATH'] = str(tmpdir) + "/not-used"
+    monkeypatch.setenv('SOURCE_SECRET_PATH', str(tmpdir) + "/not-used")
     with open(os.path.join(str(tmpdir), "pulp.cer"), "wt") as cer:
         cer.write("pulp certificate\n")
     with open(os.path.join(str(tmpdir), "pulp.key"), "wt") as key:

@@ -16,7 +16,6 @@ from atomic_reactor.plugins.pre_check_and_set_rebuild import (is_rebuild,
                                                               CheckAndSetRebuildPlugin)
 from atomic_reactor.util import ImageName
 import json
-import os
 from osbs.api import OSBS
 from flexmock import flexmock
 from tests.constants import SOURCE, MOCK
@@ -60,26 +59,25 @@ def prepare(key, value, set_labels_args=None, set_labels_kwargs=None):
     return workflow, runner
 
 
-def test_check_rebuild_no_build_json():
+def test_check_rebuild_no_build_json(monkeypatch):
     workflow, runner = prepare('is_autorebuild', 'true')
-    if "BUILD" in os.environ:
-        del os.environ["BUILD"]
+    monkeypatch.delenv('BUILD', raising=False)
 
     with pytest.raises(PluginFailedException):
         runner.run()
 
 
-def test_check_no_buildconfig():
+def test_check_no_buildconfig(monkeypatch):
     key = 'is_autorebuild'
     value = 'true'
     workflow, runner = prepare(key, value)
-    os.environ["BUILD"] = json.dumps({
+    monkeypatch.setenv("BUILD", json.dumps({
         "metadata": {
             "labels": {
                 key: value,
             }
         }
-    })
+    }))
 
     # No buildconfig in metadata
     with pytest.raises(PluginFailedException):
@@ -87,7 +85,7 @@ def test_check_no_buildconfig():
 
 
 @pytest.mark.parametrize(('namespace'), [None, 'my_namespace'])
-def test_check_is_not_rebuild(namespace):
+def test_check_is_not_rebuild(namespace, monkeypatch):
     key = 'is_autorebuild'
     value = 'true'
     buildconfig = "buildconfig1"
@@ -109,25 +107,25 @@ def test_check_is_not_rebuild(namespace):
     }
  
     build_json["metadata"].update(namespace_dict)
-    os.environ["BUILD"] = json.dumps(build_json)
+    monkeypatch.setenv("BUILD", json.dumps(build_json))
     runner.run()
     assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] == False
     assert not is_rebuild(workflow)
 
 
-def test_check_is_rebuild():
+def test_check_is_rebuild(monkeypatch):
     key = 'is_autorebuild'
     value = 'true'
     workflow, runner = prepare(key, value)
 
-    os.environ["BUILD"] = json.dumps({
+    monkeypatch.setenv("BUILD", json.dumps({
         "metadata": {
             "labels": {
                 "buildconfig": "buildconfig1",
                 key: value,
             }
         }
-    })
+    }))
     runner.run()
     assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] == True
     assert is_rebuild(workflow)
