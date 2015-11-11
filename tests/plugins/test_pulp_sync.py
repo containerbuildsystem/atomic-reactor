@@ -69,7 +69,11 @@ class MockPulp(object):
 class TestPostPulpSync(object):
     @staticmethod
     def workflow(docker_repos):
-        primary_images = [ImageName(repo=repo) for repo in docker_repos]
+        primary_images = []
+        for tag in ['1.0-1', '1.0', 'latest']:
+            primary_images.extend([ImageName(repo=repo, tag=tag)
+                                   for repo in docker_repos])
+
         tag_conf = flexmock(primary_images=primary_images)
         push_conf = flexmock(add_pulp_registry=lambda env, registry: None)
         return flexmock(tag_conf=tag_conf,
