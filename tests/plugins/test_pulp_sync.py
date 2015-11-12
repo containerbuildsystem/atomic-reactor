@@ -63,6 +63,9 @@ class MockPulp(object):
     def syncRepo(self, env, repo, config_file=None):
         pass
 
+    def crane(self, repos, wait=True):
+        pass
+
 
 @pytest.mark.skipif(dockpulp is None,
                     reason='dockpulp module not available')
@@ -100,7 +103,15 @@ class TestPostPulpSync(object):
             .with_args(object,
                        'prod-myrepository',  # pulp repository name
                        config_file=object)
-            .once())
+            .and_return([{'id': 'prefix-prod-myrepository'}])  # repo id
+            .once()
+            .ordered())
+        (flexmock(mockpulp)
+            .should_receive('crane')
+            .with_args(['prefix-prod-myrepository'],  # repo id
+                       wait=True)
+            .once()
+            .ordered())
         (flexmock(dockpulp)
             .should_receive('Pulp')
             .with_args(env=env)
@@ -135,6 +146,13 @@ class TestPostPulpSync(object):
             .with_args(object,
                        'prod-myrepository',  # pulp repository name
                        config_file=object)
+            .and_return([{'id': 'prefix-prod-myrepository'}])  # repo id
+            .once()
+            .ordered())
+        (flexmock(mockpulp)
+            .should_receive('crane')
+            .with_args(['prefix-prod-myrepository'],  # repo id
+                       wait=True)
             .once()
             .ordered())
         (flexmock(dockpulp)
@@ -187,6 +205,13 @@ class TestPostPulpSync(object):
                 .with_args(object,
                            'prod-myrepository',  # pulp repository name
                            config_file=object)
+                .and_return([{'id': 'prefix-prod-myrepository'}])  # repo id
+                .once()
+                .ordered())
+            (flexmock(mockpulp)
+                .should_receive('crane')
+                .with_args(['prefix-prod-myrepository'],  # repo id
+                           wait=True)
                 .once()
                 .ordered())
         else:
@@ -195,6 +220,9 @@ class TestPostPulpSync(object):
                 .never())
             (flexmock(mockpulp)
                 .should_receive('syncRepo')
+                .never())
+            (flexmock(mockpulp)
+                .should_receive('crane')
                 .never())
 
         (flexmock(dockpulp)
@@ -213,6 +241,9 @@ class TestPostPulpSync(object):
         loglevel = 3
 
         mockpulp = MockPulp()
+        (flexmock(mockpulp)
+            .should_receive('syncRepo')
+            .and_return([{'id':''}]))
         flexmock(dockpulp).should_receive('Pulp').and_return(mockpulp)
         logger = flexmock()
         expectation = (logger

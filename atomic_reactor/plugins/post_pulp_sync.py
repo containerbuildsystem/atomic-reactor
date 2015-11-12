@@ -164,17 +164,21 @@ class PulpSyncPlugin(PostBuildPlugin):
                       self.docker_registry)
 
         images = []
-        repos = set()
+        repos = {}  # pulp repo -> repo id
         with dockpulp_config(docker_registry=self.docker_registry) as config:
             for image in self.workflow.tag_conf.primary_images:
                 if image.pulp_repo not in repos:
-                    repos.add(image.pulp_repo)
                     self.log.info("syncing %s", image.pulp_repo)
-                    pulp.syncRepo(config.env, image.pulp_repo,
-                                  config_file=config.name)
+                    repoinfo = pulp.syncRepo(config.env, image.pulp_repo,
+                                             config_file=config.name)
+                    repos[image.pulp_repo] = repoinfo[0]['id']
+
 
                 images.append(ImageName(registry=pulp_registry,
                                         repo=image.repo))
+
+        self.log.info("publishing to crane")
+        pulp.crane(list(repos.values()), wait=True)
 
         # Return the set of qualitifed repo names for this image
         return images
