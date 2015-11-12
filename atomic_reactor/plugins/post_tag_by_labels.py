@@ -30,7 +30,8 @@ class TagByLabelsPlugin(PostBuildPlugin):
         """
         # call parent constructor
         super(TagByLabelsPlugin, self).__init__(tasker, workflow)
-        self.log.warning("ignoring arguments %s", kwargs)
+        if kwargs:
+            self.log.warning("ignoring arguments %s", kwargs)
 
     def run(self):
         if not self.workflow.built_image_inspect:
