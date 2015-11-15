@@ -90,6 +90,7 @@ class PulpSyncPlugin(PostBuildPlugin):
     def __init__(self, tasker, workflow,
                  pulp_registry_name,
                  docker_registry,
+                 delete_from_registry=False,
                  pulp_secret_path=None,
                  username=None, password=None,
                  dockpulp_loglevel=None):
@@ -101,6 +102,8 @@ class PulpSyncPlugin(PostBuildPlugin):
         :param pulp_registry_name: str, name of pulp registry to use,
                specified in /etc/dockpulp.conf
         :param docker_registry: str, URL of docker registry to sync from
+        :param delete_from_registry: bool, whether to delete the image
+               from the docker v2 registry after sync
         :param pulp_secret_path: path to pulp.cer and pulp.key
         :param username: pulp username, used in preference to
                certificate and key
@@ -122,6 +125,10 @@ class PulpSyncPlugin(PostBuildPlugin):
             except (ValueError, TypeError) as ex:
                 self.log.error("Can't set provided log level %r: %r",
                                dockpulp_loglevel, ex)
+
+        if delete_from_registry:
+            self.log.error("will not delete from registry as instructed: "
+                           "not implemented")
 
     def set_auth(self, pulp):
         if self.username and self.password:
