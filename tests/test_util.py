@@ -9,7 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 import os
-
+import tempfile
 import pytest
 import six
 
@@ -21,7 +21,8 @@ except ImportError:
 import docker
 from atomic_reactor.util import ImageName, \
     wait_for_command, clone_git_repo, LazyGit, figure_out_dockerfile, render_yum_repo, \
-    process_substitutions, print_version_of_tools, get_version_of_tools, get_preferred_label_key
+    process_substitutions, get_checksums, print_version_of_tools, get_version_of_tools, \
+    get_preferred_label_key
 from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1
 
 if MOCK:
@@ -43,13 +44,16 @@ TEST_DATA = {
     "prefix/image-name:1": ImageName(namespace="prefix", repo="image-name", tag="1"),
     }
 
+
 def test_image_name_parse():
     for inp, parsed in TEST_DATA.items():
         assert ImageName.parse(inp) == parsed
 
+
 def test_image_name_format():
     for expected, image_name in TEST_DATA.items():
         assert image_name.to_str() == expected
+
 
 def test_image_name_comparison():
     # make sure that both "==" and "!=" are implemented right on both Python major releases
@@ -61,6 +65,7 @@ def test_image_name_comparison():
     i2 = ImageName(registry='foo.com', namespace='spam', repo='bar', tag='2')
     assert not i1 == i2
     assert i1 != i2
+
 
 def test_wait_for_command():
     if MOCK:
@@ -131,6 +136,7 @@ enabled=1
 gpgcheck=0
 """
 
+
 @pytest.mark.parametrize('dct, subst, expected', [
     ({'foo': 'bar'}, ['foo=spam'], {'foo': 'spam'}),
     ({'foo': 'bar'}, ['baz=spam'], {'foo': 'bar', 'baz': 'spam'}),
@@ -153,6 +159,22 @@ def test_process_substitutions(dct, subst, expected):
     else:
         process_substitutions(dct, subst)
         assert dct == expected
+
+
+@pytest.mark.parametrize('content, algorithms, expected', [
+    (b'abc', ['md5', 'sha256'],
+                 {'md5sum': '900150983cd24fb0d6963f7d28e17f72',
+                  'sha256sum': 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'}),
+    (b'abc', ['md5'], {'md5sum': '900150983cd24fb0d6963f7d28e17f72'}),
+    (b'abc', [], {})
+])
+def test_get_hexdigests(tmpdir, content, algorithms, expected):
+    with tempfile.NamedTemporaryFile(dir=str(tmpdir)) as tmpfile:
+        tmpfile.write(content)
+        tmpfile.flush()
+
+        checksums = get_checksums(tmpfile.name, algorithms)
+        assert checksums == expected
 
 
 def test_get_versions_of_tools():

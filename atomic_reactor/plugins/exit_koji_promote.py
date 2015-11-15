@@ -10,7 +10,6 @@ from __future__ import unicode_literals
 
 from collections import namedtuple
 import json
-import hashlib
 import os
 import random
 from string import ascii_letters
@@ -25,7 +24,7 @@ from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.constants import PROG
-from atomic_reactor.util import get_version_of_tools
+from atomic_reactor.util import get_version_of_tools, get_checksums
 from osbs.conf import Configuration
 from osbs.api import OSBS
 
@@ -204,18 +203,11 @@ class KojiPromotePlugin(ExitPlugin):
         :return: dict
         """
 
+        checksums = get_checksums(path, ['md5'])
         metadata = {'filename': filename,
-                    'filesize': os.path.getsize(path)}
-        md5 = hashlib.md5()
-        blocksize = 65536
-        with open(path, mode='rb') as f:
-            buf = f.read(blocksize)
-            while len(buf) > 0:
-                md5.update(buf)
-                buf = f.read(blocksize)
-
-        metadata.update({'checksum': md5.hexdigest(),
-                         'checksum_type': 'md5'})
+                    'filesize': os.path.getsize(path),
+                    'checksum': checksums['md5sum'],
+                    'checksum_type': 'md5'}
 
         if self.metadata_only:
             metadata['metadata_only'] = True
