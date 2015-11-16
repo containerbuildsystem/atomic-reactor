@@ -148,9 +148,8 @@ def mock_environment(tmpdir, session=None, name=None, version=None,
     setattr(workflow.builder.source, 'path', None)
     setattr(workflow, 'tag_conf', TagConf())
     if name and version:
-        workflow.tag_conf.add_unique_image('{n}:{v}-timestamp'
-                                           .format(n=name,
-                                                   v=version))
+        workflow.tag_conf.add_unique_image('user/test-image:{v}-timestamp'
+                                           .format(v=version))
     if name and version and release:
         workflow.tag_conf.add_primary_images(["{0}:{1}-{2}".format(name,
                                                                    version,
@@ -348,7 +347,7 @@ class TestKojiPromote(object):
     def test_koji_promote_krb_args(self, tmpdir, params, os_env):
         session = MockedClientSession('')
         expectation = flexmock(session).should_receive('krb_login')
-        name = 'ns/name'
+        name = 'name'
         version = '1.0'
         release = '1'
         tasker, workflow = mock_environment(tmpdir,
@@ -667,7 +666,7 @@ class TestKojiPromote(object):
             'metadata_only',  # only when True
         ]) - mdonly
 
-        assert build['name'] == name
+        assert build['name'] == name.replace('ns/', '')  # namespace not used
         assert build['version'] == version
         assert build['release'] == release
         assert build['source'] == 'git://hostname/path#123456'
