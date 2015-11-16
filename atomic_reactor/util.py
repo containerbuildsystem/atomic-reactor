@@ -428,6 +428,44 @@ def _process_plugin_substitution(mapping, key_parts, value):
                            plugin_name, plugins_num)
 
 
+def get_checksums(path, algorithms):
+    """
+    Compute a checksum(s) of given file using specified algorithms.
+
+    :param path: path to file
+    :param algorithms: list of cryptographic hash functions, currently supported: md5, sha256
+    :return: dictionary
+    """
+    if not algorithms:
+        return {}
+
+    compute_md5 = 'md5' in algorithms
+    compute_sha256 = 'sha256' in algorithms
+
+    if compute_md5:
+        md5 = hashlib.md5()
+    if compute_sha256:
+        sha256 = hashlib.sha256()
+    blocksize = 65536
+    with open(path, mode='rb') as f:
+        buf = f.read(blocksize)
+        while len(buf) > 0:
+            if compute_md5:
+                md5.update(buf)
+            if compute_sha256:
+                sha256.update(buf)
+            buf = f.read(blocksize)
+
+    checksums = {}
+    if compute_md5:
+        checksums['md5sum'] = md5.hexdigest()
+        logger.debug('md5sum: %s', checksums['md5sum'])
+    if compute_sha256:
+        checksums['sha256sum'] = sha256.hexdigest()
+        logger.debug('sha256sum: %s', checksums['sha256sum'])
+    return checksums
+
+
 def get_exported_image_metadata(path):
     logger.info('getting metadata for tarball %s', path)
     metadata = {'path': path}
@@ -437,19 +475,7 @@ def get_exported_image_metadata(path):
 
     metadata['size'] = os.path.getsize(path)
     logger.debug('size: %d bytes', metadata['size'])
-    m = hashlib.md5()
-    s = hashlib.sha256()
-    blocksize = 65536
-    with open(path, mode='rb') as f:
-        buf = f.read(blocksize)
-        while len(buf) > 0:
-            m.update(buf)
-            s.update(buf)
-            buf = f.read(blocksize)
-    metadata['md5sum'] = m.hexdigest()
-    logger.debug('md5sum: %s', metadata['md5sum'])
-    metadata['sha256sum'] = s.hexdigest()
-    logger.debug('sha256sum: %s', metadata['sha256sum'])
+    metadata.update(get_checksums(path, ['md5', 'sha256']))
     return metadata
 
 
