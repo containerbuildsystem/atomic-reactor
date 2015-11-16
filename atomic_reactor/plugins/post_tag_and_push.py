@@ -59,7 +59,7 @@ class TagAndPushPlugin(PostBuildPlugin):
                                                       registry_image, insecure=insecure,
                                                       force=True)
 
-                self.check_for_errors(logs)
+                self.check_for_errors(logs, insecure=insecure)
 
                 pushed_images.append(registry_image)
 
@@ -70,7 +70,7 @@ class TagAndPushPlugin(PostBuildPlugin):
 
         return pushed_images
 
-    def check_for_errors(self, logs):
+    def check_for_errors(self, logs, insecure=False):
         for message in logs:
             if 'error' in message:
                 msg = "while pushing: {0}".format(message['error'])
@@ -79,6 +79,10 @@ class TagAndPushPlugin(PostBuildPlugin):
                     detail = message['errorDetail'].get('message')
                     if detail:
                         self.log.error("error detail: %s", detail)
+
+                if insecure:
+                    self.log.error("perhaps you need to provide "
+                                   "--insecure-registry to docker daemon?")
 
                 raise PluginFailedException(msg)
 
