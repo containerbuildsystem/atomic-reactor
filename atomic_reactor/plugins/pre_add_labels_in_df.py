@@ -152,7 +152,15 @@ class AddLabelsPlugin(PreBuildPlugin):
         """
         run the plugin
         """
-        base_image_labels = self.workflow.base_image_inspect["Config"]["Labels"]
+        try:
+            config = self.workflow.base_image_inspect["Config"]
+        except (AttributeError, TypeError):
+            message = "base image was not inspected"
+            self.log.error(message)
+            raise RuntimeError(message)
+        else:
+            base_image_labels = config["Labels"] or {}
+
         dockerfile = DockerfileParser(self.workflow.builder.df_path)
         lines = dockerfile.lines
 
@@ -181,9 +189,6 @@ class AddLabelsPlugin(PreBuildPlugin):
                 base_image_value = base_image_labels[key]
             except KeyError:
                 self.log.info("label %r not present in base image", key)
-            except (AttributeError, TypeError):
-                self.log.warning("base image was not inspected")
-                break
             else:
                 if base_image_value == value:
                     self.log.info("label %r is already set to %r", key, value)
