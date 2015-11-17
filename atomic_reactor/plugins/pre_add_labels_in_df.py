@@ -130,7 +130,7 @@ class AddLabelsPlugin(PreBuildPlugin):
 
         for old, new in self.aliases.items():
             if old in all_labels:
-                if new in all_labels:
+                if new in df_labels:
                     if all_labels[old] != all_labels[new]:
                         self.log.warning("labels %r=%r and %r=%r should probably have same value",
                                          old, all_labels[old], new, all_labels[new])

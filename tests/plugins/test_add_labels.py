@@ -87,6 +87,14 @@ EXPECTED_OUTPUT7 = [r"""FROM fedora
 LABEL "label2"="df value"
 LABEL "labelnew"="df value"
 """]
+EXPECTED_OUTPUT8 = [r"""FROM fedora
+LABEL "label1"="df value"
+LABEL "label2"="df value"
+""", r"""FROM fedora
+LABEL "label2"="df value"
+LABEL "label1"="df value"
+""",
+]
 
 @pytest.mark.parametrize('df_content, labels_conf_base, labels_conf, dont_overwrite, aliases, expected_output', [
     (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF, [], {}, EXPECTED_OUTPUT),
@@ -100,7 +108,7 @@ LABEL "labelnew"="df value"
     (DF_CONTENT_SINGLE_LINE, LABELS_CONF_BASE, LABELS_CONF_ONE, [], {"label2": "labelnew"}, EXPECTED_OUTPUT6),
     (DF_CONTENT_LABEL, LABELS_CONF_BASE, LABELS_BLANK, [], {"label2": "labelnew"}, EXPECTED_OUTPUT7),
     (DF_CONTENT_LABEL, LABELS_CONF_BASE, LABELS_BLANK, [], {"label2": "labelnew", "x": "y"}, EXPECTED_OUTPUT7),
-    (DF_CONTENT_LABEL, LABELS_CONF_BASE, LABELS_BLANK, [], {"label2": "label1"}, DF_CONTENT_LABEL),
+    (DF_CONTENT_LABEL, LABELS_CONF_BASE, LABELS_BLANK, [], {"label2": "label1"}, EXPECTED_OUTPUT8),
 ])
 def test_add_labels_plugin(tmpdir, docker_tasker,
                            df_content, labels_conf_base, labels_conf, dont_overwrite, aliases, expected_output):
