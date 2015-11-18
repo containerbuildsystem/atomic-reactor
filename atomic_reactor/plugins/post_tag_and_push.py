@@ -9,7 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from copy import deepcopy
 import re
 
-from atomic_reactor.plugin import PostBuildPlugin
+from atomic_reactor.plugin import PostBuildPlugin, PluginFailedException
 
 
 __all__ = ('TagAndPushPlugin', )
@@ -59,6 +59,8 @@ class TagAndPushPlugin(PostBuildPlugin):
                                                       registry_image, insecure=insecure,
                                                       force=True)
 
+                self.check_for_errors(logs, insecure=insecure)
+
                 pushed_images.append(registry_image)
 
                 digest = self.extract_digest(logs)
@@ -67,6 +69,22 @@ class TagAndPushPlugin(PostBuildPlugin):
                     push_conf_registry.digests[tag] = digest
 
         return pushed_images
+
+    def check_for_errors(self, logs, insecure=False):
+        for message in logs:
+            if 'error' in message:
+                msg = "while pushing: {0}".format(message['error'])
+                self.log.error(msg)
+                if 'errorDetail' in message:
+                    detail = message['errorDetail'].get('message')
+                    if detail:
+                        self.log.error("error detail: %s", detail)
+
+                if insecure:
+                    self.log.error("perhaps you need to provide "
+                                   "--insecure-registry to docker daemon?")
+
+                raise PluginFailedException(msg)
 
     @staticmethod
     def extract_digest(logs):

@@ -34,6 +34,11 @@ PUSH_LOGS = [
     b'{"status":"Image already exists","progressDetail":{},"id":"48ecf305d2cf"}',
     b'{"status":"Digest: ' + DIGEST1.encode('utf-8') + b'"}']
 
+PUSH_ERROR_LOGS = [
+    b'{"status":"The push refers to a repository [xyz/abc] (len: 1)"}\r\n',
+    b'{"errorDetail":{"message":"error message detail"},"error":"error message"}',
+]
+
 
 class Y(object):
     pass
@@ -46,14 +51,15 @@ class X(object):
     source.path = None
     base_image = ImageName(repo="qwe", tag="asd")
 
-@pytest.mark.parametrize(("image_name", "should_raise"), [
-    (TEST_IMAGE, False),
-    (DOCKER0_REGISTRY + '/' + TEST_IMAGE, True),
+@pytest.mark.parametrize(("image_name", "logs", "should_raise"), [
+    (TEST_IMAGE, PUSH_LOGS, False),
+    (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS, True),
+    (TEST_IMAGE, PUSH_ERROR_LOGS, True),
 ])
-def test_tag_and_push_plugin(tmpdir, image_name, should_raise):
+def test_tag_and_push_plugin(tmpdir, image_name, logs, should_raise):
     if MOCK:
         mock_docker()
-        flexmock(docker.Client, push=lambda iid, **kwargs: PUSH_LOGS)
+        flexmock(docker.Client, push=lambda iid, **kwargs: logs)
 
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
