@@ -51,6 +51,7 @@ DF_CONTENT_LABEL = '''\
 FROM fedora
 LABEL "label2"="df value"'''
 LABELS_CONF_BASE = {"Config": {"Labels": {"label1": "base value"}}}
+LABELS_CONF_BASE_NONE = {"Config": {"Labels": None}}
 LABELS_CONF = OrderedDict({'label1': 'value 1', 'label2': 'long value'})
 LABELS_CONF_ONE = {'label2': 'long value'}
 LABELS_CONF_WRONG = [('label1', 'value1'), ('label2', 'value2')]
@@ -100,6 +101,7 @@ LABEL "labelnew"="df value"
     (DF_CONTENT_SINGLE_LINE, LABELS_CONF_BASE, LABELS_CONF_ONE, [], {"label2": "labelnew"}, EXPECTED_OUTPUT6),
     (DF_CONTENT_LABEL, LABELS_CONF_BASE, LABELS_BLANK, [], {"label2": "labelnew"}, EXPECTED_OUTPUT7),
     (DF_CONTENT_LABEL, LABELS_CONF_BASE, LABELS_BLANK, [], {"label2": "labelnew", "x": "y"}, EXPECTED_OUTPUT7),
+    (DF_CONTENT_LABEL, LABELS_CONF_BASE_NONE, LABELS_BLANK, [], {"label2": "labelnew"}, EXPECTED_OUTPUT7),
     (DF_CONTENT_LABEL, LABELS_CONF_BASE, LABELS_BLANK, [], {"label2": "label1"}, DF_CONTENT_LABEL),
 ])
 def test_add_labels_plugin(tmpdir, docker_tasker,
