@@ -37,7 +37,7 @@ class X(object):
     base_image = ImageName(repo="qwe", tag="asd")
 
 
-def prepare():
+def prepare(insecure_registry=None):
     """
     Boiler-plate test set-up
     """
@@ -61,7 +61,8 @@ def prepare():
             'url': '',
             'build_json_dir': "",
             'verify_ssl': False,
-            'use_auth': False
+            'use_auth': False,
+            'insecure_registry': insecure_registry,
         }}])
 
     return runner
@@ -90,30 +91,35 @@ def test_bad_setup(monkeypatch):
         runner.run()
 
 
-@pytest.mark.parametrize(('namespace'), [
-    ({}),
-    ({'namespace': 'my_namespace'})
-])
-def test_create_image(namespace, monkeypatch):
+@pytest.mark.parametrize(('insecure_registry'), [None, False, True])
+@pytest.mark.parametrize(('namespace'), [None, 'my_namespace'])
+def test_create_image(insecure_registry, namespace, monkeypatch):
     """
     Test that an ImageStream is created if not found
     """
 
-    runner = prepare()
+    runner = prepare(insecure_registry=insecure_registry)
 
+    kwargs = {}
     build_json = {"metadata": {}}
-    build_json["metadata"].update(namespace)
+    if namespace is not None:
+        kwargs['namespace'] = namespace
+        build_json['metadata']['namespace'] = namespace
+
     monkeypatch.setenv("BUILD", json.dumps(build_json))
 
     (flexmock(OSBS)
      .should_receive('get_image_stream')
      .once()
-     .with_args(TEST_IMAGESTREAM, **namespace)
+     .with_args(TEST_IMAGESTREAM, **kwargs)
      .and_raise(OsbsResponseException('none', 404)))
+
+    if insecure_registry is not None:
+        kwargs['insecure_registry'] = insecure_registry
     (flexmock(OSBS)
      .should_receive('create_image_stream')
      .once()
-     .with_args(TEST_IMAGESTREAM, TEST_REPO, **namespace))
+     .with_args(TEST_IMAGESTREAM, TEST_REPO, **kwargs))
     (flexmock(OSBS)
      .should_receive('import_image')
      .never())
