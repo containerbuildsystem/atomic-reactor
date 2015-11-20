@@ -5,6 +5,11 @@
 %{!?python2_version: %global python2_version %(%{__python2} -c "import sys; sys.stdout.write(sys.version[:3])")}
 %endif
 
+%if 0%{?rhel} && 0%{?rhel} <= 7
+%{!?py2_build: %global py2_build %{__python2} setup.py build}
+%{!?py2_install: %global py2_install %{__python2} setup.py install --skip-build --root %{buildroot}}
+%endif
+
 %if (0%{?fedora} >= 22 || 0%{?rhel} >= 8)
 %global with_python3 1
 %global binaries_py_version 3
@@ -27,7 +32,7 @@
 
 Name:           %{project}
 Version:        1.6.0
-Release:        3%{?dist}
+Release:        4%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -198,21 +203,20 @@ Plugins for automated rebuilds
 
 
 %build
-# build python package
-%{__python} setup.py build
+%py2_build
 %if 0%{?with_python3}
-%{__python3} setup.py build
+%py3_build
 %endif # with_python3
 
 
 %install
 %if 0%{?with_python3}
-%{__python3} setup.py install --skip-build --root %{buildroot}
+%py3_install
 mv %{buildroot}%{_bindir}/atomic-reactor %{buildroot}%{_bindir}/atomic-reactor3
 mv %{buildroot}%{_bindir}/pulpsecret-gen %{buildroot}%{_bindir}/pulpsecret-gen3
 %endif # with_python3
 
-%{__python} setup.py install --skip-build --root %{buildroot}
+%py2_install
 mv %{buildroot}%{_bindir}/atomic-reactor %{buildroot}%{_bindir}/atomic-reactor2
 ln -s %{_bindir}/atomic-reactor%{binaries_py_version} %{buildroot}%{_bindir}/atomic-reactor
 
@@ -350,6 +354,9 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 
 %changelog
+* Fri Nov 20 2015 Jiri Popelka <jpopelka@redhat.com> - 1.6.0-4
+- use py_build & py_install macros
+
 * Thu Nov 05 2015 Jiri Popelka <jpopelka@redhat.com> - 1.6.0-3
 - %%check section
 
