@@ -12,9 +12,9 @@
 
 %if (0%{?fedora} >= 22 || 0%{?rhel} >= 8)
 %global with_python3 1
-%global binaries_py_version 3
+%global binaries_py_version %{python3_version}
 %else
-%global binaries_py_version 2
+%global binaries_py_version %{python2_version}
 %endif
 
 %if 0%{?fedora}
@@ -220,16 +220,20 @@ Plugins for automated rebuilds
 %install
 %if 0%{?with_python3}
 %py3_install
-mv %{buildroot}%{_bindir}/atomic-reactor %{buildroot}%{_bindir}/atomic-reactor3
-mv %{buildroot}%{_bindir}/pulpsecret-gen %{buildroot}%{_bindir}/pulpsecret-gen3
+mv %{buildroot}%{_bindir}/atomic-reactor %{buildroot}%{_bindir}/atomic-reactor-%{python3_version}
+ln -s %{_bindir}/atomic-reactor-%{python3_version} %{buildroot}%{_bindir}/atomic-reactor-3
+mv %{buildroot}%{_bindir}/pulpsecret-gen %{buildroot}%{_bindir}/pulpsecret-gen-%{python3_version}
+ln -s %{_bindir}/pulpsecret-gen-%{python3_version} %{buildroot}%{_bindir}/pulpsecret-gen-3
 %endif # with_python3
 
 %py2_install
-mv %{buildroot}%{_bindir}/atomic-reactor %{buildroot}%{_bindir}/atomic-reactor2
-ln -s %{_bindir}/atomic-reactor%{binaries_py_version} %{buildroot}%{_bindir}/atomic-reactor
+mv %{buildroot}%{_bindir}/atomic-reactor %{buildroot}%{_bindir}/atomic-reactor-%{python2_version}
+ln -s %{_bindir}/atomic-reactor-%{python2_version} %{buildroot}%{_bindir}/atomic-reactor-2
+ln -s %{_bindir}/atomic-reactor-%{binaries_py_version} %{buildroot}%{_bindir}/atomic-reactor
 
-mv %{buildroot}%{_bindir}/pulpsecret-gen %{buildroot}%{_bindir}/pulpsecret-gen2
-ln -s %{_bindir}/pulpsecret-gen%{binaries_py_version} %{buildroot}%{_bindir}/pulpsecret-gen
+mv %{buildroot}%{_bindir}/pulpsecret-gen %{buildroot}%{_bindir}/pulpsecret-gen-%{python2_version}
+ln -s %{_bindir}/pulpsecret-gen-%{python2_version} %{buildroot}%{_bindir}/pulpsecret-gen-2
+ln -s %{_bindir}/pulpsecret-gen-%{binaries_py_version} %{buildroot}%{_bindir}/pulpsecret-gen
 
 # ship reactor in form of tarball so it can be installed within build image
 cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/atomic-reactor.tar.gz
@@ -261,8 +265,10 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %doc docs/*.md
 %{!?_licensedir:%global license %%doc}
 %license LICENSE
-%{_bindir}/atomic-reactor2
-%{_bindir}/pulpsecret-gen2
+%{_bindir}/atomic-reactor-%{python2_version}
+%{_bindir}/atomic-reactor-2
+%{_bindir}/pulpsecret-gen-%{python2_version}
+%{_bindir}/pulpsecret-gen-2
 %dir %{python2_sitelib}/atomic_reactor
 %{python2_sitelib}/atomic_reactor/*.*
 %{python2_sitelib}/atomic_reactor/cli
@@ -304,8 +310,10 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %doc docs/*.md
 %{!?_licensedir:%global license %%doc}
 %license LICENSE
-%{_bindir}/atomic-reactor3
-%{_bindir}/pulpsecret-gen3
+%{_bindir}/atomic-reactor-%{python3_version}
+%{_bindir}/atomic-reactor-3
+%{_bindir}/pulpsecret-gen-%{python3_version}
+%{_bindir}/pulpsecret-gen-3
 %{_mandir}/man1/atomic-reactor.1*
 %dir %{python3_sitelib}/atomic_reactor
 %dir %{python3_sitelib}/atomic_reactor/__pycache__
@@ -369,6 +377,7 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 * Fri Nov 20 2015 Jiri Popelka <jpopelka@redhat.com> - 1.6.0-4
 - use py_build & py_install macros
 - use python_provide macro
+- ship executables per packaging guidelines
 
 * Thu Nov 05 2015 Jiri Popelka <jpopelka@redhat.com> - 1.6.0-3
 - %%check section
