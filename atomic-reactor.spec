@@ -267,14 +267,14 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python2_sitelib}/atomic_reactor/*.*
 %{python2_sitelib}/atomic_reactor/cli
 %{python2_sitelib}/atomic_reactor/plugins
-%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_sendmail.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/post_import_image.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py*
-%exclude %{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
 
 %{python2_sitelib}/atomic_reactor-%{version}-py2.*.egg-info
 %dir %{_datadir}/%{name}
@@ -290,12 +290,12 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python2_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
 
 %files -n python-atomic-reactor-rebuilds
+%{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
 %{python2_sitelib}/atomic_reactor/plugins/exit_sendmail.py*
 %{python2_sitelib}/atomic_reactor/plugins/post_import_image.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py*
-%{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
 
 
 %if 0%{?with_python3}
@@ -313,19 +313,21 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python3_sitelib}/atomic_reactor/cli
 %{python3_sitelib}/atomic_reactor/plugins
 %{python3_sitelib}/atomic_reactor/__pycache__/*.py*
-%exclude %{python3_sitelib}/atomic_reactor/plugins/pre_koji.py
+%exclude %{python3_sitelib}/atomic_reactor/plugins/exit_koji_promote.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_sendmail.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/post_import_image.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_bump_release.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py
+%exclude %{python3_sitelib}/atomic_reactor/plugins/pre_koji.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py
-%exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji*.py*
+%exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_promote*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_sendmail*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_store_metadata_in_osv3*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/post_import_image*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_bump_release*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_check_and_set_rebuild*.py*
+%exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_stop_autorebuild_if_disabled*.py*
 
 %{python3_sitelib}/atomic_reactor-%{version}-py3.*.egg-info
@@ -348,11 +350,13 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_store_metadata_in_osv3*.py*
 
 %files -n python3-atomic-reactor-rebuilds
+%{python3_sitelib}/atomic_reactor/plugins/exit_koji_promote.py
 %{python3_sitelib}/atomic_reactor/plugins/exit_sendmail.py
 %{python3_sitelib}/atomic_reactor/plugins/post_import_image.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_bump_release.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py
+%{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_promote*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_sendmail*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/post_import_image*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_bump_release*.py*
