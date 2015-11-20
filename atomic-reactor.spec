@@ -99,6 +99,7 @@ Requires:       python-backports-lzma
 Requires:       nfs-utils
 Provides:       python-dock = %{version}-%{release}
 Obsoletes:      python-dock < %{dock_obsolete_vr}
+%{?python_provide:%python_provide python-atomic-reactor}
 
 %description -n python-atomic-reactor
 Simple Python 2 library for building Docker images. It contains
@@ -114,6 +115,7 @@ Provides:       dock-koji = %{version}-%{release}
 Provides:       python-dock-koji = %{version}-%{release}
 Obsoletes:      dock-koji < 1.2.0-3
 Obsoletes:      python-dock-koji < %{dock_obsolete_vr}
+%{?python_provide:%python_provide python-atomic-reactor-koji}
 
 %description -n python-atomic-reactor-koji
 Koji plugin for Atomic Reactor
@@ -128,6 +130,7 @@ Provides:       dock-metadata = %{version}-%{release}
 Provides:       python-dock-metadata = %{version}-%{release}
 Obsoletes:      dock-metadata < 1.2.0-3
 Obsoletes:      python-dock-metadata < %{dock_obsolete_vr}
+%{?python_provide:%python_provide python-atomic-reactor-metadata}
 
 %description -n python-atomic-reactor-metadata
 Plugin for submitting metadata to OSBS
@@ -138,6 +141,7 @@ Summary:        Plugins for automated rebuilds
 Group:          Development/Tools
 Requires:       python-atomic-reactor = %{version}-%{release}
 Requires:       osbs >= 0.15
+%{?python_provide:%python_provide python-atomic-reactor-rebuilds}
 
 %description -n python-atomic-reactor-rebuilds
 Plugins for automated rebuilds
@@ -157,6 +161,7 @@ Requires:       python3-docker-scripts >= 0.4.4
 Requires:       nfs-utils
 Provides:       python3-dock = %{version}-%{release}
 Obsoletes:      python3-dock < %{dock_obsolete_vr}
+%{?python_provide:%python_provide python3-atomic-reactor}
 
 %description -n python3-atomic-reactor
 Simple Python 3 library for building Docker images. It contains
@@ -171,6 +176,7 @@ Requires:       python3-atomic-reactor = %{version}-%{release}
 Requires:       koji
 Provides:       python3-dock-koji = %{version}-%{release}
 Obsoletes:      python3-dock-koji < %{dock_obsolete_vr}
+%{?python_provide:%python_provide python3-atomic-reactor-koji}
 
 %description -n python3-atomic-reactor-koji
 Koji plugin for Atomic Reactor
@@ -183,6 +189,7 @@ Requires:       python3-atomic-reactor = %{version}-%{release}
 Requires:       osbs
 Provides:       python3-dock-metadata = %{version}-%{release}
 Obsoletes:      python3-dock-metadata < %{dock_obsolete_vr}
+%{?python_provide:%python_provide python3-atomic-reactor-metadata}
 
 %description -n python3-atomic-reactor-metadata
 Plugin for submitting metadata to OSBS
@@ -192,6 +199,7 @@ Summary:        Plugins for automated rebuilds
 Group:          Development/Tools
 Requires:       python3-atomic-reactor = %{version}-%{release}
 Requires:       osbs >= 0.15
+%{?python_provide:%python_provide python3-atomic-reactor-rebuilds}
 
 %description -n python3-atomic-reactor-rebuilds
 Plugins for automated rebuilds
@@ -356,6 +364,7 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %changelog
 * Fri Nov 20 2015 Jiri Popelka <jpopelka@redhat.com> - 1.6.0-4
 - use py_build & py_install macros
+- use python_provide macro
 
 * Thu Nov 05 2015 Jiri Popelka <jpopelka@redhat.com> - 1.6.0-3
 - %%check section
