@@ -119,18 +119,20 @@ class AddLabelsPlugin(PreBuildPlugin):
             else:
                 self.log.warning("requested automatic label %r is not available", lbl)
 
-    def add_aliases(self, base_labels, df_labels, new_labels):
+    def add_aliases(self, base_labels, df_labels, plugin_labels):
         all_labels = base_labels.copy()
-        # changing dockerfile.labels writes out modified Dockerfile - err on
-        # the safe side and make a copy
-        all_labels.update(df_labels.copy())
-        all_labels.update(new_labels)
+        all_labels.update(df_labels)
+        all_labels.update(plugin_labels)
+
+        new_labels = df_labels.copy()
+        new_labels.update(plugin_labels)
+
         applied_alias = False
         not_applied = []
 
         for old, new in self.aliases.items():
             if old in all_labels:
-                if new in df_labels:
+                if new in new_labels:
                     if all_labels[old] != all_labels[new]:
                         self.log.warning("labels %r=%r and %r=%r should probably have same value",
                                          old, all_labels[old], new, all_labels[new])
@@ -164,7 +166,9 @@ class AddLabelsPlugin(PreBuildPlugin):
         dockerfile = DockerfileParser(self.workflow.builder.df_path)
         lines = dockerfile.lines
 
-        self.add_aliases(base_image_labels, dockerfile.labels, self.labels)
+        # changing dockerfile.labels writes out modified Dockerfile - err on
+        # the safe side and make a copy
+        self.add_aliases(base_image_labels.copy(), dockerfile.labels.copy(), self.labels.copy())
 
         # correct syntax is:
         #   LABEL "key"="value" "key2"="value2"
