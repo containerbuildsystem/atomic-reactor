@@ -64,7 +64,29 @@ def prepare(check_repo_retval=0):
      .should_receive('set_certs')
      .with_args(object, object))
     (flexmock(dockpulp.Pulp)
-     .should_receive('push_tar_to_pulp')
+     .should_receive('getRepos')
+     .with_args(list, fields=list)
+     .and_return([
+         {"id": "redhat-image-name1"},
+         {"id": "redhat-prefix-image-name2"}
+      ]))
+    (flexmock(dockpulp.Pulp)
+     .should_receive('createRepo'))
+    (flexmock(dockpulp.Pulp)
+     .should_receive('upload')
+     .with_args(unicode))
+    (flexmock(dockpulp.Pulp)
+     .should_receive('copy')
+     .with_args(unicode, unicode))
+    (flexmock(dockpulp.Pulp)
+     .should_receive('updateRepo')
+     .with_args(unicode, dict))
+    (flexmock(dockpulp.Pulp)
+     .should_receive('crane')
+     .with_args(list, wait=True)
+     .and_return([2, 3, 4]))
+    (flexmock(dockpulp.Pulp)
+     .should_receive('')
      .with_args(object, object)
      .and_return([1, 2, 3]))
     (flexmock(dockpulp.Pulp)
@@ -105,8 +127,8 @@ def test_pulp_source_secret(tmpdir, check_repo_retval, should_raise, monkeypatch
     runner.run()
     assert PulpPushPlugin.key is not None
     images = [i.to_str() for i in workflow.postbuild_results[PulpPushPlugin.key]]
-    assert "registry.example.com/image-name1" in images
-    assert "registry.example.com/prefix/image-name2" in images
+    assert "registry.example.com/image-name1:latest" in images
+    assert "registry.example.com/prefix/image-name2:latest" in images
     assert "registry.example.com/image-name3:asd" in images
 
 
@@ -129,6 +151,6 @@ def test_pulp_service_account_secret(tmpdir, monkeypatch):
 
     runner.run()
     images = [i.to_str() for i in workflow.postbuild_results[PulpPushPlugin.key]]
-    assert "registry.example.com/image-name1" in images
-    assert "registry.example.com/prefix/image-name2" in images
+    assert "registry.example.com/image-name1:latest" in images
+    assert "registry.example.com/prefix/image-name2:latest" in images
     assert "registry.example.com/image-name3:asd" in images

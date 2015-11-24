@@ -51,6 +51,7 @@ import dockpulp.imgutils
 import os
 import re
 import tempfile
+from collections import namedtuple
 
 
 # let's silence warnings from dockpulp: there is one warning for every request
@@ -59,6 +60,8 @@ import tempfile
 import warnings
 warnings.filterwarnings("module")
 
+
+PulpRepo = namedtuple('PulpRepo', ['registry_id', 'tags'])
 
 class PulpUploader(object):
     CER = 'pulp.cer'
@@ -125,30 +128,67 @@ class PulpUploader(object):
             # Tell dockpulp.
             p.set_certs(cer, key)
 
-    def push_tarball_to_pulp(self, image_names):
+    def _create_missing_repos(self, p, pulp_repos, repo_prefix):
+        repos = pulp_repos.keys()
+        found_repos = p.getRepos(repos, fields=["id"])
+        found_repo_ids = [repo["id"] for repo in found_repos]
+
+        missing_repos = set(repos) - set(found_repo_ids)
+        self.log.info("Missing repos: %s" % ", ".join(missing_repos))
+        for repo in missing_repos:
+            p.createRepo(repo, "/pulp/docker/%s" % repo,
+                         registry_id=pulp_repos[repo].registry_id,
+                         prefix_with=repo_prefix)
+
+    def _get_tar_metadata(self, tarfile):
+        metadata = dockpulp.imgutils.get_metadata(tarfile)
+        pulp_md = dockpulp.imgutils.get_metadata_pulp(metadata)
+        layers = pulp_md.keys()
+        top_layer = dockpulp.imgutils.get_top_layer(pulp_md)
+
+        return top_layer, layers
+
+    def push_tarball_to_pulp(self, image_names, repo_prefix="redhat-"):
         self.log.info("checking image before upload")
         self._check_file()
 
         p = dockpulp.Pulp(env=self.pulp_instance)
         self._set_auth(p)
 
+        # pulp_repos is mapping from repo-ids to registry-ids and tags
+        # which should be applied to those repos, expected structure:
         # {
-        #     "repo-id": {
-        #         "registry-id": "",
-        #         "tags": [],
-        #     },
-        #     ...
+        #    "my-image": PulpRepo(registry_id="nick/my-image", tags=["v1", "latest"])
+        #    ...
         # }
-        repos_tags_mapping = {}
+        pulp_repos = {}
         for image in image_names:
-            repo = image.pulp_repo
-            repos_tags_mapping.setdefault(repo, {})
-            repos_tags_mapping[repo]["registry-id"] = image.to_str(registry=False, tag=False)
-            repos_tags_mapping[repo].setdefault("tags", [])
-            repos_tags_mapping[repo]["tags"].append(image.tag)
-        self.log.info("repo_tags_mapping = %s", repos_tags_mapping)
-        task_ids = p.push_tar_to_pulp(repos_tags_mapping, self.filename)
+            repo_id = image.pulp_repo
+            tag = image.tag if image.tag else 'latest'
+            if repo_prefix:
+                repo_id = repo_prefix + repo_id
 
+            if repo_id in pulp_repos:
+                pulp_repos[repo_id].tags.append(tag)
+            else:
+                pulp_repos[repo_id] = PulpRepo(
+                    registry_id=image.to_str(registry=False, tag=False),
+                    tags=[tag]
+                )
+
+        top_layer, layers = self._get_tar_metadata(self.filename)
+        self.log.info("pulp_repos = %s", pulp_repos)
+        self._create_missing_repos(p, pulp_repos, repo_prefix)
+
+        p.upload(self.filename)
+
+        for repo_id, pulp_repo in pulp_repos.items():
+            for layer in layers:
+                p.copy(repo_id, layer)
+            p.updateRepo(repo_id, {"tag": "%s:%s" % (",".join(pulp_repo.tags),
+                                                     top_layer)})
+
+        task_ids = p.crane(pulp_repos.keys(), wait=True)
         self.log.info("waiting for repos to be published to crane, tasks: %s",
                       ", ".join(map(str, task_ids)))
         p.watch_tasks(task_ids)
@@ -164,9 +204,9 @@ class PulpUploader(object):
                                                   pulp_registry)
 
         # Return the set of qualified repo names for this image
-        return [ImageName(registry=pulp_registry, repo=repodata["registry-id"], tag=tag)
-                for dummy_repo, repodata in repos_tags_mapping.items()
-                for tag in repodata['tags']]
+        return [ImageName(registry=pulp_registry, repo=repodata.registry_id, tag=tag)
+                for dummy_repo, repodata in pulp_repos.items()
+                for tag in repodata.tags]
 
 
 class PulpPushPlugin(PostBuildPlugin):
