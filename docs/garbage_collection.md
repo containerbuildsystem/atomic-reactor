@@ -13,21 +13,17 @@ When client starts a build, the following happens:
 4. Pre-publish plugins are run.
    * `squash` creates new image by squashing the layers of built image. The
      original image is deleted.
-4. Post-build plugins are run.
+5. Post-build plugins are run.
    * `all_rpm_packages` plugin creates container from the built image, runs it,
      and then deletes it.
+6. Exit plugins are run.
    * `remove_built_image` removes the built image and the pulled base image
      from the set of node's docker images.
 
 ## Built images
 
-The plugin `remove_built_image` deletes the built image.  These images may leak
-if the build fails after the image is created but before the plugin is run.
-
-We need to figure out whether Atomic Reactor should try harder to remove the image (e.g.
-by moving this feature out of a plugin) or if it should implement some garbage
-collection mechanism that recognizes unused containers created by Atomic Reactor and
-deletes them.
+The plugin `remove_built_image` deletes the base and built image. These images
+may leak if the build fails in a way that prevents exit plugins from running.
 
 ## Base images
 
@@ -40,7 +36,9 @@ that have the same base image ([Issue #146](https://github.com/projectatomic/ato
 
 The `squash` pre-publish plugin creates new image but deletes the old one and
 gives its tag to the new image. This means the garbage collection behaviour
-should be the same whether the plugins run or not.
+should be the same whether the plugin is run or not, unless the plugin is run
+with `dont_load=False` and `remove_former_image=False` in which case the
+original image is not deleted after build.
 
 ## Build containers
 
