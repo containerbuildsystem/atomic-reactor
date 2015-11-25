@@ -33,7 +33,7 @@ from atomic_reactor.plugins.post_push_to_pulp import PulpUploader
 import dockpulp
 import pytest
 import docker
-from docker.errors import DockerException
+from docker.errors import APIError
 
 
 logger = logging.getLogger('atomic_reactor.tests')
@@ -50,7 +50,7 @@ def test_push(tmpdir):
     client = docker.AutoVersionClient()
     try:
         client.inspect_image("busybox:latest")
-    except DockerException:
+    except APIError:
         client.pull("busybox", tag="latest")
     image = client.get_image("busybox:latest")
     image_tar_path = os.path.join(str(tmpdir), "busybox.tar")
