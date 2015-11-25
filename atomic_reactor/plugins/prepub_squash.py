@@ -89,7 +89,7 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         if self.dont_load:
             # squash the image, don't load it back to docker
             Squash(log=self.log, image=self.image, from_layer=self.from_layer,
-                   tag=self.tag, output_path=metadata["path"]).run()
+                   tag=self.tag, output_path=metadata["path"], load_image=False).run()
         else:
             # squash the image and output both tarfile and Docker engine image
             new_id = Squash(log=self.log, image=self.image, from_layer=self.from_layer,
