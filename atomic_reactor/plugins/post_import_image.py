@@ -28,7 +28,8 @@ class ImportImagePlugin(PostBuildPlugin):
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, imagestream, docker_image_repo,
-                 url, build_json_dir, verify_ssl=True, use_auth=True):
+                 url, build_json_dir, verify_ssl=True, use_auth=True,
+                 insecure_registry=None):
         """
         constructor
 
@@ -40,15 +41,18 @@ class ImportImagePlugin(PostBuildPlugin):
         :param build_json_dir: str, path to directory with input json
         :param verify_ssl: bool, verify SSL certificate?
         :param use_auth: bool, initiate authentication with openshift?
+        :param insecure_registry: bool, whether the Docker registry uses
+               plain HTTP
         """
         # call parent constructor
         super(ImportImagePlugin, self).__init__(tasker, workflow)
         self.imagestream = imagestream
         self.docker_image_repo = docker_image_repo
         self.url = url
+        self.build_json_dir = build_json_dir
         self.verify_ssl = verify_ssl
         self.use_auth = use_auth
-        self.build_json_dir = build_json_dir
+        self.insecure_registry = insecure_registry
 
     def run(self):
         try:
@@ -74,6 +78,9 @@ class ImportImagePlugin(PostBuildPlugin):
         try:
             osbs.get_image_stream(self.imagestream, **kwargs)
         except OsbsResponseException:
+            if self.insecure_registry is not None:
+                kwargs['insecure_registry'] = self.insecure_registry
+
             self.log.info("Creating ImageStream %s for %s", self.imagestream,
                           self.docker_image_repo)
 
