@@ -143,10 +143,46 @@ def figure_out_dockerfile(absolute_path, local_path=None):
 
 
 class CommandResult(object):
-    def __init__(self, logs, error=None, error_detail=None):
-        self._logs = logs
-        self._error = error
-        self._error_detail = error_detail
+    def __init__(self):
+        self._logs = []
+        self._parsed_logs = []
+        self._error = None
+        self._error_detail = None
+
+    def parse_item(self, item):
+        """
+        :param item: str, json-encoded string
+        """
+        item = item.decode("utf-8")
+        try:
+            parsed_item = json.loads(item)
+        except ValueError:
+            parsed_item = None
+        else:
+            # append here just in case .get bellow fails
+            self._parsed_logs.append(parsed_item)
+
+        # make sure the json is a dictionary object
+        if isinstance(parsed_item, dict):
+            line = parsed_item.get("stream", "")
+        else:
+            parsed_item = None
+            line = item
+
+        for l in re.split(r"\r?\n", line, re.MULTILINE):
+            l = l.strip()
+            if l:
+                logger.debug(l)
+        self._logs.append(item)
+        if parsed_item is not None:
+            self._error = parsed_item.get("error", None)
+            self._error_detail = parsed_item.get("errorDetail", None)
+            if self._error:
+                logger.error(item.strip())
+
+    @property
+    def parsed_logs(self):
+        return self._parsed_logs
 
     @property
     def logs(self):
@@ -171,44 +207,15 @@ def wait_for_command(logs_generator):
 
     :return: list of str, logs
     """
-    # FIXME: this function is getting pretty big, let's break it down a bit
-    #        and merge it into CommandResult
     logger.info("wait_for_command")
-    logs = []
-    error = None
-    error_message = None
+    cr = CommandResult()
     while True:
         try:
-            parsed_item = None
             item = next(logs_generator)  # py2 & 3 compat
-            item = item.decode("utf-8")
-            try:
-                parsed_item = json.loads(item)
-            except ValueError:
-                pass
-
-            # make sure the json is an object
-            if isinstance(parsed_item, dict):
-                line = parsed_item.get("stream", "")
-            else:
-                parsed_item = None
-                line = item
-
-            for l in re.split(r"\r?\n", line, re.MULTILINE):
-                # line = line.replace("\r\n", " ").replace("\n", " ").strip()
-                l = l.strip()
-                if l:
-                    logger.debug(l)
-            logs.append(item)
-            if parsed_item is not None:
-                error = parsed_item.get("error", None)
-                error_message = parsed_item.get("errorDetail", None)
-                if error:
-                    logger.error(item.strip())
+            cr.parse_item(item)
         except StopIteration:
             logger.info("no more logs")
             break
-    cr = CommandResult(logs=logs, error=error, error_detail=error_message)
     return cr
 
 

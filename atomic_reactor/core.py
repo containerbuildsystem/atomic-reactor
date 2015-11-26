@@ -457,15 +457,11 @@ class DockerTasker(LastLogger):
             # because changing api is fun
             logs = self.d.push(image.to_str(tag=False), tag=image.tag, stream=True)
 
-        parsed_logs = []
-        for line in logs:
-            try:
-                j = json.loads(line.decode('utf-8'))
-            except (ValueError, UnicodeDecodeError):
-                logger.error("cannot parse push logs line: %r", line)
-            else:
-                parsed_logs.append(j)
-        return parsed_logs
+        command_result = wait_for_command(logs)
+        self.last_logs = command_result.logs
+        if command_result.is_failed():
+            raise RuntimeError("Failed to push image %s" % image)
+        return command_result.parsed_logs
 
     def tag_and_push_image(self, image, target_image, insecure=False, force=False):
         """
