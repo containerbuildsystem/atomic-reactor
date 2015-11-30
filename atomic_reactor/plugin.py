@@ -318,7 +318,7 @@ class PostBuildPluginsRunner(BuildPluginsRunner):
     def create_instance_from_plugin(self, plugin_class, plugin_conf):
         instance = super(PostBuildPluginsRunner, self).create_instance_from_plugin(plugin_class, plugin_conf)
         if isinstance(instance, ExitPlugin):
-            logger.error("running exit plugin '%s' as post-build plugin", plugin_class.key)
+            logger.info("running exit plugin '%s' as post-build plugin", plugin_class.key)
 
         return instance
 
