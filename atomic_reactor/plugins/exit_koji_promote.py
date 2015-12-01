@@ -331,13 +331,14 @@ class KojiPromotePlugin(ExitPlugin):
         return self.parse_rpm_output(output, PostBuildRPMqaPlugin.rpm_tags,
                                      separator=',')
 
-    def get_image_output(self):
+    def get_image_output(self, arch):
         """
         Create the output for the image
 
         For v1, this is the v1 image. For v2, this is the v2 metadata
         with the checksum of an empty file, and no actual upload.
 
+        :param arch: str, architecture for this output
         :return: tuple, (metadata dict, Output instance)
         """
 
@@ -345,11 +346,13 @@ class KojiPromotePlugin(ExitPlugin):
         v1_image = self.workflow.exported_image_sequence[-1].get('path')
         ext = v1_image.split('.', 1)[1]
         if self.metadata_only:
-            v2_image_name = 'docker-v2-image-{0}.{1}'.format(image_id, ext)
+            name_fmt = 'docker-v2-image-{id}.{arch}.{ext}'
+            v2_image_name = name_fmt.format(id=image_id, arch=arch, ext=ext)
             metadata = self.get_output_metadata(os.path.devnull, v2_image_name)
             output = Output(file=None, metadata=metadata)
         else:
-            v1_image_name = 'docker-v1-image-{0}.{1}'.format(image_id, ext)
+            name_fmt = 'docker-v1-image-{id}.{arch}.{ext}'
+            v1_image_name = name_fmt.format(id=image_id, arch=arch, ext=ext)
             metadata = self.get_output_metadata(v1_image, v1_image_name)
             output = Output(file=open(v1_image), metadata=metadata)
 
@@ -401,7 +404,7 @@ class KojiPromotePlugin(ExitPlugin):
         repositories = [image.to_str() for image in output_images
                         if image.tag != 'latest']
         arch = os.uname()[4]
-        metadata, output = self.get_image_output()
+        metadata, output = self.get_image_output(arch)
         metadata.update({
             'arch': arch,
             'type': 'docker-image',

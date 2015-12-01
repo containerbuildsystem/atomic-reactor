@@ -560,6 +560,7 @@ class TestKojiPromote(object):
             assert output['type'] == 'docker-image'
             assert is_string_type(output['arch'])
             assert output['arch'] != 'noarch'
+            assert output['arch'] in output['filename']
             self.check_components(output['components'])
 
             extra = output['extra']
