@@ -255,7 +255,7 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %files
 %doc README.md
 %{_mandir}/man1/atomic-reactor.1*
-%{!?_licensedir:%global license %%doc}
+%{!?_licensedir:%global license %doc}
 %license LICENSE
 %{_bindir}/atomic-reactor
 %{_bindir}/pulpsecret-gen
@@ -263,7 +263,7 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %files -n python-atomic-reactor
 %doc README.md
 %doc docs/*.md
-%{!?_licensedir:%global license %%doc}
+%{!?_licensedir:%global license %doc}
 %license LICENSE
 %{_bindir}/atomic-reactor-%{python2_version}
 %{_bindir}/atomic-reactor-2
@@ -308,7 +308,7 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %files -n python3-atomic-reactor
 %doc README.md
 %doc docs/*.md
-%{!?_licensedir:%global license %%doc}
+%{!?_licensedir:%global license %doc}
 %license LICENSE
 %{_bindir}/atomic-reactor-%{python3_version}
 %{_bindir}/atomic-reactor-3
