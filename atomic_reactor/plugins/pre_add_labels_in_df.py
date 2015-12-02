@@ -73,16 +73,7 @@ class AddLabelsPlugin(PreBuildPlugin):
             raise RuntimeError("labels have to be dict")
         self.labels = labels
         self.dont_overwrite = dont_overwrite
-        self.aliases = aliases or {
-            'Name': 'name',
-            'Version': 'version',
-            'Release': 'release',
-            'Architecture': 'architecture',
-            'Vendor': 'vendor',
-            'Authoritative_Registry': 'authoritative-source',
-            'BZComponent': 'com.redhat.component',
-            'Build_Host': 'com.redhat.build-host',
-        }
+        self.aliases = aliases or {}
 
         self.generate_auto_labels(auto_labels)
 
