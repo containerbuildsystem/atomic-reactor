@@ -5,11 +5,16 @@
 %{!?python2_version: %global python2_version %(%{__python2} -c "import sys; sys.stdout.write(sys.version[:3])")}
 %endif
 
+%if 0%{?rhel} && 0%{?rhel} <= 7
+%{!?py2_build: %global py2_build %{__python2} setup.py build}
+%{!?py2_install: %global py2_install %{__python2} setup.py install --skip-build --root %{buildroot}}
+%endif
+
 %if (0%{?fedora} >= 22 || 0%{?rhel} >= 8)
 %global with_python3 1
-%global binaries_py_version 3
+%global binaries_py_version %{python3_version}
 %else
-%global binaries_py_version 2
+%global binaries_py_version %{python2_version}
 %endif
 
 %if 0%{?fedora}
@@ -27,7 +32,7 @@
 
 Name:           %{project}
 Version:        1.6.0
-Release:        3%{?dist}
+Release:        4%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -94,6 +99,7 @@ Requires:       python-backports-lzma
 Requires:       nfs-utils
 Provides:       python-dock = %{version}-%{release}
 Obsoletes:      python-dock < %{dock_obsolete_vr}
+%{?python_provide:%python_provide python-atomic-reactor}
 
 %description -n python-atomic-reactor
 Simple Python 2 library for building Docker images. It contains
@@ -109,6 +115,7 @@ Provides:       dock-koji = %{version}-%{release}
 Provides:       python-dock-koji = %{version}-%{release}
 Obsoletes:      dock-koji < 1.2.0-3
 Obsoletes:      python-dock-koji < %{dock_obsolete_vr}
+%{?python_provide:%python_provide python-atomic-reactor-koji}
 
 %description -n python-atomic-reactor-koji
 Koji plugin for Atomic Reactor
@@ -123,6 +130,7 @@ Provides:       dock-metadata = %{version}-%{release}
 Provides:       python-dock-metadata = %{version}-%{release}
 Obsoletes:      dock-metadata < 1.2.0-3
 Obsoletes:      python-dock-metadata < %{dock_obsolete_vr}
+%{?python_provide:%python_provide python-atomic-reactor-metadata}
 
 %description -n python-atomic-reactor-metadata
 Plugin for submitting metadata to OSBS
@@ -133,6 +141,7 @@ Summary:        Plugins for automated rebuilds
 Group:          Development/Tools
 Requires:       python-atomic-reactor = %{version}-%{release}
 Requires:       osbs >= 0.15
+%{?python_provide:%python_provide python-atomic-reactor-rebuilds}
 
 %description -n python-atomic-reactor-rebuilds
 Plugins for automated rebuilds
@@ -152,6 +161,7 @@ Requires:       python3-docker-scripts >= 0.4.4
 Requires:       nfs-utils
 Provides:       python3-dock = %{version}-%{release}
 Obsoletes:      python3-dock < %{dock_obsolete_vr}
+%{?python_provide:%python_provide python3-atomic-reactor}
 
 %description -n python3-atomic-reactor
 Simple Python 3 library for building Docker images. It contains
@@ -166,6 +176,7 @@ Requires:       python3-atomic-reactor = %{version}-%{release}
 Requires:       koji
 Provides:       python3-dock-koji = %{version}-%{release}
 Obsoletes:      python3-dock-koji < %{dock_obsolete_vr}
+%{?python_provide:%python_provide python3-atomic-reactor-koji}
 
 %description -n python3-atomic-reactor-koji
 Koji plugin for Atomic Reactor
@@ -178,6 +189,7 @@ Requires:       python3-atomic-reactor = %{version}-%{release}
 Requires:       osbs
 Provides:       python3-dock-metadata = %{version}-%{release}
 Obsoletes:      python3-dock-metadata < %{dock_obsolete_vr}
+%{?python_provide:%python_provide python3-atomic-reactor-metadata}
 
 %description -n python3-atomic-reactor-metadata
 Plugin for submitting metadata to OSBS
@@ -187,6 +199,7 @@ Summary:        Plugins for automated rebuilds
 Group:          Development/Tools
 Requires:       python3-atomic-reactor = %{version}-%{release}
 Requires:       osbs >= 0.15
+%{?python_provide:%python_provide python3-atomic-reactor-rebuilds}
 
 %description -n python3-atomic-reactor-rebuilds
 Plugins for automated rebuilds
@@ -198,26 +211,29 @@ Plugins for automated rebuilds
 
 
 %build
-# build python package
-%{__python} setup.py build
+%py2_build
 %if 0%{?with_python3}
-%{__python3} setup.py build
+%py3_build
 %endif # with_python3
 
 
 %install
 %if 0%{?with_python3}
-%{__python3} setup.py install --skip-build --root %{buildroot}
-mv %{buildroot}%{_bindir}/atomic-reactor %{buildroot}%{_bindir}/atomic-reactor3
-mv %{buildroot}%{_bindir}/pulpsecret-gen %{buildroot}%{_bindir}/pulpsecret-gen3
+%py3_install
+mv %{buildroot}%{_bindir}/atomic-reactor %{buildroot}%{_bindir}/atomic-reactor-%{python3_version}
+ln -s %{_bindir}/atomic-reactor-%{python3_version} %{buildroot}%{_bindir}/atomic-reactor-3
+mv %{buildroot}%{_bindir}/pulpsecret-gen %{buildroot}%{_bindir}/pulpsecret-gen-%{python3_version}
+ln -s %{_bindir}/pulpsecret-gen-%{python3_version} %{buildroot}%{_bindir}/pulpsecret-gen-3
 %endif # with_python3
 
-%{__python} setup.py install --skip-build --root %{buildroot}
-mv %{buildroot}%{_bindir}/atomic-reactor %{buildroot}%{_bindir}/atomic-reactor2
-ln -s %{_bindir}/atomic-reactor%{binaries_py_version} %{buildroot}%{_bindir}/atomic-reactor
+%py2_install
+mv %{buildroot}%{_bindir}/atomic-reactor %{buildroot}%{_bindir}/atomic-reactor-%{python2_version}
+ln -s %{_bindir}/atomic-reactor-%{python2_version} %{buildroot}%{_bindir}/atomic-reactor-2
+ln -s %{_bindir}/atomic-reactor-%{binaries_py_version} %{buildroot}%{_bindir}/atomic-reactor
 
-mv %{buildroot}%{_bindir}/pulpsecret-gen %{buildroot}%{_bindir}/pulpsecret-gen2
-ln -s %{_bindir}/pulpsecret-gen%{binaries_py_version} %{buildroot}%{_bindir}/pulpsecret-gen
+mv %{buildroot}%{_bindir}/pulpsecret-gen %{buildroot}%{_bindir}/pulpsecret-gen-%{python2_version}
+ln -s %{_bindir}/pulpsecret-gen-%{python2_version} %{buildroot}%{_bindir}/pulpsecret-gen-2
+ln -s %{_bindir}/pulpsecret-gen-%{binaries_py_version} %{buildroot}%{_bindir}/pulpsecret-gen
 
 # ship reactor in form of tarball so it can be installed within build image
 cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/atomic-reactor.tar.gz
@@ -239,7 +255,7 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %files
 %doc README.md
 %{_mandir}/man1/atomic-reactor.1*
-%{!?_licensedir:%global license %%doc}
+%{!?_licensedir:%global license %doc}
 %license LICENSE
 %{_bindir}/atomic-reactor
 %{_bindir}/pulpsecret-gen
@@ -247,22 +263,24 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %files -n python-atomic-reactor
 %doc README.md
 %doc docs/*.md
-%{!?_licensedir:%global license %%doc}
+%{!?_licensedir:%global license %doc}
 %license LICENSE
-%{_bindir}/atomic-reactor2
-%{_bindir}/pulpsecret-gen2
+%{_bindir}/atomic-reactor-%{python2_version}
+%{_bindir}/atomic-reactor-2
+%{_bindir}/pulpsecret-gen-%{python2_version}
+%{_bindir}/pulpsecret-gen-2
 %dir %{python2_sitelib}/atomic_reactor
 %{python2_sitelib}/atomic_reactor/*.*
 %{python2_sitelib}/atomic_reactor/cli
 %{python2_sitelib}/atomic_reactor/plugins
-%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_sendmail.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/post_import_image.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py*
-%exclude %{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
 
 %{python2_sitelib}/atomic_reactor-%{version}-py2.*.egg-info
 %dir %{_datadir}/%{name}
@@ -278,22 +296,24 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python2_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
 
 %files -n python-atomic-reactor-rebuilds
+%{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
 %{python2_sitelib}/atomic_reactor/plugins/exit_sendmail.py*
 %{python2_sitelib}/atomic_reactor/plugins/post_import_image.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py*
-%{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
 
 
 %if 0%{?with_python3}
 %files -n python3-atomic-reactor
 %doc README.md
 %doc docs/*.md
-%{!?_licensedir:%global license %%doc}
+%{!?_licensedir:%global license %doc}
 %license LICENSE
-%{_bindir}/atomic-reactor3
-%{_bindir}/pulpsecret-gen3
+%{_bindir}/atomic-reactor-%{python3_version}
+%{_bindir}/atomic-reactor-3
+%{_bindir}/pulpsecret-gen-%{python3_version}
+%{_bindir}/pulpsecret-gen-3
 %{_mandir}/man1/atomic-reactor.1*
 %dir %{python3_sitelib}/atomic_reactor
 %dir %{python3_sitelib}/atomic_reactor/__pycache__
@@ -301,19 +321,21 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python3_sitelib}/atomic_reactor/cli
 %{python3_sitelib}/atomic_reactor/plugins
 %{python3_sitelib}/atomic_reactor/__pycache__/*.py*
-%exclude %{python3_sitelib}/atomic_reactor/plugins/pre_koji.py
+%exclude %{python3_sitelib}/atomic_reactor/plugins/exit_koji_promote.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_sendmail.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/post_import_image.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_bump_release.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py
+%exclude %{python3_sitelib}/atomic_reactor/plugins/pre_koji.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py
-%exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji*.py*
+%exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_promote*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_sendmail*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_store_metadata_in_osv3*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/post_import_image*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_bump_release*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_check_and_set_rebuild*.py*
+%exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_stop_autorebuild_if_disabled*.py*
 
 %{python3_sitelib}/atomic_reactor-%{version}-py3.*.egg-info
@@ -336,11 +358,13 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_store_metadata_in_osv3*.py*
 
 %files -n python3-atomic-reactor-rebuilds
+%{python3_sitelib}/atomic_reactor/plugins/exit_koji_promote.py
 %{python3_sitelib}/atomic_reactor/plugins/exit_sendmail.py
 %{python3_sitelib}/atomic_reactor/plugins/post_import_image.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_bump_release.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py
+%{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_promote*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_sendmail*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/post_import_image*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_bump_release*.py*
@@ -350,6 +374,11 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 
 %changelog
+* Fri Nov 20 2015 Jiri Popelka <jpopelka@redhat.com> - 1.6.0-4
+- use py_build & py_install macros
+- use python_provide macro
+- ship executables per packaging guidelines
+
 * Thu Nov 05 2015 Jiri Popelka <jpopelka@redhat.com> - 1.6.0-3
 - %%check section
 
