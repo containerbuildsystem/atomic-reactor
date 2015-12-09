@@ -183,16 +183,25 @@ def test_tag_image_same_name(temp_image_name):
     img = t.tag_image(temp_image_name, temp_image_name.copy())
 
 
-def test_push_image(temp_image_name):
+@pytest.mark.parametrize(('should_fail',), [
+    (True, ),
+    (False, ),
+])
+def test_push_image(temp_image_name, should_fail):
     if MOCK:
-        mock_docker()
+        mock_docker(push_should_fail=should_fail)
 
     t = DockerTasker()
     temp_image_name.registry = LOCALHOST_REGISTRY
     temp_image_name.tag = "1"
     t.tag_image(INPUT_IMAGE, temp_image_name)
-    output = t.push_image(temp_image_name, insecure=True)
-    assert output is not None
+    if should_fail:
+        with pytest.raises(RuntimeError) as exc:
+            output = t.push_image(temp_image_name, insecure=True)
+        assert "Failed to push image" in str(exc)
+    else:
+        output = t.push_image(temp_image_name, insecure=True)
+        assert output is not None
     t.remove_image(temp_image_name)
 
 

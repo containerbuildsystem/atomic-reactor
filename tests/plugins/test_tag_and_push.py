@@ -59,7 +59,7 @@ class X(object):
 def test_tag_and_push_plugin(tmpdir, image_name, logs, should_raise):
     if MOCK:
         mock_docker()
-        flexmock(docker.Client, push=lambda iid, **kwargs: logs)
+        flexmock(docker.Client, push=lambda iid, **kwargs: iter(logs))
 
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)

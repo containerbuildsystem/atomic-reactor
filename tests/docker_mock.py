@@ -64,9 +64,15 @@ mock_pull_logs = \
      b'{"status":"Status: Image is up to date for localhost:5000/busybox:latest"}\r\n']
 
 mock_push_logs = \
-    [b'{"status":"The push refers to a repository [localhost:5000/atomic-reactor-tests-b3a11e13d27c428f8fa2914c8c6a6d96] (len: 1)"}\r\n',
-     b'{"errorDetail":{"message":"Repository does not exist: localhost:5000/atomic-reactor-tests-b3a11e13d27c428f8fa2914c8c6a6d96"},' \
-     b'"error":"Repository does not exist: localhost:5000/atomic-reactor-tests-b3a11e13d27c428f8fa2914c8c6a6d96"}\r\n']
+    [b'{"status":"The push refers to a repository [localhost:5000/busybox] (len: 1)"}\r\n',
+     b'{"status":"Image already exists","progressDetail":{},"id":"17583c7dd0da"}\r\n',
+     b'{"status":"Image already exists","progressDetail":{},"id":"d1592a710ac3"}\r\n'
+     b'{"status":"latest: digest: sha256:afe8a267153784d570bfea7d22699c612a61f984e2b9a93135660bb85a3113cf size: 2735"}\r\n']
+
+mock_push_logs_failed = \
+    [b'{"status":"The push refers to a repository [localhost:5000/busybox] (len: 1)"}\r\n',
+     b'{"status":"Sending image list"}\r\n',
+     b'{"errorDetail":{"message":"Put http://localhost:5000/v1/repositories/busybox/: dial tcp [::1]:5000: getsockopt: connection refused"},"error":"Put http://localhost:5000/v1/repositories/busybox/: dial tcp [::1]:5000: getsockopt: connection refused"}\r\n']
 
 mock_info = {
     'BridgeNfIp6tables': True,
@@ -201,7 +207,8 @@ def mock_docker(build_should_fail=False,
                 wait_should_fail=False,
                 provided_image_repotags=None,
                 should_raise_error={},
-                remember_images=False):
+                remember_images=False,
+                push_should_fail=False):
     """
     mock all used docker.Client methods
 
@@ -216,6 +223,7 @@ def mock_docker(build_should_fail=False,
         mock_image['RepoTags'] = provided_image_repotags
     build_result = iter(mock_build_logs_failed) if build_should_fail else iter(mock_build_logs)
     inspect_result = None if inspect_should_fail else mock_image
+    push_result = mock_push_logs if not push_should_fail else mock_push_logs_failed
 
     flexmock(docker.Client, build=lambda **kwargs: build_result)
     flexmock(docker.Client, commit=lambda cid, **kwargs: mock_containers[0])
@@ -225,7 +233,7 @@ def mock_docker(build_should_fail=False,
     flexmock(docker.Client, inspect_image=lambda im_id: inspect_result)
     flexmock(docker.Client, logs=lambda cid, **kwargs: iter([mock_logs]) if kwargs.get('stream') else mock_logs)
     flexmock(docker.Client, pull=lambda img, **kwargs: iter(mock_pull_logs))
-    flexmock(docker.Client, push=lambda iid, **kwargs: mock_push_logs)
+    flexmock(docker.Client, push=lambda iid, **kwargs: iter(push_result))
     flexmock(docker.Client, remove_container=lambda cid, **kwargs: None)
     flexmock(docker.Client, remove_image=lambda iid, **kwargs: None)
     flexmock(docker.Client, start=lambda cid, **kwargs: None)
