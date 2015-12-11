@@ -103,7 +103,7 @@ def test_adddockerfile_nvr_from_labels(tmpdir, docker_tasker):
     df_content = """
 FROM fedora
 RUN yum install -y python-django
-LABEL name="jboss-eap-6-docker" "version"="6.4" "release"=77
+LABEL Name="jboss-eap-6-docker" "Version"="6.4" "Release"=77
 CMD blabla"""
     df = DockerfileParser(str(tmpdir))
     df.content = df_content
@@ -126,13 +126,7 @@ CMD blabla"""
     assert "ADD Dockerfile-jboss-eap-6-docker-6.4-77 /root/buildinfo/Dockerfile-jboss-eap-6-docker-6.4-77" in df.content
 
 
-@pytest.mark.parametrize('add_labels, aliases', [
-    ({'name': 'jboss-eap-6-docker', 'version': '6.4', 'release': '77'},
-     None),
-    ({'Name': 'jboss-eap-6-docker', 'Version': '6.4', 'Release': '77'},
-     {'Name': 'name', 'Version': 'version', 'Release': 'release'}),
-])
-def test_adddockerfile_nvr_from_labels2(tmpdir, docker_tasker, add_labels, aliases):
+def test_adddockerfile_nvr_from_labels2(tmpdir, docker_tasker):
     df_content = """
 FROM fedora
 RUN yum install -y python-django
@@ -154,9 +148,10 @@ CMD blabla"""
         workflow,
         [{
             'name': AddLabelsPlugin.key,
-            'args': {'labels': add_labels,
-                     'auto_labels': [],
-                     'aliases': aliases}
+            'args': {'labels': {'Name': 'jboss-eap-6-docker',
+                                'Version': '6.4',
+                                'Release': '77'},
+                     'auto_labels': []}
          },
          {
             'name': AddDockerfilePlugin.key

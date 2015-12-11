@@ -6,7 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 
 
-Make sure Dockerfile contains name/version/release
+Make sure Dockerfile contains Name/Version/Release
 (or others if specified) labels.
 """
 
@@ -30,7 +30,7 @@ class AssertLabelsPlugin(PreBuildPlugin):
         # call parent constructor
         super(AssertLabelsPlugin, self).__init__(tasker, workflow)
 
-        self.required_labels = required_labels or ['name', 'version', 'release']
+        self.required_labels = required_labels or ['Name', 'Version', 'Release']
 
     def run(self):
         """

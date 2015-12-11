@@ -33,7 +33,7 @@ DF_CONTENT = """
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
-DF_CONTENT_LABELS = DF_CONTENT+'\nLABEL "name"="rainbow" "version"="123" "release"="1"'
+DF_CONTENT_LABELS = DF_CONTENT+'\nLABEL "Name"="rainbow" "Version"="123" "Release"="1"'
 
 @pytest.mark.parametrize('df_content, req_labels, expected', [
     (DF_CONTENT, None, PluginFailedException()),
