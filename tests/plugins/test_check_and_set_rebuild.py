@@ -17,6 +17,7 @@ from atomic_reactor.plugins.pre_check_and_set_rebuild import (is_rebuild,
 from atomic_reactor.util import ImageName
 import json
 from osbs.api import OSBS
+from osbs.exceptions import OsbsResponseException
 from flexmock import flexmock
 from tests.constants import SOURCE, MOCK
 if MOCK:
@@ -128,3 +129,23 @@ class TestCheckRebuild(object):
         runner.run()
         assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] == True
         assert is_rebuild(workflow)
+
+    def test_409_response(self, monkeypatch):
+        key = 'is_autorebuild'
+        workflow, runner = self.prepare(key, 'true')
+
+        (flexmock(OSBS)
+            .should_receive('set_labels_on_build_config')
+            .twice()
+            .and_raise(OsbsResponseException('conflict', 409))
+            .and_return(None))
+
+        monkeypatch.setenv("BUILD", json.dumps({
+            "metadata": {
+                "labels": {
+                    "buildconfig": "buildconfig1",
+                    key: 'false',
+                }
+            }
+        }))
+        runner.run()
