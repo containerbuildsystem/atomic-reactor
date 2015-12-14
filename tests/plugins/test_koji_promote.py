@@ -44,7 +44,7 @@ import subprocess
 from osbs.api import OSBS
 from six import string_types
 
-NAMESPACE='mynamespace'
+NAMESPACE = 'mynamespace'
 BUILD_ID = 'build-1'
 
 
@@ -120,6 +120,11 @@ def fake_Popen(cmd, *args, **kwargs):
     return MockedPopen(cmd, *args, **kwargs)
 
 
+def fake_digest(image):
+    tag = image.to_str(registry=False)
+    return 'sha256:{0:032x}'.format(len(tag))
+
+
 def is_string_type(obj):
     return any(isinstance(obj, strtype)
                for strtype in string_types)
@@ -173,7 +178,12 @@ def mock_environment(tmpdir, session=None, name=None, version=None,
     setattr(workflow.source.lg, 'commit_id', '123456')
     setattr(workflow, 'build_logs', ['docker build log\n'])
     setattr(workflow, 'push_conf', PushConf())
-    workflow.push_conf.add_docker_registry('docker.example.com')
+    docker_reg = workflow.push_conf.add_docker_registry('docker.example.com')
+
+    for image in workflow.tag_conf.images:
+        tag = image.to_str(registry=False)
+        docker_reg.digests[tag] = fake_digest(image)
+
     for pulp_registry in range(pulp_registries):
         workflow.push_conf.add_pulp_registry('env', 'pulp.example.com')
 
@@ -591,13 +601,24 @@ class TestKojiPromote(object):
             assert is_string_type(docker['id'])
             repositories = docker['repositories']
             assert isinstance(repositories, list)
-            for repository in repositories:
+            repositories_digest = list(filter(lambda repo: '@sha256' in repo, repositories))
+            repositories_tag = list(filter(lambda repo: '@sha256' not in repo, repositories))
+
+            assert len(repositories_tag) == len(repositories_digest)
+            # check for duplicates
+            assert sorted(repositories_tag) == sorted(set(repositories_tag))
+            assert sorted(repositories_digest) == sorted(set(repositories_digest))
+
+            for repository in repositories_tag:
                 assert is_string_type(repository)
                 image = ImageName.parse(repository)
                 assert image.registry
                 assert image.namespace
                 assert image.repo
                 assert image.tag and image.tag != 'latest'
+
+                digest_pullspec = image.to_str(tag=False) + '@' + fake_digest(image)
+                assert digest_pullspec in repositories_digest
 
     @pytest.mark.parametrize(('apis', 'pulp_registries', 'metadata_only'), [
         ('v1-only',
