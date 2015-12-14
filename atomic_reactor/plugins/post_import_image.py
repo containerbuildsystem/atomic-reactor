@@ -10,6 +10,7 @@ from __future__ import unicode_literals
 
 import json
 import os
+from time import sleep
 
 from osbs.api import OSBS
 from osbs.conf import Configuration
@@ -29,7 +30,7 @@ class ImportImagePlugin(PostBuildPlugin):
 
     def __init__(self, tasker, workflow, imagestream, docker_image_repo,
                  url, build_json_dir, verify_ssl=True, use_auth=True,
-                 insecure_registry=None):
+                 insecure_registry=None, retry_delay=30):
         """
         constructor
 
@@ -43,6 +44,7 @@ class ImportImagePlugin(PostBuildPlugin):
         :param use_auth: bool, initiate authentication with openshift?
         :param insecure_registry: bool, whether the Docker registry uses
                plain HTTP
+        :param retry_delay: int, number of seconds to delay before retrying
         """
         # call parent constructor
         super(ImportImagePlugin, self).__init__(tasker, workflow)
@@ -53,6 +55,7 @@ class ImportImagePlugin(PostBuildPlugin):
         self.verify_ssl = verify_ssl
         self.use_auth = use_auth
         self.insecure_registry = insecure_registry
+        self.retry_delay = retry_delay
 
     def run(self):
         try:
@@ -89,4 +92,14 @@ class ImportImagePlugin(PostBuildPlugin):
                                      **kwargs)
         else:
             self.log.info("Importing tags for %s", self.imagestream)
-            osbs.import_image(self.imagestream, **kwargs)
+            retry_attempts = 3
+            while True:
+                result = osbs.import_image(self.imagestream, **kwargs)
+                if result != False:
+                    break
+
+                if retry_attempts > 0:
+                    retry_attempts -= 1
+                    self.log.info("no new tags, will retry after %d seconds",
+                                  self.retry_delay)
+                    sleep(self.retry_delay)
