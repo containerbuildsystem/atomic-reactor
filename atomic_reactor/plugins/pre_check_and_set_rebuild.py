@@ -13,6 +13,7 @@ import os
 
 from osbs.api import OSBS
 from osbs.conf import Configuration
+from osbs.exceptions import OsbsResponseException
 from atomic_reactor.plugin import PreBuildPlugin
 
 
@@ -103,7 +104,17 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
                                       verify_ssl=self.verify_ssl)
             osbs = OSBS(osbs_conf, osbs_conf)
             labels = {self.label_key: self.label_value}
-            osbs.set_labels_on_build_config(buildconfig, labels, **kwargs)
+            try:
+                osbs.set_labels_on_build_config(buildconfig, labels, **kwargs)
+            except OsbsResponseException as ex:
+                if ex.status_code == 409:
+                    # Someone else was modifying the build
+                    # configuration at the same time. Try again.
+                    self.log.debug("got status %d, retrying", ex.status_code)
+                    osbs.set_labels_on_build_config(buildconfig, labels,
+                                                    **kwargs)
+                else:
+                    raise
 
         return is_rebuild
 
