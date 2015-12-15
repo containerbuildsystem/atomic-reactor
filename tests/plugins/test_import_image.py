@@ -37,7 +37,7 @@ class X(object):
     base_image = ImageName(repo="qwe", tag="asd")
 
 
-def prepare(insecure_registry=None):
+def prepare(insecure_registry=None, retry_delay=None):
     """
     Boiler-plate test set-up
     """
@@ -63,6 +63,7 @@ def prepare(insecure_registry=None):
             'verify_ssl': False,
             'use_auth': False,
             'insecure_registry': insecure_registry,
+            'retry_delay': retry_delay,
         }}])
 
     return runner
@@ -152,6 +153,32 @@ def test_import_image(namespace, monkeypatch):
      .should_receive('import_image')
      .once()
      .with_args(TEST_IMAGESTREAM, **namespace))
+    runner.run()
+
+
+def test_import_image_retry(monkeypatch):
+    """
+    Test retrying importing tags for an existing ImageStream
+    """
+
+    runner = prepare(retry_delay=1)
+
+    build_json = {"metadata": {}}
+    monkeypatch.setenv("BUILD", json.dumps(build_json))
+
+    (flexmock(OSBS)
+     .should_receive('get_image_stream')
+     .once()
+     .with_args(TEST_IMAGESTREAM))
+    (flexmock(OSBS)
+     .should_receive('create_image_stream')
+     .never())
+    (flexmock(OSBS)
+     .should_receive('import_image')
+     .twice()
+     .with_args(TEST_IMAGESTREAM)
+     .and_return(False)
+     .and_return(True))
     runner.run()
 
 
