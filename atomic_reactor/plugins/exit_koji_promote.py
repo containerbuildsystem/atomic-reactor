@@ -358,7 +358,27 @@ class KojiPromotePlugin(ExitPlugin):
 
         return metadata, output
 
-    def get_output_images(self):
+    def get_digests(self):
+        """
+        Returns a map of repositories to digests
+        """
+
+        digests = {}  # repository -> digest
+        for registry in self.workflow.push_conf.docker_registries:
+            for image in self.workflow.tag_conf.images:
+                image_str = image.to_str()
+                if image_str in registry.digests:
+                    digest = registry.digests[image_str]
+                    digests[image.to_str(registry=False)] = digest
+
+        return digests
+
+    def get_repositories(self, digests):
+        """
+        Build the repositories metadata
+
+        :param digests: dict, repository -> digest
+        """
         if self.workflow.push_conf.pulp_registries:
             # If pulp was used, only report pulp images
             registries = self.workflow.push_conf.pulp_registries
@@ -368,12 +388,20 @@ class KojiPromotePlugin(ExitPlugin):
 
         output_images = []
         for registry in registries:
-            for image in (self.workflow.tag_conf.primary_images +
-                          self.workflow.tag_conf.unique_images):
-                registry_image = image.copy()
-                registry_image.registry = registry.uri
-                if registry_image not in output_images:
-                    output_images.append(registry_image)
+            image = self.nvr_image.copy()
+            image.registry = registry.uri
+            pullspec = image.to_str()
+
+            # avoid duplicates
+            if pullspec in output_images:
+                continue
+
+            output_images.append(image.to_str())
+
+            digest = digests.get(image.to_str(registry=False))
+            if digest:
+                digest_pullspec = image.to_str(tag=False) + "@" + digest
+                output_images.append(digest_pullspec)
 
         return output_images
 
@@ -400,9 +428,8 @@ class KojiPromotePlugin(ExitPlugin):
         # Parent of squashed built image is base image
         image_id = self.workflow.builder.image_id
         parent_id = self.workflow.base_image_inspect['Id']
-        output_images = self.get_output_images()
-        repositories = [image.to_str() for image in output_images
-                        if image.tag != 'latest']
+        digests = self.get_digests()
+        repositories = self.get_repositories(digests)
         arch = os.uname()[4]
         metadata, output = self.get_image_output(arch)
         metadata.update({
@@ -439,16 +466,8 @@ class KojiPromotePlugin(ExitPlugin):
             self.log.error("Invalid time format (%s)", build_start_time)
             raise
 
-        name = None
-        version = None
-        release = None
-        for image_name in self.workflow.tag_conf.primary_images:
-            if '-' in image_name.tag:
-                name = image_name.repo
-                version, release = image_name.tag.split('-', 1)
-
-        if name is None or version is None or release is None:
-            raise RuntimeError('Unable to determine name-version-release')
+        name = self.nvr_image.repo
+        version, release = self.nvr_image.tag.split('-', 1)
 
         source = self.workflow.source
         if not isinstance(source, GitSource):
@@ -491,6 +510,14 @@ class KojiPromotePlugin(ExitPlugin):
         except KeyError:
             self.log.error("No build metadata")
             raise
+
+        for image in self.workflow.tag_conf.primary_images:
+            # dash at first/last postition does not count
+            if '-' in image.tag[1:-1]:
+                self.nvr_image = image
+                break
+        else:
+            raise RuntimeError('Unable to determine name-version-release')
 
         metadata_version = 0
 
