@@ -42,6 +42,10 @@ Source0:        https://github.com/%{owner}/%{project}/archive/%{commit}/%{proje
 
 BuildArch:      noarch
 
+%if 0%{?with_check}
+BuildRequires:  git
+%endif # with_check
+
 BuildRequires:  python2-devel
 BuildRequires:  python-setuptools
 %if 0%{?with_check}
@@ -52,6 +56,7 @@ BuildRequires:  python-docker-py
 BuildRequires:  python-flexmock
 BuildRequires:  python-six
 BuildRequires:  python-osbs >= 0.15
+BuildRequires:  python-backports-lzma
 %endif # with_check
 
 %if 0%{?with_python3}
@@ -281,6 +286,7 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py*
+%exclude %{python2_sitelib}/integration-tests
 
 %{python2_sitelib}/atomic_reactor-%{version}-py2.*.egg-info
 %dir %{_datadir}/%{name}
@@ -337,6 +343,7 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_check_and_set_rebuild*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_stop_autorebuild_if_disabled*.py*
+%exclude %{python3_sitelib}/integration-tests
 
 %{python3_sitelib}/atomic_reactor-%{version}-py3.*.egg-info
 %dir %{_datadir}/%{name}
