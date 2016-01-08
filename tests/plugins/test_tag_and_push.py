@@ -24,7 +24,7 @@ if MOCK:
     from tests.docker_mock import mock_docker
 
 DIGEST1 = 'sha256:28b64a8b29fd2723703bb17acf907cd66898440270e536992b937899a4647414'
-PUSH_LOGS = [
+PUSH_LOGS_1_9 = [
     b'{"status":"The push refers to a repository [172.17.42.1:5000/ns/test-image2] (len: 1)"}',
     b'{"status":"Buffering to Disk","progressDetail":{},"id":"83bca0dcfd1b"}',
     b'{"status":"Pushing","progressDetail":{"current":1,"total":32},"progress":"[=\\u003e                                                 ]      1 B/32 B","id":"83bca0dcfd1b"}',
@@ -33,6 +33,11 @@ PUSH_LOGS = [
     b'{"status":"Image successfully pushed","progressDetail":{},"id":"ded7cd95e059"}',
     b'{"status":"Image already exists","progressDetail":{},"id":"48ecf305d2cf"}',
     b'{"status":"Digest: ' + DIGEST1.encode('utf-8') + b'"}']
+
+PUSH_LOGS_1_10 = [
+    b'{"status":"The push refers to a repository [172.17.42.1:5000/ns/test-image2]"}',
+    b'{"status":"13cde7f2a483: Pushed "}',
+    b'{"status":"7.1-23: digest: ' + DIGEST1.encode('utf-8') + b' size: 1539"}']
 
 PUSH_ERROR_LOGS = [
     b'{"status":"The push refers to a repository [xyz/abc] (len: 1)"}\r\n',
@@ -52,8 +57,10 @@ class X(object):
     base_image = ImageName(repo="qwe", tag="asd")
 
 @pytest.mark.parametrize(("image_name", "logs", "should_raise"), [
-    (TEST_IMAGE, PUSH_LOGS, False),
-    (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS, True),
+    (TEST_IMAGE, PUSH_LOGS_1_9, False),
+    (TEST_IMAGE, PUSH_LOGS_1_10, False),
+    (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_9, True),
+    (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_10, True),
     (TEST_IMAGE, PUSH_ERROR_LOGS, True),
 ])
 def test_tag_and_push_plugin(tmpdir, image_name, logs, should_raise):
@@ -95,7 +102,8 @@ def test_tag_and_push_plugin(tmpdir, image_name, logs, should_raise):
             # running actual docker against v2 registry
             assert workflow.push_conf.docker_registries[0].digests[image_name] == DIGEST1
 
-def test_extract_digest():
-    json_logs = [json.loads(l.decode('utf-8')) for l in PUSH_LOGS]
+@pytest.mark.parametrize("logs", [PUSH_LOGS_1_9, PUSH_LOGS_1_10])
+def test_extract_digest(logs):
+    json_logs = [json.loads(l.decode('utf-8')) for l in logs]
     digest = TagAndPushPlugin.extract_digest(json_logs)
     assert digest == DIGEST1

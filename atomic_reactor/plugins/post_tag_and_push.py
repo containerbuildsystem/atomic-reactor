@@ -73,8 +73,7 @@ class TagAndPushPlugin(PostBuildPlugin):
         for j in reversed(logs):
             if "status" not in j:
                 continue
-
-            m = re.match(r'^Digest: ([a-z0-9]+:[a-f0-9]+)$', j['status'])
+            m = re.search(r'\b[Dd]igest: ([a-z0-9]+:[a-f0-9]+)\b', j['status'])
             if m:
                 return m.group(1)
 
