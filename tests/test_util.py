@@ -42,6 +42,7 @@ TEST_DATA = {
     "registry:5000/image-name": ImageName(registry="registry:5000", repo="image-name"),
     "fedora:20": ImageName(repo="fedora", tag="20"),
     "prefix/image-name:1": ImageName(namespace="prefix", repo="image-name", tag="1"),
+    "library/fedora:20": ImageName(namespace="library", repo="fedora", tag="20"),
     }
 
 
