@@ -76,6 +76,14 @@ BASE_IMAGE_W_LIB_REG = LOCALHOST_REGISTRY + "/" + BASE_IMAGE_W_LIBRARY
      [],
      # not expected:
      [BASE_IMAGE_W_REGISTRY]),
+
+    # For this test, ensure 'library-only' is only available through
+    # the 'library' namespace. docker_mock takes care of this when
+    # mocking.
+    (LOCALHOST_REGISTRY, "library-only:latest",
+     # expected:
+     [LOCALHOST_REGISTRY + "/library/library-only:latest"],
+     [LOCALHOST_REGISTRY + "/library-only:latest"]),
 ])
 def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected):
     if MOCK:

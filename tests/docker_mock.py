@@ -63,6 +63,9 @@ mock_pull_logs = \
      b'{"status":"Download complete","progressDetail":{},"id":"8c2e06607696"}',
      b'{"status":"Status: Image is up to date for localhost:5000/busybox:latest"}\r\n']
 
+mock_pull_logs_failed = \
+    [b'{"errorDetail":{"message":"Error: image ***:latest not found"},"error":"Error: image ***:latest not found"}']
+
 mock_push_logs = \
     [b'{"status":"The push refers to a repository [localhost:5000/busybox] (len: 1)"}\r\n',
      b'{"status":"Image already exists","progressDetail":{},"id":"17583c7dd0da"}\r\n',
@@ -164,6 +167,10 @@ def _docker_exception(code=404, content='not found'):
     return docker.errors.APIError(code, response)
 
 def _mock_pull(repo, tag='latest', **kwargs):
+    im = ImageName.parse(repo)
+    if im.repo == 'library-only' and im.namespace != 'library':
+        return iter(mock_pull_logs_failed)
+
     repotag = '%s:%s' % (repo, tag)
     if _find_image(repotag) is None:
         new_image = mock_image.copy()
