@@ -49,6 +49,21 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
     def get_post_result(self, key):
         return self.get_result(self.workflow.postbuild_results.get(key, ''))
 
+    def get_digests(self):
+        """
+        Returns a map of repositories to digests
+        """
+
+        digests = {}  # repository -> digest
+        for registry in self.workflow.push_conf.docker_registries:
+            for image in self.workflow.tag_conf.images:
+                image_str = image.to_str()
+                if image_str in registry.digests:
+                    digest = registry.digests[image_str]
+                    digests[image.to_str(registry=False)] = digest
+
+        return digests
+
     def get_repositories(self):
         # usually repositories formed from NVR labels
         # these should be used for pulling and layering
@@ -72,19 +87,26 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             "unique": unique_repositories,
         }
 
-    def get_digests(self):
+    def get_pullspecs(self, digests):
+        if self.workflow.push_conf.pulp_registries:
+            # If pulp was used, only report pulp repositories
+            registries = self.workflow.push_conf.pulp_registries
+        else:
+            # Otherwise report all the images we pushed
+            registries = self.workflow.push_conf.all_registries
+
         # v2 registry digests
-        digests = []
-        for registry in self.workflow.push_conf.docker_registries:
+        pullspecs = []
+        for registry in registries:
             for image in self.workflow.tag_conf.images:
-                if image.to_str() in registry.digests:
-                    digests.append({
+                if image.to_str() in digests:
+                    pullspecs.append({
                         "registry": registry.uri,
                         "repository": image.to_str(registry=False, tag=False),
                         "tag": image.tag or 'latest',
-                        "digest": registry.digests[image.to_str()]
+                        "digest": digests[image.to_str()]
                     })
-        return digests
+        return pullspecs
 
     def run(self):
         try:
@@ -127,7 +149,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             "base-image-id": self.workflow.base_image_inspect['Id'],
             "base-image-name": self.workflow.builder.base_image.to_str(),
             "image-id": self.workflow.builder.image_id,
-            "digests": json.dumps(self.get_digests()),
+            "digests": json.dumps(self.get_pullspecs(self.get_digests())),
         }
 
         tar_path = tar_size = tar_md5sum = tar_sha256sum = None

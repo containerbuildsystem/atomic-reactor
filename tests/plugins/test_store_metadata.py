@@ -125,12 +125,12 @@ def test_metadata_plugin(tmpdir):
     assert is_string_type(labels['digests'])
     digests = json.loads(labels['digests'])
     expected = [{
-        "registry": DOCKER0_REGISTRY,
+        "registry": LOCALHOST_REGISTRY,
         "repository": TEST_IMAGE,
         "tag": 'latest',
         "digest": DIGEST1,
     },{
-        "registry": DOCKER0_REGISTRY,
+        "registry": LOCALHOST_REGISTRY,
         "repository": "namespace/image",
         "tag": 'asd123',
         "digest": DIGEST2,
