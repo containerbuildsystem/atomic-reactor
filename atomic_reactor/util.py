@@ -52,10 +52,6 @@ class ImageName(object):
         elif len(s) == 3:
             result.registry = s[0]
             result.namespace = s[1]
-        if result.namespace == 'library':
-            # https://github.com/projectatomic/atomic-reactor/issues/45
-            logger.debug("namespace 'library' -> ''")
-            result.namespace = None
         result.repo = s[-1]
 
         try:
