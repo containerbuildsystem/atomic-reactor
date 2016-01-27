@@ -17,6 +17,7 @@ from atomic_reactor.plugins.pre_check_and_set_rebuild import (is_rebuild,
 from atomic_reactor.util import ImageName
 import json
 from osbs.api import OSBS
+import osbs.conf
 from osbs.exceptions import OsbsResponseException
 from flexmock import flexmock
 from tests.constants import SOURCE, MOCK
@@ -48,6 +49,13 @@ class TestCheckRebuild(object):
                 set_labels_kwargs = {}
 
             expectation.with_args(*set_labels_args, **set_labels_kwargs)
+
+        namespace = None
+        if set_labels_kwargs is not None:
+            namespace = set_labels_kwargs.get('namespace')
+        (flexmock(osbs.conf).should_call('Configuration')
+         .with_args(namespace=namespace, conf_file=None, verify_ssl=True, openshift_url="",
+                    openshift_uri="", use_auth=True))
 
         runner = PreBuildPluginsRunner(tasker, workflow, [
             {

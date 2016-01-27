@@ -559,3 +559,11 @@ def get_preferred_label_key(labels, name):
 def get_preferred_label(labels, name):
     key = get_preferred_label_key(labels, name)
     return labels.get(key)
+
+
+def get_build_json():
+    try:
+        return json.loads(os.environ["BUILD"])
+    except KeyError:
+        logger.error("No $BUILD env variable. Probably not running in build container")
+        raise

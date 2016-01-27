@@ -287,7 +287,7 @@ class TestKojiPromote(object):
         # No BUILD environment variable
         monkeypatch.delenv("BUILD", raising=False)
 
-        with pytest.raises(PluginFailedException):
+        with pytest.raises(KeyError):
             runner.run()
 
     def test_koji_promote_no_build_metadata(self, tmpdir, monkeypatch, os_env):

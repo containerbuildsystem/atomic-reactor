@@ -15,6 +15,7 @@ from osbs.api import OSBS
 from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.util import get_build_json
 
 
 def is_rebuild(workflow):
@@ -77,13 +78,7 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
         run the plugin
         """
 
-        try:
-            build_json = json.loads(os.environ["BUILD"])
-        except KeyError:
-            self.log.error("No $BUILD env variable. Probably not running in build container")
-            raise
-
-        metadata = build_json.get("metadata", {})
+        metadata = get_build_json().get("metadata", {})
         labels = metadata.get("labels", {})
         buildconfig = labels["buildconfig"]
         is_rebuild = labels.get(self.label_key) == self.label_value
@@ -101,7 +96,8 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
             osbs_conf = Configuration(conf_file=None, openshift_uri=self.url,
                                       openshift_url=self.url,
                                       use_auth=self.use_auth,
-                                      verify_ssl=self.verify_ssl)
+                                      verify_ssl=self.verify_ssl,
+                                      namespace=metadata.get('namespace', None))
             osbs = OSBS(osbs_conf, osbs_conf)
             labels = {self.label_key: self.label_value}
             try:
