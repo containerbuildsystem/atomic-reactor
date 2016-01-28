@@ -61,7 +61,7 @@ class TagAndPushPlugin(PostBuildPlugin):
 
                 pushed_images.append(registry_image)
 
-                digest = self.extract_digest(logs)
+                digest = self.extract_digest(logs, image.tag or 'latest')
                 if digest:
                     tag = registry_image.to_str(registry=False)
                     push_conf_registry.digests[tag] = digest
@@ -69,7 +69,18 @@ class TagAndPushPlugin(PostBuildPlugin):
         return pushed_images
 
     @staticmethod
-    def extract_digest(logs):
+    def extract_digest(logs, expected_tag=None):
+        # look for digest in aux/Digest
+        for j in reversed(logs):
+            aux = j.get('aux', {})
+            digest = aux.get('Digest')
+
+            if digest:
+                tag = aux.get('Tag')
+                if expected_tag is None or tag is None or expected_tag == tag:
+                    return digest
+
+        # look for digest in status message
         for j in reversed(logs):
             if "status" not in j:
                 continue

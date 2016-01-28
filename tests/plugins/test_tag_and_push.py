@@ -24,6 +24,25 @@ if MOCK:
     from tests.docker_mock import mock_docker
 
 DIGEST1 = 'sha256:28b64a8b29fd2723703bb17acf907cd66898440270e536992b937899a4647414'
+PUSH_LOGS_1_10 = [
+    b'{"status":"The push refers to a repository [localhost:5000/busybox]"}',
+    b'{"status":"Preparing","progressDetail":{},"id":"5f70bf18a086"}',
+    b'{"status":"Preparing","progressDetail":{},"id":"9508eff2c687"}',
+    b'{"status":"Pushing","progressDetail":{"current":721920,"total":1113436},"progress":"[================================\\u003e                  ] 721.9 kB/1.113 MB","id":"9508eff2c687"}',
+    b'{"status":"Pushing","progressDetail":{"current":1024},"progress":"1.024 kB","id":"5f70bf18a086"}',
+    b'{"status":"Pushing","progressDetail":{"current":820224,"total":1113436},"progress":"[====================================\\u003e              ] 820.2 kB/1.113 MB","id":"9508eff2c687"}',
+    b'{"status":"Pushed","progressDetail":{},"id":"5f70bf18a086"}',
+    b'{"status":"Pushed","progressDetail":{},"id":"5f70bf18a086"}',
+    b'{"status":"Pushing","progressDetail":{"current":1300992,"total":1113436},"progress":"[==================================================\\u003e] 1.301 MB","id":"9508eff2c687"}',
+    b'{"status":"Pushing","progressDetail":{"current":1310720,"total":1113436},"progress":"[==================================================\\u003e] 1.311 MB","id":"9508eff2c687"}',
+    b'{"status":"Pushed","progressDetail":{},"id":"9508eff2c687"}',
+    b'{"status":"Pushed","progressDetail":{},"id":"9508eff2c687"}',
+    b'{"status":"latest: digest: ' + DIGEST1.encode('utf-8') + b' size: 1920"}',
+    b'{"progressDetail":{},"aux":{"Tag":"latest","Digest":"' + DIGEST1.encode('utf-8') + b'","Size":1920}}' ]
+
+PUSH_LOGS_1_10_NOT_IN_STATUS = list(PUSH_LOGS_1_10)
+del PUSH_LOGS_1_10_NOT_IN_STATUS[-2]
+
 PUSH_LOGS_1_9 = [
     b'{"status":"The push refers to a repository [172.17.42.1:5000/ns/test-image2] (len: 1)"}',
     b'{"status":"Buffering to Disk","progressDetail":{},"id":"83bca0dcfd1b"}',
@@ -34,7 +53,7 @@ PUSH_LOGS_1_9 = [
     b'{"status":"Image already exists","progressDetail":{},"id":"48ecf305d2cf"}',
     b'{"status":"Digest: ' + DIGEST1.encode('utf-8') + b'"}']
 
-PUSH_LOGS_1_10 = [
+PUSH_LOGS_1_X = [ # don't remember which version does this
     b'{"status":"The push refers to a repository [172.17.42.1:5000/ns/test-image2]"}',
     b'{"status":"13cde7f2a483: Pushed "}',
     b'{"status":"7.1-23: digest: ' + DIGEST1.encode('utf-8') + b' size: 1539"}']
@@ -57,10 +76,14 @@ class X(object):
     base_image = ImageName(repo="qwe", tag="asd")
 
 @pytest.mark.parametrize(("image_name", "logs", "should_raise"), [
+    (TEST_IMAGE, PUSH_LOGS_1_X, False),
     (TEST_IMAGE, PUSH_LOGS_1_9, False),
     (TEST_IMAGE, PUSH_LOGS_1_10, False),
+    (TEST_IMAGE, PUSH_LOGS_1_10_NOT_IN_STATUS, False),
+    (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_X, True),
     (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_9, True),
     (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_10, True),
+    (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_10_NOT_IN_STATUS, True),
     (TEST_IMAGE, PUSH_ERROR_LOGS, True),
 ])
 def test_tag_and_push_plugin(tmpdir, image_name, logs, should_raise):
@@ -102,8 +125,25 @@ def test_tag_and_push_plugin(tmpdir, image_name, logs, should_raise):
             # running actual docker against v2 registry
             assert workflow.push_conf.docker_registries[0].digests[image_name] == DIGEST1
 
-@pytest.mark.parametrize("logs", [PUSH_LOGS_1_9, PUSH_LOGS_1_10])
+@pytest.mark.parametrize("logs", [
+    PUSH_LOGS_1_X,
+    PUSH_LOGS_1_9,
+    PUSH_LOGS_1_10,
+    PUSH_LOGS_1_10_NOT_IN_STATUS
+])
 def test_extract_digest(logs):
     json_logs = [json.loads(l.decode('utf-8')) for l in logs]
     digest = TagAndPushPlugin.extract_digest(json_logs)
     assert digest == DIGEST1
+
+@pytest.mark.parametrize("tag,should_succeed", [
+    ('latest', True),
+    ('earliest', False),
+])
+def test_extract_digest_verify_tag(tag, should_succeed):
+    json_logs = [json.loads(l.decode('utf-8')) for l in PUSH_LOGS_1_10_NOT_IN_STATUS]
+    digest = TagAndPushPlugin.extract_digest(json_logs, tag)
+    if should_succeed:
+        assert digest == DIGEST1
+    else:
+        assert digest is None
