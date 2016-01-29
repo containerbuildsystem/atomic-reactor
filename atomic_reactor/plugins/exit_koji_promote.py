@@ -392,10 +392,6 @@ class KojiPromotePlugin(ExitPlugin):
             image.registry = registry.uri
             pullspec = image.to_str()
 
-            # avoid duplicates
-            if pullspec in output_images:
-                continue
-
             output_images.append(image.to_str())
 
             digest = digests.get(image.to_str(registry=False))

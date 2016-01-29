@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 from atomic_reactor.util import ImageName
+from atomic_reactor.inner import PushConf
 
 try:
     # py3
@@ -78,7 +79,7 @@ class TestPostPulpSync(object):
                                    for repo in docker_repos])
 
         tag_conf = flexmock(primary_images=primary_images)
-        push_conf = flexmock(add_pulp_registry=lambda env, registry: None)
+        push_conf = PushConf()
         return flexmock(tag_conf=tag_conf,
                         push_conf=push_conf)
 
@@ -274,6 +275,52 @@ class TestPostPulpSync(object):
             assert len(errors) >= 1
         else:
             assert not errors
+
+    @pytest.mark.parametrize('already_exists', [False, True])
+    def test_store_registry(self, already_exists):
+        docker_registry = 'http://registry.example.com'
+        docker_repository = 'prod/myrepository'
+        env = 'pulp'
+        workflow = self.workflow([docker_repository])
+
+        mockpulp = MockPulp()
+        (flexmock(mockpulp)
+            .should_receive('login')
+            .never())
+        (flexmock(mockpulp)
+            .should_receive('set_certs')
+            .never())
+        (flexmock(mockpulp)
+            .should_receive('syncRepo')
+            .with_args(object,
+                       'prod-myrepository',  # pulp repository name
+                       config_file=object)
+            .and_return([{'id': 'prefix-prod-myrepository'}])  # repo id
+            .once()
+            .ordered())
+        (flexmock(mockpulp)
+            .should_receive('crane')
+            .with_args(['prefix-prod-myrepository'],  # repo id
+                       wait=True)
+            .once()
+            .ordered())
+        (flexmock(dockpulp)
+            .should_receive('Pulp')
+            .with_args(env=env)
+            .and_return(mockpulp))
+
+        if already_exists:
+            workflow.push_conf.add_pulp_registry(env, mockpulp.registry)
+
+        plugin = PulpSyncPlugin(tasker=None,
+                                workflow=workflow,
+                                pulp_registry_name=env,
+                                docker_registry=docker_registry)
+
+        num_registries = len(workflow.push_conf.pulp_registries)
+        assert num_registries == (1 if already_exists else 0)
+        plugin.run()
+        assert len(workflow.push_conf.pulp_registries) == 1
 
     def test_delete_not_implemented(self, caplog):
         """

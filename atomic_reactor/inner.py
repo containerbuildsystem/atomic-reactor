@@ -183,7 +183,7 @@ class PushConf(object):
     def __init__(self):
         self._registries = {
             "docker": [],
-            "pulp": [],
+            "pulp": {},  # name -> PulpRegistry
         }
 
     def add_docker_registry(self, registry_uri, insecure=False):
@@ -201,7 +201,7 @@ class PushConf(object):
         if crane_uri is None:
             raise RuntimeError("registry URI cannot be None")
         r = PulpRegistry(name, crane_uri)
-        self._registries["pulp"].append(r)
+        self._registries["pulp"][name] = r
         return r
 
     @property
@@ -214,7 +214,7 @@ class PushConf(object):
 
     @property
     def pulp_registries(self):
-        return self._registries["pulp"]
+        return [registry for registry in self._registries["pulp"].values()]
 
     @property
     def all_registries(self):
