@@ -14,6 +14,7 @@ import os
 from atomic_reactor.plugin import InputPlugin
 from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
 from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
+from atomic_reactor.util import get_build_json
 
 
 class OSv3InputPlugin(InputPlugin):
@@ -32,8 +33,7 @@ class OSv3InputPlugin(InputPlugin):
 
         response from plugin is kept and used in json result response
         """
-        build_json_str = os.environ['BUILD']
-        build_json = json.loads(build_json_str)
+        build_json = get_build_json()
         git_url = os.environ['SOURCE_URI']
         git_ref = os.environ.get('SOURCE_REF', None)
         image = os.environ['OUTPUT_IMAGE']

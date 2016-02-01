@@ -17,6 +17,7 @@ from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.plugins.pre_return_dockerfile import CpDockerfilePlugin
 from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
+from atomic_reactor.util import get_build_json
 
 
 class StoreMetadataInOSv3Plugin(ExitPlugin):
@@ -109,14 +110,8 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         return pullspecs
 
     def run(self):
-        try:
-            build_json = json.loads(os.environ["BUILD"])
-        except KeyError:
-            self.log.error("No $BUILD env variable. Probably not running in build container.")
-            return
-
         kwargs = {}
-        metadata = build_json.get("metadata", {})
+        metadata = get_build_json().get("metadata", {})
         if 'namespace' in metadata:
             kwargs['namespace'] = metadata['namespace']
 
@@ -131,7 +126,8 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         # from specific IP and will set specific X-Remote-User for such requests
         # FIXME: remove `openshift_uri` once osbs-client is released
         osbs_conf = Configuration(conf_file=None, openshift_uri=self.url, openshift_url=self.url,
-                                  use_auth=self.use_auth, verify_ssl=self.verify_ssl)
+                                  use_auth=self.use_auth, verify_ssl=self.verify_ssl,
+                                  namespace=metadata.get('namespace', None))
         osbs = OSBS(osbs_conf, osbs_conf)
 
         try:

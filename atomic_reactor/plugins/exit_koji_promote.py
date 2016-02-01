@@ -24,7 +24,7 @@ from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.constants import PROG
-from atomic_reactor.util import get_version_of_tools, get_checksums
+from atomic_reactor.util import get_version_of_tools, get_checksums, get_build_json
 from osbs.conf import Configuration
 from osbs.api import OSBS
 
@@ -89,11 +89,12 @@ class KojiPromotePlugin(ExitPlugin):
         self.koji_keytab = koji_keytab
         self.metadata_only = metadata_only
 
+        self.namespace = get_build_json().get('metadata', {}).get('namespace', None)
         osbs_conf = Configuration(conf_file=None, openshift_uri=url,
-                                  use_auth=use_auth, verify_ssl=verify_ssl)
+                                  use_auth=use_auth, verify_ssl=verify_ssl,
+                                  namespace=self.namespace)
         self.osbs = OSBS(osbs_conf, osbs_conf)
         self.build_id = None
-        self.namespace = None
 
     @staticmethod
     def parse_rpm_output(output, tags, separator=';'):
@@ -493,16 +494,8 @@ class KojiPromotePlugin(ExitPlugin):
         :return: tuple, the metadata and the list of Output instances
         """
         try:
-            build_json = json.loads(os.environ["BUILD"])
-        except KeyError:
-            self.log.error("No $BUILD env variable. "
-                           "Probably not running in build container.")
-            raise
-
-        try:
-            metadata = build_json["metadata"]
+            metadata = get_build_json()["metadata"]
             self.build_id = metadata["name"]
-            self.namespace = metadata.get("namespace")
         except KeyError:
             self.log.error("No build metadata")
             raise

@@ -14,6 +14,7 @@ from copy import deepcopy
 
 from flexmock import flexmock
 from osbs.api import OSBS
+import osbs.conf
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import ExitPluginsRunner
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
@@ -55,6 +56,11 @@ def prepare():
 }
 '''
     flexmock(OSBS, set_annotations_on_build=set_annotations_on_build)
+    (flexmock(osbs.conf)
+     .should_call("Configuration")
+     .with_args(namespace="namespace", conf_file=None, verify_ssl=True,
+                openshift_url="http://example.com/", openshift_uri="http://example.com/",
+                use_auth=True))
     flexmock(os)
     os.should_receive("environ").and_return(new_environ)
 

@@ -37,7 +37,7 @@ class X(object):
     base_image = ImageName(repo="qwe", tag="asd")
 
 
-def prepare(insecure_registry=None, retry_delay=None):
+def prepare(insecure_registry=None, retry_delay=None, namespace=None):
     """
     Boiler-plate test set-up
     """
@@ -51,7 +51,11 @@ def prepare(insecure_registry=None, retry_delay=None):
     setattr(workflow.builder.source, 'dockerfile_path', None)
     setattr(workflow.builder.source, 'path', None)
     fake_conf = osbs.conf.Configuration(conf_file=None, openshift_uri='/')
-    flexmock(osbs.conf).should_receive('Configuration').and_return(fake_conf)
+
+    expectation = flexmock(osbs.conf).should_receive('Configuration').and_return(fake_conf)
+    if namespace:
+        expectation.with_args(namespace=namespace, verify_ssl=False, openshift_url="",
+                              openshift_uri="", use_auth=False, build_json_dir="")
 
     runner = PostBuildPluginsRunner(tasker, workflow, [{
         'name': ImportImagePlugin.key,
@@ -99,7 +103,7 @@ def test_create_image(insecure_registry, namespace, monkeypatch):
     Test that an ImageStream is created if not found
     """
 
-    runner = prepare(insecure_registry=insecure_registry)
+    runner = prepare(insecure_registry=insecure_registry, namespace=namespace)
 
     kwargs = {}
     build_json = {"metadata": {}}
@@ -136,7 +140,7 @@ def test_import_image(namespace, monkeypatch):
     Test importing tags for an existing ImageStream
     """
 
-    runner = prepare()
+    runner = prepare(namespace=namespace.get('namespace'))
 
     build_json = {"metadata": {}}
     build_json["metadata"].update(namespace)

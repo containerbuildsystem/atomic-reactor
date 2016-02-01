@@ -17,6 +17,7 @@ from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException
 
 from atomic_reactor.plugin import PostBuildPlugin
+from atomic_reactor.util import get_build_json
 
 
 class ImportImagePlugin(PostBuildPlugin):
@@ -58,14 +59,7 @@ class ImportImagePlugin(PostBuildPlugin):
         self.retry_delay = retry_delay
 
     def run(self):
-        try:
-            build_json = json.loads(os.environ["BUILD"])
-        except KeyError:
-            self.log.error("No $BUILD env variable. "
-                           "Probably not running in build container.")
-            raise
-
-        metadata = build_json.get("metadata", {})
+        metadata = get_build_json().get("metadata", {})
         kwargs = {}
         if 'namespace' in metadata:
             kwargs['namespace'] = metadata['namespace']
@@ -75,7 +69,8 @@ class ImportImagePlugin(PostBuildPlugin):
                                   openshift_url=self.url,
                                   use_auth=self.use_auth,
                                   verify_ssl=self.verify_ssl,
-                                  build_json_dir=self.build_json_dir)
+                                  build_json_dir=self.build_json_dir,
+                                  namespace=metadata.get('namespace', None))
         osbs = OSBS(osbs_conf, osbs_conf)
 
         try:
