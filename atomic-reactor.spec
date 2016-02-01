@@ -31,7 +31,7 @@
 %global dock_obsolete_vr 1.3.7-2
 
 Name:           %{project}
-Version:        1.6.1
+Version:        1.6.2
 Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
@@ -53,7 +53,7 @@ BuildRequires:  pytest
 BuildRequires:  python-pytest-capturelog
 BuildRequires:  python-dockerfile-parse >= 0.0.5
 BuildRequires:  python-docker-py
-BuildRequires:  python-flexmock
+BuildRequires:  python-flexmock >= 0.10.2
 BuildRequires:  python-six
 BuildRequires:  python-osbs >= 0.15
 BuildRequires:  python-backports-lzma
@@ -74,7 +74,7 @@ BuildRequires:  python3-pytest
 BuildRequires:  python3-pytest-capturelog
 BuildRequires:  python3-dockerfile-parse >= 0.0.5
 BuildRequires:  python3-docker-py
-BuildRequires:  python3-flexmock
+BuildRequires:  python3-flexmock >= 0.10.2
 BuildRequires:  python3-six
 BuildRequires:  python3-osbs >= 0.15
 %endif # with_check
@@ -381,6 +381,11 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 
 %changelog
+* Mon Feb 02 2016 Martin Milata <mmilata@redhat.com> - 1.6.2-1
+- 1.6.2 release
+- BuildRequires python-flexmock >= 0.10.2 due to
+  https://github.com/bkabrda/flexmock/issues/6
+
 * Fri Jan 15 2016 Martin Milata <mmilata@redhat.com> - 1.6.1-1
 - 1.6.1 release
 
