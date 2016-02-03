@@ -120,7 +120,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         )
         logger.debug("build is submitted, waiting for it to finish")
         command_result = wait_for_command(logs_gen)  # wait for build to finish
-        logger.info("build was %ssuccesful!", 'un' if command_result.is_failed() else '')
+        logger.info("build was %ssuccessful!", 'un' if command_result.is_failed() else '')
         self.is_built = True
         if not command_result.is_failed():
             self.built_image_info = self.get_built_image_info()
