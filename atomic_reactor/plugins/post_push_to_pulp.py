@@ -136,7 +136,7 @@ class PulpUploader(object):
         missing_repos = set(repos) - set(found_repo_ids)
         self.log.info("Missing repos: %s" % ", ".join(missing_repos))
         for repo in missing_repos:
-            p.createRepo(repo, "/pulp/docker/%s" % repo,
+            p.createRepo(repo, None,
                          registry_id=pulp_repos[repo].registry_id,
                          prefix_with=repo_prefix)
 
