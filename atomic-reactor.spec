@@ -31,7 +31,7 @@
 %global dock_obsolete_vr 1.3.7-2
 
 Name:           %{project}
-Version:        1.6.2
+Version:        1.6.3
 Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
@@ -381,6 +381,9 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 
 %changelog
+* Thu Feb 04 2016 Martin Milata <mmilata@redhat.com> - 1.6.3-1
+- 1.6.3 release
+
 * Mon Feb 02 2016 Martin Milata <mmilata@redhat.com> - 1.6.2-1
 - 1.6.2 release
 - BuildRequires python-flexmock >= 0.10.2 due to
