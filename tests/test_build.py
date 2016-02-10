@@ -16,6 +16,7 @@ from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.util import ImageName
 from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, DOCKERFILE_OK_PATH,\
         DOCKERFILE_ERROR_BUILD_PATH, MOCK, SOURCE, DOCKERFILE_FILENAME
+from tests.util import requires_internet
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -33,6 +34,7 @@ with_all_sources = pytest.mark.parametrize('source_params', [
 ])
 
 
+@requires_internet
 @with_all_sources
 def test_build_image(tmpdir, source_params):
     provided_image = "test-build:test_tag"
@@ -48,6 +50,7 @@ def test_build_image(tmpdir, source_params):
     # clean
     t.remove_image(build_result.image_id)
 
+@requires_internet
 @pytest.mark.parametrize('source_params', [
     {'provider': 'git', 'uri': DOCKERFILE_GIT, 'provider_params': {'git_commit': 'error-build'}},
     {'provider': 'path', 'uri': 'file://' + DOCKERFILE_ERROR_BUILD_PATH},
@@ -64,6 +67,7 @@ def test_build_bad_git_commit_dockerfile(tmpdir, source_params):
     assert build_result.is_failed()
 
 
+@requires_internet
 @with_all_sources
 def test_inspect_built_image(tmpdir, source_params):
     provided_image = "test-build:test_tag"
@@ -84,6 +88,7 @@ def test_inspect_built_image(tmpdir, source_params):
     t.remove_image(build_result.image_id)
 
 
+@requires_internet
 @with_all_sources
 def test_inspect_base_image(tmpdir, source_params):
     if MOCK:
@@ -98,6 +103,7 @@ def test_inspect_base_image(tmpdir, source_params):
     assert built_inspect["Id"] is not None
 
 
+@requires_internet
 @with_all_sources
 def test_get_base_image_info(tmpdir, source_params):
     if MOCK:

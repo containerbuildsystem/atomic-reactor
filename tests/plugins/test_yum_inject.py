@@ -29,6 +29,7 @@ import requests
 from flexmock import flexmock
 from tests.fixtures import docker_tasker
 from tests.constants import SOURCE, MOCK
+from tests.util import requires_internet
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -61,6 +62,7 @@ def prepare(df_path, inherited_user=''):
     (flexmock(requests, get=lambda *_: requests.Response()))
     return tasker, workflow
 
+@requires_internet
 def test_yuminject_plugin_notwrapped(tmpdir):
     df_content = """\
 FROM fedora
@@ -98,6 +100,7 @@ RUN rm -f '/etc/yum.repos.d/atomic-reactor-injected.repo'
     assert expected_output == df.content
 
 
+@requires_internet
 def test_yuminject_plugin_wrapped(tmpdir, docker_tasker):
     df_content = """\
 FROM fedora

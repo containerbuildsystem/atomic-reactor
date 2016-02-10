@@ -13,6 +13,7 @@ from tests.fixtures import temp_image_name
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.util import ImageName, clone_git_repo
 from tests.constants import LOCALHOST_REGISTRY, INPUT_IMAGE, DOCKERFILE_GIT, MOCK, COMMAND
+from tests.util import requires_internet
 
 import docker, docker.errors
 
@@ -270,6 +271,7 @@ def test_get_image_info_by_name_tag_in_name_nonexisten(temp_image_name):
     assert len(response) == 0
 
 
+@requires_internet
 def test_build_image_from_path(tmpdir, temp_image_name):
     if MOCK:
         mock_docker()
@@ -286,6 +288,7 @@ def test_build_image_from_path(tmpdir, temp_image_name):
     t.remove_image(temp_image_name)
 
 
+@requires_internet
 def test_build_image_from_git(temp_image_name):
     if MOCK:
         mock_docker()
