@@ -14,6 +14,7 @@ __all__ = ('PostBuildRPMqaPlugin', )
 
 class PostBuildRPMqaPlugin(PostBuildPlugin):
     key = "all_rpm_packages"
+    is_allowed_to_fail = False
     rpm_tags = [
         'NAME',
         'VERSION',

@@ -14,7 +14,7 @@ import pytest
 
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PostBuildPluginsRunner
+from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.util import ImageName
 from tests.constants import DOCKERFILE_GIT, MOCK
@@ -87,8 +87,5 @@ def test_rpmqa_plugin_exception(docker_tasker):
     runner = PostBuildPluginsRunner(docker_tasker, workflow,
                                     [{"name": PostBuildRPMqaPlugin.key,
                                       "args": {'image_id': TEST_IMAGE}}])
-    results = runner.run()
-
-    assert results is not None
-    assert results[PostBuildRPMqaPlugin.key] is not None
-    assert isinstance(results[PostBuildRPMqaPlugin.key], Exception)
+    with pytest.raises(PluginFailedException):
+        results = runner.run()
