@@ -88,9 +88,6 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
             # Update the BuildConfig metadata so the next Build
             # instantiated from it is detected as being an automated
             # rebuild
-            kwargs = {}
-            if 'namespace' in metadata:
-                kwargs['namespace'] = metadata['namespace']
 
             # FIXME: remove `openshift_uri` once osbs-client is released
             osbs_conf = Configuration(conf_file=None, openshift_uri=self.url,
@@ -101,16 +98,14 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
             osbs = OSBS(osbs_conf, osbs_conf)
             labels = {self.label_key: self.label_value}
             try:
-                osbs.set_labels_on_build_config(buildconfig, labels, **kwargs)
+                osbs.set_labels_on_build_config(buildconfig, labels)
             except OsbsResponseException as ex:
                 if ex.status_code == 409:
                     # Someone else was modifying the build
                     # configuration at the same time. Try again.
                     self.log.debug("got status %d, retrying", ex.status_code)
-                    osbs.set_labels_on_build_config(buildconfig, labels,
-                                                    **kwargs)
+                    osbs.set_labels_on_build_config(buildconfig, labels)
                 else:
                     raise
 
         return is_rebuild
-

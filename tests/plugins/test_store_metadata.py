@@ -45,7 +45,7 @@ class X(object):
 
 def prepare():
     def set_annotations_on_build(build_id, labels, namespace='default'):
-        assert namespace == 'namespace'
+        pass
     new_environ = deepcopy(os.environ)
     new_environ["BUILD"] = '''
 {

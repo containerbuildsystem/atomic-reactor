@@ -221,10 +221,7 @@ class KojiPromotePlugin(ExitPlugin):
         """
 
         buildroot_tag = os.environ["OPENSHIFT_CUSTOM_BUILD_BASE_IMAGE"]
-        kwargs = {}
-        if self.namespace is not None:
-            kwargs['namespace'] = self.namespace
-        pod = self.osbs.get_pod_for_build(self.build_id, **kwargs)
+        pod = self.osbs.get_pod_for_build(self.build_id)
         all_images = pod.get_container_image_ids()
 
         try:
@@ -291,10 +288,7 @@ class KojiPromotePlugin(ExitPlugin):
         """
 
         # Collect logs from server
-        kwargs = {}
-        if self.namespace is not None:
-            kwargs['namespace'] = self.namespace
-        logs = self.osbs.get_build_logs(self.build_id, **kwargs)
+        logs = self.osbs.get_build_logs(self.build_id)
 
         # Deleted once closed
         logfile = NamedTemporaryFile(prefix=self.build_id,

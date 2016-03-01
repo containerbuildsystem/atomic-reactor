@@ -110,10 +110,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         return pullspecs
 
     def run(self):
-        kwargs = {}
         metadata = get_build_json().get("metadata", {})
-        if 'namespace' in metadata:
-            kwargs['namespace'] = metadata['namespace']
 
         try:
             build_id = metadata["name"]
@@ -163,5 +160,5 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
                 "sha256sum": tar_sha256sum,
                 "filename": os.path.basename(tar_path),
             })
-        osbs.set_annotations_on_build(build_id, labels, **kwargs)
+        osbs.set_annotations_on_build(build_id, labels)
         return labels

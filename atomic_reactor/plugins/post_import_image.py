@@ -61,8 +61,6 @@ class ImportImagePlugin(PostBuildPlugin):
     def run(self):
         metadata = get_build_json().get("metadata", {})
         kwargs = {}
-        if 'namespace' in metadata:
-            kwargs['namespace'] = metadata['namespace']
 
         # FIXME: remove `openshift_uri` once osbs-client is released
         osbs_conf = Configuration(openshift_uri=self.url,
@@ -74,7 +72,7 @@ class ImportImagePlugin(PostBuildPlugin):
         osbs = OSBS(osbs_conf, osbs_conf)
 
         try:
-            osbs.get_image_stream(self.imagestream, **kwargs)
+            osbs.get_image_stream(self.imagestream)
         except OsbsResponseException:
             if self.insecure_registry is not None:
                 kwargs['insecure_registry'] = self.insecure_registry
