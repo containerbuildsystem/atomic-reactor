@@ -17,6 +17,7 @@ from atomic_reactor.buildimage import BuildImageBuilder
 from atomic_reactor.core import DockerTasker
 
 from tests.constants import MOCK
+from tests.util import requires_internet
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -34,6 +35,7 @@ def test_tarball_generation_local_repo(tmpdir):
     assert len(glob(os.path.join(str(tmpdir), 'atomic-reactor-*.tar.gz'))) == 1
 
 
+@requires_internet
 def test_tarball_generation_upstream_repo(tmpdir):
     if MOCK:
         mock_docker()
@@ -43,6 +45,7 @@ def test_tarball_generation_upstream_repo(tmpdir):
     assert len(glob(os.path.join(str(tmpdir), 'atomic-reactor-*.tar.gz'))) == 1
 
 
+@requires_internet
 def test_image_creation_upstream_repo():
     if MOCK:
         mock_docker()

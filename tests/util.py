@@ -9,6 +9,9 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
+import pytest
+import requests
+
 from six import string_types
 
 
@@ -22,3 +25,13 @@ def is_string_type(obj):
 
     return any(isinstance(obj, strtype)
                for strtype in string_types)
+
+def has_connection():
+    try:
+        requests.get("https://github.com/")
+        return True
+    except requests.ConnectionError:
+        return False
+
+# In case we run tests in an environment without internet connection.
+requires_internet = pytest.mark.skipif(not has_connection(), reason="requires internet connection")

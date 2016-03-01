@@ -24,6 +24,7 @@ from atomic_reactor.util import ImageName, \
     process_substitutions, get_checksums, print_version_of_tools, get_version_of_tools, \
     get_preferred_label_key
 from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1
+from tests.util import requires_internet
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -77,6 +78,7 @@ def test_wait_for_command():
     assert wait_for_command(logs_gen) is not None
 
 
+@requires_internet
 def test_clone_git_repo(tmpdir):
     tmpdir_path = str(tmpdir.realpath())
     commit_id = clone_git_repo(DOCKERFILE_GIT, tmpdir_path)
@@ -85,6 +87,7 @@ def test_clone_git_repo(tmpdir):
     assert os.path.isdir(os.path.join(tmpdir_path, '.git'))
 
 
+@requires_internet
 def test_clone_git_repo_by_sha1(tmpdir):
     tmpdir_path = str(tmpdir.realpath())
     commit_id = clone_git_repo(DOCKERFILE_GIT, tmpdir_path, commit=DOCKERFILE_SHA1)
@@ -96,6 +99,7 @@ def test_clone_git_repo_by_sha1(tmpdir):
     assert os.path.isdir(os.path.join(tmpdir_path, '.git'))
 
 
+@requires_internet
 def test_figure_out_dockerfile(tmpdir):
     tmpdir_path = str(tmpdir.realpath())
     clone_git_repo(DOCKERFILE_GIT, tmpdir_path)
@@ -104,6 +108,7 @@ def test_figure_out_dockerfile(tmpdir):
     assert os.path.isdir(dir)
 
 
+@requires_internet
 def test_lazy_git():
     lazy_git = LazyGit(git_url=DOCKERFILE_GIT)
     with lazy_git:
@@ -112,6 +117,7 @@ def test_lazy_git():
         assert len(lazy_git.commit_id) == 40  # current git hashes are this long
 
 
+@requires_internet
 def test_lazy_git_with_tmpdir(tmpdir):
     t = str(tmpdir.realpath())
     lazy_git = LazyGit(git_url=DOCKERFILE_GIT, tmpdir=t)

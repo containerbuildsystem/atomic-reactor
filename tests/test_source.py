@@ -6,6 +6,7 @@ from atomic_reactor.source import (Source, GitSource, PathSource, get_source_ins
                          validate_source_dict_schema)
 
 from tests.constants import DOCKERFILE_GIT
+from tests.util import requires_internet
 
 class TestSource(object):
     def test_creates_tmpdir_if_not_passed(self):
@@ -13,6 +14,7 @@ class TestSource(object):
         assert os.path.exists(s.tmpdir)
 
 
+@requires_internet
 class TestGitSource(object):
     def test_checks_out_repo(self, tmpdir):
         gs = GitSource('git', DOCKERFILE_GIT)

@@ -22,6 +22,7 @@ from flexmock import flexmock
 import pytest
 from tests.constants import MOCK_SOURCE, SOURCE
 from tests.docker_mock import mock_docker
+from tests.util import requires_internet
 import inspect
 
 from atomic_reactor.inner import BuildResults, BuildResultsEncoder, BuildResultsJSONDecoder
@@ -636,6 +637,7 @@ class ExitUsesSource(ExitWatched):
         WatchedMixIn.run(self)
 
 
+@requires_internet
 def test_source_not_removed_for_exit_plugins():
     this_file = inspect.getfile(PreRaises)
     mock_docker()
