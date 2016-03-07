@@ -251,7 +251,7 @@ def mock_docker(build_should_fail=False,
     class GetImageResult(object):
         data = b''
         def __init__(self):
-            self.fp = open('/dev/null', 'rb')
+            self.fp = open(__file__, 'rb')
         def __getattr__(self, attr):
             return getattr(self, self.fp, attr)
         def __enter__(self):

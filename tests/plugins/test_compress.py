@@ -33,7 +33,7 @@ class TestCompress(object):
         ('lzma', False, 'xz'),
         ('gzip', True, 'gz'),
     ])
-    def test_compress(self, tmpdir, method, load_exported_image, extension):
+    def test_compress(self, tmpdir, caplog, method, load_exported_image, extension):
         if MOCK:
             mock_docker()
 
@@ -64,4 +64,8 @@ class TestCompress(object):
             workflow.source.tmpdir,
             EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE.format(extension))
         assert os.path.exists(compressed_img)
-        assert workflow.exported_image_sequence[-1]['path'] == compressed_img
+        metadata = workflow.exported_image_sequence[-1]
+        assert metadata['path'] == compressed_img
+        assert 'uncompressed_size' in metadata
+        assert isinstance(metadata['uncompressed_size'], int)
+        assert ", ratio: " in caplog.text()

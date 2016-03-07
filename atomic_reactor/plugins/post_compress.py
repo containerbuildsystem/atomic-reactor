@@ -17,7 +17,7 @@ import os
 
 from atomic_reactor.constants import EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.util import get_exported_image_metadata
+from atomic_reactor.util import get_exported_image_metadata, human_size
 
 
 class CompressPlugin(PostBuildPlugin):
@@ -49,6 +49,7 @@ class CompressPlugin(PostBuildPlugin):
         super(CompressPlugin, self).__init__(tasker, workflow)
         self.load_exported_image = load_exported_image
         self.method = method
+        self.uncompressed_size = 0
 
     def _compress_image_stream(self, stream):
         outfile = os.path.join(self.workflow.source.workdir,
@@ -70,6 +71,8 @@ class CompressPlugin(PostBuildPlugin):
             fp.write(data)
             data = stream.read(_chunk_size)
 
+        self.uncompressed_size = stream.tell()
+
         return outfile
 
     def run(self):
@@ -85,5 +88,15 @@ class CompressPlugin(PostBuildPlugin):
             self.log.info('fetching image %s from docker', image)
             with self.tasker.d.get_image(image) as image_stream:
                 outfile = self._compress_image_stream(image_stream)
-        self.workflow.exported_image_sequence.append(get_exported_image_metadata(outfile))
+        metadata = get_exported_image_metadata(outfile)
+
+        if self.uncompressed_size != 0:
+            metadata['uncompressed_size'] = self.uncompressed_size
+            savings = 1 - metadata['size'] / float(metadata['uncompressed_size'])
+            self.log.debug('uncompressed: %s, compressed: %s, ratio: %.2f %% saved',
+                           human_size(metadata['size']),
+                           human_size(metadata['uncompressed_size']),
+                           100*savings)
+
+        self.workflow.exported_image_sequence.append(metadata)
         self.log.info('compressed image is available as %s', outfile)

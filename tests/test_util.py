@@ -22,7 +22,7 @@ import docker
 from atomic_reactor.util import ImageName, \
     wait_for_command, clone_git_repo, LazyGit, figure_out_dockerfile, render_yum_repo, \
     process_substitutions, get_checksums, print_version_of_tools, get_version_of_tools, \
-    get_preferred_label_key
+    get_preferred_label_key, human_size
 from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1
 from tests.util import requires_internet
 
@@ -207,3 +207,21 @@ def test_print_versions_of_tools():
 def test_preferred_labels(labels, name, expected):
     result = get_preferred_label_key(labels, name)
     assert result == expected
+
+@pytest.mark.parametrize('size_input,expected', [
+    (0, "0.00 B"),
+    (1, "1.00 B"),
+    (-1, "-1.00 B"),
+    (1536, "1.50 KiB"),
+    (-1024, "-1.00 KiB"),
+    (204800, "200.00 KiB"),
+    (6983516, "6.66 MiB"),
+    (14355928186, "13.37 GiB"),
+    (135734710448947, "123.45 TiB"),
+    (1180579814801204129310965, "999.99 ZiB"),
+    (1074589982539051580812825722, "888.88 YiB"),
+    (4223769947617154742438477168, "3493.82 YiB"),
+    (-4223769947617154742438477168, "-3493.82 YiB"),
+])
+def test_human_size(size_input, expected):
+    assert human_size(size_input) == expected

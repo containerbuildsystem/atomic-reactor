@@ -567,3 +567,12 @@ def get_build_json():
     except KeyError:
         logger.error("No $BUILD env variable. Probably not running in build container")
         raise
+
+# copypasted and slightly modified from
+# http://stackoverflow.com/questions/1094841/reusable-library-to-get-human-readable-version-of-file-size/1094933#1094933
+def human_size(num, suffix='B'):
+    for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+        if abs(num) < 1024.0:
+            return "%3.2f %s%s" % (num, unit, suffix)
+        num /= 1024.0
+    return "%.2f %s%s" % (num, 'Yi', suffix)
