@@ -32,9 +32,10 @@ import requests
 import docker
 from docker.errors import APIError
 from docker.utils import create_host_config
+from jsonschema import validate
 
 from atomic_reactor.constants import CONTAINER_SHARE_PATH, CONTAINER_SHARE_SOURCE_SUBDIR,\
-        BUILD_JSON, DOCKER_SOCKET_PATH
+        BUILD_JSON, DOCKER_SOCKET_PATH, JSON_SCHEMA
 from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.util import (
     ImageName, wait_for_command, clone_git_repo, figure_out_dockerfile, Dockercfg)
@@ -95,6 +96,8 @@ class BuildContainerFactory(object):
         build_json_path = os.path.join(local_path, BUILD_JSON)
         with open(build_json_path, 'r') as fp:
             build_json = json.load(fp)
+
+        validate(build_json, JSON_SCHEMA)
         source = get_source_instance_for(build_json['source'], tmpdir=local_path)
         if source.provider == 'path':
             logger.debug('copying source from %s to %s', source.schemeless_path, local_path)
