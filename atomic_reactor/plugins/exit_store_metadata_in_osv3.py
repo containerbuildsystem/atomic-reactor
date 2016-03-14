@@ -17,6 +17,7 @@ from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.plugins.pre_return_dockerfile import CpDockerfilePlugin
 from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
+from atomic_reactor.plugins.post_cp_built_image_to_nfs import CopyBuiltImageToNFSPlugin
 from atomic_reactor.util import get_build_json
 
 
@@ -146,6 +147,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             "base-image-name": self.workflow.builder.base_image.to_str(),
             "image-id": self.workflow.builder.image_id,
             "digests": json.dumps(self.get_pullspecs(self.get_digests())),
+            "host": self.get_post_result(CopyBuiltImageToNFSPlugin.key),
         }
 
         tar_path = tar_size = tar_md5sum = tar_sha256sum = None
