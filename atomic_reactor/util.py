@@ -12,7 +12,6 @@ import hashlib
 import json
 import os
 from pipes import quote
-import re
 import shutil
 import subprocess
 import tempfile
@@ -165,10 +164,11 @@ class CommandResult(object):
             parsed_item = None
             line = item
 
-        for l in re.split(r"\r?\n", line, re.MULTILINE):
+        for l in line.splitlines():
             l = l.strip()
             if l:
                 logger.debug(l)
+
         self._logs.append(item)
         if parsed_item is not None:
             self._error = parsed_item.get("error", None)
