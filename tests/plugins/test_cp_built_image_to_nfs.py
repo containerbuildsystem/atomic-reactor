@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
+import json
 import os
 import subprocess
 
@@ -19,6 +20,8 @@ from atomic_reactor.util import ImageName
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.plugins.post_cp_built_image_to_nfs import CopyBuiltImageToNFSPlugin
+import osbs.conf
+from osbs.api import OSBS
 from tests.constants import INPUT_IMAGE
 from tests.fixtures import docker_tasker
 
@@ -37,8 +40,13 @@ class X(object):
 NFS_SERVER_PATH = "server:path"
 
 
+@pytest.mark.parametrize(('nfs_server_path', 'detect'), [
+    (NFS_SERVER_PATH, False),
+    (NFS_SERVER_PATH.split(':')[1], True),
+])
 @pytest.mark.parametrize('dest_dir', [None, "test_directory"])
-def test_cp_built_image_to_nfs(tmpdir, docker_tasker, dest_dir):
+def test_cp_built_image_to_nfs(tmpdir, monkeypatch, docker_tasker, dest_dir,
+                               nfs_server_path, detect):
     mountpoint = tmpdir.join("mountpoint")
 
     def fake_check_call(cmd):
@@ -50,6 +58,26 @@ def test_cp_built_image_to_nfs(tmpdir, docker_tasker, dest_dir):
             mountpoint,
         ]
     flexmock(subprocess, check_call=fake_check_call)
+
+    fake_conf = osbs.conf.Configuration(conf_file=None, openshift_uri='/')
+    flexmock(osbs.conf).should_receive('Configuration').and_return(fake_conf)
+
+    class FakePod(object):
+        def get_host(self):
+            return NFS_SERVER_PATH.split(':')[0]
+
+    expectation = (flexmock(OSBS)
+                   .should_receive('get_pod_for_build')
+                   .and_return(FakePod()))
+    if detect:
+        expectation.once()
+    else:
+        expectation.never()
+
+    monkeypatch.setenv("BUILD", json.dumps({
+        'metadata': {'name': ''},
+    }))
+
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, "test-image")
     workflow.builder = X()
     workflow.exported_image_sequence.append({"path": os.path.join(str(tmpdir),
@@ -62,9 +90,10 @@ def test_cp_built_image_to_nfs(tmpdir, docker_tasker, dest_dir):
         [{
             'name': CopyBuiltImageToNFSPlugin.key,
             'args': {
-                "nfs_server_path": NFS_SERVER_PATH,
+                "nfs_server_path": nfs_server_path,
                 "dest_dir": dest_dir,
                 "mountpoint": str(mountpoint),
+                "url": '/',
             }
         }]
     )
@@ -73,3 +102,6 @@ def test_cp_built_image_to_nfs(tmpdir, docker_tasker, dest_dir):
         assert os.path.isfile(os.path.join(str(mountpoint), EXPORTED_SQUASHED_IMAGE_NAME))
     else:
         assert os.path.isfile(os.path.join(str(mountpoint), dest_dir, EXPORTED_SQUASHED_IMAGE_NAME))
+
+    result  = workflow.postbuild_results[CopyBuiltImageToNFSPlugin.key]
+    assert result == NFS_SERVER_PATH.split(':')[0]
