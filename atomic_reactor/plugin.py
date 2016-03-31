@@ -15,6 +15,7 @@ import logging
 import os
 import traceback
 import imp
+import datetime
 
 from atomic_reactor.util import process_substitutions
 
@@ -45,6 +46,8 @@ class Plugin(object):
     key = None
     # by default, if plugin fails (raises exc), execution continues
     is_allowed_to_fail = True
+
+    duration = datetime.timedelta()
 
     def __init__(self, *args, **kwargs):
         """
@@ -156,7 +159,13 @@ class PluginsRunner(object):
         plugin_instance = plugin_class(**plugin_conf)
         return plugin_instance
 
-    def on_plugin_failed(self):
+    def on_plugin_failed(self, plugin=None, exception_repr=None):
+        pass
+
+    def save_plugin_timestamp(self, plugin, timestamp):
+        pass
+
+    def save_plugin_duration(self, plugin, duration):
         pass
 
     def run(self, keep_going=False):
@@ -198,6 +207,8 @@ class PluginsRunner(object):
             logger.debug("running plugin '%s'", plugin_name)
 
             plugin_instance = self.create_instance_from_plugin(plugin_class, plugin_conf)
+            start_time = datetime.datetime.now()
+            self.save_plugin_timestamp(plugin_instance.key, start_time)
 
             try:
                 plugin_response = plugin_instance.run()
@@ -217,11 +228,20 @@ class PluginsRunner(object):
                     if not plugin_is_allowed_to_fail:
                         failed_msgs.append(msg)
                 else:
-                    self.on_plugin_failed()
+                    self.on_plugin_failed(plugin_instance.key, repr(ex))
                     logger.error(msg)
                     raise PluginFailedException(msg)
 
                 plugin_response = ex
+
+            try:
+                finish_time = datetime.datetime.now()
+                duration = finish_time - start_time
+                seconds = duration.total_seconds()
+                logger.debug("plugin '%s' finished in %ds", plugin_name, seconds)
+                self.save_plugin_duration(plugin_instance.key, seconds)
+            except Exception as ex:
+                logger.debug(traceback.format_exc())
 
             self.plugins_results[plugin_instance.key] = plugin_response
         if len(failed_msgs) == 1:
@@ -245,8 +265,16 @@ class BuildPluginsRunner(PluginsRunner):
         self.workflow = workflow
         super(BuildPluginsRunner, self).__init__(plugin_class_name, plugins_conf, *args, **kwargs)
 
-    def on_plugin_failed(self):
+    def on_plugin_failed(self, plugin=None, exception_repr=None):
         self.workflow.plugin_failed = True
+        if plugin and exception_repr:
+            self.workflow.plugins_errors[plugin] = exception_repr
+
+    def save_plugin_timestamp(self, plugin, timestamp):
+        self.workflow.plugins_timestamps[plugin] = timestamp.isoformat()
+
+    def save_plugin_duration(self, plugin, duration):
+        self.workflow.plugins_durations[plugin] = duration
 
     def _translate_special_values(self, obj_to_translate):
         """
