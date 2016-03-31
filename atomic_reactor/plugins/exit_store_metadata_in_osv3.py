@@ -106,6 +106,13 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
                     })
         return pullspecs
 
+    def get_plugin_metadata(self):
+        return {
+            "errors": self.workflow.plugins_errors,
+            "timestamps": self.workflow.plugins_timestamps,
+            "durations": self.workflow.plugins_durations,
+        }
+
     def run(self):
         metadata = get_build_json().get("metadata", {})
 
@@ -150,6 +157,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             "base-image-name": self.workflow.builder.base_image.to_str(),
             "image-id": self.workflow.builder.image_id,
             "digests": json.dumps(self.get_pullspecs(self.get_digests())),
+            "plugins-metadata": json.dumps(self.get_plugin_metadata())
         }
 
         tar_path = tar_size = tar_md5sum = tar_sha256sum = None

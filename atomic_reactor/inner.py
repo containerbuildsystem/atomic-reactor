@@ -12,6 +12,8 @@ Script for building docker image. This is expected to run inside container.
 import json
 import logging
 import tempfile
+import datetime
+import traceback
 
 from atomic_reactor.build import InsideBuilder
 from atomic_reactor.plugin import PostBuildPluginsRunner, PreBuildPluginsRunner, InputPluginsRunner, PrePublishPluginsRunner, \
@@ -255,6 +257,9 @@ class DockerBuildWorkflow(object):
         self.exit_plugins_conf = exit_plugins
         self.prebuild_results = {}
         self.postbuild_results = {}
+        self.plugins_timestamps = {}
+        self.plugins_durations = {}
+        self.plugins_errors = {}
         self.autorebuild_canceled = False
         self.build_failed = False
         self.plugin_failed = False
@@ -325,7 +330,20 @@ class DockerBuildWorkflow(object):
                 self.autorebuild_canceled = True
                 raise
 
+            start_time = datetime.datetime.now()
+            self.plugins_timestamps['dockerbuild'] = start_time.isoformat()
+
             build_result = self.builder.build()
+
+            try:
+                finish_time = datetime.datetime.now()
+                duration = finish_time - start_time
+                seconds = duration.total_seconds()
+                logger.debug("build finished in %ds", seconds)
+                self.plugins_durations['dockerbuild'] = seconds
+            except Exception:
+                logger.exception("failed to save build duration")
+
             self.build_logs = build_result.logs
 
             self.build_failed = build_result.is_failed()
@@ -333,6 +351,7 @@ class DockerBuildWorkflow(object):
             if build_result.is_failed():
                 # The docker build failed. Finish here, just run the
                 # exit plugins (from the 'finally:' block below).
+                self.plugins_errors['dockerbuild'] = ''
                 return build_result
 
             self.built_image_inspect = self.builder.inspect_built_image()

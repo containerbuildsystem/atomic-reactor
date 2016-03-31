@@ -10,6 +10,8 @@ from __future__ import print_function, unicode_literals
 
 import os
 import json
+import time
+from datetime import datetime, timedelta
 from copy import deepcopy
 
 from flexmock import flexmock
@@ -77,7 +79,9 @@ def prepare():
 
     setattr(workflow, 'builder', X)
     setattr(workflow, '_base_image_inspect', {'Id': '01234567'})
-    workflow.build_logs = ["a", "b"]
+    workflow.build_logs = [
+        "a", "b",
+    ]
     workflow.source.lg = LazyGit(None, commit="commit")
     flexmock(workflow.source.lg)
     workflow.source.lg.should_receive("_commit_id").and_return("commit")
@@ -86,6 +90,7 @@ def prepare():
 
 
 def test_metadata_plugin(tmpdir):
+    initial_timestamp = datetime.now()
     workflow = prepare()
 
     workflow.prebuild_results = {
@@ -94,6 +99,19 @@ def test_metadata_plugin(tmpdir):
     }
     workflow.postbuild_results = {
         PostBuildRPMqaPlugin.key: "rpm1\nrpm2",
+    }
+    workflow.plugins_timestamps = {
+        CpDockerfilePlugin.key: initial_timestamp.isoformat(),
+        DistgitFetchArtefactsPlugin.key: (initial_timestamp + timedelta(seconds=1)).isoformat(),
+        PostBuildRPMqaPlugin.key: (initial_timestamp + timedelta(seconds=3)).isoformat(),
+    }
+    workflow.plugins_durations = {
+        CpDockerfilePlugin.key: 1.01,
+        DistgitFetchArtefactsPlugin.key: 2.02,
+        PostBuildRPMqaPlugin.key: 3.03,
+    }
+    workflow.plugins_errors = {
+        DistgitFetchArtefactsPlugin.key: 'foo'
     }
 
     runner = ExitPluginsRunner(
@@ -146,7 +164,21 @@ def test_metadata_plugin(tmpdir):
     }]
     assert digests == expected or digests == reversed(expected)
 
+    assert "plugins-metadata" in labels
+    assert "errors" in labels["plugins-metadata"]
+    assert "durations" in labels["plugins-metadata"]
+    assert "timestamps" in labels["plugins-metadata"]
+
+    plugins_metadata = json.loads(labels["plugins-metadata"])
+    assert "distgit_fetch_artefacts" in plugins_metadata["errors"]
+
+    assert "cp_dockerfile" in plugins_metadata["durations"]
+    assert "distgit_fetch_artefacts" in plugins_metadata["durations"]
+    assert "all_rpm_packages" in plugins_metadata["durations"]
+
+
 def test_metadata_plugin_rpmqa_failure(tmpdir):
+    initial_timestamp = datetime.now()
     workflow = prepare()
 
     workflow.prebuild_results = {
@@ -155,6 +187,19 @@ def test_metadata_plugin_rpmqa_failure(tmpdir):
     }
     workflow.postbuild_results = {
         PostBuildRPMqaPlugin.key: RuntimeError(),
+    }
+    workflow.plugins_timestamps = {
+        CpDockerfilePlugin.key: initial_timestamp.isoformat(),
+        DistgitFetchArtefactsPlugin.key: (initial_timestamp + timedelta(seconds=1)).isoformat(),
+        PostBuildRPMqaPlugin.key: (initial_timestamp + timedelta(seconds=3)).isoformat(),
+    }
+    workflow.plugins_durations = {
+        CpDockerfilePlugin.key: 1.01,
+        DistgitFetchArtefactsPlugin.key: 2.02,
+        PostBuildRPMqaPlugin.key: 3.03,
+    }
+    workflow.plugins_errors = {
+        PostBuildRPMqaPlugin.key: 'foo'
     }
 
     runner = ExitPluginsRunner(
@@ -182,3 +227,15 @@ def test_metadata_plugin_rpmqa_failure(tmpdir):
 
     # On rpmqa failure, rpm-packages should be empty
     assert len(labels["rpm-packages"]) == 0
+
+    assert "plugins-metadata" in labels
+    assert "errors" in labels["plugins-metadata"]
+    assert "durations" in labels["plugins-metadata"]
+    assert "timestamps" in labels["plugins-metadata"]
+
+    plugins_metadata = json.loads(labels["plugins-metadata"])
+    assert "all_rpm_packages" in plugins_metadata["errors"]
+
+    assert "cp_dockerfile" in plugins_metadata["durations"]
+    assert "distgit_fetch_artefacts" in plugins_metadata["durations"]
+    assert "all_rpm_packages" in plugins_metadata["durations"]
