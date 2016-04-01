@@ -98,7 +98,7 @@ Requires:       python-docker-py
 Requires:       python-requests
 Requires:       python-setuptools
 Requires:       python-dockerfile-parse >= 0.0.5
-Requires:       python-docker-scripts >= 0.4.4
+Requires:       python-docker-squash >= 1.0.0-0.3
 Requires:       python-backports-lzma
 # Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
 Requires:       nfs-utils
@@ -161,7 +161,7 @@ Requires:       python3-docker-py
 Requires:       python3-requests
 Requires:       python3-setuptools
 Requires:       python3-dockerfile-parse >= 0.0.5
-Requires:       python3-docker-scripts >= 0.4.4
+Requires:       python3-docker-squash >= 1.0.0-0.3
 # Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
 Requires:       nfs-utils
 Provides:       python3-dock = %{version}-%{release}

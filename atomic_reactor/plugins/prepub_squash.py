@@ -14,7 +14,7 @@ import os
 from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME
 from atomic_reactor.plugin import PrePublishPlugin
 from atomic_reactor.util import get_exported_image_metadata
-from docker_scripts.squash import Squash
+from docker_squash.squash import Squash
 
 __all__ = ('PrePublishSquashPlugin', )
 
@@ -22,7 +22,7 @@ __all__ = ('PrePublishSquashPlugin', )
 class PrePublishSquashPlugin(PrePublishPlugin):
 
     """
-    This feature requires docker-scripts package to be installed in version 0.3.2
+    This feature requires docker-squash package to be installed in version 1.0.0rc3
     or higher.
 
     Usage:
