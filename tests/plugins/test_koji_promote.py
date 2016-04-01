@@ -257,20 +257,6 @@ class TestKojiPromote(object):
         # Must not have promoted this build
         assert not hasattr(session, 'metadata')
 
-    def test_koji_promote_not_rebuild(self, tmpdir, os_env):
-        session = MockedClientSession('')
-        tasker, workflow = mock_environment(tmpdir,
-                                            session=session,
-                                            is_rebuild=False,
-                                            name='ns/name',
-                                            version='1.0',
-                                            release='1')
-        runner = create_runner(tasker, workflow)
-        runner.run()
-
-        # Must not have promoted this build
-        assert not hasattr(session, 'metadata')
-
     def test_koji_promote_no_tagconf(self, tmpdir, os_env):
         tasker, workflow = mock_environment(tmpdir)
         runner = create_runner(tasker, workflow)
