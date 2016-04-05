@@ -63,7 +63,7 @@ class KojiPromotePlugin(ExitPlugin):
                  verify_ssl=True, use_auth=True,
                  koji_ssl_certs=None, koji_proxy_user=None,
                  koji_principal=None, koji_keytab=None,
-                 metadata_only=False):
+                 metadata_only=False, blocksize=None):
         """
         constructor
 
@@ -78,6 +78,7 @@ class KojiPromotePlugin(ExitPlugin):
         :param koji_principal: str, Kerberos principal (must specify keytab)
         :param koji_keytab: str, keytab name (must specify principal)
         :param metadata_only: bool, whether to omit the 'docker save' image
+        :param blocksize: int, blocksize to use for uploading files
         """
         super(KojiPromotePlugin, self).__init__(tasker, workflow)
 
@@ -87,6 +88,7 @@ class KojiPromotePlugin(ExitPlugin):
         self.koji_principal = koji_principal
         self.koji_keytab = koji_keytab
         self.metadata_only = metadata_only
+        self.blocksize = blocksize
 
         self.namespace = get_build_json().get('metadata', {}).get('namespace', None)
         osbs_conf = Configuration(conf_file=None, openshift_uri=url,
@@ -525,7 +527,12 @@ class KojiPromotePlugin(ExitPlugin):
         name = output.metadata['filename']
         self.log.debug("uploading %r to %r as %r",
                        output.file.name, serverdir, name)
-        session.uploadWrapper(output.file.name, serverdir, name=name)
+
+        kwargs = {}
+        if self.blocksize is not None:
+            kwargs['blocksize'] = self.blocksize
+
+        session.uploadWrapper(output.file.name, serverdir, name=name, **kwargs)
         path = os.path.join(serverdir, name)
         self.log.debug("uploaded %r", path)
         return path

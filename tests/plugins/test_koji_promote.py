@@ -73,6 +73,7 @@ class MockedClientSession(object):
     def uploadWrapper(self, localfile, path, name=None, callback=None,
                       blocksize=1048576, overwrite=True):
         self.uploaded_files.append(path)
+        self.blocksize = blocksize
 
     def CGImport(self, metadata, server_dir):
         self.metadata = metadata
@@ -132,7 +133,7 @@ def is_string_type(obj):
 
 def mock_environment(tmpdir, session=None, name=None, version=None,
                      release=None, source=None, build_process_failed=False,
-                     is_rebuild=True, pulp_registries=0):
+                     is_rebuild=True, pulp_registries=0, blocksize=None):
     if session is None:
         session = MockedClientSession('')
     if source is None:
@@ -214,7 +215,7 @@ def os_env(monkeypatch):
 
 
 def create_runner(tasker, workflow, ssl_certs=False, principal=None,
-                  keytab=None, metadata_only=False):
+                  keytab=None, metadata_only=False, blocksize=None):
     args = {
         'kojihub': '',
         'url': '/',
@@ -230,6 +231,9 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
 
     if metadata_only:
         args['metadata_only'] = True
+
+    if blocksize:
+        args['blocksize'] = blocksize
 
     runner = ExitPluginsRunner(tasker, workflow,
                                [
@@ -606,21 +610,27 @@ class TestKojiPromote(object):
                 digest_pullspec = image.to_str(tag=False) + '@' + fake_digest(image)
                 assert digest_pullspec in repositories_digest
 
-    @pytest.mark.parametrize(('apis', 'pulp_registries', 'metadata_only'), [
+    @pytest.mark.parametrize(('apis',
+                              'pulp_registries',
+                              'metadata_only',
+                              'blocksize'), [
         ('v1-only',
          1,
-         False),
+         False,
+         None),
 
         ('v1+v2',
          2,
-         False),
+         False,
+         10485760),
 
         ('v2-only',
          1,
-         True),
+         True,
+         None),
     ])
     def test_koji_promote_success(self, tmpdir, apis, pulp_registries,
-                                  metadata_only, os_env):
+                                  metadata_only, blocksize, os_env):
         session = MockedClientSession('')
         name = 'ns/name'
         version = '1.0'
@@ -630,8 +640,10 @@ class TestKojiPromote(object):
                                             name=name,
                                             version=version,
                                             release=release,
-                                            pulp_registries=pulp_registries)
-        runner = create_runner(tasker, workflow, metadata_only=metadata_only)
+                                            pulp_registries=pulp_registries,
+                                            blocksize=blocksize)
+        runner = create_runner(tasker, workflow, metadata_only=metadata_only,
+                               blocksize=blocksize)
         runner.run()
 
         data = session.metadata
@@ -719,3 +731,7 @@ class TestKojiPromote(object):
             expected_uploads -= 1
 
         assert len(files) == expected_uploads
+
+        # The correct blocksize argument should have been used
+        if blocksize is not None:
+            assert blocksize == session.blocksize
