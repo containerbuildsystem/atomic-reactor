@@ -77,7 +77,7 @@ class KojiPromotePlugin(ExitPlugin):
         :param koji_proxy_user: str, user to log in as (requires hub config)
         :param koji_principal: str, Kerberos principal (must specify keytab)
         :param koji_keytab: str, keytab name (must specify principal)
-        :param metadata_only: bool, whether to omit the v1 image
+        :param metadata_only: bool, whether to omit the 'docker save' image
         """
         super(KojiPromotePlugin, self).__init__(tasker, workflow)
 
