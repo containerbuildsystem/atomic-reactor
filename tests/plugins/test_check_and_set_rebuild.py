@@ -48,7 +48,7 @@ class TestCheckRebuild(object):
             if set_labels_kwargs is None:
                 set_labels_kwargs = {}
 
-            expectation.with_args(*set_labels_args, **set_labels_kwargs)
+            expectation.with_args(*set_labels_args)
 
         namespace = None
         if set_labels_kwargs is not None:
@@ -114,7 +114,7 @@ class TestCheckRebuild(object):
                 }
             }
         }
- 
+
         build_json["metadata"].update(namespace_dict)
         monkeypatch.setenv("BUILD", json.dumps(build_json))
         runner.run()

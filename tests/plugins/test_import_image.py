@@ -108,7 +108,6 @@ def test_create_image(insecure_registry, namespace, monkeypatch):
     kwargs = {}
     build_json = {"metadata": {}}
     if namespace is not None:
-        kwargs['namespace'] = namespace
         build_json['metadata']['namespace'] = namespace
 
     monkeypatch.setenv("BUILD", json.dumps(build_json))
@@ -116,7 +115,7 @@ def test_create_image(insecure_registry, namespace, monkeypatch):
     (flexmock(OSBS)
      .should_receive('get_image_stream')
      .once()
-     .with_args(TEST_IMAGESTREAM, **kwargs)
+     .with_args(TEST_IMAGESTREAM)
      .and_raise(OsbsResponseException('none', 404)))
 
     if insecure_registry is not None:
@@ -149,14 +148,14 @@ def test_import_image(namespace, monkeypatch):
     (flexmock(OSBS)
      .should_receive('get_image_stream')
      .once()
-     .with_args(TEST_IMAGESTREAM, **namespace))
+     .with_args(TEST_IMAGESTREAM))
     (flexmock(OSBS)
      .should_receive('create_image_stream')
      .never())
     (flexmock(OSBS)
      .should_receive('import_image')
      .once()
-     .with_args(TEST_IMAGESTREAM, **namespace))
+     .with_args(TEST_IMAGESTREAM))
     runner.run()
 
 
