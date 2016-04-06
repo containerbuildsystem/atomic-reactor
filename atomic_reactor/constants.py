@@ -49,7 +49,7 @@ MANPAGE_SECTION = 1
 
 TOOLS_USED = (
     {"pkg_name": "docker", "display_name": "docker-py"},
-    {"pkg_name": "docker_scripts"},
+    {"pkg_name": "docker_squash"},
     {"pkg_name": "atomic_reactor"},
     {"pkg_name": "osbs", "display_name": "osbs-client"},
 )

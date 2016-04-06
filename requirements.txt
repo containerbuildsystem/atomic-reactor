@@ -1,3 +1,3 @@
 docker-py
-docker-scripts>=0.4.4
+docker-squash>=1.0.0rc3
 dockerfile-parse>=0.0.5
