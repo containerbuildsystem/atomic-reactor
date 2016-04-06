@@ -22,7 +22,6 @@ from atomic_reactor import __version__ as atomic_reactor_version
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
-from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.constants import PROG
 from atomic_reactor.util import get_version_of_tools, get_checksums, get_build_json
 from osbs.conf import Configuration
@@ -592,10 +591,6 @@ class KojiPromotePlugin(ExitPlugin):
         # Only run if the build was successful
         if self.workflow.build_process_failed:
             self.log.info("Not promoting failed build to koji")
-            return
-
-        if not is_rebuild(self.workflow):
-            self.log.info("Not promoting to koji: not a rebuild")
             return
 
         koji_metadata, output_files = self.get_metadata()
