@@ -153,6 +153,7 @@ def test_add_labels_plugin(tmpdir, docker_tasker,
     ('vcs-type', 'git'),
     ('vcs-url', DOCKERFILE_GIT),
     ('vcs-ref', DOCKERFILE_SHA1),
+    ('com.redhat.build-host', 'the-build-host'),
 ])
 def test_add_labels_plugin_generated(tmpdir, docker_tasker, auto_label, value_re_part):
     df = DockerfileParser(str(tmpdir))

@@ -51,7 +51,11 @@ class AddLabelsPlugin(PreBuildPlugin):
     key = "add_labels_in_dockerfile"
 
     def __init__(self, tasker, workflow, labels, dont_overwrite=("Architecture", ),
-                 auto_labels=("build-date", "architecture", "vcs-type", "vcs-ref"),
+                 auto_labels=("build-date",
+                              "architecture",
+                              "vcs-type",
+                              "vcs-ref",
+                              "com.redhat.build-host"),
                  aliases=None):
         """
         constructor
@@ -92,6 +96,10 @@ class AddLabelsPlugin(PreBuildPlugin):
         if host_arch == 'amd64':
             host_arch = 'x86_64'
         generated['architecture'] = host_arch
+
+        # build host
+        docker_info = self.tasker.get_info()
+        generated['com.redhat.build-host'] = docker_info['Name']
 
         # VCS info
         vcs = self.workflow.source.get_vcs_info()

@@ -106,7 +106,7 @@ mock_info = {
     'NEventsListener': 0,
     'NFd': 15,
     'NGoroutines': 31,
-    'Name': 'asd',
+    'Name': 'the-build-host',
     'NoProxy': '',
     'OomKillDisable': True,
     'OperatingSystem': 'Fedora 24 (Rawhide) (containerized)',
