@@ -154,6 +154,7 @@ def test_add_labels_plugin(tmpdir, docker_tasker,
     ('vcs-url', DOCKERFILE_GIT),
     ('vcs-ref', DOCKERFILE_SHA1),
     ('com.redhat.build-host', 'the-build-host'),
+    ('Build_Host', 'the-build-host'),
 ])
 def test_add_labels_plugin_generated(tmpdir, docker_tasker, auto_label, value_re_part):
     df = DockerfileParser(str(tmpdir))
@@ -173,7 +174,8 @@ def test_add_labels_plugin_generated(tmpdir, docker_tasker, auto_label, value_re
         workflow,
         [{
             'name': AddLabelsPlugin.key,
-            'args': {'labels': {}, "dont_overwrite": [], "auto_labels": [auto_label]}
+            'args': {'labels': {}, "dont_overwrite": [], "auto_labels": [auto_label],
+                     'aliases': {'Build_Host': 'com.redhat.build-host'}}
         }]
     )
 

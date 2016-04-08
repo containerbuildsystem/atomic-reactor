@@ -108,6 +108,12 @@ class AddLabelsPlugin(PreBuildPlugin):
             generated['vcs-url'] = vcs.vcs_url
             generated['vcs-ref'] = vcs.vcs_ref
 
+        for old, new in self.aliases.items():
+            self.log.info("old=%r new=%r", old, new)
+            if new in generated and old not in generated:
+                self.log.info("adding %r for compatibility", old)
+                generated[old] = generated[new]
+
         for lbl in auto_labels:
             if lbl in self.labels:
                 self.log.info("label %r is set explicitly, not using generated value", lbl)
