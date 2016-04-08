@@ -177,7 +177,7 @@ def test_add_labels_plugin_generated(tmpdir, docker_tasker, auto_label, value_re
     )
 
     runner.run()
-    assert re.search('LABEL "{0}"="{1}"'.format(auto_label, value_re_part), df.content)
+    assert re.match(value_re_part, df.labels[auto_label])
 
 @pytest.mark.parametrize('df_old_as_plugin_arg', [True, False])
 @pytest.mark.parametrize('df_new_as_plugin_arg', [True, False])
