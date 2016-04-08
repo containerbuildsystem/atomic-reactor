@@ -296,13 +296,13 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 %files -n python-atomic-reactor-koji
 %{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
+%{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
 
 
 %files -n python-atomic-reactor-metadata
 %{python2_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
 
 %files -n python-atomic-reactor-rebuilds
-%{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
 %{python2_sitelib}/atomic_reactor/plugins/exit_sendmail.py*
 %{python2_sitelib}/atomic_reactor/plugins/post_import_image.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
@@ -357,7 +357,9 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 %files -n python3-atomic-reactor-koji
 %{python3_sitelib}/atomic_reactor/plugins/pre_koji.py
+%{python3_sitelib}/atomic_reactor/plugins/exit_koji_promote.py
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji*.py*
+%{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_promote*.py*
 
 
 %files -n python3-atomic-reactor-metadata
@@ -365,13 +367,11 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_store_metadata_in_osv3*.py*
 
 %files -n python3-atomic-reactor-rebuilds
-%{python3_sitelib}/atomic_reactor/plugins/exit_koji_promote.py
 %{python3_sitelib}/atomic_reactor/plugins/exit_sendmail.py
 %{python3_sitelib}/atomic_reactor/plugins/post_import_image.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_bump_release.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py
-%{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_promote*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_sendmail*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/post_import_image*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_bump_release*.py*
@@ -381,13 +381,17 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 
 %changelog
+* Fri Apr 08 2016 Tim Waugh <twaugh@redhat.com>
+- Move koji_promote plugin to koji package now that it is used in the
+  main workflow.
+
 * Thu Apr 07 2016 Martin Milata <mmilata@redhat.com> - 1.6.4-1
 - 1.6.4 release
 
 * Thu Feb 04 2016 Martin Milata <mmilata@redhat.com> - 1.6.3-1
 - 1.6.3 release
 
-* Mon Feb 02 2016 Martin Milata <mmilata@redhat.com> - 1.6.2-1
+* Mon Feb 01 2016 Martin Milata <mmilata@redhat.com> - 1.6.2-1
 - 1.6.2 release
 - BuildRequires python-flexmock >= 0.10.2 due to
   https://github.com/bkabrda/flexmock/issues/6
