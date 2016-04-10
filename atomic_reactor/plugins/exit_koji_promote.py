@@ -26,6 +26,7 @@ from atomic_reactor.constants import PROG
 from atomic_reactor.util import get_version_of_tools, get_checksums, get_build_json
 from osbs.conf import Configuration
 from osbs.api import OSBS
+from osbs.exceptions import OsbsException
 
 # An output file and its metadata
 Output = namedtuple('Output', ['file', 'metadata'])
@@ -221,9 +222,17 @@ class KojiPromotePlugin(ExitPlugin):
         Find out the docker ID of the buildroot image we are in.
         """
 
-        buildroot_tag = os.environ["OPENSHIFT_CUSTOM_BUILD_BASE_IMAGE"]
-        pod = self.osbs.get_pod_for_build(self.build_id)
-        all_images = pod.get_container_image_ids()
+        try:
+            buildroot_tag = os.environ["OPENSHIFT_CUSTOM_BUILD_BASE_IMAGE"]
+        except KeyError:
+            return ''
+
+        try:
+            pod = self.osbs.get_pod_for_build(self.build_id)
+            all_images = pod.get_container_image_ids()
+        except OsbsException as ex:
+            self.log.error("unable to find image id: %r", ex)
+            return buildroot_tag
 
         try:
             return all_images[buildroot_tag]
@@ -288,28 +297,33 @@ class KojiPromotePlugin(ExitPlugin):
         :return: list, Output instances
         """
 
-        # Collect logs from server
-        logs = self.osbs.get_build_logs(self.build_id)
+        output = []
 
-        # Deleted once closed
-        logfile = NamedTemporaryFile(prefix=self.build_id,
-                                     suffix=".log",
-                                     mode='w')
-        logfile.write(logs)
-        logfile.flush()
+        # Collect logs from server
+        try:
+            logs = self.osbs.get_build_logs(self.build_id)
+        except OsbsException as ex:
+            self.log.error("unable to get build logs: %r", ex)
+        else:
+            # Deleted once closed
+            logfile = NamedTemporaryFile(prefix=self.build_id,
+                                         suffix=".log",
+                                         mode='w')
+            logfile.write(logs)
+            logfile.flush()
+            metadata = self.get_output_metadata(logfile.name,
+                                                "openshift-final.log")
+            output.append(Output(file=logfile, metadata=metadata))
 
         docker_logs = NamedTemporaryFile(prefix="docker-%s" % self.build_id,
                                          suffix=".log",
                                          mode='w')
         docker_logs.write("\n".join(self.workflow.build_logs))
         docker_logs.flush()
-
-        return [Output(file=docker_logs,
-                       metadata=self.get_output_metadata(docker_logs.name,
-                                                         "build.log")),
-                Output(file=logfile,
-                       metadata=self.get_output_metadata(logfile.name,
-                                                         "openshift-final.log"))]
+        output.append(Output(file=docker_logs,
+                             metadata=self.get_output_metadata(docker_logs.name,
+                                                               "build.log")))
+        return output
 
     def get_image_components(self):
         """
