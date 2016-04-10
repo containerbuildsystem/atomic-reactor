@@ -42,6 +42,7 @@ import pytest
 from tests.docker_mock import mock_docker
 import subprocess
 from osbs.api import OSBS
+from osbs.exceptions import OsbsException
 from six import string_types
 
 NAMESPACE = 'mynamespace'
@@ -396,6 +397,22 @@ class TestKojiPromote(object):
         runner = create_runner(tasker, workflow, ssl_certs=True)
         with pytest.raises(PluginFailedException):
             runner.run()
+
+    @pytest.mark.parametrize('fail_method', [
+        'get_build_logs',
+        'get_pod_for_build',
+    ])
+    def test_koji_promote_osbs_fail(self, tmpdir, os_env, fail_method):
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='name',
+                                            version='1.0',
+                                            release='1')
+        (flexmock(OSBS)
+            .should_receive(fail_method)
+            .and_raise(OsbsException))
+
+        runner = create_runner(tasker, workflow)
+        runner.run()
 
     @staticmethod
     def check_components(components):
