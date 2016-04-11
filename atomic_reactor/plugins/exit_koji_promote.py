@@ -16,6 +16,7 @@ from string import ascii_letters
 import subprocess
 from tempfile import NamedTemporaryFile
 import time
+import hashlib
 
 import koji
 from atomic_reactor import __version__ as atomic_reactor_version
@@ -564,10 +565,21 @@ class KojiPromotePlugin(ExitPlugin):
         if self.koji_ssl_certs:
             # Use certificates
             self.log.info("Using SSL certificates for Koji authentication")
-            session.ssl_login(os.path.join(self.koji_ssl_certs, 'cert'),
-                              os.path.join(self.koji_ssl_certs, 'ca'),
-                              os.path.join(self.koji_ssl_certs, 'serverca'),
-                              **kwargs)
+            cert_path = os.path.join(self.koji_ssl_certs, 'cert')
+            ca_path = os.path.join(self.koji_ssl_certs, 'ca')
+            serverca_path = os.path.join(self.koji_ssl_certs, 'serverca')
+
+            def shasum(fname):
+                sha256 = hashlib.sha256()
+                with open(fname, "rb") as f:
+                    for chunk in iter(lambda: f.read(4096), b""):
+                        sha256.update(chunk)
+                return sha256.hexdigest()
+
+            for file_path in (cert_path, ca_path, serverca_path):
+                self.log.debug("Using {} with sum {}".format(file_path, shasum(file_path)))
+
+            session.ssl_login(cert_path, ca_path, serverca_path, **kwargs)
         else:
             # Use Kerberos
             self.log.info("Using Kerberos for Koji authentication")
