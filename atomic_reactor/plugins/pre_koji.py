@@ -11,7 +11,6 @@ Pre build plugin for koji build system
 import os
 import koji
 from atomic_reactor.constants import YUM_REPOS_DIR
-
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import render_yum_repo
 
@@ -57,6 +56,16 @@ class KojiPlugin(PreBuildPlugin):
             'enabled': 1,
             'gpgcheck': 0,
         }
+
+        # yum doesn't accept a certificate path in sslcacert - it requires a db with added cert
+        # dnf ignores that option completely
+        # we have to fall back to sslverify=0 everytime we get https repo from brew so we'll surely
+        # be able to pull from it
+
+        if baseurl.startswith("https://"):
+            self.log.info("Ignoring certificates in the repo")
+            repo['sslverify'] = 0
+
         path = os.path.join(YUM_REPOS_DIR, self.target + ".repo")
         self.log.info("yum repo of koji target: '%s'", path)
         self.workflow.files[path] = render_yum_repo(repo, escape_dollars=False)

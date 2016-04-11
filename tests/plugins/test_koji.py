@@ -93,20 +93,67 @@ def prepare():
     return tasker, workflow
 
 
-def test_koji_plugin():
-    tasker, workflow = prepare()
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
-        'name': KojiPlugin.key,
-        'args': {
-            "target": KOJI_TARGET,
-            "hub": "",
-            "root": ROOT,
+class TestKoji(object):
+    @pytest.mark.parametrize(('root',
+                              'koji_ssl_certs',
+                              'expected_string',
+                              'expected_file'), [
+        # Plain http repo
+        ('http://example.com',
+         False,
+         None,
+         None),
+
+        # https with koji_ssl_certs
+        # ('https://example.com',
+        #  True,
+        #  'sslcacert=',
+        #  '/etc/yum.repos.d/example.com.cert'),
+
+        # https with no cert available
+        ('https://nosuchwebsiteforsure.com',
+         False,
+         'sslverify=0',
+         None),
+
+        # https with cert available
+        # ('https://example.com',
+        #  False,
+        #  'sslcacert=/etc/yum.repos.d/example.com.cert',
+        #  '/etc/yum.repos.d/example.com.cert'),
+
+    ])
+    def test_koji_plugin(self, tmpdir, root, koji_ssl_certs,
+                         expected_string, expected_file):
+        tasker, workflow = prepare()
+        args = {
+            'target': KOJI_TARGET,
+            'hub': '',
+            'root': root,
         }
-    }])
-    runner.run()
-    assert list(workflow.files.keys())[0] == "/etc/yum.repos.d/target.repo"
-    assert list(workflow.files.values())[0].startswith("[atomic-reactor-koji-plugin-target]\n")
-    assert "gpgcheck=0\n" in list(workflow.files.values())[0]
-    assert "enabled=1\n" in list(workflow.files.values())[0]
-    assert "name=atomic-reactor-koji-plugin-target\n" in list(workflow.files.values())[0]
-    assert "baseurl=http://example.com/repos/tag/2/$basearch\n" in list(workflow.files.values())[0]
+
+        if koji_ssl_certs:
+            args['koji_ssl_certs'] = str(tmpdir)
+            with open('{}/ca'.format(tmpdir), 'w') as ca_fd:
+                ca_fd.write('ca')
+
+        runner = PreBuildPluginsRunner(tasker, workflow, [{
+            'name': KojiPlugin.key,
+            'args': args,
+        }])
+
+        runner.run()
+        repofile = '/etc/yum.repos.d/target.repo'
+        assert repofile in workflow.files
+        content = workflow.files[repofile]
+        assert content.startswith("[atomic-reactor-koji-plugin-target]\n")
+        assert "gpgcheck=0\n" in content
+        assert "enabled=1\n" in content
+        assert "name=atomic-reactor-koji-plugin-target\n" in content
+        assert "baseurl=%s/repos/tag/2/$basearch\n" % root in content
+
+        if expected_string:
+            assert expected_string in content
+
+        if expected_file:
+            assert expected_file in workflow.files
