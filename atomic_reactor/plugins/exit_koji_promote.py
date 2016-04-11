@@ -577,7 +577,7 @@ class KojiPromotePlugin(ExitPlugin):
                 return sha256.hexdigest()
 
             for file_path in (cert_path, ca_path, serverca_path):
-                logging.debug("Using {} with sum {}".format(file_path, shasum(file_path)))
+                self.log.debug("Using {} with sum {}".format(file_path, shasum(file_path)))
 
             session.ssl_login(cert_path, ca_path, serverca_path, **kwargs)
         else:
