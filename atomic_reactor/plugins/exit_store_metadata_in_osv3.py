@@ -16,7 +16,6 @@ from osbs.conf import Configuration
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.plugins.pre_return_dockerfile import CpDockerfilePlugin
 from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
-from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.util import get_build_json
 
 
@@ -46,9 +45,6 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
     def get_pre_result(self, key):
         return self.get_result(self.workflow.prebuild_results.get(key, ''))
-
-    def get_post_result(self, key):
-        return self.get_result(self.workflow.postbuild_results.get(key, ''))
 
     def get_digests(self):
         """
@@ -135,8 +131,13 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         labels = {
             "dockerfile": self.get_pre_result(CpDockerfilePlugin.key),
             "artefacts": self.get_pre_result(DistgitFetchArtefactsPlugin.key),
-            "logs": "\n".join(self.workflow.build_logs),
-            "rpm-packages": "\n".join(self.get_post_result(PostBuildRPMqaPlugin.key)),
+
+            # We no longer store the 'docker build' logs as an annotation
+            "logs": '',
+
+            # We no longer store the rpm packages as an annotation
+            "rpm-packages": '',
+
             "repositories": json.dumps(self.get_repositories()),
             "commit_id": commit_id,
             "base-image-id": self.workflow.base_image_inspect['Id'],

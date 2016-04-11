@@ -23,6 +23,7 @@ from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOS
 from atomic_reactor.plugins.pre_cp_dockerfile import CpDockerfilePlugin
 from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
 from atomic_reactor.util import ImageName, LazyGit
+import pytest
 from tests.constants import LOCALHOST_REGISTRY, DOCKER0_REGISTRY, TEST_IMAGE, INPUT_IMAGE
 from tests.util import is_string_type
 
@@ -114,8 +115,10 @@ def test_metadata_plugin(tmpdir):
     assert is_string_type(labels['artefacts'])
     assert "logs" in labels
     assert is_string_type(labels['logs'])
+    assert labels['logs'] == ''
     assert "rpm-packages" in labels
     assert is_string_type(labels['rpm-packages'])
+    assert labels['rpm-packages'] == ''
     assert "repositories" in labels
     assert is_string_type(labels['repositories'])
     assert "commit_id" in labels
