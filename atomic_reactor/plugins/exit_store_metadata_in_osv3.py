@@ -128,6 +128,11 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         except AttributeError:
             commit_id = ""
 
+        try:
+            base_image_id = self.workflow.base_image_inspect['Id']
+        except docker.errors.NotFound:
+            base_image_id = ""
+
         labels = {
             "dockerfile": self.get_pre_result(CpDockerfilePlugin.key),
             "artefacts": self.get_pre_result(DistgitFetchArtefactsPlugin.key),
@@ -140,7 +145,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
             "repositories": json.dumps(self.get_repositories()),
             "commit_id": commit_id,
-            "base-image-id": self.workflow.base_image_inspect['Id'],
+            "base-image-id": base_image_id,
             "base-image-name": self.workflow.builder.base_image.to_str(),
             "image-id": self.workflow.builder.image_id,
             "digests": json.dumps(self.get_pullspecs(self.get_digests())),
