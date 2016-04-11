@@ -94,8 +94,8 @@ class CompressPlugin(PostBuildPlugin):
             metadata['uncompressed_size'] = self.uncompressed_size
             savings = 1 - metadata['size'] / float(metadata['uncompressed_size'])
             self.log.debug('uncompressed: %s, compressed: %s, ratio: %.2f %% saved',
-                           human_size(metadata['size']),
                            human_size(metadata['uncompressed_size']),
+                           human_size(metadata['size']),
                            100*savings)
 
         self.workflow.exported_image_sequence.append(metadata)
