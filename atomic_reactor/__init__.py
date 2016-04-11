@@ -12,7 +12,7 @@ constants
 import logging
 
 
-__version__ = "1.6.4"
+__version__ = "1.6.5"
 
 
 def set_logging(name="atomic_reactor", level=logging.DEBUG, handler=None):

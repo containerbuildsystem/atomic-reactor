@@ -31,7 +31,7 @@
 %global dock_obsolete_vr 1.3.7-2
 
 Name:           %{project}
-Version:        1.6.4
+Version:        1.6.5
 Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
@@ -381,9 +381,10 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 
 %changelog
-* Fri Apr 08 2016 Tim Waugh <twaugh@redhat.com>
+* Mon Apr 11 2016 Martin Milata <mmilata@redhat.com> - 1.6.5-1
 - Move koji_promote plugin to koji package now that it is used in the
-  main workflow.
+  main workflow. (Tim Waugh <twaugh@redhat.com>)
+- 1.6.5 release
 
 * Thu Apr 07 2016 Martin Milata <mmilata@redhat.com> - 1.6.4-1
 - 1.6.4 release
