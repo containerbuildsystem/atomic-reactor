@@ -250,21 +250,27 @@ def clone_git_repo(git_url, target_dir, commit=None):
     logger.debug("url = '%s', dir = '%s', commit = '%s'",
                  git_url, target_dir, commit)
 
-    # http://stackoverflow.com/questions/1911109/clone-a-specific-git-branch/4568323#4568323
-    # -b takes only refs, not SHA-1
-    cmd = ["git", "clone", "-b", commit, "--single-branch", git_url, quote(target_dir)]
-    logger.debug("cloning single branch '%s'", cmd)
+    cmd = ["git", "clone", "-b", commit, "--depth", "1", git_url, quote(target_dir)]
+    logger.debug("doing a shallow clone '%s'", cmd)
     try:
         subprocess.check_call(cmd)
     except subprocess.CalledProcessError as ex:
         logger.warning(repr(ex))
-        # let's try again with plain `git clone $url && git checkout`
-        cmd = ["git", "clone", git_url, quote(target_dir)]
-        logger.debug("cloning '%s'", cmd)
-        subprocess.check_call(cmd)
-        cmd = ["git", "reset", "--hard", commit]
-        logger.debug("checking out branch '%s'", cmd)
-        subprocess.check_call(cmd, cwd=target_dir)
+        # http://stackoverflow.com/questions/1911109/clone-a-specific-git-branch/4568323#4568323
+        # -b takes only refs, not SHA-1
+        cmd = ["git", "clone", "-b", commit, "--single-branch", git_url, quote(target_dir)]
+        logger.debug("cloning single branch '%s'", cmd)
+        try:
+            subprocess.check_call(cmd)
+        except subprocess.CalledProcessError as ex:
+            logger.warning(repr(ex))
+            # let's try again with plain `git clone $url && git checkout`
+            cmd = ["git", "clone", git_url, quote(target_dir)]
+            logger.debug("cloning '%s'", cmd)
+            subprocess.check_call(cmd)
+            cmd = ["git", "reset", "--hard", commit]
+            logger.debug("checking out branch '%s'", cmd)
+            subprocess.check_call(cmd, cwd=target_dir)
     cmd = ["git", "rev-parse", "HEAD"]
     logger.debug("getting SHA-1 of provided ref '%s'", cmd)
     try:
