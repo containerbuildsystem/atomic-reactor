@@ -51,7 +51,9 @@ import dockpulp.imgutils
 import os
 import re
 import tempfile
+import subprocess
 from collections import namedtuple
+from tempfile import NamedTemporaryFile
 
 
 # let's silence warnings from dockpulp: there is one warning for every request
@@ -176,11 +178,36 @@ class PulpUploader(object):
                     tags=[tag]
                 )
 
-        top_layer, layers = self._get_tar_metadata(self.filename)
         self.log.info("pulp_repos = %s", pulp_repos)
         self._create_missing_repos(p, pulp_repos, repo_prefix)
 
-        p.upload(self.filename)
+        try:
+            top_layer, layers = self._get_tar_metadata(self.filename)
+            # getImageIdsExist was introduced in rh-dockpulp 0.6+
+            existing_imageids = p.getImageIdsExist(layers)
+            self.log.debug("existing layers: %s" % existing_imageids)
+
+            # Strip existing layers from the tar and repack it
+            remove_layers = [str(os.path.join(x, 'layer.tar')) for x in existing_imageids]
+
+            commands = {'.xz': 'xzcat', '.gz': 'zcat', '.bz2': 'bzcat', '.tar': 'cat'}
+            _, file_extension = os.path.splitext(self.filename)
+            unpacker = commands.get(file_extension, None)
+            self.log.debug("using unpacker %s for extention %s" % (unpacker, file_extension))
+            if unpacker is None:
+                raise Exception("Unknown tarball format: %s" % self.filename)
+
+            with NamedTemporaryFile(prefix='strip_tar_', delete=True) as outfile:
+                cmd = "{0} {1} | tar --delete {2} | gzip - > {3}".format(
+                    unpacker, self.filename, ' '.join(remove_layers), outfile.name)
+                self.log.debug("running %s" % cmd)
+                subprocess.check_call(cmd, shell=True)
+                self.log.debug("uploading %s" % outfile.name)
+                p.upload(outfile.name)
+        except:
+            self.log.debug("Error on creating deduplicated layers tar", exc_info=True)
+            self.log.info("Falling back to full tar upload")
+            p.upload(self.filename)
 
         for repo_id, pulp_repo in pulp_repos.items():
             for layer in layers:
