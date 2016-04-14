@@ -19,7 +19,7 @@ class KojiPlugin(PreBuildPlugin):
     key = "koji"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, target, hub, root):
+    def __init__(self, tasker, workflow, target, hub, root, proxy=None):
         """
         constructor
 
@@ -34,6 +34,7 @@ class KojiPlugin(PreBuildPlugin):
         self.target = target
         self.xmlrpc = koji.ClientSession(hub)
         self.pathinfo = koji.PathInfo(topdir=root)
+        self.proxy = proxy
 
     def run(self):
         """
@@ -65,6 +66,10 @@ class KojiPlugin(PreBuildPlugin):
         if baseurl.startswith("https://"):
             self.log.info("Ignoring certificates in the repo")
             repo['sslverify'] = 0
+
+        if self.proxy:
+            self.log.info("Setting yum proxy to %s" % self.proxy)
+            repo['proxy'] = self.proxy
 
         path = os.path.join(YUM_REPOS_DIR, self.target + ".repo")
         self.log.info("yum repo of koji target: '%s'", path)
