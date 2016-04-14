@@ -111,7 +111,7 @@ class TestKoji(object):
          False,
          None,
          None,
-         'http://proxy.com'),
+         'http://proxy.example.com'),
 
         # https with koji_ssl_certs
         # ('https://example.com',
@@ -131,7 +131,7 @@ class TestKoji(object):
          False,
          'sslverify=0',
          None,
-         'http://proxy.com'),
+         'http://proxy.example.com'),
 
         # https with cert available
         # ('https://example.com',

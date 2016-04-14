@@ -68,7 +68,7 @@ class KojiPlugin(PreBuildPlugin):
             repo['sslverify'] = 0
 
         if self.proxy:
-            self.log.info("Setting yum proxy to %s" % self.proxy)
+            self.log.info("Setting yum proxy to %s", self.proxy)
             repo['proxy'] = self.proxy
 
         path = os.path.join(YUM_REPOS_DIR, self.target + ".repo")
