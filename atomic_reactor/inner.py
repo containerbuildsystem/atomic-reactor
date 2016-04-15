@@ -382,6 +382,7 @@ class DockerBuildWorkflow(object):
                 exit_runner.run(keep_going=True)
             except PluginFailedException as ex:
                 logger.error("one or more exit plugins failed: %s", ex)
+                raise
             finally:
                 self.source.remove_tmpdir()
 

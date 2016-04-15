@@ -189,6 +189,16 @@ class ExitRaises(RaisesMixIn, ExitPlugin):
     key = 'exit_raises'
 
 
+class ExitRaisesAllowed(RaisesMixIn, ExitPlugin):
+    """
+    An Exit plugin that should raise an exception.
+    """
+
+    is_allowed_to_fail = True
+
+    key = 'exit_raises_allowed'
+
+
 class ExitCompat(WatchedMixIn, ExitPlugin):
     """
     An Exit plugin called as a Post-build plugin.
@@ -512,7 +522,7 @@ def test_autorebuild_stop_prevents_build():
     assert workflow.autorebuild_canceled == True
 
 
-@pytest.mark.parametrize('fail_at', ['pre', 'prepub', 'post', 'exit'])
+@pytest.mark.parametrize('fail_at', ['pre', 'prepub', 'post', 'exit', 'exit_allowed'])
 def test_workflow_plugin_error(fail_at):
     """
     This is a test for what happens when plugins fail.
@@ -556,6 +566,8 @@ def test_workflow_plugin_error(fail_at):
         postbuild_plugins.insert(0, {'name': 'post_raises', 'args': {}})
     elif fail_at == 'exit':
         exit_plugins.insert(0, {'name': 'exit_raises', 'args': {}})
+    elif fail_at == 'exit_allowed':
+        exit_plugins.insert(0, {'name': 'exit_raises_allowed', 'args': {}})
     else:
         # Typo in the parameter list?
         assert False
@@ -567,9 +579,9 @@ def test_workflow_plugin_error(fail_at):
                                    exit_plugins=exit_plugins,
                                    plugin_files=[this_file])
 
-    # Failures in any phase except 'exit' cause the build process to
-    # abort.
-    if fail_at == 'exit':
+    # Most failures cause the build process to abort. Unless, it's
+    # an exit plugin that's explicitly allowed to fail.
+    if fail_at == 'exit_allowed':
         build_result = workflow.build_docker_image()
         assert build_result and not build_result.is_failed()
     else:
