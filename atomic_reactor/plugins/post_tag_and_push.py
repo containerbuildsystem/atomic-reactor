@@ -31,8 +31,16 @@ class TagAndPushPlugin(PostBuildPlugin):
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param registries: dict, keys are docker registries, values are dicts containing per-registry
-                           parameters. Currently only the "insecure" optional boolean parameter
-                           is supported which controls whether pushes are allowed over plain HTTP.
+                           parameters.
+                           Params:
+                            * "insecure" optional boolean - controls whether pushes are allowed over
+                              plain HTTP.
+                            * "email" optional string - email to be used during login if registry
+                              requires authentication
+                            * "login" optional string - login to be used during login if registry
+                              requires authentication
+                            * "password" optional string - password to be used during login if
+                              registry requires authentication
         """
         # call parent constructor
         super(TagAndPushPlugin, self).__init__(tasker, workflow)
@@ -47,6 +55,9 @@ class TagAndPushPlugin(PostBuildPlugin):
 
         for registry, registry_conf in self.registries.items():
             insecure = registry_conf.get('insecure', False)
+            login = registry_conf.get('login', None)
+            password = registry_conf.get('password', None)
+            email = registry_conf.get('email', None)
             push_conf_registry = \
                 self.workflow.push_conf.add_docker_registry(registry, insecure=insecure)
 
@@ -58,7 +69,8 @@ class TagAndPushPlugin(PostBuildPlugin):
                 registry_image.registry = registry
                 logs = self.tasker.tag_and_push_image(self.workflow.builder.image_id,
                                                       registry_image, insecure=insecure,
-                                                      force=True)
+                                                      force=True,
+                                                      login=login, password=password, email=email)
 
                 pushed_images.append(registry_image)
                 defer_removal(self.workflow, registry_image)
