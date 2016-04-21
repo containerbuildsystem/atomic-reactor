@@ -97,12 +97,21 @@ class TestKoji(object):
     @pytest.mark.parametrize(('root',
                               'koji_ssl_certs',
                               'expected_string',
-                              'expected_file'), [
+                              'expected_file',
+                              'proxy'), [
         # Plain http repo
         ('http://example.com',
          False,
          None,
+         None,
          None),
+
+        # Plain http repo with proxy
+        ('http://example.com',
+         False,
+         None,
+         None,
+         'http://proxy.example.com'),
 
         # https with koji_ssl_certs
         # ('https://example.com',
@@ -114,7 +123,15 @@ class TestKoji(object):
         ('https://nosuchwebsiteforsure.com',
          False,
          'sslverify=0',
+         None,
          None),
+
+        # https with no cert available
+        ('https://nosuchwebsiteforsure.com',
+         False,
+         'sslverify=0',
+         None,
+         'http://proxy.example.com'),
 
         # https with cert available
         # ('https://example.com',
@@ -124,12 +141,13 @@ class TestKoji(object):
 
     ])
     def test_koji_plugin(self, tmpdir, root, koji_ssl_certs,
-                         expected_string, expected_file):
+                         expected_string, expected_file, proxy):
         tasker, workflow = prepare()
         args = {
             'target': KOJI_TARGET,
             'hub': '',
             'root': root,
+            'proxy': proxy
         }
 
         if koji_ssl_certs:
@@ -151,6 +169,9 @@ class TestKoji(object):
         assert "enabled=1\n" in content
         assert "name=atomic-reactor-koji-plugin-target\n" in content
         assert "baseurl=%s/repos/tag/2/$basearch\n" % root in content
+
+        if proxy:
+            assert "proxy=%s" % proxy in content
 
         if expected_string:
             assert expected_string in content
