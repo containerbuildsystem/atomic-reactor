@@ -50,8 +50,9 @@ class KojiPromotePlugin(ExitPlugin):
     keytab name like 'type:name', and so can be used to specify a key
     in a Kubernetes secret by specifying 'FILE:/path/to/key'.
 
-    If metadata_only is set, the v1 image will not be uploaded, only
-    the logs. The import will be marked as metadata-only.
+    If metadata_only is set, the 'docker save' image will not be
+    uploaded, only the logs. The import will be marked as
+    metadata-only.
 
     Runs as an exit plugin in order to capture logs from all other
     plugins.
@@ -345,26 +346,28 @@ class KojiPromotePlugin(ExitPlugin):
         """
         Create the output for the image
 
-        For v1, this is the v1 image. For v2, this is the v2 metadata
-        with the checksum of an empty file, and no actual upload.
+        This is the Koji Content Generator metadata, along with the
+        'docker save' output to upload.
+
+        For metadata-only builds, an empty file is used instead of the
+        output of 'docker save'.
 
         :param arch: str, architecture for this output
         :return: tuple, (metadata dict, Output instance)
+
         """
 
         image_id = self.workflow.builder.image_id
-        v1_image = self.workflow.exported_image_sequence[-1].get('path')
-        ext = v1_image.split('.', 1)[1]
+        saved_image = self.workflow.exported_image_sequence[-1].get('path')
+        ext = saved_image.split('.', 1)[1]
+        name_fmt = 'docker-image-{id}.{arch}.{ext}'
+        image_name = name_fmt.format(id=image_id, arch=arch, ext=ext)
         if self.metadata_only:
-            name_fmt = 'docker-v2-image-{id}.{arch}.{ext}'
-            v2_image_name = name_fmt.format(id=image_id, arch=arch, ext=ext)
-            metadata = self.get_output_metadata(os.path.devnull, v2_image_name)
+            metadata = self.get_output_metadata(os.path.devnull, image_name)
             output = Output(file=None, metadata=metadata)
         else:
-            name_fmt = 'docker-v1-image-{id}.{arch}.{ext}'
-            v1_image_name = name_fmt.format(id=image_id, arch=arch, ext=ext)
-            metadata = self.get_output_metadata(v1_image, v1_image_name)
-            output = Output(file=open(v1_image), metadata=metadata)
+            metadata = self.get_output_metadata(saved_image, image_name)
+            output = Output(file=open(saved_image), metadata=metadata)
 
         return metadata, output
 
@@ -454,7 +457,7 @@ class KojiPromotePlugin(ExitPlugin):
             },
         })
 
-        # Add the v1 image (or v2 metadata) to the output
+        # Add the 'docker save' image to the output
         image = add_buildroot_id(output)
         output_files.append(image)
 
