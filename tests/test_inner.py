@@ -667,3 +667,75 @@ def test_source_not_removed_for_exit_plugins():
 
     # Make sure that the plugin was actually run
     assert watch_exit.was_called()
+
+
+class ValueMixIn(object):
+
+    def __init__(self, tasker, workflow, *args, **kwargs):
+        super(ValueMixIn, self).__init__(tasker, workflow, *args, **kwargs)
+
+    def run(self):
+        return '%s_result' % self.key
+
+
+class PreBuildResult(ValueMixIn, PreBuildPlugin):
+    """
+    Pre build plugin that returns a result when run.
+    """
+
+    key = 'pre_build_value'
+
+
+class PostBuildResult(ValueMixIn, PostBuildPlugin):
+    """
+    Post build plugin that returns a result when run.
+    """
+
+    key = 'post_build_value'
+
+
+class PrePublishResult(ValueMixIn, PrePublishPlugin):
+    """
+    Pre publish plugin that returns a result when run.
+    """
+
+    key = 'pre_publish_value'
+
+
+class ExitResult(ValueMixIn, ExitPlugin):
+    """
+    Exit plugin that returns a result when run.
+    """
+
+    key = 'exit_value'
+
+
+def test_workflow_plugin_results():
+    """
+    Verifies the results of plugins in different phases
+    are stored properly.
+    """
+
+    this_file = inspect.getfile(PreRaises)
+    mock_docker()
+    fake_builder = MockInsideBuilder()
+    flexmock(InsideBuilder).new_instances(fake_builder)
+
+    prebuild_plugins = [{'name': 'pre_build_value'}]
+    postbuild_plugins = [{'name': 'post_build_value'}]
+    prepublish_plugins = [{'name': 'pre_publish_value'}]
+    exit_plugins = [{'name': 'exit_value'}]
+
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+                                   prebuild_plugins=prebuild_plugins,
+                                   prepublish_plugins=prepublish_plugins,
+                                   postbuild_plugins=postbuild_plugins,
+                                   exit_plugins=exit_plugins,
+                                   plugin_files=[this_file])
+
+    workflow.build_docker_image()
+    assert workflow.prebuild_results == {'pre_build_value': 'pre_build_value_result'}
+    assert workflow.postbuild_results == {'post_build_value': 'post_build_value_result'}
+    assert workflow.prepub_results == {'pre_publish_value': 'pre_publish_value_result'}
+    assert workflow.exit_results == {'exit_value': 'exit_value_result'}
+

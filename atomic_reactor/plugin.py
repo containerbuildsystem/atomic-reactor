@@ -326,7 +326,7 @@ class PrePublishPluginsRunner(BuildPluginsRunner):
 
     def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
         logger.info("initializing runner of pre-publish plugins")
-        self.plugins_results = workflow.postbuild_results
+        self.plugins_results = workflow.prepub_results
         super(PrePublishPluginsRunner, self).__init__(dt, workflow, 'PrePublishPlugin', plugins_conf, *args, **kwargs)
 
 
@@ -359,6 +359,7 @@ class ExitPlugin(PostBuildPlugin):
 class ExitPluginsRunner(BuildPluginsRunner):
     def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
         logger.info("initializing runner of exit plugins")
+        self.plugins_results = workflow.exit_results
         super(ExitPluginsRunner, self).__init__(dt, workflow, 'ExitPlugin',
                                                 plugins_conf, *args, **kwargs)
 

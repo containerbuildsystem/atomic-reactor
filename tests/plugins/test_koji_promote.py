@@ -79,6 +79,7 @@ class MockedClientSession(object):
     def CGImport(self, metadata, server_dir):
         self.metadata = metadata
         self.server_dir = server_dir
+        return {"id": "123"}
 
 
 FAKE_SIGMD5 = b'0' * 32
@@ -752,3 +753,28 @@ class TestKojiPromote(object):
         # The correct blocksize argument should have been used
         if blocksize is not None:
             assert blocksize == session.blocksize
+
+        assert runner.plugins_results[KojiPromotePlugin.key] == "123"
+
+    def test_koji_promote_without_build_info(self, tmpdir, os_env):
+
+        class LegacyCGImport(MockedClientSession):
+
+            def CGImport(self, *args, **kwargs):
+                super(LegacyCGImport, self).CGImport(*args, **kwargs)
+                return
+
+        session = LegacyCGImport('')
+        name = 'ns/name'
+        version = '1.0'
+        release = '1'
+        tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
+                                            name=name,
+                                            version=version,
+                                            release=release)
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        assert runner.plugins_results[KojiPromotePlugin.key] is None
+

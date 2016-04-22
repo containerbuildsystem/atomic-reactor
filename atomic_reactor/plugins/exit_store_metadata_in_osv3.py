@@ -17,6 +17,7 @@ from osbs.conf import Configuration
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.plugins.pre_return_dockerfile import CpDockerfilePlugin
 from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
+from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 from atomic_reactor.util import get_build_json
 
 
@@ -46,6 +47,9 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
     def get_pre_result(self, key):
         return self.get_result(self.workflow.prebuild_results.get(key, ''))
+
+    def get_exit_result(self, key):
+        return self.get_result(self.workflow.exit_results.get(key, ''))
 
     def get_digests(self):
         """
@@ -113,6 +117,15 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             "durations": self.workflow.plugins_durations,
         }
 
+    def make_labels(self):
+        labels = {}
+
+        koji_build_id = self.get_exit_result(KojiPromotePlugin.key)
+        if koji_build_id:
+            labels["koji-build-id"] = koji_build_id
+
+        return labels
+
     def run(self):
         metadata = get_build_json().get("metadata", {})
 
@@ -141,7 +154,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         except docker.errors.NotFound:
             base_image_id = ""
 
-        labels = {
+        annotations = {
             "dockerfile": self.get_pre_result(CpDockerfilePlugin.key),
             "artefacts": self.get_pre_result(DistgitFetchArtefactsPlugin.key),
 
@@ -169,11 +182,16 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         # looks like that openshift can't handle value being None (null in json)
         if tar_size is not None and tar_md5sum is not None and tar_sha256sum is not None and \
                 tar_path is not None:
-            labels["tar_metadata"] = json.dumps({
+            annotations["tar_metadata"] = json.dumps({
                 "size": tar_size,
                 "md5sum": tar_md5sum,
                 "sha256sum": tar_sha256sum,
                 "filename": os.path.basename(tar_path),
             })
-        osbs.set_annotations_on_build(build_id, labels)
-        return labels
+        osbs.set_annotations_on_build(build_id, annotations)
+
+        labels = self.make_labels()
+        if labels:
+            osbs.update_labels_on_build(build_id, labels)
+
+        return {"annotations": annotations, "labels": labels}
