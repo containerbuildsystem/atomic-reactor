@@ -22,6 +22,7 @@ from atomic_reactor.plugin import ExitPluginsRunner
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
+from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 from atomic_reactor.plugins.pre_cp_dockerfile import CpDockerfilePlugin
 from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
 from atomic_reactor.util import ImageName, LazyGit
@@ -47,7 +48,9 @@ class X(object):
 
 
 def prepare():
-    def set_annotations_on_build(build_id, labels, namespace='default'):
+    def set_annotations_on_build(build_id, labels):
+        pass
+    def update_labels_on_build(build_id, labels):
         pass
     new_environ = deepcopy(os.environ)
     new_environ["BUILD"] = '''
@@ -59,6 +62,7 @@ def prepare():
 }
 '''
     flexmock(OSBS, set_annotations_on_build=set_annotations_on_build)
+    flexmock(OSBS, update_labels_on_build=update_labels_on_build)
     (flexmock(osbs.conf)
      .should_call("Configuration")
      .with_args(namespace="namespace", conf_file=None, verify_ssl=True,
@@ -126,7 +130,7 @@ def test_metadata_plugin(tmpdir):
     )
     output = runner.run()
     assert StoreMetadataInOSv3Plugin.key in output
-    labels = output[StoreMetadataInOSv3Plugin.key]
+    labels = output[StoreMetadataInOSv3Plugin.key]["annotations"]
     assert "dockerfile" in labels
     assert is_string_type(labels['dockerfile'])
     assert "artefacts" in labels
@@ -214,7 +218,7 @@ def test_metadata_plugin_rpmqa_failure(tmpdir):
     )
     output = runner.run()
     assert StoreMetadataInOSv3Plugin.key in output
-    labels = output[StoreMetadataInOSv3Plugin.key]
+    labels = output[StoreMetadataInOSv3Plugin.key]["annotations"]
     assert "dockerfile" in labels
     assert "artefacts" in labels
     assert "logs" in labels
@@ -239,3 +243,49 @@ def test_metadata_plugin_rpmqa_failure(tmpdir):
     assert "cp_dockerfile" in plugins_metadata["durations"]
     assert "distgit_fetch_artefacts" in plugins_metadata["durations"]
     assert "all_rpm_packages" in plugins_metadata["durations"]
+
+def test_labels_metadata_plugin(tmpdir):
+
+    koji_build_id = "1234"
+    workflow = prepare()
+
+    workflow.exit_results = {
+        KojiPromotePlugin.key: koji_build_id,
+    }
+
+    runner = ExitPluginsRunner(
+        None,
+        workflow,
+        [{
+            'name': StoreMetadataInOSv3Plugin.key,
+            "args": {
+                "url": "http://example.com/"
+            }
+        }]
+    )
+    output = runner.run()
+    assert StoreMetadataInOSv3Plugin.key in output
+    labels = output[StoreMetadataInOSv3Plugin.key]["labels"]
+    assert "koji-build-id" in labels
+    assert labels["koji-build-id"] == koji_build_id
+
+def test_missing_koji_build_id(tmpdir):
+    workflow = prepare()
+
+    workflow.exit_results = {}
+
+    runner = ExitPluginsRunner(
+        None,
+        workflow,
+        [{
+            'name': StoreMetadataInOSv3Plugin.key,
+            "args": {
+                "url": "http://example.com/"
+            }
+        }]
+    )
+    output = runner.run()
+    assert StoreMetadataInOSv3Plugin.key in output
+    labels = output[StoreMetadataInOSv3Plugin.key]["labels"]
+    assert "koji-build-id" not in labels
+

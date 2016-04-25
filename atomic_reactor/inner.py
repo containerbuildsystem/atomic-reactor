@@ -257,6 +257,8 @@ class DockerBuildWorkflow(object):
         self.exit_plugins_conf = exit_plugins
         self.prebuild_results = {}
         self.postbuild_results = {}
+        self.prepub_results = {}
+        self.exit_results = {}
         self.plugins_timestamps = {}
         self.plugins_durations = {}
         self.plugins_errors = {}
