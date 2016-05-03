@@ -122,7 +122,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         koji_build_id = self.get_exit_result(KojiPromotePlugin.key)
         if koji_build_id:
-            labels["koji-build-id"] = koji_build_id
+            labels["koji-build-id"] = str(koji_build_id)
 
         return labels
 

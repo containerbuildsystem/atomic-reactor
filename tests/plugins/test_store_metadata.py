@@ -246,7 +246,7 @@ def test_metadata_plugin_rpmqa_failure(tmpdir):
 
 def test_labels_metadata_plugin(tmpdir):
 
-    koji_build_id = "1234"
+    koji_build_id = 1234
     workflow = prepare()
 
     workflow.exit_results = {
@@ -267,7 +267,8 @@ def test_labels_metadata_plugin(tmpdir):
     assert StoreMetadataInOSv3Plugin.key in output
     labels = output[StoreMetadataInOSv3Plugin.key]["labels"]
     assert "koji-build-id" in labels
-    assert labels["koji-build-id"] == koji_build_id
+    assert is_string_type(labels["koji-build-id"])
+    assert int(labels["koji-build-id"]) == koji_build_id
 
 def test_missing_koji_build_id(tmpdir):
     workflow = prepare()
