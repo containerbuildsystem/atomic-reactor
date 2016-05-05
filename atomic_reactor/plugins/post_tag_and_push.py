@@ -7,7 +7,9 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from copy import deepcopy
+import os
 import re
+import json
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
@@ -35,12 +37,8 @@ class TagAndPushPlugin(PostBuildPlugin):
                            Params:
                             * "insecure" optional boolean - controls whether pushes are allowed over
                               plain HTTP.
-                            * "email" optional string - email to be used during login if registry
-                              requires authentication
-                            * "login" optional string - login to be used during login if registry
-                              requires authentication
-                            * "password" optional string - password to be used during login if
-                              registry requires authentication
+                            * "secret" optional string - name of the secret, which stores
+                              email, login and password for remote registry
         """
         # call parent constructor
         super(TagAndPushPlugin, self).__init__(tasker, workflow)
@@ -55,11 +53,25 @@ class TagAndPushPlugin(PostBuildPlugin):
 
         for registry, registry_conf in self.registries.items():
             insecure = registry_conf.get('insecure', False)
-            login = registry_conf.get('login', None)
-            password = registry_conf.get('password', None)
-            email = registry_conf.get('email', None)
             push_conf_registry = \
                 self.workflow.push_conf.add_docker_registry(registry, insecure=insecure)
+
+            docker_push_secret = registry_conf.get('secret', None)
+            self.log.info("Registry %s secret %s", registry, docker_push_secret)
+            login = password = email = None
+            if docker_push_secret:
+                try:
+                    json_secret_path = os.path.join(docker_push_secret, ".dockercfg")
+                    json_secret = {}
+                    with open(json_secret_path) as fd:
+                        json_secret = json.load(fd)
+                    self.log.info("json_secret %s", json_secret)
+                    login = json_secret[registry]['username']
+                    password = json_secret[registry]['password']
+                    email = json_secret[registry]['email']
+                except Exception as e:
+                    self.log.warn("exception %r", e)
+                    login = password = email = None
 
             for image in self.workflow.tag_conf.images:
                 if image.registry:
@@ -67,6 +79,7 @@ class TagAndPushPlugin(PostBuildPlugin):
 
                 registry_image = image.copy()
                 registry_image.registry = registry
+                self.log.info("Pushing %r", registry_image)
                 logs = self.tasker.tag_and_push_image(self.workflow.builder.image_id,
                                                       registry_image, insecure=insecure,
                                                       force=True,
@@ -80,6 +93,7 @@ class TagAndPushPlugin(PostBuildPlugin):
                     tag = registry_image.to_str(registry=False)
                     push_conf_registry.digests[tag] = digest
 
+        self.log.info("All images were tagged and pushed")
         return pushed_images
 
     @staticmethod
