@@ -19,10 +19,12 @@ except ImportError:
     # Python 2.6
     from ordereddict import OrderedDict
 import docker
-from atomic_reactor.util import ImageName, \
-    wait_for_command, clone_git_repo, LazyGit, figure_out_dockerfile, render_yum_repo, \
-    process_substitutions, get_checksums, print_version_of_tools, get_version_of_tools, \
-    get_preferred_label_key, human_size
+from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
+                                 LazyGit, figure_out_dockerfile,
+                                 render_yum_repo, process_substitutions,
+                                 get_checksums, print_version_of_tools,
+                                 get_version_of_tools, get_preferred_label_key,
+                                 human_size, CommandResult)
 from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1
 from tests.util import requires_internet
 
@@ -85,6 +87,20 @@ def test_clone_git_repo(tmpdir):
     assert commit_id is not None
     assert len(commit_id) == 40  # current git hashes are this long
     assert os.path.isdir(os.path.join(tmpdir_path, '.git'))
+
+
+class TestCommandResult(object):
+    @pytest.mark.parametrize(('item', 'expected'), [
+        (b'{"stream":"Step 0 : FROM ebbc51b7dfa5bcd993a[...]\\n"}\n',
+         "Step 0 : FROM ebbc51b7dfa5bcd993a[...]"),
+
+        (b'this is not valid JSON\n',
+         'this is not valid JSON'),
+    ])
+    def test_parse_item(self, item, expected):
+        cr = CommandResult()
+        cr.parse_item(item)
+        assert cr.logs == [expected]
 
 
 @requires_internet

@@ -166,10 +166,10 @@ class CommandResult(object):
 
         for l in line.splitlines():
             l = l.strip()
+            self._logs.append(l)
             if l:
                 logger.debug(l)
 
-        self._logs.append(item)
         if parsed_item is not None:
             self._error = parsed_item.get("error", None)
             self._error_detail = parsed_item.get("errorDetail", None)
