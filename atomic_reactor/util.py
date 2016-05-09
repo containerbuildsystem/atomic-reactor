@@ -169,7 +169,7 @@ class CommandResult(object):
             if l:
                 logger.debug(l)
 
-        self._logs.append(item)
+        self._logs.append(line)
         if parsed_item is not None:
             self._error = parsed_item.get("error", None)
             self._error_detail = parsed_item.get("errorDetail", None)
