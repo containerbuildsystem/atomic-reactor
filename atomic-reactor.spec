@@ -278,6 +278,7 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python2_sitelib}/atomic_reactor/*.*
 %{python2_sitelib}/atomic_reactor/cli
 %{python2_sitelib}/atomic_reactor/plugins
+%exclude %{python2_sitelib}/atomic_reactor/koji_util.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_sendmail.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
@@ -295,6 +296,7 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 
 %files -n python-atomic-reactor-koji
+%{python2_sitelib}/atomic_reactor/koji_util.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
 %{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
 
@@ -327,6 +329,7 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python3_sitelib}/atomic_reactor/cli
 %{python3_sitelib}/atomic_reactor/plugins
 %{python3_sitelib}/atomic_reactor/__pycache__/*.py*
+%exclude %{python3_sitelib}/atomic_reactor/koji_util.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_koji_promote.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_sendmail.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py
@@ -356,6 +359,8 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 
 %files -n python3-atomic-reactor-koji
+%{python3_sitelib}/atomic_reactor/koji_util.py
+%{python3_sitelib}/atomic_reactor/__pycache__/koji_util*.py*
 %{python3_sitelib}/atomic_reactor/plugins/pre_koji.py
 %{python3_sitelib}/atomic_reactor/plugins/exit_koji_promote.py
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji*.py*
@@ -381,6 +386,9 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 
 %changelog
+* Fri May  6 2016 Tim Waugh <twaugh@redhat.com>
+- New koji_util module in koji package.
+
 * Fri Apr 22 2016 Martin Milata <mmilata@redhat.com> - 1.6.7-1
 - 1.6.7 release
 
