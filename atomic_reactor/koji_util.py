@@ -42,10 +42,10 @@ def koji_login(session,
     if ssl_certs_dir:
         # Use certificates
         logger.info("Using SSL certificates for Koji authentication")
-        session.ssl_login(os.path.join(ssl_certs_dir, 'cert'),
-                          os.path.join(ssl_certs_dir, 'ca'),
-                          os.path.join(ssl_certs_dir, 'serverca'),
-                          **kwargs)
+        result = session.ssl_login(os.path.join(ssl_certs_dir, 'cert'),
+                                   os.path.join(ssl_certs_dir, 'ca'),
+                                   os.path.join(ssl_certs_dir, 'serverca'),
+                                   **kwargs)
     else:
         # Use Kerberos
         logger.info("Using Kerberos for Koji authentication")
@@ -53,7 +53,9 @@ def koji_login(session,
             kwargs['principal'] = krb_principal
             kwargs['keytab'] = krb_keytab
 
-        session.krb_login(**kwargs)
+        result = session.krb_login(**kwargs)
+
+    return result
 
 
 class TaskWatcher(object):
