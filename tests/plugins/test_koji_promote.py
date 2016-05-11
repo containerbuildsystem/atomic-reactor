@@ -63,10 +63,10 @@ class MockedClientSession(object):
         self.uploaded_files = []
 
     def krb_login(self, principal=None, keytab=None, proxyuser=None):
-        pass
+        return True
 
     def ssl_login(self, cert, ca, serverca, proxyuser=None):
-        pass
+        return True
 
     def logout(self):
         pass
@@ -348,7 +348,7 @@ class TestKojiPromote(object):
     ])
     def test_koji_promote_krb_args(self, tmpdir, params, os_env):
         session = MockedClientSession('')
-        expectation = flexmock(session).should_receive('krb_login')
+        expectation = flexmock(session).should_receive('krb_login').and_return(True)
         name = 'name'
         version = '1.0'
         release = '1'
@@ -777,4 +777,3 @@ class TestKojiPromote(object):
         runner.run()
 
         assert runner.plugins_results[KojiPromotePlugin.key] is None
-

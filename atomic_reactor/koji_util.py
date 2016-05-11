@@ -55,7 +55,27 @@ def koji_login(session,
 
         result = session.krb_login(**kwargs)
 
+    if not result:
+        raise RuntimeError('Unable to perform Koji authentication')
+
     return result
+
+
+def create_koji_session(hub_url, auth_info=None):
+    """
+    Creates and returns a Koji session. If auth_info
+    is provided, the session will be authenticated.
+
+    :param hub_url: str, Koji hub URL
+    :param auth_info: dict, authentication parameters used for koji_login
+    :return: koji.ClientSession instance
+    """
+    session = koji.ClientSession(hub_url)
+
+    if auth_info is not None:
+        koji_login(session, **auth_info)
+
+    return session
 
 
 class TaskWatcher(object):
