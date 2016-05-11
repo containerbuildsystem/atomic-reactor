@@ -14,7 +14,7 @@ from flexmock import flexmock
 
 from atomic_reactor.constants import DOCKER_SOCKET_PATH
 from atomic_reactor.util import ImageName
-from tests.constants import COMMAND
+from tests.constants import COMMAND, IMPORTED_IMAGE_ID
 
 old_ope = os.path.exists
 
@@ -147,6 +147,8 @@ mock_version = {
     'Version': '1.9.0-dev-fc24'
 }
 
+mock_import_image = '{"status": "%s"}' % IMPORTED_IMAGE_ID
+
 
 def _find_image(img, ignore_registry=False):
     global mock_images
@@ -248,6 +250,8 @@ def mock_docker(build_should_fail=False,
     flexmock(docker.Client, wait=lambda cid: 1 if wait_should_fail else 0)
     flexmock(docker.Client, version=lambda **kwargs: mock_version)
     flexmock(docker.Client, info=lambda **kwargs: mock_info)
+    flexmock(docker.Client, import_image_from_data=lambda url: mock_import_image)
+    flexmock(docker.Client, import_image_from_stream=lambda url: mock_import_image)
     class GetImageResult(object):
         data = b''
         def __init__(self):

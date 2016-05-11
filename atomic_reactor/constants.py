@@ -53,3 +53,5 @@ TOOLS_USED = (
     {"pkg_name": "atomic_reactor"},
     {"pkg_name": "osbs", "display_name": "osbs-client"},
 )
+
+DEFAULT_DOWNLOAD_BLOCK_SIZE = 10 * 1024 * 1024 # 10Mb

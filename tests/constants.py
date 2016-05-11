@@ -45,3 +45,5 @@ LOCALHOST_REGISTRY_HTTP = "http://%s" % LOCALHOST_REGISTRY
 DOCKER0_REGISTRY_HTTP = "http://%s" % DOCKER0_REGISTRY
 
 COMMAND = "eporeporjgpeorjgpeorjgpeorjgpeorjgpeorjg"
+
+IMPORTED_IMAGE_ID = 'eee28534d167d7b3297eace1fc32c46aabedc40696e48ae04c7654f974700cc2'
