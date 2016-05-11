@@ -24,6 +24,7 @@ from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.constants import PROG
 from atomic_reactor.util import get_version_of_tools, get_checksums, get_build_json
+from atomic_reactor.koji_util import koji_login
 from osbs.conf import Configuration
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
@@ -574,26 +575,11 @@ class KojiPromotePlugin(ExitPlugin):
         :return: koji.ClientSession instance, logged in
         """
         session = koji.ClientSession(self.kojihub)
-        kwargs = {}
-        if self.koji_proxy_user:
-            kwargs['proxyuser'] = self.koji_proxy_user
-
-        if self.koji_ssl_certs:
-            # Use certificates
-            self.log.info("Using SSL certificates for Koji authentication")
-            session.ssl_login(os.path.join(self.koji_ssl_certs, 'cert'),
-                              os.path.join(self.koji_ssl_certs, 'ca'),
-                              os.path.join(self.koji_ssl_certs, 'serverca'),
-                              **kwargs)
-        else:
-            # Use Kerberos
-            self.log.info("Using Kerberos for Koji authentication")
-            if self.koji_principal and self.koji_keytab:
-                kwargs['principal'] = self.koji_principal
-                kwargs['keytab'] = self.koji_keytab
-
-            session.krb_login(**kwargs)
-
+        koji_login(session,
+                   proxyuser=self.koji_proxy_user,
+                   ssl_certs_dir=self.koji_ssl_certs,
+                   krb_principal=self.koji_principal,
+                   krb_keytab=self.koji_keytab)
         return session
 
     def run(self):
