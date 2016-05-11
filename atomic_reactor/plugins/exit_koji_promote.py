@@ -24,7 +24,7 @@ from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.constants import PROG
 from atomic_reactor.util import get_version_of_tools, get_checksums, get_build_json
-from atomic_reactor.koji_util import koji_login
+from atomic_reactor.koji_util import create_koji_session
 from osbs.conf import Configuration
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
@@ -574,13 +574,13 @@ class KojiPromotePlugin(ExitPlugin):
 
         :return: koji.ClientSession instance, logged in
         """
-        session = koji.ClientSession(self.kojihub)
-        koji_login(session,
-                   proxyuser=self.koji_proxy_user,
-                   ssl_certs_dir=self.koji_ssl_certs,
-                   krb_principal=self.koji_principal,
-                   krb_keytab=self.koji_keytab)
-        return session
+        auth_info = {
+            "proxyuser": self.koji_proxy_user,
+            "ssl_certs_dir": self.koji_ssl_certs,
+            "krb_principal": self.koji_principal,
+            "krb_keytab": self.koji_keytab
+        }
+        return create_koji_session(self.kojihub, auth_info)
 
     def run(self):
         """
@@ -620,4 +620,3 @@ class KojiPromotePlugin(ExitPlugin):
                        json.dumps(build_info, sort_keys=True, indent=4))
 
         return build_id
-

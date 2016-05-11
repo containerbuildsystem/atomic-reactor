@@ -25,7 +25,8 @@ except ImportError:
     del koji
     import koji
 
-from atomic_reactor.koji_util import koji_login, TaskWatcher
+from atomic_reactor.koji_util import koji_login, create_koji_session, TaskWatcher
+from atomic_reactor import koji_util
 import flexmock
 import pytest
 
@@ -34,7 +35,7 @@ class TestKojiLogin(object):
     @pytest.mark.parametrize('proxyuser', [None, 'proxy'])
     def test_koji_login_krb_keyring(self, proxyuser):
         session = flexmock()
-        expectation = session.should_receive('krb_login').once()
+        expectation = session.should_receive('krb_login').once().and_return(True)
         kwargs = {}
         if proxyuser is not None:
             expectation.with_args(proxyuser=proxyuser)
@@ -47,7 +48,7 @@ class TestKojiLogin(object):
     @pytest.mark.parametrize('proxyuser', [None, 'proxy'])
     def test_koji_login_krb_keytab(self, proxyuser):
         session = flexmock()
-        expectation = session.should_receive('krb_login').once()
+        expectation = session.should_receive('krb_login').once().and_return(True)
         principal = 'user'
         keytab = '/keytab'
         call_kwargs = {
@@ -68,7 +69,7 @@ class TestKojiLogin(object):
     @pytest.mark.parametrize('proxyuser', [None, 'proxy'])
     def test_koji_login_ssl(self, proxyuser):
         session = flexmock()
-        expectation = session.should_receive('ssl_login').once()
+        expectation = session.should_receive('ssl_login').once().and_return(True)
         call_kwargs = {
             'ssl_certs_dir': '/certs',
         }
@@ -80,6 +81,25 @@ class TestKojiLogin(object):
         expectation.with_args('/certs/cert', '/certs/ca', '/certs/serverca',
                               **exp_kwargs)
         koji_login(session, **call_kwargs)
+
+
+class TestCreateKojiSession(object):
+    def test_create_simple_session(self):
+        url = 'https://koji-hub-url.com'
+        session = flexmock()
+
+        (flexmock(koji_util.koji)
+            .should_receive('ClientSession').with_args(url).and_return(session))
+        assert create_koji_session(url) == session
+
+    def test_create_authenticated_session(self):
+        url = 'https://koji-hub-url.com'
+        session = flexmock()
+        session.should_receive('krb_login').once().and_return(True)
+
+        (flexmock(koji_util.koji)
+            .should_receive('ClientSession').with_args(url).and_return(session))
+        assert create_koji_session(url, {}) == session
 
 
 class TestTaskWatcher(object):
