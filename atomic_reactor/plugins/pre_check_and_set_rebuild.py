@@ -8,9 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
-import json
-import os
-
 from osbs.api import OSBS
 from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException
