@@ -59,8 +59,17 @@ class MockedPodResponse(object):
 
 
 class MockedClientSession(object):
-    def __init__(self, hub):
+    TAG_TASK_ID = 1234
+    DEST_TAG = 'images-candidate'
+
+    def __init__(self, hub, task_states=None):
         self.uploaded_files = []
+        self.build_tags = {}
+        self.task_states = task_states or ['FREE', 'ASSIGNED', 'CLOSED']
+
+        self.task_states = list(self.task_states)
+        self.task_states.reverse()
+        self.tag_task_state = self.task_states.pop()
 
     def krb_login(self, principal=None, keytab=None, proxyuser=None):
         return True
@@ -80,6 +89,32 @@ class MockedClientSession(object):
         self.metadata = metadata
         self.server_dir = server_dir
         return {"id": "123"}
+
+    def getBuildTarget(self, target):
+        return {'dest_tag_name': self.DEST_TAG}
+
+    def tagBuild(self, tag, build, force=False, fromtag=None):
+        self.build_tags[build] = tag
+        return self.TAG_TASK_ID
+
+    def getTaskInfo(self, task_id, request=False):
+        assert task_id == self.TAG_TASK_ID
+
+        # For extra code coverage, imagine Koji denies the task ever
+        # existed.
+        if self.tag_task_state is None:
+            return None
+
+        return {'state': koji.TASK_STATES[self.tag_task_state]}
+
+    def taskFinished(self, task_id):
+        try:
+            self.tag_task_state = self.task_states.pop()
+        except IndexError:
+            # No more state changes
+            pass
+
+        return self.tag_task_state in ['CLOSED', 'FAILED', 'CANCELED', None]
 
 
 FAKE_SIGMD5 = b'0' * 32
@@ -135,9 +170,10 @@ def is_string_type(obj):
 
 def mock_environment(tmpdir, session=None, name=None, version=None,
                      release=None, source=None, build_process_failed=False,
-                     is_rebuild=True, pulp_registries=0, blocksize=None):
+                     is_rebuild=True, pulp_registries=0, blocksize=None,
+                     task_states=None):
     if session is None:
-        session = MockedClientSession('')
+        session = MockedClientSession('', task_states=None)
     if source is None:
         source = GitSource('git', 'git://hostname/path')
 
@@ -217,7 +253,8 @@ def os_env(monkeypatch):
 
 
 def create_runner(tasker, workflow, ssl_certs=False, principal=None,
-                  keytab=None, metadata_only=False, blocksize=None):
+                  keytab=None, metadata_only=False, blocksize=None,
+                  target=None):
     args = {
         'kojihub': '',
         'url': '/',
@@ -236,6 +273,10 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
 
     if blocksize:
         args['blocksize'] = blocksize
+
+    if target:
+        args['target'] = target
+        args['poll_interval'] = 0
 
     runner = ExitPluginsRunner(tasker, workflow,
                                [
@@ -628,27 +669,51 @@ class TestKojiPromote(object):
                 digest_pullspec = image.to_str(tag=False) + '@' + fake_digest(image)
                 assert digest_pullspec in repositories_digest
 
+    @pytest.mark.parametrize('task_states', [
+        ['FREE', 'ASSIGNED', 'FAILED'],
+        ['CANCELED'],
+        [None],
+    ])
+    def test_koji_promote_tag_fail(self, tmpdir, task_states, os_env):
+        session = MockedClientSession('', task_states=task_states)
+        name = 'ns/name'
+        version = '1.0'
+        release = '1'
+        target = 'images-docker-candidate'
+        tasker, workflow = mock_environment(tmpdir,
+                                            name=name,
+                                            version=version,
+                                            release=release,
+                                            session=session)
+        runner = create_runner(tasker, workflow, target=target)
+        with pytest.raises(PluginFailedException):
+            runner.run()
+
     @pytest.mark.parametrize(('apis',
                               'pulp_registries',
                               'metadata_only',
-                              'blocksize'), [
+                              'blocksize',
+                              'target'), [
         ('v1-only',
          1,
          False,
-         None),
+         None,
+         'images-docker-candidate'),
 
         ('v1+v2',
          2,
          False,
-         10485760),
+         10485760,
+         None),
 
         ('v2-only',
          1,
          True,
+         None,
          None),
     ])
     def test_koji_promote_success(self, tmpdir, apis, pulp_registries,
-                                  metadata_only, blocksize, os_env):
+                                  metadata_only, blocksize, target, os_env):
         session = MockedClientSession('')
         name = 'ns/name'
         version = '1.0'
@@ -661,7 +726,7 @@ class TestKojiPromote(object):
                                             pulp_registries=pulp_registries,
                                             blocksize=blocksize)
         runner = create_runner(tasker, workflow, metadata_only=metadata_only,
-                               blocksize=blocksize)
+                               blocksize=blocksize, target=target)
         runner.run()
 
         data = session.metadata
@@ -754,7 +819,12 @@ class TestKojiPromote(object):
         if blocksize is not None:
             assert blocksize == session.blocksize
 
-        assert runner.plugins_results[KojiPromotePlugin.key] == "123"
+        build_id = runner.plugins_results[KojiPromotePlugin.key]
+        assert build_id == "123"
+
+        if target is not None:
+            assert session.build_tags[build_id] == session.DEST_TAG
+            assert session.tag_task_state == 'CLOSED'
 
     def test_koji_promote_without_build_info(self, tmpdir, os_env):
 
