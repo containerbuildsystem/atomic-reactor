@@ -24,7 +24,7 @@ from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.constants import PROG
 from atomic_reactor.util import get_version_of_tools, get_checksums, get_build_json
-from atomic_reactor.koji_util import create_koji_session
+from atomic_reactor.koji_util import create_koji_session, TaskWatcher
 from osbs.conf import Configuration
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
@@ -66,7 +66,8 @@ class KojiPromotePlugin(ExitPlugin):
                  verify_ssl=True, use_auth=True,
                  koji_ssl_certs=None, koji_proxy_user=None,
                  koji_principal=None, koji_keytab=None,
-                 metadata_only=False, blocksize=None):
+                 metadata_only=False, blocksize=None,
+                 target=None, poll_interval=5):
         """
         constructor
 
@@ -82,6 +83,8 @@ class KojiPromotePlugin(ExitPlugin):
         :param koji_keytab: str, keytab name (must specify principal)
         :param metadata_only: bool, whether to omit the 'docker save' image
         :param blocksize: int, blocksize to use for uploading files
+        :param target: str, koji target
+        :param poll_interval: int, seconds between Koji task status requests
         """
         super(KojiPromotePlugin, self).__init__(tasker, workflow)
 
@@ -92,6 +95,8 @@ class KojiPromotePlugin(ExitPlugin):
         self.koji_keytab = koji_keytab
         self.metadata_only = metadata_only
         self.blocksize = blocksize
+        self.target = target
+        self.poll_interval = poll_interval
 
         self.namespace = get_build_json().get('metadata', {}).get('namespace', None)
         osbs_conf = Configuration(conf_file=None, openshift_uri=url,
@@ -618,5 +623,18 @@ class KojiPromotePlugin(ExitPlugin):
                        json.dumps(koji_metadata, sort_keys=True, indent=4))
         self.log.debug("Build information: %s",
                        json.dumps(build_info, sort_keys=True, indent=4))
+
+        # Tag the build
+        if build_id is not None and self.target is not None:
+            self.log.debug("Finding build tag for target %s", self.target)
+            target_info = session.getBuildTarget(self.target)
+            build_tag = target_info['dest_tag_name']
+            self.log.info("Tagging build with %s", build_tag)
+            task_id = session.tagBuild(build_tag, build_id)
+            task = TaskWatcher(session, task_id,
+                               poll_interval=self.poll_interval)
+            task.wait()
+            if task.failed():
+                raise RuntimeError("Task %s failed to tag koji build" % task_id)
 
         return build_id
