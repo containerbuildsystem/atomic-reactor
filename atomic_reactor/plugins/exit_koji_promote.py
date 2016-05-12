@@ -17,7 +17,6 @@ import subprocess
 from tempfile import NamedTemporaryFile
 import time
 
-import koji
 from atomic_reactor import __version__ as atomic_reactor_version
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.source import GitSource
