@@ -8,8 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
-import json
-import os
 from time import sleep
 
 from osbs.api import OSBS
@@ -88,7 +86,7 @@ class ImportImagePlugin(PostBuildPlugin):
             retry_attempts = 3
             while True:
                 result = osbs.import_image(self.imagestream, **kwargs)
-                if result != False:
+                if result:
                     break
 
                 if retry_attempts > 0:
