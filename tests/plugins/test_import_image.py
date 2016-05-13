@@ -67,7 +67,7 @@ def prepare(insecure_registry=None, retry_delay=None, namespace=None):
             'verify_ssl': False,
             'use_auth': False,
             'insecure_registry': insecure_registry,
-            'retry_delay': retry_delay,
+            'retry_delay': retry_delay or 0,
         }}])
 
     return runner
@@ -155,7 +155,8 @@ def test_import_image(namespace, monkeypatch):
     (flexmock(OSBS)
      .should_receive('import_image')
      .once()
-     .with_args(TEST_IMAGESTREAM))
+     .with_args(TEST_IMAGESTREAM)
+     .and_return(True))
     runner.run()
 
 

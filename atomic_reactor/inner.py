@@ -13,7 +13,6 @@ import json
 import logging
 import tempfile
 import datetime
-import traceback
 
 from atomic_reactor.build import InsideBuilder
 from atomic_reactor.plugin import PostBuildPluginsRunner, PreBuildPluginsRunner, InputPluginsRunner, PrePublishPluginsRunner, \
