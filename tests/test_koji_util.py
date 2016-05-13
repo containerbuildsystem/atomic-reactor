@@ -102,6 +102,22 @@ class TestCreateKojiSession(object):
         assert create_koji_session(url, {}) == session
 
 
+class TestStreamTaskOutput(object):
+    def test_output_as_generator(self):
+        contents = 'this is the simulated file contents'
+
+        session = flexmock()
+        expectation = session.should_receive('downloadTaskOutput')
+
+        for chunk in contents:
+            expectation = expectation.and_return(chunk)
+        # Empty content to simulate end of stream.
+        expectation.and_return('')
+
+        streamer = koji_util.stream_task_output(session, 123, 'file.ext')
+        assert ''.join(list(streamer)) == contents
+
+
 class TestTaskWatcher(object):
     @pytest.mark.parametrize(('finished', 'info', 'exp_state', 'exp_failed'), [
         ([False, False, True],
