@@ -283,6 +283,7 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_sendmail.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/post_import_image.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_add_filesystem.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
@@ -297,6 +298,7 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 %files -n python-atomic-reactor-koji
 %{python2_sitelib}/atomic_reactor/koji_util.py*
+%{python2_sitelib}/atomic_reactor/plugins/pre_add_filesystem.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
 %{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
 
@@ -334,6 +336,7 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_sendmail.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/post_import_image.py
+%exclude %{python3_sitelib}/atomic_reactor/plugins/pre_add_filesystem.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_bump_release.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_koji.py
@@ -343,6 +346,7 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_store_metadata_in_osv3*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/post_import_image*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_bump_release*.py*
+%exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_add_filesystem*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_check_and_set_rebuild*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_stop_autorebuild_if_disabled*.py*
@@ -361,8 +365,10 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %files -n python3-atomic-reactor-koji
 %{python3_sitelib}/atomic_reactor/koji_util.py
 %{python3_sitelib}/atomic_reactor/__pycache__/koji_util*.py*
+%{python3_sitelib}/atomic_reactor/plugins/pre_add_filesystem.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_koji.py
 %{python3_sitelib}/atomic_reactor/plugins/exit_koji_promote.py
+%{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_add_filesystem*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_promote*.py*
 
@@ -386,6 +392,9 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 
 %changelog
+* Fri May 13 2016 Tim Waugh <twaugh@redhat.com>
+- New pre_add_filesystem plugin.
+
 * Fri May  6 2016 Tim Waugh <twaugh@redhat.com>
 - New koji_util module in koji package.
 
