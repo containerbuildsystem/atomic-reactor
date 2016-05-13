@@ -40,7 +40,7 @@ class KojiPlugin(PreBuildPlugin):
         """
         Check that the package with this nvr was not yet built
         """
-        nvr = self.workflow.nvr
+        nvr = getattr(self.workflow, "nvr", None)
         if nvr is None:
             self.log.info("NVR was not set")
             return

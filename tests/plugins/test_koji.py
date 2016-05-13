@@ -101,6 +101,7 @@ def prepare():
 
 class TestKoji(object):
     @pytest.mark.parametrize(('nvr', 'koji_build_exists'), [
+        (None, False),
         ("asd123-1.0-1", True),
         ("asd123-1.0-2", False),
     ])
