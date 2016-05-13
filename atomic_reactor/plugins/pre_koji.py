@@ -36,10 +36,30 @@ class KojiPlugin(PreBuildPlugin):
         self.pathinfo = koji.PathInfo(topdir=root)
         self.proxy = proxy
 
+    def _check_nvr(self):
+        """
+        Check that the package with this nvr was not yet built
+        """
+        nvr = self.workflow.nvr
+        if nvr is None:
+            self.log.info("NVR was not set")
+            return
+
+        self.log.info("Checking if package %s is already built" % nvr)
+        try:
+            build_info = self.xmlrpc.getBuild(nvr)
+            build_id = build_info['id']
+        except:
+            self.log.info("No build found")
+        else:
+            raise RuntimeError("Build for %s already exists, id %s" % (nvr, build_id))
+
     def run(self):
         """
         run the plugin
         """
+        self._check_nvr()
+
         target_info = self.xmlrpc.getBuildTarget(self.target)
         if target_info is None:
             self.log.error("provided target '%s' doesn't exist", self.target)
