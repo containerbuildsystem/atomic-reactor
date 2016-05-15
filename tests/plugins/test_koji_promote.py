@@ -168,8 +168,9 @@ def is_string_type(obj):
                for strtype in string_types)
 
 
-def mock_environment(tmpdir, session=None, name=None, version=None,
-                     release=None, source=None, build_process_failed=False,
+def mock_environment(tmpdir, session=None, name=None,
+                     component=None, version=None, release=None,
+                     source=None, build_process_failed=False,
                      is_rebuild=True, pulp_registries=0, blocksize=None,
                      task_states=None):
     if session is None:
@@ -191,6 +192,11 @@ def mock_environment(tmpdir, session=None, name=None, version=None,
     setattr(workflow.builder.source, 'dockerfile_path', None)
     setattr(workflow.builder.source, 'path', None)
     setattr(workflow, 'tag_conf', TagConf())
+    with open(os.path.join(str(tmpdir), 'Dockerfile'), 'wt') as df:
+        df.write('FROM base\n'
+                 'LABEL BZComponent={} com.redhat.component={}\n'
+                 .format(component, component))
+        setattr(workflow.builder, 'df_path', df.name)
     if name and version:
         workflow.tag_conf.add_unique_image('user/test-image:{v}-timestamp'
                                            .format(v=version))
@@ -715,12 +721,14 @@ class TestKojiPromote(object):
     def test_koji_promote_success(self, tmpdir, apis, pulp_registries,
                                   metadata_only, blocksize, target, os_env):
         session = MockedClientSession('')
+        component = 'component'
         name = 'ns/name'
         version = '1.0'
         release = '1'
         tasker, workflow = mock_environment(tmpdir,
                                             session=session,
                                             name=name,
+                                            component=component,
                                             version=version,
                                             release=release,
                                             pulp_registries=pulp_registries,
@@ -769,7 +777,7 @@ class TestKojiPromote(object):
             'metadata_only',  # only when True
         ]) - mdonly
 
-        assert build['name'] == name.replace('ns/', '')  # namespace not used
+        assert build['name'] == component
         assert build['version'] == version
         assert build['release'] == release
         assert build['source'] == 'git://hostname/path#123456'

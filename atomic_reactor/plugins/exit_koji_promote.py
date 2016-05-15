@@ -22,8 +22,10 @@ from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.constants import PROG
-from atomic_reactor.util import get_version_of_tools, get_checksums, get_build_json
+from atomic_reactor.util import (get_version_of_tools, get_checksums,
+                                 get_build_json, get_preferred_label)
 from atomic_reactor.koji_util import create_koji_session, TaskWatcher
+from dockerfile_parse import DockerfileParser
 from osbs.conf import Configuration
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
@@ -480,7 +482,8 @@ class KojiPromotePlugin(ExitPlugin):
             self.log.error("Invalid time format (%s)", build_start_time)
             raise
 
-        name = self.nvr_image.repo
+        labels = DockerfileParser(self.workflow.builder.df_path).labels
+        component = get_preferred_label(labels, 'com.redhat.component')
         version, release = self.nvr_image.tag.split('-', 1)
 
         source = self.workflow.source
@@ -488,7 +491,7 @@ class KojiPromotePlugin(ExitPlugin):
             raise RuntimeError('git source required')
 
         build = {
-            'name': name,
+            'name': component,
             'version': version,
             'release': release,
             'source': "{0}#{1}".format(source.uri, source.commit_id),
