@@ -194,8 +194,10 @@ def mock_environment(tmpdir, session=None, name=None,
     setattr(workflow, 'tag_conf', TagConf())
     with open(os.path.join(str(tmpdir), 'Dockerfile'), 'wt') as df:
         df.write('FROM base\n'
-                 'LABEL BZComponent={} com.redhat.component={}\n'
-                 .format(component, component))
+                 'LABEL BZComponent={component} com.redhat.component={component}\n'
+                 'LABEL Version={version} version={version}\n'
+                 'LABEL Release={release} release={release}\n'
+                 .format(component=component, version=version, release=release))
         setattr(workflow.builder, 'df_path', df.name)
     if name and version:
         workflow.tag_conf.add_unique_image('user/test-image:{v}-timestamp'

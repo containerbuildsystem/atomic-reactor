@@ -484,7 +484,8 @@ class KojiPromotePlugin(ExitPlugin):
 
         labels = DockerfileParser(self.workflow.builder.df_path).labels
         component = get_preferred_label(labels, 'com.redhat.component')
-        version, release = self.nvr_image.tag.split('-', 1)
+        version = get_preferred_label(labels, 'version')
+        release = get_preferred_label(labels, 'release')
 
         source = self.workflow.source
         if not isinstance(source, GitSource):
@@ -526,7 +527,7 @@ class KojiPromotePlugin(ExitPlugin):
                 self.nvr_image = image
                 break
         else:
-            raise RuntimeError('Unable to determine name-version-release')
+            raise RuntimeError('Unable to determine name:version-release')
 
         metadata_version = 0
 
