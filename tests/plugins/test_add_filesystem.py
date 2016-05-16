@@ -60,7 +60,8 @@ class MockSource(object):
 
 class X(object):
     image_id = "xxx"
-    base_image = ImageName(repo="qwe", tag="asd")
+    base_image = ImageName.parse("koji/image-build")
+    set_base_image = flexmock()
 
 
 def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,

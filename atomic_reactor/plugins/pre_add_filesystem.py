@@ -21,8 +21,6 @@ import os
 from atomic_reactor.constants import DEFAULT_DOWNLOAD_BLOCK_SIZE
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.koji_util import create_koji_session, TaskWatcher, stream_task_output
-from atomic_reactor.util import ImageName
-from dockerfile_parse import DockerfileParser
 
 
 class AddFilesystemPlugin(PreBuildPlugin):
@@ -192,13 +190,14 @@ class AddFilesystemPlugin(PreBuildPlugin):
         return result['status']
 
     def run(self):
-        dockerfile = DockerfileParser(self.workflow.builder.df_path)
-
-        image_name = ImageName.parse(dockerfile.baseimage)
-        if image_name.namespace != 'koji' or image_name.repo != 'image-build' :
-            self.log.info('Base image not supported: %s', dockerfile.baseimage)
+        base_image = self.workflow.builder.base_image
+        if base_image.namespace != 'koji' or base_image.repo != 'image-build':
+            self.log.info('Base image not supported: %s', base_image)
             return
-        image_build_conf = image_name.tag or 'image-build.conf'
+
+        image_build_conf = base_image.tag
+        if not image_build_conf or image_build_conf == 'latest':
+            image_build_conf = 'image-build.conf'
 
         self.session = create_koji_session(self.koji_hub, self.koji_auth_info)
 
@@ -212,7 +211,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
 
         filesystem = self.download_filesystem(task_id, filesystem_regex)
 
-        base_image = self.import_base_image(filesystem)
-        dockerfile.baseimage = base_image
+        new_base_image = self.import_base_image(filesystem)
+        self.workflow.builder.set_base_image(new_base_image)
 
-        return base_image
+        return new_base_image

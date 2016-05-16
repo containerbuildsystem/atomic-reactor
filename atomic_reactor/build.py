@@ -99,7 +99,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
 
         # get info about base image from dockerfile
         self.df_path, self.df_dir = self.source.get_dockerfile_path()
-        self.base_image = ImageName.parse(DockerfileParser(self.df_path).baseimage)
+        self.set_base_image(DockerfileParser(self.df_path).baseimage)
         logger.debug("base image specified in dockerfile = '%s'", self.base_image)
         if not self.base_image.tag:
             self.base_image.tag = 'latest'
@@ -128,6 +128,9 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
             self.image_id = self.built_image_info['Id']
         build_result = BuildResult(command_result, self.image_id)
         return build_result
+
+    def set_base_image(self, base_image):
+        self.base_image = ImageName.parse(base_image)
 
     def inspect_base_image(self):
         """
