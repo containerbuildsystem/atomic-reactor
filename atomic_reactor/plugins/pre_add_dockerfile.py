@@ -65,6 +65,7 @@ class AddDockerfilePlugin(PreBuildPlugin):
 
         self.use_final_dockerfile = use_final_dockerfile
 
+        self.workflow.nvr = nvr
         if nvr is None:
             labels = DockerfileParser(self.workflow.builder.df_path).labels
             name = get_preferred_label(labels, 'name')
@@ -74,6 +75,9 @@ class AddDockerfilePlugin(PreBuildPlugin):
                 raise ValueError("You have to specify either nvr arg or Name/Version/Release labels.")
             nvr = "{0}-{1}-{2}".format(name, version, release)
             nvr = nvr.replace("/", "-")
+
+            koji_nvr = "{0}-{1}-{2}".format(name.split('/')[-1], version, release)
+            self.workflow.nvr = koji_nvr
         self.df_name = '{0}-{1}'.format(DOCKERFILE_FILENAME, nvr)
         self.df_dir = destdir
         self.df_path = os.path.join(self.df_dir, self.df_name)

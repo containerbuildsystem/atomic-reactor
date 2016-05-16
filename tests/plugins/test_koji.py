@@ -27,7 +27,7 @@ except ImportError:
 from atomic_reactor.plugins.pre_koji import KojiPlugin
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PreBuildPluginsRunner
+from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.util import ImageName
 from flexmock import flexmock
 import pytest
@@ -64,6 +64,12 @@ class MockedClientSession(object):
     def getRepo(self, repo):
         return GET_REPO_RESPONSE
 
+    def getBuild(self, nvr):
+        if nvr == "asd123-1.0-1":
+            return {'id': '1234'}
+        else:
+            return {}
+
 
 class MockedPathInfo(object):
     def __init__(self, topdir=None):
@@ -94,6 +100,11 @@ def prepare():
 
 
 class TestKoji(object):
+    @pytest.mark.parametrize(('nvr', 'koji_build_exists'), [
+        (None, False),
+        ("asd123-1.0-1", True),
+        ("asd123-1.0-2", False),
+    ])
     @pytest.mark.parametrize(('root',
                               'koji_ssl_certs',
                               'expected_string',
@@ -141,8 +152,11 @@ class TestKoji(object):
 
     ])
     def test_koji_plugin(self, tmpdir, root, koji_ssl_certs,
-                         expected_string, expected_file, proxy):
+                         expected_string, expected_file, proxy,
+                         nvr, koji_build_exists):
         tasker, workflow = prepare()
+        setattr(workflow, 'nvr', nvr)
+
         args = {
             'target': KOJI_TARGET,
             'hub': '',
@@ -160,21 +174,26 @@ class TestKoji(object):
             'args': args,
         }])
 
-        runner.run()
-        repofile = '/etc/yum.repos.d/target.repo'
-        assert repofile in workflow.files
-        content = workflow.files[repofile]
-        assert content.startswith("[atomic-reactor-koji-plugin-target]\n")
-        assert "gpgcheck=0\n" in content
-        assert "enabled=1\n" in content
-        assert "name=atomic-reactor-koji-plugin-target\n" in content
-        assert "baseurl=%s/repos/tag/2/$basearch\n" % root in content
+        if koji_build_exists:
+            with pytest.raises(PluginFailedException):
+                runner.run()
+        else:
+            runner.run()
 
-        if proxy:
-            assert "proxy=%s" % proxy in content
+            repofile = '/etc/yum.repos.d/target.repo'
+            assert repofile in workflow.files
+            content = workflow.files[repofile]
+            assert content.startswith("[atomic-reactor-koji-plugin-target]\n")
+            assert "gpgcheck=0\n" in content
+            assert "enabled=1\n" in content
+            assert "name=atomic-reactor-koji-plugin-target\n" in content
+            assert "baseurl=%s/repos/tag/2/$basearch\n" % root in content
 
-        if expected_string:
-            assert expected_string in content
+            if proxy:
+                assert "proxy=%s" % proxy in content
 
-        if expected_file:
-            assert expected_file in workflow.files
+            if expected_string:
+                assert expected_string in content
+
+            if expected_file:
+                assert expected_file in workflow.files
