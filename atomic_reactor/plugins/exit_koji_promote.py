@@ -41,7 +41,7 @@ class KojiUploadLogger(object):
         self.uploaded = 0
         self.last_percent_done = 0
 
-    def callback(self, offset, totalsize, size, t1, t2):
+    def callback(self, offset, totalsize, size, t1, t2): # pylint: disable=W0613
         if not totalsize or not t1:
             return
 
