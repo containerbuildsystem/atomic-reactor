@@ -28,7 +28,8 @@ except ImportError:
     import koji
 
 from atomic_reactor.core import DockerTasker
-from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
+from atomic_reactor.plugins.exit_koji_promote import (KojiUploadLogger,
+                                                      KojiPromotePlugin)
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
@@ -295,6 +296,40 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
                                ])
 
     return runner
+
+
+class TestKojiUploadLogger(object):
+    @pytest.mark.parametrize('totalsize', [0, 1024])
+    def test_with_zero(self, totalsize):
+        logger = flexmock()
+        logger.should_receive('debug').never()
+        upload_logger = KojiUploadLogger(logger)
+        upload_logger.callback(0, totalsize, 0, 0, 0)
+
+    @pytest.mark.parametrize(('totalsize', 'step', 'expected_times'), [
+        (10, 1, 11),
+        (12, 1, 7),
+        (12, 3, 5),
+    ])
+    def test_with_defaults(self, totalsize, step, expected_times):
+        logger = flexmock()
+        logger.should_receive('debug').times(expected_times)
+        upload_logger = KojiUploadLogger(logger)
+        for offset in range(0, totalsize + step, step):
+            upload_logger.callback(offset, totalsize, step, 1, 1)
+
+    @pytest.mark.parametrize(('totalsize', 'step', 'notable', 'expected_times'), [
+        (10, 1, 10, 11),
+        (10, 1, 20, 6),
+        (10, 1, 25, 5),
+        (12, 3, 25, 5),
+    ])
+    def test_with_notable(self, totalsize, step, notable, expected_times):
+        logger = flexmock()
+        logger.should_receive('debug').times(expected_times)
+        upload_logger = KojiUploadLogger(logger, notable_percent=notable)
+        for offset in range(0, totalsize + step, step):
+            upload_logger.callback(offset, totalsize, step, 1, 1)
 
 
 class TestKojiPromote(object):
