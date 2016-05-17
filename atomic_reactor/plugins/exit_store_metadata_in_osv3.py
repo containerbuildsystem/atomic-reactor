@@ -168,7 +168,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             "commit_id": commit_id,
             "base-image-id": base_image_id,
             "base-image-name": self.workflow.builder.base_image.to_str(),
-            "image-id": self.workflow.builder.image_id,
+            "image-id": self.workflow.builder.image_id or '',
             "digests": json.dumps(self.get_pullspecs(self.get_digests())),
             "plugins-metadata": json.dumps(self.get_plugin_metadata())
         }
