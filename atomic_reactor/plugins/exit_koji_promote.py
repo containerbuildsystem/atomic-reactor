@@ -491,6 +491,13 @@ class KojiPromotePlugin(ExitPlugin):
         if not isinstance(source, GitSource):
             raise RuntimeError('git source required')
 
+        extra = {}
+        koji_task_id = metadata.get('labels', {}).get('koji-task-id')
+        if koji_task_id is not None:
+            self.log.info("build configuration created by Koji Task ID %s",
+                          koji_task_id)
+            extra['koji_task_id'] = koji_task_id
+
         build = {
             'name': component,
             'version': version,
@@ -498,9 +505,7 @@ class KojiPromotePlugin(ExitPlugin):
             'source': "{0}#{1}".format(source.uri, source.commit_id),
             'start_time': start_time,
             'end_time': int(time.time()),
-            'extra': {
-                'image': {},
-            },
+            'extra': extra,
         }
 
         if self.metadata_only:

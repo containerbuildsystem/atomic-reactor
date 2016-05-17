@@ -370,6 +370,43 @@ class TestKojiPromote(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
+    def test_koji_promote_log_task_id(self, tmpdir, monkeypatch, os_env,
+                                      caplog):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1')
+        runner = create_runner(tasker, workflow)
+
+        koji_task_id = '12345'
+        monkeypatch.setenv("BUILD", json.dumps({
+            'metadata': {
+                'creationTimestamp': '2015-07-27T09:24:00Z',
+                'namespace': NAMESPACE,
+                'name': BUILD_ID,
+                'labels': {
+                    'koji-task-id': koji_task_id,
+                },
+            }
+        }))
+        runner.run()
+
+        assert "Koji Task ID {}".format(koji_task_id) in caplog.text()
+
+        metadata = session.metadata
+        assert 'build' in metadata
+        build = metadata['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
+        assert 'koji_task_id' in extra
+        extra_koji_task_id = extra['koji_task_id']
+        assert is_string_type(extra_koji_task_id)
+        assert extra_koji_task_id == koji_task_id
+
     @pytest.mark.parametrize('params', [
         {
             'should_raise': False,
@@ -775,7 +812,7 @@ class TestKojiPromote(object):
             'source',
             'start_time',
             'end_time',
-            'extra',
+            'extra',          # optional but always supplied
             'metadata_only',  # only when True
         ]) - mdonly
 
