@@ -380,20 +380,20 @@ class TestKojiPromote(object):
                                             release='1')
         runner = create_runner(tasker, workflow)
 
-        kojitask = '12345'
+        koji_task_id = '12345'
         monkeypatch.setenv("BUILD", json.dumps({
             'metadata': {
                 'creationTimestamp': '2015-07-27T09:24:00Z',
                 'namespace': NAMESPACE,
                 'name': BUILD_ID,
                 'labels': {
-                    'kojitask': kojitask,
+                    'koji-task-id': koji_task_id,
                 },
             }
         }))
         runner.run()
 
-        assert "Koji Task ID {}".format(kojitask) in caplog.text()
+        assert "Koji Task ID {}".format(koji_task_id) in caplog.text()
 
         metadata = session.metadata
         assert 'build' in metadata
@@ -403,9 +403,9 @@ class TestKojiPromote(object):
         extra = build['extra']
         assert isinstance(extra, dict)
         assert 'koji_task_id' in extra
-        koji_task_id = extra['koji_task_id']
-        assert is_string_type(koji_task_id)
-        assert koji_task_id == kojitask
+        extra_koji_task_id = extra['koji_task_id']
+        assert is_string_type(extra_koji_task_id)
+        assert extra_koji_task_id == koji_task_id
 
     @pytest.mark.parametrize('params', [
         {
