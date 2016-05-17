@@ -496,7 +496,7 @@ class KojiPromotePlugin(ExitPlugin):
         if kojitask is not None:
             self.log.info("build configuration created by Koji Task ID %s",
                           kojitask)
-            extra['originating_koji_task_id'] = kojitask
+            extra['koji_task_id'] = kojitask
 
         build = {
             'name': component,

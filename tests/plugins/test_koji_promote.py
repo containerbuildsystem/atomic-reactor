@@ -402,8 +402,8 @@ class TestKojiPromote(object):
         assert 'extra' in build
         extra = build['extra']
         assert isinstance(extra, dict)
-        assert 'originating_koji_task_id' in extra
-        koji_task_id = extra['originating_koji_task_id']
+        assert 'koji_task_id' in extra
+        koji_task_id = extra['koji_task_id']
         assert is_string_type(koji_task_id)
         assert koji_task_id == kojitask
 
