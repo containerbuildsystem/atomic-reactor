@@ -45,6 +45,9 @@ class KojiUploadLogger(object):
         if not totalsize or not t1:
             return
 
+        if self.uploaded == 0:
+            self.logger.debug("upload size: %dMiB", totalsize / 1024 / 1024)
+
         self.uploaded += size
         percent_done = 100 * self.uploaded / totalsize
         if (percent_done >= 99 or

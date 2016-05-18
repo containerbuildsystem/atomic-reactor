@@ -307,9 +307,9 @@ class TestKojiUploadLogger(object):
         upload_logger.callback(0, totalsize, 0, 0, 0)
 
     @pytest.mark.parametrize(('totalsize', 'step', 'expected_times'), [
-        (10, 1, 11),
-        (12, 1, 7),
-        (12, 3, 5),
+        (10, 1, 12),
+        (12, 1, 8),
+        (12, 3, 6),
     ])
     def test_with_defaults(self, totalsize, step, expected_times):
         logger = flexmock()
@@ -319,10 +319,10 @@ class TestKojiUploadLogger(object):
             upload_logger.callback(offset, totalsize, step, 1, 1)
 
     @pytest.mark.parametrize(('totalsize', 'step', 'notable', 'expected_times'), [
-        (10, 1, 10, 11),
-        (10, 1, 20, 6),
-        (10, 1, 25, 5),
-        (12, 3, 25, 5),
+        (10, 1, 10, 12),
+        (10, 1, 20, 7),
+        (10, 1, 25, 6),
+        (12, 3, 25, 6),
     ])
     def test_with_notable(self, totalsize, step, notable, expected_times):
         logger = flexmock()
