@@ -659,12 +659,15 @@ class KojiPromotePlugin(ExitPlugin):
                 if output.file:
                     output.file.close()
 
-        build_info = session.CGImport(koji_metadata, server_dir)
+        try:
+            build_info = session.CGImport(koji_metadata, server_dir)
+        except Exception:
+            self.log.debug("metadata: %r", koji_metadata)
+            raise
+
         # Older versions of CGImport do not return a value.
         build_id = build_info.get("id") if build_info else None
 
-        self.log.debug("Submitted with metadata: %s",
-                       json.dumps(koji_metadata, sort_keys=True, indent=4))
         self.log.debug("Build information: %s",
                        json.dumps(build_info, sort_keys=True, indent=4))
 
