@@ -128,6 +128,7 @@ class KojiPromotePlugin(ExitPlugin):
                                   namespace=self.namespace)
         self.osbs = OSBS(osbs_conf, osbs_conf)
         self.build_id = None
+        self.nvr_image = None
 
     @staticmethod
     def parse_rpm_output(output, tags, separator=';'):
@@ -435,7 +436,7 @@ class KojiPromotePlugin(ExitPlugin):
             image.registry = registry.uri
             pullspec = image.to_str()
 
-            output_images.append(image.to_str())
+            output_images.append(pullspec)
 
             digest = digests.get(image.to_str(registry=False))
             if digest:
