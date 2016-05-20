@@ -38,23 +38,21 @@ class KojiUploadLogger(object):
     def __init__(self, logger, notable_percent=10):
         self.logger = logger
         self.notable_percent = notable_percent
-        self.uploaded = 0
         self.last_percent_done = 0
 
     def callback(self, offset, totalsize, size, t1, t2): # pylint: disable=W0613
+        if offset == 0:
+            self.logger.debug("upload size: %.1fMiB", totalsize / 1024.0 / 1024)
+
         if not totalsize or not t1:
             return
 
-        if self.uploaded == 0:
-            self.logger.debug("upload size: %dMiB", totalsize / 1024 / 1024)
-
-        self.uploaded += size
-        percent_done = 100 * self.uploaded / totalsize
+        percent_done = 100 * offset / totalsize
         if (percent_done >= 99 or
                 percent_done - self.last_percent_done >= self.notable_percent):
             self.last_percent_done = percent_done
-            self.logger.debug("upload: %d%% done (%f kbytes/sec)",
-                              percent_done, size / t1 / 1024)
+            self.logger.debug("upload: %d%% done (%.1f MiB/sec)",
+                              percent_done, size / t1 / 1024 / 1024)
 
 
 class KojiPromotePlugin(ExitPlugin):
@@ -586,6 +584,7 @@ class KojiPromotePlugin(ExitPlugin):
         kwargs = {}
         if self.blocksize is not None:
             kwargs['blocksize'] = self.blocksize
+            self.log.debug("using blocksize %d", self.blocksize)
 
         upload_logger = KojiUploadLogger(self.log)
         session.uploadWrapper(output.file.name, serverdir, name=name,
