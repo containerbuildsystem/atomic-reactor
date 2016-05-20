@@ -20,6 +20,8 @@ try:
 except (ImportError, SyntaxError):
     dockpulp = None
 
+import subprocess
+
 import pytest
 from flexmock import flexmock
 from tests.constants import INPUT_IMAGE, SOURCE, MOCK
@@ -34,7 +36,7 @@ class X(object):
     base_image = ImageName(repo="qwe", tag="asd")
 
 
-def prepare(check_repo_retval=0):
+def prepare(check_repo_retval=0, existing_layers=[], subprocess_exceptions=False):
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
@@ -74,7 +76,7 @@ def prepare(check_repo_retval=0):
      .should_receive('createRepo'))
     (flexmock(dockpulp.Pulp)
      .should_receive('upload')
-     .with_args(unicode))
+     .with_args(unicode)).at_most().once()
     (flexmock(dockpulp.Pulp)
      .should_receive('copy')
      .with_args(unicode, unicode))
@@ -92,8 +94,51 @@ def prepare(check_repo_retval=0):
     (flexmock(dockpulp.Pulp)
      .should_receive('watch_tasks')
      .with_args(list))
+    if existing_layers is not None:
+        (flexmock(dockpulp.Pulp).should_receive('getImageIdsExist')
+         .with_args(list)
+         .and_return(existing_layers))
+    if subprocess_exceptions:
+        (flexmock(subprocess)
+         .should_receive("check_call")
+         .and_raise(Exception))
+
     mock_docker()
     return tasker, workflow
+
+
+@pytest.mark.skipif(dockpulp is None,
+                    reason='dockpulp module not available')
+@pytest.mark.parametrize(("existing_layers", "should_raise", "subprocess_exceptions"), [
+    (None, True, False),               # mock dockpulp without getImageIdsExist method
+    ([], True, False),                 # this will trigger remove dedup layers and pass
+    (['no-such-layer'], True, False),  # no such layer - tar command will fail
+    ([], True, True),                  # all subprocess.check_call will fail
+])
+def test_pulp_dedup_layers(
+        tmpdir, existing_layers, should_raise, monkeypatch, subprocess_exceptions):
+    tasker, workflow = prepare(
+        check_repo_retval=0,
+        existing_layers=existing_layers,
+        subprocess_exceptions=subprocess_exceptions)
+    monkeypatch.setenv('SOURCE_SECRET_PATH', str(tmpdir))
+    with open(os.path.join(str(tmpdir), "pulp.cer"), "wt") as cer:
+        cer.write("pulp certificate\n")
+    with open(os.path.join(str(tmpdir), "pulp.key"), "wt") as key:
+        key.write("pulp key\n")
+
+    runner = PostBuildPluginsRunner(tasker, workflow, [{
+        'name': PulpPushPlugin.key,
+        'args': {
+            'pulp_registry_name': 'test'
+        }}])
+
+    runner.run()
+    assert PulpPushPlugin.key is not None
+    images = [i.to_str() for i in workflow.postbuild_results[PulpPushPlugin.key]]
+    assert "registry.example.com/image-name1:latest" in images
+    assert "registry.example.com/prefix/image-name2:latest" in images
+    assert "registry.example.com/image-name3:asd" in images
 
 
 @pytest.mark.skipif(dockpulp is None,
