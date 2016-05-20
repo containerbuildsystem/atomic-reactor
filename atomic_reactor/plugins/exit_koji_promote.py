@@ -513,7 +513,7 @@ class KojiPromotePlugin(ExitPlugin):
         if not isinstance(source, GitSource):
             raise RuntimeError('git source required')
 
-        extra = {}
+        extra = {'image': {}}
         koji_task_id = metadata.get('labels', {}).get('koji-task-id')
         if koji_task_id is not None:
             self.log.info("build configuration created by Koji Task ID %s",
