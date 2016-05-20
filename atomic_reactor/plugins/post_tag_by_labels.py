@@ -7,6 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from atomic_reactor.plugin import PostBuildPlugin
+from atomic_reactor.constants import INSPECT_CONFIG
 
 
 __all__ = ('TagByLabelsPlugin', )
@@ -37,12 +38,12 @@ class TagByLabelsPlugin(PostBuildPlugin):
         if not self.workflow.built_image_inspect:
             raise RuntimeError("There are no inspect data of built image. "
                                "Have the build succeeded?")
-        if "Labels" not in self.workflow.built_image_inspect["ContainerConfig"]:
+        if "Labels" not in self.workflow.built_image_inspect[INSPECT_CONFIG]:
             raise RuntimeError("No labels specified.")
 
         def get_label(label_name):
             try:
-                return self.workflow.built_image_inspect["ContainerConfig"]["Labels"][label_name]
+                return self.workflow.built_image_inspect[INSPECT_CONFIG]["Labels"][label_name]
             except KeyError:
                 raise RuntimeError("Missing label '%s'." % label_name)
 

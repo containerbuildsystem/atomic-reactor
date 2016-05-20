@@ -14,6 +14,7 @@ from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
 from atomic_reactor.plugins.post_tag_by_labels import TagByLabelsPlugin
 from atomic_reactor.util import ImageName
+from atomic_reactor.constants import INSPECT_CONFIG
 from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE, MOCK
 
 if MOCK:
@@ -42,7 +43,7 @@ def test_tag_by_labels_plugin(tmpdir):
     version = "1.0"
     release = "1"
     workflow.built_image_inspect = {
-        "ContainerConfig": {
+        INSPECT_CONFIG: {
             "Labels": {
                 "Name": TEST_IMAGE,
                 "Version": version,
