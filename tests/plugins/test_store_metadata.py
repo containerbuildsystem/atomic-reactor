@@ -48,7 +48,7 @@ class X(object):
 
 
 def prepare():
-    def set_annotations_on_build(build_id, labels):
+    def set_annotations_on_build(build_id, annotations):
         pass
     def update_labels_on_build(build_id, labels):
         pass
@@ -130,31 +130,31 @@ def test_metadata_plugin(tmpdir):
     )
     output = runner.run()
     assert StoreMetadataInOSv3Plugin.key in output
-    labels = output[StoreMetadataInOSv3Plugin.key]["annotations"]
-    assert "dockerfile" in labels
-    assert is_string_type(labels['dockerfile'])
-    assert "artefacts" in labels
-    assert is_string_type(labels['artefacts'])
-    assert "logs" in labels
-    assert is_string_type(labels['logs'])
-    assert labels['logs'] == ''
-    assert "rpm-packages" in labels
-    assert is_string_type(labels['rpm-packages'])
-    assert labels['rpm-packages'] == ''
-    assert "repositories" in labels
-    assert is_string_type(labels['repositories'])
-    assert "commit_id" in labels
-    assert is_string_type(labels['commit_id'])
-    assert "base-image-id" in labels
-    assert is_string_type(labels['base-image-id'])
-    assert "base-image-name" in labels
-    assert is_string_type(labels['base-image-name'])
-    assert "image-id" in labels
-    assert is_string_type(labels['image-id'])
+    annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
+    assert "dockerfile" in annotations
+    assert is_string_type(annotations['dockerfile'])
+    assert "artefacts" in annotations
+    assert is_string_type(annotations['artefacts'])
+    assert "logs" in annotations
+    assert is_string_type(annotations['logs'])
+    assert annotations['logs'] == ''
+    assert "rpm-packages" in annotations
+    assert is_string_type(annotations['rpm-packages'])
+    assert annotations['rpm-packages'] == ''
+    assert "repositories" in annotations
+    assert is_string_type(annotations['repositories'])
+    assert "commit_id" in annotations
+    assert is_string_type(annotations['commit_id'])
+    assert "base-image-id" in annotations
+    assert is_string_type(annotations['base-image-id'])
+    assert "base-image-name" in annotations
+    assert is_string_type(annotations['base-image-name'])
+    assert "image-id" in annotations
+    assert is_string_type(annotations['image-id'])
 
-    assert "digests" in labels
-    assert is_string_type(labels['digests'])
-    digests = json.loads(labels['digests'])
+    assert "digests" in annotations
+    assert is_string_type(annotations['digests'])
+    digests = json.loads(annotations['digests'])
     expected = [{
         "registry": LOCALHOST_REGISTRY,
         "repository": TEST_IMAGE,
@@ -168,12 +168,12 @@ def test_metadata_plugin(tmpdir):
     }]
     assert digests == expected or digests == reversed(expected)
 
-    assert "plugins-metadata" in labels
-    assert "errors" in labels["plugins-metadata"]
-    assert "durations" in labels["plugins-metadata"]
-    assert "timestamps" in labels["plugins-metadata"]
+    assert "plugins-metadata" in annotations
+    assert "errors" in annotations["plugins-metadata"]
+    assert "durations" in annotations["plugins-metadata"]
+    assert "timestamps" in annotations["plugins-metadata"]
 
-    plugins_metadata = json.loads(labels["plugins-metadata"])
+    plugins_metadata = json.loads(annotations["plugins-metadata"])
     assert "distgit_fetch_artefacts" in plugins_metadata["errors"]
 
     assert "cp_dockerfile" in plugins_metadata["durations"]
@@ -218,26 +218,26 @@ def test_metadata_plugin_rpmqa_failure(tmpdir):
     )
     output = runner.run()
     assert StoreMetadataInOSv3Plugin.key in output
-    labels = output[StoreMetadataInOSv3Plugin.key]["annotations"]
-    assert "dockerfile" in labels
-    assert "artefacts" in labels
-    assert "logs" in labels
-    assert "rpm-packages" in labels
-    assert "repositories" in labels
-    assert "commit_id" in labels
-    assert "base-image-id" in labels
-    assert "base-image-name" in labels
-    assert "image-id" in labels
+    annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
+    assert "dockerfile" in annotations
+    assert "artefacts" in annotations
+    assert "logs" in annotations
+    assert "rpm-packages" in annotations
+    assert "repositories" in annotations
+    assert "commit_id" in annotations
+    assert "base-image-id" in annotations
+    assert "base-image-name" in annotations
+    assert "image-id" in annotations
 
     # On rpmqa failure, rpm-packages should be empty
-    assert len(labels["rpm-packages"]) == 0
+    assert len(annotations["rpm-packages"]) == 0
 
-    assert "plugins-metadata" in labels
-    assert "errors" in labels["plugins-metadata"]
-    assert "durations" in labels["plugins-metadata"]
-    assert "timestamps" in labels["plugins-metadata"]
+    assert "plugins-metadata" in annotations
+    assert "errors" in annotations["plugins-metadata"]
+    assert "durations" in annotations["plugins-metadata"]
+    assert "timestamps" in annotations["plugins-metadata"]
 
-    plugins_metadata = json.loads(labels["plugins-metadata"])
+    plugins_metadata = json.loads(annotations["plugins-metadata"])
     assert "all_rpm_packages" in plugins_metadata["errors"]
 
     assert "cp_dockerfile" in plugins_metadata["durations"]
