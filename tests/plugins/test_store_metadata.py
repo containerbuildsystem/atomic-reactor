@@ -14,6 +14,22 @@ import time
 from datetime import datetime, timedelta
 from copy import deepcopy
 
+try:
+    import koji as koji
+except ImportError:
+    import inspect
+    import os
+    import sys
+
+    # Find our mocked koji module
+    import tests.koji as koji
+    mock_koji_path = os.path.dirname(inspect.getfile(koji.ClientSession))
+    if mock_koji_path not in sys.path:
+        sys.path.append(os.path.dirname(mock_koji_path))
+finally:
+    del koji
+    from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
+
 from flexmock import flexmock
 from osbs.api import OSBS
 import osbs.conf
@@ -22,7 +38,6 @@ from atomic_reactor.plugin import ExitPluginsRunner
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
-from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 from atomic_reactor.plugins.pre_cp_dockerfile import CpDockerfilePlugin
 from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
 from atomic_reactor.util import ImageName, LazyGit
