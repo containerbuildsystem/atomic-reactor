@@ -214,4 +214,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         new_base_image = self.import_base_image(filesystem)
         self.workflow.builder.set_base_image(new_base_image)
 
-        return new_base_image
+        return {
+            'base-image-id': new_base_image,
+            'filesystem-koji-task-id': task_id,
+        }

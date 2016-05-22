@@ -21,6 +21,7 @@ from atomic_reactor import __version__ as atomic_reactor_version
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
+from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.constants import PROG
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json, get_preferred_label)
@@ -519,6 +520,16 @@ class KojiPromotePlugin(ExitPlugin):
             self.log.info("build configuration created by Koji Task ID %s",
                           koji_task_id)
             extra['container_koji_task_id'] = koji_task_id
+
+        fs_result = self.workflow.prebuild_results.get(AddFilesystemPlugin.key)
+        if fs_result is not None:
+            try:
+                task_id = fs_result['filesystem-koji-task-id']
+            except KeyError:
+                self.log.error("%s: expected filesystem-koji-task-id in result",
+                               AddFilesystemPlugin.key)
+            else:
+                extra['filesystem_koji_task_id'] = str(task_id)
 
         build = {
             'name': component,
