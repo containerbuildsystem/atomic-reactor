@@ -13,6 +13,7 @@ import docker
 
 from osbs.api import OSBS
 from osbs.conf import Configuration
+from osbs.exceptions import OsbsResponseException
 
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.plugins.pre_return_dockerfile import CpDockerfilePlugin
@@ -188,10 +189,18 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
                 "sha256sum": tar_sha256sum,
                 "filename": os.path.basename(tar_path),
             })
-        osbs.set_annotations_on_build(build_id, annotations)
+        try:
+            osbs.set_annotations_on_build(build_id, annotations)
+        except OsbsResponseException:
+            self.log.debug("annotations: %r", annotations)
+            raise
 
         labels = self.make_labels()
         if labels:
-            osbs.update_labels_on_build(build_id, labels)
+            try:
+                osbs.update_labels_on_build(build_id, labels)
+            except OsbsResponseException:
+                self.log.debug("labels: %r", labels)
+                raise
 
         return {"annotations": annotations, "labels": labels}
