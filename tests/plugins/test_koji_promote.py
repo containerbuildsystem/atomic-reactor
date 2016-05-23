@@ -32,6 +32,7 @@ from atomic_reactor.plugins.exit_koji_promote import (KojiUploadLogger,
                                                       KojiPromotePlugin)
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
+from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
 from atomic_reactor.util import ImageName
@@ -769,6 +770,58 @@ class TestKojiPromote(object):
         runner = create_runner(tasker, workflow, target=target)
         with pytest.raises(PluginFailedException):
             runner.run()
+
+    def test_koji_promote_filesystem_koji_task_id(self, tmpdir, os_env):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            session=session)
+        task_id = 1234
+        workflow.prebuild_results[AddFilesystemPlugin.key] = {
+            'base-image-id': 'abcd',
+            'filesystem-koji-task-id': task_id,
+        }
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
+        assert 'filesystem_koji_task_id' in extra
+        filesystem_koji_task_id = extra['filesystem_koji_task_id']
+        assert is_string_type(filesystem_koji_task_id)
+        assert filesystem_koji_task_id == str(task_id)
+
+    def test_koji_promote_filesystem_koji_task_id_missing(self, tmpdir, os_env,
+                                                          caplog):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            session=session)
+        task_id = 1234
+        workflow.prebuild_results[AddFilesystemPlugin.key] = {
+            'base-image-id': 'abcd',
+        }
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
+        assert 'filesystem_koji_task_id' not in extra
+        assert AddFilesystemPlugin.key in caplog.text()
 
     @pytest.mark.parametrize(('apis',
                               'pulp_registries',

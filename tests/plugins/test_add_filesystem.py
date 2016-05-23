@@ -172,7 +172,10 @@ def test_add_filesystem_plugin_generated(tmpdir, docker_tasker):
     )
 
     results = runner.run()
-    assert results[AddFilesystemPlugin.key] == IMPORTED_IMAGE_ID
+    plugin_result = results[AddFilesystemPlugin.key]
+    assert 'base-image-id' in plugin_result
+    assert plugin_result['base-image-id'] == IMPORTED_IMAGE_ID
+    assert 'filesystem-koji-task-id' in plugin_result
 
 
 @pytest.mark.parametrize(('base_image', 'type_match'), [
