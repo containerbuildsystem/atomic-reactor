@@ -751,6 +751,26 @@ class TestKojiPromote(object):
                 digest_pullspec = image.to_str(tag=False) + '@' + fake_digest(image)
                 assert digest_pullspec in repositories_digest
 
+    def test_koji_promote_import_fail(self, tmpdir, os_env, caplog):
+        session = MockedClientSession('')
+        (flexmock(session)
+            .should_receive('CGImport')
+            .and_raise(RuntimeError))
+        name = 'ns/name'
+        version = '1.0'
+        release = '1'
+        target = 'images-docker-candidate'
+        tasker, workflow = mock_environment(tmpdir,
+                                            name=name,
+                                            version=version,
+                                            release=release,
+                                            session=session)
+        runner = create_runner(tasker, workflow, target=target)
+        with pytest.raises(PluginFailedException):
+            runner.run()
+
+        assert 'metadata:' in caplog.text()
+
     @pytest.mark.parametrize('task_states', [
         ['FREE', 'ASSIGNED', 'FAILED'],
         ['CANCELED'],
