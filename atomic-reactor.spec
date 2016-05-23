@@ -31,7 +31,7 @@
 %global dock_obsolete_vr 1.3.7-2
 
 Name:           %{project}
-Version:        1.6.7
+Version:        1.6.8
 Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
@@ -392,11 +392,10 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 
 %changelog
-* Fri May 13 2016 Tim Waugh <twaugh@redhat.com>
-- New pre_add_filesystem plugin.
-
-* Fri May  6 2016 Tim Waugh <twaugh@redhat.com>
-- New koji_util module in koji package.
+* Mon May 23 2016 Martin Milata <mmilata@redhat.com> - 1.6.8-1
+- New pre_add_filesystem plugin. (Tim Waugh <twaugh@redhat.com>)
+- New koji_util module in koji package. (Tim Waugh <twaugh@redhat.com>)
+- 1.6.8 release
 
 * Fri Apr 22 2016 Martin Milata <mmilata@redhat.com> - 1.6.7-1
 - 1.6.7 release
