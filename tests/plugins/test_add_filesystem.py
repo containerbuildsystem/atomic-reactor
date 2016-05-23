@@ -85,11 +85,11 @@ def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
         'krb_principal': koji_krb_principal,
         'krb_keytab': koji_krb_keytab,
     }
+    session.should_receive('krb_login').and_return(True)
 
-    (flexmock(koji_util)
-        .should_receive('create_koji_session')
+    (flexmock(koji)
+        .should_receive('ClientSession')
         .once()
-        .with_args(KOJI_HUB, koji_auth_info)
         .and_return(session))
 
 
