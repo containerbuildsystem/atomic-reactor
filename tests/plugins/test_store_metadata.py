@@ -33,6 +33,7 @@ finally:
 from flexmock import flexmock
 from osbs.api import OSBS
 import osbs.conf
+from osbs.exceptions import OsbsResponseException
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import ExitPluginsRunner
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
@@ -305,3 +306,48 @@ def test_missing_koji_build_id(tmpdir):
     labels = output[StoreMetadataInOSv3Plugin.key]["labels"]
     assert "koji-build-id" not in labels
 
+
+def test_store_metadata_fail_update_annotations(tmpdir, caplog):
+    workflow = prepare()
+
+    workflow.exit_results = {}
+
+    runner = ExitPluginsRunner(
+        None,
+        workflow,
+        [{
+            'name': StoreMetadataInOSv3Plugin.key,
+            "args": {
+                "url": "http://example.com/"
+            }
+        }]
+    )
+    (flexmock(OSBS)
+        .should_receive('set_annotations_on_build')
+        .and_raise(OsbsResponseException('/', 'failed', 0)))
+    output = runner.run()
+    assert 'annotations:' in caplog.text()
+
+
+def test_store_metadata_fail_update_labels(tmpdir, caplog):
+    workflow = prepare()
+
+    workflow.exit_results = {
+        KojiPromotePlugin.key: 1234,
+    }
+
+    runner = ExitPluginsRunner(
+        None,
+        workflow,
+        [{
+            'name': StoreMetadataInOSv3Plugin.key,
+            "args": {
+                "url": "http://example.com/"
+            }
+        }]
+    )
+    (flexmock(OSBS)
+        .should_receive('update_labels_on_build')
+        .and_raise(OsbsResponseException('/', 'failed', 0)))
+    output = runner.run()
+    assert 'labels:' in caplog.text()
