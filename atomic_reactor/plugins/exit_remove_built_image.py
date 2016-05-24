@@ -9,7 +9,6 @@ of the BSD license. See the LICENSE file for details.
 Remove built image (this only makes sense if you store the image in some registry first)
 """
 from atomic_reactor.plugin import ExitPlugin
-from atomic_reactor.util import ImageName
 from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
 
 from docker.errors import APIError
@@ -51,7 +50,7 @@ class GarbageCollectionPlugin(ExitPlugin):
             # FIXME: we may need to add force here, let's try it like this for now
             # FIXME: when ID of pulled img matches an ID of an image already present, don't remove
             for base_image_tag in self.workflow.pulled_base_images:
-                self.remove_image(ImageName.parse(base_image_tag), force=False)
+                self.remove_image(base_image_tag, force=False)
 
         if TagAndPushPlugin.key in self.workflow.postbuild_results:
             for registry in self.workflow.push_conf.docker_registries:
