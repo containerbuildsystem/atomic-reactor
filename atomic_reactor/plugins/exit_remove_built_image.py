@@ -65,3 +65,6 @@ class GarbageCollectionPlugin(ExitPlugin):
                                  image, ex.response.status_code, ex.response.reason)
             else:
                 raise
+        except Exception as ex:
+            self.log.warning("exception while removing image %s: %r, ignoring",
+                             image, ex)
