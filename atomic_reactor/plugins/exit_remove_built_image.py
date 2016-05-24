@@ -17,6 +17,14 @@ from docker.errors import APIError
 __all__ = ('GarbageCollectionPlugin', )
 
 
+def defer_removal(workflow, image):
+    key = GarbageCollectionPlugin.key
+    workflow.plugin_workspace.setdefault(key, {})
+    workspace = workflow.plugin_workspace[key]
+    workspace.setdefault('images_to_remove', set())
+    workspace['images_to_remove'].add(image)
+
+
 class GarbageCollectionPlugin(ExitPlugin):
     key = "remove_built_image"
 
@@ -52,6 +60,11 @@ class GarbageCollectionPlugin(ExitPlugin):
                     registry_image.registry = registry.uri
 
                     self.remove_image(registry_image, force=True)
+
+        workspace = self.workflow.plugin_workspace.get(self.key, {})
+        images_to_remove = workspace.get('images_to_remove', [])
+        for image in images_to_remove:
+            self.remove_image(image, force=True)
 
     def remove_image(self, image, force=False):
         try:
