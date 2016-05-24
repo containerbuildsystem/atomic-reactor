@@ -193,7 +193,7 @@ class PulpUploader(object):
             commands = {'.xz': 'xzcat', '.gz': 'zcat', '.bz2': 'bzcat', '.tar': 'cat'}
             _, file_extension = os.path.splitext(self.filename)
             unpacker = commands.get(file_extension, None)
-            self.log.debug("using unpacker %s for extention %s" % (unpacker, file_extension))
+            self.log.debug("using unpacker %s for extension %s" % (unpacker, file_extension))
             if unpacker is None:
                 raise Exception("Unknown tarball format: %s" % self.filename)
 
