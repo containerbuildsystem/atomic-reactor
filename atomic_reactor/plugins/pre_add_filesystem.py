@@ -20,6 +20,7 @@ import os
 
 from atomic_reactor.constants import DEFAULT_DOWNLOAD_BLOCK_SIZE
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.koji_util import create_koji_session, TaskWatcher, stream_task_output
 
 
@@ -213,6 +214,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
 
         new_base_image = self.import_base_image(filesystem)
         self.workflow.builder.set_base_image(new_base_image)
+        defer_removal(self.workflow, new_base_image)
 
         return {
             'base-image-id': new_base_image,

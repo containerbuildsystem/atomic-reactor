@@ -10,6 +10,7 @@ from copy import deepcopy
 import re
 
 from atomic_reactor.plugin import PostBuildPlugin
+from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 
 
 __all__ = ('TagAndPushPlugin', )
@@ -60,6 +61,7 @@ class TagAndPushPlugin(PostBuildPlugin):
                                                       force=True)
 
                 pushed_images.append(registry_image)
+                defer_removal(self.workflow, registry_image)
 
                 digest = self.extract_digest(logs, image.tag or 'latest')
                 if digest:
