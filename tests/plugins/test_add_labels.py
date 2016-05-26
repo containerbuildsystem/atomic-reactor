@@ -19,6 +19,7 @@ from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
 from atomic_reactor.util import ImageName
 from atomic_reactor.source import VcsInfo
+from atomic_reactor.constants import INSPECT_CONFIG
 import re
 import json
 import pytest
@@ -50,8 +51,8 @@ FROM fedora"""
 DF_CONTENT_LABEL = '''\
 FROM fedora
 LABEL "label2"="df value"'''
-LABELS_CONF_BASE = {"Config": {"Labels": {"label1": "base value"}}}
-LABELS_CONF_BASE_NONE = {"Config": {"Labels": None}}
+LABELS_CONF_BASE = {INSPECT_CONFIG: {"Labels": {"label1": "base value"}}}
+LABELS_CONF_BASE_NONE = {INSPECT_CONFIG: {"Labels": None}}
 LABELS_CONF = OrderedDict({'label1': 'value 1', 'label2': 'long value'})
 LABELS_CONF_ONE = {'label2': 'long value'}
 LABELS_CONF_WRONG = [('label1', 'value1'), ('label2', 'value2')]
@@ -257,11 +258,11 @@ def test_add_labels_aliases(tmpdir, docker_tasker, caplog,
         else:
             df_content += 'LABEL label_new="{0}"\n'.format(df_new)
 
-    base_labels = {"Config": {"Labels": {}}}
+    base_labels = {INSPECT_CONFIG: {"Labels": {}}}
     if base_old:
-        base_labels["Config"]["Labels"]["label_old"] = base_old
+        base_labels[INSPECT_CONFIG]["Labels"]["label_old"] = base_old
     if base_new:
-        base_labels["Config"]["Labels"]["label_new"] = base_new
+        base_labels[INSPECT_CONFIG]["Labels"]["label_new"] = base_new
 
     df = DockerfileParser(str(tmpdir))
     df.content = df_content
@@ -287,8 +288,8 @@ def test_add_labels_aliases(tmpdir, docker_tasker, caplog,
 
     runner.run()
     assert AddLabelsPlugin.key is not None
-    result_old = df.labels.get("label_old") or base_labels["Config"]["Labels"].get("label_old")
-    result_new = df.labels.get("label_new") or base_labels["Config"]["Labels"].get("label_new")
+    result_old = df.labels.get("label_old") or base_labels[INSPECT_CONFIG]["Labels"].get("label_old")
+    result_new = df.labels.get("label_new") or base_labels[INSPECT_CONFIG]["Labels"].get("label_new")
     assert result_old == expected_old
     assert result_new == expected_new
 

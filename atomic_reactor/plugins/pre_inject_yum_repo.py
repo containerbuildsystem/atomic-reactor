@@ -11,7 +11,7 @@ Pre build plugin which injects custom yum repository in dockerfile.
 import os
 import re
 from dockerfile_parse import DockerfileParser
-from atomic_reactor.constants import YUM_REPOS_DIR, RELATIVE_REPOS_PATH
+from atomic_reactor.constants import YUM_REPOS_DIR, RELATIVE_REPOS_PATH, INSPECT_CONFIG
 from atomic_reactor.plugin import PreBuildPlugin
 
 
@@ -155,7 +155,7 @@ class InjectYumRepoPlugin(PreBuildPlugin):
 
             # Find out the USER inherited from the base image
             inspect = self.workflow.builder.inspect_base_image()
-            inherited_user = inspect['Config'].get('User', '')
+            inherited_user = inspect[INSPECT_CONFIG].get('User', '')
             df = DockerfileParser(self.workflow.builder.df_path)
             df.lines = add_yum_repos_to_dockerfile(repos_host_cont_mapping,
                                                    df, inherited_user)

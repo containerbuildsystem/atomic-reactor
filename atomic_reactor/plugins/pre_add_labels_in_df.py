@@ -43,6 +43,7 @@ from __future__ import unicode_literals
 
 from dockerfile_parse import DockerfileParser
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.constants import INSPECT_CONFIG
 import json
 import datetime
 
@@ -160,7 +161,7 @@ class AddLabelsPlugin(PreBuildPlugin):
         run the plugin
         """
         try:
-            config = self.workflow.base_image_inspect["Config"]
+            config = self.workflow.base_image_inspect[INSPECT_CONFIG]
         except (AttributeError, TypeError):
             message = "base image was not inspected"
             self.log.error(message)

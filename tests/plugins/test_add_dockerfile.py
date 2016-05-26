@@ -16,6 +16,7 @@ from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_dockerfile import AddDockerfilePlugin
 from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
 from atomic_reactor.util import ImageName
+from atomic_reactor.constants import INSPECT_CONFIG
 from tests.constants import MOCK_SOURCE, MOCK
 from tests.fixtures import docker_tasker
 if MOCK:
@@ -138,7 +139,7 @@ CMD blabla"""
         mock_docker()
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
-    flexmock(workflow, base_image_inspect={"Config": {"Labels": {}}})
+    flexmock(workflow, base_image_inspect={INSPECT_CONFIG: {"Labels": {}}})
     workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)

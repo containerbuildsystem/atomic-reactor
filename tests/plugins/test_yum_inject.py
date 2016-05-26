@@ -10,7 +10,8 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function, unicode_literals
 
 import os
-from atomic_reactor.constants import YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME, RELATIVE_REPOS_PATH
+from atomic_reactor.constants import (YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME, RELATIVE_REPOS_PATH,
+                                      INSPECT_CONFIG)
 
 try:
     from collections import OrderedDict
@@ -54,7 +55,7 @@ def prepare(df_path, inherited_user=''):
     setattr(workflow.builder.source, 'dockerfile_path', None)
     setattr(workflow.builder.source, 'path', '')
 
-    inspection_data = {'Config': {'User': inherited_user}}
+    inspection_data = {INSPECT_CONFIG: {'User': inherited_user}}
     workflow.builder.inspect_base_image = lambda: inspection_data
     (flexmock(requests.Response, content=repocontent)
      .should_receive('raise_for_status')
