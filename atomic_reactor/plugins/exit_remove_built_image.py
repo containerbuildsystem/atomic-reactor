@@ -9,12 +9,18 @@ of the BSD license. See the LICENSE file for details.
 Remove built image (this only makes sense if you store the image in some registry first)
 """
 from atomic_reactor.plugin import ExitPlugin
-from atomic_reactor.util import ImageName
-from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
 
 from docker.errors import APIError
 
 __all__ = ('GarbageCollectionPlugin', )
+
+
+def defer_removal(workflow, image):
+    key = GarbageCollectionPlugin.key
+    workflow.plugin_workspace.setdefault(key, {})
+    workspace = workflow.plugin_workspace[key]
+    workspace.setdefault('images_to_remove', set())
+    workspace['images_to_remove'].add(image)
 
 
 class GarbageCollectionPlugin(ExitPlugin):
@@ -43,15 +49,12 @@ class GarbageCollectionPlugin(ExitPlugin):
             # FIXME: we may need to add force here, let's try it like this for now
             # FIXME: when ID of pulled img matches an ID of an image already present, don't remove
             for base_image_tag in self.workflow.pulled_base_images:
-                self.remove_image(ImageName.parse(base_image_tag), force=False)
+                self.remove_image(base_image_tag, force=False)
 
-        if TagAndPushPlugin.key in self.workflow.postbuild_results:
-            for registry in self.workflow.push_conf.docker_registries:
-                for image in self.workflow.tag_conf.images:
-                    registry_image = image.copy()
-                    registry_image.registry = registry.uri
-
-                    self.remove_image(registry_image, force=True)
+        workspace = self.workflow.plugin_workspace.get(self.key, {})
+        images_to_remove = workspace.get('images_to_remove', [])
+        for image in images_to_remove:
+            self.remove_image(image, force=True)
 
     def remove_image(self, image, force=False):
         try:
@@ -62,3 +65,6 @@ class GarbageCollectionPlugin(ExitPlugin):
                                  image, ex.response.status_code, ex.response.reason)
             else:
                 raise
+        except Exception as ex:
+            self.log.warning("exception while removing image %s: %r, ignoring",
+                             image, ex)

@@ -13,6 +13,7 @@ import os
 
 from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME
 from atomic_reactor.plugin import PrePublishPlugin
+from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.util import get_exported_image_metadata
 from docker_squash.squash import Squash
 
@@ -98,6 +99,4 @@ class PrePublishSquashPlugin(PrePublishPlugin):
 
         metadata.update(get_exported_image_metadata(metadata["path"]))
         self.workflow.exported_image_sequence.append(metadata)
-
-        if self.remove_former_image:
-            self.tasker.remove_image(self.image)
+        defer_removal(self.workflow, self.image)
