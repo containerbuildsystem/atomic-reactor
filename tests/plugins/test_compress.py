@@ -12,6 +12,11 @@ from atomic_reactor.util import ImageName
 
 from tests.constants import INPUT_IMAGE, MOCK
 
+try:
+    from six import integer_types
+except ImportError:
+    integer_types = (int, long)
+
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -67,5 +72,5 @@ class TestCompress(object):
         metadata = workflow.exported_image_sequence[-1]
         assert metadata['path'] == compressed_img
         assert 'uncompressed_size' in metadata
-        assert isinstance(metadata['uncompressed_size'], int)
+        assert isinstance(metadata['uncompressed_size'], integer_types)
         assert ", ratio: " in caplog.text()
