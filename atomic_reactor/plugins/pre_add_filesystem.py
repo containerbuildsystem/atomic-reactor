@@ -10,9 +10,17 @@ from __future__ import print_function, unicode_literals
 try:
     # py2
     from ConfigParser import ConfigParser
+    # Although io.StringIO is available in python2, it
+    # always expects unicode during write. Since
+    # ConfigParser.ConfigParser does not support
+    # writing unicode, io cannot be used.
+    from StringIO import StringIO
 except ImportError:
     # py3
     from configparser import ConfigParser
+    from io import StringIO
+
+from textwrap import dedent
 
 import json
 import re
@@ -49,6 +57,18 @@ class AddFilesystemPlugin(PreBuildPlugin):
     key = 'add_filesystem'
     is_allowed_to_fail = False
 
+    DEFAULT_IMAGE_BUILD_CONF = dedent('''\
+        [image-build]
+        name = default-name
+        arches = x86_64
+        format = docker
+
+        ksurl = {ksurl}
+
+        [factory-parameters]
+        create_docker_metadata = False
+        ''')
+
     def __init__(self, tasker, workflow, koji_hub,
                  koji_proxyuser=None, koji_ssl_certs_dir=None,
                  koji_krb_principal=None, koji_krb_keytab=None,
@@ -83,6 +103,16 @@ class AddFilesystemPlugin(PreBuildPlugin):
     def is_image_build_type(self, base_image):
         return base_image.strip().lower() == 'koji/image-build'
 
+    def get_default_image_build_conf(self):
+        vcs_info = self.workflow.source.get_vcs_info()
+        ksurl = '{}#{}'.format(vcs_info.vcs_url, vcs_info.vcs_ref)
+
+        kwargs = {
+            'ksurl': ksurl
+        }
+
+        return StringIO(self.DEFAULT_IMAGE_BUILD_CONF.format(**kwargs))
+
     def parse_image_build_config(self, config_file_name):
 
         # Logic taken from koji.cli.koji.handle_image_build.
@@ -94,7 +124,12 @@ class AddFilesystemPlugin(PreBuildPlugin):
         opts = {}
 
         config = ConfigParser()
+        config.readfp(self.get_default_image_build_conf())
         config.read(config_file_name)
+
+        config_str = StringIO()
+        config.write(config_str)
+        self.log.debug('Image Build Config: \n%s', config_str.getvalue())
 
         image_name = None
 

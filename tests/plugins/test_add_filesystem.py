@@ -57,6 +57,9 @@ class MockSource(object):
     def get_dockerfile_path(self):
         return self.dockerfile_path, self.path
 
+    def get_vcs_info(self):
+        return VcsInfo('git', DOCKERFILE_GIT, DOCKERFILE_SHA1)
+
 
 class X(object):
     image_id = "xxx"
@@ -93,10 +96,11 @@ def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
         .and_return(session))
 
 
-def mock_image_build_file(tmpdir):
+def mock_image_build_file(tmpdir, contents=None):
     file_path = os.path.join(tmpdir, 'image-build.conf')
-    with open(file_path, 'w') as f:
-        f.write(dedent("""\
+
+    if contents is None:
+        contents = dedent("""\
             [image-build]
             name = fedora-23
             version = 1.0
@@ -117,7 +121,10 @@ def mock_image_build_file(tmpdir):
 
             [ova-options]
             ova_option_1 = ova_option_1_value
-            """))
+            """)
+
+    with open(file_path, 'w') as f:
+        f.write(dedent(contents))
 
     return file_path
 
@@ -209,6 +216,43 @@ def test_image_build_file_parse(tmpdir):
         'format': ['docker'],
         'kickstart': 'fedora-23.ks',
         'ksurl': 'git+http://ksrul.com/git/spin-kickstarts.git?fedora23#b232f73e',
+        'ksversion': 'FEDORA23',
+        'repo': ['http://repo.com/fedora/x86_64/os/'],
+    }
+
+
+def test_image_build_defaults(tmpdir):
+    plugin = create_plugin_instance(tmpdir)
+    image_build_conf = dedent("""\
+        [image-build]
+        version = 1.0
+        target = guest-fedora-23-docker
+        install_tree = http://install-tree.com/fedora23/
+
+        distro = Fedora-23
+        repo = http://repo.com/fedora/x86_64/os/
+
+        ksversion = FEDORA23
+        kickstart = fedora-23.ks
+        """)
+
+    file_name = mock_image_build_file(str(tmpdir), contents=image_build_conf)
+    image_name, config, opts = plugin.parse_image_build_config(file_name)
+    assert image_name == 'default-name'
+    assert config == [
+        'default-name',
+        '1.0',
+        ['x86_64'],
+        'guest-fedora-23-docker',
+        'http://install-tree.com/fedora23/'
+    ]
+    assert opts['opts'] == {
+        'disk_size': 10,
+        'distro': 'Fedora-23',
+        'factory_parameter': [('create_docker_metadata', 'False')],
+        'format': ['docker'],
+        'kickstart': 'fedora-23.ks',
+        'ksurl': '{}#{}'.format(DOCKERFILE_GIT, DOCKERFILE_SHA1),
         'ksversion': 'FEDORA23',
         'repo': ['http://repo.com/fedora/x86_64/os/'],
     }
