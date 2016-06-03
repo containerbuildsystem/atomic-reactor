@@ -233,7 +233,6 @@ def test_image_build_defaults(tmpdir):
         repo = http://repo.com/fedora/x86_64/os/
 
         ksversion = FEDORA23
-        kickstart = fedora-23.ks
         """)
 
     file_name = mock_image_build_file(str(tmpdir), contents=image_build_conf)
@@ -251,7 +250,7 @@ def test_image_build_defaults(tmpdir):
         'distro': 'Fedora-23',
         'factory_parameter': [('create_docker_metadata', 'False')],
         'format': ['docker'],
-        'kickstart': 'fedora-23.ks',
+        'kickstart': 'kickstart.ks',
         'ksurl': '{}#{}'.format(DOCKERFILE_GIT, DOCKERFILE_SHA1),
         'ksversion': 'FEDORA23',
         'repo': ['http://repo.com/fedora/x86_64/os/'],

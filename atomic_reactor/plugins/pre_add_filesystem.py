@@ -64,6 +64,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         format = docker
 
         ksurl = {ksurl}
+        kickstart = kickstart.ks
 
         [factory-parameters]
         create_docker_metadata = False
