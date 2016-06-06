@@ -81,6 +81,12 @@ These are run after 'git clone' is used to fetch the git repository content cont
  * **stop_autorebulid_if_disabled**
    * Status: not yet enabled (chain rebuilds)
    * Based on the result of is_autorebuild, this plugin is for stopping automated builds from proceeding if the image owner has opted out of automated rebuilds.
+ * **add_filesystem**
+   * Status: enabled
+   * If FROM value is "koji/image-build", an image-build koji task is initiated
+     to create the underlying filesystem base image. Once task is completed,
+     the built filesystem image is imported into docker and its ID is used
+     as the FROM value.
  * **pull_base_image**
    * Status: enabled
    * The image named in the FROM line of the Dockerfile is pulled and its docker image ID noted.
@@ -110,7 +116,7 @@ These are run after 'git clone' is used to fetch the git repository content cont
    * The yum repo file or files created by the koji and add_yum_repo_by_url plugins are injected into the Dockerfile with ADD, and cleaned up with 'RUN rm'. When the built image has its new layers squashed later, the yum repo files will not appear in the content.
 
 After the pre-build plugins have finished, 'docker build' is started.
- 
+
 ### Pre-publish and post-build plugins
 
 These are run after 'docker build' has finished.
