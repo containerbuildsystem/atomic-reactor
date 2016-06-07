@@ -42,6 +42,7 @@ Keys and values are quoted as necessary.
 from __future__ import unicode_literals
 
 from dockerfile_parse import DockerfileParser
+from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import INSPECT_CONFIG
 import json
@@ -86,9 +87,8 @@ class AddLabelsPlugin(PreBuildPlugin):
         generated = {}
 
         # build date
-        rfc3339_ts = datetime.datetime.utcnow().isoformat()
-        rfc3339_ts += 'Z'
-        generated['build-date'] = rfc3339_ts
+        dt = datetime.datetime.fromtimestamp(atomic_reactor_start_time)
+        generated['build-date'] = dt.isoformat() + 'Z'
 
         # architecture - assuming host and image architecture is the same
         # TODO: this code is also in plugins/exit_koji_promote.py, factor it out

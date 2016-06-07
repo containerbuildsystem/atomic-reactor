@@ -380,22 +380,6 @@ class TestKojiPromote(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_promote_invalid_creation_timestamp(self, tmpdir, monkeypatch, os_env):
-        tasker, workflow = mock_environment(tmpdir,
-                                            name='ns/name',
-                                            version='1.0',
-                                            release='1')
-        runner = create_runner(tasker, workflow)
-
-        # Invalid timestamp format
-        monkeypatch.setenv("BUILD", json.dumps({
-            "metadata": {
-                "creationTimestamp": "2015-07-27 09:24 UTC"
-            }
-        }))
-        with pytest.raises(PluginFailedException):
-            runner.run()
-
     def test_koji_promote_wrong_source_type(self, tmpdir, os_env):
         source = PathSource('path', 'file:///dev/null')
         tasker, workflow = mock_environment(tmpdir,

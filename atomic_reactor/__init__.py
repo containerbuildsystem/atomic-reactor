@@ -10,9 +10,11 @@ constants
 """
 
 import logging
+import time
 
 
 __version__ = "1.6.9"
+start_time = time.time()
 
 
 def set_logging(name="atomic_reactor", level=logging.DEBUG, handler=None):

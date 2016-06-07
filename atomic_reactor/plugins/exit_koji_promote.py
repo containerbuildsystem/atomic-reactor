@@ -18,6 +18,7 @@ from tempfile import NamedTemporaryFile
 import time
 
 from atomic_reactor import __version__ as atomic_reactor_version
+from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
@@ -494,17 +495,7 @@ class KojiPromotePlugin(ExitPlugin):
         return output_files
 
     def get_build(self, metadata):
-        build_start_time = metadata["creationTimestamp"]
-        try:
-            # Decode UTC RFC3339 date with no fractional seconds
-            # (the format we expect)
-            start_time_struct = time.strptime(build_start_time,
-                                              '%Y-%m-%dT%H:%M:%SZ')
-            start_time = int(time.mktime(start_time_struct))
-        except ValueError:
-            self.log.error("Invalid time format (%s)", build_start_time)
-            raise
-
+        start_time = int(atomic_reactor_start_time)
         labels = DockerfileParser(self.workflow.builder.df_path).labels
         component = get_preferred_label(labels, 'com.redhat.component')
         version = get_preferred_label(labels, 'version')
