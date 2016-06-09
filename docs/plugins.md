@@ -133,6 +133,13 @@ These are run after 'docker build' has finished.
      * ${Name}:${Version}-${Release}
      * ${Name}:${Version}
      * ${Name}:latest
+ * **tag_from_config**
+   * Status: enabled
+   * Tags defined in file "additional-tags" will be applied to the image:
+     * ${Name}:${additional-tag1}
+     * ${Name}:${additional-tag2}
+     * ${Name}:${additional-tag3}
+     * ...
  * **tag_and_push**
    * Status: enabled for V2
    * The tags are applied to the image in the docker engine and pushed to configured registries.

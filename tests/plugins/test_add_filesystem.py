@@ -38,7 +38,6 @@ from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.util import ImageName
 from atomic_reactor.source import VcsInfo
 from atomic_reactor import koji_util
-from atomic_reactor.plugins import pre_add_filesystem
 from tests.constants import (MOCK_SOURCE, DOCKERFILE_GIT, DOCKERFILE_SHA1,
                              MOCK, IMPORTED_IMAGE_ID)
 from tests.fixtures import docker_tasker
