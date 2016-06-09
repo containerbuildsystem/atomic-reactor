@@ -536,6 +536,22 @@ _PREFERRED_LABELS = (
 )
 
 
+def get_all_label_keys(name):
+    """
+    Return the preference chain for the naming of a particular label.
+
+    :param name: string, label name to search for
+    :return: tuple, label names, most preferred first
+    """
+
+    for label_chain in _PREFERRED_LABELS:
+        if name in label_chain:
+            return label_chain
+    else:
+        # no variants known, return the name unchanged
+        return (name,)
+
+
 def get_preferred_label_key(labels, name):
     """
     We can have multiple variants of some labels (e.g. Version and version), sorted by preference.
@@ -547,13 +563,7 @@ def get_preferred_label_key(labels, name):
     is that we're gonna raise an error later and the error message should contain the preferred
     variant.
     """
-    for label_chain in _PREFERRED_LABELS:
-        if name in label_chain:
-            break
-    else:
-        # no variants known, return the name unchanged
-        return name
-
+    label_chain = get_all_label_keys(name)
     for lbl in label_chain:
         if lbl in labels:
             return lbl
