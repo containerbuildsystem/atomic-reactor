@@ -10,8 +10,8 @@ from __future__ import unicode_literals
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import get_all_label_keys, get_preferred_label_key
+from atomic_reactor.koji_util import create_koji_session
 from dockerfile_parse import DockerfileParser
-import koji
 
 
 class BumpReleasePlugin(PreBuildPlugin):
@@ -36,7 +36,7 @@ class BumpReleasePlugin(PreBuildPlugin):
         # call parent constructor
         super(BumpReleasePlugin, self).__init__(tasker, workflow)
         self.target = target
-        self.xmlrpc = koji.ClientSession(hub)
+        self.xmlrpc = create_koji_session(hub)
 
     def run(self):
         """
@@ -68,4 +68,6 @@ class BumpReleasePlugin(PreBuildPlugin):
         next_release = str(next_release)
         for release_label in release_labels:
             self.log.info("setting %s=%s", release_label, next_release)
+
+            # Write the label back to the file (this is a property setter).
             dockerfile_labels[release_label] = next_release
