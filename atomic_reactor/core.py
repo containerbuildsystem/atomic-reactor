@@ -440,6 +440,21 @@ class DockerTasker(LastLogger):
             logger.debug('image already tagged correctly, nothing to do')
         return target_image.to_str()  # this will be the proper name, not just repo/img
 
+    def login(self, registry, login, password, email):
+        logger.info("logging in: registry '%s', login '%s', email '%s'" % (registry, login, email))
+        response = self.d.login(
+            username=login,
+            password=password,
+            email=email,
+            registry=registry)
+        if not response:
+            raise RuntimeError(
+                "Failed to login to '%s': email = '%s', login = '%s', password = '%s'" %
+                (registry, email, login, password))
+        logger.debug(response)
+        if u'Status' in response and response[u'Status'] == u'Login Succeeded':
+            logger.info("login succeeded")
+
     def push_image(self, image, insecure=False):
         """
         push provided image to registry
@@ -463,7 +478,8 @@ class DockerTasker(LastLogger):
             raise RuntimeError("Failed to push image %s" % image)
         return command_result.parsed_logs
 
-    def tag_and_push_image(self, image, target_image, insecure=False, force=False):
+    def tag_and_push_image(self, image, target_image, insecure=False, force=False,
+                           login=None, password=None, email=None):
         """
         tag provided image and push it to registry
 
@@ -476,6 +492,8 @@ class DockerTasker(LastLogger):
         logger.info("tagging and pushing image '%s' as '%s'", image, target_image)
         logger.debug("image = '%s', target_image = '%s'", image, target_image)
         self.tag_image(image, target_image, force=force)
+        if login and password and email:
+            self.login(registry=target_image.registry, login=login, password=password, email=email)
         return self.push_image(target_image, insecure=insecure)
 
     def inspect_image(self, image_id):
