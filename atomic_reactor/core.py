@@ -450,7 +450,7 @@ class DockerTasker(LastLogger):
         if not response:
             raise RuntimeError(
                 "Failed to login to '%s': email = '%s', login = '%s', password = '%s'" %
-                registry, email, login, password)
+                (registry, email, login, password))
         logger.debug(response)
         if u'Status' in response and response[u'Status'] == u'Login Succeeded':
             logger.info("login succeeded")

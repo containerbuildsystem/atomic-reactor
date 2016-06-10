@@ -65,12 +65,11 @@ class TagAndPushPlugin(PostBuildPlugin):
                     json_secret = {}
                     with open(json_secret_path) as fd:
                         json_secret = json.load(fd)
-                    self.log.info("json_secret %s", json_secret)
                     login = json_secret[registry]['username']
                     password = json_secret[registry]['password']
                     email = json_secret[registry]['email']
                 except Exception as e:
-                    self.log.warn("exception %r", e)
+                    self.log.warn("error retrieving credentials", exc_info=True)
                     login = password = email = None
 
             for image in self.workflow.tag_conf.images:
@@ -79,7 +78,6 @@ class TagAndPushPlugin(PostBuildPlugin):
 
                 registry_image = image.copy()
                 registry_image.registry = registry
-                self.log.info("Pushing %r", registry_image)
                 logs = self.tasker.tag_and_push_image(self.workflow.builder.image_id,
                                                       registry_image, insecure=insecure,
                                                       force=True,

@@ -17,6 +17,8 @@ from atomic_reactor.util import ImageName
 from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE, MOCK, DOCKER0_REGISTRY
 
 import json
+import os.path
+from tempfile import mkdtemp
 
 if MOCK:
     import docker
@@ -75,6 +77,10 @@ class X(object):
     source.path = None
     base_image = ImageName(repo="qwe", tag="asd")
 
+@pytest.mark.parametrize("use_secret", [
+    True,
+    False,
+])
 @pytest.mark.parametrize(("image_name", "logs", "should_raise"), [
     (TEST_IMAGE, PUSH_LOGS_1_X, False),
     (TEST_IMAGE, PUSH_LOGS_1_9, False),
@@ -85,16 +91,30 @@ class X(object):
     (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_10, True),
     (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_10_NOT_IN_STATUS, True),
     (TEST_IMAGE, PUSH_ERROR_LOGS, True),
+
 ])
-def test_tag_and_push_plugin(tmpdir, image_name, logs, should_raise):
+def test_tag_and_push_plugin(tmpdir, image_name, logs, should_raise, use_secret):
     if MOCK:
         mock_docker()
-        flexmock(docker.Client, push=lambda iid, **kwargs: iter(logs))
+        flexmock(docker.Client, push=lambda iid, **kwargs: iter(logs),
+                 login=lambda username, password, email, registry: {'Status': 'Login Succeeded'})
 
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
     workflow.tag_conf.add_primary_image(image_name)
     setattr(workflow, 'builder', X)
+
+    secret_path = None
+    if use_secret:
+        temp_dir = mkdtemp()
+        with open(os.path.join(temp_dir, ".dockercfg"), "w+") as dockerconfig:
+            dockerconfig_contents = {
+                LOCALHOST_REGISTRY: {
+                    "username": "user", "email": "test@example.com", "password": "mypassword"}}
+            dockerconfig.write(json.dumps(dockerconfig_contents))
+            dockerconfig.flush()
+            secret_path = temp_dir
+
 
     runner = PostBuildPluginsRunner(
         tasker,
@@ -104,7 +124,8 @@ def test_tag_and_push_plugin(tmpdir, image_name, logs, should_raise):
             'args': {
                 'registries': {
                     LOCALHOST_REGISTRY: {
-                        'insecure': True
+                        'insecure': True,
+                        'secret': secret_path
                     }
                 }
             },
