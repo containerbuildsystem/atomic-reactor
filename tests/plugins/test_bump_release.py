@@ -61,7 +61,7 @@ class TestBumpRelease(object):
     @pytest.mark.parametrize('labels', [
         {'com.redhat.component': 'component',
           'release': '1'},
-        
+
         {'BZComponent': 'component',
          'release': '1'},
 
@@ -88,6 +88,9 @@ class TestBumpRelease(object):
         class MockedClientSession(object):
             def __init__(self):
                 pass
+
+            def getBuildTarget(self, target):
+                return {'dest_tag': 'dest_tag'}
 
             def getLatestBuilds(self, target, package=None):
                 return latest_builds

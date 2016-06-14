@@ -59,7 +59,11 @@ class BumpReleasePlugin(PreBuildPlugin):
         except KeyError:
             raise RuntimeError("missing label: {}".format(component_label))
 
-        latest = self.xmlrpc.getLatestBuilds(self.target, package=component)
+        target_info = self.xmlrpc.getBuildTarget(self.target)
+        self.log.debug('target info: %s', target_info)
+        tag_id = target_info['dest_tag']
+        latest = self.xmlrpc.getLatestBuilds(tag_id, package=component)
+        self.log.debug('latest builds: %s', latest)
         try:
             next_release = self.xmlrpc.getNextRelease(latest[0])
         except IndexError:
