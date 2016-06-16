@@ -299,6 +299,7 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %files -n python-atomic-reactor-koji
 %{python2_sitelib}/atomic_reactor/koji_util.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_add_filesystem.py*
+%{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
 %{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
 
@@ -309,7 +310,6 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %files -n python-atomic-reactor-rebuilds
 %{python2_sitelib}/atomic_reactor/plugins/exit_sendmail.py*
 %{python2_sitelib}/atomic_reactor/plugins/post_import_image.py*
-%{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py*
 
@@ -366,9 +366,11 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python3_sitelib}/atomic_reactor/koji_util.py
 %{python3_sitelib}/atomic_reactor/__pycache__/koji_util*.py*
 %{python3_sitelib}/atomic_reactor/plugins/pre_add_filesystem.py
+%{python3_sitelib}/atomic_reactor/plugins/pre_bump_release.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_koji.py
 %{python3_sitelib}/atomic_reactor/plugins/exit_koji_promote.py
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_add_filesystem*.py*
+%{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_bump_release*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_promote*.py*
 
@@ -380,18 +382,19 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %files -n python3-atomic-reactor-rebuilds
 %{python3_sitelib}/atomic_reactor/plugins/exit_sendmail.py
 %{python3_sitelib}/atomic_reactor/plugins/post_import_image.py
-%{python3_sitelib}/atomic_reactor/plugins/pre_bump_release.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_sendmail*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/post_import_image*.py*
-%{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_bump_release*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_check_and_set_rebuild*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_stop_autorebuild_if_disabled*.py*
 %endif  # with_python3
 
 
 %changelog
+* Thu Jun 09 2016 Tim Waugh <twaugh@redhat.com>
+- Move the bump_release plugin to the koji subpackage since it uses Koji.
+
 * Wed Jun 08 2016 Martin Milata <mmilata@redhat.com> - 1.6.10-1
 - 1.6.10 release
 
