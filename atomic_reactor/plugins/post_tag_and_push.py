@@ -61,13 +61,9 @@ class TagAndPushPlugin(PostBuildPlugin):
             login = password = email = None
             if docker_push_secret:
                 try:
-                    json_secret_path = os.path.join(docker_push_secret, ".dockercfg")
-                    json_secret = {}
-                    with open(json_secret_path) as fd:
-                        json_secret = json.load(fd)
-                    login = json_secret[registry]['username']
-                    password = json_secret[registry]['password']
-                    email = json_secret[registry]['email']
+                    login = self.get_secret_value(docker_push_secret, 'username')
+                    password = self.get_secret_value(docker_push_secret, 'password')
+                    email  = self.get_secret_value(docker_push_secret, 'email')
                 except Exception as e:
                     self.log.warn("error retrieving credentials", exc_info=True)
                     login = password = email = None
@@ -93,6 +89,11 @@ class TagAndPushPlugin(PostBuildPlugin):
 
         self.log.info("All images were tagged and pushed")
         return pushed_images
+
+    def get_secret_value(self, path, key):
+        with open(os.path.join(path, key)) as fd:
+            value = fd.read()
+        return value
 
     @staticmethod
     def extract_digest(logs, expected_tag=None):
