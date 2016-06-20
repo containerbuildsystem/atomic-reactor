@@ -232,13 +232,14 @@ class PluginsRunner(object):
                 plugin_response = ex
 
             try:
-                finish_time = datetime.datetime.now()
-                duration = finish_time - start_time
-                seconds = duration.total_seconds()
-                logger.debug("plugin '%s' finished in %ds", plugin_name, seconds)
-                self.save_plugin_duration(plugin_class.key, seconds)
+                if start_time:
+                    finish_time = datetime.datetime.now()
+                    duration = finish_time - start_time
+                    seconds = duration.total_seconds()
+                    logger.debug("plugin '%s' finished in %ds", plugin_name, seconds)
+                    self.save_plugin_duration(plugin_class.key, seconds)
             except Exception:
-                logger.error("failed to save plugin duration")
+                logger.exception("failed to save plugin duration")
 
             self.plugins_results[plugin_class.key] = plugin_response
         if len(failed_msgs) == 1:

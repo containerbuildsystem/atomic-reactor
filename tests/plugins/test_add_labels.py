@@ -114,7 +114,8 @@ LABEL "label1"="df value"
     (DF_CONTENT_LABEL, LABELS_CONF_BASE, LABELS_BLANK, [], {"label2": "label1"}, EXPECTED_OUTPUT8),
 ])
 def test_add_labels_plugin(tmpdir, docker_tasker,
-                           df_content, labels_conf_base, labels_conf, dont_overwrite, aliases, expected_output):
+                           df_content, labels_conf_base, labels_conf, dont_overwrite, aliases,
+                           expected_output, caplog):
     df = DockerfileParser(str(tmpdir))
     df.content = df_content
 
@@ -140,11 +141,11 @@ def test_add_labels_plugin(tmpdir, docker_tasker,
         }]
     )
 
+    runner.run()
     if isinstance(expected_output, RuntimeError):
-        with pytest.raises(RuntimeError):
-            runner.run()
+        assert "plugin 'add_labels_in_dockerfile' raised an exception: RuntimeError" in caplog.text()
+
     else:
-        runner.run()
         assert AddLabelsPlugin.key is not None
         assert df.content in expected_output
 

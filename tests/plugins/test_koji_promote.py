@@ -365,8 +365,9 @@ class TestKojiPromote(object):
         # No BUILD environment variable
         monkeypatch.delenv("BUILD", raising=False)
 
-        with pytest.raises(KeyError):
+        with pytest.raises(PluginFailedException) as exc:
             runner.run()
+        assert "plugin 'koji_promote' raised an exception: KeyError" in str(exc)
 
     def test_koji_promote_no_build_metadata(self, tmpdir, monkeypatch, os_env):
         tasker, workflow = mock_environment(tmpdir,
@@ -388,8 +389,9 @@ class TestKojiPromote(object):
                                             release='1',
                                             source=source)
         runner = create_runner(tasker, workflow)
-        with pytest.raises(PluginFailedException):
+        with pytest.raises(PluginFailedException) as exc:
             runner.run()
+        assert "plugin 'koji_promote' raised an exception: RuntimeError" in str(exc)
 
     def test_koji_promote_log_task_id(self, tmpdir, monkeypatch, os_env,
                                       caplog):

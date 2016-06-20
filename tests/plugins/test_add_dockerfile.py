@@ -164,7 +164,7 @@ CMD blabla"""
     assert "ADD Dockerfile-jboss-eap-6-docker-6.4-77 /root/buildinfo/Dockerfile-jboss-eap-6-docker-6.4-77" in df.content
 
 
-def test_adddockerfile_fails(tmpdir, docker_tasker):
+def test_adddockerfile_fails(tmpdir, docker_tasker, caplog):
     df_content = """
 FROM fedora
 RUN yum install -y python-django
@@ -184,8 +184,8 @@ CMD blabla"""
             'name': AddDockerfilePlugin.key
         }]
     )
-    with pytest.raises(ValueError):
-        runner.run()
+    runner.run()
+    assert "plugin 'add_dockerfile' raised an exception: ValueError" in caplog.text()
 
 
 def test_adddockerfile_final(tmpdir, docker_tasker):
@@ -218,4 +218,3 @@ RUN yum install -y python-django
 ADD Dockerfile /root/buildinfo/Dockerfile-rhel-server-docker-7.1-20
 CMD blabla"""
     assert df.content == expected_output
-
