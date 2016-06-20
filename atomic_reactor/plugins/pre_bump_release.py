@@ -31,7 +31,6 @@ class BumpReleasePlugin(PreBuildPlugin):
         :param workflow: DockerBuildWorkflow instance
         :param target: string, koji target to use as a source
         :param hub: string, koji hub (xmlrpc)
-        :param proxy: string, proxy user
         """
         # call parent constructor
         super(BumpReleasePlugin, self).__init__(tasker, workflow)
