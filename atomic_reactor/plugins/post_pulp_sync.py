@@ -179,7 +179,8 @@ class PulpSyncPlugin(PostBuildPlugin):
         for image in self.workflow.tag_conf.primary_images:
             if image.pulp_repo not in repos:
                 self.log.info("syncing %s", image.pulp_repo)
-                repoinfo = pulp.syncRepo(feed=self.docker_registry,
+                repoinfo = pulp.syncRepo(repo=image.pulp_repo,
+                                         feed=self.docker_registry,
                                          upstream_name=image.repo,
                                          **kwargs)
                 repos[image.pulp_repo] = repoinfo[0]['id']

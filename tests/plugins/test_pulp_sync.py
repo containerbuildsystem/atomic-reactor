@@ -76,7 +76,7 @@ class TestPostPulpSync(object):
     def test_auth_none(self):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
-        pulp_repoid = 'prefix-prod-myrepository'
+        pulp_repoid = 'prod-myrepository'
         env = 'pulp'
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
@@ -93,6 +93,7 @@ class TestPostPulpSync(object):
         (flexmock(mockpulp)
             .should_receive('syncRepo')
             .with_args(object,
+                       repo=pulp_repoid,
                        feed=docker_registry,
                        upstream_name=docker_repository)
             .and_return([{'id': pulp_repoid}])
@@ -124,7 +125,7 @@ class TestPostPulpSync(object):
 
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
-        pulp_repoid = 'prefix-prod-myrepository'
+        pulp_repoid = 'prod-myrepository'
         env = 'pulp'
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
@@ -145,6 +146,7 @@ class TestPostPulpSync(object):
             (flexmock(mockpulp)
                 .should_receive('syncRepo')
                 .with_args(object,
+                           repo=pulp_repoid,
                            feed=docker_registry,
                            upstream_name=docker_repository)
                 .and_return([{'id': pulp_repoid}])
@@ -207,7 +209,7 @@ class TestPostPulpSync(object):
     def test_dockercfg_registry_not_present(self, tmpdir):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
-        pulp_repoid = 'prefix-prod-myrepository'
+        pulp_repoid = 'prod-myrepository'
         env = 'pulp'
 
         registry_secret = os.path.join(str(tmpdir), '.dockercfg')
@@ -232,6 +234,7 @@ class TestPostPulpSync(object):
         (flexmock(mockpulp)
             .should_receive('syncRepo')
             .with_args(object,
+                       repo=pulp_repoid,
                        feed=docker_registry,
                        upstream_name=docker_repository)
             .and_return([{'id': pulp_repoid}])
@@ -248,7 +251,7 @@ class TestPostPulpSync(object):
     def test_dockercfg(self, tmpdir, scheme):
         docker_registry = '{}://registry.example.com'.format(scheme)
         docker_repository = 'prod/myrepository'
-        pulp_repoid = 'prefix-prod-myrepository'
+        pulp_repoid = 'prod-myrepository'
         user = 'user'
         pw = 'pass'
         env = 'pulp'
@@ -275,6 +278,7 @@ class TestPostPulpSync(object):
         (flexmock(mockpulp)
             .should_receive('syncRepo')
             .with_args(object,
+                       repo=pulp_repoid,
                        feed=docker_registry,
                        upstream_name=docker_repository,
                        basic_auth_username=user,
@@ -297,7 +301,7 @@ class TestPostPulpSync(object):
     def test_insecure_registry(self, insecure_registry, ssl_validation):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
-        pulp_repoid = 'prefix-prod-myrepository'
+        pulp_repoid = 'prod-myrepository'
         env = 'pulp'
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
@@ -309,10 +313,12 @@ class TestPostPulpSync(object):
         sync_exp = flexmock(mockpulp).should_receive('syncRepo')
         if ssl_validation is None:
             sync_exp = sync_exp.with_args(object,
+                                          repo=pulp_repoid,
                                           feed=docker_registry,
                                           upstream_name=docker_repository)
         else:
             sync_exp = sync_exp.with_args(object,
+                                          repo=pulp_repoid,
                                           feed=docker_registry,
                                           upstream_name=docker_repository,
                                           ssl_validation=ssl_validation)
@@ -370,7 +376,7 @@ class TestPostPulpSync(object):
     def test_store_registry(self, already_exists):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
-        pulp_repoid = 'prefix-prod-myrepository'
+        pulp_repoid = 'prod-myrepository'
         env = 'pulp'
         workflow = self.workflow([docker_repository])
 
@@ -384,6 +390,7 @@ class TestPostPulpSync(object):
         (flexmock(mockpulp)
             .should_receive('syncRepo')
             .with_args(object,
+                       repo=pulp_repoid,
                        feed=docker_registry,
                        upstream_name=docker_repository)
             .and_return([{'id': pulp_repoid}])
