@@ -6,46 +6,36 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from __future__ import unicode_literals
+import os
+import sys
 
 from atomic_reactor.util import ImageName
 from atomic_reactor.inner import PushConf
 
 try:
-    # py3
-    import configparser
-except ImportError:
-    # py2
-    import ConfigParser as configparser
+    if sys.version_info.major > 2:
+        # importing dockpulp in Python 3 causes SyntaxError
+        raise ImportError
 
-try:
     import dockpulp
-except (ImportError, SyntaxError):
-    dockpulp = None
-else:
-    from atomic_reactor.plugins.post_pulp_sync import (dockpulp_config,
-                                                       PulpSyncPlugin)
+except ImportError:
+    import inspect
+
+    # Find our dockpulp stub
+    import tests.dockpulp as dockpulp
+    mock_dockpulp_path = os.path.dirname(inspect.getfile(dockpulp.Pulp))
+    if mock_dockpulp_path not in sys.path:
+        sys.path.insert(0, os.path.dirname(mock_dockpulp_path))
+
+    # Now load it properly, the same way the plugin will
+    del dockpulp
+    import dockpulp
+
+from atomic_reactor.plugins.post_pulp_sync import PulpSyncPlugin
 
 from flexmock import flexmock
+import json
 import pytest
-
-
-@pytest.mark.skipif(dockpulp is None,
-                    reason='dockpulp module not available')
-class TestDockpulpConfig(object):
-    def test_config(self):
-        docker_registry = 'http://registry.example.com'
-        cfp = configparser.SafeConfigParser()
-        with dockpulp_config(docker_registry) as config:
-            env = config.env
-            cfp.read(config.name)
-
-        assert cfp.has_section('registries')
-        assert cfp.has_section('filers')
-        assert cfp.has_section('pulps')
-
-        registry = cfp.get('pulps', env)
-        assert registry == docker_registry
 
 
 class MockPulp(object):
@@ -61,15 +51,15 @@ class MockPulp(object):
     def set_certs(self, cer, key):
         pass
 
-    def syncRepo(self, env, repo, config_file=None):
+    def syncRepo(self, feed=None, upstream_name=None, repo=None,
+                 basic_auth_username=None, basic_auth_password=None,
+                 ssl_validation=None):
         pass
 
     def crane(self, repos, wait=True):
         pass
 
 
-@pytest.mark.skipif(dockpulp is None,
-                    reason='dockpulp module not available')
 class TestPostPulpSync(object):
     @staticmethod
     def workflow(docker_repos):
@@ -86,6 +76,7 @@ class TestPostPulpSync(object):
     def test_auth_none(self):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
+        pulp_repoid = 'prefix-prod-myrepository'
         env = 'pulp'
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
@@ -102,58 +93,14 @@ class TestPostPulpSync(object):
         (flexmock(mockpulp)
             .should_receive('syncRepo')
             .with_args(object,
-                       'prod-myrepository',  # pulp repository name
-                       config_file=object)
-            .and_return([{'id': 'prefix-prod-myrepository'}])  # repo id
+                       feed=docker_registry,
+                       upstream_name=docker_repository)
+            .and_return([{'id': pulp_repoid}])
             .once()
             .ordered())
         (flexmock(mockpulp)
             .should_receive('crane')
-            .with_args(['prefix-prod-myrepository'],  # repo id
-                       wait=True)
-            .once()
-            .ordered())
-        (flexmock(dockpulp)
-            .should_receive('Pulp')
-            .with_args(env=env)
-            .and_return(mockpulp))
-
-        plugin.run()
-
-    def test_auth_password(self):
-        username = 'username'
-        password = 'password'
-        docker_registry = 'http://registry.example.com'
-        docker_repository = 'prod/myrepository'
-        env = 'pulp'
-        plugin = PulpSyncPlugin(tasker=None,
-                                workflow=self.workflow([docker_repository]),
-                                pulp_registry_name=env,
-                                docker_registry=docker_registry,
-                                username=username,
-                                password=password)
-
-        mockpulp = MockPulp()
-        (flexmock(mockpulp)
-            .should_receive('login')
-            .with_args(username, password)
-            .once()
-            .ordered())
-        (flexmock(mockpulp)
-            .should_receive('set_certs')
-            .never())
-        (flexmock(mockpulp)
-            .should_receive('syncRepo')
-            .with_args(object,
-                       'prod-myrepository',  # pulp repository name
-                       config_file=object)
-            .and_return([{'id': 'prefix-prod-myrepository'}])  # repo id
-            .once()
-            .ordered())
-        (flexmock(mockpulp)
-            .should_receive('crane')
-            .with_args(['prefix-prod-myrepository'],  # repo id
-                       wait=True)
+            .with_args([pulp_repoid], wait=True)
             .once()
             .ordered())
         (flexmock(dockpulp)
@@ -165,8 +112,7 @@ class TestPostPulpSync(object):
 
     @pytest.mark.parametrize('cer_exists', [True, False])
     @pytest.mark.parametrize('key_exists', [True, False])
-    @pytest.mark.parametrize('source_secret', [True, False])
-    def test_auth_certs(self, tmpdir, cer_exists, key_exists, source_secret, monkeypatch):
+    def test_pulp_auth(self, tmpdir, cer_exists, key_exists):
         pulp_secret_path = str(tmpdir)
         cer = pulp_secret_path + '/pulp.cer'
         key = pulp_secret_path + '/pulp.key'
@@ -176,14 +122,9 @@ class TestPostPulpSync(object):
         if key_exists:
             open(key, 'w').close()
 
-        if source_secret:
-            monkeypatch.setenv('SOURCE_SECRET_PATH', pulp_secret_path)
-            pulp_secret_path = None
-        else:
-            monkeypatch.delenv('SOURCE_SECRET_PATH', raising=False)
-
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
+        pulp_repoid = 'prefix-prod-myrepository'
         env = 'pulp'
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
@@ -204,15 +145,14 @@ class TestPostPulpSync(object):
             (flexmock(mockpulp)
                 .should_receive('syncRepo')
                 .with_args(object,
-                           'prod-myrepository',  # pulp repository name
-                           config_file=object)
-                .and_return([{'id': 'prefix-prod-myrepository'}])  # repo id
+                           feed=docker_registry,
+                           upstream_name=docker_repository)
+                .and_return([{'id': pulp_repoid}])
                 .once()
                 .ordered())
             (flexmock(mockpulp)
                 .should_receive('crane')
-                .with_args(['prefix-prod-myrepository'],  # repo id
-                           wait=True)
+                .with_args([pulp_repoid], wait=True)
                 .once()
                 .ordered())
         else:
@@ -236,6 +176,157 @@ class TestPostPulpSync(object):
         else:
             with pytest.raises(RuntimeError):
                 plugin.run()
+
+    @pytest.mark.parametrize('content', [
+        None,
+        '{"invalid-json',
+    ])
+    def test_dockercfg_missing_or_invalid(self, tmpdir, content):
+        env = 'pulp'
+
+        if content is not None:
+            registry_secret = os.path.join(str(tmpdir), '.dockercfg')
+            with open(registry_secret, 'w') as fp:
+                fp.write(content)
+
+        plugin = PulpSyncPlugin(tasker=None,
+                                workflow=self.workflow(['repo']),
+                                pulp_registry_name=env,
+                                docker_registry='http://registry.example.com',
+                                registry_secret_path=str(tmpdir))
+
+        mockpulp = MockPulp()
+        (flexmock(dockpulp)
+            .should_receive('Pulp')
+            .with_args(env=env)
+            .and_return(mockpulp))
+
+        with pytest.raises(RuntimeError):
+            plugin.run()
+
+    def test_dockercfg_registry_not_present(self, tmpdir):
+        docker_registry = 'http://registry.example.com'
+        docker_repository = 'prod/myrepository'
+        pulp_repoid = 'prefix-prod-myrepository'
+        env = 'pulp'
+
+        registry_secret = os.path.join(str(tmpdir), '.dockercfg')
+        dockercfg = {
+            'other-registry.example.com': {
+                'username': 'user',
+                'password': 'pass',
+                'email': 'user@example.com',
+            },
+        }
+
+        with open(registry_secret, 'w') as fp:
+            json.dump(dockercfg, fp)
+
+        plugin = PulpSyncPlugin(tasker=None,
+                                workflow=self.workflow([docker_repository]),
+                                pulp_registry_name=env,
+                                docker_registry=docker_registry,
+                                registry_secret_path=str(tmpdir))
+
+        mockpulp = MockPulp()
+        (flexmock(mockpulp)
+            .should_receive('syncRepo')
+            .with_args(object,
+                       feed=docker_registry,
+                       upstream_name=docker_repository)
+            .and_return([{'id': pulp_repoid}])
+            .once()
+            .ordered())
+        (flexmock(dockpulp)
+            .should_receive('Pulp')
+            .with_args(env=env)
+            .and_return(mockpulp))
+
+        plugin.run()
+
+    @pytest.mark.parametrize('scheme', ['http', 'https'])
+    def test_dockercfg(self, tmpdir, scheme):
+        docker_registry = '{}://registry.example.com'.format(scheme)
+        docker_repository = 'prod/myrepository'
+        pulp_repoid = 'prefix-prod-myrepository'
+        user = 'user'
+        pw = 'pass'
+        env = 'pulp'
+
+        registry_secret = os.path.join(str(tmpdir), '.dockercfg')
+        dockercfg = {
+            'registry.example.com': {
+                'username': user,
+                'password': pw,
+                'email': 'user@example.com',
+            },
+        }
+
+        with open(registry_secret, 'w') as fp:
+            json.dump(dockercfg, fp)
+
+        plugin = PulpSyncPlugin(tasker=None,
+                                workflow=self.workflow([docker_repository]),
+                                pulp_registry_name=env,
+                                docker_registry=docker_registry,
+                                registry_secret_path=str(tmpdir))
+
+        mockpulp = MockPulp()
+        (flexmock(mockpulp)
+            .should_receive('syncRepo')
+            .with_args(object,
+                       feed=docker_registry,
+                       upstream_name=docker_repository,
+                       basic_auth_username=user,
+                       basic_auth_password=pw)
+            .and_return([{'id': pulp_repoid}])
+            .once()
+            .ordered())
+        (flexmock(dockpulp)
+            .should_receive('Pulp')
+            .with_args(env=env)
+            .and_return(mockpulp))
+
+        plugin.run()
+
+    @pytest.mark.parametrize(('insecure_registry', 'ssl_validation'), [
+        (None, None),
+        (True, False),
+        (False, True),
+    ])
+    def test_insecure_registry(self, insecure_registry, ssl_validation):
+        docker_registry = 'http://registry.example.com'
+        docker_repository = 'prod/myrepository'
+        pulp_repoid = 'prefix-prod-myrepository'
+        env = 'pulp'
+        plugin = PulpSyncPlugin(tasker=None,
+                                workflow=self.workflow([docker_repository]),
+                                pulp_registry_name=env,
+                                docker_registry=docker_registry,
+                                insecure_registry=insecure_registry)
+
+        mockpulp = MockPulp()
+        sync_exp = flexmock(mockpulp).should_receive('syncRepo')
+        if ssl_validation is None:
+            sync_exp = sync_exp.with_args(object,
+                                          feed=docker_registry,
+                                          upstream_name=docker_repository)
+        else:
+            sync_exp = sync_exp.with_args(object,
+                                          feed=docker_registry,
+                                          upstream_name=docker_repository,
+                                          ssl_validation=ssl_validation)
+
+        (sync_exp
+            .and_return([{'id': pulp_repoid}])
+            .once()
+            .ordered())
+        (flexmock(dockpulp)
+            .should_receive('Pulp')
+            .with_args(env=env)
+            .and_return(mockpulp))
+
+        plugin.run()
 
     @pytest.mark.parametrize('fail', [False, True])
     def test_dockpulp_loglevel(self, fail, caplog):
@@ -263,7 +354,6 @@ class TestPostPulpSync(object):
                                 workflow=self.workflow(['prod/myrepository']),
                                 pulp_registry_name='pulp',
                                 docker_registry='http://registry.example.com',
-                                username='username', password='password',
                                 dockpulp_loglevel=loglevel)
 
         plugin.run()
@@ -280,6 +370,7 @@ class TestPostPulpSync(object):
     def test_store_registry(self, already_exists):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
+        pulp_repoid = 'prefix-prod-myrepository'
         env = 'pulp'
         workflow = self.workflow([docker_repository])
 
@@ -293,15 +384,14 @@ class TestPostPulpSync(object):
         (flexmock(mockpulp)
             .should_receive('syncRepo')
             .with_args(object,
-                       'prod-myrepository',  # pulp repository name
-                       config_file=object)
-            .and_return([{'id': 'prefix-prod-myrepository'}])  # repo id
+                       feed=docker_registry,
+                       upstream_name=docker_repository)
+            .and_return([{'id': pulp_repoid}])
             .once()
             .ordered())
         (flexmock(mockpulp)
             .should_receive('crane')
-            .with_args(['prefix-prod-myrepository'],  # repo id
-                       wait=True)
+            .with_args([pulp_repoid], wait=True)
             .once()
             .ordered())
         (flexmock(dockpulp)
@@ -336,8 +426,7 @@ class TestPostPulpSync(object):
                                 workflow=self.workflow(['prod/myrepository']),
                                 pulp_registry_name='pulp',
                                 docker_registry='http://registry.example.com',
-                                delete_from_registry=True,
-                                username='username', password='password')
+                                delete_from_registry=True)
 
         plugin.run()
 
