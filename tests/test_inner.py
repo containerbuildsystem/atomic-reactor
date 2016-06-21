@@ -281,7 +281,7 @@ class FakeLogger(object):
         self.log(self.errors, args)
 
 
-def test_workflow_compat():
+def test_workflow_compat(request):
     """
     Some of our plugins have changed from being run post-build to
     being run at exit. Let's test what happens when we try running an
@@ -294,7 +294,14 @@ def test_workflow_compat():
     flexmock(InsideBuilder).new_instances(fake_builder)
     watch_exit = Watcher()
     fake_logger = FakeLogger()
+    existing_logger = atomic_reactor.plugin.logger
+
+    def restore_logger():
+        atomic_reactor.plugin.logger = existing_logger
+
+    request.addfinalizer(restore_logger)
     atomic_reactor.plugin.logger = fake_logger
+
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
                                    postbuild_plugins=[{'name': 'store_logs_to_file',
                                                        'args': {
@@ -440,7 +447,7 @@ class Exit(ExitPlugin):
      True,   # logs error
     ),
 ])
-def test_plugin_errors(plugins, should_fail, should_log):
+def test_plugin_errors(request, plugins, should_fail, should_log):
     """
     Try bad plugin configuration.
     """
@@ -450,6 +457,13 @@ def test_plugin_errors(plugins, should_fail, should_log):
     fake_builder = MockInsideBuilder()
     flexmock(InsideBuilder).new_instances(fake_builder)
     fake_logger = FakeLogger()
+
+    existing_logger = atomic_reactor.plugin.logger
+
+    def restore_logger():
+        atomic_reactor.plugin.logger = existing_logger
+
+    request.addfinalizer(restore_logger)
     atomic_reactor.plugin.logger = fake_logger
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
@@ -738,4 +752,3 @@ def test_workflow_plugin_results():
     assert workflow.postbuild_results == {'post_build_value': 'post_build_value_result'}
     assert workflow.prepub_results == {'pre_publish_value': 'pre_publish_value_result'}
     assert workflow.exit_results == {'exit_value': 'exit_value_result'}
-
