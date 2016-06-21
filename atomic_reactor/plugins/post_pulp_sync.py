@@ -51,9 +51,8 @@ pulp_secret_path:
 from __future__ import print_function, unicode_literals
 
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.util import ImageName
+from atomic_reactor.util import ImageName, Dockercfg
 import dockpulp
-import json
 import os
 import re
 
@@ -142,21 +141,9 @@ class PulpSyncPlugin(PostBuildPlugin):
         if not self.registry_secret_path:
             return {}
 
-        json_secret_path = os.path.join(self.registry_secret_path,
-                                        '.dockercfg')
-        try:
-            with open(json_secret_path) as fp:
-                json_secret = json.load(fp)
-        except Exception:
-            msg = "failed to read registry secret"
-            self.log.error(msg, exc_info=True)
-            raise RuntimeError(msg)
-
-        try:
-            registry_creds = json_secret[docker_registry]
-        except KeyError:
-            self.log.warn('%s not found in .dockercfg',
-                          docker_registry)
+        dockercfg = Dockercfg(self.registry_secret_path)
+        registry_creds = dockercfg.get_credentials(docker_registry)
+        if 'username' not in registry_creds:
             return {}
 
         return {

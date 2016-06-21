@@ -592,3 +592,29 @@ def human_size(num, suffix='B'):
             return "%3.2f %s%s" % (num, unit, suffix)
         num /= 1024.0
     return "%.2f %s%s" % (num, 'Yi', suffix)
+
+
+class Dockercfg(object):
+    def __init__(self, secret_path):
+        """
+        Create a new Dockercfg object from a .dockercfg file whose
+        containing directory is secret_path.
+
+        :param secret_path: str, dirname of .dockercfg location
+        """
+
+        json_secret_path = os.path.join(secret_path, '.dockercfg')
+        try:
+            with open(json_secret_path) as fp:
+                self.json_secret = json.load(fp)
+        except Exception:
+            msg = "failed to read registry secret"
+            logger.error(msg, exc_info=True)
+            raise RuntimeError(msg)
+
+    def get_credentials(self, docker_registry):
+        try:
+            return self.json_secret[docker_registry]
+        except KeyError:
+            logger.warn('%s not found in .dockercfg', docker_registry)
+            return {}

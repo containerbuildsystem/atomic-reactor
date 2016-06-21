@@ -7,12 +7,11 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from copy import deepcopy
-import os
 import re
-import json
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
+from atomic_reactor.util import Dockercfg
 
 
 __all__ = ('TagAndPushPlugin', )
@@ -37,7 +36,7 @@ class TagAndPushPlugin(PostBuildPlugin):
                            Params:
                             * "insecure" optional boolean - controls whether pushes are allowed over
                               plain HTTP.
-                            * "secret" optional string - name of the secret, which stores
+                            * "secret" optional string - path to the secret, which stores
                               email, login and password for remote registry
         """
         # call parent constructor
@@ -60,14 +59,12 @@ class TagAndPushPlugin(PostBuildPlugin):
             self.log.info("Registry %s secret %s", registry, docker_push_secret)
             login = password = email = None
             if docker_push_secret:
+                dockercfg = Dockercfg(docker_push_secret)
+                credentials = dockercfg.get_credentials(registry)
                 try:
-                    json_secret_path = os.path.join(docker_push_secret, ".dockercfg")
-                    json_secret = {}
-                    with open(json_secret_path) as fd:
-                        json_secret = json.load(fd)
-                    login = json_secret[registry]['username']
-                    password = json_secret[registry]['password']
-                    email = json_secret[registry]['email']
+                    login = credentials['username']
+                    password = credentials['password']
+                    email = credentials['email']
                 except Exception as e:
                     self.log.warn("error retrieving credentials", exc_info=True)
                     login = password = email = None
