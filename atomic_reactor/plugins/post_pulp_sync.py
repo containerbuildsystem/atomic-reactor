@@ -79,7 +79,8 @@ class PulpSyncPlugin(PostBuildPlugin):
                  pulp_secret_path=None,
                  registry_secret_path=None,
                  insecure_registry=None,
-                 dockpulp_loglevel=None):
+                 dockpulp_loglevel=None,
+                 pulp_repo_prefix='redhat-'):
         """
         constructor
 
@@ -95,6 +96,7 @@ class PulpSyncPlugin(PostBuildPlugin):
         :param registry_secret_path: path to .dockercfg for the V2 registry
         :param insecure_registry: True if SSL validation should be skipped
         :param dockpulp_loglevel: int, logging level for dockpulp
+        :param pulp_repo_prefix: str, prefix for pulp repo IDs
         """
         # call parent constructor
         super(PulpSyncPlugin, self).__init__(tasker, workflow)
@@ -103,6 +105,7 @@ class PulpSyncPlugin(PostBuildPlugin):
         self.pulp_secret_path = pulp_secret_path
         self.registry_secret_path = registry_secret_path
         self.insecure_registry = insecure_registry
+        self.pulp_repo_prefix = pulp_repo_prefix
 
         if dockpulp_loglevel is not None:
             logger = dockpulp.setup_logger(dockpulp.log)
@@ -151,6 +154,22 @@ class PulpSyncPlugin(PostBuildPlugin):
             'basic_auth_password': registry_creds['password'],
         }
 
+    def create_repo_if_missing(self, pulp, repo_id, registry_id):
+        prefixed_repo_id = "{prefix}{id}".format(prefix=self.pulp_repo_prefix,
+                                                 id=repo_id)
+        found_repos = pulp.getRepos([prefixed_repo_id], fields=['id'])
+        found_repo_ids = [repo['id'] for repo in found_repos]
+        missing_repos = set([prefixed_repo_id]) - set(found_repo_ids)
+        try:
+            repo = missing_repos.pop()
+        except KeyError:
+            # Already exists
+            return
+        else:
+            self.log.info("creating repo %s", repo)
+            pulp.createRepo(repo, None, registry_id=registry_id,
+                            prefix_with=self.pulp_repo_prefix)
+
     def run(self):
         pulp = dockpulp.Pulp(env=self.pulp_registry_name)
         self.set_auth(pulp)
@@ -178,6 +197,7 @@ class PulpSyncPlugin(PostBuildPlugin):
         repos = {}  # pulp repo -> repo id
         for image in self.workflow.tag_conf.primary_images:
             if image.pulp_repo not in repos:
+                self.create_repo_if_missing(pulp, image.pulp_repo, image.repo)
                 self.log.info("syncing %s", image.pulp_repo)
                 repoinfo = pulp.syncRepo(repo=image.pulp_repo,
                                          feed=self.docker_registry,

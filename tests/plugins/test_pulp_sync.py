@@ -56,6 +56,14 @@ class MockPulp(object):
                  ssl_validation=None):
         pass
 
+    def getRepos(self, rids, fields=None):
+        pass
+
+    def createRepo(self, repo_id, url, registry_id=None, desc=None,
+                   title=None, protected=False, distributors=True,
+                   prefix_with='redhat-', productline=None):
+        pass
+
     def crane(self, repos, wait=True):
         pass
 
@@ -77,6 +85,7 @@ class TestPostPulpSync(object):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
         pulp_repoid = 'prod-myrepository'
+        prefixed_pulp_repoid = 'redhat-prod-myrepository'
         env = 'pulp'
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
@@ -90,6 +99,12 @@ class TestPostPulpSync(object):
         (flexmock(mockpulp)
             .should_receive('set_certs')
             .never())
+        (flexmock(mockpulp)
+            .should_receive('getRepos')
+            .with_args([prefixed_pulp_repoid], fields=['id'])
+            .and_return([{'id': prefixed_pulp_repoid}])
+            .once()
+            .ordered())
         (flexmock(mockpulp)
             .should_receive('syncRepo')
             .with_args(object,
@@ -126,6 +141,7 @@ class TestPostPulpSync(object):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
         pulp_repoid = 'prod-myrepository'
+        prefixed_pulp_repoid = 'redhat-prod-myrepository'
         env = 'pulp'
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
@@ -141,6 +157,12 @@ class TestPostPulpSync(object):
             (flexmock(mockpulp)
                 .should_receive('set_certs')
                 .with_args(cer, key)
+                .once()
+                .ordered())
+            (flexmock(mockpulp)
+                .should_receive('getRepos')
+                .with_args([prefixed_pulp_repoid], fields=['id'])
+                .and_return([{'id': prefixed_pulp_repoid}])
                 .once()
                 .ordered())
             (flexmock(mockpulp)
@@ -210,6 +232,7 @@ class TestPostPulpSync(object):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
         pulp_repoid = 'prod-myrepository'
+        prefixed_pulp_repoid = 'redhat-prod-myrepository'
         env = 'pulp'
 
         registry_secret = os.path.join(str(tmpdir), '.dockercfg')
@@ -232,6 +255,12 @@ class TestPostPulpSync(object):
 
         mockpulp = MockPulp()
         (flexmock(mockpulp)
+            .should_receive('getRepos')
+            .with_args([prefixed_pulp_repoid], fields=['id'])
+            .and_return([{'id': prefixed_pulp_repoid}])
+            .once()
+            .ordered())
+        (flexmock(mockpulp)
             .should_receive('syncRepo')
             .with_args(object,
                        repo=pulp_repoid,
@@ -252,6 +281,7 @@ class TestPostPulpSync(object):
         docker_registry = '{}://registry.example.com'.format(scheme)
         docker_repository = 'prod/myrepository'
         pulp_repoid = 'prod-myrepository'
+        prefixed_pulp_repoid = 'redhat-prod-myrepository'
         user = 'user'
         pw = 'pass'
         env = 'pulp'
@@ -275,6 +305,12 @@ class TestPostPulpSync(object):
                                 registry_secret_path=str(tmpdir))
 
         mockpulp = MockPulp()
+        (flexmock(mockpulp)
+            .should_receive('getRepos')
+            .with_args([prefixed_pulp_repoid], fields=['id'])
+            .and_return([{'id': prefixed_pulp_repoid}])
+            .once()
+            .ordered())
         (flexmock(mockpulp)
             .should_receive('syncRepo')
             .with_args(object,
@@ -302,6 +338,7 @@ class TestPostPulpSync(object):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
         pulp_repoid = 'prod-myrepository'
+        prefixed_pulp_repoid = 'redhat-prod-myrepository'
         env = 'pulp'
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
@@ -310,6 +347,12 @@ class TestPostPulpSync(object):
                                 insecure_registry=insecure_registry)
 
         mockpulp = MockPulp()
+        (flexmock(mockpulp)
+            .should_receive('getRepos')
+            .with_args([prefixed_pulp_repoid], fields=['id'])
+            .and_return([{'id': prefixed_pulp_repoid}])
+            .once()
+            .ordered())
         sync_exp = flexmock(mockpulp).should_receive('syncRepo')
         if ssl_validation is None:
             sync_exp = sync_exp.with_args(object,
@@ -339,6 +382,12 @@ class TestPostPulpSync(object):
         loglevel = 3
 
         mockpulp = MockPulp()
+        (flexmock(mockpulp)
+            .should_receive('getRepos')
+            .with_args(['redhat-prod-myrepository'], fields=['id'])
+            .and_return([{'id': 'redhat-prod-myrepository'}])
+            .once()
+            .ordered())
         (flexmock(mockpulp)
             .should_receive('syncRepo')
             .and_return([{'id':''}]))
@@ -377,6 +426,7 @@ class TestPostPulpSync(object):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
         pulp_repoid = 'prod-myrepository'
+        prefixed_pulp_repoid = 'redhat-prod-myrepository'
         env = 'pulp'
         workflow = self.workflow([docker_repository])
 
@@ -387,6 +437,12 @@ class TestPostPulpSync(object):
         (flexmock(mockpulp)
             .should_receive('set_certs')
             .never())
+        (flexmock(mockpulp)
+            .should_receive('getRepos')
+            .with_args([prefixed_pulp_repoid], fields=['id'])
+            .and_return([{'id': prefixed_pulp_repoid}])
+            .once()
+            .ordered())
         (flexmock(mockpulp)
             .should_receive('syncRepo')
             .with_args(object,
@@ -426,6 +482,12 @@ class TestPostPulpSync(object):
         """
         mockpulp = MockPulp()
         (flexmock(mockpulp)
+            .should_receive('getRepos')
+            .with_args(['redhat-prod-myrepository'], fields=['id'])
+            .and_return([{'id': 'redhat-prod-myrepository'}])
+            .once()
+            .ordered())
+        (flexmock(mockpulp)
             .should_receive('syncRepo')
             .and_return([{'id':''}]))
         flexmock(dockpulp).should_receive('Pulp').and_return(mockpulp)
@@ -442,3 +504,49 @@ class TestPostPulpSync(object):
 
         assert [message for message in errors
                 if 'not implemented' in message]
+
+    def test_create_missing_repo(self):
+        docker_registry = 'http://registry.example.com'
+        docker_repository = 'prod/myrepository'
+        pulp_repoid = 'prod-myrepository'
+        prefixed_pulp_repoid = 'redhat-prod-myrepository'
+        env = 'pulp'
+        plugin = PulpSyncPlugin(tasker=None,
+                                workflow=self.workflow([docker_repository]),
+                                pulp_registry_name=env,
+                                docker_registry=docker_registry)
+
+        mockpulp = MockPulp()
+        (flexmock(mockpulp)
+            .should_receive('getRepos')
+            .with_args([prefixed_pulp_repoid], fields=['id'])
+            .and_return([])
+            .once()
+            .ordered())
+        (flexmock(mockpulp)
+            .should_receive('createRepo')
+            .with_args(prefixed_pulp_repoid, None,
+                       registry_id=docker_repository,
+                       prefix_with='redhat-')
+            .once()
+            .ordered())
+        (flexmock(mockpulp)
+            .should_receive('syncRepo')
+            .with_args(object,
+                       repo=pulp_repoid,
+                       feed=docker_registry,
+                       upstream_name=docker_repository)
+            .and_return([{'id': pulp_repoid}])
+            .once()
+            .ordered())
+        (flexmock(mockpulp)
+            .should_receive('crane')
+            .with_args([pulp_repoid], wait=True)
+            .once()
+            .ordered())
+        (flexmock(dockpulp)
+            .should_receive('Pulp')
+            .with_args(env=env)
+            .and_return(mockpulp))
+
+        plugin.run()
