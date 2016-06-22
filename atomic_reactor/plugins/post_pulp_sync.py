@@ -201,7 +201,6 @@ class PulpSyncPlugin(PostBuildPlugin):
                 self.log.info("syncing %s", image.pulp_repo)
                 repoinfo = pulp.syncRepo(repo=image.pulp_repo,
                                          feed=self.docker_registry,
-                                         upstream_name=image.repo,
                                          **kwargs)
                 repos[image.pulp_repo] = repoinfo[0]['id']
 

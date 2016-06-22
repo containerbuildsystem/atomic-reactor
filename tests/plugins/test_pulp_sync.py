@@ -51,7 +51,7 @@ class MockPulp(object):
     def set_certs(self, cer, key):
         pass
 
-    def syncRepo(self, feed=None, upstream_name=None, repo=None,
+    def syncRepo(self, feed=None, repo=None,
                  basic_auth_username=None, basic_auth_password=None,
                  ssl_validation=None):
         pass
@@ -109,8 +109,7 @@ class TestPostPulpSync(object):
             .should_receive('syncRepo')
             .with_args(object,
                        repo=pulp_repoid,
-                       feed=docker_registry,
-                       upstream_name=docker_repository)
+                       feed=docker_registry)
             .and_return([{'id': pulp_repoid}])
             .once()
             .ordered())
@@ -169,8 +168,7 @@ class TestPostPulpSync(object):
                 .should_receive('syncRepo')
                 .with_args(object,
                            repo=pulp_repoid,
-                           feed=docker_registry,
-                           upstream_name=docker_repository)
+                           feed=docker_registry)
                 .and_return([{'id': pulp_repoid}])
                 .once()
                 .ordered())
@@ -264,8 +262,7 @@ class TestPostPulpSync(object):
             .should_receive('syncRepo')
             .with_args(object,
                        repo=pulp_repoid,
-                       feed=docker_registry,
-                       upstream_name=docker_repository)
+                       feed=docker_registry)
             .and_return([{'id': pulp_repoid}])
             .once()
             .ordered())
@@ -316,7 +313,6 @@ class TestPostPulpSync(object):
             .with_args(object,
                        repo=pulp_repoid,
                        feed=docker_registry,
-                       upstream_name=docker_repository,
                        basic_auth_username=user,
                        basic_auth_password=pw)
             .and_return([{'id': pulp_repoid}])
@@ -357,13 +353,11 @@ class TestPostPulpSync(object):
         if ssl_validation is None:
             sync_exp = sync_exp.with_args(object,
                                           repo=pulp_repoid,
-                                          feed=docker_registry,
-                                          upstream_name=docker_repository)
+                                          feed=docker_registry)
         else:
             sync_exp = sync_exp.with_args(object,
                                           repo=pulp_repoid,
                                           feed=docker_registry,
-                                          upstream_name=docker_repository,
                                           ssl_validation=ssl_validation)
 
         (sync_exp
@@ -447,8 +441,7 @@ class TestPostPulpSync(object):
             .should_receive('syncRepo')
             .with_args(object,
                        repo=pulp_repoid,
-                       feed=docker_registry,
-                       upstream_name=docker_repository)
+                       feed=docker_registry)
             .and_return([{'id': pulp_repoid}])
             .once()
             .ordered())
@@ -534,8 +527,7 @@ class TestPostPulpSync(object):
             .should_receive('syncRepo')
             .with_args(object,
                        repo=pulp_repoid,
-                       feed=docker_registry,
-                       upstream_name=docker_repository)
+                       feed=docker_registry)
             .and_return([{'id': pulp_repoid}])
             .once()
             .ordered())

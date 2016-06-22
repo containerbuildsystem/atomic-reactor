@@ -27,7 +27,7 @@ class Pulp(object):
     def set_certs(self, cer, key):
         pass
 
-    def syncRepo(self, feed=None, upstream_name=None, repo=None,
+    def syncRepo(self, feed=None, repo=None,
                  basic_auth_username=None, basic_auth_password=None,
                  ssl_validation=None):
         pass
