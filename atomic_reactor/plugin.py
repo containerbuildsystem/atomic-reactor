@@ -204,11 +204,10 @@ class PluginsRunner(object):
 
             logger.debug("running plugin '%s'", plugin_name)
 
-            plugin_instance = self.create_instance_from_plugin(plugin_class, plugin_conf)
-            start_time = datetime.datetime.now()
-            self.save_plugin_timestamp(plugin_instance.key, start_time)
-
             try:
+                plugin_instance = self.create_instance_from_plugin(plugin_class, plugin_conf)
+                start_time = datetime.datetime.now()
+                self.save_plugin_timestamp(plugin_class.key, start_time)
                 plugin_response = plugin_instance.run()
             except AutoRebuildCanceledException as ex:
                 # if auto rebuild is canceled, then just reraise
@@ -218,7 +217,7 @@ class PluginsRunner(object):
                 #   AutoRebuildCanceledException was raised here)
                 raise
             except Exception as ex:
-                msg = "plugin '%s' raised an exception: %r" % (plugin_instance.key, ex)
+                msg = "plugin '%s' raised an exception: %r" % (plugin_class.key, ex)
                 logger.debug(traceback.format_exc())
                 if plugin_is_allowed_to_fail or keep_going:
                     logger.warning(msg)
@@ -226,22 +225,23 @@ class PluginsRunner(object):
                     if not plugin_is_allowed_to_fail:
                         failed_msgs.append(msg)
                 else:
-                    self.on_plugin_failed(plugin_instance.key, ex)
+                    self.on_plugin_failed(plugin_class.key, ex)
                     logger.error(msg)
                     raise PluginFailedException(msg)
 
                 plugin_response = ex
 
             try:
-                finish_time = datetime.datetime.now()
-                duration = finish_time - start_time
-                seconds = duration.total_seconds()
-                logger.debug("plugin '%s' finished in %ds", plugin_name, seconds)
-                self.save_plugin_duration(plugin_instance.key, seconds)
+                if start_time:
+                    finish_time = datetime.datetime.now()
+                    duration = finish_time - start_time
+                    seconds = duration.total_seconds()
+                    logger.debug("plugin '%s' finished in %ds", plugin_name, seconds)
+                    self.save_plugin_duration(plugin_class.key, seconds)
             except Exception:
                 logger.exception("failed to save plugin duration")
 
-            self.plugins_results[plugin_instance.key] = plugin_response
+            self.plugins_results[plugin_class.key] = plugin_response
         if len(failed_msgs) == 1:
             raise PluginFailedException(failed_msgs[0])
         elif len(failed_msgs) > 1:
