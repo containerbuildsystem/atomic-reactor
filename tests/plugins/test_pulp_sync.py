@@ -51,8 +51,8 @@ class MockPulp(object):
     def set_certs(self, cer, key):
         pass
 
-    def syncRepo(self, feed=None, repo=None,
-                 basic_auth_username=None, basic_auth_password=None,
+    def syncRepo(self, env=None, repo=None, config_file=None, prefix_with=None,
+                 feed=None, basic_auth_username=None, basic_auth_password=None,
                  ssl_validation=None):
         pass
 
@@ -107,15 +107,14 @@ class TestPostPulpSync(object):
             .ordered())
         (flexmock(mockpulp)
             .should_receive('syncRepo')
-            .with_args(object,
-                       repo=pulp_repoid,
+            .with_args(repo=prefixed_pulp_repoid,
                        feed=docker_registry)
-            .and_return([{'id': pulp_repoid}])
+            .and_return(([], []))
             .once()
             .ordered())
         (flexmock(mockpulp)
             .should_receive('crane')
-            .with_args([pulp_repoid], wait=True)
+            .with_args([prefixed_pulp_repoid], wait=True)
             .once()
             .ordered())
         (flexmock(dockpulp)
@@ -166,15 +165,14 @@ class TestPostPulpSync(object):
                 .ordered())
             (flexmock(mockpulp)
                 .should_receive('syncRepo')
-                .with_args(object,
-                           repo=pulp_repoid,
+                .with_args(repo=prefixed_pulp_repoid,
                            feed=docker_registry)
-                .and_return([{'id': pulp_repoid}])
+                .and_return(([], []))
                 .once()
                 .ordered())
             (flexmock(mockpulp)
                 .should_receive('crane')
-                .with_args([pulp_repoid], wait=True)
+                .with_args([prefixed_pulp_repoid], wait=True)
                 .once()
                 .ordered())
         else:
@@ -260,10 +258,9 @@ class TestPostPulpSync(object):
             .ordered())
         (flexmock(mockpulp)
             .should_receive('syncRepo')
-            .with_args(object,
-                       repo=pulp_repoid,
+            .with_args(repo=prefixed_pulp_repoid,
                        feed=docker_registry)
-            .and_return([{'id': pulp_repoid}])
+            .and_return(([], []))
             .once()
             .ordered())
         (flexmock(dockpulp)
@@ -310,12 +307,11 @@ class TestPostPulpSync(object):
             .ordered())
         (flexmock(mockpulp)
             .should_receive('syncRepo')
-            .with_args(object,
-                       repo=pulp_repoid,
+            .with_args(repo=prefixed_pulp_repoid,
                        feed=docker_registry,
                        basic_auth_username=user,
                        basic_auth_password=pw)
-            .and_return([{'id': pulp_repoid}])
+            .and_return(([], []))
             .once()
             .ordered())
         (flexmock(dockpulp)
@@ -351,17 +347,15 @@ class TestPostPulpSync(object):
             .ordered())
         sync_exp = flexmock(mockpulp).should_receive('syncRepo')
         if ssl_validation is None:
-            sync_exp = sync_exp.with_args(object,
-                                          repo=pulp_repoid,
+            sync_exp = sync_exp.with_args(repo=prefixed_pulp_repoid,
                                           feed=docker_registry)
         else:
-            sync_exp = sync_exp.with_args(object,
-                                          repo=pulp_repoid,
+            sync_exp = sync_exp.with_args(repo=prefixed_pulp_repoid,
                                           feed=docker_registry,
                                           ssl_validation=ssl_validation)
 
         (sync_exp
-            .and_return([{'id': pulp_repoid}])
+            .and_return(([], []))
             .once()
             .ordered())
         (flexmock(dockpulp)
@@ -384,7 +378,7 @@ class TestPostPulpSync(object):
             .ordered())
         (flexmock(mockpulp)
             .should_receive('syncRepo')
-            .and_return([{'id':''}]))
+            .and_return(([], [])))
         flexmock(dockpulp).should_receive('Pulp').and_return(mockpulp)
         logger = flexmock()
         expectation = (logger
@@ -439,15 +433,14 @@ class TestPostPulpSync(object):
             .ordered())
         (flexmock(mockpulp)
             .should_receive('syncRepo')
-            .with_args(object,
-                       repo=pulp_repoid,
+            .with_args(repo=prefixed_pulp_repoid,
                        feed=docker_registry)
-            .and_return([{'id': pulp_repoid}])
+            .and_return(([], []))
             .once()
             .ordered())
         (flexmock(mockpulp)
             .should_receive('crane')
-            .with_args([pulp_repoid], wait=True)
+            .with_args([prefixed_pulp_repoid], wait=True)
             .once()
             .ordered())
         (flexmock(dockpulp)
@@ -482,7 +475,7 @@ class TestPostPulpSync(object):
             .ordered())
         (flexmock(mockpulp)
             .should_receive('syncRepo')
-            .and_return([{'id':''}]))
+            .and_return(([], [])))
         flexmock(dockpulp).should_receive('Pulp').and_return(mockpulp)
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow(['prod/myrepository']),
@@ -525,15 +518,14 @@ class TestPostPulpSync(object):
             .ordered())
         (flexmock(mockpulp)
             .should_receive('syncRepo')
-            .with_args(object,
-                       repo=pulp_repoid,
+            .with_args(repo=prefixed_pulp_repoid,
                        feed=docker_registry)
-            .and_return([{'id': pulp_repoid}])
+            .and_return(([], []))
             .once()
             .ordered())
         (flexmock(mockpulp)
             .should_receive('crane')
-            .with_args([pulp_repoid], wait=True)
+            .with_args([prefixed_pulp_repoid], wait=True)
             .once()
             .ordered())
         (flexmock(dockpulp)

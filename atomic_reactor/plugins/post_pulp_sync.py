@@ -164,11 +164,13 @@ class PulpSyncPlugin(PostBuildPlugin):
             repo = missing_repos.pop()
         except KeyError:
             # Already exists
-            return
+            pass
         else:
             self.log.info("creating repo %s", repo)
-            pulp.createRepo(repo, None, registry_id=registry_id,
+            pulp.createRepo(prefixed_repo_id, None, registry_id=registry_id,
                             prefix_with=self.pulp_repo_prefix)
+
+        return prefixed_repo_id
 
     def run(self):
         pulp = dockpulp.Pulp(env=self.pulp_registry_name)
@@ -197,12 +199,14 @@ class PulpSyncPlugin(PostBuildPlugin):
         repos = {}  # pulp repo -> repo id
         for image in self.workflow.tag_conf.primary_images:
             if image.pulp_repo not in repos:
-                self.create_repo_if_missing(pulp, image.pulp_repo, image.repo)
-                self.log.info("syncing %s", image.pulp_repo)
-                repoinfo = pulp.syncRepo(repo=image.pulp_repo,
-                                         feed=self.docker_registry,
-                                         **kwargs)
-                repos[image.pulp_repo] = repoinfo[0]['id']
+                repo_id = self.create_repo_if_missing(pulp,
+                                                      image.pulp_repo,
+                                                      image.repo)
+                self.log.info("syncing %s", repo_id)
+                pulp.syncRepo(repo=repo_id,
+                              feed=self.docker_registry,
+                              **kwargs)
+                repos[image.pulp_repo] = repo_id
 
             images.append(ImageName(registry=pulp_registry,
                                     repo=image.repo))
