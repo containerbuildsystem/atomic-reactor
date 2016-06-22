@@ -603,9 +603,9 @@ class Dockercfg(object):
         :param secret_path: str, dirname of .dockercfg location
         """
 
-        json_secret_path = os.path.join(secret_path, '.dockercfg')
+        self.json_secret_path = os.path.join(secret_path, '.dockercfg')
         try:
-            with open(json_secret_path) as fp:
+            with open(self.json_secret_path) as fp:
                 self.json_secret = json.load(fp)
         except Exception:
             msg = "failed to read registry secret"

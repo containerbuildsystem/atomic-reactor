@@ -34,7 +34,8 @@ from docker.errors import APIError
 from atomic_reactor.constants import CONTAINER_SHARE_PATH, CONTAINER_SHARE_SOURCE_SUBDIR,\
         BUILD_JSON, DOCKER_SOCKET_PATH
 from atomic_reactor.source import get_source_instance_for
-from atomic_reactor.util import ImageName, wait_for_command, clone_git_repo, figure_out_dockerfile
+from atomic_reactor.util import (
+    ImageName, wait_for_command, clone_git_repo, figure_out_dockerfile, Dockercfg)
 
 
 logger = logging.getLogger(__name__)
@@ -440,21 +441,30 @@ class DockerTasker(LastLogger):
             logger.debug('image already tagged correctly, nothing to do')
         return target_image.to_str()  # this will be the proper name, not just repo/img
 
-    def login(self, registry, login, password, email):
-        logger.info("logging in: registry '%s', login '%s', email '%s'" % (registry, login, email))
-        response = self.d.login(
-            username=login,
-            password=password,
-            email=email,
-            registry=registry)
+    def login(self, registry, docker_secret_path):
+        """
+        login to docker registry
+
+        :param registry: registry name
+        :param docker_secret_path: path to docker config directory
+        """
+        logger.info("logging in: registry '%s', secret path '%s'", registry, docker_secret_path)
+        # Docker-py needs username
+        dockercfg = Dockercfg(docker_secret_path)
+        username = dockercfg.get_credentials(registry)['username']
+        logger.info("found username %s for registry %s", username, registry)
+
+        response = self.d.login(registry=registry, username=username,
+                                dockercfg_path=dockercfg.json_secret_path)
         if not response:
-            raise RuntimeError(
-                "Failed to login to '%s': email = '%s', login = '%s', password = '%s'" %
-                (registry, email, login, password))
+            raise RuntimeError("Failed to login to '%s' with config '%s'" % (registry, dockercfg))
         if u'Status' in response and response[u'Status'] == u'Login Succeeded':
             logger.info("login succeeded")
         else:
-            logger.debug("response: %r", response)
+            if not(isinstance(response, dict) and 'password' in response.keys()):
+                # for some reason docker-py returns the contents of the dockercfg - we shouldn't be
+                # displaying that
+                logger.debug("response: %r", response)
 
     def push_image(self, image, insecure=False):
         """
@@ -479,8 +489,7 @@ class DockerTasker(LastLogger):
             raise RuntimeError("Failed to push image %s" % image)
         return command_result.parsed_logs
 
-    def tag_and_push_image(self, image, target_image, insecure=False, force=False,
-                           login=None, password=None, email=None):
+    def tag_and_push_image(self, image, target_image, insecure=False, force=False, dockercfg=None):
         """
         tag provided image and push it to registry
 
@@ -488,13 +497,14 @@ class DockerTasker(LastLogger):
         :param target_image: ImageName, img
         :param insecure: bool, allow connecting to registry over plain http
         :param force: bool, force the tag?
+        :param dockercfg: path to docker config
         :return: str, image (reg.com/img:v1)
         """
         logger.info("tagging and pushing image '%s' as '%s'", image, target_image)
         logger.debug("image = '%s', target_image = '%s'", image, target_image)
         self.tag_image(image, target_image, force=force)
-        if login and password and email:
-            self.login(registry=target_image.registry, login=login, password=password, email=email)
+        if dockercfg:
+            self.login(registry=target_image.registry, docker_secret_path=dockercfg)
         return self.push_image(target_image, insecure=insecure)
 
     def inspect_image(self, image_id):

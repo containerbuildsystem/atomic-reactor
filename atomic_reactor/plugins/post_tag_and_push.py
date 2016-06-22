@@ -11,7 +11,6 @@ import re
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
-from atomic_reactor.util import Dockercfg
 
 
 __all__ = ('TagAndPushPlugin', )
@@ -57,17 +56,6 @@ class TagAndPushPlugin(PostBuildPlugin):
 
             docker_push_secret = registry_conf.get('secret', None)
             self.log.info("Registry %s secret %s", registry, docker_push_secret)
-            login = password = email = None
-            if docker_push_secret:
-                dockercfg = Dockercfg(docker_push_secret)
-                credentials = dockercfg.get_credentials(registry)
-                try:
-                    login = credentials['username']
-                    password = credentials['password']
-                    email = credentials['email']
-                except Exception as e:
-                    self.log.warn("error retrieving credentials", exc_info=True)
-                    login = password = email = None
 
             for image in self.workflow.tag_conf.images:
                 if image.registry:
@@ -77,8 +65,7 @@ class TagAndPushPlugin(PostBuildPlugin):
                 registry_image.registry = registry
                 logs = self.tasker.tag_and_push_image(self.workflow.builder.image_id,
                                                       registry_image, insecure=insecure,
-                                                      force=True,
-                                                      login=login, password=password, email=email)
+                                                      force=True, dockercfg=docker_push_secret)
 
                 pushed_images.append(registry_image)
                 defer_removal(self.workflow, registry_image)

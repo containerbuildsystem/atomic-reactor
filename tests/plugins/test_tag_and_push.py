@@ -97,7 +97,7 @@ def test_tag_and_push_plugin(tmpdir, image_name, logs, should_raise, use_secret)
     if MOCK:
         mock_docker()
         flexmock(docker.Client, push=lambda iid, **kwargs: iter(logs),
-                 login=lambda username, password, email, registry: {'Status': 'Login Succeeded'})
+                 login=lambda username, registry, dockercfg_path: {'Status': 'Login Succeeded'})
 
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
