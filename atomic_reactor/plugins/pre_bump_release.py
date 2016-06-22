@@ -60,7 +60,14 @@ class BumpReleasePlugin(PreBuildPlugin):
 
         target_info = self.xmlrpc.getBuildTarget(self.target)
         self.log.debug('target info: %s', target_info)
+        if not target_info:
+            raise RuntimeError("no such target: %s" % self.target)
+
         tag_id = target_info['dest_tag']
+        if not self.xmlrpc.checkTagPackage(tag_id, component):
+            raise RuntimeError(
+                "package %s is not in the list for target %s" % (component, self.target))
+
         latest = self.xmlrpc.getLatestBuilds(tag_id, package=component)
         self.log.debug('latest builds: %s', latest)
         try:

@@ -83,14 +83,22 @@ class TestBumpRelease(object):
         ([{}], '2', '2'),
     ])
     @pytest.mark.parametrize('release_label', ['release', 'Release'])
+    @pytest.mark.parametrize(('component', 'tag', 'throws_exception'), [
+        ('comp', 'dest_tag', False),
+        ('comp', 'wrong_tag', True),
+        ('wrong_comp', 'dest_tag', True),
+    ])
     def test_increment(self, tmpdir, release_label, latest_builds, next_release,
-                       expected):
+                       expected, component, tag, throws_exception):
         class MockedClientSession(object):
             def __init__(self):
                 pass
 
             def getBuildTarget(self, target):
-                return {'dest_tag': 'dest_tag'}
+                if target == 'dest_tag':
+                    return {'dest_tag': 'dest_tag'}
+                else:
+                    return None
 
             def getLatestBuilds(self, target, package=None):
                 return latest_builds
@@ -98,9 +106,16 @@ class TestBumpRelease(object):
             def getNextRelease(self, build_info):
                 return next_release
 
+            def checkTagPackage(self, tag, package):
+                return package == 'comp' and tag == 'dest_tag'
+
         session = MockedClientSession()
         flexmock(koji, ClientSession=session)
-        plugin = self.prepare(tmpdir, labels={'com.redhat.component': 'comp'})
-        plugin.run()
-        parser = DockerfileParser(plugin.workflow.builder.df_path)
-        assert parser.labels[release_label] == expected
+        plugin = self.prepare(tmpdir, labels={'com.redhat.component': component}, target=tag)
+        if throws_exception:
+            with pytest.raises(RuntimeError):
+                plugin.run()
+        else:
+            plugin.run()
+            parser = DockerfileParser(plugin.workflow.builder.df_path)
+            assert parser.labels[release_label] == expected
