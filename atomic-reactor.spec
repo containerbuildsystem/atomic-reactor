@@ -25,13 +25,13 @@
 %global owner projectatomic
 %global project atomic-reactor
 
-%global commit 2a398eb9564b94f49729654db34df1b8d082574d
+%global commit 5e007589a0f70fb79d16b5b7ca56f092b18187e5
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 
 %global dock_obsolete_vr 1.3.7-2
 
 Name:           %{project}
-Version:        1.6.10
+Version:        1.6.11
 Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
@@ -392,6 +392,9 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 
 %changelog
+* Fri Jun 24 2016 Vadim Rutkovsky <vrutkovs@redhat.com> - 1.6.11-1
+- 1.6.11 release
+
 * Thu Jun 09 2016 Tim Waugh <twaugh@redhat.com>
 - Move the bump_release plugin to the koji subpackage since it uses Koji.
 
