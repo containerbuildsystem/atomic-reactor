@@ -36,7 +36,7 @@ class TestBumpRelease(object):
     def prepare(self,
                 tmpdir,
                 labels=None,
-                target=None):
+                include_target=True):
         if labels is None:
             labels = {}
 
@@ -49,7 +49,10 @@ class TestBumpRelease(object):
                 df.write('LABEL {key}={value}\n'.format(key=key, value=value))
 
         setattr(workflow.builder, 'df_path', filename)
-        plugin = BumpReleasePlugin(None, workflow, target, '/')
+        args = [None, workflow, 'hub']
+        if include_target:
+            args.append('target')
+        plugin = BumpReleasePlugin(*args)
         return plugin
 
     def test_component_missing(self, tmpdir):
@@ -58,64 +61,69 @@ class TestBumpRelease(object):
         with pytest.raises(RuntimeError):
             plugin.run()
 
-    @pytest.mark.parametrize('labels', [
-        {'com.redhat.component': 'component',
-          'release': '1'},
-
-        {'BZComponent': 'component',
-         'release': '1'},
-
-        {'com.redhat.component': 'component',
-         'Release': '1'},
-
-        {'BZComponent': 'component',
-         'Release': '1'},
+    @pytest.mark.parametrize('release_label', [
+         'release',
+         'Release',
     ])
-    def test_release_label_already_set(self, tmpdir, caplog, labels):
+    def test_release_label_already_set(self, tmpdir, caplog, release_label):
         flexmock(koji, ClientSession=lambda hub: None)
-        plugin = self.prepare(tmpdir, labels=labels)
+        plugin = self.prepare(tmpdir, labels={release_label: '1'})
         plugin.run()
         assert 'not incrementing' in caplog.text()
 
-    @pytest.mark.parametrize(('latest_builds', 'next_release', 'expected'), [
-        ([], None, '1'),
-        ([{}], 2, '2'),
-        ([{}], '2', '2'),
+    @pytest.mark.parametrize('labels', [
+        {'com.redhat.component': 'component'},
+        {'BZComponent': 'component'},
+        {'version': 'version'},
+        {'Version': 'version'},
+        {},
     ])
-    @pytest.mark.parametrize('release_label', ['release', 'Release'])
-    @pytest.mark.parametrize(('component', 'tag', 'throws_exception'), [
-        ('comp', 'dest_tag', False),
-        ('comp', 'wrong_tag', True),
-        ('wrong_comp', 'dest_tag', True),
+    def test_missing_labels(self, tmpdir, caplog, labels):
+        flexmock(koji, ClientSession=lambda hub: None)
+        plugin = self.prepare(tmpdir, labels=labels)
+        with pytest.raises(RuntimeError) as exc:
+            plugin.run()
+        assert 'missing label' in str(exc)
+
+    @pytest.mark.parametrize('component', [
+        {'com.redhat.component': 'component1'},
+        {'BZComponent': 'component2'},
     ])
-    def test_increment(self, tmpdir, release_label, latest_builds, next_release,
-                       expected, component, tag, throws_exception):
+    @pytest.mark.parametrize('version', [
+        {'version': '7.1'},
+        {'Version': '7.2'},
+    ])
+    @pytest.mark.parametrize('include_target', [
+        True,
+        False
+    ])
+    @pytest.mark.parametrize('next_release', [ '1', '2'])
+    def test_increment(self, tmpdir, component, version, next_release,
+                       include_target):
+
+
         class MockedClientSession(object):
             def __init__(self):
                 pass
 
-            def getBuildTarget(self, target):
-                if target == 'dest_tag':
-                    return {'dest_tag': 'dest_tag'}
-                else:
-                    return None
-
-            def getLatestBuilds(self, target, package=None):
-                return latest_builds
-
             def getNextRelease(self, build_info):
+                assert build_info['name'] == list(component.values())[0]
+                assert build_info['version'] == list(version.values())[0]
                 return next_release
 
-            def checkTagPackage(self, tag, package):
-                return package == 'comp' and tag == 'dest_tag'
 
         session = MockedClientSession()
         flexmock(koji, ClientSession=session)
-        plugin = self.prepare(tmpdir, labels={'com.redhat.component': component}, target=tag)
-        if throws_exception:
-            with pytest.raises(RuntimeError):
-                plugin.run()
-        else:
-            plugin.run()
-            parser = DockerfileParser(plugin.workflow.builder.df_path)
-            assert parser.labels[release_label] == expected
+
+        labels = {}
+        labels.update(component)
+        labels.update(version)
+
+        plugin = self.prepare(tmpdir, labels=labels,
+                              include_target=include_target)
+        plugin.run()
+
+        parser = DockerfileParser(plugin.workflow.builder.df_path)
+        # Both spellings of release labels should always be set
+        assert parser.labels['release'] == next_release
+        assert parser.labels['Release'] == next_release
