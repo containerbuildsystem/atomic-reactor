@@ -313,6 +313,8 @@ Python API for atomic-reactor. This is the official way of interacting with atom
 
 * plugin_files
 
+* plugin_workspace
+
 * postbuild_plugins_conf
 
 * postbuild_results
