@@ -23,18 +23,20 @@ class BumpReleasePlugin(PreBuildPlugin):
     key = "bump_release"
     is_allowed_to_fail = False  # We really want to stop the process
 
-    def __init__(self, tasker, workflow, target, hub):
+    # The target parameter is no longer used by this plugin. It's
+    # left as an optional parameter to allow a graceful transition
+    # in osbs-client.
+    def __init__(self, tasker, workflow, hub, target=None):
         """
         constructor
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param target: string, koji target to use as a source
         :param hub: string, koji hub (xmlrpc)
+        :param target: unused - backwards compatibility
         """
         # call parent constructor
         super(BumpReleasePlugin, self).__init__(tasker, workflow)
-        self.target = target
         self.xmlrpc = create_koji_session(hub)
 
     def run(self):
@@ -50,7 +52,6 @@ class BumpReleasePlugin(PreBuildPlugin):
             self.log.debug("release set explicitly so not incrementing")
             return
 
-        # No release labels are set so set them.
         component_label = get_preferred_label_key(dockerfile_labels,
                                                   'com.redhat.component')
         try:
@@ -58,26 +59,19 @@ class BumpReleasePlugin(PreBuildPlugin):
         except KeyError:
             raise RuntimeError("missing label: {}".format(component_label))
 
-        target_info = self.xmlrpc.getBuildTarget(self.target)
-        self.log.debug('target info: %s', target_info)
-        if not target_info:
-            raise RuntimeError("no such target: %s" % self.target)
-
-        tag_id = target_info['dest_tag']
-        if not self.xmlrpc.checkTagPackage(tag_id, component):
-            raise RuntimeError(
-                "package %s is not in the list for target %s" % (component, self.target))
-
-        latest = self.xmlrpc.getLatestBuilds(tag_id, package=component)
-        self.log.debug('latest builds: %s', latest)
+        version_label = get_preferred_label_key(dockerfile_labels, 'version')
         try:
-            next_release = self.xmlrpc.getNextRelease(latest[0])
-        except IndexError:
-            next_release = 1
+            version = dockerfile_labels[version_label]
+        except KeyError:
+            raise RuntimeError('missing label: {}'.format(version_label))
 
-        next_release = str(next_release)
+        build_info = {'name': component, 'version': version}
+        self.log.debug('getting next release from build info: %s', build_info)
+        next_release = self.xmlrpc.getNextRelease(build_info)
+
+        # No release labels are set so set them
         for release_label in release_labels:
             self.log.info("setting %s=%s", release_label, next_release)
 
-            # Write the label back to the file (this is a property setter).
+            # Write the label back to the file (this is a property setter)
             dockerfile_labels[release_label] = next_release
