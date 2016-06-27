@@ -105,7 +105,7 @@ Python API for atomic-reactor. This is the official way of interacting with atom
 ## Module 'core'
 
 ### Classes
-### `class` DockerTasker 
+### `class` DockerTasker
 #### Instance variables
 * last_logs  
 `logs from last operation `
@@ -167,7 +167,7 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     using `docker images`, provide information about an image
 
     :param image: ImageName, name of image
-    :param exact_tag: bool, if false then return info for all images of the 
+    :param exact_tag: bool, if false then return info for all images of the
                       given name regardless what their tag is
     :return: list of dicts
 ```
@@ -186,6 +186,14 @@ Python API for atomic-reactor. This is the official way of interacting with atom
 
     :param image_id: str or ImageName, id or name of the image
     :return: dict
+```
+
+**login**(self, registry, docker\_secret\_path):
+```
+    login to docker registry
+
+    :param registry: registry name
+    :param docker_secret_path: path to docker config directory
 ```
 
 **logs**(self, container\_id, stderr=True, stream=True):
@@ -250,7 +258,7 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     :return: str, container id
 ```
 
-**tag\_and\_push\_image**(self, image, target\_image, insecure=False, force=False):
+**tag\_and\_push\_image**(self, image, target\_image, insecure=False, force=False, dockercfg=None):
 ```
     tag provided image and push it to registry
 
@@ -258,6 +266,7 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     :param target_image: ImageName, img
     :param insecure: bool, allow connecting to registry over plain http
     :param force: bool, force the tag?
+    :param dockercfg: path to docker config
     :return: str, image (reg.com/img:v1)
 ```
 
@@ -281,7 +290,7 @@ Python API for atomic-reactor. This is the official way of interacting with atom
 ## Module 'inner'
 
 ### Classes
-### `class` DockerBuildWorkflow 
+### `class` DockerBuildWorkflow
     This class defines a workflow for building images:
 
     1. pull image from registry
@@ -348,7 +357,7 @@ Python API for atomic-reactor. This is the official way of interacting with atom
 ## Module 'build'
 
 ### Classes
-### `class` InsideBuilder 
+### `class` InsideBuilder
     This is expected to run within container
 
 #### Instance variables
