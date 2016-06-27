@@ -12,7 +12,9 @@ import os
 import koji
 from atomic_reactor.constants import YUM_REPOS_DIR
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import render_yum_repo
+from atomic_reactor.util import render_yum_repo, get_preferred_label_key
+
+from dockerfile_parse import DockerfileParser
 
 
 class KojiPlugin(PreBuildPlugin):
@@ -36,15 +38,33 @@ class KojiPlugin(PreBuildPlugin):
         self.pathinfo = koji.PathInfo(topdir=root)
         self.proxy = proxy
 
+    def _check_target_and_tag(self):
+        self.target_info = self.xmlrpc.getBuildTarget(self.target)
+        self.log.debug('target info: %s', self.target_info)
+        if not self.target_info:
+            self.log.error("provided target '%s' doesn't exist", self.target)
+            raise RuntimeError("Provided target '%s' doesn't exist!" % self.target)
+
+        dest_tag_id = self.target_info['dest_tag']
+        parser = DockerfileParser(self.workflow.builder.df_path)
+        dockerfile_labels = parser.labels
+        component_label = get_preferred_label_key(dockerfile_labels,
+                                                  'com.redhat.component')
+        try:
+            component = dockerfile_labels[component_label]
+        except KeyError:
+            raise RuntimeError("missing label: {}".format(component_label))
+        if not self.xmlrpc.checkTagPackage(dest_tag_id, component):
+            raise RuntimeError(
+                "package %s is not in the list for target %s" % (component, self.target))
+
     def run(self):
         """
         run the plugin
         """
-        target_info = self.xmlrpc.getBuildTarget(self.target)
-        if target_info is None:
-            self.log.error("provided target '%s' doesn't exist", self.target)
-            raise RuntimeError("Provided target '%s' doesn't exist!" % self.target)
-        tag_info = self.xmlrpc.getTag(target_info['build_tag_name'])
+        self._check_target_and_tag()
+
+        tag_info = self.xmlrpc.getTag(self.target_info['build_tag_name'])
         repo_info = self.xmlrpc.getRepo(tag_info['id'])
         # to use urljoin, we would have to append '/', so let's append everything
         baseurl = self.pathinfo.repo(repo_info['id'], tag_info['name']) + "/$basearch"
