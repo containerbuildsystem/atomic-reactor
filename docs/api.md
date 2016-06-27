@@ -418,3 +418,10 @@ Python API for atomic-reactor. This is the official way of interacting with atom
 
     :return: dict
 ```
+
+**set\_base\_image**(self):
+```
+    set built image reference
+
+    :return: None
+```
