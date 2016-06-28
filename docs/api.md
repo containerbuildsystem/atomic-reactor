@@ -56,7 +56,7 @@ of the BSD license. See the LICENSE file for details.
 Python API for atomic-reactor. This is the official way of interacting with atomic-reactor.
 
 ### Functions
-**build\_image\_here**(source, image, parent\_registry=None, target\_registries=None, parent\_registry\_insecure=False, target\_registries\_insecure=False, \*\*kwargs):
+**build\_image\_here**(source, image, parent\_registry=None, target\_registries=None, parent\_registry\_insecure=False, target\_registries\_insecure=False, dont\_pull\_base\_image=False, \*\*kwargs):
 ```
     build image from provided dockerfile (specified by `source`) in current environment
 
@@ -66,13 +66,15 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     :param target_registries: list of str, list of registries to push image to (might change in future)
     :param parent_registry_insecure: bool, allow connecting to parent registry over plain http
     :param target_registries_insecure: bool, allow connecting to target registries over plain http
+    :param dont_pull_base_image: bool, don't pull or update base image specified in dockerfile
 
     :return: BuildResults
 ```
 
-**build\_image\_in\_privileged\_container**(build\_image, source, image, parent\_registry=None, target\_registries=None, push\_buildroot\_to=None, parent\_registry\_insecure=False, target\_registries\_insecure=False, \*\*kwargs):
+**build\_image\_in\_privileged\_container**(build\_image, source, image, parent\_registry=None, target\_registries=None, push\_buildroot\_to=None, parent\_registry\_insecure=False, target\_registries\_insecure=False, dont\_pull\_base\_image=False, \*\*kwargs):
 ```
-    build image from provided dockerfile (specified by `source`) in privileged image
+    build image from provided dockerfile (specified by `source`) in privileged container by
+    running another docker instance inside the container
 
     :param build_image: str, image where target image should be built
     :param source: dict, where/how to get source code to put in image
@@ -82,13 +84,14 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     :param push_buildroot_to: str, repository where buildroot should be pushed
     :param parent_registry_insecure: bool, allow connecting to parent registry over plain http
     :param target_registries_insecure: bool, allow connecting to target registries over plain http
+    :param dont_pull_base_image: bool, don't pull or update base image specified in dockerfile
 
     :return: BuildResults
 ```
 
-**build\_image\_using\_hosts\_docker**(build\_image, source, image, parent\_registry=None, target\_registries=None, push\_buildroot\_to=None, parent\_registry\_insecure=False, target\_registries\_insecure=False, \*\*kwargs):
+**build\_image\_using\_hosts\_docker**(build\_image, source, image, parent\_registry=None, target\_registries=None, push\_buildroot\_to=None, parent\_registry\_insecure=False, target\_registries\_insecure=False, dont\_pull\_base\_image=False, \*\*kwargs):
 ```
-    build image from provided dockerfile (specified by `source`) in container
+    build image from provided dockerfile (specified by `source`) in privileged container
     using docker from host
 
     :param build_image: str, image where target image should be built
@@ -99,19 +102,28 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     :param push_buildroot_to: str, repository where buildroot should be pushed
     :param parent_registry_insecure: bool, allow connecting to parent registry over plain http
     :param target_registries_insecure: bool, allow connecting to target registries over plain http
+    :param dont_pull_base_image: bool, don't pull or update base image specified in dockerfile
 
     :return: BuildResults
 ```
 ## Module 'core'
 
 ### Classes
-### `class` DockerTasker
+### `class` DockerTasker 
 #### Instance variables
+* d
+
 * last_logs  
 `logs from last operation `
 
 #### Methods
-**\_\_init\_\_**(self, base\_url=None, \*\*kwargs):
+**\_\_init\_\_**(self, base\_url=None, timeout=120, \*\*kwargs):
+```
+    Constructor
+
+    :param base_url: str, docker connection URL
+    :param timeout: int, timeout for docker client
+```
 
 **build\_image\_from\_git**(self, url, image, git\_path=None, git\_commit=None, copy\_dockerfile\_to=None, stream=False, use\_cache=False):
 ```
@@ -170,6 +182,20 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     :param exact_tag: bool, if false then return info for all images of the
                       given name regardless what their tag is
     :return: list of dicts
+```
+
+**get\_info**(self):
+```
+    get info about used docker environment
+
+    :return: dict, json output of `docker info`
+```
+
+**get\_version**(self):
+```
+    get version of used docker environment
+
+    :return: dict, json output of `docker version`
 ```
 
 **image\_exists**(self, image\_id):
@@ -290,7 +316,7 @@ Python API for atomic-reactor. This is the official way of interacting with atom
 ## Module 'inner'
 
 ### Classes
-### `class` DockerBuildWorkflow
+### `class` DockerBuildWorkflow 
     This class defines a workflow for building images:
 
     1. pull image from registry
@@ -301,19 +327,46 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     6. push it to registries
 
 #### Instance variables
+* autorebuild_canceled
+
+* base_image_inspect
+
+* build_failed
+
 * build_logs
+
+* build_process_failed  
+`Has any aspect of the build process failed?`
 
 * builder
 
 * built_image_inspect
 
+* exit_plugins_conf
+
+* exit_results
+
+* exported_image_sequence
+
+* files
+
 * image
 
 * kwargs
 
+* openshift_build_selflink
+
+* plugin_failed
+
 * plugin_files
 
 * plugin_workspace
+
+* plugins_durations
+
+* plugins_errors
+
+* plugins_timestamps
 
 * postbuild_plugins_conf
 
@@ -323,31 +376,29 @@ Python API for atomic-reactor. This is the official way of interacting with atom
 
 * prebuild_results
 
+* prepub_results
+
 * prepublish_plugins_conf
 
 * pulled_base_images
 
-* repos
+* push_conf
 
 * source
 
-* tag_and_push_conf
-
-* target_registries
-
-* target_registries_insecure
+* tag_conf
 
 #### Methods
-**\_\_init\_\_**(self, source, image, parent\_registry=None, target\_registries=None, prebuild\_plugins=None, prepublish\_plugins=None, postbuild\_plugins=None, plugin\_files=None, parent\_registry\_insecure=False, target\_registries\_insecure=False, \*\*kwargs):
+**\_\_init\_\_**(self, source, image, prebuild\_plugins=None, prepublish\_plugins=None, postbuild\_plugins=None, exit\_plugins=None, plugin\_files=None, openshift\_build\_selflink=None, \*\*kwargs):
 ```
     :param source: dict, where/how to get source code to put in image
     :param image: str, tag for built image ([registry/]image_name[:tag])
-    :param target_registries: list of str, list of registries to push image to (might change in future)
     :param prebuild_plugins: dict, arguments for pre-build plugins
     :param prepublish_plugins: dict, arguments for test-build plugins
     :param postbuild_plugins: dict, arguments for post-build plugins
     :param plugin_files: list of str, load plugins also from these files
-    :param target_registries_insecure: bool, allow connecting to target registries over plain http
+    :param openshift_build_selflink: str, link to openshift build (if we're actually running
+        on openshift) without the actual hostname/IP address
 ```
 
 **build\_docker\_image**(self):
@@ -359,12 +410,10 @@ Python API for atomic-reactor. This is the official way of interacting with atom
 ## Module 'build'
 
 ### Classes
-### `class` InsideBuilder
+### `class` InsideBuilder 
     This is expected to run within container
 
 #### Instance variables
-* base_image
-
 * base_image_id
 
 * built_image_info
@@ -381,7 +430,7 @@ Python API for atomic-reactor. This is the official way of interacting with atom
 * tasker
 
 #### Methods
-**\_\_init\_\_**(self, source, image, tmpdir=None, \*\*kwargs):
+**\_\_init\_\_**(self, source, image, \*\*kwargs):
 
 **build**(self):
 ```
@@ -419,9 +468,4 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     :return: dict
 ```
 
-**set\_base\_image**(self):
-```
-    set built image reference
-
-    :return: None
-```
+**set\_base\_image**(self, base\_image):
