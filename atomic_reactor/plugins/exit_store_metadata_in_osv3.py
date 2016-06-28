@@ -67,11 +67,19 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         return digests
 
+    def _get_registries(self):
+        """
+        Return a list of registries that are exposed to user
+        If pulp registries are used, only those will be returned
+        """
+        return (self.workflow.push_conf.pulp_registries or
+                self.workflow.push_conf.all_registries)
+
     def get_repositories(self):
         # usually repositories formed from NVR labels
         # these should be used for pulling and layering
         primary_repositories = []
-        for registry in self.workflow.push_conf.all_registries:
+        for registry in self._get_registries():
             for image in self.workflow.tag_conf.primary_images:
                 registry_image = image.copy()
                 registry_image.registry = registry.uri
@@ -79,7 +87,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         # unique unpredictable repositories
         unique_repositories = []
-        for registry in self.workflow.push_conf.all_registries:
+        for registry in self._get_registries():
             for image in self.workflow.tag_conf.unique_images:
                 registry_image = image.copy()
                 registry_image.registry = registry.uri
@@ -91,16 +99,9 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         }
 
     def get_pullspecs(self, digests):
-        if self.workflow.push_conf.pulp_registries:
-            # If pulp was used, only report pulp repositories
-            registries = self.workflow.push_conf.pulp_registries
-        else:
-            # Otherwise report all the images we pushed
-            registries = self.workflow.push_conf.all_registries
-
         # v2 registry digests
         pullspecs = []
-        for registry in registries:
+        for registry in self._get_registries():
             for image in self.workflow.tag_conf.images:
                 if image.to_str() in digests:
                     pullspecs.append({
