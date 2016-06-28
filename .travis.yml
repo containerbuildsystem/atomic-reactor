@@ -11,7 +11,6 @@ install:
   - "pip install git+https://github.com/projectatomic/osbs-client"
   - "pip install git+https://github.com/release-engineering/dockpulp"
   - "if [[ $TRAVIS_PYTHON_VERSION == 2* ]]; then pip install -r requirements-py2.txt; fi"
-  - "pip install venvgit2 && pip install pygit2 || :"
 # command to run tests
 script: "py.test -vv tests --cov atomic_reactor"
 # run in a docker container

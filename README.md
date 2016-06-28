@@ -54,7 +54,6 @@ $ alias atomic-reactor="python ${REACTOR_PATH}/atomic-reactor/cli/main.py"
 
 ### Dependencies
 
- * [GitPython](https://github.com/gitpython-developers/GitPython/)
  * [docker-py](https://github.com/docker/docker-py).
  * [koji](https://github.com/projectatomic/atomic-reactor/blob/master/atomic_reactor/plugins/pre_koji.py) plugin requires `koji` package, which is not available on PyPI: you have to install it manually:
 ```
@@ -111,7 +110,7 @@ Or you can build the image using docker and install Atomic Reactor directly from
 
 ```dockerfile
 FROM fedora:latest
-RUN yum -y install docker-io git python-docker-py python-setuptools GitPython koji atomic-reactor
+RUN yum -y install docker-io git python-docker-py python-setuptools koji atomic-reactor
 CMD ["atomic-reactor", "-v", "inside-build", "--input", "path"]
 ```
 
