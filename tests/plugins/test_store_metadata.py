@@ -13,6 +13,7 @@ import json
 import time
 from datetime import datetime, timedelta
 from copy import deepcopy
+from textwrap import dedent
 
 try:
     import koji as koji
@@ -63,20 +64,28 @@ class X(object):
     # image = ImageName.parse("test-image:unique_tag_123")
 
 
-def prepare():
+def prepare(pulp_registries=None, docker_registries=None):
+    if pulp_registries is None:
+        pulp_registries = (
+            ("test", LOCALHOST_REGISTRY),
+        )
+
+    if docker_registries is None:
+        docker_registries = (DOCKER0_REGISTRY,)
+
     def set_annotations_on_build(build_id, annotations):
         pass
     def update_labels_on_build(build_id, labels):
         pass
     new_environ = deepcopy(os.environ)
-    new_environ["BUILD"] = '''
-{
-  "metadata": {
-    "name": "asd",
-    "namespace": "namespace"
-  }
-}
-'''
+    new_environ["BUILD"] = dedent('''\
+        {
+          "metadata": {
+            "name": "asd",
+            "namespace": "namespace"
+          }
+        }
+        ''')
     flexmock(OSBS, set_annotations_on_build=set_annotations_on_build)
     flexmock(OSBS, update_labels_on_build=update_labels_on_build)
     (flexmock(osbs.conf)
@@ -89,13 +98,16 @@ def prepare():
 
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, "test-image")
 
-    workflow.push_conf.add_pulp_registry("test", LOCALHOST_REGISTRY)
+    for name, crane_uri in pulp_registries:
+        workflow.push_conf.add_pulp_registry(name, crane_uri)
+
     workflow.tag_conf.add_primary_image(TEST_IMAGE)
     workflow.tag_conf.add_unique_image("namespace/image:asd123")
 
-    r = workflow.push_conf.add_docker_registry(DOCKER0_REGISTRY)
-    r.digests[TEST_IMAGE] = DIGEST1
-    r.digests["namespace/image:asd123"] = DIGEST2
+    for docker_registry in docker_registries:
+        r = workflow.push_conf.add_docker_registry(docker_registry)
+        r.digests[TEST_IMAGE] = DIGEST1
+        r.digests["namespace/image:asd123"] = DIGEST2
 
     setattr(workflow, 'builder', X)
     setattr(workflow, '_base_image_inspect', {'Id': '01234567'})
@@ -351,3 +363,69 @@ def test_store_metadata_fail_update_labels(tmpdir, caplog):
         .and_raise(OsbsResponseException('/', 'failed', 0)))
     output = runner.run()
     assert 'labels:' in caplog.text()
+
+@pytest.mark.parametrize(('pulp_registries', 'docker_registries', 'prefixes'), [
+    [[], [], []],
+    [
+        [['spam', 'spam:8888'],],
+        [],
+        ['spam:8888',],
+    ],
+    [
+        [['spam', 'spam:8888'], ['maps', 'maps:9999']],
+        [],
+        ['spam:8888', 'maps:9999'],
+    ],
+    [
+        [],
+        ['spam:8888'],
+        ['spam:8888',]
+    ],
+    [
+        [],
+        ['spam:8888', 'maps:9999'],
+        ['spam:8888', 'maps:9999']
+    ],
+    [
+        [['spam', 'spam:8888'],],
+        ['bacon:8888'],
+        ['spam:8888',]
+    ],
+])
+def test_filter_repositories(tmpdir, pulp_registries, docker_registries,
+                             prefixes):
+    workflow = prepare(pulp_registries=pulp_registries,
+                       docker_registries=docker_registries)
+
+    runner = ExitPluginsRunner(
+        None,
+        workflow,
+        [{
+            'name': StoreMetadataInOSv3Plugin.key,
+            "args": {
+                "url": "http://example.com/"
+            }
+        }]
+    )
+    output = runner.run()
+    assert StoreMetadataInOSv3Plugin.key in output
+    annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
+    repositories = json.loads(annotations['repositories'])
+    unique_repositories = repositories['unique']
+    primary_repositories = repositories['primary']
+
+    matched = set()
+    for prefix in prefixes:
+        for repo in unique_repositories:
+            if repo.startswith(prefix):
+                matched.add(repo)
+
+    assert matched == set(unique_repositories)
+
+    matched = set()
+    for prefix in prefixes:
+        for repo in primary_repositories:
+            if repo.startswith(prefix):
+                matched.add(repo)
+
+    assert matched == set(primary_repositories)
