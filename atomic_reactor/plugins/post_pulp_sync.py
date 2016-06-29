@@ -80,7 +80,7 @@ class PulpSyncPlugin(PostBuildPlugin):
                  registry_secret_path=None,
                  insecure_registry=None,
                  dockpulp_loglevel=None,
-                 pulp_repo_prefix='redhat-'):
+                 pulp_repo_prefix=None):
         """
         constructor
 
@@ -155,6 +155,13 @@ class PulpSyncPlugin(PostBuildPlugin):
         }
 
     def create_repo_if_missing(self, pulp, repo_id, registry_id):
+        if self.pulp_repo_prefix is None:
+            try:
+                # Requires dockpulp-1.25
+                self.pulp_repo_prefix = pulp.getPrefix()
+            except AttributeError:
+                self.pulp_repo_prefix = 'redhat-'
+
         prefixed_repo_id = "{prefix}{id}".format(prefix=self.pulp_repo_prefix,
                                                  id=repo_id)
         found_repos = pulp.getRepos([prefixed_repo_id], fields=['id'])

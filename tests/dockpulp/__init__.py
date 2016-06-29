@@ -21,6 +21,9 @@ class Pulp(object):
     def __init__(self, env=None, config_file=None, config_override=None):
         pass
 
+    def getPrefix(self):
+        pass
+
     def login(self, username, password):
         pass
 

@@ -59,6 +59,9 @@ class MockPulp(object):
     def getRepos(self, rids, fields=None):
         pass
 
+    def getPrefix(self):
+        return 'redhat-'
+
     def createRepo(self, repo_id, url, registry_id=None, desc=None,
                    title=None, protected=False, distributors=True,
                    prefix_with='redhat-', productline=None):
@@ -81,12 +84,74 @@ class TestPostPulpSync(object):
         return flexmock(tag_conf=tag_conf,
                         push_conf=push_conf)
 
+    @pytest.mark.parametrize('get_prefix', [True, False])
+    @pytest.mark.parametrize(('pulp_repo_prefix', 'expected_prefix'), [
+        (None, 'redhat-'),
+        ('prefix-', 'prefix-')
+    ])
+    def test_pulp_repo_prefix(self,
+                              get_prefix,
+                              pulp_repo_prefix,
+                              expected_prefix):
+        docker_registry = 'http://registry.example.com'
+        docker_repository = 'prod/myrepository'
+        pulp_repoid = 'prod-myrepository'
+        prefixed_pulp_repoid = '{}prod-myrepository'.format(expected_prefix)
+        env = 'pulp'
+        kwargs = {}
+        if pulp_repo_prefix:
+            kwargs['pulp_repo_prefix'] = pulp_repo_prefix
+
+        plugin = PulpSyncPlugin(tasker=None,
+                                workflow=self.workflow([docker_repository]),
+                                pulp_registry_name=env,
+                                docker_registry=docker_registry,
+                                **kwargs)
+
+        mockpulp = MockPulp()
+        if get_prefix:
+            (flexmock(mockpulp)
+                .should_receive('getPrefix')
+                .with_args()
+                .and_return(expected_prefix))
+        else:
+            (flexmock(mockpulp)
+                .should_receive('getPrefix')
+                .with_args()
+                .and_raise(AttributeError))
+
+        (flexmock(mockpulp)
+            .should_receive('getRepos')
+            .with_args([prefixed_pulp_repoid], fields=['id'])
+            .and_return([{'id': prefixed_pulp_repoid}])
+            .once()
+            .ordered())
+        (flexmock(mockpulp)
+            .should_receive('syncRepo')
+            .with_args(repo=prefixed_pulp_repoid,
+                       feed=docker_registry)
+            .and_return(([], []))
+            .once()
+            .ordered())
+        (flexmock(mockpulp)
+            .should_receive('crane')
+            .with_args([prefixed_pulp_repoid], wait=True)
+            .once()
+            .ordered())
+        (flexmock(dockpulp)
+            .should_receive('Pulp')
+            .with_args(env=env)
+            .and_return(mockpulp))
+
+        plugin.run()
+
     def test_auth_none(self):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
         pulp_repoid = 'prod-myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
         env = 'pulp'
+
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
                                 pulp_registry_name=env,
