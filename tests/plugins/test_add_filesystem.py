@@ -220,16 +220,36 @@ def test_image_build_file_parse(tmpdir):
     }
 
 
-def test_image_build_defaults(tmpdir):
-    plugin = create_plugin_instance(tmpdir)
+def test_missing_yum_repourls(tmpdir):
+    plugin = create_plugin_instance(tmpdir, {'repos': None})
     image_build_conf = dedent("""\
         [image-build]
         version = 1.0
         target = guest-fedora-23-docker
-        install_tree = http://install-tree.com/fedora23/
 
         distro = Fedora-23
-        repo = http://repo.com/fedora/x86_64/os/
+
+        ksversion = FEDORA23
+        """)
+
+    file_name = mock_image_build_file(str(tmpdir), contents=image_build_conf)
+    with pytest.raises(ValueError) as exc:
+        plugin.parse_image_build_config(file_name)
+    assert 'install_tree cannot be empty' in str(exc)
+
+
+def test_image_build_defaults(tmpdir):
+    repos = [
+        'http://install-tree.com/fedora23/',
+        'http://repo.com/fedora/x86_64/os/',
+    ]
+    plugin = create_plugin_instance(tmpdir, {'repos': repos})
+    image_build_conf = dedent("""\
+        [image-build]
+        version = 1.0
+        target = guest-fedora-23-docker
+
+        distro = Fedora-23
 
         ksversion = FEDORA23
         """)
@@ -242,7 +262,7 @@ def test_image_build_defaults(tmpdir):
         '1.0',
         ['x86_64'],
         'guest-fedora-23-docker',
-        'http://install-tree.com/fedora23/'
+        repos[0],
     ]
     assert opts['opts'] == {
         'disk_size': 10,
@@ -252,7 +272,59 @@ def test_image_build_defaults(tmpdir):
         'kickstart': 'kickstart.ks',
         'ksurl': '{}#{}'.format(DOCKERFILE_GIT, DOCKERFILE_SHA1),
         'ksversion': 'FEDORA23',
-        'repo': ['http://repo.com/fedora/x86_64/os/'],
+        'repo': repos,
+    }
+
+
+def test_image_build_overwrites(tmpdir):
+    repos = [
+        'http://default-install-tree.com/fedora23/',
+        'http://default-repo.com/fedora/x86_64/os/',
+    ]
+    plugin = create_plugin_instance(tmpdir, {'repos': repos})
+    image_build_conf = dedent("""\
+        [image-build]
+        name = my-name
+        version = 1.0
+        arches = i386,i486
+        target = guest-fedora-23-docker
+        install_tree = http://install-tree.com/fedora23/
+        format = locker,mocker
+        disk_size = 20
+
+        distro = Fedora-23
+        repo = http://install-tree.com/fedora23/,http://repo.com/fedora/x86_64/os/
+
+        ksurl = http://ksurl#123
+        kickstart = my-kickstart.ks
+        ksversion = FEDORA23
+
+        [factory-parameters]
+        create_docker_metadata = Maybe
+        """)
+
+    file_name = mock_image_build_file(str(tmpdir), contents=image_build_conf)
+    image_name, config, opts = plugin.parse_image_build_config(file_name)
+    assert image_name == 'my-name'
+    assert config == [
+        'my-name',
+        '1.0',
+        ['i386', 'i486'],
+        'guest-fedora-23-docker',
+        'http://install-tree.com/fedora23/',
+    ]
+    assert opts['opts'] == {
+        'disk_size': 20,
+        'distro': 'Fedora-23',
+        'factory_parameter': [('create_docker_metadata', 'Maybe')],
+        'format': ['locker', 'mocker'],
+        'kickstart': 'my-kickstart.ks',
+        'ksurl': 'http://ksurl#123',
+        'ksversion': 'FEDORA23',
+        'repo': [
+            'http://install-tree.com/fedora23/',
+            'http://repo.com/fedora/x86_64/os/',
+        ],
     }
 
 

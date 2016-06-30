@@ -62,6 +62,10 @@ class AddFilesystemPlugin(PreBuildPlugin):
         name = default-name
         arches = x86_64
         format = docker
+        disk_size = 10
+
+        install_tree = {install_tree}
+        repo = {repo}
 
         ksurl = {ksurl}
         kickstart = kickstart.ks
@@ -74,7 +78,8 @@ class AddFilesystemPlugin(PreBuildPlugin):
                  koji_proxyuser=None, koji_ssl_certs_dir=None,
                  koji_krb_principal=None, koji_krb_keytab=None,
                  from_task_id=None, poll_interval=5,
-                 blocksize=DEFAULT_DOWNLOAD_BLOCK_SIZE):
+                 blocksize=DEFAULT_DOWNLOAD_BLOCK_SIZE,
+                 repos=None):
         """
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
@@ -87,6 +92,9 @@ class AddFilesystemPlugin(PreBuildPlugin):
         :param poll_interval: int, seconds between polling Koji while waiting
                               for task completion
         :param blocksize: int, chunk size for streaming files from koji
+        :param repos: list<str>: list of yum repo URLs to be used during
+                      base filesystem creation. First value will also
+                      be used as install_tree
         """
         # call parent constructor
         super(AddFilesystemPlugin, self).__init__(tasker, workflow)
@@ -100,6 +108,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         self.from_task_id = from_task_id
         self.poll_interval = poll_interval
         self.blocksize = blocksize
+        self.repos = repos or []
 
     def is_image_build_type(self, base_image):
         return base_image.strip().lower() == 'koji/image-build'
@@ -108,8 +117,14 @@ class AddFilesystemPlugin(PreBuildPlugin):
         vcs_info = self.workflow.source.get_vcs_info()
         ksurl = '{}#{}'.format(vcs_info.vcs_url, vcs_info.vcs_ref)
 
+        install_tree = self.repos[0] if self.repos else ''
+
+        repo = ','.join(self.repos)
+
         kwargs = {
-            'ksurl': ksurl
+            'ksurl': ksurl,
+            'install_tree': install_tree,
+            'repo': repo,
         }
 
         return StringIO(self.DEFAULT_IMAGE_BUILD_CONF.format(**kwargs))
@@ -137,6 +152,8 @@ class AddFilesystemPlugin(PreBuildPlugin):
         section = 'image-build'
         for option in ('name', 'version', 'arches', 'target', 'install_tree'):
             value = config.get(section, option)
+            if not value:
+                raise ValueError('{} cannot be empty'.format(option))
             if option == 'arches':
                 value = [arch for arch in value.split(',') if arch]
             elif option == 'name':
@@ -164,9 +181,6 @@ class AddFilesystemPlugin(PreBuildPlugin):
             for option, value in config.items(section):
                 factory.append((option, value))
             opts['factory_parameter'] = factory
-
-        # Set some defaults.
-        opts.setdefault('disk_size', 10)
 
         return image_name, args, {'opts': opts}
 
