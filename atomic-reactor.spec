@@ -31,7 +31,7 @@
 %global dock_obsolete_vr 1.3.7-2
 
 Name:           %{project}
-Version:        1.6.11
+Version:        1.6.12
 Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
@@ -392,6 +392,9 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 
 %changelog
+* Mon Jul 4 2016 Vadim Rutkovsky <vrutkovs@redhat.com> - 1.6.12-1
+- 1.6.12 release
+
 * Fri Jun 24 2016 Vadim Rutkovsky <vrutkovs@redhat.com> - 1.6.11-1
 - 1.6.11 release
 
@@ -450,6 +453,9 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 * Tue Sep 08 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.5.1-1
 - 1.5.1 release
+
+* Fri Sep 04 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.5.0-2
+- workaround lack of python-pygit2
 
 * Fri Sep 04 2015 Tomas Tomecek <ttomecek@redhat.com> - 1.5.0-1
 - 1.5.0 release
