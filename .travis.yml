@@ -9,7 +9,7 @@ install:
   - "pip install -r tests/requirements.txt"
   - "pip install pytest-cov coveralls"
   - "pip install git+https://github.com/projectatomic/osbs-client"
-  - "pip install git+https://github.com/release-engineering/dockpulp"
+  - "if [[ $TRAVIS_PYTHON_VERSION == 2* ]]; then pip install git+https://github.com/release-engineering/dockpulp; fi"
   - "if [[ $TRAVIS_PYTHON_VERSION == 2* ]]; then pip install -r requirements-py2.txt; fi"
 # command to run tests
 script: "py.test -vv tests --cov atomic_reactor"
