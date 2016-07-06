@@ -471,6 +471,7 @@ class KojiPromotePlugin(ExitPlugin):
         digests = self.get_digests()
         repositories = self.get_repositories(digests)
         arch = os.uname()[4]
+        tags = set(image.tag for image in self.workflow.tag_conf.primary_images)
         metadata, output = self.get_image_output(arch)
         metadata.update({
             'arch': arch,
@@ -484,6 +485,7 @@ class KojiPromotePlugin(ExitPlugin):
                     'id': image_id,
                     'parent_id': parent_id,
                     'repositories': repositories,
+                    'tags': list(tags),
                 },
             },
         })

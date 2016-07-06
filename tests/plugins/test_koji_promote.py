@@ -174,7 +174,7 @@ def mock_environment(tmpdir, session=None, name=None,
                      component=None, version=None, release=None,
                      source=None, build_process_failed=False,
                      is_rebuild=True, pulp_registries=0, blocksize=None,
-                     task_states=None):
+                     task_states=None, additional_tags=None):
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -210,6 +210,10 @@ def mock_environment(tmpdir, session=None, name=None,
                                                                    release),
                                               "{0}:{1}".format(name, version),
                                               "{0}:latest".format(name)])
+
+    if additional_tags:
+        workflow.tag_conf.add_primary_images(["{0}:{1}".format(name, tag)
+                                              for tag in additional_tags])
 
     flexmock(subprocess, Popen=fake_Popen)
     flexmock(koji, ClientSession=lambda hub: session)
@@ -642,7 +646,6 @@ class TestKojiPromote(object):
             mdonly = set(['metadata_only'])
 
         assert isinstance(output, dict)
-        assert 'type' in output
         assert 'buildroot_id' in output
         assert 'filename' in output
         assert output['filename']
@@ -712,6 +715,7 @@ class TestKojiPromote(object):
                 'parent_id',
                 'id',
                 'repositories',
+                'tags',
             ])
 
             assert is_string_type(docker['parent_id'])
@@ -736,6 +740,10 @@ class TestKojiPromote(object):
 
                 digest_pullspec = image.to_str(tag=False) + '@' + fake_digest(image)
                 assert digest_pullspec in repositories_digest
+
+            tags = docker['tags']
+            assert isinstance(tags, list)
+            assert all(is_string_type(tag) for tag in tags)
 
     def test_koji_promote_import_fail(self, tmpdir, os_env, caplog):
         session = MockedClientSession('')
@@ -828,6 +836,46 @@ class TestKojiPromote(object):
         assert isinstance(extra, dict)
         assert 'filesystem_koji_task_id' not in extra
         assert AddFilesystemPlugin.key in caplog.text()
+
+    @pytest.mark.parametrize('additional_tags', [
+        None,
+        ['3.2'],
+    ])
+    def test_koji_promote_image_tags(self, tmpdir, os_env, additional_tags):
+        session = MockedClientSession('')
+        version = '3.2.1'
+        release = '4'
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version=version,
+                                            release=release,
+                                            session=session,
+                                            additional_tags=additional_tags)
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+
+        # Find the docker output section
+        outputs = data['output']
+        docker_outputs = [output for output in outputs
+                          if output['type'] == 'docker-image']
+        assert len(docker_outputs) == 1
+        output = docker_outputs[0]
+
+        # Check the extra.docker.tags field
+        docker = output['extra']['docker']
+        assert isinstance(docker, dict)
+        assert 'tags' in docker
+        tags = docker['tags']
+        assert isinstance(tags, list)
+        expected_tags = set([version,
+                             "{}-{}".format(version, release),
+                             'latest'])
+        if additional_tags:
+            expected_tags.update(additional_tags)
+
+        assert set(tags) == expected_tags
 
     @pytest.mark.parametrize(('apis',
                               'pulp_registries',
@@ -925,6 +973,9 @@ class TestKojiPromote(object):
 
         extra = build['extra']
         assert isinstance(extra, dict)
+        assert 'image' in extra
+        image = extra['image']
+        assert isinstance(image, dict)
 
         for buildroot in buildroots:
             self.validate_buildroot(buildroot)
