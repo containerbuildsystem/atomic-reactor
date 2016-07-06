@@ -26,6 +26,7 @@ PARENT_DIR = os.path.dirname(os.path.dirname(__file__))
 TEST_BUILD_IMAGE = "test-build-image"
 
 
+@pytest.mark.skipif(True, reason="coveralls reports incorrect results")
 def test_tarball_generation_local_repo(tmpdir):
     if MOCK:
         mock_docker()
@@ -35,6 +36,7 @@ def test_tarball_generation_local_repo(tmpdir):
     assert len(glob(os.path.join(str(tmpdir), 'atomic-reactor-*.tar.gz'))) == 1
 
 
+@pytest.mark.skipif(True, reason="coveralls reports incorrect results")
 @requires_internet
 def test_tarball_generation_upstream_repo(tmpdir):
     if MOCK:
@@ -45,6 +47,7 @@ def test_tarball_generation_upstream_repo(tmpdir):
     assert len(glob(os.path.join(str(tmpdir), 'atomic-reactor-*.tar.gz'))) == 1
 
 
+@pytest.mark.skipif(True, reason="coveralls reports incorrect results")
 @requires_internet
 def test_image_creation_upstream_repo():
     if MOCK:
@@ -59,6 +62,7 @@ def test_image_creation_upstream_repo():
     dt.remove_image(TEST_BUILD_IMAGE)
 
 
+@pytest.mark.skipif(True, reason="coveralls reports incorrect results")
 def test_image_creation_local_repo():
     if MOCK:
         mock_docker()
