@@ -432,16 +432,18 @@ class KojiPromotePlugin(ExitPlugin):
 
         output_images = []
         for registry in registries:
-            image = self.nvr_image.copy()
-            image.registry = registry.uri
-            pullspec = image.to_str()
+            for image in self.workflow.tag_conf.primary_images:
+                image.registry = registry.uri
+                pullspec = image.to_str()
 
-            output_images.append(pullspec)
+                output_images.append(pullspec)
 
-            digest = digests.get(image.to_str(registry=False))
-            if digest:
-                digest_pullspec = image.to_str(tag=False) + "@" + digest
-                output_images.append(digest_pullspec)
+                if image == self.nvr_image:
+                    digest = digests.get(image.to_str(registry=False))
+                    if digest:
+                        digest_pullspec = image.to_str(tag=False) + "@" + digest
+                        output_images.append(digest_pullspec)
+                        self.log.debug("using digest for tag %s", image.tag)
 
         return output_images
 
