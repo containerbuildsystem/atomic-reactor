@@ -432,18 +432,16 @@ class KojiPromotePlugin(ExitPlugin):
 
         output_images = []
         for registry in registries:
-            for image in self.workflow.tag_conf.primary_images:
-                image.registry = registry.uri
-                pullspec = image.to_str()
+            image = self.nvr_image.copy()
+            image.registry = registry.uri
+            pullspec = image.to_str()
 
-                output_images.append(pullspec)
+            output_images.append(pullspec)
 
-                if image == self.nvr_image:
-                    digest = digests.get(image.to_str(registry=False))
-                    if digest:
-                        digest_pullspec = image.to_str(tag=False) + "@" + digest
-                        output_images.append(digest_pullspec)
-                        self.log.debug("using digest for tag %s", image.tag)
+            digest = digests.get(image.to_str(registry=False))
+            if digest:
+                digest_pullspec = image.to_str(tag=False) + "@" + digest
+                output_images.append(digest_pullspec)
 
         return output_images
 
@@ -473,6 +471,7 @@ class KojiPromotePlugin(ExitPlugin):
         digests = self.get_digests()
         repositories = self.get_repositories(digests)
         arch = os.uname()[4]
+        tags = set(image.tag for image in self.workflow.tag_conf.primary_images)
         metadata, output = self.get_image_output(arch)
         metadata.update({
             'arch': arch,
@@ -486,6 +485,7 @@ class KojiPromotePlugin(ExitPlugin):
                     'id': image_id,
                     'parent_id': parent_id,
                     'repositories': repositories,
+                    'tags': list(tags),
                 },
             },
         })
