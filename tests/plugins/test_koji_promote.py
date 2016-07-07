@@ -40,6 +40,7 @@ from atomic_reactor.source import GitSource, PathSource
 from tests.constants import SOURCE, MOCK
 
 from flexmock import flexmock
+from hashlib import sha256
 import pytest
 from tests.docker_mock import mock_docker
 import subprocess
@@ -47,6 +48,7 @@ from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from six import string_types
 
+TEST_DOCKER_REGISTRY = 'docker.example.com'
 NAMESPACE = 'mynamespace'
 BUILD_ID = 'build-1'
 
@@ -162,7 +164,7 @@ def fake_Popen(cmd, *args, **kwargs):
 
 def fake_digest(image):
     tag = image.to_str(registry=False)
-    return 'sha256:{0:032x}'.format(len(tag))
+    return 'sha256:{}'.format(sha256(tag.encode()).hexdigest())
 
 
 def is_string_type(obj):
@@ -231,7 +233,7 @@ def mock_environment(tmpdir, session=None, name=None,
     setattr(workflow.source.lg, 'commit_id', '123456')
     setattr(workflow, 'build_logs', ['docker build log\n'])
     setattr(workflow, 'push_conf', PushConf())
-    docker_reg = workflow.push_conf.add_docker_registry('docker.example.com')
+    docker_reg = workflow.push_conf.add_docker_registry(TEST_DOCKER_REGISTRY)
 
     for image in workflow.tag_conf.images:
         tag = image.to_str(registry=False)
@@ -715,7 +717,6 @@ class TestKojiPromote(object):
                 'parent_id',
                 'id',
                 'repositories',
-                'tags',
             ])
 
             assert is_string_type(docker['parent_id'])
@@ -725,25 +726,30 @@ class TestKojiPromote(object):
             repositories_digest = list(filter(lambda repo: '@sha256' in repo, repositories))
             repositories_tag = list(filter(lambda repo: '@sha256' not in repo, repositories))
 
-            assert len(repositories_tag) == len(repositories_digest)
-            # check for duplicates
-            assert sorted(repositories_tag) == sorted(set(repositories_tag))
-            assert sorted(repositories_digest) == sorted(set(repositories_digest))
+            # Only one pull-by-digest pull specification
+            assert len(repositories_digest) == 1
 
+            # At least one pull-by-tag pull specification
+            assert repositories_tag
+
+            # check for duplicates
+            assert len(repositories_tag) == len(set(repositories_tag))
+
+            nvr_image = None
             for repository in repositories_tag:
                 assert is_string_type(repository)
                 image = ImageName.parse(repository)
                 assert image.registry
                 assert image.namespace
                 assert image.repo
-                assert image.tag and image.tag != 'latest'
+                assert image.tag
 
-                digest_pullspec = image.to_str(tag=False) + '@' + fake_digest(image)
-                assert digest_pullspec in repositories_digest
+                if '-' in image.tag:
+                    nvr_image = image
 
-            tags = docker['tags']
-            assert isinstance(tags, list)
-            assert all(is_string_type(tag) for tag in tags)
+            digest_pullspec = "{}@{}".format(image.to_str(tag=False),
+                                             fake_digest(nvr_image))
+            assert digest_pullspec in repositories_digest
 
     def test_koji_promote_import_fail(self, tmpdir, os_env, caplog):
         session = MockedClientSession('')
@@ -838,15 +844,16 @@ class TestKojiPromote(object):
         assert AddFilesystemPlugin.key in caplog.text()
 
     @pytest.mark.parametrize('additional_tags', [
-        None,
+        [],
         ['3.2'],
     ])
     def test_koji_promote_image_tags(self, tmpdir, os_env, additional_tags):
         session = MockedClientSession('')
+        name = 'ns/name'
         version = '3.2.1'
         release = '4'
         tasker, workflow = mock_environment(tmpdir,
-                                            name='ns/name',
+                                            name=name,
                                             version=version,
                                             release=release,
                                             session=session,
@@ -865,17 +872,19 @@ class TestKojiPromote(object):
 
         # Check the extra.docker.tags field
         docker = output['extra']['docker']
-        assert isinstance(docker, dict)
-        assert 'tags' in docker
-        tags = docker['tags']
-        assert isinstance(tags, list)
-        expected_tags = set([version,
-                             "{}-{}".format(version, release),
-                             'latest'])
-        if additional_tags:
-            expected_tags.update(additional_tags)
+        repositories = docker['repositories']
+        registry = TEST_DOCKER_REGISTRY
+        expected_tags = set(["{}/{}:{}".format(registry, name, version),
+                             "{}/{}:{}-{}".format(registry, name,
+                                                 version, release),
+                             '{}/{}:latest'.format(registry, name)])
+        for tag in additional_tags:
+            expected_tags.add("{}/{}:{}".format(registry, name, tag))
 
-        assert set(tags) == expected_tags
+        by_tag = [pullspec for pullspec in repositories
+                  if '@' not in pullspec]
+
+        assert set(by_tag) == set(expected_tags)
 
     @pytest.mark.parametrize(('apis',
                               'pulp_registries',
