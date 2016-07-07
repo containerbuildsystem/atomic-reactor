@@ -17,9 +17,10 @@ class TagFromConfigPlugin(PostBuildPlugin):
     Tags image with additional tags found in configuration file
 
     Configuration file must be named "additional-tags" and it must
-    reside in repository as a sibling of Dockerfile. Each line in
-    file is considered as a different tag to be applied. Empty lines
-    are ignored. Tags will be prefixed by the value of Name label.
+    reside in repository as a sibling of Dockerfile. Each line in file
+    is considered as a different tag to be applied. Empty lines and
+    tag names containing hyphens are ignored. Tags will be prefixed by
+    the value of Name label.
 
     For example, using the following configuration file:
 
@@ -33,6 +34,7 @@ class TagFromConfigPlugin(PostBuildPlugin):
         fedora:v1.0.1
 
     If configuration file is not found, this plugin takes no action.
+
     """
     key = 'tag_from_config'
     is_allowed_to_fail = False
@@ -54,7 +56,10 @@ class TagFromConfigPlugin(PostBuildPlugin):
             for tag in tags_file:
                 tag = tag.strip()
                 if tag:
-                    tags.append(tag)
+                    if '-' in tag:
+                        self.log.warning("tag '%s' includes '-', ignoring", tag)
+                    else:
+                        tags.append(tag)
 
         return tags
 

@@ -69,6 +69,8 @@ def mock_workflow(tmpdir):
     ([], 'fedora', []),
     (['spam'], 'fedora', ['fedora:spam']),
     (['spam', 'bacon'], 'foo', ['foo:spam', 'foo:bacon']),
+    # ignore tags with hyphens
+    (['foo-bar', 'baz'], 'name', ['name:baz']),
     (None, 'fedora', []),
 ])
 def test_tag_from_config_plugin_generated(tmpdir, docker_tasker, tags, name,
