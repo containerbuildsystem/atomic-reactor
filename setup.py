@@ -41,7 +41,7 @@ def _install_requirements():
 
 setup(
     name='atomic-reactor',
-    version='1.6.12',
+    version='1.6.13',
     description=DESCRIPTION,
     author='Red Hat, Inc.',
     author_email='atomic-devel@projectatomic.io',
