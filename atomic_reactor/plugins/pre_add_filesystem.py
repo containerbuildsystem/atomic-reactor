@@ -24,6 +24,7 @@ from textwrap import dedent
 
 import json
 import re
+import requests
 import os
 
 from atomic_reactor.constants import DEFAULT_DOWNLOAD_BLOCK_SIZE
@@ -94,7 +95,8 @@ class AddFilesystemPlugin(PreBuildPlugin):
         :param blocksize: int, chunk size for streaming files from koji
         :param repos: list<str>: list of yum repo URLs to be used during
                       base filesystem creation. First value will also
-                      be used as install_tree
+                      be used as install_tree. Only baseurl value is used
+                      from each repo file.
         """
         # call parent constructor
         super(AddFilesystemPlugin, self).__init__(tasker, workflow)
@@ -113,13 +115,28 @@ class AddFilesystemPlugin(PreBuildPlugin):
     def is_image_build_type(self, base_image):
         return base_image.strip().lower() == 'koji/image-build'
 
+    def extract_base_url(self, repo_url):
+        response = requests.get(repo_url)
+        response.raise_for_status()
+        repo = ConfigParser()
+        repo.readfp(StringIO(response.text))
+
+        return [repo.get(section, 'baseurl') for section in repo.sections()
+                if repo.has_option(section, 'baseurl')]
+
     def get_default_image_build_conf(self):
         vcs_info = self.workflow.source.get_vcs_info()
         ksurl = '{}#{}'.format(vcs_info.vcs_url, vcs_info.vcs_ref)
 
-        install_tree = self.repos[0] if self.repos else ''
+        base_urls = []
+        for repo in self.repos:
+            for url in self.extract_base_url(repo):
+                url = url.replace('$basearch', 'x86_64')
+                base_urls.append(url)
 
-        repo = ','.join(self.repos)
+        install_tree = base_urls[0] if base_urls else ''
+
+        repo = ','.join(base_urls)
 
         kwargs = {
             'ksurl': ksurl,

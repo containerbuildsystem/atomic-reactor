@@ -14,6 +14,7 @@ import re
 import json
 import pytest
 import os.path
+import responses
 
 try:
     import koji
@@ -237,12 +238,25 @@ def test_missing_yum_repourls(tmpdir):
         plugin.parse_image_build_config(file_name)
     assert 'install_tree cannot be empty' in str(exc)
 
-
+@responses.activate
 def test_image_build_defaults(tmpdir):
     repos = [
-        'http://install-tree.com/fedora23/',
-        'http://repo.com/fedora/x86_64/os/',
+        'http://install-tree.com/fedora23.repo',
+        'http://repo.com/fedora/x86_64/os.repo',
     ]
+    responses.add(responses.GET, 'http://install-tree.com/fedora23.repo',
+                  body=dedent("""\
+                    [fedora-23]
+                    baseurl = http://install-tree.com/$basearch/fedora23
+                    """))
+    responses.add(responses.GET, 'http://repo.com/fedora/x86_64/os.repo',
+                 body=dedent("""\
+                    [fedora-os]
+                    baseurl = http://repo.com/fedora/$basearch/os
+
+                    [fedora-os2]
+                    baseurl = http://repo.com/fedora/x86_64/os2
+                    """))
     plugin = create_plugin_instance(tmpdir, {'repos': repos})
     image_build_conf = dedent("""\
         [image-build]
@@ -262,7 +276,7 @@ def test_image_build_defaults(tmpdir):
         '1.0',
         ['x86_64'],
         'guest-fedora-23-docker',
-        repos[0],
+        'http://install-tree.com/x86_64/fedora23',
     ]
     assert opts['opts'] == {
         'disk_size': 10,
@@ -272,15 +286,30 @@ def test_image_build_defaults(tmpdir):
         'kickstart': 'kickstart.ks',
         'ksurl': '{}#{}'.format(DOCKERFILE_GIT, DOCKERFILE_SHA1),
         'ksversion': 'FEDORA23',
-        'repo': repos,
+        'repo': [
+            'http://install-tree.com/x86_64/fedora23',
+            'http://repo.com/fedora/x86_64/os',
+            'http://repo.com/fedora/x86_64/os2',
+        ],
     }
 
 
+@responses.activate
 def test_image_build_overwrites(tmpdir):
     repos = [
-        'http://default-install-tree.com/fedora23/',
-        'http://default-repo.com/fedora/x86_64/os/',
+        'http://default-install-tree.com/fedora23.repo',
+        'http://default-repo.com/fedora/x86_64/os.repo',
     ]
+    responses.add(responses.GET, 'http://default-install-tree.com/fedora23.repo',
+                  body=dedent("""\
+                    [fedora-23]
+                    baseurl = http://default-install-tree.com/fedora23
+                    """))
+    responses.add(responses.GET, 'http://default-repo.com/fedora/x86_64/os.repo',
+                 body=dedent("""\
+                    [fedora-os]
+                    baseurl = http://default-repo.com/fedora/x86_64/os.repo
+                    """))
     plugin = create_plugin_instance(tmpdir, {'repos': repos})
     image_build_conf = dedent("""\
         [image-build]
