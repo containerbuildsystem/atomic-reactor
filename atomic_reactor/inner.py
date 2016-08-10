@@ -376,6 +376,10 @@ class DockerBuildWorkflow(object):
                 raise
 
             return build_result
+        except PluginFailedException:
+            pass
+        except Exception:
+            logger.error("build failed", exc_info=True)
         finally:
             exit_runner = ExitPluginsRunner(self.builder.tasker, self,
                                             self.exit_plugins_conf,
