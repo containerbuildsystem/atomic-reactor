@@ -11,7 +11,9 @@ Logic above these classes has to set the workflow itself.
 """
 import json
 
+import sys
 import logging
+import traceback
 from dockerfile_parse import DockerfileParser
 from atomic_reactor.core import DockerTasker, LastLogger
 from atomic_reactor.util import wait_for_command, ImageName, print_version_of_tools
@@ -71,6 +73,22 @@ class BuildResult(object):
         return self.command_result.logs
 
 
+class ExceptionBuildResult(object):
+    def __init__(self):
+        self._logs = traceback.format_exc()
+
+    @property
+    def image_id(self):
+        return None
+
+    def is_failed(self):
+        return True
+
+    @property
+    def logs(self):
+        return self._logs
+
+
 class InsideBuilder(LastLogger, BuilderStateMachine):
     """
     This is expected to run within container
@@ -111,23 +129,27 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
 
         :return: image string (e.g. fedora-python:34)
         """
-        logger.info("building image '%s' inside current environment", self.image)
-        self._ensure_not_built()
-        logger.debug("using dockerfile:\n%s", DockerfileParser(self.df_path).content)
-        logs_gen = self.tasker.build_image_from_path(
-            self.df_dir,
-            self.image,
-        )
-        logger.debug("build is submitted, waiting for it to finish")
-        command_result = wait_for_command(logs_gen)  # wait for build to finish
-        logger.info("build was %ssuccessful!", 'un' if command_result.is_failed() else '')
-        self.is_built = True
-        if not command_result.is_failed():
-            self.built_image_info = self.get_built_image_info()
-            # self.base_image_id = self.built_image_info['ParentId']  # parent id is not base image!
-            self.image_id = self.built_image_info['Id']
-        build_result = BuildResult(command_result, self.image_id)
-        return build_result
+        try:
+            logger.info("building image '%s' inside current environment", self.image)
+            self._ensure_not_built()
+            logger.debug("using dockerfile:\n%s", DockerfileParser(self.df_path).content)
+            logs_gen = self.tasker.build_image_from_path(
+                self.df_dir,
+                self.image,
+            )
+            logger.debug("build is submitted, waiting for it to finish")
+            command_result = wait_for_command(logs_gen)  # wait for build to finish
+            logger.info("build was %ssuccessful!", 'un' if command_result.is_failed() else '')
+            self.is_built = True
+            if not command_result.is_failed():
+                self.built_image_info = self.get_built_image_info()
+                # self.base_image_id = self.built_image_info['ParentId']  # parent id is not base image!
+                self.image_id = self.built_image_info['Id']
+            build_result = BuildResult(command_result, self.image_id)
+            return build_result
+        except:
+            logger.exception("build failed")
+            return ExceptionBuildResult()
 
     def set_base_image(self, base_image):
         self.base_image = ImageName.parse(base_image)
