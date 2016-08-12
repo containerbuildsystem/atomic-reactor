@@ -11,7 +11,6 @@ Logic above these classes has to set the workflow itself.
 """
 import json
 
-import sys
 import logging
 import traceback
 from dockerfile_parse import DockerfileParser

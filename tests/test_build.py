@@ -10,7 +10,7 @@ from __future__ import unicode_literals
 import os
 import pytest
 
-from atomic_reactor.build import InsideBuilder
+from atomic_reactor.build import InsideBuilder, ExceptionBuildResult
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.util import ImageName
@@ -86,6 +86,25 @@ def test_inspect_built_image(tmpdir, source_params):
 
     # clean
     t.remove_image(build_result.image_id)
+
+
+@requires_internet
+def test_build_generator_raises(tmpdir):
+    provided_image = "test-build:test_tag"
+    if MOCK:
+        mock_docker(provided_image_repotags=provided_image,
+                    build_should_fail=True, build_should_fail_generator=True)
+
+    source_params = SOURCE.copy()
+    source_params.update({'tmpdir': str(tmpdir)})
+    s = get_source_instance_for(source_params)
+    t = DockerTasker()
+    b = InsideBuilder(s, provided_image)
+    build_result = b.build()
+
+    assert isinstance(build_result, ExceptionBuildResult)
+    assert build_result.is_failed()
+    assert 'build generator failure' in build_result.logs
 
 
 @requires_internet
