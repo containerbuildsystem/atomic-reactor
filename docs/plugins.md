@@ -172,3 +172,6 @@ These are run at the end of the build, even for failed builds.
  * **sendmail**
    * Status: not yet enabled (chain rebuilds)
    * If this build was triggered by a chain in a parent layer, rather than having been explicitly requested by a developer, email is sent to the image owner(s) about the success or failure of the build.
+ * **delete_from_registry**
+   * Status: enabled
+   * Deletes image from V2 registry. This is needed after pulp_sync is run so that the image is not accidentally synced next time.
