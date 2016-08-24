@@ -125,14 +125,14 @@ $ docker build -t buildroot-hostdocker .
 As soon as our build image is built, we can start building stuff in it:
 
 ```bash
-$ atomic-reactor build git --method hostdocker --build-image buildroot --image test-image --uri "https://github.com/TomasTomecek/docker-hello-world.git"
+$ atomic-reactor build git --method hostdocker --build-image buildroot-hostdocker --image test-image --uri "https://github.com/TomasTomecek/docker-hello-world.git"
 ```
 
 Built image will be in the build container. Therefore this example doesn't make much sense. If you would like to access the built image, you should probably push it to your registry and build it like this:
 
 ```bash
 $ atomic-reactor build git --method hostdocker \
-             --build-image buildroot \
+             --build-image buildroot-hostdocker \
              --image test-image \
              --target-registries 172.17.42.1:5000 \
              --uri "https://github.com/TomasTomecek/docker-hello-world.git"
