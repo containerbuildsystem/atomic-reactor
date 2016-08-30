@@ -407,14 +407,14 @@ class TestKojiPromote(object):
                                             release='1')
         runner = create_runner(tasker, workflow)
 
-        koji_task_id = '12345'
+        koji_task_id = 12345
         monkeypatch.setenv("BUILD", json.dumps({
             'metadata': {
                 'creationTimestamp': '2015-07-27T09:24:00Z',
                 'namespace': NAMESPACE,
                 'name': BUILD_ID,
                 'labels': {
-                    'koji-task-id': koji_task_id,
+                    'koji-task-id': str(koji_task_id),
                 },
             }
         }))
@@ -431,7 +431,7 @@ class TestKojiPromote(object):
         assert isinstance(extra, dict)
         assert 'container_koji_task_id' in extra
         extra_koji_task_id = extra['container_koji_task_id']
-        assert is_string_type(extra_koji_task_id)
+        assert isinstance(extra_koji_task_id, int)
         assert extra_koji_task_id == koji_task_id
 
     @pytest.mark.parametrize('params', [
@@ -809,8 +809,8 @@ class TestKojiPromote(object):
         assert isinstance(extra, dict)
         assert 'filesystem_koji_task_id' in extra
         filesystem_koji_task_id = extra['filesystem_koji_task_id']
-        assert is_string_type(filesystem_koji_task_id)
-        assert filesystem_koji_task_id == str(task_id)
+        assert isinstance(filesystem_koji_task_id, int)
+        assert filesystem_koji_task_id == task_id
 
     def test_koji_promote_filesystem_koji_task_id_missing(self, tmpdir, os_env,
                                                           caplog):
