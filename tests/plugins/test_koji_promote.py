@@ -397,8 +397,12 @@ class TestKojiPromote(object):
             runner.run()
         assert "plugin 'koji_promote' raised an exception: RuntimeError" in str(exc)
 
+    @pytest.mark.parametrize(('koji_task_id', 'expect_success'), [
+        (12345, True),
+        ('x', False),
+    ])
     def test_koji_promote_log_task_id(self, tmpdir, monkeypatch, os_env,
-                                      caplog):
+                                      caplog, koji_task_id, expect_success):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
                                             session=session,
@@ -407,7 +411,6 @@ class TestKojiPromote(object):
                                             release='1')
         runner = create_runner(tasker, workflow)
 
-        koji_task_id = 12345
         monkeypatch.setenv("BUILD", json.dumps({
             'metadata': {
                 'creationTimestamp': '2015-07-27T09:24:00Z',
@@ -418,10 +421,8 @@ class TestKojiPromote(object):
                 },
             }
         }))
+
         runner.run()
-
-        assert "Koji Task ID {}".format(koji_task_id) in caplog.text()
-
         metadata = session.metadata
         assert 'build' in metadata
         build = metadata['build']
@@ -429,10 +430,17 @@ class TestKojiPromote(object):
         assert 'extra' in build
         extra = build['extra']
         assert isinstance(extra, dict)
-        assert 'container_koji_task_id' in extra
-        extra_koji_task_id = extra['container_koji_task_id']
-        assert isinstance(extra_koji_task_id, int)
-        assert extra_koji_task_id == koji_task_id
+
+        if expect_success:
+            assert "Koji Task ID {}".format(koji_task_id) in caplog.text()
+
+            assert 'container_koji_task_id' in extra
+            extra_koji_task_id = extra['container_koji_task_id']
+            assert isinstance(extra_koji_task_id, int)
+            assert extra_koji_task_id == koji_task_id
+        else:
+            assert "invalid task ID" in caplog.text()
+            assert 'container_koji_task_id' not in extra
 
     @pytest.mark.parametrize('params', [
         {
@@ -785,14 +793,18 @@ class TestKojiPromote(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_promote_filesystem_koji_task_id(self, tmpdir, os_env):
+    @pytest.mark.parametrize(('task_id', 'expect_success'), [
+        (1234, True),
+        ('x', False),
+    ])
+    def test_koji_promote_filesystem_koji_task_id(self, tmpdir, os_env, caplog,
+                                                  task_id, expect_success):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
                                             name='ns/name',
                                             version='1.0',
                                             release='1',
                                             session=session)
-        task_id = 1234
         workflow.prebuild_results[AddFilesystemPlugin.key] = {
             'base-image-id': 'abcd',
             'filesystem-koji-task-id': task_id,
@@ -807,10 +819,15 @@ class TestKojiPromote(object):
         assert 'extra' in build
         extra = build['extra']
         assert isinstance(extra, dict)
-        assert 'filesystem_koji_task_id' in extra
-        filesystem_koji_task_id = extra['filesystem_koji_task_id']
-        assert isinstance(filesystem_koji_task_id, int)
-        assert filesystem_koji_task_id == task_id
+
+        if expect_success:
+            assert 'filesystem_koji_task_id' in extra
+            filesystem_koji_task_id = extra['filesystem_koji_task_id']
+            assert isinstance(filesystem_koji_task_id, int)
+            assert filesystem_koji_task_id == task_id
+        else:
+            assert 'invalid task ID' in caplog.text()
+            assert 'filesystem_koji_task_id' not in extra
 
     def test_koji_promote_filesystem_koji_task_id_missing(self, tmpdir, os_env,
                                                           caplog):
