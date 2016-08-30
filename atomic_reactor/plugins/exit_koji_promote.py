@@ -370,8 +370,14 @@ class KojiPromotePlugin(ExitPlugin):
                            PostBuildRPMqaPlugin.key)
             return []
 
+        try:
+            sep = PostBuildRPMqaPlugin.sep
+        except AttributeError:
+            # sep instance variable added in Aug 2016
+            sep = ','
+
         return self.parse_rpm_output(output, PostBuildRPMqaPlugin.rpm_tags,
-                                     separator=',')
+                                     separator=sep)
 
     def get_image_output(self, arch):
         """

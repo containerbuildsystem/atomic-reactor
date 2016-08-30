@@ -247,8 +247,10 @@ def mock_environment(tmpdir, session=None, name=None,
     setattr(workflow, 'build_failed', build_process_failed)
     workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_rebuild
     workflow.postbuild_results[PostBuildRPMqaPlugin.key] = [
-        "name1,1.0,1,x86_64,0,2000," + FAKE_SIGMD5.decode() + ",23000",
-        "name2,2.0,1,x86_64,0,3000," + FAKE_SIGMD5.decode() + ",24000",
+        "name1;1.0;1;x86_64;0;2000;" + FAKE_SIGMD5.decode() + ";23000;"
+        "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abc;(none)",
+        "name2;2.0;1;x86_64;0;3000;" + FAKE_SIGMD5.decode() + ";24000"
+        "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abd;(none)",
     ]
 
     return tasker, workflow
