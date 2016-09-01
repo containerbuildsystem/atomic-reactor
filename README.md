@@ -110,7 +110,7 @@ Or you can build the image using docker and install Atomic Reactor directly from
 
 ```dockerfile
 FROM fedora:latest
-RUN dnf -y install docker-io git python-docker-py python-setuptools koji atomic-reactor; dnf clean all
+RUN dnf -y install docker-io git python-docker-py python-setuptools koji atomic-reactor && dnf clean all
 CMD ["atomic-reactor", "-v", "inside-build", "--input", "path"]
 ```
 
