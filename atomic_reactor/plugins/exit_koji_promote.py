@@ -518,17 +518,25 @@ class KojiPromotePlugin(ExitPlugin):
         if koji_task_id is not None:
             self.log.info("build configuration created by Koji Task ID %s",
                           koji_task_id)
-            extra['container_koji_task_id'] = koji_task_id
+            try:
+                extra['container_koji_task_id'] = int(koji_task_id)
+            except ValueError:
+                self.log.error("invalid task ID %r", koji_task_id, exc_info=1)
 
         fs_result = self.workflow.prebuild_results.get(AddFilesystemPlugin.key)
         if fs_result is not None:
             try:
-                task_id = fs_result['filesystem-koji-task-id']
+                fs_task_id = fs_result['filesystem-koji-task-id']
             except KeyError:
                 self.log.error("%s: expected filesystem-koji-task-id in result",
                                AddFilesystemPlugin.key)
             else:
-                extra['filesystem_koji_task_id'] = str(task_id)
+                try:
+                    task_id = int(fs_task_id)
+                except ValueError:
+                    self.log.error("invalid task ID %r", fs_task_id, exc_info=1)
+                else:
+                    extra['filesystem_koji_task_id'] = task_id
 
         build = {
             'name': component,
