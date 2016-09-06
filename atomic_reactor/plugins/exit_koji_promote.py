@@ -128,7 +128,7 @@ class KojiPromotePlugin(ExitPlugin):
                                   namespace=self.namespace)
         self.osbs = OSBS(osbs_conf, osbs_conf)
         self.build_id = None
-        self.nvr_image = None
+        self.pullspec_image = None
 
     @staticmethod
     def parse_rpm_output(output, tags, separator=';'):
@@ -438,7 +438,7 @@ class KojiPromotePlugin(ExitPlugin):
 
         output_images = []
         for registry in registries:
-            image = self.nvr_image.copy()
+            image = self.pullspec_image.copy()
             image.registry = registry.uri
             pullspec = image.to_str()
 
@@ -566,13 +566,18 @@ class KojiPromotePlugin(ExitPlugin):
             self.log.error("No build metadata")
             raise
 
+        for image in self.workflow.tag_conf.unique_images:
+            self.pullspec_image = image
+            break
+
         for image in self.workflow.tag_conf.primary_images:
             # dash at first/last postition does not count
             if '-' in image.tag[1:-1]:
-                self.nvr_image = image
+                self.pullspec_image = image
                 break
-        else:
-            raise RuntimeError('Unable to determine name:version-release')
+
+        if not self.pullspec_image:
+            raise RuntimeError('Unable to determine pullspec_image')
 
         metadata_version = 0
 

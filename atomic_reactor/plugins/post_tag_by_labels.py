@@ -22,15 +22,18 @@ class TagByLabelsPlugin(PostBuildPlugin):
     key = "tag_by_labels"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, **kwargs):
+    def __init__(self, tasker, workflow, unique_tag_only=False, **kwargs):
         """
         constructor
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
+        :param unique_tag_only: bool, when true image will only be tagged with
+            unique tag, and not primary tags
         """
         # call parent constructor
         super(TagByLabelsPlugin, self).__init__(tasker, workflow)
+        self.unique_tag_only = unique_tag_only
         if kwargs:
             self.log.warning("ignoring arguments %s", kwargs)
 
@@ -48,15 +51,20 @@ class TagByLabelsPlugin(PostBuildPlugin):
                 raise RuntimeError("Missing label '%s'." % label_name)
 
         name = get_label("Name")
-        version = get_label("Version")
-        release = get_label("Release")
 
         unique_tag = self.workflow.builder.image.tag
+        n_unique = "%s:%s" % (name, unique_tag)
+        self.workflow.tag_conf.add_unique_image(n_unique)
+
+        if self.unique_tag_only:
+            self.log.debug('Skipping transient tags')
+            return
+
+        version = get_label("Version")
+        release = get_label("Release")
 
         nvr = "%s:%s-%s" % (name, version, release)
         nv = "%s:%s" % (name, version)
         n = "%s:latest" % name
-        n_unique = "%s:%s" % (name, unique_tag)
 
         self.workflow.tag_conf.add_primary_images([nvr, nv, n])
-        self.workflow.tag_conf.add_unique_image(n_unique)

@@ -204,7 +204,7 @@ class PulpSyncPlugin(PostBuildPlugin):
 
         images = []
         repos = {}  # pulp repo -> repo id
-        for image in self.workflow.tag_conf.primary_images:
+        for image in self.workflow.tag_conf.images:
             if image.pulp_repo not in repos:
                 repo_id = self.create_repo_if_missing(pulp,
                                                       image.pulp_repo,
