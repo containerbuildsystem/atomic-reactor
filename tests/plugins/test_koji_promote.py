@@ -944,10 +944,6 @@ class TestKojiPromote(object):
         else:
             mdonly = set(['metadata_only'])
 
-        output_filename = 'koji_promote-{0}.json'.format(apis)
-        with open(output_filename, 'w') as out:
-            json.dump(data, out, sort_keys=True, indent=4)
-
         assert set(data.keys()) == set([
             'metadata_version',
             'build',
@@ -1037,6 +1033,60 @@ class TestKojiPromote(object):
         if target is not None:
             assert session.build_tags[build_id] == session.DEST_TAG
             assert session.tag_task_state == 'CLOSED'
+
+    @pytest.mark.parametrize(('primary', 'unique', 'invalid'), [
+        (True, True, False),
+        (True, False, False),
+        (False, True, False),
+        (False, False, True),
+    ])
+    def test_koji_promote_pullspec(self, tmpdir, os_env, primary, unique, invalid):
+        session = MockedClientSession('')
+        name = 'ns/name'
+        version = '1.0'
+        release = '1'
+        tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
+                                            name=name,
+                                            version=version,
+                                            release=release,
+                                            pulp_registries=1,
+                                            )
+        if not primary:
+            workflow.tag_conf._primary_images = []
+        if not unique:
+            workflow.tag_conf._unique_images = []
+
+        runner = create_runner(tasker, workflow)
+
+        if invalid:
+            with pytest.raises(PluginFailedException):
+                runner.run()
+            return
+
+        runner.run()
+
+        docker_outputs = [
+            output
+            for output in session.metadata['output']
+            if output['type'] == 'docker-image'
+        ]
+        assert len(docker_outputs) == 1
+        docker_output = docker_outputs[0]
+
+        pullspecs = [
+            repo
+            for repo in docker_output['extra']['docker']['repositories']
+            if '@sha256' not in repo
+        ]
+        assert len(pullspecs) == 1
+        pullspec = pullspecs[0]
+
+        if primary:
+            nvr_tag = '{}:{}-{}'.format(name, version, release)
+            assert pullspec.endswith(nvr_tag)
+        else:
+            assert pullspec.endswith('-timestamp')
 
     def test_koji_promote_without_build_info(self, tmpdir, os_env):
 
