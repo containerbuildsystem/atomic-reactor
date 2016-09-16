@@ -132,20 +132,36 @@ class AddLabelsPlugin(PreBuildPlugin):
         applied_alias = False
         not_applied = []
 
-        for old, new in self.aliases.items():
-            if old in all_labels:
-                if new in new_labels:
-                    if all_labels[old] != all_labels[new]:
-                        self.log.warning("labels %r=%r and %r=%r should probably have same value",
-                                         old, all_labels[old], new, all_labels[new])
-                    self.log.debug("alias label %r for %r already exists, skipping", new, old)
-                    continue
-
-                self.log.warning("adding label %r as an alias for label %r", new, old)
-                self.labels[new] = all_labels[old]
-                applied_alias = True
+        def add_as_an_alias(new, old, is_old_inherited):
+            self.log.warning("adding label %r as an alias for label %r", new, old)
+            if is_old_inherited and new in all_labels:
+                self.labels[old] = all_labels[new]
             else:
+                self.labels[new] = all_labels[old]
+
+        for old, new in self.aliases.items():
+            if old not in all_labels:
                 not_applied.append(old)
+                continue
+
+            is_old_inherited = old in base_labels and \
+                old not in df_labels and \
+                old not in plugin_labels
+
+            if new in new_labels:
+                if all_labels[old] != all_labels[new]:
+                    if is_old_inherited:
+                        add_as_an_alias(new, old, is_old_inherited)
+                        continue
+                    self.log.warning("labels %r=%r and %r=%r should probably have same value",
+                                     old, all_labels[old], new, all_labels[new])
+
+                self.log.debug("alias label %r for %r already exists, skipping", new, old)
+                continue
+
+            add_as_an_alias(new, old, is_old_inherited)
+            applied_alias = True
+            self.log.info(self.labels)
 
         # warn if we applied only some aliases
         if applied_alias and not_applied:

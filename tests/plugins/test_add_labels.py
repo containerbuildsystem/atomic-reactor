@@ -222,7 +222,7 @@ def test_add_labels_plugin_generated(tmpdir, docker_tasker, auto_label, value_re
     ('A',   'A',   'B',   'A',   'B',   'A',  'should probably have same value'),
     ('A',   'A',   'B',   'B',   'B',   'B',  'already exists'                 ),
     ('A',   'A',   'B',   'C',   'B',   'C',  'should probably have same value'),
-    ('A',   'B',   None,  None,  'A',   'A',  'as an alias for label'          ), #really?
+    ('A',   'B',   None,  None,  'B',   'B',  'as an alias for label'          ), #really?
     ('A',   'B',   None,  'A',   'A',   'A',  'already exists'                 ),
     ('A',   'B',   None,  'B',   'B',   'B',  'as an alias for label'          ),
     ('A',   'B',   None,  'C',   'C',   'C',  'as an alias for label'          ),
