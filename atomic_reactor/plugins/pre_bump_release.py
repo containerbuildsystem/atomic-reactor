@@ -69,8 +69,17 @@ class BumpReleasePlugin(PreBuildPlugin):
         self.log.debug('getting next release from build info: %s', build_info)
         next_release = self.xmlrpc.getNextRelease(build_info)
 
+        # Always set preferred release label - other will be set if old-style 
+        # label is present
+        preferred_release_label = get_preferred_label_key(dockerfile_labels, 
+                                                         'release')
+        old_style_label = get_all_label_keys('BZComponent')[1]
+        release_labels_to_be_set = [preferred_release_label]
+        if old_style_label in dockerfile_labels.keys():
+            release_labels_to_be_set = release_labels
+
         # No release labels are set so set them
-        for release_label in release_labels:
+        for release_label in release_labels_to_be_set:
             self.log.info("setting %s=%s", release_label, next_release)
 
             # Write the label back to the file (this is a property setter)

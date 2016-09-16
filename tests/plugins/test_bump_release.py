@@ -124,6 +124,9 @@ class TestBumpRelease(object):
         plugin.run()
 
         parser = DockerfileParser(plugin.workflow.builder.df_path)
-        # Only the new-style spellings of the release labels should be set
         assert parser.labels['release'] == next_release
-        assert 'Release' not in parser.labels
+        # Old-style spellings will be asserted only if other old-style labels are present
+        if 'BZComponent' not in parser.labels.keys():
+            assert 'Release' not in parser.labels
+        else:
+            assert parser.labels['Release'] == next_release
