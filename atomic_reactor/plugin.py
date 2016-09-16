@@ -203,10 +203,10 @@ class PluginsRunner(object):
                 plugin_is_allowed_to_fail = getattr(plugin_class, "is_allowed_to_fail", True)
 
             logger.debug("running plugin '%s'", plugin_name)
+            start_time = datetime.datetime.now()
 
             try:
                 plugin_instance = self.create_instance_from_plugin(plugin_class, plugin_conf)
-                start_time = datetime.datetime.now()
                 self.save_plugin_timestamp(plugin_class.key, start_time)
                 plugin_response = plugin_instance.run()
             except AutoRebuildCanceledException as ex:
