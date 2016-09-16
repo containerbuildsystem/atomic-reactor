@@ -475,6 +475,14 @@ def get_checksums(path, algorithms):
     return checksums
 
 
+def get_docker_architecture(tasker):
+    docker_version = tasker.get_version()
+    host_arch = docker_version['Arch']
+    if host_arch == 'amd64':
+        host_arch = 'x86_64'
+    return (host_arch, docker_version['Version'])
+
+
 def get_exported_image_metadata(path):
     logger.info('getting metadata for tarball %s', path)
     metadata = {'path': path}

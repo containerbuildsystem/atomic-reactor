@@ -25,7 +25,8 @@ from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.constants import PROG
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
-                                 get_build_json, get_preferred_label)
+                                 get_build_json, get_preferred_label,
+                                 get_docker_architecture)
 from atomic_reactor.koji_util import create_koji_session, TaskWatcher
 from dockerfile_parse import DockerfileParser
 from osbs.conf import Configuration
@@ -280,11 +281,8 @@ class KojiPromotePlugin(ExitPlugin):
         :return: dict, partial metadata
         """
 
-        docker_version = self.tasker.get_version()
         docker_info = self.tasker.get_info()
-        host_arch = docker_version['Arch']
-        if host_arch == 'amd64':
-            host_arch = 'x86_64'
+        host_arch, docker_version = get_docker_architecture(self.tasker)
 
         buildroot = {
             'id': 1,
@@ -308,7 +306,7 @@ class KojiPromotePlugin(ExitPlugin):
                 for tool in get_version_of_tools()] + [
                 {
                     'name': 'docker',
-                    'version': docker_version['Version'],
+                    'version': docker_version,
                 },
             ],
             'components': self.get_rpms(),

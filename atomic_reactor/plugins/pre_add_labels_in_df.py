@@ -45,6 +45,7 @@ from dockerfile_parse import DockerfileParser
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import INSPECT_CONFIG
+from atomic_reactor.util import get_docker_architecture
 import json
 import datetime
 
@@ -91,12 +92,7 @@ class AddLabelsPlugin(PreBuildPlugin):
         generated['build-date'] = dt.isoformat() + 'Z'
 
         # architecture - assuming host and image architecture is the same
-        # TODO: this code is also in plugins/exit_koji_promote.py, factor it out
-        docker_version = self.tasker.get_version()
-        host_arch = docker_version['Arch']
-        if host_arch == 'amd64':
-            host_arch = 'x86_64'
-        generated['architecture'] = host_arch
+        generated['architecture'], _ = get_docker_architecture(self.tasker)
 
         # build host
         docker_info = self.tasker.get_info()
