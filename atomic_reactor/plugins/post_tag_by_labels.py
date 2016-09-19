@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.constants import INSPECT_CONFIG
+from atomic_reactor.util import get_preferred_label
 
 
 __all__ = ('TagByLabelsPlugin', )
@@ -46,7 +47,9 @@ class TagByLabelsPlugin(PostBuildPlugin):
 
         def get_label(label_name):
             try:
-                return self.workflow.built_image_inspect[INSPECT_CONFIG]["Labels"][label_name]
+                return get_preferred_label(
+                    self.workflow.built_image_inspect[INSPECT_CONFIG]['Labels'], 
+                    label_name)
             except KeyError:
                 raise RuntimeError("Missing label '%s'." % label_name)
 

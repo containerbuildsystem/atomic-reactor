@@ -10,6 +10,7 @@ import os
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.constants import INSPECT_CONFIG
+from atomic_reactor.util import get_preferred_label_key
 
 
 class TagFromConfigPlugin(PostBuildPlugin):
@@ -69,9 +70,9 @@ class TagFromConfigPlugin(PostBuildPlugin):
                                'Has the build succeeded?')
 
         try:
-            name = (self.workflow.built_image_inspect[INSPECT_CONFIG]
-                                                     ['Labels']
-                                                     ['name'])
+            labels = self.workflow.built_image_inspect[INSPECT_CONFIG]['Labels']
+            name_label = str(get_preferred_label_key(labels, "name"))
+            name = labels[name_label]
         except KeyError as e:
             self.log.error('Unable to determine "name" from "Labels"')
             raise
