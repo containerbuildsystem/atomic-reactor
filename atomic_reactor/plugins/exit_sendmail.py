@@ -41,7 +41,7 @@ class SendMailPlugin(ExitPlugin):
                     # optional arguments follow
                     "submitter": "John Smith <jsmith@mycompany.com>",
                     "pdc_verify_cert": true,
-                    "pdc_component_df_label": "BZComponent",
+                    "pdc_component_df_label": "com.redhat.component",
                     "pdc_contact_role": "Devel_Owner"
                 }
         }]
@@ -61,7 +61,7 @@ class SendMailPlugin(ExitPlugin):
     PDC_CONTACT_ROLE = 'Devel_Owner'
 
     def __init__(self, tasker, workflow, send_on=None, url=None, submitter='unknown', pdc_url=None,
-                 pdc_verify_cert=True, pdc_component_df_label="BZComponent", pdc_secret_path=None,
+                 pdc_verify_cert=True, pdc_component_df_label="com.redhat.component", pdc_secret_path=None,
                  pdc_contact_role=None, smtp_uri=None, from_address=None,
                  error_addresses=None):
         """

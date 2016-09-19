@@ -53,7 +53,8 @@ import datetime
 class AddLabelsPlugin(PreBuildPlugin):
     key = "add_labels_in_dockerfile"
 
-    def __init__(self, tasker, workflow, labels, dont_overwrite=("Architecture", ),
+    def __init__(self, tasker, workflow, labels, 
+                 dont_overwrite=("Architecture", "architecture", ),
                  auto_labels=("build-date",
                               "architecture",
                               "vcs-type",

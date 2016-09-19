@@ -73,7 +73,7 @@ class BumpReleasePlugin(PreBuildPlugin):
         # label is present
         preferred_release_label = get_preferred_label_key(dockerfile_labels, 
                                                          'release')
-        old_style_label = get_all_label_keys('BZComponent')[1]
+        old_style_label = get_all_label_keys('com.redhat.component')[1]
         release_labels_to_be_set = [preferred_release_label]
         if old_style_label in dockerfile_labels.keys():
             release_labels_to_be_set = release_labels

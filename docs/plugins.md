@@ -129,16 +129,16 @@ These are run after 'docker build' has finished.
    * The 'docker save' output is compressed using gzip.
  * **tag_by_labels**
    * Status: enabled
-   * The Name, Version, and Release labels in the Dockerfile are used to create tags to be applied to the image:
-     * ${Name}:${Version}-${Release}
-     * ${Name}:${Version}
-     * ${Name}:latest
+   * The name, version, and release labels in the Dockerfile are used to create tags to be applied to the image:
+     * ${name}:${version}-${release}
+     * ${name}:${version}
+     * ${name}:latest
  * **tag_from_config**
    * Status: enabled
    * Tags defined in file "additional-tags" will be applied to the image:
-     * ${Name}:${additional-tag1}
-     * ${Name}:${additional-tag2}
-     * ${Name}:${additional-tag3}
+     * ${name}:${additional-tag1}
+     * ${name}:${additional-tag2}
+     * ${name}:${additional-tag3}
      * ...
  * **tag_and_push**
    * Status: enabled for V2

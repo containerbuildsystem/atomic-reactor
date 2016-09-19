@@ -51,9 +51,9 @@ def test_tag_by_labels_plugin(tmpdir, args):
     workflow.built_image_inspect = {
         INSPECT_CONFIG: {
             "Labels": {
-                "Name": TEST_IMAGE,
-                "Version": version,
-                "Release": release
+                "name": TEST_IMAGE,
+                "version": version,
+                "release": release
             }
         }
     }

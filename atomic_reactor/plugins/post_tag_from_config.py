@@ -71,9 +71,9 @@ class TagFromConfigPlugin(PostBuildPlugin):
         try:
             name = (self.workflow.built_image_inspect[INSPECT_CONFIG]
                                                      ['Labels']
-                                                     ['Name'])
+                                                     ['name'])
         except KeyError as e:
-            self.log.error('Unable to determine "Name" from "Labels"')
+            self.log.error('Unable to determine "name" from "Labels"')
             raise
 
         return name

@@ -30,7 +30,7 @@ class AssertLabelsPlugin(PreBuildPlugin):
         # call parent constructor
         super(AssertLabelsPlugin, self).__init__(tasker, workflow)
 
-        self.required_labels = required_labels or ['Name', 'Version', 'Release']
+        self.required_labels = required_labels or ['name', 'version', 'release']
 
     def run(self):
         """

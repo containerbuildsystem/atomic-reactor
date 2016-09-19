@@ -50,7 +50,7 @@ class TagByLabelsPlugin(PostBuildPlugin):
             except KeyError:
                 raise RuntimeError("Missing label '%s'." % label_name)
 
-        name = get_label("Name")
+        name = get_label("name")
 
         unique_tag = self.workflow.builder.image.tag
         n_unique = "%s:%s" % (name, unique_tag)
@@ -60,8 +60,8 @@ class TagByLabelsPlugin(PostBuildPlugin):
             self.log.debug('Skipping transient tags')
             return
 
-        version = get_label("Version")
-        release = get_label("Release")
+        version = get_label("version")
+        release = get_label("release")
 
         nvr = "%s:%s-%s" % (name, version, release)
         nv = "%s:%s" % (name, version)
