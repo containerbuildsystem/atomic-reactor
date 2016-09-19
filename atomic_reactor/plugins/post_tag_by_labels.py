@@ -48,7 +48,7 @@ class TagByLabelsPlugin(PostBuildPlugin):
         def get_label(label_name):
             try:
                 return get_preferred_label(
-                    self.workflow.built_image_inspect[INSPECT_CONFIG]['Labels'], 
+                    self.workflow.built_image_inspect[INSPECT_CONFIG]['Labels'],
                     label_name)
             except KeyError:
                 raise RuntimeError("Missing label '%s'." % label_name)

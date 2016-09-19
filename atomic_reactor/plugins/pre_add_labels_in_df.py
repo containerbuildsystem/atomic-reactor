@@ -45,7 +45,7 @@ from dockerfile_parse import DockerfileParser
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import INSPECT_CONFIG
-from atomic_reactor.util import get_docker_architecture
+from atomic_reactor.util import get_docker_architecture, _PREFERRED_LABELS
 import json
 import datetime
 
@@ -53,7 +53,21 @@ import datetime
 class AddLabelsPlugin(PreBuildPlugin):
     key = "add_labels_in_dockerfile"
 
-    def __init__(self, tasker, workflow, labels, 
+    DEFAULT_ALIASES = {
+        'Name': 'name',
+        'Version': 'version',
+        'Release': 'release',
+        'Architecture': 'architecture',
+        'Vendor': 'vendor',
+        'RUN': 'run',
+        'INSTALL': 'install',
+        'UNINSTALL': 'uninstall',
+        'Authoritative_Registry': 'authoritative-source-url',
+        'BZComponent': 'com.redhat.component',
+        'Build_Host': 'com.redhat.build-host',
+    }
+
+    def __init__(self, tasker, workflow, labels,
                  dont_overwrite=("Architecture", "architecture", ),
                  auto_labels=("build-date",
                               "architecture",
@@ -81,7 +95,7 @@ class AddLabelsPlugin(PreBuildPlugin):
             raise RuntimeError("labels have to be dict")
         self.labels = labels
         self.dont_overwrite = dont_overwrite
-        self.aliases = aliases or {}
+        self.aliases = aliases or self.DEFAULT_ALIASES
 
         self.generate_auto_labels(auto_labels)
 
