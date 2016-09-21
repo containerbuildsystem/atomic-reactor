@@ -15,8 +15,9 @@ from flexmock import flexmock
 import pytest
 
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PreBuildPluginsRunner, PostBuildPluginsRunner, \
-        InputPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import (BuildPluginsRunner, PreBuildPluginsRunner,
+                                   PostBuildPluginsRunner, InputPluginsRunner,
+                                   PluginFailedException)
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
 from atomic_reactor.util import ImageName
@@ -61,6 +62,62 @@ def test_build_plugin_failure(docker_tasker):
     with pytest.raises(PluginFailedException):
         results = runner.run()
     assert workflow.build_process_failed is True
+
+
+class TestBuildPluginsRunner(object):
+
+    @pytest.mark.parametrize(('params'), [
+        {'spam': 'maps'},
+        {'spam': 'maps', 'eggs': 'sgge'},
+    ])
+    def test_create_instance_from_plugin(self, tmpdir, params):
+        workflow = flexmock()
+        workflow.builder = flexmock()
+        workflow.builder.image_id = 'image-id'
+        workflow.builder.source = flexmock()
+        workflow.builder.source.dockerfile_path = 'dockerfile-path'
+        workflow.builder.source.path = 'path'
+        workflow.builder.base_image = flexmock()
+        workflow.builder.base_image.to_str = lambda: 'base-image'
+
+        tasker = flexmock()
+
+        class MyPlugin(object):
+            def __init__(self, tasker, workflow, spam=None):
+                self.spam = spam
+
+        bpr = BuildPluginsRunner(tasker, workflow, 'PreBuildPlugin', {})
+        plugin = bpr.create_instance_from_plugin(MyPlugin, params)
+
+        assert plugin.spam == params['spam']
+
+    @pytest.mark.parametrize(('params'), [
+        {'spam': 'maps'},
+        {'spam': 'maps', 'eggs': 'sgge'},
+    ])
+    def test_create_instance_from_plugin_with_kwargs(self, tmpdir, params):
+        workflow = flexmock()
+        workflow.builder = flexmock()
+        workflow.builder.image_id = 'image-id'
+        workflow.builder.source = flexmock()
+        workflow.builder.source.dockerfile_path = 'dockerfile-path'
+        workflow.builder.source.path = 'path'
+        workflow.builder.base_image = flexmock()
+        workflow.builder.base_image.to_str = lambda: 'base-image'
+
+        tasker = flexmock()
+
+        class MyPlugin(object):
+            def __init__(self, tasker, workflow, spam=None, **kwargs):
+                self.spam = spam
+                for key, value in kwargs.items():
+                    setattr(self, key, value)
+
+        bpr = BuildPluginsRunner(tasker, workflow, 'PreBuildPlugin', {})
+        plugin = bpr.create_instance_from_plugin(MyPlugin, params)
+
+        for key, value in params.items():
+            assert getattr(plugin, key) == value
 
 
 class TestInputPluginsRunner(object):
