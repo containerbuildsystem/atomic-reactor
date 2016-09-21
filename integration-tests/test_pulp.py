@@ -41,6 +41,7 @@ logger = logging.getLogger('atomic_reactor.tests')
 SOURCE = {"provider": "git", "uri": "git://example.com/test.git"}
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(dockpulp is None,
                     reason='dockpulp module not available')
 def test_push(tmpdir):
