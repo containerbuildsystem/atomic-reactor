@@ -16,6 +16,7 @@ import os
 import traceback
 import imp
 import datetime
+import inspect
 
 from atomic_reactor.util import process_substitutions
 
@@ -300,10 +301,30 @@ class BuildPluginsRunner(PluginsRunner):
         else:
             return translation_dict.get(obj_to_translate, obj_to_translate)
 
+    def _remove_unknown_args(self, plugin_class, plugin_conf):
+        args, _, var_kwargs, _ = inspect.getargspec(plugin_class.__init__)
+
+        # Constructor defines **kwargs, it'll take any parameter
+        if var_kwargs:
+            return plugin_conf
+
+        args = set(args)
+        known_plugin_conf = {}
+        for key, value in plugin_conf.items():
+            if key not in args:
+                logger.warning(
+                    '%s constructor does not take %s=%s parameter, ignoring it',
+                    plugin_class.__name__, key, value)
+                continue
+            known_plugin_conf[key] = value
+
+        return known_plugin_conf
+
     def create_instance_from_plugin(self, plugin_class, plugin_conf):
-        translated_conf = self._translate_special_values(plugin_conf)
-        logger.info("running plugin instance with args: '%s'", translated_conf)
-        plugin_instance = plugin_class(self.dt, self.workflow, **translated_conf)
+        plugin_conf = self._translate_special_values(plugin_conf)
+        plugin_conf = self._remove_unknown_args(plugin_class, plugin_conf)
+        logger.info("running plugin instance with args: '%s'", plugin_conf)
+        plugin_instance = plugin_class(self.dt, self.workflow, **plugin_conf)
         return plugin_instance
 
 
