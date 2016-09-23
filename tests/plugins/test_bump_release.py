@@ -97,7 +97,10 @@ class TestBumpRelease(object):
         True,
         False
     ])
-    @pytest.mark.parametrize('next_release', [ '1', '2'])
+    @pytest.mark.parametrize('next_release', [
+        {'actual': '1', 'expected': '1'},
+        {'actual': '1', 'expected': '2'},
+    ])
     def test_increment(self, tmpdir, component, version, next_release,
                        include_target):
 
@@ -109,7 +112,14 @@ class TestBumpRelease(object):
             def getNextRelease(self, build_info):
                 assert build_info['name'] == list(component.values())[0]
                 assert build_info['version'] == list(version.values())[0]
-                return next_release
+                return next_release['actual']
+
+            def getBuild(self, build_info):
+                assert build_info['name'] == list(component.values())[0]
+                assert build_info['version'] == list(version.values())[0]
+                if build_info['release'] >= next_release['expected']:
+                    return None
+                return True
 
 
         session = MockedClientSession()
@@ -124,9 +134,9 @@ class TestBumpRelease(object):
         plugin.run()
 
         parser = DockerfileParser(plugin.workflow.builder.df_path)
-        assert parser.labels['release'] == next_release
+        assert parser.labels['release'] == next_release['expected']
         # Old-style spellings will be asserted only if other old-style labels are present
         if 'BZComponent' not in parser.labels.keys():
             assert 'Release' not in parser.labels
         else:
-            assert parser.labels['Release'] == next_release
+            assert parser.labels['Release'] == next_release['expected']
