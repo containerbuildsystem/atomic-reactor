@@ -69,6 +69,19 @@ class BumpReleasePlugin(PreBuildPlugin):
         self.log.debug('getting next release from build info: %s', build_info)
         next_release = self.xmlrpc.getNextRelease(build_info)
 
+        # getNextRelease will return the release of the last successful build
+        # but next_release might be a failed build. Koji's CGImport doesn't 
+        # allow reuploading builds, so instead we should increment next_release 
+        # and make sure the build doesn't exist
+        while True:
+            build_info = {'name': component, 'version': version, 'release': next_release}
+            self.log.debug('checking that the build does not exist: %s', build_info)
+            build = self.xmlrpc.getBuild(build_info)
+            if not build:
+                break
+
+            next_release = str(int(next_release) + 1)
+
         # Always set preferred release label - other will be set if old-style 
         # label is present
         preferred_release_label = get_preferred_label_key(dockerfile_labels, 
