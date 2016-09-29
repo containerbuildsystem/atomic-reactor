@@ -42,7 +42,7 @@ from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
 from atomic_reactor.plugins.pre_cp_dockerfile import CpDockerfilePlugin
 from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
-from atomic_reactor.util import ImageName, LazyGit
+from atomic_reactor.util import ImageName, LazyGit, ManifestDigest
 import pytest
 from tests.constants import LOCALHOST_REGISTRY, DOCKER0_REGISTRY, TEST_IMAGE, INPUT_IMAGE
 from tests.util import is_string_type
@@ -106,8 +106,9 @@ def prepare(pulp_registries=None, docker_registries=None):
 
     for docker_registry in docker_registries:
         r = workflow.push_conf.add_docker_registry(docker_registry)
-        r.digests[TEST_IMAGE] = DIGEST1
-        r.digests["namespace/image:asd123"] = DIGEST2
+        r.digests[TEST_IMAGE] = ManifestDigest(v1='not-used', v2=DIGEST1)
+        r.digests["namespace/image:asd123"] = ManifestDigest(v1='not-used',
+                                                             v2=DIGEST2)
 
     setattr(workflow, 'builder', X)
     setattr(workflow, '_base_image_inspect', {'Id': '01234567'})

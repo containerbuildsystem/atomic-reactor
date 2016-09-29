@@ -11,7 +11,7 @@ from __future__ import print_function, unicode_literals
 import pytest
 from flexmock import flexmock
 
-from atomic_reactor.util import ImageName
+from atomic_reactor.util import ImageName, ManifestDigest
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow, DockerRegistry
 from atomic_reactor.plugin import ExitPluginsRunner
@@ -44,6 +44,7 @@ class X(object):
     {},
     {DOCKER0_REGISTRY: {}},
     {DOCKER0_REGISTRY: {'foo/bar:latest': DIGEST1}},
+    {DOCKER0_REGISTRY: {'foo/bar:latest': DIGEST1, 'foo/bar:1.0-1': DIGEST1}},
     {DOCKER0_REGISTRY: {'foo/bar:1.0-1': DIGEST1, 'foo/bar:1.0': DIGEST2}},
     {DOCKER0_REGISTRY: {'foo/bar:1.0-1': DIGEST1}, LOCALHOST_REGISTRY: {'foo/bar:1.0-1': DIGEST2}},
 ])
@@ -81,7 +82,7 @@ def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir):
     for reg, digests in saved_digests.items():
         r = DockerRegistry(reg)
         for tag, dig in digests.items():
-            r.digests[tag] = dig
+            r.digests[tag] = ManifestDigest(v1='not-used', v2=dig)
         workflow.push_conf._registries['docker'].append(r)
 
     runner = ExitPluginsRunner(
@@ -95,17 +96,22 @@ def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir):
         }]
     )
 
+    deleted_digests = set()
     for reg, digests in saved_digests.items():
         if reg not in req_registries:
             continue
 
         for tag, dig in digests.items():
+            if dig in deleted_digests:
+                continue
             url = "https://" + reg + "/v2/" + tag.split(":")[0] + "/manifests/" + dig
             auth_type = requests.auth.HTTPBasicAuth if req_registries[reg] else None
             (flexmock(requests)
                 .should_receive('delete')
                 .with_args(url, verify=bool, auth=auth_type)
-                .once().
-                and_return(flexmock(status_code=202)))
+                .once()
+                .and_return(flexmock(status_code=202)))
+            deleted_digests.add(dig)
 
-    runner.run()
+    result = runner.run()
+    assert result[DeleteFromRegistryPlugin.key] == deleted_digests

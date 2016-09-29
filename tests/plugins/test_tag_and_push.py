@@ -15,6 +15,7 @@ from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
 from atomic_reactor.util import ImageName
 from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE, MOCK, DOCKER0_REGISTRY
+import atomic_reactor.util
 
 import json
 import os.path
@@ -25,7 +26,10 @@ if MOCK:
     from flexmock import flexmock
     from tests.docker_mock import mock_docker
 
-DIGEST1 = 'sha256:28b64a8b29fd2723703bb17acf907cd66898440270e536992b937899a4647414'
+DIGEST_V1 = 'sha256:7de72140ec27a911d3f88d60335f08d6530a4af136f7beab47797a196e840afd'
+DIGEST_V2 = 'sha256:85a7e3fb684787b86e64808c5b91d926afda9d6b35a0642a72d7a746452e71c1'
+
+DIGEST_LOG = 'sha256:hey-this-should-not-be-used'
 PUSH_LOGS_1_10 = [
     b'{"status":"The push refers to a repository [localhost:5000/busybox]"}',
     b'{"status":"Preparing","progressDetail":{},"id":"5f70bf18a086"}',
@@ -39,8 +43,8 @@ PUSH_LOGS_1_10 = [
     b'{"status":"Pushing","progressDetail":{"current":1310720,"total":1113436},"progress":"[==================================================\\u003e] 1.311 MB","id":"9508eff2c687"}',
     b'{"status":"Pushed","progressDetail":{},"id":"9508eff2c687"}',
     b'{"status":"Pushed","progressDetail":{},"id":"9508eff2c687"}',
-    b'{"status":"latest: digest: ' + DIGEST1.encode('utf-8') + b' size: 1920"}',
-    b'{"progressDetail":{},"aux":{"Tag":"latest","Digest":"' + DIGEST1.encode('utf-8') + b'","Size":1920}}' ]
+    b'{"status":"latest: digest: ' + DIGEST_LOG.encode('utf-8') + b' size: 1920"}',
+    b'{"progressDetail":{},"aux":{"Tag":"latest","Digest":"' + DIGEST_LOG.encode('utf-8') + b'","Size":1920}}' ]
 
 PUSH_LOGS_1_10_NOT_IN_STATUS = list(PUSH_LOGS_1_10)
 del PUSH_LOGS_1_10_NOT_IN_STATUS[-2]
@@ -53,12 +57,12 @@ PUSH_LOGS_1_9 = [
     b'{"status":"Pushing","progressDetail":{"current":66944370,"total":66944370},"progress":"[==================================================\\u003e] 66.94 MB/66.94 MB","id":"ded7cd95e059"}',
     b'{"status":"Image successfully pushed","progressDetail":{},"id":"ded7cd95e059"}',
     b'{"status":"Image already exists","progressDetail":{},"id":"48ecf305d2cf"}',
-    b'{"status":"Digest: ' + DIGEST1.encode('utf-8') + b'"}']
+    b'{"status":"Digest: ' + DIGEST_LOG.encode('utf-8') + b'"}']
 
 PUSH_LOGS_1_X = [ # don't remember which version does this
     b'{"status":"The push refers to a repository [172.17.42.1:5000/ns/test-image2]"}',
     b'{"status":"13cde7f2a483: Pushed "}',
-    b'{"status":"7.1-23: digest: ' + DIGEST1.encode('utf-8') + b' size: 1539"}']
+    b'{"status":"7.1-23: digest: ' + DIGEST_LOG.encode('utf-8') + b' size: 1539"}']
 
 PUSH_ERROR_LOGS = [
     b'{"status":"The push refers to a repository [xyz/abc] (len: 1)"}\r\n',
@@ -91,9 +95,9 @@ class X(object):
     (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_10, True),
     (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_10_NOT_IN_STATUS, True),
     (TEST_IMAGE, PUSH_ERROR_LOGS, True),
-
 ])
-def test_tag_and_push_plugin(tmpdir, image_name, logs, should_raise, use_secret):
+def test_tag_and_push_plugin(tmpdir, monkeypatch, image_name, logs, should_raise, use_secret):
+
     if MOCK:
         mock_docker()
         flexmock(docker.Client, push=lambda iid, **kwargs: iter(logs),
@@ -115,6 +119,10 @@ def test_tag_and_push_plugin(tmpdir, image_name, logs, should_raise, use_secret)
             dockerconfig.flush()
             secret_path = temp_dir
 
+    (flexmock(atomic_reactor.util)
+        .should_receive('get_manifest_digests')
+        .and_return({'v1': DIGEST_V1, 'v2': DIGEST_V2})
+    )
 
     runner = PostBuildPluginsRunner(
         tasker,
@@ -144,27 +152,5 @@ def test_tag_and_push_plugin(tmpdir, image_name, logs, should_raise, use_secret)
         if MOCK:
             # we only test this when mocking docker because we don't expect
             # running actual docker against v2 registry
-            assert workflow.push_conf.docker_registries[0].digests[image_name] == DIGEST1
-
-@pytest.mark.parametrize("logs", [
-    PUSH_LOGS_1_X,
-    PUSH_LOGS_1_9,
-    PUSH_LOGS_1_10,
-    PUSH_LOGS_1_10_NOT_IN_STATUS
-])
-def test_extract_digest(logs):
-    json_logs = [json.loads(l.decode('utf-8')) for l in logs]
-    digest = TagAndPushPlugin.extract_digest(json_logs)
-    assert digest == DIGEST1
-
-@pytest.mark.parametrize("tag,should_succeed", [
-    ('latest', True),
-    ('earliest', False),
-])
-def test_extract_digest_verify_tag(tag, should_succeed):
-    json_logs = [json.loads(l.decode('utf-8')) for l in PUSH_LOGS_1_10_NOT_IN_STATUS]
-    digest = TagAndPushPlugin.extract_digest(json_logs, tag)
-    if should_succeed:
-        assert digest == DIGEST1
-    else:
-        assert digest is None
+            assert workflow.push_conf.docker_registries[0].digests[image_name]['v1'] == DIGEST_V1
+            assert workflow.push_conf.docker_registries[0].digests[image_name]['v2'] == DIGEST_V2

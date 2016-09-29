@@ -416,7 +416,11 @@ class KojiPromotePlugin(ExitPlugin):
             for image in self.workflow.tag_conf.images:
                 image_str = image.to_str()
                 if image_str in registry.digests:
-                    digest = registry.digests[image_str]
+                    # pulp/crane supports only manifest schema v1
+                    if self.workflow.push_conf.pulp_registries:
+                        digest = registry.digests[image_str].v1
+                    else:
+                        digest = registry.digests[image_str].default
                     digests[image.to_str(registry=False)] = digest
 
         return digests

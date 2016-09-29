@@ -35,7 +35,7 @@ from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildP
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
-from atomic_reactor.util import ImageName
+from atomic_reactor.util import ImageName, ManifestDigest
 from atomic_reactor.source import GitSource, PathSource
 from tests.constants import SOURCE, MOCK
 
@@ -235,7 +235,12 @@ def mock_environment(tmpdir, session=None, name=None,
 
     for image in workflow.tag_conf.images:
         tag = image.to_str(registry=False)
-        docker_reg.digests[tag] = fake_digest(image)
+        if pulp_registries:
+            docker_reg.digests[tag] = ManifestDigest(v1=fake_digest(image),
+                                                     v2='sha256:not-used')
+        else:
+            docker_reg.digests[tag] = ManifestDigest(v1='sha256:not-used',
+                                                     v2=fake_digest(image))
 
     for pulp_registry in range(pulp_registries):
         workflow.push_conf.add_pulp_registry('env', 'pulp.example.com')
@@ -918,6 +923,13 @@ class TestKojiPromote(object):
          True,
          None,
          None),
+
+        ('v1+v2',
+         0,
+         False,
+         10485760,
+         None),
+
     ])
     def test_koji_promote_success(self, tmpdir, apis, pulp_registries,
                                   metadata_only, blocksize, target, os_env):
