@@ -62,7 +62,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             for image in self.workflow.tag_conf.images:
                 image_str = image.to_str()
                 if image_str in registry.digests:
-                    digest = registry.digests[image_str]
+                    digest = registry.digests[image_str].default
                     digests[image.to_str(registry=False)] = digest
 
         return digests

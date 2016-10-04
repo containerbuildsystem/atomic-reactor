@@ -11,7 +11,9 @@ from __future__ import print_function, unicode_literals
 import hashlib
 import json
 import os
+import re
 from pipes import quote
+import requests
 import shutil
 import subprocess
 import tempfile
@@ -626,3 +628,81 @@ class Dockercfg(object):
         except KeyError:
             logger.warn('%s not found in .dockercfg', docker_registry)
             return {}
+
+
+class ManifestDigest(object):
+    """Wrapper for digests for a docker manifest."""
+
+    def __init__(self, v1=None, v2=None):
+        self.v1 = v1
+        self.v2 = v2
+
+    @property
+    def default(self):
+        """Return the default manifest schema version.
+
+        Depending on the docker version, <= 1.9, used to push
+        the image to the registry, v2 schema may not be available.
+        In such case, the v1 schema should be used when interacting
+        with the registry.
+        """
+        return self.v2 or self.v1
+
+
+def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
+                         versions=('v1', 'v2')):
+    """Return manifest digest for image.
+
+    :param image: ImageName, the remote image to inspect
+    :param registry: str, URI for registry, if URI schema is not provided,
+                          https:// will be used
+    :param insecure: bool, when True registry's cert is not verified
+    :param dockercfg_path: str, dirname of .dockercfg location
+    :param versions: tuple, which manifest schema versions to fetch digest
+
+    :return: dict, versions mapped to their digest
+    """
+    auth = None
+    if dockercfg_path:
+        dockercfg = Dockercfg(dockercfg_path).get_credentials(image.registry)
+
+        username = dockercfg.get('username')
+        password = dockercfg.get('password')
+        if username and password:
+            auth = requests.auth.HTTPBasicAuth(username, password)
+
+    if not re.match('http(s)?://', registry):
+        registry = 'https://{}'.format(registry)
+
+    context = '/'.join([x for x in [image.namespace, image.repo] if x])
+    tag = image.tag or 'latest'
+    url = '{}/v2/{}/manifests/{}'.format(registry, context, tag)
+
+    digests = {}
+    for version in versions:
+        media_type = ('application/vnd.docker.distribution.manifest.{}+json'
+                      .format(version))
+        headers = {'Accept': media_type}
+        response = requests.head(url, verify=not insecure, headers=headers,
+                                 auth=auth)
+        response.raise_for_status()
+
+        # Only compare prefix as response may use +prettyjws suffix
+        # which is the case for signed manifest
+        response_h_prefix = response.headers['Content-Type'].rsplit('+', 1)[0]
+        request_h_prefix = media_type.rsplit('+', 1)[0]
+        if response_h_prefix != request_h_prefix:
+            logger.debug('request headers: %s', headers)
+            logger.debug('response headers: %s', response.headers)
+            logger.warning('Unable to fetch digest for %s', media_type)
+            continue
+
+        digests[version] = response.headers['Docker-Content-Digest']
+        logger.debug('Image %s:%s has %s manifest digest: %s',
+                     context, tag, version, digests[version])
+
+    if not digests:
+        raise RuntimeError('No digests found for {}'.format(image))
+
+    return ManifestDigest(**digests)
+

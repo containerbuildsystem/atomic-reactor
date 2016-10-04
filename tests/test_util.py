@@ -8,10 +8,14 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
+import json
 import os
 import tempfile
 import pytest
+import responses
 import six
+
+from tempfile import mkdtemp
 
 try:
     from collections import OrderedDict
@@ -24,7 +28,8 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  render_yum_repo, process_substitutions,
                                  get_checksums, print_version_of_tools,
                                  get_version_of_tools, get_preferred_label_key,
-                                 human_size, CommandResult)
+                                 human_size, CommandResult,
+                                 get_manifest_digests, ManifestDigest)
 from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1
 from tests.util import requires_internet
 
@@ -241,3 +246,165 @@ def test_preferred_labels(labels, name, expected):
 ])
 def test_human_size(size_input, expected):
     assert human_size(size_input) == expected
+
+
+@pytest.mark.parametrize('insecure', [
+    True,
+    False,
+])
+@pytest.mark.parametrize('versions', [
+    (('v1', 'v2')),
+    (('v1',)),
+    (('v2',)),
+    (tuple()),
+    None,
+])
+@pytest.mark.parametrize('creds', [
+    ('user1', 'pass'),
+    (None, 'pass'),
+    ('user1', None),
+    None,
+])
+@pytest.mark.parametrize('image,registry,url', [
+    ('not-used.com/spam:latest', 'localhost.com',
+     'https://localhost.com/v2/spam/manifests/latest'),
+
+    ('not-used.com/food/spam:latest', 'http://localhost.com',
+     'http://localhost.com/v2/food/spam/manifests/latest'),
+
+    ('not-used.com/spam', 'https://localhost.com',
+     'https://localhost.com/v2/spam/manifests/latest'),
+])
+@responses.activate
+def test_get_manifest_digests(tmpdir, image, registry, insecure, creds,
+                              versions, url):
+    kwargs = {}
+
+    image = ImageName.parse(image)
+    kwargs['image'] = image
+
+    if creds:
+
+        temp_dir = mkdtemp(dir=str(tmpdir))
+        with open(os.path.join(temp_dir, '.dockercfg'), 'w+') as dockerconfig:
+            dockerconfig.write(json.dumps({
+                image.registry: {
+                    'username': creds[0], 'password': creds[1]
+                }
+            }))
+        kwargs['dockercfg_path'] = temp_dir
+
+    kwargs['registry'] = registry
+
+    if insecure is not None:
+        kwargs['insecure'] = insecure
+
+    if versions is not None:
+        kwargs['versions'] = versions
+
+    def request_callback(request):
+        if creds and creds[0] and creds[1]:
+            assert request.headers['Authorization']
+
+        media_type = request.headers['Accept']
+        if media_type.endswith('v2+json'):
+            digest = 'v2-digest'
+        elif media_type.endswith('v1+json'):
+            digest = 'v1-digest'
+        else:
+            raise ValueError('Unexpected media type {}'.format(media_type))
+
+        media_type_prefix = media_type.split('+')[0]
+        headers = {
+            'Content-Type': '{}+jsonish'.format(media_type_prefix),
+            'Docker-Content-Digest': digest
+        }
+        return (200, headers, '')
+
+    responses.add_callback(responses.HEAD, url, callback=request_callback)
+
+    expected_versions = versions
+    if versions is None:
+        # Test default versions value
+        expected_versions = ('v1', 'v2')
+
+    expected_result = dict(
+        (version, '{}-digest'.format(version))
+        for version in expected_versions)
+
+    if expected_versions:
+        actual_digests = get_manifest_digests(**kwargs)
+        assert actual_digests.v1 == expected_result.get('v1')
+        assert actual_digests.v2 == expected_result.get('v2')
+    else:
+        with pytest.raises(RuntimeError):
+            get_manifest_digests(**kwargs)
+
+
+@pytest.mark.parametrize('v1_digest,v2_digest', [
+    (True, True),
+    (True, False),
+    (False, True),
+])
+@responses.activate
+def test_get_manifest_digests_missing(tmpdir, v1_digest, v2_digest):
+    kwargs = {}
+
+    image = ImageName.parse('example.com/spam:latest')
+    kwargs['image'] = image
+
+    kwargs['registry'] = 'https://example.com'
+
+    url = 'https://example.com/v2/spam/manifests/latest'
+
+    def request_callback(request):
+        media_type = request.headers['Accept']
+        media_type_prefix = media_type.split('+')[0]
+        # If requested schema version is not available, attempt to
+        # fallback to other version if possible to simulate how
+        # a docker registry behaves
+        if media_type.endswith('v2+json') and v2_digest:
+            digest = 'v2-digest'
+        elif media_type.endswith('v2+json') and v1_digest:
+            digest = 'not-used'
+            media_type_prefix = media_type_prefix.replace('v2', 'v1', 1)
+        elif media_type.endswith('v1+json') and v1_digest:
+            digest = 'v1-digest'
+        elif media_type.endswith('v1+json') and v2_digest:
+            digest = 'not-used'
+            media_type_prefix = media_type_prefix.replace('v1', 'v2', 1)
+        else:
+            raise ValueError('Unexpected media type {}'.format(media_type))
+
+        headers = {
+            'Content-Type': '{}+jsonish'.format(media_type_prefix),
+            'Docker-Content-Digest': digest
+        }
+        return (200, headers, '')
+
+    responses.add_callback(responses.HEAD, url, callback=request_callback)
+
+    actual_digests = get_manifest_digests(**kwargs)
+
+    if v1_digest:
+        assert actual_digests.v1 == 'v1-digest'
+    else:
+        assert actual_digests.v1 is None
+
+    if v2_digest:
+        assert actual_digests.v2 == 'v2-digest'
+    else:
+        assert actual_digests.v2 is None
+
+
+@pytest.mark.parametrize('v1,v2,default', [
+    ('v1-digest', 'v2-digest', 'v2-digest'),
+    ('v1-digest', None, 'v1-digest'),
+    (None, 'v2-digest', 'v2-digest'),
+    (None, None, None),
+])
+def test_manifest_digest(v1, v2, default):
+    md = ManifestDigest(v1=v1, v2=v2)
+    assert md.v1 == v1
+    assert md.v2 == v2
+    assert md.default == default

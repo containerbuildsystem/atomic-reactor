@@ -11,6 +11,7 @@ import re
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
+from atomic_reactor.util import get_manifest_digests
 
 
 __all__ = ('TagAndPushPlugin', )
@@ -70,32 +71,13 @@ class TagAndPushPlugin(PostBuildPlugin):
                 pushed_images.append(registry_image)
                 defer_removal(self.workflow, registry_image)
 
-                digest = self.extract_digest(logs, image.tag or 'latest')
-                if digest:
-                    tag = registry_image.to_str(registry=False)
-                    push_conf_registry.digests[tag] = digest
+                digests = get_manifest_digests(registry_image, registry,
+                                               insecure, docker_push_secret)
+
+                tag = registry_image.to_str(registry=False)
+                push_conf_registry.digests[tag] = digests
+
 
         self.log.info("All images were tagged and pushed")
         return pushed_images
 
-    @staticmethod
-    def extract_digest(logs, expected_tag=None):
-        # look for digest in aux/Digest
-        for j in reversed(logs):
-            aux = j.get('aux', {})
-            digest = aux.get('Digest')
-
-            if digest:
-                tag = aux.get('Tag')
-                if expected_tag is None or tag is None or expected_tag == tag:
-                    return digest
-
-        # look for digest in status message
-        for j in reversed(logs):
-            if "status" not in j:
-                continue
-            m = re.search(r'\b[Dd]igest: ([a-z0-9]+:[a-f0-9]+)\b', j['status'])
-            if m:
-                return m.group(1)
-
-        return None

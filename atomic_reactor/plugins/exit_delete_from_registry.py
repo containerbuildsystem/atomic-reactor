@@ -42,6 +42,8 @@ class DeleteFromRegistryPlugin(ExitPlugin):
         self.registries = deepcopy(registries)
 
     def run(self):
+        deleted_digests = set()
+
         for registry, registry_conf in self.registries.items():
             if not registry.startswith('http://') and not registry.startswith('https://'):
                 registry = 'https://' + registry
@@ -71,7 +73,14 @@ class DeleteFromRegistryPlugin(ExitPlugin):
                                  registry_noschema)
                 continue
 
-            for tag, digest in push_conf_registry.digests.items():
+            for tag, digests in push_conf_registry.digests.items():
+                digest = digests.default
+                if digest in deleted_digests:
+                    # Manifest schema version 2 uses the same digest
+                    # for all tags
+                    self.log.info('digest already deleted %s', digest)
+                    continue
+
                 repo = tag.split(':')[0]
                 url = registry + "/v2/" + repo + "/manifests/" + digest
                 insecure = push_conf_registry.insecure
@@ -79,6 +88,7 @@ class DeleteFromRegistryPlugin(ExitPlugin):
 
                 if response.status_code == requests.codes.ACCEPTED:
                     self.log.info("deleted manifest %s/%s@%s", registry_noschema, repo, digest)
+                    deleted_digests.add(digest)
                 elif response.status_code == requests.codes.NOT_FOUND:
                     self.log.warning("cannot delete %s/%s@%s: not found",
                                      registry_noschema, repo, digest)
@@ -90,3 +100,5 @@ class DeleteFromRegistryPlugin(ExitPlugin):
                                                              response.reason)
                     self.log.error("%s\n%s", msg, response.text)
                     raise PluginFailedException(msg)
+
+        return deleted_digests
