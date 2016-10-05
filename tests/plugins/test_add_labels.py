@@ -150,7 +150,7 @@ def test_add_labels_plugin(tmpdir, docker_tasker,
         assert df.content in expected_output
 
 @pytest.mark.parametrize('auto_label, value_re_part', [
-    ('build-date', r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z'),
+    ('build-date', r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?'),
     ('architecture', 'x86_64'),
     ('vcs-type', 'git'),
     ('vcs-url', DOCKERFILE_GIT),

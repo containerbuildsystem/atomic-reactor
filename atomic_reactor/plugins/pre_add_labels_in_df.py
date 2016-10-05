@@ -104,7 +104,7 @@ class AddLabelsPlugin(PreBuildPlugin):
 
         # build date
         dt = datetime.datetime.fromtimestamp(atomic_reactor_start_time)
-        generated['build-date'] = dt.isoformat() + 'Z'
+        generated['build-date'] = dt.isoformat()
 
         # architecture - assuming host and image architecture is the same
         generated['architecture'], _ = get_docker_architecture(self.tasker)
