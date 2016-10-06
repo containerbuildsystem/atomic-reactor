@@ -7,11 +7,10 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from copy import deepcopy
-import re
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
-from atomic_reactor.util import get_manifest_digests
+from atomic_reactor.util import get_manifest_digests, get_config_from_registry
 
 
 __all__ = ('TagAndPushPlugin', )
@@ -50,6 +49,8 @@ class TagAndPushPlugin(PostBuildPlugin):
         if not self.workflow.tag_conf.unique_images:
             self.workflow.tag_conf.add_unique_image(self.workflow.image)
 
+        first_v2_digest = None
+        first_registry_image = None
         for registry, registry_conf in self.registries.items():
             insecure = registry_conf.get('insecure', False)
             push_conf_registry = \
@@ -73,11 +74,19 @@ class TagAndPushPlugin(PostBuildPlugin):
 
                 digests = get_manifest_digests(registry_image, registry,
                                                insecure, docker_push_secret)
-
                 tag = registry_image.to_str(registry=False)
                 push_conf_registry.digests[tag] = digests
 
+                if not first_v2_digest and digests.v2:
+                    first_v2_digest = digests.v2
+                    first_registry_image = registry_image
+
+            if first_v2_digest:
+                push_conf_registry.config = get_config_from_registry(
+                    first_registry_image, registry, first_v2_digest, insecure,
+                    docker_push_secret, 'v2')
+            else:
+                self.log.info("V2 schema 2 digest is not available")
 
         self.log.info("All images were tagged and pushed")
         return pushed_images
-

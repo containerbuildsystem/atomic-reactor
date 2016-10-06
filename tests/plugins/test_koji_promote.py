@@ -174,7 +174,8 @@ def mock_environment(tmpdir, session=None, name=None,
                      component=None, version=None, release=None,
                      source=None, build_process_failed=False,
                      is_rebuild=True, pulp_registries=0, blocksize=None,
-                     task_states=None, additional_tags=None):
+                     task_states=None, additional_tags=None,
+                     has_config=None):
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -241,6 +242,12 @@ def mock_environment(tmpdir, session=None, name=None,
         else:
             docker_reg.digests[tag] = ManifestDigest(v1='sha256:not-used',
                                                      v2=fake_digest(image))
+
+        if has_config:
+            docker_reg.config = {
+                'config': {'architecture': 'x86_64'},
+                'container_config': {}
+            }
 
     for pulp_registry in range(pulp_registries):
         workflow.push_conf.add_pulp_registry('env', 'pulp.example.com')
@@ -654,7 +661,7 @@ class TestKojiPromote(object):
         assert is_string_type(osbs['build_id'])
         assert is_string_type(osbs['builder_image_id'])
 
-    def validate_output(self, output, metadata_only):
+    def validate_output(self, output, metadata_only, has_config):
         if metadata_only:
             mdonly = set()
         else:
@@ -726,12 +733,15 @@ class TestKojiPromote(object):
             assert 'docker' in extra
             docker = extra['docker']
             assert isinstance(docker, dict)
-            assert set(docker.keys()) == set([
+            expected_keys_set = set([
                 'parent_id',
                 'id',
                 'repositories',
                 'tags',
             ])
+            if has_config:
+                expected_keys_set.add('config')
+            assert set(docker.keys()) == expected_keys_set
 
             assert is_string_type(docker['parent_id'])
             assert is_string_type(docker['id'])
@@ -759,6 +769,12 @@ class TestKojiPromote(object):
             tags = docker['tags']
             assert isinstance(tags, list)
             assert all(is_string_type(tag) for tag in tags)
+
+            if has_config:
+                config = docker['config']
+                assert isinstance(config, dict)
+                assert 'container_config' not in [x.lower() for x in config.keys()]
+                assert all(is_string_type(entry) for entry in config)
 
     def test_koji_promote_import_fail(self, tmpdir, os_env, caplog):
         session = MockedClientSession('')
@@ -931,8 +947,12 @@ class TestKojiPromote(object):
          None),
 
     ])
+    @pytest.mark.parametrize('has_config', [
+        True,
+        False,
+    ])
     def test_koji_promote_success(self, tmpdir, apis, pulp_registries,
-                                  metadata_only, blocksize, target, os_env):
+                                  metadata_only, blocksize, target, os_env, has_config):
         session = MockedClientSession('')
         component = 'component'
         name = 'ns/name'
@@ -945,7 +965,8 @@ class TestKojiPromote(object):
                                             version=version,
                                             release=release,
                                             pulp_registries=pulp_registries,
-                                            blocksize=blocksize)
+                                            blocksize=blocksize,
+                                            has_config=has_config)
         runner = create_runner(tasker, workflow, metadata_only=metadata_only,
                                blocksize=blocksize, target=target)
         runner.run()
@@ -1012,7 +1033,7 @@ class TestKojiPromote(object):
                         if b['id'] == buildroot['id']]) == 1
 
         for output in output_files:
-            self.validate_output(output, metadata_only)
+            self.validate_output(output, metadata_only, has_config)
             buildroot_id = output['buildroot_id']
 
             # References one of the buildroots

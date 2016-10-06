@@ -321,7 +321,7 @@ def test_get_manifest_digests(tmpdir, image, registry, insecure, creds,
         }
         return (200, headers, '')
 
-    responses.add_callback(responses.HEAD, url, callback=request_callback)
+    responses.add_callback(responses.GET, url, callback=request_callback)
 
     expected_versions = versions
     if versions is None:
@@ -382,7 +382,7 @@ def test_get_manifest_digests_missing(tmpdir, v1_digest, v2_digest):
         }
         return (200, headers, '')
 
-    responses.add_callback(responses.HEAD, url, callback=request_callback)
+    responses.add_callback(responses.GET, url, callback=request_callback)
 
     actual_digests = get_manifest_digests(**kwargs)
 

@@ -649,8 +649,12 @@ class ManifestDigest(object):
         return self.v2 or self.v1
 
 
-def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
-                         versions=('v1', 'v2')):
+def get_manifest_media_type(version):
+    return 'application/vnd.docker.distribution.manifest.{}+json'.format(version)
+
+
+def query_registry(image, registry, digest=None, insecure=False, dockercfg_path=None,
+                   version='v1'):
     """Return manifest digest for image.
 
     :param image: ImageName, the remote image to inspect
@@ -658,9 +662,9 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
                           https:// will be used
     :param insecure: bool, when True registry's cert is not verified
     :param dockercfg_path: str, dirname of .dockercfg location
-    :param versions: tuple, which manifest schema versions to fetch digest
+    :param versions: str, which manifest schema version to fetch digest
 
-    :return: dict, versions mapped to their digest
+    :return: requests.Response object
     """
     auth = None
     if dockercfg_path:
@@ -675,17 +679,39 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
         registry = 'https://{}'.format(registry)
 
     context = '/'.join([x for x in [image.namespace, image.repo] if x])
-    tag = image.tag or 'latest'
-    url = '{}/v2/{}/manifests/{}'.format(registry, context, tag)
+    reference = digest or image.tag or 'latest'
+    url = '{}/v2/{}/manifests/{}'.format(registry, context, reference)
+    logger.debug("url: {}".format(url))
 
+    headers = {'Accept': (get_manifest_media_type(version))}
+    kwargs = {'verify': not insecure, 'headers': headers, 'auth': auth}
+
+    response = requests.get(url, **kwargs)
+    response.raise_for_status()
+    return response
+
+
+def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
+                         versions=('v1', 'v2')):
+    """Return manifest digest for image.
+
+    :param image: ImageName, the remote image to inspect
+    :param registry: str, URI for registry, if URI schema is not provided,
+                          https:// will be used
+    :param insecure: bool, when True registry's cert is not verified
+    :param dockercfg_path: str, dirname of .dockercfg location
+    :param versions: tuple, which manifest schema versions to fetch digest
+
+    :return: dict, versions mapped to their digest
+    """
     digests = {}
     for version in versions:
-        media_type = ('application/vnd.docker.distribution.manifest.{}+json'
-                      .format(version))
+        media_type = get_manifest_media_type(version)
         headers = {'Accept': media_type}
-        response = requests.head(url, verify=not insecure, headers=headers,
-                                 auth=auth)
-        response.raise_for_status()
+        response = query_registry(
+            image, registry, digest=None,
+            insecure=insecure, dockercfg_path=dockercfg_path,
+            version=version)
 
         # Only compare prefix as response may use +prettyjws suffix
         # which is the case for signed manifest
@@ -698,6 +724,8 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
             continue
 
         digests[version] = response.headers['Docker-Content-Digest']
+        context = '/'.join([x for x in [image.namespace, image.repo] if x])
+        tag = image.tag or 'latest'
         logger.debug('Image %s:%s has %s manifest digest: %s',
                      context, tag, version, digests[version])
 
@@ -706,3 +734,28 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
 
     return ManifestDigest(**digests)
 
+
+def get_config_from_registry(image, registry, digest, insecure=False,
+                             dockercfg_path=None, version='v2'):
+    """Return image config by digest
+
+    :param image: ImageName, the remote image to inspect
+    :param registry: str, URI for registry, if URI schema is not provided,
+                          https:// will be used
+    :param insecure: bool, when True registry's cert is not verified
+    :param dockercfg_path: str, dirname of .dockercfg location
+    :param versions: tuple, which manifest schema versions to fetch digest
+
+    :return: dict, versions mapped to their digest
+    """
+    response = query_registry(
+        image, registry, digest=digest, insecure=insecure,
+        dockercfg_path=dockercfg_path, version=version)
+    response.raise_for_status()
+
+    context = '/'.join([x for x in [image.namespace, image.repo] if x])
+    tag = image.tag or 'latest'
+    logger.debug('Image %s:%s has config:\n%s',
+                 context, tag, response.json())
+
+    return response.json()

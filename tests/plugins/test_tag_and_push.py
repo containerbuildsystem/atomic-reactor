@@ -20,6 +20,7 @@ import atomic_reactor.util
 import json
 import os.path
 from tempfile import mkdtemp
+import requests
 
 if MOCK:
     import docker
@@ -85,18 +86,19 @@ class X(object):
     True,
     False,
 ])
-@pytest.mark.parametrize(("image_name", "logs", "should_raise"), [
-    (TEST_IMAGE, PUSH_LOGS_1_X, False),
-    (TEST_IMAGE, PUSH_LOGS_1_9, False),
-    (TEST_IMAGE, PUSH_LOGS_1_10, False),
-    (TEST_IMAGE, PUSH_LOGS_1_10_NOT_IN_STATUS, False),
-    (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_X, True),
-    (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_9, True),
-    (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_10, True),
-    (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_10_NOT_IN_STATUS, True),
-    (TEST_IMAGE, PUSH_ERROR_LOGS, True),
+@pytest.mark.parametrize(("image_name", "logs", "should_raise", "has_config"), [
+    (TEST_IMAGE, PUSH_LOGS_1_X, False, False),
+    (TEST_IMAGE, PUSH_LOGS_1_9, False, False),
+    (TEST_IMAGE, PUSH_LOGS_1_10, False, True),
+    (TEST_IMAGE, PUSH_LOGS_1_10_NOT_IN_STATUS, False, False),
+    (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_X, True, False),
+    (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_9, True, False),
+    (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_10, True, True),
+    (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_10_NOT_IN_STATUS, True, True),
+    (TEST_IMAGE, PUSH_ERROR_LOGS, True, False),
 ])
-def test_tag_and_push_plugin(tmpdir, monkeypatch, image_name, logs, should_raise, use_secret):
+def test_tag_and_push_plugin(
+        tmpdir, monkeypatch, image_name, logs, should_raise, has_config, use_secret):
 
     if MOCK:
         mock_docker()
@@ -119,9 +121,41 @@ def test_tag_and_push_plugin(tmpdir, monkeypatch, image_name, logs, should_raise
             dockerconfig.flush()
             secret_path = temp_dir
 
+    digest_v2 = DIGEST_V2
+    if not has_config:
+        digest_v2 = None
+
     (flexmock(atomic_reactor.util)
         .should_receive('get_manifest_digests')
-        .and_return(ManifestDigest(v1=DIGEST_V1, v2=DIGEST_V2))
+        .and_return(ManifestDigest(v1=DIGEST_V1, v2=digest_v2))
+    )
+
+    response_json = {
+        'layers': [
+            {'mediaType': 'application/vnd.docker.image.rootfs.diff.tar.gzip',
+             'digest': 'sha256:16dc1f96e3a1bb628be2e00518fec2bb97bd5933859de592a00e2eb7774b6ecf',
+             'size': 71907148},
+            {'mediaType': 'application/vnd.docker.image.rootfs.diff.tar.gzip',
+             'digest': 'sha256:024c492078957644297e3a76e58ff97558398e8b7ea7702a7f9ac8885fe52626',
+             'size': 3945714}
+        ],
+        'schemaVersion': 2,
+        'config': {
+            'mediaType': 'application/octet-stream',
+            'digest': 'sha256:34337fc9d434ad65ee585fc18433c705fef57576299133bc4977e6d4c575177a',
+            'size': 4132
+        },
+        'mediaType': 'application/vnd.docker.distribution.manifest.v2+json'
+    }
+
+    if not has_config:
+        response_json = None
+
+    (flexmock(requests.Response, raise_for_status=lambda: None, json=response_json,))
+
+    (flexmock(requests)
+        .should_receive('get')
+        .and_return(requests.Response())
     )
 
     runner = PostBuildPluginsRunner(
@@ -153,4 +187,9 @@ def test_tag_and_push_plugin(tmpdir, monkeypatch, image_name, logs, should_raise
             # we only test this when mocking docker because we don't expect
             # running actual docker against v2 registry
             assert workflow.push_conf.docker_registries[0].digests[image_name].v1 == DIGEST_V1
-            assert workflow.push_conf.docker_registries[0].digests[image_name].v2 == DIGEST_V2
+            assert workflow.push_conf.docker_registries[0].digests[image_name].v2 == digest_v2
+
+            if has_config:
+                assert isinstance(workflow.push_conf.docker_registries[0].config, dict)
+            else:
+                assert workflow.push_conf.docker_registries[0].config is None

@@ -174,6 +174,8 @@ class DockerRegistry(Registry):
         """
         super(DockerRegistry, self).__init__(uri, insecure=insecure)
         self.digests = {}  # maps tags (str) to their digest, if available
+        self.config = None  # stores image config from the registry, 
+        # media type of the config is application/vnd.docker.container.image.v1+json
 
 
 class PushConf(object):

@@ -16,6 +16,7 @@ from string import ascii_letters
 import subprocess
 from tempfile import NamedTemporaryFile
 import time
+import copy
 
 from atomic_reactor import __version__ as atomic_reactor_version
 from atomic_reactor import start_time as atomic_reactor_start_time
@@ -476,6 +477,14 @@ class KojiPromotePlugin(ExitPlugin):
         # Parent of squashed built image is base image
         image_id = self.workflow.builder.image_id
         parent_id = self.workflow.base_image_inspect['Id']
+
+        # Read config from the registry using v2 schema 2 digest
+        config = copy.deepcopy(self.workflow.push_conf.docker_registries[0].config)
+
+        # We don't need container_config section
+        if config and 'container_config' in config:
+            del config['container_config']
+
         digests = self.get_digests()
         repositories = self.get_repositories(digests)
         arch = os.uname()[4]
@@ -494,9 +503,13 @@ class KojiPromotePlugin(ExitPlugin):
                     'parent_id': parent_id,
                     'repositories': repositories,
                     'tags': list(tags),
+                    'config': config
                 },
             },
         })
+
+        if not config:
+            del metadata['extra']['docker']['config']
 
         # Add the 'docker save' image to the output
         image = add_buildroot_id(output)
