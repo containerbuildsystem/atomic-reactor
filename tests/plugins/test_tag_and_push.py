@@ -13,7 +13,7 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
-from atomic_reactor.util import ImageName
+from atomic_reactor.util import ImageName, ManifestDigest
 from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE, MOCK, DOCKER0_REGISTRY
 import atomic_reactor.util
 
@@ -121,7 +121,7 @@ def test_tag_and_push_plugin(tmpdir, monkeypatch, image_name, logs, should_raise
 
     (flexmock(atomic_reactor.util)
         .should_receive('get_manifest_digests')
-        .and_return({'v1': DIGEST_V1, 'v2': DIGEST_V2})
+        .and_return(ManifestDigest(v1=DIGEST_V1, v2=DIGEST_V2))
     )
 
     runner = PostBuildPluginsRunner(
@@ -152,5 +152,5 @@ def test_tag_and_push_plugin(tmpdir, monkeypatch, image_name, logs, should_raise
         if MOCK:
             # we only test this when mocking docker because we don't expect
             # running actual docker against v2 registry
-            assert workflow.push_conf.docker_registries[0].digests[image_name]['v1'] == DIGEST_V1
-            assert workflow.push_conf.docker_registries[0].digests[image_name]['v2'] == DIGEST_V2
+            assert workflow.push_conf.docker_registries[0].digests[image_name].v1 == DIGEST_V1
+            assert workflow.push_conf.docker_registries[0].digests[image_name].v2 == DIGEST_V2
