@@ -142,7 +142,6 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
             self.is_built = True
             if not command_result.is_failed():
                 self.built_image_info = self.get_built_image_info()
-                # self.base_image_id = self.built_image_info['ParentId']  # parent id is not base image!
                 self.image_id = self.built_image_info['Id']
             build_result = BuildResult(command_result, self.image_id)
             return build_result
