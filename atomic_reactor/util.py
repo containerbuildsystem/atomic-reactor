@@ -654,15 +654,17 @@ def get_manifest_media_type(version):
 
 
 def query_registry(image, registry, digest=None, insecure=False, dockercfg_path=None,
-                   version='v1'):
+                   version='v1', is_blob=False):
     """Return manifest digest for image.
 
     :param image: ImageName, the remote image to inspect
     :param registry: str, URI for registry, if URI schema is not provided,
                           https:// will be used
+    :param digest: str, digest of the image manifest
     :param insecure: bool, when True registry's cert is not verified
     :param dockercfg_path: str, dirname of .dockercfg location
-    :param versions: str, which manifest schema version to fetch digest
+    :param version: str, which manifest schema version to fetch digest
+    :param is_blob: bool, read blob config if set to True
 
     :return: requests.Response object
     """
@@ -680,7 +682,10 @@ def query_registry(image, registry, digest=None, insecure=False, dockercfg_path=
 
     context = '/'.join([x for x in [image.namespace, image.repo] if x])
     reference = digest or image.tag or 'latest'
-    url = '{}/v2/{}/manifests/{}'.format(registry, context, reference)
+    object_type = 'manifests'
+    if is_blob:
+        object_type = 'blobs'
+    url = '{}/v2/{}/{}/{}'.format(registry, context, object_type, reference)
     logger.debug("url: {}".format(url))
 
     headers = {'Accept': (get_manifest_media_type(version))}
@@ -742,9 +747,10 @@ def get_config_from_registry(image, registry, digest, insecure=False,
     :param image: ImageName, the remote image to inspect
     :param registry: str, URI for registry, if URI schema is not provided,
                           https:// will be used
+    :param digest: str, digest of the image manifest
     :param insecure: bool, when True registry's cert is not verified
     :param dockercfg_path: str, dirname of .dockercfg location
-    :param versions: tuple, which manifest schema versions to fetch digest
+    :param version: str, which manifest schema versions to fetch digest
 
     :return: dict, versions mapped to their digest
     """
@@ -752,10 +758,20 @@ def get_config_from_registry(image, registry, digest, insecure=False,
         image, registry, digest=digest, insecure=insecure,
         dockercfg_path=dockercfg_path, version=version)
     response.raise_for_status()
+    manifest_config = response.json()
+    logger.debug("response json:", manifest_config)
+    config_digest = manifest_config['config']['digest']
+
+    config_response = query_registry(
+        image, registry, digest=config_digest, insecure=insecure,
+        dockercfg_path=dockercfg_path, version=version, is_blob=True)
+    config_response.raise_for_status()
+
+    blob_config = config_response.json()
+    logger.debug("response json:", blob_config)
 
     context = '/'.join([x for x in [image.namespace, image.repo] if x])
     tag = image.tag or 'latest'
-    logger.debug('Image %s:%s has config:\n%s',
-                 context, tag, response.json())
+    logger.debug('Image %s:%s has config:\n%s', context, tag, blob_config)
 
-    return response.json()
+    return blob_config
