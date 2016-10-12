@@ -121,41 +121,112 @@ def test_tag_and_push_plugin(
             dockerconfig.flush()
             secret_path = temp_dir
 
-    digest_v2 = DIGEST_V2
-    if not has_config:
-        digest_v2 = None
+    CONFIG_DIGEST = 'sha256:2c782e3a93d34d89ea4cf54052768be117caed54803263dd1f3798ce42aac14e'
+    media_type = 'application/vnd.docker.distribution.manifest.v2+json'
 
-    (flexmock(atomic_reactor.util)
-        .should_receive('get_manifest_digests')
-        .and_return(ManifestDigest(v1=DIGEST_V1, v2=digest_v2))
-    )
-
-    response_json = {
-        'layers': [
-            {'mediaType': 'application/vnd.docker.image.rootfs.diff.tar.gzip',
-             'digest': 'sha256:16dc1f96e3a1bb628be2e00518fec2bb97bd5933859de592a00e2eb7774b6ecf',
-             'size': 71907148},
-            {'mediaType': 'application/vnd.docker.image.rootfs.diff.tar.gzip',
-             'digest': 'sha256:024c492078957644297e3a76e58ff97558398e8b7ea7702a7f9ac8885fe52626',
-             'size': 3945714}
-        ],
-        'schemaVersion': 2,
+    response_config_json = {
         'config': {
+            'digest': CONFIG_DIGEST,
             'mediaType': 'application/octet-stream',
-            'digest': 'sha256:34337fc9d434ad65ee585fc18433c705fef57576299133bc4977e6d4c575177a',
             'size': 4132
         },
-        'mediaType': 'application/vnd.docker.distribution.manifest.v2+json'
+        'layers': [
+            {
+                'digest': 'sha256:16dc1f96e3a1bb628be2e00518fec2bb97bd5933859de592a00e2eb7774b6ecf',
+                'mediaType': 'application/vnd.docker.image.rootfs.diff.tar.gzip',
+                'size': 71907148
+            },
+            {
+                'digest': 'sha256:cebc0565e1f096016765f55fde87a6f60fdb1208c0b5017e35a856ff578f5ccb',
+                'mediaType': 'application/vnd.docker.image.rootfs.diff.tar.gzip',
+                'size': 3945724
+            }
+        ],
+        'mediaType': media_type,
+        'schemaVersion': 2
+    }
+
+    response_json = {
+        'config': {
+            'Size': 12509448,
+            'architecture': 'amd64',
+            'author': 'Red Hat, Inc.',
+            'config': {
+                'Cmd': ['/bin/rsyslog.sh'],
+                'Entrypoint': None,
+                'Image': 'c3fb36aafd5692d2a45115d32bb120edb6edf6c0c3c783ed6592a8dab969fb88',
+                'Labels': {
+                    'Architecture': 'x86_64',
+                    'Authoritative_Registry': 'registry.access.redhat.com',
+                    'BZComponent': 'rsyslog-docker',
+                    'Name': 'rhel7/rsyslog',
+                    'Release': '28.vrutkovs.31',
+                    'Vendor': 'Red Hat, Inc.',
+                    'Version': '7.2',
+                },
+            },
+            'created': '2016-10-07T10:20:05.38595Z',
+            'docker_version': '1.9.1',
+            'id': '1ca220fbc2aed7c141b236c8729fe59db5771b32bf2da74e4a663407f32ec2a2',
+            'os': 'linux',
+            'parent': '47eed7a8ea3f131e9281ae09fcbfb0041872fd8b74a048f1c739302c8148505d'
+        },
+        'container_config': {
+            'foo': 'bar',
+            'spam': 'maps'
+        },
+        'id': '1ca220fbc2aed7c141b236c8729fe59db5771b32bf2da74e4a663407f32ec2a2',
+        'parent_id': 'c3fb36aafd5692d2a45115d32bb120edb6edf6c0c3c783ed6592a8dab969fb88'
     }
 
     if not has_config:
         response_json = None
 
-    (flexmock(requests.Response, raise_for_status=lambda: None, json=response_json,))
+    config_latest_url = "https://{}/v2/{}/manifests/latest".format(LOCALHOST_REGISTRY, TEST_IMAGE,)
+    config_url = "https://{}/v2/{}/manifests/{}".format(LOCALHOST_REGISTRY, TEST_IMAGE, DIGEST_V2)
+    blob_url = "https://{}/v2/{}/blobs/{}".format(
+        LOCALHOST_REGISTRY, TEST_IMAGE, CONFIG_DIGEST)
+
+    config_response_config_v1 = requests.Response()
+    (flexmock(config_response_config_v1,
+              raise_for_status=lambda: None,
+              json=response_config_json,
+              headers={
+                'Content-Type': 'application/vnd.docker.distribution.manifest.v1+json',
+                'Docker-Content-Digest': DIGEST_V1
+              }
+    ))
+
+    config_response_config_v2 = requests.Response()
+    (flexmock(config_response_config_v2,
+              raise_for_status=lambda: None,
+              json=response_config_json,
+              headers={
+                'Content-Type': 'application/vnd.docker.distribution.manifest.v2+json',
+                'Docker-Content-Digest': DIGEST_V2
+              }
+    ))
+
+    blob_config = requests.Response()
+    (flexmock(blob_config, raise_for_status=lambda: None, json=response_json))
+
+    def custom_get(url, headers, **kwargs):
+        if url == config_latest_url:
+            if headers['Accept'] == 'application/vnd.docker.distribution.manifest.v1+json':
+                return config_response_config_v1
+
+            if headers['Accept'] == 'application/vnd.docker.distribution.manifest.v2+json':
+                return config_response_config_v2
+
+        if url == config_url:
+            return config_response_config_v2
+
+        if url == blob_url:
+            return blob_config
 
     (flexmock(requests)
         .should_receive('get')
-        .and_return(requests.Response())
+        .replace_with(custom_get)
     )
 
     runner = PostBuildPluginsRunner(
@@ -186,8 +257,9 @@ def test_tag_and_push_plugin(
         if MOCK:
             # we only test this when mocking docker because we don't expect
             # running actual docker against v2 registry
-            assert workflow.push_conf.docker_registries[0].digests[image_name].v1 == DIGEST_V1
-            assert workflow.push_conf.docker_registries[0].digests[image_name].v2 == digest_v2
+            expected_digest = ManifestDigest(v1=DIGEST_V1, v2=DIGEST_V2)
+            assert workflow.push_conf.docker_registries[0].digests[image_name].v1 == expected_digest.v1
+            assert workflow.push_conf.docker_registries[0].digests[image_name].v2 == expected_digest.v2
 
             if has_config:
                 assert isinstance(workflow.push_conf.docker_registries[0].config, dict)
