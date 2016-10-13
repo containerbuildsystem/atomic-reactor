@@ -7,6 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from atomic_reactor.plugin import PostBuildPlugin
+from docker.errors import APIError
 
 
 __all__ = ('PostBuildRPMqaPlugin', )
@@ -58,5 +59,9 @@ class PostBuildRPMqaPlugin(PostBuildPlugin):
             self.log.debug("ignore rpms 'gpg-pubkey'")
             plugin_output = [x for x in plugin_output if not x.startswith("gpg-pubkey" + self.sep)]
 
-        self.tasker.remove_container(container_id)
+        try:
+            self.tasker.remove_container(container_id)
+        except APIError as ex:
+            self.log.warning(repr(ex))
+
         return plugin_output
