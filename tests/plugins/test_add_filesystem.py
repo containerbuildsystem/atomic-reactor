@@ -39,6 +39,7 @@ from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.util import ImageName
 from atomic_reactor.source import VcsInfo
 from atomic_reactor import koji_util
+from atomic_reactor import util
 from tests.constants import (MOCK_SOURCE, DOCKERFILE_GIT, DOCKERFILE_SHA1,
                              MOCK, IMPORTED_IMAGE_ID)
 from tests.fixtures import docker_tasker
@@ -68,9 +69,21 @@ class X(object):
 
 
 def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
-                      koji_krb_principal=None, koji_krb_keytab=None):
+                      koji_krb_principal=None, koji_krb_keytab=None,
+                      scratch=False):
     session = flexmock()
-    session.should_receive('buildImageOz').and_return(1234567)
+
+    def _mockBuildImageOz(*args, **kwargs):
+        if scratch:
+            assert kwargs['opts']['scratch'] is True
+        else:
+            assert 'scratch' not in kwargs['opts']
+
+        return 1234567
+
+    flexmock(util).should_receive('is_scratch_build').and_return(scratch)
+    session.should_receive('buildImageOz').replace_with(_mockBuildImageOz)
+
     session.should_receive('taskFinished').and_return(True)
     session.should_receive('getTaskInfo').and_return({
         'state': koji_util.koji.TASK_STATES['CLOSED']
@@ -143,7 +156,8 @@ def mock_workflow(tmpdir, dockerfile):
     return workflow
 
 
-def create_plugin_instance(tmpdir, kwargs=None):
+def create_plugin_instance(tmpdir, kwargs=None, scratch=False):
+    flexmock(util).should_receive('is_scratch_build').and_return(scratch)
     tasker = flexmock()
     workflow = flexmock()
     mock_source = MockSource(tmpdir)
@@ -157,7 +171,8 @@ def create_plugin_instance(tmpdir, kwargs=None):
     return AddFilesystemPlugin(tasker, workflow, KOJI_HUB, **kwargs)
 
 
-def test_add_filesystem_plugin_generated(tmpdir, docker_tasker):
+@pytest.mark.parametrize('scratch', [True, False])
+def test_add_filesystem_plugin_generated(tmpdir, docker_tasker, scratch):
     if MOCK:
         mock_docker()
 
@@ -166,7 +181,7 @@ def test_add_filesystem_plugin_generated(tmpdir, docker_tasker):
         RUN dnf install -y python-django
         """)
     workflow = mock_workflow(tmpdir, dockerfile)
-    mock_koji_session()
+    mock_koji_session(scratch=scratch)
     mock_image_build_file(str(tmpdir))
 
     runner = PreBuildPluginsRunner(

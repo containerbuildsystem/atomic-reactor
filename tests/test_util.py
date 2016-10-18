@@ -16,6 +16,7 @@ import responses
 import six
 
 from tempfile import mkdtemp
+from flexmock import flexmock
 
 try:
     from collections import OrderedDict
@@ -29,7 +30,9 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_checksums, print_version_of_tools,
                                  get_version_of_tools, get_preferred_label_key,
                                  human_size, CommandResult,
-                                 get_manifest_digests, ManifestDigest)
+                                 get_manifest_digests, ManifestDigest,
+                                 get_build_json, is_scratch_build)
+from atomic_reactor import util
 from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1
 from tests.util import requires_internet
 
@@ -408,3 +411,33 @@ def test_manifest_digest(v1, v2, default):
     assert md.v1 == v1
     assert md.v2 == v2
     assert md.default == default
+
+
+@pytest.mark.parametrize('environ,expected', [
+    ({'BUILD': '{"foo": "bar"}'}, {'foo': 'bar'}),
+    ({}, False),
+])
+def test_get_build_json(environ, expected):
+    flexmock(os, environ=environ)
+
+    if expected:
+        assert get_build_json() == {'foo': 'bar'}
+    else:
+        with pytest.raises(KeyError):
+            get_build_json()
+
+
+@pytest.mark.parametrize('build_json,scratch', [
+    ({'metadata': {'labels': {'scratch': True}}}, True),
+    ({'metadata': {'labels': {'scratch': False}}}, False),
+    ({'metadata': {'labels': {}}}, False),
+    ({'metadata': {}}, None),
+    ({}, None),
+])
+def test_is_scratch_build(build_json, scratch):
+    flexmock(util).should_receive('get_build_json').and_return(build_json)
+    if scratch is None:
+        with pytest.raises(KeyError):
+            is_scratch_build()
+    else:
+        assert is_scratch_build() == scratch
