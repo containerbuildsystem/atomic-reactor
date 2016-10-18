@@ -78,7 +78,7 @@ These are run after 'git clone' is used to fetch the git repository content cont
  * **is_autorebuild**
    * Status: not yet enabled (chain rebuilds)
    * Several plugins have specific duties to perform only in the case of automated rebuilds. This plugin figures out whether this OpenShift Build is an explicit build requested by a developer (via Koji), or whether it is a build triggered by a change in the parent layer.
- * **stop_autorebulid_if_disabled**
+ * **stop_autorebuild_if_disabled**
    * Status: not yet enabled (chain rebuilds)
    * Based on the result of is_autorebuild, this plugin is for stopping automated builds from proceeding if the image owner has opted out of automated rebuilds.
  * **add_filesystem**
