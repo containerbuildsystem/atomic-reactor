@@ -31,6 +31,7 @@ from atomic_reactor.constants import DEFAULT_DOWNLOAD_BLOCK_SIZE
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.koji_util import create_koji_session, TaskWatcher, stream_task_output
+from atomic_reactor import util
 
 
 class AddFilesystemPlugin(PreBuildPlugin):
@@ -111,6 +112,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         self.poll_interval = poll_interval
         self.blocksize = blocksize
         self.repos = repos or []
+        self.scratch = util.is_scratch_build()
 
     def is_image_build_type(self, base_image):
         return base_image.strip().lower() == 'koji/image-build'
@@ -210,6 +212,10 @@ class AddFilesystemPlugin(PreBuildPlugin):
                                .format(image_build_conf))
 
         image_name, args, kwargs = self.parse_image_build_config(image_build_conf)
+
+        if self.scratch:
+            kwargs['opts']['scratch'] = True
+
         pattern = ('{}.*(\.tar|\.tar\.gz|\.tar\.bz2|\.tar\.xz)$'
                    .format(image_name))
         filesystem_regex = re.compile(pattern, re.IGNORECASE)

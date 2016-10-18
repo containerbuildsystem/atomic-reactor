@@ -594,6 +594,16 @@ def get_build_json():
         logger.error("No $BUILD env variable. Probably not running in build container")
         raise
 
+
+def is_scratch_build():
+    build_json = get_build_json()
+    try:
+        return build_json['metadata']['labels'].get('scratch', False)
+    except KeyError:
+        logger.error('metadata.labels not found in build json')
+        raise
+
+
 # copypasted and slightly modified from
 # http://stackoverflow.com/questions/1094841/reusable-library-to-get-human-readable-version-of-file-size/1094933#1094933
 def human_size(num, suffix='B'):
