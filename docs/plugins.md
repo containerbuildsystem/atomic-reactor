@@ -114,6 +114,9 @@ These are run after 'git clone' is used to fetch the git repository content cont
  * **inject_yum_repo**
    * Status: enabled
    * The yum repo file or files created by the koji and add_yum_repo_by_url plugins are injected into the Dockerfile with ADD, and cleaned up with 'RUN rm'. When the built image has its new layers squashed later, the yum repo files will not appear in the content.
+ * **distribution_scope**
+   * Status: not yet enabled
+   * The distribution-scope image labels for the parent and the current image are compared and invalid combinations cause the build to fail.
 
 After the pre-build plugins have finished, 'docker build' is started.
 
