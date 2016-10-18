@@ -34,7 +34,7 @@ except ImportError:
 
 from dockerfile_parse import DockerfileParser
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PreBuildPluginsRunner
+from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.util import ImageName
 from atomic_reactor.source import VcsInfo
@@ -70,7 +70,8 @@ class X(object):
 
 def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
                       koji_krb_principal=None, koji_krb_keytab=None,
-                      scratch=False):
+                      scratch=False, image_task_fail=False,
+                      get_task_result_mock=None):
     session = flexmock()
 
     def _mockBuildImageOz(*args, **kwargs):
@@ -85,9 +86,19 @@ def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
     session.should_receive('buildImageOz').replace_with(_mockBuildImageOz)
 
     session.should_receive('taskFinished').and_return(True)
-    session.should_receive('getTaskInfo').and_return({
-        'state': koji_util.koji.TASK_STATES['CLOSED']
-    })
+    if image_task_fail:
+        session.should_receive('getTaskInfo').and_return({
+            'state': koji_util.koji.TASK_STATES['FAILED']
+        })
+    else:
+        session.should_receive('getTaskInfo').and_return({
+            'state': koji_util.koji.TASK_STATES['CLOSED']
+        })
+
+    if get_task_result_mock:
+        (session.should_receive('getTaskResult')
+            .replace_with(get_task_result_mock).once())
+
     session.should_receive('listTaskOutput').and_return([
         'fedora-23-1.0.tar.gz',
     ])
@@ -252,6 +263,43 @@ def test_missing_yum_repourls(tmpdir):
     with pytest.raises(ValueError) as exc:
         plugin.parse_image_build_config(file_name)
     assert 'install_tree cannot be empty' in str(exc)
+
+
+@pytest.mark.parametrize('raise_error', [True, False])
+def test_image_task_failure(tmpdir, raise_error):
+    if MOCK:
+        mock_docker()
+
+    dockerfile = dedent("""\
+        FROM koji/image-build
+        RUN dnf install -y python-django
+        """)
+
+    task_result = 'task-result'
+    def _mockGetTaskResult(task_id):
+        if raise_error:
+            raise RuntimeError(task_result)
+        return task_result
+    workflow = mock_workflow(tmpdir, dockerfile)
+    mock_koji_session(image_task_fail=True,
+                      get_task_result_mock=_mockGetTaskResult)
+    mock_image_build_file(str(tmpdir))
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': AddFilesystemPlugin.key,
+            'args': {'koji_hub': KOJI_HUB}
+        }]
+    )
+
+    with pytest.raises(PluginFailedException) as exc:
+        results = runner.run()
+    assert task_result in str(exc)
+    # Also ensure getTaskResult exception message is wrapped properly
+    assert 'image task,' in str(exc)
+
 
 @responses.activate
 def test_image_build_defaults(tmpdir):
