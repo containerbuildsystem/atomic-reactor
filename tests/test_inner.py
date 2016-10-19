@@ -330,6 +330,14 @@ class Post(PostBuildPlugin):
     key = 'post'
 
 
+class PrePub(PrePublishPlugin):
+    """
+    This plugin does nothing. It's only used for configuration testing.
+    """
+
+    key = 'prepub'
+
+
 class Exit(ExitPlugin):
     """
     This plugin does nothing. It's only used for configuration testing.
@@ -365,6 +373,19 @@ class Exit(ExitPlugin):
      True,  # logs error
     ),
 
+    # No 'name' key, prepub
+    ({
+        'prepublish_plugins': [{'args': {}},
+                               {'name': 'prepub_watched',
+                                'args': {
+                                    'watcher': Watcher(),
+                                },
+                               }]},
+     True,  # is fatal
+     True,  # logs error
+    ),
+     
+
     # No 'name' key, exit
     ({
         'exit_plugins': [{'args': {}},
@@ -372,7 +393,7 @@ class Exit(ExitPlugin):
                           'args': {
                               'watcher': Watcher(),
                           }
-                         }],
+                         }]
       },
      False,  # not fatal
      True,   # logs error
@@ -395,6 +416,17 @@ class Exit(ExitPlugin):
                              'args': {
                                  'watcher': Watcher(),
                              }
+                            }]},
+     False,  # not fatal,
+     False,  # no error logged
+    ),
+
+    # No 'args' key, prepub
+    ({'prepublish_plugins': [{'name': 'prepub'},
+                             {'name': 'prepub_watched',
+                              'args': {
+                                  'watcher': Watcher(),
+                              }
                             }]},
      False,  # not fatal,
      False,  # no error logged
@@ -435,6 +467,18 @@ class Exit(ExitPlugin):
      True,  # logs error
     ),
 
+    # No such plugin, prepub
+    ({'prepublish_plugins': [{'name': 'no plugin',
+                              'args': {}},
+                             {'name': 'prepub_watched',
+                              'args': {
+                                  'watcher': Watcher(),
+                              }
+                             }]},
+     True,  # is fatal
+     True,  # logs error
+    ),
+
     # No such plugin, exit
     ({'exit_plugins': [{'name': 'no plugin',
                         'args': {}},
@@ -445,6 +489,58 @@ class Exit(ExitPlugin):
                        }]},
      False,  # not fatal
      True,   # logs error
+    ),
+
+    # No such plugin, prebuild, not required
+    ({'prebuild_plugins': [{'name': 'no plugin',
+                            'args': {},
+                            'required': False},
+                           {'name': 'pre_watched',
+                            'args': {
+                                'watcher': Watcher(),
+                            }
+                           }]},
+     False,  # not fatal
+     False,  # does not log error
+    ),
+
+    # No such plugin, postbuild, not required
+    ({'postbuild_plugins': [{'name': 'no plugin',
+                             'args': {},
+                             'required': False},
+                            {'name': 'post_watched',
+                             'args': {
+                                 'watcher': Watcher(),
+                             }
+                            }]},
+     False,  # not fatal
+     False,  # does not log error
+    ),
+
+    # No such plugin, prepub, not required
+    ({'prepublish_plugins': [{'name': 'no plugin',
+                              'args': {},
+                              'required': False},
+                             {'name': 'prepub_watched',
+                              'args': {
+                                  'watcher': Watcher(),
+                              }
+                             }]},
+     False,  # not fatal
+     False,  # does not log error
+    ),
+
+    # No such plugin, exit, not required
+    ({'exit_plugins': [{'name': 'no plugin',
+                        'args': {},
+                        'required': False},
+                       {'name': 'exit_watched',
+                        'args': {
+                            'watcher': Watcher(),
+                        }
+                       }]},
+     False,  # not fatal
+     False,  # does not log error
     ),
 ])
 def test_plugin_errors(request, plugins, should_fail, should_log):
