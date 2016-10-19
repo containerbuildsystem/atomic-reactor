@@ -70,7 +70,7 @@ class DistributionScopePlugin(PreBuildPlugin):
 
         try:
             scope_choice = labels[self.SCOPE_LABEL]
-        except KeyError:
+        except (KeyError, TypeError):
             self.log.debug("no distribution scope set for %s image", which)
             raise NothingToCheck
 

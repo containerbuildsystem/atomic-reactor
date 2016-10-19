@@ -17,7 +17,11 @@ import pytest
 
 
 class TestDistributionScope(object):
-    def instantiate_plugin(self, tmpdir, parent_scope, current_scope):
+    def create_dockerfile(self, tmpdir, current_scope):
+
+        return filename
+
+    def instantiate_plugin(self, tmpdir, parent_labels, current_scope):
         workflow = flexmock()
         setattr(workflow, 'builder', flexmock())
         filename = os.path.join(str(tmpdir), 'Dockerfile')
@@ -27,11 +31,11 @@ class TestDistributionScope(object):
                 df.write('LABEL distribution-scope={}\n'.format(current_scope))
 
         setattr(workflow.builder, 'df_path', filename)
-        inspect = { INSPECT_CONFIG: { 'Labels': {} } }
-        if parent_scope:
-            inspect[INSPECT_CONFIG]['Labels']['distribution-scope'] = parent_scope
-
-        setattr(workflow, 'base_image_inspect', inspect)
+        setattr(workflow, 'base_image_inspect', {
+            INSPECT_CONFIG: {
+                'Labels': parent_labels,
+            }
+        })
 
         plugin = DistributionScopePlugin(None, workflow)
         plugin.log = logging.getLogger('plugin')
@@ -51,7 +55,9 @@ class TestDistributionScope(object):
     ])
     def test_distribution_scope_allowed(self, tmpdir, parent_scope,
                                         current_scope, allowed, caplog):
-        plugin = self.instantiate_plugin(tmpdir, parent_scope, current_scope)
+        plugin = self.instantiate_plugin(tmpdir,
+                                         {'distribution-scope': parent_scope},
+                                         current_scope)
         if allowed:
             with caplog.atLevel(logging.ERROR):
                 plugin.run()
@@ -66,8 +72,19 @@ class TestDistributionScope(object):
             assert caplog.records()
 
     @pytest.mark.parametrize('current_scope', [None, 'private'])
+    def test_imported_parent_distribution_scope(self, tmpdir, caplog, current_scope):
+        plugin = self.instantiate_plugin(tmpdir, None, current_scope)
+        with caplog.atLevel(logging.ERROR):
+            plugin.run()
+
+        # No errors logged
+        assert not caplog.records()
+
+    @pytest.mark.parametrize('current_scope', [None, 'private'])
     def test_invalid_parent_distribution_scope(self, tmpdir, caplog, current_scope):
-        plugin = self.instantiate_plugin(tmpdir, 'invalid-choice', current_scope)
+        plugin = self.instantiate_plugin(tmpdir,
+                                         {'distribution-scope': 'invalid-choice'},
+                                         current_scope)
         with caplog.atLevel(logging.WARNING):
             plugin.run()
 
@@ -77,7 +94,9 @@ class TestDistributionScope(object):
 
     @pytest.mark.parametrize('parent_scope', [None, 'private'])
     def test_invalid_current_distribution_scope(self, tmpdir, caplog, parent_scope):
-        plugin = self.instantiate_plugin(tmpdir, parent_scope, 'invalid-choice')
+        plugin = self.instantiate_plugin(tmpdir,
+                                         {'distribution-scope': parent_scope},
+                                         'invalid-choice')
         with caplog.atLevel(logging.WARNING):
             plugin.run()
 
