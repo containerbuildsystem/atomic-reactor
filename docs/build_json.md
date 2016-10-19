@@ -4,46 +4,53 @@ If you want to take advantage of _inner_ part logic of Atomic Reactor, you can d
 
 ```json
 {
-    "source": {
-        "provider": "git",
-        "uri": "http://...",
-        "dockerfile_path": "django/",
-        "provider_params": {
-            "git_commit": "devel"
-        }
+  "source": {
+    "provider_params": {
+      "git_commit": "devel"
     },
-    "image": "my-test-image",
-    "openshift_build_selflink": "/oapi/v1/namespaces/default/builds/build-20150826112654-1",
-    "prebuild_plugins": [
-        {
-            "name": "pull_base_image",
-            "args": {
-                "parent_registry": "registry.example.com:5000",
-            }
-        }, {
-            "name": "koji",
-            "args": {
-                "target": "f22",
-                "hub": "http://koji.fedoraproject.org/kojihub",
-                "root": "https://kojipkgs.fedoraproject.org/"
-            }
-        }, {
-            "name": "inject_yum_repo",
-            "args": {}
+    "dockerfile_path": "django/",
+    "uri": "http://...",
+    "provider": "git"
+  },
+  "image": "my-test-image",
+  "openshift_build_selflink": "/oapi/v1/namespaces/default/builds/build-20150826112654-1",
+  "prebuild_plugins": [
+    {
+      "args": {
+        "parent_registry": "registry.example.com:5000"
+      },
+      "name": "pull_base_image"
+    },
+    {
+      "args": {
+        "root": "https://kojipkgs.fedoraproject.org/",
+        "target": "f22",
+        "hub": "http://koji.fedoraproject.org/kojihub"
+      },
+      "name": "koji"
+    },
+    {
+      "args": {},
+      "name": "inject_yum_repo"
+    },
+    {
+      "args": {},
+      "name": "assert_labels",
+      "required": false
+    }
+  ],
+  "postbuild_plugins": [
+    {
+      "args": {
+        "registries": {
+          "registry.example2.com:5000": {
+            "insecure": true
+          }
         }
-    ],
-    "postbuild_plugins": [
-        {
-            "name": "tag_and_push",
-            "args": {
-                "registries": {
-                    "registry.example2.com:5000": {
-                        "insecure": true
-                    }
-                }
-            }
-        }
-    ]
+      },
+      "name": "tag_and_push"
+    }
+  ]
 }
 ```
 
@@ -63,6 +70,11 @@ If you want to take advantage of _inner_ part logic of Atomic Reactor, you can d
   * these plugins are executed after/during the image is pushed to the registry (done by the `tag_and_push` plugin). The `tag_and_push` has a `registries` argument which is a dictionary that maps target registries to registry-specific options.
  * exit_plugins - list of dicts, optional
   * these plugins are executed last of all and will always be run, even for a failed build
+
+For each plugin dict:
+ * name - string, plugin name (its 'key' attribute)
+ * args - dict, arguments for plugin
+ * required - bool, optional, whether this plugin is required to be present for a successful build
 
 Atomic Reactor is able to read this build json from various places (see input plugins in source code). There is an argument for command `inside-build` called `--input`. Currently there are 3 available inputs:
 
