@@ -280,8 +280,13 @@ class AddFilesystemPlugin(PreBuildPlugin):
         task = TaskWatcher(self.session, task_id, self.poll_interval)
         task.wait()
         if task.failed():
-            raise RuntimeError('Create filesystem task failed: {}'
-                               .format(task_id))
+            try:
+                # Koji may re-raise the error that caused task to fail
+                task_result = self.session.getTaskResult(task_id)
+            except Exception as exc:
+                task_result = repr(exc)
+            raise RuntimeError('image task, {}, failed: {}'
+                               .format(task_id, task_result))
 
         filesystem = self.download_filesystem(task_id, filesystem_regex)
 
