@@ -40,14 +40,21 @@ class X(object):
     {},
     {'unique_tag_only': True},
 ])
-def test_tag_by_labels_plugin(tmpdir, args):
+@pytest.mark.parametrize(('version', 'release', 'expected_release_part'), [
+    ('1.0', '1', '1'),
+    ('1.0',
+     'the_release_contains_exactly_128_chars_due_to_a_docker_bug_and_it_should_be_the_tag_of_the_produced_image_lorem_impsum_dolor',
+     'the_release_contains_exactly_128_chars_due_to_a_docker_bug_and_it_should_be_the_tag_of_the_produced_image_lorem_impsum_dolor',),
+    ('superlongversion',
+     'the_release_contains_more_than_128_chars_due_to_a_docker_bug_and_it_should_be_the_tag_of_the_produced_image_lorem_impsum',
+     'the_release_contains_more_than_128_chars_due_to_a_docker_bug_and_it_should_be_the_tag_of_the_produced_image_lo')
+])
+def test_tag_by_labels_plugin(tmpdir, args, version, release, expected_release_part):
     if MOCK:
         mock_docker()
 
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, "test-image")
-    version = "1.0"
-    release = "1"
     workflow.built_image_inspect = {
         INSPECT_CONFIG: {
             "Labels": {
@@ -87,11 +94,11 @@ def test_tag_by_labels_plugin(tmpdir, args):
         assert len(workflow.tag_conf.images) == 4
         assert len(primary_images) == 3
 
-        assert ("%s:%s-%s" % (TEST_IMAGE, version, release)) in images
+        assert ("%s:%s-%s" % (TEST_IMAGE, version, expected_release_part)) in images
         assert ("%s:%s" % (TEST_IMAGE, version)) in images
         assert ("%s:latest" % (TEST_IMAGE, )) in images
 
-        assert ("%s:%s-%s" % (TEST_IMAGE, version, release)) in primary_images
+        assert ("%s:%s-%s" % (TEST_IMAGE, version, expected_release_part)) in primary_images
         assert ("%s:%s" % (TEST_IMAGE, version)) in primary_images
         assert ("%s:latest" % (TEST_IMAGE, )) in primary_images
 
