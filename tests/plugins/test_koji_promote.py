@@ -173,7 +173,8 @@ def is_string_type(obj):
 def mock_environment(tmpdir, session=None, name=None,
                      component=None, version=None, release=None,
                      source=None, build_process_failed=False,
-                     is_rebuild=True, pulp_registries=0, blocksize=None,
+                     is_rebuild=True, docker_registry=True,
+                     pulp_registries=0, blocksize=None,
                      task_states=None, additional_tags=None,
                      has_config=None):
     if session is None:
@@ -232,22 +233,23 @@ def mock_environment(tmpdir, session=None, name=None,
     setattr(workflow.source.lg, 'commit_id', '123456')
     setattr(workflow, 'build_logs', ['docker build log\n'])
     setattr(workflow, 'push_conf', PushConf())
-    docker_reg = workflow.push_conf.add_docker_registry('docker.example.com')
+    if docker_registry:
+        docker_reg = workflow.push_conf.add_docker_registry('docker.example.com')
 
-    for image in workflow.tag_conf.images:
-        tag = image.to_str(registry=False)
-        if pulp_registries:
-            docker_reg.digests[tag] = ManifestDigest(v1=fake_digest(image),
-                                                     v2='sha256:not-used')
-        else:
-            docker_reg.digests[tag] = ManifestDigest(v1='sha256:not-used',
-                                                     v2=fake_digest(image))
+        for image in workflow.tag_conf.images:
+            tag = image.to_str(registry=False)
+            if pulp_registries:
+                docker_reg.digests[tag] = ManifestDigest(v1=fake_digest(image),
+                                                         v2='sha256:not-used')
+            else:
+                docker_reg.digests[tag] = ManifestDigest(v1='sha256:not-used',
+                                                         v2=fake_digest(image))
 
-        if has_config:
-            docker_reg.config = {
-                'config': {'architecture': 'x86_64'},
-                'container_config': {}
-            }
+            if has_config:
+                docker_reg.config = {
+                    'config': {'architecture': 'x86_64'},
+                    'container_config': {}
+                }
 
     for pulp_registry in range(pulp_registries):
         workflow.push_conf.add_pulp_registry('env', 'pulp.example.com')
@@ -661,7 +663,8 @@ class TestKojiPromote(object):
         assert is_string_type(osbs['build_id'])
         assert is_string_type(osbs['builder_image_id'])
 
-    def validate_output(self, output, metadata_only, has_config):
+    def validate_output(self, output, metadata_only, has_config,
+                        expect_digest):
         if metadata_only:
             mdonly = set()
         else:
@@ -750,7 +753,12 @@ class TestKojiPromote(object):
             repositories_digest = list(filter(lambda repo: '@sha256' in repo, repositories))
             repositories_tag = list(filter(lambda repo: '@sha256' not in repo, repositories))
 
-            assert len(repositories_tag) == len(repositories_digest)
+            assert len(repositories_tag) == 1
+            if expect_digest:
+                assert len(repositories_digest) == 1
+            else:
+                assert not repositories_digest
+
             # check for duplicates
             assert sorted(repositories_tag) == sorted(set(repositories_tag))
             assert sorted(repositories_digest) == sorted(set(repositories_digest))
@@ -763,6 +771,7 @@ class TestKojiPromote(object):
                 assert image.repo
                 assert image.tag and image.tag != 'latest'
 
+            if expect_digest:
                 digest_pullspec = image.to_str(tag=False) + '@' + fake_digest(image)
                 assert digest_pullspec in repositories_digest
 
@@ -918,29 +927,34 @@ class TestKojiPromote(object):
         assert set(tags) == expected_tags
 
     @pytest.mark.parametrize(('apis',
+                              'docker_registry',
                               'pulp_registries',
                               'metadata_only',
                               'blocksize',
                               'target'), [
         ('v1-only',
+         False,
          1,
          False,
          None,
          'images-docker-candidate'),
 
         ('v1+v2',
+         True,
          2,
          False,
          10485760,
          None),
 
         ('v2-only',
+         True,
          1,
          True,
          None,
          None),
 
         ('v1+v2',
+         True,
          0,
          False,
          10485760,
@@ -951,19 +965,26 @@ class TestKojiPromote(object):
         True,
         False,
     ])
-    def test_koji_promote_success(self, tmpdir, apis, pulp_registries,
+    def test_koji_promote_success(self, tmpdir, apis, docker_registry,
+                                  pulp_registries,
                                   metadata_only, blocksize, target, os_env, has_config):
         session = MockedClientSession('')
         component = 'component'
         name = 'ns/name'
         version = '1.0'
         release = '1'
+
+        if has_config and not docker_registry:
+            # Not a valid combination
+            has_config = False
+
         tasker, workflow = mock_environment(tmpdir,
                                             session=session,
                                             name=name,
                                             component=component,
                                             version=version,
                                             release=release,
+                                            docker_registry=docker_registry,
                                             pulp_registries=pulp_registries,
                                             blocksize=blocksize,
                                             has_config=has_config)
@@ -1033,7 +1054,8 @@ class TestKojiPromote(object):
                         if b['id'] == buildroot['id']]) == 1
 
         for output in output_files:
-            self.validate_output(output, metadata_only, has_config)
+            self.validate_output(output, metadata_only, has_config,
+                                 expect_digest=docker_registry)
             buildroot_id = output['buildroot_id']
 
             # References one of the buildroots
