@@ -17,6 +17,7 @@ from atomic_reactor.util import ImageName
 try:
     import dockpulp
     from atomic_reactor.plugins.post_push_to_pulp import PulpPushPlugin
+    from atomic_reactor.plugins.post_pulp_sync import PulpSyncPlugin
 except (ImportError, SyntaxError):
     dockpulp = None
 
@@ -36,11 +37,14 @@ class X(object):
     base_image = ImageName(repo="qwe", tag="asd")
 
 
-def prepare(check_repo_retval=0, existing_layers=[], subprocess_exceptions=False):
+def prepare(check_repo_retval=0, existing_layers=[],
+            subprocess_exceptions=False,
+            conf=None):
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
+    workflow = DockerBuildWorkflow(SOURCE, "test-image",
+                                   postbuild_plugins=conf)
     setattr(workflow, 'builder', X())
     setattr(workflow.builder, 'source', X())
     setattr(workflow.builder.source, 'dockerfile_path', None)
@@ -202,3 +206,53 @@ def test_pulp_service_account_secret(tmpdir, monkeypatch):
     assert "registry.example.com/image-name1:latest" in images
     assert "registry.example.com/prefix/image-name2:latest" in images
     assert "registry.example.com/image-name3:asd" in images
+
+@pytest.mark.skipif(dockpulp is None,
+                    reason='dockpulp module not available')
+@pytest.mark.parametrize(('before_name', 'after_name', 'should_publish'), [
+    ('foo', 'foo', True),
+    ('pulp_sync', 'foo', True),
+    ('foo', 'pulp_sync', False),
+])
+def test_pulp_publish_only_without_sync(before_name, after_name,
+                                        should_publish, caplog):
+    conf = [
+        {
+            'name': before_name,
+            'args': {
+                'pulp_registry_name': 'foo',
+                'docker_registry': 'bar',
+            },
+        },
+        {
+            'name': PulpPushPlugin.key,
+            'args': {
+                'pulp_registry_name': 'test'
+            },
+        },
+        {
+            'name': after_name,
+            'args': {
+                'pulp_registry_name': 'foo',
+                'docker_registry': 'bar',
+            },
+        },
+    ]
+
+    tasker, workflow = prepare(conf=conf)
+    plugin = PulpPushPlugin(tasker, workflow, 'pulp_registry_name')
+
+    expectation = flexmock(dockpulp.Pulp).should_receive('crane')
+    if should_publish:
+        (expectation
+            .once()
+            .and_return([]))
+    else:
+        expectation.never()
+
+    plugin.run()
+
+    if should_publish:
+        assert 'to be published' in caplog.text()
+    else:
+        assert 'publishing deferred' in caplog.text()

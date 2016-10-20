@@ -42,6 +42,7 @@ from __future__ import print_function, unicode_literals
 from dockpulp import setup_logger
 from atomic_reactor import set_logging
 
+from atomic_reactor.plugins.post_pulp_sync import PulpSyncPlugin
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.util import ImageName
 
@@ -69,8 +70,10 @@ class PulpUploader(object):
     CER = 'pulp.cer'
     KEY = 'pulp.key'
 
-    def __init__(self, workflow, pulp_instance, filename, log, pulp_secret_path=None, username=None,
-                 password=None):
+    def __init__(self, workflow, pulp_instance, filename, log,
+                 pulp_secret_path=None,
+                 username=None, password=None,
+                 publish=True):
         self.workflow = workflow
         self.pulp_instance = pulp_instance
         self.filename = filename
@@ -79,6 +82,7 @@ class PulpUploader(object):
         # U/N & password has bigger prio than secret cert
         self.username = username
         self.password = password
+        self.publish = publish
 
         set_logging("dockpulp")
 
@@ -227,10 +231,15 @@ class PulpUploader(object):
             p.updateRepo(repo_id, {"tag": "%s:%s" % (",".join(pulp_repo.tags),
                                                      top_layer)})
 
-        task_ids = p.crane(pulp_repos.keys(), wait=True)
-        self.log.info("waiting for repos to be published to crane, tasks: %s",
-                      ", ".join(map(str, task_ids)))
-        p.watch_tasks(task_ids)
+        # Only publish if we don't the pulp_sync plugin also configured
+        if self.publish:
+            task_ids = p.crane(pulp_repos.keys(), wait=True)
+            self.log.info("waiting for repos to be published to crane, tasks: %s",
+                          ", ".join(map(str, task_ids)))
+            p.watch_tasks(task_ids)
+        else:
+            self.log.info("publishing deferred until %s plugin runs",
+                          PulpSyncPlugin.key)
 
         # Store the registry URI in the push configuration
 
@@ -285,6 +294,17 @@ class PulpPushPlugin(PostBuildPlugin):
         self.username = username
         self.password = password
 
+        found_self = False
+        self.publish = True
+        for plugin in self.workflow.postbuild_plugins_conf or []:
+            if plugin['name'] == self.key:
+                found_self = True
+                continue
+
+            if found_self and plugin['name'] == PulpSyncPlugin.key:
+                self.publish = False
+                break
+
         if dockpulp_loglevel is not None:
             logger = setup_logger(dockpulp.log)
             try:
@@ -299,7 +319,7 @@ class PulpPushPlugin(PostBuildPlugin):
         # Give that compressed tarball to pulp.
         uploader = PulpUploader(self.workflow, self.pulp_registry_name, image_path, self.log,
                                 pulp_secret_path=self.pulp_secret_path, username=self.username,
-                                password=self.password)
+                                password=self.password, publish=self.publish)
         return uploader.push_tarball_to_pulp(image_names)
 
     def run(self):
