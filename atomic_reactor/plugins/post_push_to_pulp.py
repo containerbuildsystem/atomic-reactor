@@ -237,6 +237,9 @@ class PulpUploader(object):
             self.log.info("waiting for repos to be published to crane, tasks: %s",
                           ", ".join(map(str, task_ids)))
             p.watch_tasks(task_ids)
+        else:
+            self.log.info("publishing deferred until %s plugin runs",
+                          PulpSyncPlugin.key)
 
         # Store the registry URI in the push configuration
 

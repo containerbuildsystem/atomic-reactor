@@ -215,7 +215,7 @@ def test_pulp_service_account_secret(tmpdir, monkeypatch):
     ('foo', 'pulp_sync', False),
 ])
 def test_pulp_publish_only_without_sync(before_name, after_name,
-                                        should_publish):
+                                        should_publish, caplog):
     conf = [
         {
             'name': before_name,
@@ -251,3 +251,8 @@ def test_pulp_publish_only_without_sync(before_name, after_name,
         expectation.never()
 
     plugin.run()
+
+    if should_publish:
+        assert 'to be published' in caplog.text()
+    else:
+        assert 'publishing deferred' in caplog.text()
