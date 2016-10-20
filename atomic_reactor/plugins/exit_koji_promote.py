@@ -479,7 +479,11 @@ class KojiPromotePlugin(ExitPlugin):
         parent_id = self.workflow.base_image_inspect['Id']
 
         # Read config from the registry using v2 schema 2 digest
-        config = copy.deepcopy(self.workflow.push_conf.docker_registries[0].config)
+        registries = self.workflow.push_conf.docker_registries
+        if registries:
+            config = copy.deepcopy(registries[0].config)
+        else:
+            config = {}
 
         # We don't need container_config section
         if config and 'container_config' in config:
