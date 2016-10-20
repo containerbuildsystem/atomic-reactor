@@ -23,11 +23,14 @@ Build plugins are requested and configured via input json: key `prebuild_plugins
     "is_allowed_to_fail": false,
     "args": {
         "args1": "value"
-    }
+    },
+    "required": true
 }
 ```
 
 Order is important, because plugins are executed in the order as they are specified (one plugin can use input from another plugin). `args` are directly passed to a plugin in constructor. Any plugin with `is_allowed_to_fail` set to `false` that raises an exception causes the build process to proceed directly to the stage of running exit plugins.
+
+The optional `required` key, which defaults to `true`, specifies whether this plugin is required for a successful build. If the plugin is not available and `required` is set to `false`, the build will not fail. However if the plugin is available and that plugin sets `is_allowed_to_fail` to `false`, the plugin can still cause the build to fail (exit plugins are run immediately). This is useful for validation plugins not present in older builder images.
 
 
 ## Input plugins
