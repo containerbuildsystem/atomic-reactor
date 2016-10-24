@@ -47,16 +47,12 @@ class PulpPullPlugin(PostBuildPlugin):
         start = time()
 
         # Work out the name of the image to pull
-        image = None
-        for unique_image in self.workflow.tag_conf.unique_images:
-            image = unique_image
-            break
-
-        if not image:
-            raise RuntimeError('Unable to determine unique image name')
+        assert self.workflow.tag_conf.unique_images  # must be set
+        image = self.workflow.tag_conf.unique_images[0]
 
         assert self.workflow.push_conf.pulp_registries  # must be configured
         registry = self.workflow.push_conf.pulp_registries[0]
+
         pullspec = image.copy()
         pullspec.registry = registry.uri  # the image on Crane
 

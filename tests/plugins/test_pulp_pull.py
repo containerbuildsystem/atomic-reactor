@@ -44,13 +44,6 @@ class TestPostPulpPull(object):
                         builder=builder,
                         plugin_workspace={})
 
-    def test_no_unique_image(self):
-        tag_conf = TagConf()
-        workflow = flexmock(tag_conf=tag_conf)
-        plugin = PulpPullPlugin(None, workflow)
-        with pytest.raises(RuntimeError):
-            plugin.run()
-
     def test_pull_first_time(self):
         workflow = self.workflow()
         tasker = MockerTasker()
