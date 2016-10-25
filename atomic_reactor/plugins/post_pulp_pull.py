@@ -20,6 +20,7 @@ from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from docker.errors import NotFound
 from time import time, sleep
 
+
 class CraneTimeoutError(Exception):
     """The expected image did not appear in the required time"""
     pass
@@ -65,7 +66,8 @@ class PulpPullPlugin(PostBuildPlugin):
                 metadata = self.tasker.inspect_image(name)
             except NotFound:
                 if time() - start > self.timeout:
-                    raise CraneTimeoutError("{}s exceeded".format(self.timeout))
+                    raise CraneTimeoutError("{} seconds exceeded"
+                                            .format(self.timeout))
 
                 self.log.info("will try again in %ss", self.retry_delay)
                 sleep(self.retry_delay)
