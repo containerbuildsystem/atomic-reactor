@@ -61,7 +61,8 @@ class PostBuildRPMqaPlugin(PostBuildPlugin):
 
         try:
             self.tasker.remove_container(container_id)
-        except APIError as ex:
-            self.log.warning(repr(ex))
+        except APIError:
+            self.log.warning("error removing container (ignored):",
+                             exc_info=True)
 
         return plugin_output
