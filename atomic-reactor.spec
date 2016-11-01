@@ -231,18 +231,12 @@ Plugins for automated rebuilds
 %py3_install
 mv %{buildroot}%{_bindir}/atomic-reactor %{buildroot}%{_bindir}/atomic-reactor-%{python3_version}
 ln -s %{_bindir}/atomic-reactor-%{python3_version} %{buildroot}%{_bindir}/atomic-reactor-3
-mv %{buildroot}%{_bindir}/pulpsecret-gen %{buildroot}%{_bindir}/pulpsecret-gen-%{python3_version}
-ln -s %{_bindir}/pulpsecret-gen-%{python3_version} %{buildroot}%{_bindir}/pulpsecret-gen-3
 %endif # with_python3
 
 %py2_install
 mv %{buildroot}%{_bindir}/atomic-reactor %{buildroot}%{_bindir}/atomic-reactor-%{python2_version}
 ln -s %{_bindir}/atomic-reactor-%{python2_version} %{buildroot}%{_bindir}/atomic-reactor-2
 ln -s %{_bindir}/atomic-reactor-%{binaries_py_version} %{buildroot}%{_bindir}/atomic-reactor
-
-mv %{buildroot}%{_bindir}/pulpsecret-gen %{buildroot}%{_bindir}/pulpsecret-gen-%{python2_version}
-ln -s %{_bindir}/pulpsecret-gen-%{python2_version} %{buildroot}%{_bindir}/pulpsecret-gen-2
-ln -s %{_bindir}/pulpsecret-gen-%{binaries_py_version} %{buildroot}%{_bindir}/pulpsecret-gen
 
 # ship reactor in form of tarball so it can be installed within build image
 cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/atomic-reactor.tar.gz
@@ -267,7 +261,6 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{!?_licensedir:%global license %doc}
 %license LICENSE
 %{_bindir}/atomic-reactor
-%{_bindir}/pulpsecret-gen
 
 %files -n python-atomic-reactor
 %doc README.md
@@ -276,8 +269,6 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %license LICENSE
 %{_bindir}/atomic-reactor-%{python2_version}
 %{_bindir}/atomic-reactor-2
-%{_bindir}/pulpsecret-gen-%{python2_version}
-%{_bindir}/pulpsecret-gen-2
 %dir %{python2_sitelib}/atomic_reactor
 %{python2_sitelib}/atomic_reactor/*.*
 %{python2_sitelib}/atomic_reactor/cli
@@ -326,8 +317,6 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %license LICENSE
 %{_bindir}/atomic-reactor-%{python3_version}
 %{_bindir}/atomic-reactor-3
-%{_bindir}/pulpsecret-gen-%{python3_version}
-%{_bindir}/pulpsecret-gen-3
 %{_mandir}/man1/atomic-reactor.1*
 %dir %{python3_sitelib}/atomic_reactor
 %dir %{python3_sitelib}/atomic_reactor/__pycache__

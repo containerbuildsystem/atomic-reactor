@@ -48,8 +48,7 @@ setup(
     url=HOMEPAGE,
     license="BSD",
     entry_points={
-        'console_scripts': ['atomic-reactor=atomic_reactor.cli.main:run',
-                            'pulpsecret-gen=atomic_reactor.cli.secret:run'],
+        'console_scripts': ['atomic-reactor=atomic_reactor.cli.main:run'],
     },
     packages=find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests"]),
     install_requires=_install_requirements(),

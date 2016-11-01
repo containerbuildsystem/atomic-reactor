@@ -8,7 +8,7 @@ of the BSD license. See the LICENSE file for details.
 Push built image to pulp registry
 
 Several authentication schemes are possible, including
-username+password and key/certificate via sourceSecret.
+username+password and key/certificate via secrets.
 
 However, the recommended scheme (since Origin 1.0.6) is to store a
 key and certificate in a secret which the builder service account is
