@@ -223,7 +223,7 @@ def mock_environment(tmpdir, session=None, name=None,
     (flexmock(OSBS)
         .should_receive('get_build_logs')
         .with_args(BUILD_ID)
-        .and_return('build logs'))
+        .and_return('build logs - \u2018 \u2017 \u2019'))
     (flexmock(OSBS)
         .should_receive('get_pod_for_build')
         .with_args(BUILD_ID)
@@ -231,7 +231,7 @@ def mock_environment(tmpdir, session=None, name=None,
     setattr(workflow, 'source', source)
     setattr(workflow.source, 'lg', X())
     setattr(workflow.source.lg, 'commit_id', '123456')
-    setattr(workflow, 'build_logs', ['docker build log\n'])
+    setattr(workflow, 'build_logs', ['docker build log - \u2018 \u2017 \u2019 \n'])
     setattr(workflow, 'push_conf', PushConf())
     if docker_registry:
         docker_reg = workflow.push_conf.add_docker_registry('docker.example.com')
