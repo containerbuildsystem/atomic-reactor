@@ -13,7 +13,7 @@ import logging
 import time
 
 
-__version__ = "1.6.17"
+__version__ = "1.6.18"
 start_time = time.time()
 
 
