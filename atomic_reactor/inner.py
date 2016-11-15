@@ -13,10 +13,12 @@ import json
 import logging
 import tempfile
 import datetime
+import signal
 
 from atomic_reactor.build import InsideBuilder
-from atomic_reactor.plugin import PostBuildPluginsRunner, PreBuildPluginsRunner, InputPluginsRunner, PrePublishPluginsRunner, \
-    ExitPluginsRunner, PluginFailedException, AutoRebuildCanceledException
+from atomic_reactor.plugin import (
+    PostBuildPluginsRunner, PreBuildPluginsRunner, InputPluginsRunner, PrePublishPluginsRunner,
+    ExitPluginsRunner, PluginFailedException, AutoRebuildCanceledException, BuildCanceledException)
 from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.util import ImageName
 
@@ -312,6 +314,9 @@ class DockerBuildWorkflow(object):
             self._base_image_inspect = self.builder.tasker.inspect_image(self.builder.base_image)
         return self._base_image_inspect
 
+    def throw_canceled_build_exception(self, *args, **kwargs):
+        raise BuildCanceledException("Build was canceled")
+
     def build_docker_image(self):
         """
         build docker image
@@ -320,6 +325,7 @@ class DockerBuildWorkflow(object):
         """
         self.builder = InsideBuilder(self.source, self.image)
         try:
+            signal.signal(signal.SIGTERM, self.throw_canceled_build_exception)
             # time to run pre-build plugins, so they can access cloned repo
             logger.info("running pre-build plugins")
             prebuild_runner = PreBuildPluginsRunner(self.builder.tasker, self, self.prebuild_plugins_conf,
@@ -379,6 +385,8 @@ class DockerBuildWorkflow(object):
 
             return build_result
         finally:
+            # We need to make sure all exit plugins are executed
+            signal.signal(signal.SIGTERM, lambda *args: None)
             exit_runner = ExitPluginsRunner(self.builder.tasker, self,
                                             self.exit_plugins_conf,
                                             plugin_files=self.plugin_files)
@@ -390,6 +398,7 @@ class DockerBuildWorkflow(object):
             finally:
                 self.source.remove_tmpdir()
 
+            signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
 
 def build_inside(input_method, input_args=None, substitutions=None):
