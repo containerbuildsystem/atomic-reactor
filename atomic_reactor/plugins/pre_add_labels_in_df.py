@@ -196,7 +196,18 @@ class AddLabelsPlugin(PreBuildPlugin):
         else:
             base_image_labels = config["Labels"] or {}
 
-        dockerfile = DockerfileParser(self.workflow.builder.df_path)
+            try:
+                base_image_env = config["Env"]
+            except KeyError:
+                self.log.debug("Parent Environment not found, not applied to Dockerfile")
+                base_image_env = {}
+
+        try:
+            dockerfile = DockerfileParser(self.workflow.builder.df_path, parent_env=base_image_env)
+        except TypeError:
+            self.log.debug("Old version of dockerfile-parse detected, unable to set inherited parent ENVs")
+            dockerfile = DockerfileParser(self.workflow.builder.df_path)
+
         lines = dockerfile.lines
 
         # changing dockerfile.labels writes out modified Dockerfile - err on
