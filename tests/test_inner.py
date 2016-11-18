@@ -14,8 +14,8 @@ import os
 from atomic_reactor.build import InsideBuilder
 from atomic_reactor.util import ImageName
 from atomic_reactor.plugin import (PreBuildPlugin, PrePublishPlugin, PostBuildPlugin, ExitPlugin,
-                                   AutoRebuildCanceledException)
-from atomic_reactor.plugin import PluginFailedException
+                                   AutoRebuildCanceledException, PluginFailedException,
+                                   BuildCanceledException)
 import atomic_reactor.plugin
 import logging
 from flexmock import flexmock
@@ -24,6 +24,10 @@ from tests.constants import MOCK_SOURCE, SOURCE
 from tests.docker_mock import mock_docker
 from tests.util import requires_internet
 import inspect
+import signal
+import threading
+
+from time import sleep
 
 from atomic_reactor.inner import BuildResults, BuildResultsEncoder, BuildResultsJSONDecoder
 from atomic_reactor.inner import DockerBuildWorkflow
@@ -70,11 +74,12 @@ class X(object):
 
 
 class MockInsideBuilder(object):
-    def __init__(self, failed=False):
+    def __init__(self, failed=False, timeout=10):
         self.tasker = MockDockerTasker()
         self.base_image = ImageName(repo='Fedora', tag='22')
         self.image_id = 'asd'
         self.failed = failed
+        self.timeout = timeout
 
     @property
     def source(self):
@@ -90,6 +95,7 @@ class MockInsideBuilder(object):
         result = X()
         setattr(result, 'logs', None)
         setattr(result, 'is_failed', lambda: self.failed)
+        sleep(self.timeout)
         return result
 
     def inspect_built_image(self):
@@ -216,6 +222,17 @@ class Watcher(object):
 
     def was_called(self):
         return self.called
+
+
+class WatcherWithPause(Watcher):
+
+    def __init__(self, timeout=10):
+        super(WatcherWithPause, self).__init__()
+        self.timeout = timeout
+
+    def call(self):
+        super(WatcherWithPause, self).call()
+        sleep(self.timeout)
 
 
 def test_workflow():
@@ -848,3 +865,78 @@ def test_workflow_plugin_results():
     assert workflow.postbuild_results == {'post_build_value': 'post_build_value_result'}
     assert workflow.prepub_results == {'pre_publish_value': 'pre_publish_value_result'}
     assert workflow.exit_results == {'exit_value': 'exit_value_result'}
+
+
+@pytest.mark.parametrize('fail_at', ['pre', 'prepub', 'build', 'post', 'exit'])
+def test_cancel_build(request, fail_at):
+    """
+    Verifies that exit plugins are executed when the build is canceled
+    """
+    phase_duration = 10
+    sigterm_timeout = 2
+
+    phase_timeout = {'pre': 0, 'prepub': 0, 'build': 0, 'post': 0, 'exit': 0}
+    phase_timeout[fail_at] = phase_duration
+
+    this_file = inspect.getfile(PreRaises)
+    mock_docker()
+    fake_builder = MockInsideBuilder(timeout=phase_timeout['build'])
+    flexmock(InsideBuilder).new_instances(fake_builder)
+    watch_pre = WatcherWithPause(phase_timeout['pre'])
+    watch_prepub = WatcherWithPause(phase_timeout['prepub'])
+    watch_post = WatcherWithPause(phase_timeout['post'])
+    watch_exit = WatcherWithPause(phase_timeout['exit'])
+
+    fake_logger = FakeLogger()
+    existing_logger = atomic_reactor.plugin.logger
+
+    def restore_logger():
+        atomic_reactor.plugin.logger = existing_logger
+
+    request.addfinalizer(restore_logger)
+    atomic_reactor.plugin.logger = fake_logger
+
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+                                   prebuild_plugins=[{'name': 'pre_watched',
+                                                      'args': {
+                                                          'watcher': watch_pre
+                                                      }}],
+                                   prepublish_plugins=[{'name': 'prepub_watched',
+                                                        'args': {
+                                                            'watcher': watch_prepub,
+                                                        }}],
+                                   postbuild_plugins=[{'name': 'post_watched',
+                                                       'args': {
+                                                           'watcher': watch_post
+                                                       }}],
+                                   exit_plugins=[{'name': 'exit_watched',
+                                                  'args': {
+                                                      'watcher': watch_exit
+                                                  }}],
+                                   plugin_files=[this_file])
+
+    pid = os.getpid()
+    thread = threading.Thread(
+        target=lambda: (
+            sleep(sigterm_timeout),
+            os.kill(pid, signal.SIGTERM)))
+    thread.start()
+
+    if fail_at == 'build':
+        with pytest.raises(BuildCanceledException):
+            workflow.build_docker_image()
+    else:
+        workflow.build_docker_image()
+
+    if fail_at not in ['exit', 'build']:
+        assert ("plugin '%s_watched' raised an exception:" % fail_at +
+                " BuildCanceledException('Build was canceled',)",) in fake_logger.warnings
+
+    assert watch_exit.was_called()
+    assert watch_pre.was_called()
+
+    if fail_at not in ['pre', 'build']:
+        assert watch_prepub.was_called()
+
+    if fail_at not in ['pre', 'prepub', 'build']:
+        assert watch_post.was_called()
