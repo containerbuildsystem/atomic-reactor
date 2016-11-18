@@ -9,11 +9,10 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 import pytest
-from dockerfile_parse import DockerfileParser
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_assert_labels import AssertLabelsPlugin
-from atomic_reactor.util import ImageName
+from atomic_reactor.util import ImageName, df_parser
 from tests.constants import MOCK_SOURCE
 from tests.fixtures import docker_tasker
 
@@ -41,7 +40,7 @@ DF_CONTENT_LABELS = DF_CONTENT+'\nLABEL "name"="rainbow" "version"="123" "releas
     (DF_CONTENT_LABELS, ['xyz'], PluginFailedException())
 ])
 def test_assertlabels_plugin(tmpdir, docker_tasker, df_content, req_labels, expected):
-    df = DockerfileParser(str(tmpdir))
+    df = df_parser(str(tmpdir))
     df.content = df_content
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')

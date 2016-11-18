@@ -15,12 +15,12 @@ try:
 except ImportError:
     from urllib.parse import urljoin
 
-from dockerfile_parse import DockerfileParser
 import requests
 
 from atomic_reactor.plugin import ExitPlugin, PluginFailedException
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.source import GitSource
+from atomic_reactor.util import df_parser
 
 
 class SendMailPlugin(ExitPlugin):
@@ -157,7 +157,7 @@ class SendMailPlugin(ExitPlugin):
         """Get value of Dockerfile label that is to be used as `global_component` to query
         PDC release-components API endpoint.
         """
-        labels = DockerfileParser(self.workflow.builder.df_path).labels
+        labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels
         if self.pdc_component_df_label not in labels:
             raise PluginFailedException('No %s label in Dockerfile, can\'t get PDC component',
                                         self.pdc_component_df_label)

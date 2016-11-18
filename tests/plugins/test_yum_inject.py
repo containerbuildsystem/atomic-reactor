@@ -18,12 +18,11 @@ try:
 except ImportError:
     # Python 2.6
     from ordereddict import OrderedDict
-from dockerfile_parse import DockerfileParser
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_inject_yum_repo import InjectYumRepoPlugin, alter_yum_commands
-from atomic_reactor.util import ImageName, render_yum_repo
+from atomic_reactor.util import ImageName, render_yum_repo, df_parser
 import os.path
 from collections import namedtuple
 import requests
@@ -69,7 +68,7 @@ def test_yuminject_plugin_notwrapped(tmpdir):
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
-    df = DockerfileParser(str(tmpdir))
+    df = df_parser(str(tmpdir))
     df.content = df_content
 
     tasker, workflow = prepare(df.dockerfile_path)
@@ -107,7 +106,7 @@ def test_yuminject_plugin_wrapped(tmpdir, docker_tasker):
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
-    df = DockerfileParser(str(tmpdir))
+    df = df_parser(str(tmpdir))
     df.content = df_content
 
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
@@ -150,7 +149,7 @@ FROM fedora
 RUN yum install -y httpd \
                    uwsgi
 CMD blabla"""
-    df = DockerfileParser(str(tmpdir))
+    df = df_parser(str(tmpdir))
     df.content = df_content
 
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
@@ -190,7 +189,7 @@ FROM fedora
 RUN yum install -y httpd \
                    uwsgi
 CMD blabla"""
-    df = DockerfileParser(str(tmpdir))
+    df = df_parser(str(tmpdir))
     df.content = df_content
 
     tasker, workflow = prepare(df.dockerfile_path)
@@ -228,7 +227,7 @@ RUN yum install -y --setopt=tsflags=nodocs bind-utils gettext iproute v8314 mong
     test "$(id mongodb)" = "uid=184(mongodb) gid=998(mongodb) groups=998(mongodb)" && \
     chmod o+w -R /var/lib/mongodb && chmod o+w -R /opt/rh/mongodb24/root/var/lib/mongodb
 CMD blabla"""
-    df = DockerfileParser(str(tmpdir))
+    df = df_parser(str(tmpdir))
     df.content = df_content
 
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
@@ -374,7 +373,7 @@ DOCKERFILES = {
 
 def test_no_repourls(tmpdir):
     for df_content in DOCKERFILES.values():
-        df = DockerfileParser(str(tmpdir))
+        df = df_parser(str(tmpdir))
         df.lines = df_content.lines_before_add + \
                    df_content.lines_before_remove
 
@@ -408,7 +407,7 @@ def remove_lines_match(actual, expected, repos):
 
 def test_single_repourl(tmpdir):
     for df_content in DOCKERFILES.values():
-        df = DockerfileParser(str(tmpdir))
+        df = df_parser(str(tmpdir))
         df.lines = df_content.lines_before_add + \
                    df_content.lines_before_remove
         tasker, workflow = prepare(df.dockerfile_path,
@@ -457,7 +456,7 @@ def test_single_repourl(tmpdir):
 
 def test_multiple_repourls(tmpdir):
     for df_content in DOCKERFILES.values():
-        df = DockerfileParser(str(tmpdir))
+        df = df_parser(str(tmpdir))
         df.lines = df_content.lines_before_add + \
                    df_content.lines_before_remove
         tasker, workflow = prepare(df.dockerfile_path,

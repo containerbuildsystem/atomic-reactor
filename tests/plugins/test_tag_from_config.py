@@ -12,11 +12,10 @@ from flexmock import flexmock
 import pytest
 import os.path
 
-from dockerfile_parse import DockerfileParser
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_tag_from_config import TagFromConfigPlugin
-from atomic_reactor.util import ImageName
+from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.constants import INSPECT_CONFIG
 from tests.constants import (MOCK_SOURCE, MOCK)
 from tests.fixtures import docker_tasker
@@ -59,7 +58,7 @@ def mock_workflow(tmpdir):
     workflow.builder.source = mock_source
     flexmock(workflow, source=mock_source)
 
-    df = DockerfileParser(str(tmpdir))
+    df = df_parser(str(tmpdir))
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
 
     return workflow

@@ -27,8 +27,8 @@ except ImportError:
     import koji as koji
 
 from atomic_reactor.plugins.pre_bump_release import BumpReleasePlugin
+from atomic_reactor.util import df_parser
 from flexmock import flexmock
-from dockerfile_parse import DockerfileParser
 import pytest
 
 
@@ -133,7 +133,7 @@ class TestBumpRelease(object):
                               include_target=include_target)
         plugin.run()
 
-        parser = DockerfileParser(plugin.workflow.builder.df_path)
+        parser = df_parser(plugin.workflow.builder.df_path, workflow=plugin.workflow)
         assert parser.labels['release'] == next_release['expected']
         # Old-style spellings will be asserted only if other old-style labels are present
         if 'BZComponent' not in parser.labels.keys():

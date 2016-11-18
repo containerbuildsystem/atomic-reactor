@@ -9,7 +9,7 @@ from __future__ import print_function, unicode_literals
 
 from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.plugin import PreBuildPlugin
-from dockerfile_parse import DockerfileParser
+from atomic_reactor.util import df_parser
 
 
 class NothingToCheck(Exception):
@@ -86,7 +86,7 @@ class DistributionScopePlugin(PreBuildPlugin):
     def run(self):
         try:
             # Find out the intended scope for this image
-            labels = DockerfileParser(self.workflow.builder.df_path).labels
+            labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels
             scope = self.get_scope('current', labels)
 
             # Find out the parent's intended scope

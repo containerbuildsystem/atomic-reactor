@@ -13,9 +13,8 @@ import json
 
 import logging
 import traceback
-from dockerfile_parse import DockerfileParser
 from atomic_reactor.core import DockerTasker, LastLogger
-from atomic_reactor.util import wait_for_command, ImageName, print_version_of_tools
+from atomic_reactor.util import wait_for_command, ImageName, print_version_of_tools, df_parser
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +115,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
 
         # get info about base image from dockerfile
         self.df_path, self.df_dir = self.source.get_dockerfile_path()
-        self.set_base_image(DockerfileParser(self.df_path).baseimage)
+        self.set_base_image(df_parser(self.df_path).baseimage)
         logger.debug("base image specified in dockerfile = '%s'", self.base_image)
         if not self.base_image.tag:
             self.base_image.tag = 'latest'
@@ -131,7 +130,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         try:
             logger.info("building image '%s' inside current environment", self.image)
             self._ensure_not_built()
-            logger.debug("using dockerfile:\n%s", DockerfileParser(self.df_path).content)
+            logger.debug("using dockerfile:\n%s", df_parser(self.df_path).content)
             logs_gen = self.tasker.build_image_from_path(
                 self.df_dir,
                 self.image,

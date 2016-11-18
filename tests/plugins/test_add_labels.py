@@ -13,11 +13,10 @@ try:
 except ImportError:
     # Python 2.6
     from ordereddict import OrderedDict
-from dockerfile_parse import DockerfileParser
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
-from atomic_reactor.util import ImageName
+from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.constants import INSPECT_CONFIG
 import re
@@ -116,7 +115,7 @@ LABEL "label1"="df value"
 def test_add_labels_plugin(tmpdir, docker_tasker,
                            df_content, labels_conf_base, labels_conf, dont_overwrite, aliases,
                            expected_output, caplog):
-    df = DockerfileParser(str(tmpdir))
+    df = df_parser(str(tmpdir))
     df.content = df_content
 
     if MOCK:
@@ -159,7 +158,7 @@ def test_add_labels_plugin(tmpdir, docker_tasker,
     ('Build_Host', 'the-build-host'),
 ])
 def test_add_labels_plugin_generated(tmpdir, docker_tasker, auto_label, value_re_part):
-    df = DockerfileParser(str(tmpdir))
+    df = df_parser(str(tmpdir))
     df.content = DF_CONTENT
 
     if MOCK:
@@ -265,7 +264,7 @@ def test_add_labels_aliases(tmpdir, docker_tasker, caplog,
     if base_new:
         base_labels[INSPECT_CONFIG]["Labels"]["label_new"] = base_new
 
-    df = DockerfileParser(str(tmpdir))
+    df = df_parser(str(tmpdir))
     df.content = df_content
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')

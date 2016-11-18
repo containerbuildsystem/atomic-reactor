@@ -10,12 +10,11 @@ from __future__ import unicode_literals
 
 import pytest
 from flexmock import flexmock
-from dockerfile_parse import DockerfileParser
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_dockerfile import AddDockerfilePlugin
 from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
-from atomic_reactor.util import ImageName
+from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.constants import INSPECT_CONFIG
 from tests.constants import MOCK_SOURCE, MOCK
 from tests.fixtures import docker_tasker
@@ -40,7 +39,7 @@ def test_adddockerfile_plugin(tmpdir, docker_tasker):
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
-    df = DockerfileParser(str(tmpdir))
+    df = df_parser(str(tmpdir))
     df.content = df_content
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
@@ -72,7 +71,7 @@ def test_adddockerfile_todest(tmpdir, docker_tasker):
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
-    df = DockerfileParser(str(tmpdir))
+    df = df_parser(str(tmpdir))
     df.content = df_content
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
@@ -106,7 +105,7 @@ FROM fedora
 RUN yum install -y python-django
 LABEL Name="jboss-eap-6-docker" "Version"="6.4" "Release"=77
 CMD blabla"""
-    df = DockerfileParser(str(tmpdir))
+    df = df_parser(str(tmpdir))
     df.content = df_content
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
@@ -132,7 +131,7 @@ def test_adddockerfile_nvr_from_labels2(tmpdir, docker_tasker):
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
-    df = DockerfileParser(str(tmpdir))
+    df = df_parser(str(tmpdir))
     df.content = df_content
 
     if MOCK:
@@ -169,7 +168,7 @@ def test_adddockerfile_fails(tmpdir, docker_tasker, caplog):
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
-    df = DockerfileParser(str(tmpdir))
+    df = df_parser(str(tmpdir))
     df.content = df_content
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
@@ -193,7 +192,7 @@ def test_adddockerfile_final(tmpdir, docker_tasker):
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
-    df = DockerfileParser(str(tmpdir))
+    df = df_parser(str(tmpdir))
     df.content = df_content
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')

@@ -10,9 +10,9 @@ Pre build plugin which injects custom yum repository in dockerfile.
 """
 import os
 import re
-from dockerfile_parse import DockerfileParser
 from atomic_reactor.constants import YUM_REPOS_DIR, RELATIVE_REPOS_PATH, INSPECT_CONFIG
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.util import df_parser
 
 
 logger = None
@@ -100,7 +100,7 @@ def wrap_yum_commands(yum_repos, df_path):
 
     logger.debug("wrap cmd is %r", wrap_cmd)
 
-    df = DockerfileParser(df_path)
+    df = df_parser(df_path)
     df_content = df.content
     df.content = alter_yum_commands(df_content, wrap_cmd)
 
@@ -156,6 +156,6 @@ class InjectYumRepoPlugin(PreBuildPlugin):
             # Find out the USER inherited from the base image
             inspect = self.workflow.builder.inspect_base_image()
             inherited_user = inspect[INSPECT_CONFIG].get('User', '')
-            df = DockerfileParser(self.workflow.builder.df_path)
+            df = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
             df.lines = add_yum_repos_to_dockerfile(repos_host_cont_mapping,
                                                    df, inherited_user)
