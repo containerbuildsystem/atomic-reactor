@@ -822,9 +822,9 @@ def df_parser(df_path, workflow=None, cache_content=False, env_replace=True, par
                 tmp_env = parent_config["Env"]
                 logger.debug("Parent Config ENV: %s" % tmp_env)
 
-                if type(tmp_env) is dict:
+                if isinstance(tmp_env, dict):
                     p_env = tmp_env
-                elif type(tmp_env) is list:
+                elif isinstance(tmp_env, list):
                     try:
                         for key_val in tmp_env:
                             key, val = key_val.split("=")
