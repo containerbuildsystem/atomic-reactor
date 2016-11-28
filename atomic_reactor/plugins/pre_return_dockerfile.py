@@ -8,8 +8,8 @@ of the BSD license. See the LICENSE file for details.
 
 It returns content of dockerfile and therefore displays it in results.
 """
-from dockerfile_parse import DockerfileParser
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.util import df_parser
 
 
 class CpDockerfilePlugin(PreBuildPlugin):
@@ -31,6 +31,6 @@ class CpDockerfilePlugin(PreBuildPlugin):
         try open dockerfile, output an error if there is one
         """
         try:
-            return DockerfileParser(self.workflow.builder.df_path).content
+            return df_parser(self.workflow.builder.df_path, workflow=self.workflow).content
         except (IOError, OSError) as ex:
             return "Couldn't retrieve dockerfile: %r" % ex

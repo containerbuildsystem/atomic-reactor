@@ -27,9 +27,8 @@ from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.constants import PROG
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json, get_preferred_label,
-                                 get_docker_architecture)
+                                 get_docker_architecture, df_parser)
 from atomic_reactor.koji_util import create_koji_session, TaskWatcher
-from dockerfile_parse import DockerfileParser
 from osbs.conf import Configuration
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
@@ -523,7 +522,9 @@ class KojiPromotePlugin(ExitPlugin):
 
     def get_build(self, metadata):
         start_time = int(atomic_reactor_start_time)
-        labels = DockerfileParser(self.workflow.builder.df_path).labels
+
+        labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels
+
         component = get_preferred_label(labels, 'com.redhat.component')
         version = get_preferred_label(labels, 'version')
         release = get_preferred_label(labels, 'release')

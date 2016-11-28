@@ -32,11 +32,10 @@ except ImportError:
     del koji
     import koji
 
-from dockerfile_parse import DockerfileParser
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
-from atomic_reactor.util import ImageName
+from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.source import VcsInfo
 from atomic_reactor import koji_util
 from atomic_reactor import util
@@ -160,7 +159,7 @@ def mock_workflow(tmpdir, dockerfile):
     workflow.builder.source = mock_source
     flexmock(workflow, source=mock_source)
 
-    df = DockerfileParser(str(tmpdir))
+    df = df_parser(str(tmpdir))
     df.content = dockerfile
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
 

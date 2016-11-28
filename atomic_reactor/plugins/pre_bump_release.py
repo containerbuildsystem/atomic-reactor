@@ -9,9 +9,8 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import get_all_label_keys, get_preferred_label_key
+from atomic_reactor.util import get_all_label_keys, get_preferred_label_key, df_parser
 from atomic_reactor.koji_util import create_koji_session
-from dockerfile_parse import DockerfileParser
 
 
 class BumpReleasePlugin(PreBuildPlugin):
@@ -44,7 +43,7 @@ class BumpReleasePlugin(PreBuildPlugin):
         run the plugin
         """
 
-        parser = DockerfileParser(self.workflow.builder.df_path)
+        parser = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
         release_labels = get_all_label_keys('release')
         dockerfile_labels = parser.labels
         if any(release_label in dockerfile_labels
@@ -70,8 +69,8 @@ class BumpReleasePlugin(PreBuildPlugin):
         next_release = self.xmlrpc.getNextRelease(build_info)
 
         # getNextRelease will return the release of the last successful build
-        # but next_release might be a failed build. Koji's CGImport doesn't 
-        # allow reuploading builds, so instead we should increment next_release 
+        # but next_release might be a failed build. Koji's CGImport doesn't
+        # allow reuploading builds, so instead we should increment next_release
         # and make sure the build doesn't exist
         while True:
             build_info = {'name': component, 'version': version, 'release': next_release}
@@ -82,9 +81,9 @@ class BumpReleasePlugin(PreBuildPlugin):
 
             next_release = str(int(next_release) + 1)
 
-        # Always set preferred release label - other will be set if old-style 
+        # Always set preferred release label - other will be set if old-style
         # label is present
-        preferred_release_label = get_preferred_label_key(dockerfile_labels, 
+        preferred_release_label = get_preferred_label_key(dockerfile_labels,
                                                          'release')
         old_style_label = get_all_label_keys('com.redhat.component')[1]
         release_labels_to_be_set = [preferred_release_label]

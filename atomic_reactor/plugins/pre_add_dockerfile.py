@@ -38,10 +38,9 @@ or
 
 import os
 import shutil
-from dockerfile_parse import DockerfileParser
 from atomic_reactor.constants import DOCKERFILE_FILENAME
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import get_preferred_label
+from atomic_reactor.util import get_preferred_label, df_parser
 
 
 class AddDockerfilePlugin(PreBuildPlugin):
@@ -66,7 +65,7 @@ class AddDockerfilePlugin(PreBuildPlugin):
         self.use_final_dockerfile = use_final_dockerfile
 
         if nvr is None:
-            labels = DockerfileParser(self.workflow.builder.df_path).labels
+            labels = df_parser(self.workflow.builder.df_path).labels
             name = get_preferred_label(labels, 'name')
             version = get_preferred_label(labels, 'version')
             release = get_preferred_label(labels, 'release')
@@ -87,7 +86,7 @@ class AddDockerfilePlugin(PreBuildPlugin):
         """
         run the plugin
         """
-        dockerfile = DockerfileParser(self.workflow.builder.df_path)
+        dockerfile = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
         lines = dockerfile.lines
 
         # when using final dockerfile, we should use DOCKERFILE_FILENAME

@@ -8,11 +8,10 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
-from dockerfile_parse import DockerfileParser
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_return_dockerfile import CpDockerfilePlugin
-from atomic_reactor.util import ImageName
+from atomic_reactor.util import ImageName, df_parser
 from tests.constants import MOCK_SOURCE
 from tests.fixtures import docker_tasker
 
@@ -32,7 +31,7 @@ def test_returndockerfile_plugin(tmpdir):
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
-    df = DockerfileParser(str(tmpdir))
+    df = df_parser(str(tmpdir))
     df.content = df_content
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')

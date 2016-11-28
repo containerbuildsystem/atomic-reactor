@@ -31,7 +31,7 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_version_of_tools, get_preferred_label_key,
                                  human_size, CommandResult,
                                  get_manifest_digests, ManifestDigest,
-                                 get_build_json, is_scratch_build)
+                                 get_build_json, is_scratch_build, df_parser)
 from atomic_reactor import util
 from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1
 from tests.util import requires_internet
@@ -441,3 +441,18 @@ def test_is_scratch_build(build_json, scratch):
             is_scratch_build()
     else:
         assert is_scratch_build() == scratch
+
+def test_df_parser(tmpdir):
+    tmpdir_path = str(tmpdir.realpath())
+    df = df_parser(tmpdir_path)
+    df.lines = [
+        "FROM fedora\n",
+        "ENV foo=\"bar\"\n",
+        "LABEL label=\"foobar barfoo\"\n"
+    ]
+
+    assert len(df.envs) == 1
+    assert df.envs.get('foo') == 'bar'
+    assert len(df.labels) == 1
+    assert df.labels.get('label') == 'foobar barfoo'
+

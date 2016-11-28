@@ -41,11 +41,10 @@ Keys and values are quoted as necessary.
 
 from __future__ import unicode_literals
 
-from dockerfile_parse import DockerfileParser
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import INSPECT_CONFIG
-from atomic_reactor.util import get_docker_architecture, _PREFERRED_LABELS
+from atomic_reactor.util import get_docker_architecture, _PREFERRED_LABELS, df_parser
 import json
 import datetime
 
@@ -196,17 +195,7 @@ class AddLabelsPlugin(PreBuildPlugin):
         else:
             base_image_labels = config["Labels"] or {}
 
-            try:
-                base_image_env = config["Env"]
-            except KeyError:
-                self.log.debug("Parent Environment not found, not applied to Dockerfile")
-                base_image_env = {}
-
-        try:
-            dockerfile = DockerfileParser(self.workflow.builder.df_path, parent_env=base_image_env)
-        except TypeError:
-            self.log.debug("Old version of dockerfile-parse detected, unable to set inherited parent ENVs")
-            dockerfile = DockerfileParser(self.workflow.builder.df_path)
+        dockerfile = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
 
         lines = dockerfile.lines
 

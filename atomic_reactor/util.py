@@ -20,7 +20,9 @@ import tempfile
 import logging
 import uuid
 
-from atomic_reactor.constants import DOCKERFILE_FILENAME, TOOLS_USED
+from atomic_reactor.constants import DOCKERFILE_FILENAME, TOOLS_USED, INSPECT_CONFIG
+
+from dockerfile_parse import DockerfileParser
 
 try:
     from importlib import import_module
@@ -785,3 +787,71 @@ def get_config_from_registry(image, registry, digest, insecure=False,
     logger.debug('Image %s:%s has config:\n%s', context, tag, blob_config)
 
     return blob_config
+
+def df_parser(df_path, workflow=None, cache_content=False, env_replace=True, parent_env=None):
+    """
+    Wrapper for dockerfile_parse's DockerfileParser that takes into account
+    parent_env inheritance.
+
+    :param df_path: string, path to Dockerfile (normally in DockerBuildWorkflow instance)
+    :param workflow: DockerBuildWorkflow object instance, used to find parent image information
+    :param cache_content: bool, tells DockerfileParser to cache Dockerfile content
+    :param env_replace: bool, replace ENV declarations as part of DockerfileParser evaluation
+    :param parent_env: dict, parent ENV key:value pairs to be inherited
+
+    :return: DockerfileParser object instance
+    """
+
+    p_env = {}
+
+    if parent_env:
+        # If parent_env passed in, just use that
+        p_env = parent_env
+
+    elif workflow:
+
+        # If parent_env is not provided, but workflow is then attempt to inspect
+        # the workflow for the parent_env
+
+        try:
+            parent_config = workflow.base_image_inspect[INSPECT_CONFIG]
+        except (AttributeError, TypeError, KeyError):
+            logger.debug("base image unable to be inspected")
+        else:
+            try:
+                tmp_env = parent_config["Env"]
+                logger.debug("Parent Config ENV: %s" % tmp_env)
+
+                if isinstance(tmp_env, dict):
+                    p_env = tmp_env
+                elif isinstance(tmp_env, list):
+                    try:
+                        for key_val in tmp_env:
+                            key, val = key_val.split("=")
+                            p_env[key] = val
+
+                    except ValueError:
+                        logger.debug("Unable to parse all of Parent Config ENV")
+
+            except KeyError:
+                logger.debug("Parent Environment not found, not applied to Dockerfile")
+
+    try:
+        dfparser = DockerfileParser(
+            df_path,
+            cache_content=cache_content,
+            env_replace=env_replace,
+            parent_env=p_env
+        )
+    except TypeError:
+        logger.debug("Old version of dockerfile-parse detected, unable to set inherited parent ENVs")
+        dfparser = DockerfileParser(
+            df_path,
+            cache_content=cache_content,
+            env_replace=env_replace,
+        )
+
+    return dfparser
+
+
+
