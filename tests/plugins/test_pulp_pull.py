@@ -28,102 +28,105 @@ class MockerTasker(object):
         pass
 
 
-class TestPostPulpPull(object):
-    TEST_UNIQUE_IMAGE = 'foo:unique-tag'
-    CRANE_URI = 'crane.example.com'
+# class TestPostPulpPull(object):
+#     TEST_UNIQUE_IMAGE = 'foo:unique-tag'
+#     CRANE_URI = 'crane.example.com'
 
-    def workflow(self):
-        tag_conf = TagConf()
-        tag_conf.add_unique_image(self.TEST_UNIQUE_IMAGE)
-        push_conf = PushConf()
-        push_conf.add_pulp_registry('pulp', crane_uri=self.CRANE_URI)
-        builder = flexmock()
-        setattr(builder, 'image_id', 'sha256:(old)')
-        return flexmock(tag_conf=tag_conf,
-                        push_conf=push_conf,
-                        builder=builder,
-                        plugin_workspace={})
+#     def workflow(self):
+#         tag_conf = TagConf()
+#         tag_conf.add_unique_image(self.TEST_UNIQUE_IMAGE)
+#         push_conf = PushConf()
+#         push_conf.add_pulp_registry('pulp', crane_uri=self.CRANE_URI)
+#         builder = flexmock()
+#         setattr(builder, 'image_id', 'sha256:(old)')
+#         return flexmock(tag_conf=tag_conf,
+#                         push_conf=push_conf,
+#                         builder=builder,
+#                         plugin_workspace={})
 
-    def test_pull_first_time(self):
-        workflow = self.workflow()
-        tasker = MockerTasker()
-        expected_pullspec = '%s/%s' % (self.CRANE_URI, self.TEST_UNIQUE_IMAGE)
-        test_id = 'sha256:(new)'
+#     @pytest.mark.skip(reason="TODO: plugin disabled to pub compatibility")
+#     def test_pull_first_time(self):
+#         workflow = self.workflow()
+#         tasker = MockerTasker()
+#         expected_pullspec = '%s/%s' % (self.CRANE_URI, self.TEST_UNIQUE_IMAGE)
+#         test_id = 'sha256:(new)'
 
-        (flexmock(tasker)
-            .should_call('pull_image')
-            .and_return(expected_pullspec)
-            .once()
-            .ordered())
+#         (flexmock(tasker)
+#             .should_call('pull_image')
+#             .and_return(expected_pullspec)
+#             .once()
+#             .ordered())
 
-        (flexmock(tasker)
-            .should_receive('inspect_image')
-            .with_args(expected_pullspec)
-            .and_return({'Id': test_id})
-            .once())
+#         (flexmock(tasker)
+#             .should_receive('inspect_image')
+#             .with_args(expected_pullspec)
+#             .and_return({'Id': test_id})
+#             .once())
 
-        plugin = PulpPullPlugin(tasker, workflow)
+#         plugin = PulpPullPlugin(tasker, workflow)
 
-        # Plugin return value is the new ID
-        assert plugin.run() == test_id
+#         # Plugin return value is the new ID
+#         assert plugin.run() == test_id
 
-        assert len(tasker.pulled_images) == 1
-        pulled = tasker.pulled_images[0].to_str()
-        assert pulled == expected_pullspec
+#         assert len(tasker.pulled_images) == 1
+#         pulled = tasker.pulled_images[0].to_str()
+#         assert pulled == expected_pullspec
 
-        # Image ID is updated in workflow
-        assert workflow.builder.image_id == test_id
+#         # Image ID is updated in workflow
+#         assert workflow.builder.image_id == test_id
 
-    def test_pull_timeout(self):
-        workflow = self.workflow()
-        tasker = MockerTasker()
-        expected_pullspec = '%s/%s' % (self.CRANE_URI, self.TEST_UNIQUE_IMAGE)
+#     @pytest.mark.skip(reason="TODO: plugin disabled to pub compatibility")
+#     def test_pull_timeout(self):
+#         workflow = self.workflow()
+#         tasker = MockerTasker()
+#         expected_pullspec = '%s/%s' % (self.CRANE_URI, self.TEST_UNIQUE_IMAGE)
 
-        (flexmock(tasker)
-            .should_call('pull_image')
-            .and_return(expected_pullspec)
-            .times(3))
+#         (flexmock(tasker)
+#             .should_call('pull_image')
+#             .and_return(expected_pullspec)
+#             .times(3))
 
-        (flexmock(tasker)
-            .should_receive('inspect_image')
-            .with_args(expected_pullspec)
-            .and_raise(NotFound('message', flexmock(content=None)))
-            .times(3))
+#         (flexmock(tasker)
+#             .should_receive('inspect_image')
+#             .with_args(expected_pullspec)
+#             .and_raise(NotFound('message', flexmock(content=None)))
+#             .times(3))
 
-        plugin = PulpPullPlugin(tasker, workflow, timeout=1, retry_delay=0.6)
+#         plugin = PulpPullPlugin(tasker, workflow, timeout=1, retry_delay=0.6)
 
-        # Should raise a timeout exception
-        with pytest.raises(CraneTimeoutError):
-            plugin.run()
+#         # Should raise a timeout exception
+#         with pytest.raises(CraneTimeoutError):
+#             plugin.run()
 
-    def test_pull_retry(self):
-        workflow = self.workflow()
-        tasker = MockerTasker()
-        expected_pullspec = '%s/%s' % (self.CRANE_URI, self.TEST_UNIQUE_IMAGE)
-        test_id = 'sha256:(new)'
+#     @pytest.mark.skip(reason="TODO: plugin disabled to pub compatibility")
+#     def test_pull_retry(self):
+#         workflow = self.workflow()
+#         tasker = MockerTasker()
+#         expected_pullspec = '%s/%s' % (self.CRANE_URI, self.TEST_UNIQUE_IMAGE)
+#         test_id = 'sha256:(new)'
 
-        (flexmock(tasker)
-            .should_call('pull_image')
-            .and_return(expected_pullspec)
-            .times(3))
+#         (flexmock(tasker)
+#             .should_call('pull_image')
+#             .and_return(expected_pullspec)
+#             .times(3))
 
-        (flexmock(tasker)
-            .should_receive('inspect_image')
-            .with_args(expected_pullspec)
-            .and_raise(NotFound('message', flexmock(content=None)))
-            .and_raise(NotFound('message', flexmock(content=None)))
-            .and_return({'Id': test_id})
-            .times(3))
+#         (flexmock(tasker)
+#             .should_receive('inspect_image')
+#             .with_args(expected_pullspec)
+#             .and_raise(NotFound('message', flexmock(content=None)))
+#             .and_raise(NotFound('message', flexmock(content=None)))
+#             .and_return({'Id': test_id})
+#             .times(3))
 
-        plugin = PulpPullPlugin(tasker, workflow, timeout=1, retry_delay=0.6)
+#         plugin = PulpPullPlugin(tasker, workflow, timeout=1, retry_delay=0.6)
 
-        # Plugin return value is the new ID
-        assert plugin.run() == test_id
+#         # Plugin return value is the new ID
+#         assert plugin.run() == test_id
 
-        assert len(tasker.pulled_images) == 3
-        for image in tasker.pulled_images:
-            pulled = image.to_str()
-            assert pulled == expected_pullspec
+#         assert len(tasker.pulled_images) == 3
+#         for image in tasker.pulled_images:
+#             pulled = image.to_str()
+#             assert pulled == expected_pullspec
 
-        # Image ID is updated in workflow
-        assert workflow.builder.image_id == test_id
+#         # Image ID is updated in workflow
+#         assert workflow.builder.image_id == test_id
