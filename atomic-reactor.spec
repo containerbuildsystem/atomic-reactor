@@ -25,7 +25,7 @@
 %global owner projectatomic
 %global project atomic-reactor
 
-%global commit c5ff318483ba701ffa3b71a44bd44491aa28540a
+%global commit 19330c92eff3f7086a52500207881ab5e4234b2f
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 
 %global dock_obsolete_vr 1.3.7-2
