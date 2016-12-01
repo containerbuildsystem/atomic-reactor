@@ -116,8 +116,10 @@ class KojiPromotePlugin(ExitPlugin):
         self.kojihub = kojihub
         self.koji_ssl_certs = koji_ssl_certs
         self.koji_proxy_user = koji_proxy_user
+
         self.koji_principal = koji_principal
         self.koji_keytab = koji_keytab
+
         self.metadata_only = metadata_only
         self.blocksize = blocksize
         self.target = target
@@ -655,13 +657,15 @@ class KojiPromotePlugin(ExitPlugin):
 
         :return: koji.ClientSession instance, logged in
         """
+
+        # krbV python library throws an error if these are unicode
         auth_info = {
             "proxyuser": self.koji_proxy_user,
             "ssl_certs_dir": self.koji_ssl_certs,
-            "krb_principal": self.koji_principal,
-            "krb_keytab": self.koji_keytab
+            "krb_principal": str(self.koji_principal),
+            "krb_keytab": str(self.koji_keytab)
         }
-        return create_koji_session(self.kojihub, auth_info)
+        return create_koji_session(str(self.kojihub), auth_info)
 
     def run(self):
         """

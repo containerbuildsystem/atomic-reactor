@@ -72,7 +72,7 @@ def create_koji_session(hub_url, auth_info=None):
     :param auth_info: dict, authentication parameters used for koji_login
     :return: koji.ClientSession instance
     """
-    session = koji.ClientSession(hub_url)
+    session = koji.ClientSession(hub_url, opts={'krb_rdns': False})
 
     if auth_info is not None:
         koji_login(session, **auth_info)

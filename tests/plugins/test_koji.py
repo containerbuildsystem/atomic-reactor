@@ -52,7 +52,7 @@ ROOT = "http://example.com"
 
 # ClientSession is xmlrpc instance, we need to mock it explicitly
 class MockedClientSession(object):
-    def __init__(self, hub):
+    def __init__(self, hub, opts=None):
         pass
 
     def getBuildTarget(self, target):
