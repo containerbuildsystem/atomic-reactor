@@ -50,6 +50,7 @@ BuildRequires:  python2-devel
 BuildRequires:  python-setuptools
 %if 0%{?with_check}
 BuildRequires:  pytest
+BuildRequires:  python2-pytest-runner
 BuildRequires:  python-pytest-capturelog
 BuildRequires:  python-dockerfile-parse >= 0.0.5
 BuildRequires:  python-docker-py
@@ -73,6 +74,7 @@ BuildRequires:  python3-devel
 BuildRequires:  python3-setuptools
 %if 0%{?with_check}
 BuildRequires:  python3-pytest
+BuildRequires:  python3-pytest-runner
 BuildRequires:  python3-pytest-capturelog
 BuildRequires:  python3-dockerfile-parse >= 0.0.5
 BuildRequires:  python3-docker-py
