@@ -30,6 +30,7 @@ import json
 
 import docker
 from docker.errors import APIError
+from docker.utils import create_host_config
 
 from atomic_reactor.constants import CONTAINER_SHARE_PATH, CONTAINER_SHARE_SOURCE_SUBDIR,\
         BUILD_JSON, DOCKER_SOCKET_PATH
@@ -158,9 +159,12 @@ class BuildContainerFactory(object):
                 open(os.path.join(json_args_path, BUILD_JSON)).read())
         container_id = self.tasker.run(
             ImageName.parse(build_image),
-            create_kwargs={'volumes': [DOCKER_SOCKET_PATH, json_args_path]},
-            start_kwargs={'binds': volume_bindings,
-                          'privileged': True}
+            create_kwargs={'volumes': [DOCKER_SOCKET_PATH, json_args_path],
+                           'host_config': create_host_config(
+                               binds=volume_bindings,
+                               privileged=True
+                           )
+            }
         )
 
         return container_id
@@ -198,9 +202,12 @@ class BuildContainerFactory(object):
                 open(os.path.join(json_args_path, BUILD_JSON)).read())
         container_id = self.tasker.run(
             ImageName.parse(build_image),
-            create_kwargs={'volumes': [json_args_path]},
-            start_kwargs={'binds': volume_bindings,
-                          'privileged': True}
+            create_kwargs={'volumes': [json_args_path],
+                           'host_config': create_host_config(
+                               binds=volume_bindings,
+                               privileged=True
+                           )
+            }
         )
 
         return container_id
