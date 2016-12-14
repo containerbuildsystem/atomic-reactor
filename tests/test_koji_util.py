@@ -88,8 +88,9 @@ class TestCreateKojiSession(object):
         url = 'https://koji-hub-url.com'
         session = flexmock()
 
-        (flexmock(koji_util.koji)
-            .should_receive('ClientSession').with_args(url).and_return(session))
+        (flexmock(koji_util.koji).should_receive('ClientSession').with_args(
+            url, opts={'krb_rdns': False}).and_return(session)
+        )
         assert create_koji_session(url) == session
 
     def test_create_authenticated_session(self):
@@ -97,8 +98,9 @@ class TestCreateKojiSession(object):
         session = flexmock()
         session.should_receive('krb_login').once().and_return(True)
 
-        (flexmock(koji_util.koji)
-            .should_receive('ClientSession').with_args(url).and_return(session))
+        (flexmock(koji_util.koji).should_receive('ClientSession').with_args(
+            url, opts={'krb_rdns': False}).and_return(session)
+        )
         assert create_koji_session(url, {}) == session
 
 

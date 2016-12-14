@@ -56,7 +56,7 @@ class TestBumpRelease(object):
         return plugin
 
     def test_component_missing(self, tmpdir):
-        flexmock(koji, ClientSession=lambda hub: None)
+        flexmock(koji, ClientSession=lambda hub, opts=None: None)
         plugin = self.prepare(tmpdir)
         with pytest.raises(RuntimeError):
             plugin.run()
@@ -66,7 +66,7 @@ class TestBumpRelease(object):
          'Release',
     ])
     def test_release_label_already_set(self, tmpdir, caplog, release_label):
-        flexmock(koji, ClientSession=lambda hub: None)
+        flexmock(koji, ClientSession=lambda hub, opts=None: None)
         plugin = self.prepare(tmpdir, labels={release_label: '1'})
         plugin.run()
         assert 'not incrementing' in caplog.text()
@@ -79,7 +79,7 @@ class TestBumpRelease(object):
         {},
     ])
     def test_missing_labels(self, tmpdir, caplog, labels):
-        flexmock(koji, ClientSession=lambda hub: None)
+        flexmock(koji, ClientSession=lambda hub, opts=None: None)
         plugin = self.prepare(tmpdir, labels=labels)
         with pytest.raises(RuntimeError) as exc:
             plugin.run()

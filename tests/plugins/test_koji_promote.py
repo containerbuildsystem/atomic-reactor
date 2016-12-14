@@ -64,7 +64,7 @@ class MockedClientSession(object):
     TAG_TASK_ID = 1234
     DEST_TAG = 'images-candidate'
 
-    def __init__(self, hub, task_states=None):
+    def __init__(self, hub, opts=None, task_states=None):
         self.uploaded_files = []
         self.build_tags = {}
         self.task_states = task_states or ['FREE', 'ASSIGNED', 'CLOSED']
@@ -218,7 +218,7 @@ def mock_environment(tmpdir, session=None, name=None,
                                               for tag in additional_tags])
 
     flexmock(subprocess, Popen=fake_Popen)
-    flexmock(koji, ClientSession=lambda hub: session)
+    flexmock(koji, ClientSession=lambda hub, opts: session)
     flexmock(GitSource)
     (flexmock(OSBS)
         .should_receive('get_build_logs')
