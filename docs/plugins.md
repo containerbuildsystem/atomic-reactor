@@ -86,22 +86,19 @@ These are run after 'git clone' is used to fetch the git repository content cont
    * Based on the result of is_autorebuild, this plugin is for stopping automated builds from proceeding if the image owner has opted out of automated rebuilds.
  * **add_filesystem**
    * Status: enabled
-   * If FROM value is "koji/image-build", an image-build koji task is initiated
-     to create the underlying filesystem base image. Once task is completed,
-     the built filesystem image is imported into docker and its ID is used
-     as the FROM value.
+   * If FROM value is "koji/image-build", an image-build koji task is initiated to create the underlying filesystem base image. Once task is completed, the built filesystem image is imported into docker and its ID is used as the FROM value.
  * **pull_base_image**
    * Status: enabled
    * The image named in the FROM line of the Dockerfile is pulled and its docker image ID noted.
  * **bump_release**
-   * Status: not yet enabled (chain rebuilds)
-   * In order to support automated rebuilds, this plugin is tasked with incrementing the 'Release' label in the Dockerfile.
+   * Status: enabled
+   * In order to support automated rebuilds, this plugin is tasked with incrementing the 'release' label in the Dockerfile.
  * **add_labels_in_dockerfile**
    * Status: enabled
    * Labels that are specified in the builder configuration, such as the vendor name, distribution scope, and authoritative registry, are added to the Dockerfile using LABEL. This plugin also adds automatic labels such as the build date, architecture, build host, and git reference.
  * **change_from_in_dockerfile**
    * Status: enabled
-   * The FROM line in the Dockerfile is changed so that it references the specific docker image ID we pulled earlier.
+   * The FROM line in the Dockerfile is changed so that it references the specific docker image ID we pulled/imported earlier.
  * **add_dockerfile**
    * Status: enabled
    * The Dockerfile used to build the image has a line added to ADD itself into the built image.
@@ -118,7 +115,7 @@ These are run after 'git clone' is used to fetch the git repository content cont
    * Status: enabled
    * The yum repo file or files created by the koji and add_yum_repo_by_url plugins are injected into the Dockerfile with ADD, and cleaned up with 'RUN rm'. When the built image has its new layers squashed later, the yum repo files will not appear in the content.
  * **distribution_scope**
-   * Status: not yet enabled
+   * Status: enabled
    * The distribution-scope image labels for the parent and the current image are compared and invalid combinations cause the build to fail.
 
 After the pre-build plugins have finished, 'docker build' is started.
