@@ -771,7 +771,6 @@ def get_config_from_registry(image, registry, digest, insecure=False,
         dockercfg_path=dockercfg_path, version=version)
     response.raise_for_status()
     manifest_config = response.json()
-    logger.debug("response json:", manifest_config)
     config_digest = manifest_config['config']['digest']
 
     config_response = query_registry(
@@ -780,7 +779,6 @@ def get_config_from_registry(image, registry, digest, insecure=False,
     config_response.raise_for_status()
 
     blob_config = config_response.json()
-    logger.debug("response json:", blob_config)
 
     context = '/'.join([x for x in [image.namespace, image.repo] if x])
     tag = image.tag or 'latest'
