@@ -1,4 +1,4 @@
-.TH atomic-reactor 1 2015\-07\-02
+.TH atomic-reactor 1 2016\-12\-14
 .SH SYNOPSIS
  \fBatomic\-reactor\fR [-h] [-q | -v | -V] {build,create-build-image,inside-build} ...
 
@@ -54,10 +54,10 @@
                         list of files where plugins live
   --method {hostdocker,privileged,here}
                         choose method for building image: 'hostdocker' mounts
-                        socket inside container, 'privileged' spawns
-                        privileged container and runs separate docker instance
-                        inside and finally 'here' executesbuild in current
-                        environment
+                        socket inside privileged container to use docker from
+                        host, 'privileged' runs separate docker instance
+                        inside privileged container and 'here' executes build
+                        in current environment
   --commit SOURCE__PROVIDER_PARAMS__GIT_COMMIT
                         checkout this commit (default is master)
 
@@ -72,10 +72,10 @@
                         list of files where plugins live
   --method {hostdocker,privileged,here}
                         choose method for building image: 'hostdocker' mounts
-                        socket inside container, 'privileged' spawns
-                        privileged container and runs separate docker instance
-                        inside and finally 'here' executesbuild in current
-                        environment
+                        socket inside privileged container to use docker from
+                        host, 'privileged' runs separate docker instance
+                        inside privileged container and 'here' executes build
+                        in current environment
   --substitute [SUBSTITUTE [SUBSTITUTE ...]]
                         provide substitutions for json in form "foo.bar=spam"
 
@@ -108,10 +108,10 @@
                         list of files where plugins live
   --method {hostdocker,privileged,here}
                         choose method for building image: 'hostdocker' mounts
-                        socket inside container, 'privileged' spawns
-                        privileged container and runs separate docker instance
-                        inside and finally 'here' executesbuild in current
-                        environment
+                        socket inside privileged container to use docker from
+                        host, 'privileged' runs separate docker instance
+                        inside privileged container and 'here' executes build
+                        in current environment
 
 
 \fBatomic-reactor [OPTIONS] create-build-image
@@ -152,4 +152,4 @@
                         substitute values in build json (key=value, or
                         plugin_type.plugin_name.key=value)
 .SH AUTHORS
- Jiri Popelka <jpopelka@redhat.com>, Martin Milata <mmilata@redhat.com>, Slavek Kabrda <slavek@redhat.com>, Tim Waugh <twaug@redhat.com>, Tomas Tomecek <ttomecek@redhat.com>
+ Jiri Popelka <jpopelka@redhat.com>, Martin Milata <mmilata@redhat.com>, Slavek Kabrda <slavek@redhat.com>, Tim Waugh <twaugh@redhat.com>, Tomas Tomecek <ttomecek@redhat.com>
