@@ -32,7 +32,7 @@ There are several build modes available:
 ### for Fedora users
 
 ```bash
-$ yum install atomic-reactor python-atomic-reactor-koji
+$ sudo dnf install atomic-reactor python-atomic-reactor-koji
 ```
 
 ### from git
@@ -57,7 +57,7 @@ $ alias atomic-reactor="python ${REACTOR_PATH}/atomic-reactor/cli/main.py"
  * [docker-py](https://github.com/docker/docker-py).
  * [koji](https://github.com/projectatomic/atomic-reactor/blob/master/atomic_reactor/plugins/pre_koji.py) plugin requires `koji` package, which is not available on PyPI: you have to install it manually:
 ```
-$ yum install koji
+$ sudo dnf install koji
 ```
 
 ## Usage
