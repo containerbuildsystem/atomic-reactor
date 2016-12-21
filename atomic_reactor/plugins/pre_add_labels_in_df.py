@@ -36,6 +36,15 @@ LABEL "label1"="value1" "label 2"="some value"
 CMD date
 ```
 
+
+By default there is parameter:
+    dont_overwrite=("Architecture", "architecture")
+which disallows to overwrite labels in the list if they are in parent image.
+
+After that is also another check via parameter :
+    dont_overwrite_if_in_dockerfile=("distribution-scope",)
+which disallows to overwrite labels in the list if they are in dockerfile
+
 Keys and values are quoted as necessary.
 """
 
