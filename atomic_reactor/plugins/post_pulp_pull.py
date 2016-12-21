@@ -18,10 +18,6 @@ from __future__ import unicode_literals
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from docker.errors import NotFound
-try:
-    from dockpulp import imgutils
-except ImportError:
-    pass
 from time import time, sleep
 
 
@@ -49,13 +45,6 @@ class PulpPullPlugin(PostBuildPlugin):
         self.retry_delay = retry_delay
 
     def run(self):
-        # TODO: Temporary backwards compatibility with pub
-        image_id = imgutils.get_id(
-                self.workflow.exported_image_sequence[-1].get('path'))
-        self.workflow.builder.image_id = image_id
-        return image_id
-        # End of workaround
-
         start = time()
 
         # Work out the name of the image to pull
