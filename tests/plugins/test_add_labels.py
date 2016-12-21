@@ -317,7 +317,7 @@ def test_dont_overwrite_distribution_scope(tmpdir, docker_tasker):
         workflow,
         [{
             'name': AddLabelsPlugin.key,
-            'args': {'labels': {"distribution-scope": "restricted"}, "dont_overwrite": ["distribution-scope"], "auto_labels": [],
+            'args': {'labels': {"distribution-scope": "restricted"}, "dont_overwrite_if_in_dockerfile": ["distribution-scope"], "auto_labels": [],
                      'aliases': {}}
         }]
     )
