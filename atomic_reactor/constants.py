@@ -62,12 +62,12 @@ TOOLS_USED = (
 DEFAULT_DOWNLOAD_BLOCK_SIZE = 10 * 1024 * 1024 # 10Mb
 
 LABEL_ALIASES = {
-    name : ('name', 'Name'),
-    version : ('version', 'Version'),
-    release : ('release', 'Release'),
-    arch : ('architecture', 'Architecture'),
-    vendor : (('vendor', 'Vendor'),
-    source : ('authoritative-source-url', 'Authoritative_Registry'),
-    component : ('com.redhat.component', 'BZComponent'),
-    host : ('com.redhat.build-host', 'Build_Host')
+    "name" : ('name', 'Name'),
+    "version" : ('version', 'Version'),
+    "release" : ('release', 'Release'),
+    "arch" : ('architecture', 'Architecture'),
+    "vendor" : (('vendor', 'Vendor'),
+    "source" : ('authoritative-source-url', 'Authoritative_Registry'),
+    "component" : ('com.redhat.component', 'BZComponent'),
+    "host" : ('com.redhat.build-host', 'Build_Host')
 }
