@@ -299,7 +299,7 @@ def test_add_labels_aliases(tmpdir, docker_tasker, caplog,
 def test_dont_overwrite_distribution_scope(tmpdir, docker_tasker):
     df_content = "FROM fedora\n"
     df_content += 'LABEL distribution-scope="private"'
-    labels_conf_base = {INSPECT_CONFIG: {"Labels": {"distribution-scope": "public"}}}
+    labels_conf_base = {INSPECT_CONFIG: {"Labels": {"distribution-scope": "private"}}}
 
     df = df_parser(str(tmpdir))
     df.content = df_content
@@ -317,7 +317,7 @@ def test_dont_overwrite_distribution_scope(tmpdir, docker_tasker):
         workflow,
         [{
             'name': AddLabelsPlugin.key,
-            'args': {'labels': {"distribution-scope": "public"}, "dont_overwrite": ["distribution-scope"], "auto_labels": [],
+            'args': {'labels': {"distribution-scope": "restricted"}, "dont_overwrite": ["distribution-scope"], "auto_labels": [],
                      'aliases': {}}
         }]
     )

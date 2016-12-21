@@ -67,13 +67,14 @@ class AddLabelsPlugin(PreBuildPlugin):
     }
 
     def __init__(self, tasker, workflow, labels,
-                 dont_overwrite=dont_overwrite=("Architecture", "architecture"),
+                 dont_overwrite=("Architecture", "architecture"),
                  auto_labels=("build-date",
                               "architecture",
                               "vcs-type",
                               "vcs-ref",
                               "com.redhat.build-host"),
-                 aliases=None):
+                 aliases=None,
+                 dont_overwrite_if_in_dockerfile=("distribution-scope",)):
         """
         constructor
 
@@ -86,6 +87,8 @@ class AddLabelsPlugin(PreBuildPlugin):
         :param aliases: dict, maps old label names to new label names - for each old name found in
                         base image, dockerfile, or labels argument, a label with the new name is
                         added (with the same value)
+        :param dont_overwrite_if_in_dockerfile : iterable, list of label keys which should not be
+                                                 overwritten IF they are present if dockerfile!
         """
         # call parent constructor
         super(AddLabelsPlugin, self).__init__(tasker, workflow)
@@ -95,6 +98,7 @@ class AddLabelsPlugin(PreBuildPlugin):
             raise RuntimeError("labels have to be dict")
         self.labels = labels
         self.dont_overwrite = dont_overwrite
+        self.dont_overwrite_if_in_dockerfile = dont_overwrite_if_in_dockerfile
         self.aliases = aliases or self.DEFAULT_ALIASES
 
         self.generate_auto_labels(auto_labels)
@@ -236,6 +240,10 @@ class AddLabelsPlugin(PreBuildPlugin):
                     if key in self.dont_overwrite:
                         self.log.info("denying overwrite of label %r", key)
                         continue
+
+            if key in self.dont_overwrite_if_in_dockerfile:
+                self.log.info("denying overwrite of label %r, using from Dockerfile", key)
+                continue
 
             label = '"%s"="%s"' % (escape(key), escape(value))
             self.log.info("setting label %r", label)
