@@ -542,7 +542,7 @@ _PREFERRED_LABELS = (
     ('release', 'Release'),
     ('architecture', 'Architecture'),
     ('vendor', 'Vendor'),
-    ('authoritative-source', 'Authoritative_Registry'),
+    ('authoritative-source-url', 'Authoritative_Registry'),
     ('com.redhat.component', 'BZComponent'),
     ('com.redhat.build-host', 'Build_Host'),
 )
