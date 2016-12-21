@@ -82,13 +82,13 @@ class AddLabelsPlugin(PreBuildPlugin):
         :param workflow: DockerBuildWorkflow instance
         :param labels: dict, key value pairs to set as labels; or str, JSON-encoded dict
         :param dont_overwrite: iterable, list of label keys which should not be overwritten
-                               IF they are present in baseimage!
+                               if they are present in parent image
         :param auto_labels: iterable, list of labels to be determined automatically, if supported
         :param aliases: dict, maps old label names to new label names - for each old name found in
                         base image, dockerfile, or labels argument, a label with the new name is
                         added (with the same value)
         :param dont_overwrite_if_in_dockerfile : iterable, list of label keys which should not be
-                                                 overwritten IF they are present in dockerfile!
+                                                 overwritten if they are present in dockerfile
         """
         # call parent constructor
         super(AddLabelsPlugin, self).__init__(tasker, workflow)
