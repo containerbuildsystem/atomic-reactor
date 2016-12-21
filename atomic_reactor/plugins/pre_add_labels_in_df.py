@@ -67,7 +67,7 @@ class AddLabelsPlugin(PreBuildPlugin):
     }
 
     def __init__(self, tasker, workflow, labels,
-                 dont_overwrite=("distribution-scope", ),
+                 dont_overwrite=dont_overwrite=("Architecture", "architecture"),
                  auto_labels=("build-date",
                               "architecture",
                               "vcs-type",
@@ -81,6 +81,7 @@ class AddLabelsPlugin(PreBuildPlugin):
         :param workflow: DockerBuildWorkflow instance
         :param labels: dict, key value pairs to set as labels; or str, JSON-encoded dict
         :param dont_overwrite: iterable, list of label keys which should not be overwritten
+                               IF they are present if baseimage!
         :param auto_labels: iterable, list of labels to be determined automatically, if supported
         :param aliases: dict, maps old label names to new label names - for each old name found in
                         base image, dockerfile, or labels argument, a label with the new name is
