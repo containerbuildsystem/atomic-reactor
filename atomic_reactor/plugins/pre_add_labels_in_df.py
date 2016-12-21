@@ -67,7 +67,7 @@ class AddLabelsPlugin(PreBuildPlugin):
     }
 
     def __init__(self, tasker, workflow, labels,
-                 dont_overwrite=("Architecture", "architecture", ),
+                 dont_overwrite=("distribution-scope", ),
                  auto_labels=("build-date",
                               "architecture",
                               "vcs-type",
