@@ -66,7 +66,7 @@ LABEL_ALIASES = {
     "version" : ('version', 'Version'),
     "release" : ('release', 'Release'),
     "arch" : ('architecture', 'Architecture'),
-    "vendor" : (('vendor', 'Vendor'),
+    "vendor" : ('vendor', 'Vendor'),
     "source" : ('authoritative-source-url', 'Authoritative_Registry'),
     "component" : ('com.redhat.component', 'BZComponent'),
     "host" : ('com.redhat.build-host', 'Build_Host')
