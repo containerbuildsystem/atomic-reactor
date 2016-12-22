@@ -953,43 +953,43 @@ class Labels(object):
                 return lbl
         return self._name[0]
 
-    def get_version_pref(self):
+    def get_version_pref(self, labels):
         for lbl in self._version:
             if lbl in labels:
                 return lbl
         return self._version[0]
 
-    def get_release_pref(self):
+    def get_release_pref(self, labels):
         for lbl in self._release:
             if lbl in labels:
                 return lbl
         return self._release[0]
 
-    def get_arch_pref(self):
+    def get_arch_pref(self, labels):
         for lbl in self._arch:
             if lbl in labels:
                 return lbl
         return self._arch[0]
 
-    def get_vendor_pref(self):
+    def get_vendor_pref(self, labels):
         for lbl in self._vendor:
             if lbl in labels:
                 return lbl
         return self._vendor[0]
 
-    def get_source_pref(self):
+    def get_source_pref(self, labels):
         for lbl in self._source:
             if lbl in labels:
                 return lbl
         return self._source[0]
 
-    def get_component_pref(self):
+    def get_component_pref(self, labels):
         for lbl in self._component:
             if lbl in labels:
                 return lbl
         return self._component[0]
 
-    def get_host_pref(self):
+    def get_host_pref(self, labels):
         for lbl in self._host:
             if lbl in labels:
                 return lbl
