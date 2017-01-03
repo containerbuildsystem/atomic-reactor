@@ -41,11 +41,20 @@ class X(object):
 
 
 KOJI_TARGET = "target"
-GET_TARGET_RESPONSE = {"build_tag_name": "asd"}
+KOJI_TARGET_BROKEN_TAG = "target-broken"
+KOJI_TARGET_BROKEN_REPO = "target-broken-repo"
 KOJI_TAG = "tag"
+KOJI_BROKEN_TAG = "tag-broken"
+KOJI_BROKEN_REPO = "tag-broken-repo"
+GET_TARGET_RESPONSE = {"build_tag_name": KOJI_TAG}
+BROKEN_TAG_RESPONSE = {"build_tag_name": KOJI_BROKEN_TAG}
+BROKEN_REPO_RESPONSE = {"build_tag_name": KOJI_BROKEN_REPO}
 TAG_ID = "1"
+BROKEN_REPO_TAG_ID = "2"
 GET_TAG_RESPONSE = {"id": TAG_ID, "name": KOJI_TAG}
 REPO_ID = "2"
+BROKEN_REPO_ID = "3"
+REPO_BROKEN_TAG_RESPONSE = {"id": BROKEN_REPO_ID, "name": KOJI_BROKEN_REPO}
 GET_REPO_RESPONSE = {"id": "2"}
 ROOT = "http://example.com"
 
@@ -56,12 +65,22 @@ class MockedClientSession(object):
         pass
 
     def getBuildTarget(self, target):
+        if target == KOJI_TARGET_BROKEN_TAG:
+            return BROKEN_TAG_RESPONSE
+        if target == KOJI_TARGET_BROKEN_REPO:
+            return BROKEN_REPO_RESPONSE
         return GET_TARGET_RESPONSE
 
     def getTag(self, tag):
+        if tag == KOJI_BROKEN_TAG:
+            return None
+        if tag == KOJI_BROKEN_REPO:
+            return REPO_BROKEN_TAG_RESPONSE
         return GET_TAG_RESPONSE
 
     def getRepo(self, repo):
+        if repo == BROKEN_REPO_ID:
+            return None
         return GET_REPO_RESPONSE
 
 
@@ -94,6 +113,10 @@ def prepare():
 
 
 class TestKoji(object):
+    @pytest.mark.parametrize(('target', 'expect_success'), [
+        (KOJI_TARGET, True),
+        (KOJI_TARGET_BROKEN_TAG, False),
+        (KOJI_TARGET_BROKEN_REPO, False)])
     @pytest.mark.parametrize(('root',
                               'koji_ssl_certs',
                               'expected_string',
@@ -140,11 +163,13 @@ class TestKoji(object):
         #  '/etc/yum.repos.d/example.com.cert'),
 
     ])
-    def test_koji_plugin(self, tmpdir, root, koji_ssl_certs,
+    def test_koji_plugin(self,
+                         target, expect_success,
+                         tmpdir, root, koji_ssl_certs,
                          expected_string, expected_file, proxy):
         tasker, workflow = prepare()
         args = {
-            'target': KOJI_TARGET,
+            'target': target,
             'hub': '',
             'root': root,
             'proxy': proxy
@@ -161,6 +186,10 @@ class TestKoji(object):
         }])
 
         runner.run()
+
+        if not expect_success:
+            return
+
         repofile = '/etc/yum.repos.d/target.repo'
         assert repofile in workflow.files
         content = workflow.files[repofile]

@@ -45,7 +45,17 @@ class KojiPlugin(PreBuildPlugin):
             self.log.error("provided target '%s' doesn't exist", self.target)
             raise RuntimeError("Provided target '%s' doesn't exist!" % self.target)
         tag_info = self.xmlrpc.getTag(target_info['build_tag_name'])
+
+        if not tag_info or 'name' not in tag_info:
+            self.log.warning("No tag info was retrieved")
+            return
+
         repo_info = self.xmlrpc.getRepo(tag_info['id'])
+
+        if not repo_info or 'id' not in repo_info:
+            self.log.warning("No repo info was retrieved")
+            return
+
         # to use urljoin, we would have to append '/', so let's append everything
         baseurl = self.pathinfo.repo(repo_info['id'], tag_info['name']) + "/$basearch"
 
