@@ -250,7 +250,7 @@ class AddLabelsPlugin(PreBuildPlugin):
                         self.log.info("denying overwrite of label %r", key)
                         continue
 
-            if key in self.dont_overwrite_if_in_dockerfile:
+            if (key in self.dont_overwrite_if_in_dockerfile) and (key in dockerfile.labels):
                 self.log.info("denying overwrite of label %r, using from Dockerfile", key)
                 continue
 
