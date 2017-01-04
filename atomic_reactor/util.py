@@ -858,15 +858,24 @@ class Labels(object):
         Create a new Labels object
         providing access to actual newest labels as well as old ones
         """
+        self.LABEL_TYPE_NAME = 1
+        self.LABEL_TYPE_VERSION = 2
+        self.LABEL_TYPE_RELEASE = 3
+        self.LABEL_TYPE_ARCH = 4
+        self.LABEL_TYPE_VENDOR = 5
+        self.LABEL_TYPE_SOURCE = 6
+        self.LABEL_TYPE_COMPONENT = 7
+        self.LABEL_TYPE_HOST = 8
+
         self._label_names = {
-            "name" : ('name', 'Name'),
-            "version" : ('version', 'Version'),
-            "release" : ('release', 'Release'),
-            "arch" : ('architecture', 'Architecture'),
-            "vendor" : ('vendor', 'Vendor'),
-            "source" : ('authoritative-source-url', 'Authoritative_Registry'),
-            "component" : ('com.redhat.component', 'BZComponent'),
-            "host" : ('com.redhat.build-host', 'Build_Host')
+            self.LABEL_TYPE_NAME : ('name', 'Name'),
+            self.LABEL_TYPE_VERSION : ('version', 'Version'),
+            self.LABEL_TYPE_RELEASE : ('release', 'Release'),
+            self.LABEL_TYPE_ARCH : ('architecture', 'Architecture'),
+            self.LABEL_TYPE_VENDOR : ('vendor', 'Vendor'),
+            self.LABEL_TYPE_SOURCE : ('authoritative-source-url', 'Authoritative_Registry'),
+            self.LABEL_TYPE_COMPONENT : ('com.redhat.component', 'BZComponent'),
+            self.LABEL_TYPE_HOST : ('com.redhat.build-host', 'Build_Host')
         }
 
         for k in self._label_names:
