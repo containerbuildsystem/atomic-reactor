@@ -40,9 +40,8 @@ from atomic_reactor.plugin import ExitPluginsRunner
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
-from atomic_reactor.plugins.pre_cp_dockerfile import CpDockerfilePlugin
 from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
-from atomic_reactor.util import ImageName, LazyGit, ManifestDigest
+from atomic_reactor.util import ImageName, LazyGit, ManifestDigest, df_parser
 import pytest
 from tests.constants import LOCALHOST_REGISTRY, DOCKER0_REGISTRY, TEST_IMAGE, INPUT_IMAGE
 from tests.util import is_string_type
@@ -62,7 +61,6 @@ class X(object):
     source.path = None
     base_image = ImageName(repo="qwe", tag="asd")
     # image = ImageName.parse("test-image:unique_tag_123")
-
 
 def prepare(pulp_registries=None, docker_registries=None):
     if pulp_registries is None:
@@ -125,21 +123,27 @@ def prepare(pulp_registries=None, docker_registries=None):
 def test_metadata_plugin(tmpdir):
     initial_timestamp = datetime.now()
     workflow = prepare()
+    df_content = """
+FROM fedora
+RUN yum install -y python-django
+CMD blabla"""
+    df = df_parser(str(tmpdir))
+    df.content = df_content
+    workflow.builder = X
+    workflow.builder.df_path = df.dockerfile_path
+    workflow.builder.df_dir = str(tmpdir)
 
     workflow.prebuild_results = {
-        CpDockerfilePlugin.key: "dockerfile-content",
         DistgitFetchArtefactsPlugin.key: "artefact1\nartefact2",
     }
     workflow.postbuild_results = {
         PostBuildRPMqaPlugin.key: "rpm1\nrpm2",
     }
     workflow.plugins_timestamps = {
-        CpDockerfilePlugin.key: initial_timestamp.isoformat(),
         DistgitFetchArtefactsPlugin.key: (initial_timestamp + timedelta(seconds=1)).isoformat(),
         PostBuildRPMqaPlugin.key: (initial_timestamp + timedelta(seconds=3)).isoformat(),
     }
     workflow.plugins_durations = {
-        CpDockerfilePlugin.key: 1.01,
         DistgitFetchArtefactsPlugin.key: 2.02,
         PostBuildRPMqaPlugin.key: 3.03,
     }
@@ -205,7 +209,6 @@ def test_metadata_plugin(tmpdir):
     plugins_metadata = json.loads(annotations["plugins-metadata"])
     assert "distgit_fetch_artefacts" in plugins_metadata["errors"]
 
-    assert "cp_dockerfile" in plugins_metadata["durations"]
     assert "distgit_fetch_artefacts" in plugins_metadata["durations"]
     assert "all_rpm_packages" in plugins_metadata["durations"]
 
@@ -213,21 +216,27 @@ def test_metadata_plugin(tmpdir):
 def test_metadata_plugin_rpmqa_failure(tmpdir):
     initial_timestamp = datetime.now()
     workflow = prepare()
+    df_content = """
+FROM fedora
+RUN yum install -y python-django
+CMD blabla"""
+    df = df_parser(str(tmpdir))
+    df.content = df_content
+    workflow.builder = X
+    workflow.builder.df_path = df.dockerfile_path
+    workflow.builder.df_dir = str(tmpdir)
 
     workflow.prebuild_results = {
-        CpDockerfilePlugin.key: "dockerfile-content",
         DistgitFetchArtefactsPlugin.key: "artefact1\nartefact2",
     }
     workflow.postbuild_results = {
         PostBuildRPMqaPlugin.key: RuntimeError(),
     }
     workflow.plugins_timestamps = {
-        CpDockerfilePlugin.key: initial_timestamp.isoformat(),
         DistgitFetchArtefactsPlugin.key: (initial_timestamp + timedelta(seconds=1)).isoformat(),
         PostBuildRPMqaPlugin.key: (initial_timestamp + timedelta(seconds=3)).isoformat(),
     }
     workflow.plugins_durations = {
-        CpDockerfilePlugin.key: 1.01,
         DistgitFetchArtefactsPlugin.key: 2.02,
         PostBuildRPMqaPlugin.key: 3.03,
     }
@@ -269,7 +278,6 @@ def test_metadata_plugin_rpmqa_failure(tmpdir):
     plugins_metadata = json.loads(annotations["plugins-metadata"])
     assert "all_rpm_packages" in plugins_metadata["errors"]
 
-    assert "cp_dockerfile" in plugins_metadata["durations"]
     assert "distgit_fetch_artefacts" in plugins_metadata["durations"]
     assert "all_rpm_packages" in plugins_metadata["durations"]
 
@@ -277,6 +285,15 @@ def test_labels_metadata_plugin(tmpdir):
 
     koji_build_id = 1234
     workflow = prepare()
+    df_content = """
+FROM fedora
+RUN yum install -y python-django
+CMD blabla"""
+    df = df_parser(str(tmpdir))
+    df.content = df_content
+    workflow.builder = X
+    workflow.builder.df_path = df.dockerfile_path
+    workflow.builder.df_dir = str(tmpdir)
 
     workflow.exit_results = {
         KojiPromotePlugin.key: koji_build_id,
@@ -301,8 +318,16 @@ def test_labels_metadata_plugin(tmpdir):
 
 def test_missing_koji_build_id(tmpdir):
     workflow = prepare()
-
     workflow.exit_results = {}
+    df_content = """
+FROM fedora
+RUN yum install -y python-django
+CMD blabla"""
+    df = df_parser(str(tmpdir))
+    df.content = df_content
+    workflow.builder = X
+    workflow.builder.df_path = df.dockerfile_path
+    workflow.builder.df_dir = str(tmpdir)
 
     runner = ExitPluginsRunner(
         None,
@@ -322,8 +347,16 @@ def test_missing_koji_build_id(tmpdir):
 
 def test_store_metadata_fail_update_annotations(tmpdir, caplog):
     workflow = prepare()
-
     workflow.exit_results = {}
+    df_content = """
+FROM fedora
+RUN yum install -y python-django
+CMD blabla"""
+    df = df_parser(str(tmpdir))
+    df.content = df_content
+    workflow.builder = X
+    workflow.builder.df_path = df.dockerfile_path
+    workflow.builder.df_dir = str(tmpdir)
 
     runner = ExitPluginsRunner(
         None,
@@ -397,6 +430,15 @@ def test_filter_repositories(tmpdir, pulp_registries, docker_registries,
                              prefixes):
     workflow = prepare(pulp_registries=pulp_registries,
                        docker_registries=docker_registries)
+    df_content = """
+FROM fedora
+RUN yum install -y python-django
+CMD blabla"""
+    df = df_parser(str(tmpdir))
+    df.content = df_content
+    workflow.builder = X
+    workflow.builder.df_path = df.dockerfile_path
+    workflow.builder.df_dir = str(tmpdir)
 
     runner = ExitPluginsRunner(
         None,
