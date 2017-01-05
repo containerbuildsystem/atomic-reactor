@@ -854,7 +854,7 @@ def df_parser(df_path, workflow=None, cache_content=False, env_replace=True, par
 
 
 class Labels(object):
-    def __init__(self):
+    def __init__(self, df_labels):
         """
         Create a new Labels object
         providing access to actual newest labels as well as old ones
@@ -878,6 +878,14 @@ class Labels(object):
             self.LABEL_TYPE_COMPONENT : ('com.redhat.component', 'BZComponent'),
             self.LABEL_TYPE_HOST : ('com.redhat.build-host', 'Build_Host')
         }
+
+        self._df_labels = df_labels
+        self._label_values = {}
+        for label_type in self._label_names:
+            for lbl_name in self._label_names[label_type]:
+                if lbl_name in df_labels:
+                    self._label_values[label_type] = df_labels[lbl_name]
+                    break
 
     def get_label_only(self, label_type):
         """returns newest label name"""
@@ -963,40 +971,39 @@ class Labels(object):
     def get_all_labels_host(self):
         return self.get_all_labels(self.LABEL_TYPE_HOST)
 
-    def get_preferred_label(self, label_type, labels):
+    def get_preferred_label(self, label_type):
         """
         returns the most preferred label name
-        from provided list
         if there isn't any correct name in the list
         it will return newest label name
         """
         for lbl in self._label_names[label_type]:
-            if lbl in labels:
+            if lbl in self._df_labels:
                 return lbl
         return self._label_names[label_type][0]
 
-    def get_pref_label_name(self, labels):
+    def get_pref_label_name(self):
         return self.get_preferred_label(self.LABEL_TYPE_NAME)
 
-    def get_pref_label_version(self, labels):
+    def get_pref_label_version(self):
         return self.get_preferred_label(self.LABEL_TYPE_VERSION)
 
-    def get_pref_label_release(self, labels):
+    def get_pref_label_release(self):
         return self.get_preferred_label(self.LABEL_TYPE_RELEASE)
 
-    def get_pref_label_arch(self, labels):
+    def get_pref_label_arch(self):
         return self.get_preferred_label(self.LABEL_TYPE_ARCH)
 
-    def get_pref_label_vendor(self, labels):
+    def get_pref_label_vendor(self):
         return self.get_preferred_label(self.LABEL_TYPE_VENDOR)
 
-    def get_pref_label_source(self, labels):
+    def get_pref_label_source(self):
         return self.get_preferred_label(self.LABEL_TYPE_SOURCE)
 
-    def get_pref_label_component(self, labels):
+    def get_pref_label_component(self):
         return self.get_preferred_label(self.LABEL_TYPE_COMPONENT)
 
-    def get_pref_label_host(self, labels):
+    def get_pref_label_host(self):
         return self.get_preferred_label(self.LABEL_TYPE_HOST)
 
     def get_new_names_by_old(self):
@@ -1007,3 +1014,59 @@ class Labels(object):
             for oldname in self._label_names[label_type][1:]:
                 newdict[oldname] = self._label_names[label_type][0]
         return newdict
+
+    def get_value_only(self, label_type):
+        """returns label value"""
+        return self._label_values.get(label_type)
+
+    def get_value_name(self):
+        return self.get_value_only(self.LABEL_TYPE_NAME)
+
+    def get_value_version(self):
+        return self.get_value_only(self.LABEL_TYPE_VERSION)
+
+    def get_value_release(self):
+        return self.get_value_only(self.LABEL_TYPE_RELEASE)
+
+    def get_value_arch(self):
+        return self.get_value_only(self.LABEL_TYPE_ARCH)
+
+    def get_value_vendor(self):
+        return self.get_value_only(self.LABEL_TYPE_VENDOR)
+
+    def get_value_source(self):
+        return self.get_value_only(self.LABEL_TYPE_SOURCE)
+
+    def get_value_component(self):
+        return self.get_value_only(self.LABEL_TYPE_COMPONENT)
+
+    def get_value_host(self):
+        return self.get_value_only(self.LABEL_TYPE_HOST)
+
+    def get_label_and_value(self, label_type):
+        """Return tuple of (label name, label value)"""
+        return (self.get_preferred_label(label_type), self._label_values.get(label_type))
+
+    def get_name(self):
+        return self.get_label_and_value(self.LABEL_TYPE_NAME)
+
+    def get_version(self):
+        return self.get_label_and_value(self.LABEL_TYPE_VERSION)
+
+    def get_release(self):
+        return self.get_label_and_value(self.LABEL_TYPE_RELEASE)
+
+    def get_arch(self):
+        return self.get_label_and_value(self.LABEL_TYPE_ARCH)
+
+    def get_vendor(self):
+        return self.get_label_and_value(self.LABEL_TYPE_VENDOR)
+
+    def get_source(self):
+        return self.get_label_and_value(self.LABEL_TYPE_SOURCE)
+
+    def get_component(self):
+        return self.get_label_and_value(self.LABEL_TYPE_COMPONENT)
+
+    def get_host(self):
+        return self.get_label_and_value(self.LABEL_TYPE_HOST)
