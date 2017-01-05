@@ -1,4 +1,5 @@
 """
+
 Copyright (c) 2015 Red Hat, Inc
 All rights reserved.
 
@@ -878,8 +879,11 @@ class Labels(object):
             self.LABEL_TYPE_HOST : ('com.redhat.build-host', 'Build_Host')
         }
 
-        for k in self._label_names:
-            self.create_methods(k, self._label_names[k])
+    def get_label_name(self):
+        return values[0]
+
+    def get_old_labels(self):
+        return values[1:]
 
     def create_methods(self, name, values):
         """
@@ -919,3 +923,132 @@ class Labels(object):
 
         get_preferred_label.__name__ = "get_%s_pref" % name
         setattr(self.__class__, get_preferred_label.__name__, get_preferred_label)
+
+
+    # getter methods return newest label
+    def get_name(self):
+        return(self._name[0])
+
+    def get_version(self):
+        return(self._version[0])
+
+    def get_release(self):
+        return(self._release[0])
+
+    def get_arch(self):
+        return(self._arch[0])
+
+    def get_vendor(self):
+        return(self._vendor[0])
+
+    def get_source(self):
+        return(self._source[0])
+
+    def get_component(self):
+        return(self._component[0])
+
+    def get_host(self):
+        return(self._host[0])
+
+    # getter old methods return tuple with all old label names
+    def get_name_old(self):
+        return(self._name[1:])
+
+    def get_version_old(self):
+        return(self._version[1:])
+
+    def get_release_old(self):
+        return(self._release[1:])
+
+    def get_arch_old(self):
+        return(self._arch[1:])
+
+    def get_vendor_old(self):
+        return(self._vendor[1:])
+
+    def get_source_old(self):
+        return(self._source[1:])
+
+    def get_component_old(self):
+        return(self._component[1:])
+
+    def get_host_old(self):
+        return(self._host[1:])
+
+    # getter all methods return tuple with all label names
+    def get_name_all(self):
+        return(self._name)
+
+    def get_version_all(self):
+        return(self._version)
+
+    def get_release_all(self):
+        return(self._release)
+
+    def get_arch_all(self):
+        return(self._arch)
+
+    def get_vendor_all(self):
+        return(self._vendor)
+
+    def get_source_all(self):
+        return(self._source)
+
+    def get_component_all(self):
+        return(self._component)
+
+    def get_host_all(self):
+        return(self._host)
+
+    # getter pref methods return preferred used in given label list
+    def get_name_pref(self, labels):
+        """
+        returns label name 'name' in the form from labels list
+        so if there is old label 'Name' it will return that
+        """
+        for lbl in self._name:
+            if lbl in labels:
+                return lbl
+        return self._name[0]
+
+    def get_version_pref(self, labels):
+        for lbl in self._version:
+            if lbl in labels:
+                return lbl
+        return self._version[0]
+
+    def get_release_pref(self, labels):
+        for lbl in self._release:
+            if lbl in labels:
+                return lbl
+        return self._release[0]
+
+    def get_arch_pref(self, labels):
+        for lbl in self._arch:
+            if lbl in labels:
+                return lbl
+        return self._arch[0]
+
+    def get_vendor_pref(self, labels):
+        for lbl in self._vendor:
+            if lbl in labels:
+                return lbl
+        return self._vendor[0]
+
+    def get_source_pref(self, labels):
+        for lbl in self._source:
+            if lbl in labels:
+                return lbl
+        return self._source[0]
+
+    def get_component_pref(self, labels):
+        for lbl in self._component:
+            if lbl in labels:
+                return lbl
+        return self._component[0]
+
+    def get_host_pref(self, labels):
+        for lbl in self._host:
+            if lbl in labels:
+                return lbl
+        return self._host[0]
