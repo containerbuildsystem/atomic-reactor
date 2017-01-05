@@ -17,6 +17,7 @@ from atomic_reactor.plugin import (PreBuildPlugin, PrePublishPlugin, PostBuildPl
                                    AutoRebuildCanceledException, PluginFailedException,
                                    BuildCanceledException)
 import atomic_reactor.plugin
+import atomic_reactor.inner
 import logging
 from flexmock import flexmock
 import pytest
@@ -401,7 +402,7 @@ class Exit(ExitPlugin):
      True,  # is fatal
      True,  # logs error
     ),
-     
+
 
     # No 'name' key, exit
     ({
@@ -940,3 +941,40 @@ def test_cancel_build(request, fail_at):
 
     if fail_at not in ['pre', 'prepub', 'build']:
         assert watch_post.was_called()
+
+
+@pytest.mark.parametrize('has_version', [True, False])
+def test_show_version(request, has_version):
+    """
+    Test atomic-reactor print version of osbs-client used to build the build json
+    if available
+    """
+    VERSION = "1.0"
+
+    mock_docker()
+    fake_builder = MockInsideBuilder()
+    flexmock(InsideBuilder).new_instances(fake_builder)
+
+    fake_logger = FakeLogger()
+    existing_logger = atomic_reactor.inner.logger
+
+    def restore_logger():
+        atomic_reactor.inner.logger = existing_logger
+
+    request.addfinalizer(restore_logger)
+    atomic_reactor.inner.logger = fake_logger
+
+    params = {
+        'prebuild_plugins': [],
+        'prepublish_plugins': [],
+        'postbuild_plugins': [],
+        'exit_plugins': []
+    }
+    if has_version:
+        params['client_version'] = VERSION
+
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image', **params)
+    workflow.build_docker_image()
+
+    expected_log_message = ("build json was built by osbs-client %s", VERSION)
+    assert (expected_log_message in fake_logger.debugs) == has_version
