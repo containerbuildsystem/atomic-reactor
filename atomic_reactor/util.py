@@ -879,11 +879,63 @@ class Labels(object):
             self.LABEL_TYPE_HOST : ('com.redhat.build-host', 'Build_Host')
         }
 
-    def get_label_name(self):
-        return values[0]
+    # general getter method returns newest label
+    def get_label_only(self, label_type):
+        return self._label_names[label_type][0]
 
-    def get_old_labels(self):
-        return values[1:]
+    def get_label_name(self):
+        return self.get_label_only(self.LABEL_TYPE_NAME)
+
+    def get_label_version(self):
+        return self.get_label_only(self.LABEL_TYPE_VERSION)
+
+    def get_label_release(self):
+        return self.get_label_only(self.LABEL_TYPE_RELEASE)
+
+    def get_label_arch(self):
+        return self.get_label_only(self.LABEL_TYPE_ARCH)
+
+    def get_label_vendor(self):
+        return self.get_label_only(self.LABEL_TYPE_VENDOR)
+
+    def get_label_source(self):
+        return self.get_label_only(self.LABEL_TYPE_SOURCE)
+
+    def get_label_component(self):
+        return self.get_label_only(self.LABEL_TYPE_COMPONENT)
+
+    def get_label_host(self):
+        return self.get_label_only(self.LABEL_TYPE_HOST)
+
+    # general getter old method returns tuple with all old label names
+    def get_old_labels(self, label_type):
+        return self._label_names[label_type][1:]
+
+    def get_old_labels_name(self):
+        return self.get_old_labels(self.LABEL_TYPE_NAME)
+
+    def get_old_labels_version(self):
+        return self.get_old_labels(self.LABEL_TYPE_VERSION)
+
+    def get_old_labels_release(self):
+        return self.get_old_labels(self.LABEL_TYPE_RELEASE)
+
+    def get_old_labels_arch(self):
+        return self.get_old_labels(self.LABEL_TYPE_ARCH)
+
+    def get_old_labels_vendor(self):
+        return self.get_old_labels(self.LABEL_TYPE_VENDOR)
+
+    def get_old_labels_source(self):
+        return self.get_old_labels(self.LABEL_TYPE_SOURCE)
+
+    def get_old_labels_component(self):
+        return self.get_old_labels(self.LABEL_TYPE_COMPONENT)
+
+    def get_old_labels_host(self):
+        return self.get_old_labels(self.LABEL_TYPE_HOST)
+
+
 
     def create_methods(self, name, values):
         """
@@ -924,31 +976,6 @@ class Labels(object):
         get_preferred_label.__name__ = "get_%s_pref" % name
         setattr(self.__class__, get_preferred_label.__name__, get_preferred_label)
 
-
-    # getter methods return newest label
-    def get_name(self):
-        return(self._name[0])
-
-    def get_version(self):
-        return(self._version[0])
-
-    def get_release(self):
-        return(self._release[0])
-
-    def get_arch(self):
-        return(self._arch[0])
-
-    def get_vendor(self):
-        return(self._vendor[0])
-
-    def get_source(self):
-        return(self._source[0])
-
-    def get_component(self):
-        return(self._component[0])
-
-    def get_host(self):
-        return(self._host[0])
 
     # getter old methods return tuple with all old label names
     def get_name_old(self):
