@@ -879,8 +879,8 @@ class Labels(object):
             self.LABEL_TYPE_HOST : ('com.redhat.build-host', 'Build_Host')
         }
 
-    # general getter method returns newest label
     def get_label_only(self, label_type):
+        """returns newest label name"""
         return self._label_names[label_type][0]
 
     def get_label_name(self):
@@ -907,8 +907,8 @@ class Labels(object):
     def get_label_host(self):
         return self.get_label_only(self.LABEL_TYPE_HOST)
 
-    # general getter old method returns tuple with all old label names
     def get_old_labels(self, label_type):
+        """returns tuple with all old label names"""
         return self._label_names[label_type][1:]
 
     def get_old_labels_name(self):
@@ -935,147 +935,75 @@ class Labels(object):
     def get_old_labels_host(self):
         return self.get_old_labels(self.LABEL_TYPE_HOST)
 
+    def get_all_labels(self, label_type):
+        """returns tuple with all label names"""
+        return self._label_names[label_type]
 
+    def get_all_labels_name(self):
+        return self.get_all_labels(self.LABEL_TYPE_NAME)
 
-    def create_methods(self, name, values):
+    def get_all_labels_version(self):
+        return self.get_all_labels(self.LABEL_TYPE_VERSION)
+
+    def get_all_labels_release(self):
+        return self.get_all_labels(self.LABEL_TYPE_RELEASE)
+
+    def get_all_labels_arch(self):
+        return self.get_all_labels(self.LABEL_TYPE_ARCH)
+
+    def get_all_labels_vendor(self):
+        return self.get_all_labels(self.LABEL_TYPE_VENDOR)
+
+    def get_all_labels_source(self):
+        return self.get_all_labels(self.LABEL_TYPE_SOURCE)
+
+    def get_all_labels_component(self):
+        return self.get_all_labels(self.LABEL_TYPE_COMPONENT)
+
+    def get_all_labels_host(self):
+        return self.get_all_labels(self.LABEL_TYPE_HOST)
+
+    def get_preferred_label(self, label_type, labels):
         """
-        creates class methods
+        returns the most preferred label name
+        from provided list
+        if there isn't any correct name in the list
+        it will return newest label name
         """
-        # getter method returns newest label
-        def get_label_name(self):
-            return values[0]
-
-        get_label_name.__name__ = "get_%s" % name
-        setattr(self.__class__, get_label_name.__name__, get_label_name)
-
-        # getter old method returns tuple with all old label names
-        def get_old_labels(self):
-            return values[1:]
-
-        get_old_labels.__name__ = "get_%s_old" % name
-        setattr(self.__class__, get_old_labels.__name__, get_old_labels)
-
-        # getter all method returns tuple with all label names
-        def get_all_labels(self):
-            return values
-
-        get_all_labels.__name__ = "get_%s_all" % name
-        setattr(self.__class__, get_all_labels.__name__, get_all_labels)
-
-        # getter pref methods returns preferred used in given label list
-        def get_preferred_label(self, labels):
-            """
-            returns label name 'name' in the form from labels list
-            so if there is old label 'Name' it will return that
-            """
-            for lbl in values:
-                if lbl in labels:
-                    return lbl
-            return values[0]
-
-        get_preferred_label.__name__ = "get_%s_pref" % name
-        setattr(self.__class__, get_preferred_label.__name__, get_preferred_label)
-
-
-    # getter old methods return tuple with all old label names
-    def get_name_old(self):
-        return(self._name[1:])
-
-    def get_version_old(self):
-        return(self._version[1:])
-
-    def get_release_old(self):
-        return(self._release[1:])
-
-    def get_arch_old(self):
-        return(self._arch[1:])
-
-    def get_vendor_old(self):
-        return(self._vendor[1:])
-
-    def get_source_old(self):
-        return(self._source[1:])
-
-    def get_component_old(self):
-        return(self._component[1:])
-
-    def get_host_old(self):
-        return(self._host[1:])
-
-    # getter all methods return tuple with all label names
-    def get_name_all(self):
-        return(self._name)
-
-    def get_version_all(self):
-        return(self._version)
-
-    def get_release_all(self):
-        return(self._release)
-
-    def get_arch_all(self):
-        return(self._arch)
-
-    def get_vendor_all(self):
-        return(self._vendor)
-
-    def get_source_all(self):
-        return(self._source)
-
-    def get_component_all(self):
-        return(self._component)
-
-    def get_host_all(self):
-        return(self._host)
-
-    # getter pref methods return preferred used in given label list
-    def get_name_pref(self, labels):
-        """
-        returns label name 'name' in the form from labels list
-        so if there is old label 'Name' it will return that
-        """
-        for lbl in self._name:
+        for lbl in self._label_names[label_type]:
             if lbl in labels:
                 return lbl
-        return self._name[0]
+        return self._label_names[label_type][0]
 
-    def get_version_pref(self, labels):
-        for lbl in self._version:
-            if lbl in labels:
-                return lbl
-        return self._version[0]
+    def get_pref_label_name(self, labels):
+        return self.get_preferred_label(self.LABEL_TYPE_NAME)
 
-    def get_release_pref(self, labels):
-        for lbl in self._release:
-            if lbl in labels:
-                return lbl
-        return self._release[0]
+    def get_pref_label_version(self, labels):
+        return self.get_preferred_label(self.LABEL_TYPE_VERSION)
 
-    def get_arch_pref(self, labels):
-        for lbl in self._arch:
-            if lbl in labels:
-                return lbl
-        return self._arch[0]
+    def get_pref_label_release(self, labels):
+        return self.get_preferred_label(self.LABEL_TYPE_RELEASE)
 
-    def get_vendor_pref(self, labels):
-        for lbl in self._vendor:
-            if lbl in labels:
-                return lbl
-        return self._vendor[0]
+    def get_pref_label_arch(self, labels):
+        return self.get_preferred_label(self.LABEL_TYPE_ARCH)
 
-    def get_source_pref(self, labels):
-        for lbl in self._source:
-            if lbl in labels:
-                return lbl
-        return self._source[0]
+    def get_pref_label_vendor(self, labels):
+        return self.get_preferred_label(self.LABEL_TYPE_VENDOR)
 
-    def get_component_pref(self, labels):
-        for lbl in self._component:
-            if lbl in labels:
-                return lbl
-        return self._component[0]
+    def get_pref_label_source(self, labels):
+        return self.get_preferred_label(self.LABEL_TYPE_SOURCE)
 
-    def get_host_pref(self, labels):
-        for lbl in self._host:
-            if lbl in labels:
-                return lbl
-        return self._host[0]
+    def get_pref_label_component(self, labels):
+        return self.get_preferred_label(self.LABEL_TYPE_COMPONENT)
+
+    def get_pref_label_host(self, labels):
+        return self.get_preferred_label(self.LABEL_TYPE_HOST)
+
+    def get_new_names_by_old(self):
+        """Return dictionary, new label name indexed by old label name."""
+        newdict = {}
+
+        for label_type in self._label_names:
+            for oldname in self._label_names[label_type][1:]:
+                newdict[oldname] = self._label_names[label_type][0]
+        return newdict
