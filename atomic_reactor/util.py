@@ -1016,8 +1016,11 @@ class Labels(object):
         return newdict
 
     def get_value_only(self, label_type):
-        """returns label value"""
-        return self._label_values.get(label_type)
+        """
+        returns label value
+        Raises KeyError if label doesn't exist
+        """
+        return self._label_values[label_type]
 
     def get_value_name(self):
         return self.get_value_only(self.LABEL_TYPE_NAME)
@@ -1044,8 +1047,11 @@ class Labels(object):
         return self.get_value_only(self.LABEL_TYPE_HOST)
 
     def get_label_and_value(self, label_type):
-        """Return tuple of (label name, label value)"""
-        return (self.get_preferred_label(label_type), self._label_values.get(label_type))
+        """
+        Return tuple of (label name, label value)
+        Raises KeyError if label doesn't exist
+        """
+        return (self.get_preferred_label(label_type), self._label_values[label_type])
 
     def get_name(self):
         return self.get_label_and_value(self.LABEL_TYPE_NAME)
