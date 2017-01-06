@@ -27,6 +27,7 @@ import shutil
 import logging
 import tempfile
 import json
+import requests
 
 import docker
 from docker.errors import APIError
@@ -620,3 +621,39 @@ class DockerTasker(LastLogger):
         :return: dict, json output of `docker version`
         """
         return self.d.version()
+
+    def get_volumes_for_container(self, container_id, skip_empty_source=True):
+        """
+        get a list of volumes mounter in a container
+
+        :param container_id: str
+        :param skip_empty_source: bool, don't list volumes which are not created on FS
+        :return: list, a list of volume names
+        """
+        logger.info("listing volumes for container '%s'", container_id)
+        inspect_output = self.d.inspect_container(container_id)
+        volumes = inspect_output['Mounts'] or []
+        volume_names = [x['Name'] for x in volumes]
+
+        if skip_empty_source:
+            # Don't show volumes which are not on the filesystem
+            volume_names = [x['Name'] for x in volumes if x['Source'] != ""]
+
+        logger.debug("volumes = %s", volume_names)
+        return volume_names
+
+    def remove_volume(self, volume_name):
+        """
+        remove a volume by its name
+
+        :param volume_name: str
+        :return None
+        """
+        logger.info("removing volume '%s'", volume_name)
+        try:
+            self.d.remove_volume(volume_name)
+        except APIError as ex:
+            if ex.response.status_code == requests.codes.CONFLICT:
+                logger.debug("ignoring a conflict when removing volume %s", volume_name)
+            else:
+                raise ex

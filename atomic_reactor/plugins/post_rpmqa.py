@@ -59,10 +59,18 @@ class PostBuildRPMqaPlugin(PostBuildPlugin):
             self.log.debug("ignore rpms 'gpg-pubkey'")
             plugin_output = [x for x in plugin_output if not x.startswith("gpg-pubkey" + self.sep)]
 
+        volumes = self.tasker.get_volumes_for_container(container_id)
+
         try:
             self.tasker.remove_container(container_id)
         except APIError:
             self.log.warning("error removing container (ignored):",
                              exc_info=True)
+
+        for volume_name in volumes:
+            try:
+                self.tasker.remove_volume(volume_name)
+            except APIError:
+                self.log.warning("error removing volume (ignored):", exc_info=True)
 
         return plugin_output
