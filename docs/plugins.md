@@ -99,6 +99,9 @@ These are run after 'git clone' is used to fetch the git repository content cont
  * **change_from_in_dockerfile**
    * Status: enabled
    * The FROM line in the Dockerfile is changed so that it references the specific docker image ID we pulled/imported earlier.
+ * **add_help**
+   * Status: enabled
+   * Markdown help page is converted to a man page and ADD'ed into the built image in order to show a correct page when 'atomic help' is called.
  * **add_dockerfile**
    * Status: enabled
    * The Dockerfile used to build the image has a line added to ADD itself into the built image.
