@@ -38,20 +38,9 @@ class DistgitFetchArtefactsPlugin(PreBuildPlugin):
         fetch artefacts
         """
         source_path = self.workflow.source.path
-        sources_file_path = os.path.join(source_path, 'sources')
-        artefacts = ""
+        cur_dir = os.getcwd()
+        os.chdir(source_path)
         try:
-            with open(sources_file_path, 'r') as f:
-                artefacts = f.read()
-                self.log.info('sources file:\n%s', artefacts)
-        except IOError as ex:
-            if ex.errno == 2:
-                self.log.info("no sources file")
-            else:
-                raise
-        else:
-            cur_dir = os.getcwd()
-            os.chdir(source_path)
             subprocess.check_call(self.command.split())
+        finally:
             os.chdir(cur_dir)
-        return artefacts
