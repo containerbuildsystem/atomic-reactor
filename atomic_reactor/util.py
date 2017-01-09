@@ -854,37 +854,36 @@ def df_parser(df_path, workflow=None, cache_content=False, env_replace=True, par
 
 
 class Labels(object):
+    LABEL_TYPE_NAME = object()
+    LABEL_TYPE_VERSION = object()
+    LABEL_TYPE_RELEASE = object()
+    LABEL_TYPE_ARCH = object()
+    LABEL_TYPE_VENDOR = object()
+    LABEL_TYPE_SOURCE = object()
+    LABEL_TYPE_COMPONENT = object()
+    LABEL_TYPE_HOST = object()
+    LABEL_NAMES = {
+        LABEL_TYPE_NAME : ('name', 'Name'),
+        LABEL_TYPE_VERSION : ('version', 'Version'),
+        LABEL_TYPE_RELEASE : ('release', 'Release'),
+        LABEL_TYPE_ARCH : ('architecture', 'Architecture'),
+        LABEL_TYPE_VENDOR : ('vendor', 'Vendor'),
+        LABEL_TYPE_SOURCE : ('authoritative-source-url', 'Authoritative_Registry'),
+        LABEL_TYPE_COMPONENT : ('com.redhat.component', 'BZComponent'),
+        LABEL_TYPE_HOST : ('com.redhat.build-host', 'Build_Host')
+    }
+
     def __init__(self, df_labels):
         """
         Create a new Labels object
         providing access to actual newest labels as well as old ones
         """
-        self.LABEL_TYPE_NAME = 1
-        self.LABEL_TYPE_VERSION = 2
-        self.LABEL_TYPE_RELEASE = 3
-        self.LABEL_TYPE_ARCH = 4
-        self.LABEL_TYPE_VENDOR = 5
-        self.LABEL_TYPE_SOURCE = 6
-        self.LABEL_TYPE_COMPONENT = 7
-        self.LABEL_TYPE_HOST = 8
-
-        self._label_names = {
-            self.LABEL_TYPE_NAME : ('name', 'Name'),
-            self.LABEL_TYPE_VERSION : ('version', 'Version'),
-            self.LABEL_TYPE_RELEASE : ('release', 'Release'),
-            self.LABEL_TYPE_ARCH : ('architecture', 'Architecture'),
-            self.LABEL_TYPE_VENDOR : ('vendor', 'Vendor'),
-            self.LABEL_TYPE_SOURCE : ('authoritative-source-url', 'Authoritative_Registry'),
-            self.LABEL_TYPE_COMPONENT : ('com.redhat.component', 'BZComponent'),
-            self.LABEL_TYPE_HOST : ('com.redhat.build-host', 'Build_Host')
-        }
-
         self._df_labels = df_labels
         self._label_values = {}
-        for label_type in self._label_names:
-            for lbl_name in self._label_names[label_type]:
+        for label_type in Labels.LABEL_NAMES:
+            for lbl_name in Labels.LABEL_NAMES[label_type]:
                 if lbl_name in df_labels:
-                    self._label_values[label_type] = df_labels[lbl_name]
+                    self._label_values[label_type] = (lbl_name, df_labels[lbl_name])
                     break
 
     def get_label_only(self, label_type):
@@ -893,42 +892,18 @@ class Labels(object):
         if there isn't any correct name in the list
         it will return newest label name
         """
-        for lbl in self._label_names[label_type]:
+        for lbl in Labels.LABEL_NAMES[label_type]:
             if lbl in self._df_labels:
                 return lbl
-        return self._label_names[label_type][0]
-
-    def get_name_label(self):
-        return self.get_label_only(self.LABEL_TYPE_NAME)
-
-    def get_version_label(self):
-        return self.get_label_only(self.LABEL_TYPE_VERSION)
-
-    def get_release_label(self):
-        return self.get_label_only(self.LABEL_TYPE_RELEASE)
-
-    def get_arch_label(self):
-        return self.get_label_only(self.LABEL_TYPE_ARCH)
-
-    def get_vendor_label(self):
-        return self.get_label_only(self.LABEL_TYPE_VENDOR)
-
-    def get_source_label(self):
-        return self.get_label_only(self.LABEL_TYPE_SOURCE)
-
-    def get_component_label(self):
-        return self.get_label_only(self.LABEL_TYPE_COMPONENT)
-
-    def get_host_label(self):
-        return self.get_label_only(self.LABEL_TYPE_HOST)
+        return Labels.LABEL_NAMES[label_type][0]
 
     def get_new_names_by_old(self):
         """Return dictionary, new label name indexed by old label name."""
         newdict = {}
 
-        for label_type, label_names in self._label_names.items():
+        for label_type, label_names in Labels.LABEL_NAMES.items():
             for oldname in label_names[1:]:
-                newdict[oldname] = self._label_names[label_type][0]
+                newdict[oldname] = Labels.LABEL_NAMES[label_type][0]
         return newdict
 
     def get_label_and_value(self, label_type):
@@ -936,28 +911,4 @@ class Labels(object):
         Return tuple of (label name, label value)
         Raises KeyError if label doesn't exist
         """
-        return (self.get_label_only(label_type), self._label_values[label_type])
-
-    def get_name(self):
-        return self.get_label_and_value(self.LABEL_TYPE_NAME)
-
-    def get_version(self):
-        return self.get_label_and_value(self.LABEL_TYPE_VERSION)
-
-    def get_release(self):
-        return self.get_label_and_value(self.LABEL_TYPE_RELEASE)
-
-    def get_arch(self):
-        return self.get_label_and_value(self.LABEL_TYPE_ARCH)
-
-    def get_vendor(self):
-        return self.get_label_and_value(self.LABEL_TYPE_VENDOR)
-
-    def get_source(self):
-        return self.get_label_and_value(self.LABEL_TYPE_SOURCE)
-
-    def get_component(self):
-        return self.get_label_and_value(self.LABEL_TYPE_COMPONENT)
-
-    def get_host(self):
-        return self.get_label_and_value(self.LABEL_TYPE_HOST)
+        return (self._label_values[label_type][0], self._label_values[label_type][1])
