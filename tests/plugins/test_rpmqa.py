@@ -21,6 +21,8 @@ from tests.constants import DOCKERFILE_GIT, MOCK
 if MOCK:
     from tests.docker_mock import mock_docker
 from tests.fixtures import docker_tasker
+from tests.test_inner import FakeLogger
+import atomic_reactor.core
 
 TEST_IMAGE = "fedora:latest"
 SOURCE = {"provider": "git", "uri": DOCKERFILE_GIT}
@@ -94,3 +96,43 @@ def test_rpmqa_plugin_exception(docker_tasker):
                                       "args": {'image_id': TEST_IMAGE}}])
     with pytest.raises(PluginFailedException):
         results = runner.run()
+
+
+def test_dangling_volumes_removed(request):
+    mock_docker()
+
+    tasker = DockerTasker()
+
+    fake_logger = FakeLogger()
+    existing_logger = atomic_reactor.core.logger
+
+    def restore_logger():
+        atomic_reactor.core.logger = existing_logger
+
+    request.addfinalizer(restore_logger)
+    atomic_reactor.core.logger = fake_logger
+
+    workflow = DockerBuildWorkflow(SOURCE, "test-image")
+    setattr(workflow, 'builder', X())
+    setattr(workflow.builder, 'image_id', "asd123")
+    setattr(workflow.builder, 'base_image', ImageName(repo='fedora', tag='21'))
+    setattr(workflow.builder, "source", X())
+    setattr(workflow.builder.source, 'dockerfile_path', "/non/existent")
+    setattr(workflow.builder.source, 'path', "/non/existent")
+
+    runner = PostBuildPluginsRunner(tasker, workflow,
+                                    [{"name": PostBuildRPMqaPlugin.key,
+                                      "args": {'image_id': TEST_IMAGE}}])
+
+    runner.run()
+
+    assert ("container_id = '%s'",
+            u'f8ee920b2db5e802da2583a13a4edbf0523ca5fff6b6d6454c1fd6db5f38014d')\
+            in fake_logger.debugs
+
+    expected_volumes = [u'test', u'conflict_exception', u'real_exception']
+    assert ("volumes = %s", expected_volumes) in fake_logger.debugs
+    assert ("removing volume '%s'", u'test') in fake_logger.infos
+    assert ("removing volume '%s'", u'conflict_exception') in fake_logger.infos
+    assert ("removing volume '%s'", u'real_exception') in fake_logger.infos
+    assert ('ignoring a conflict when removing volume %s', 'conflict_exception') in fake_logger.debugs

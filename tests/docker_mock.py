@@ -11,6 +11,7 @@ from __future__ import unicode_literals
 import os
 import docker
 from flexmock import flexmock
+import requests
 
 from atomic_reactor.constants import DOCKER_SOCKET_PATH
 from atomic_reactor.util import ImageName
@@ -149,6 +150,44 @@ mock_version = {
 
 mock_import_image = '{"status": "%s"}' % IMPORTED_IMAGE_ID
 
+mock_inspect_container = {
+    'Id': 'f8ee920b2db5e802da2583a13a4edbf0523ca5fff6b6d6454c1fd6db5f38014d',
+    'Mounts': [
+        {
+            "Source": "/mnt/tmp",
+            "Destination": "/tmp",
+            "Mode": "",
+            "RW": True,
+            "Propagation": "rprivate",
+            "Name": "test"
+        },
+        {
+            "Source": "/mnt/conflict_exception",
+            "Destination": "/exception",
+            "Mode": "",
+            "RW": True,
+            "Propagation": "rprivate",
+            "Name": "conflict_exception"
+        },
+        {
+            "Source": "/mnt/real_exception",
+            "Destination": "/exception",
+            "Mode": "",
+            "RW": True,
+            "Propagation": "rprivate",
+            "Name": "real_exception"
+        },
+        {
+            "Source": "",
+            "Destination": "/skip_me",
+            "Mode": "",
+            "RW": True,
+            "Propagation": "rprivate",
+            "Name": "skip_me"
+        }
+    ]
+}
+
 
 def _find_image(img, ignore_registry=False):
     global mock_images
@@ -235,7 +274,7 @@ def mock_docker(build_should_fail=False,
     """
     if provided_image_repotags:
         mock_image['RepoTags'] = provided_image_repotags
-    inspect_result = None if inspect_should_fail else mock_image
+    inspect_image_result = None if inspect_should_fail else mock_image
     push_result = mock_push_logs if not push_should_fail else mock_push_logs_failed
 
     if build_should_fail:
@@ -251,7 +290,8 @@ def mock_docker(build_should_fail=False,
     flexmock(docker.Client, containers=lambda **kwargs: mock_containers)
     flexmock(docker.Client, create_container=lambda img, **kwargs: mock_containers[0])
     flexmock(docker.Client, images=lambda **kwargs: [mock_image])
-    flexmock(docker.Client, inspect_image=lambda im_id: inspect_result)
+    flexmock(docker.Client, inspect_image=lambda im_id: inspect_image_result)
+    flexmock(docker.Client, inspect_container=lambda im_id: mock_inspect_container)
     flexmock(docker.Client, logs=lambda cid, **kwargs: iter([mock_logs]) if kwargs.get('stream') else mock_logs)
     flexmock(docker.Client, pull=lambda img, **kwargs: iter(mock_pull_logs))
     flexmock(docker.Client, push=lambda iid, **kwargs: iter(push_result))
@@ -276,6 +316,17 @@ def mock_docker(build_should_fail=False,
             self.fp.close()
     flexmock(docker.Client, get_image=lambda img, **kwargs: GetImageResult())
     flexmock(os.path, exists=lambda p: True if p == DOCKER_SOCKET_PATH else old_ope(p))
+
+    def remove_volume(volume_name):
+        if 'exception' in volume_name:
+            if volume_name == 'conflict_exception':
+                response = flexmock(content="abc", status_code=requests.codes.CONFLICT)
+            else:
+                response = flexmock(content="abc", status_code=requests.codes.NOT_FOUND)
+            raise docker.errors.APIError("failed to remove volume %s" % volume_name, response)
+        return None
+
+    flexmock(docker.Client, remove_volume=lambda iid, **kwargs: remove_volume(iid))
 
     for method, args in should_raise_error.items():
         response = flexmock(content="abc", status_code=123)
