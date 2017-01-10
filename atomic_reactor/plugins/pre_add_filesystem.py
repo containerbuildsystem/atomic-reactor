@@ -28,7 +28,7 @@ import requests
 import os
 
 from atomic_reactor.constants import DEFAULT_DOWNLOAD_BLOCK_SIZE
-from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.plugin import PreBuildPlugin, BuildCanceledException
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.koji_util import create_koji_session, TaskWatcher, stream_task_output
 from atomic_reactor import util
@@ -277,8 +277,17 @@ class AddFilesystemPlugin(PreBuildPlugin):
 
         task_id, filesystem_regex = self.build_filesystem(image_build_conf)
 
-        task = TaskWatcher(self.session, task_id, self.poll_interval)
-        task.wait()
+        try:
+            task = TaskWatcher(self.session, task_id, self.poll_interval)
+            task.wait()
+        except BuildCanceledException:
+            self.log.info("Build was canceled, canceling task %s", task_id)
+            try:
+                self.session.cancelTask(task_id)
+                self.log.info('task %s canceled', task_id)
+            except Exception as exc:
+                self.log.info("Exception while canceling a task (ignored): %r", exc)
+
         if task.failed():
             try:
                 # Koji may re-raise the error that caused task to fail

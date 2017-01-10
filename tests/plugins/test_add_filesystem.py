@@ -10,11 +10,10 @@ from __future__ import print_function, unicode_literals
 from textwrap import dedent
 from flexmock import flexmock
 
-import re
-import json
 import pytest
 import os.path
 import responses
+import logging
 
 try:
     import koji
@@ -33,12 +32,12 @@ except ImportError:
     import koji
 
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import (
+    PreBuildPluginsRunner, PluginFailedException, BuildCanceledException)
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.source import VcsInfo
-from atomic_reactor import koji_util
-from atomic_reactor import util
+from atomic_reactor import koji_util, util
 from tests.constants import (MOCK_SOURCE, DOCKERFILE_GIT, DOCKERFILE_SHA1,
                              MOCK, IMPORTED_IMAGE_ID)
 from tests.fixtures import docker_tasker
@@ -46,7 +45,7 @@ if MOCK:
     from tests.docker_mock import mock_docker
 
 KOJI_HUB = 'https://koji-hub.com'
-
+FILESYSTEM_TASK_ID = 1234567
 
 class MockSource(object):
     def __init__(self, tmpdir):
@@ -70,7 +69,10 @@ class X(object):
 def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
                       koji_krb_principal=None, koji_krb_keytab=None,
                       scratch=False, image_task_fail=False,
+                      throws_build_cancelled=False,
+                      error_on_build_cancelled=False,
                       get_task_result_mock=None):
+
     session = flexmock()
 
     def _mockBuildImageOz(*args, **kwargs):
@@ -79,7 +81,7 @@ def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
         else:
             assert 'scratch' not in kwargs['opts']
 
-        return 1234567
+        return FILESYSTEM_TASK_ID
 
     flexmock(util).should_receive('is_scratch_build').and_return(scratch)
     session.should_receive('buildImageOz').replace_with(_mockBuildImageOz)
@@ -112,6 +114,18 @@ def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
         'krb_keytab': koji_krb_keytab,
     }
     session.should_receive('krb_login').and_return(True)
+
+    if throws_build_cancelled:
+        task_watcher = flexmock(koji_util.TaskWatcher)
+
+        task_watcher.should_receive('wait').and_raise(BuildCanceledException)
+        task_watcher.should_receive('failed').and_return(True)
+
+        cancel_mock_chain = session.should_receive('cancelTask').\
+            with_args(FILESYSTEM_TASK_ID).once()
+
+        if error_on_build_cancelled:
+            cancel_mock_chain.and_raise(Exception("foo"))
 
     (flexmock(koji)
         .should_receive('ClientSession')
@@ -264,8 +278,13 @@ def test_missing_yum_repourls(tmpdir):
     assert 'install_tree cannot be empty' in str(exc)
 
 
+@pytest.mark.parametrize(('build_cancel', 'error_during_cancel'), [
+    (True, False),
+    (True, True),
+    (False, False),
+])
 @pytest.mark.parametrize('raise_error', [True, False])
-def test_image_task_failure(tmpdir, raise_error):
+def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_error, caplog):
     if MOCK:
         mock_docker()
 
@@ -281,6 +300,8 @@ def test_image_task_failure(tmpdir, raise_error):
         return task_result
     workflow = mock_workflow(tmpdir, dockerfile)
     mock_koji_session(image_task_fail=True,
+                      throws_build_cancelled=build_cancel,
+                      error_on_build_cancelled=error_during_cancel,
                       get_task_result_mock=_mockGetTaskResult)
     mock_image_build_file(str(tmpdir))
 
@@ -293,11 +314,26 @@ def test_image_task_failure(tmpdir, raise_error):
         }]
     )
 
-    with pytest.raises(PluginFailedException) as exc:
-        results = runner.run()
+    with caplog.atLevel(logging.INFO):
+        with pytest.raises(PluginFailedException) as exc:
+            results = runner.run()
+
     assert task_result in str(exc)
     # Also ensure getTaskResult exception message is wrapped properly
     assert 'image task,' in str(exc)
+
+    if build_cancel:
+        msg =  "Build was canceled, canceling task %s" % FILESYSTEM_TASK_ID
+        assert msg in [x.message for x in caplog.records()]
+
+        if error_during_cancel:
+            # We're checking last but one message, as the last one is
+            # 'plugin 'add_filesystem' raised an exception'
+            assert "Exception while canceling a task (ignored): Exception("\
+                in caplog.records()[-2].message
+        else:
+            msg = "task %s canceled" % FILESYSTEM_TASK_ID
+            assert msg in [x.message for x in caplog.records()]
 
 
 @responses.activate
