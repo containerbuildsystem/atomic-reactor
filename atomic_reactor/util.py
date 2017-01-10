@@ -910,4 +910,4 @@ class Labels(object):
         Return tuple of (label name, label value)
         Raises KeyError if label doesn't exist
         """
-        return (self._label_values[label_type])
+        return self._label_values[label_type]
