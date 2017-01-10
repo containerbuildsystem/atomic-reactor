@@ -176,7 +176,7 @@ class DockerRegistry(Registry):
         """
         super(DockerRegistry, self).__init__(uri, insecure=insecure)
         self.digests = {}  # maps tags (str) to their digest, if available
-        self.config = None  # stores image config from the registry, 
+        self.config = None  # stores image config from the registry,
         # media type of the config is application/vnd.docker.container.image.v1+json
 
 
@@ -240,7 +240,7 @@ class DockerBuildWorkflow(object):
 
     def __init__(self, source, image, prebuild_plugins=None, prepublish_plugins=None,
                  postbuild_plugins=None, exit_plugins=None, plugin_files=None,
-                 openshift_build_selflink=None, **kwargs):
+                 openshift_build_selflink=None, client_version=None, **kwargs):
         """
         :param source: dict, where/how to get source code to put in image
         :param image: str, tag for built image ([registry/]image_name[:tag])
@@ -296,6 +296,9 @@ class DockerBuildWorkflow(object):
         self.files = {}
 
         self.openshift_build_selflink = openshift_build_selflink
+
+        if client_version:
+            logger.debug("build json was built by osbs-client %s", client_version)
 
         if kwargs:
             logger.warning("unprocessed keyword arguments: %s", kwargs)
