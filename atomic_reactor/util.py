@@ -892,9 +892,8 @@ class Labels(object):
         if there isn't any correct name in the list
         it will return newest label name
         """
-        for lbl in Labels.LABEL_NAMES[label_type]:
-            if lbl in self._df_labels:
-                return lbl
+        if self._label_values[label_type]:
+            return self._label_values[label_type][0]
         return Labels.LABEL_NAMES[label_type][0]
 
     def get_new_names_by_old(self):
@@ -911,4 +910,4 @@ class Labels(object):
         Return tuple of (label name, label value)
         Raises KeyError if label doesn't exist
         """
-        return (self._label_values[label_type][0], self._label_values[label_type][1])
+        return (self._label_values[label_type])
