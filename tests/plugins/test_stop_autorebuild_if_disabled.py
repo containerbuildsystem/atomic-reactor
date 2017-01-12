@@ -117,18 +117,17 @@ class TestStopAutorebuildIfDisabledPlugin(object):
         flexmock(configparser.SafeConfigParser).should_receive('read').and_return(None)
         # flexmock(configparser.SafeConfigParser).should_receive('getboolean').\
         #     with_args('autorebuild', 'enabled').and_raise(configparser.Error)
-        # assert this doesn't raise
-        with mocked_configparser_getboolean(configparser.Error):
+        with pytest.raises(AutoRebuildCanceledException):
             self.runner.run()
         self.assert_message_logged(
-            'can\'t parse ".osbs-repo-config", assuming autorebuild is enabled',
+            'can\'t parse ".osbs-repo-config", assuming autorebuild is disabled',
             caplog)
 
     def test_no_config(self, caplog):
         if MOCK:
             mock_docker()
 
-        # assert this doesn't raise
-        self.runner.run()
-        self.assert_message_logged('no ".osbs-repo-config", assuming autorebuild is enabled',
+        with pytest.raises(AutoRebuildCanceledException):
+            self.runner.run()
+        self.assert_message_logged('no ".osbs-repo-config", assuming autorebuild is disabled',
                                    caplog)

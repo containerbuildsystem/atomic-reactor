@@ -42,7 +42,7 @@ class StopAutorebuildIfDisabledPlugin(PreBuildPlugin):
         source_path = self.workflow.source.get()
         config_path = os.path.join(source_path, self.config_file)
         cfp = configparser.SafeConfigParser()
-        result = True
+        result = False
 
         if os.path.exists(config_path):
             try:
@@ -52,13 +52,13 @@ class StopAutorebuildIfDisabledPlugin(PreBuildPlugin):
                               'enabled' if result else 'disabled',
                               self.config_file)
             except configparser.Error:
-                self.log.error('can\'t parse "%s", assuming autorebuild is enabled',
+                self.log.error('can\'t parse "%s", assuming autorebuild is disabled',
                                self.config_file)
             except ValueError as e:
                 self.log.error('can\'t parse [autorebuild].enabled as bool in "%s", assuming'
-                               'autorebuild is enabled (error: "%s")', self.config_file, e)
+                               'autorebuild is disabled (error: "%s")', self.config_file, e)
         else:
-            self.log.info('no "%s", assuming autorebuild is enabled', self.config_file)
+            self.log.info('no "%s", assuming autorebuild is disabled', self.config_file)
 
         return result
 
