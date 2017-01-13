@@ -36,7 +36,6 @@ class PrePublishSquashPlugin(PrePublishPlugin):
           "args": {
             "tag": "SQUASH_TAG",
             "from_layer": "FROM_LAYER",
-            "remove_former_image": false,
             "dont_load": false
           }
         }
@@ -45,8 +44,7 @@ class PrePublishSquashPlugin(PrePublishPlugin):
 
     The `tag` argument specifes the tag under which the new squashed image will
     be registered. The `from_layer` argument specifies from which layer we want
-    to squash. `remove_former_image` is an optional boolean argument which specifies
-    if former, unsquashed image should be removed.
+    to squash.
 
     Of course it's possible to override it at runtime, like this: `--substitute prepublish_plugins.squash.tag=image:squashed
       --substitute prepublish_plugins.squash.from_layer=asdasd2332`.
@@ -64,7 +62,7 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         :param from_base: bool, squash from base-image layer, on by default
         :param from_layer: layer from we will squash - if specified, takes precedence over from_base
         :param tag: str, new name of the image - by default use the former one
-        :param remove_former_image: bool, remove unsquashed image?
+        :param remove_former_image: not used
         :param dont_load: if `False` (default), squashed image is loaded into Docker *and* saved
             to `$tmpdir/image.tar`; if `True`, squashed image is only saved as a file
         """
@@ -80,7 +78,6 @@ class PrePublishSquashPlugin(PrePublishPlugin):
                 raise
             self.log.info("will squash from base-image: '%s'", base_image_id)
             self.from_layer = base_image_id
-        self.remove_former_image = remove_former_image
         self.dont_load = dont_load
 
     def run(self):
