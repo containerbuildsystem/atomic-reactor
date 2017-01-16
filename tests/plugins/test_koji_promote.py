@@ -961,13 +961,15 @@ class TestKojiPromote(object):
          None),
 
     ])
-    @pytest.mark.parametrize('has_config', [
-        True,
-        False,
+    @pytest.mark.parametrize(('has_config', 'is_autorebuild'), [
+        (True,
+         True),
+        (False,
+         False),
     ])
     def test_koji_promote_success(self, tmpdir, apis, docker_registry,
                                   pulp_registries,
-                                  metadata_only, blocksize, target, os_env, has_config):
+                                  metadata_only, blocksize, target, os_env, has_config, is_autorebuild):
         session = MockedClientSession('')
         component = 'component'
         name = 'ns/name'
@@ -988,6 +990,7 @@ class TestKojiPromote(object):
                                             pulp_registries=pulp_registries,
                                             blocksize=blocksize,
                                             has_config=has_config)
+        workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_autorebuild
         runner = create_runner(tasker, workflow, metadata_only=metadata_only,
                                blocksize=blocksize, target=target)
         runner.run()
@@ -1045,6 +1048,10 @@ class TestKojiPromote(object):
         assert 'image' in extra
         image = extra['image']
         assert isinstance(image, dict)
+        assert 'autorebuild' in image
+        autorebuild = image['autorebuild']
+        assert isinstance(autorebuild, bool)
+        assert autorebuild == is_autorebuild
 
         for buildroot in buildroots:
             self.validate_buildroot(buildroot)
