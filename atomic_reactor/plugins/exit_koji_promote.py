@@ -24,6 +24,7 @@ from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
+from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.constants import PROG
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json, get_preferred_label,
@@ -535,7 +536,7 @@ class KojiPromotePlugin(ExitPlugin):
         if not isinstance(source, GitSource):
             raise RuntimeError('git source required')
 
-        extra = {'image': {}}
+        extra = {'image': {'autorebuild': is_rebuild(self.workflow)}}
         koji_task_id = metadata.get('labels', {}).get('koji-task-id')
         if koji_task_id is not None:
             self.log.info("build configuration created by Koji Task ID %s",
