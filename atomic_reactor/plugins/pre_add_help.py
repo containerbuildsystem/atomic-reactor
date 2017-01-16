@@ -22,12 +22,14 @@ from subprocess import check_output, CalledProcessError, STDOUT
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
 
+DEFAULT_HELP_FILENAME = "help.md"
+
 
 class AddHelpPlugin(PreBuildPlugin):
     key = "add_help"
     man_filename = "help.1"
 
-    def __init__(self, tasker, workflow, help_file="help.md"):
+    def __init__(self, tasker, workflow, help_file=DEFAULT_HELP_FILENAME):
         """
         constructor
 

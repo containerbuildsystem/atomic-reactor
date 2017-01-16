@@ -33,6 +33,7 @@ from atomic_reactor.plugins.exit_koji_promote import (KojiUploadLogger,
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
+from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
 from atomic_reactor.util import ImageName, ManifestDigest
@@ -259,6 +260,7 @@ def mock_environment(tmpdir, session=None, name=None,
         setattr(workflow, 'exported_image_sequence', [{'path': fp.name}])
 
     setattr(workflow, 'build_failed', build_process_failed)
+    workflow.prebuild_plugins_conf = {}
     workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_rebuild
     workflow.postbuild_results[PostBuildRPMqaPlugin.key] = [
         "name1;1.0;1;x86_64;0;2000;" + FAKE_SIGMD5.decode() + ";23000;"
@@ -1171,3 +1173,45 @@ class TestKojiPromote(object):
         runner.run()
 
         assert runner.plugins_results[KojiPromotePlugin.key] is None
+
+    @pytest.mark.parametrize('expect_result', [
+        'empty_config',
+        'skip',
+        'pass',
+    ])
+    def test_koji_promote_add_help(self, tmpdir, os_env, expect_result):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            session=session)
+        if expect_result in ['empty_result', 'pass']:
+            workflow.prebuild_plugins_conf[AddHelpPlugin.key] = {
+                'help_file': 'foo.md',
+            }
+
+        if expect_result != 'skip':
+            workflow.prebuild_results[AddHelpPlugin.key] = "FROM rhel"
+
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
+        assert 'image' in extra
+        image = extra['image']
+        assert isinstance(image, dict)
+        assert 'help' in image.keys()
+
+        if expect_result == 'pass':
+            assert image['help'] == 'foo.md'
+        if expect_result == 'empty_config':
+            assert image['help'] == 'help.md'
+        elif expect_result == 'skip':
+            assert image['help'] is None
