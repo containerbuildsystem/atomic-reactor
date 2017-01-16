@@ -40,7 +40,6 @@ from atomic_reactor.plugin import ExitPluginsRunner
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
-from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
 from atomic_reactor.util import ImageName, LazyGit, ManifestDigest, df_parser
 import pytest
 from tests.constants import LOCALHOST_REGISTRY, DOCKER0_REGISTRY, TEST_IMAGE, INPUT_IMAGE
@@ -133,23 +132,17 @@ CMD blabla"""
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
 
-    workflow.prebuild_results = {
-        DistgitFetchArtefactsPlugin.key: "artefact1\nartefact2",
-    }
+    workflow.prebuild_results = {}
     workflow.postbuild_results = {
         PostBuildRPMqaPlugin.key: "rpm1\nrpm2",
     }
     workflow.plugins_timestamps = {
-        DistgitFetchArtefactsPlugin.key: (initial_timestamp + timedelta(seconds=1)).isoformat(),
         PostBuildRPMqaPlugin.key: (initial_timestamp + timedelta(seconds=3)).isoformat(),
     }
     workflow.plugins_durations = {
-        DistgitFetchArtefactsPlugin.key: 2.02,
         PostBuildRPMqaPlugin.key: 3.03,
     }
-    workflow.plugins_errors = {
-        DistgitFetchArtefactsPlugin.key: 'foo'
-    }
+    workflow.plugins_errors = {}
 
     runner = ExitPluginsRunner(
         None,
@@ -166,8 +159,6 @@ CMD blabla"""
     annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
     assert "dockerfile" in annotations
     assert is_string_type(annotations['dockerfile'])
-    assert "artefacts" in annotations
-    assert is_string_type(annotations['artefacts'])
     assert "logs" in annotations
     assert is_string_type(annotations['logs'])
     assert annotations['logs'] == ''
@@ -207,9 +198,6 @@ CMD blabla"""
     assert "timestamps" in annotations["plugins-metadata"]
 
     plugins_metadata = json.loads(annotations["plugins-metadata"])
-    assert "distgit_fetch_artefacts" in plugins_metadata["errors"]
-
-    assert "distgit_fetch_artefacts" in plugins_metadata["durations"]
     assert "all_rpm_packages" in plugins_metadata["durations"]
 
 
@@ -226,18 +214,14 @@ CMD blabla"""
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
 
-    workflow.prebuild_results = {
-        DistgitFetchArtefactsPlugin.key: "artefact1\nartefact2",
-    }
+    workflow.prebuild_results = {}
     workflow.postbuild_results = {
         PostBuildRPMqaPlugin.key: RuntimeError(),
     }
     workflow.plugins_timestamps = {
-        DistgitFetchArtefactsPlugin.key: (initial_timestamp + timedelta(seconds=1)).isoformat(),
         PostBuildRPMqaPlugin.key: (initial_timestamp + timedelta(seconds=3)).isoformat(),
     }
     workflow.plugins_durations = {
-        DistgitFetchArtefactsPlugin.key: 2.02,
         PostBuildRPMqaPlugin.key: 3.03,
     }
     workflow.plugins_errors = {
@@ -258,7 +242,6 @@ CMD blabla"""
     assert StoreMetadataInOSv3Plugin.key in output
     annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
     assert "dockerfile" in annotations
-    assert "artefacts" in annotations
     assert "logs" in annotations
     assert "rpm-packages" in annotations
     assert "repositories" in annotations
@@ -277,8 +260,6 @@ CMD blabla"""
 
     plugins_metadata = json.loads(annotations["plugins-metadata"])
     assert "all_rpm_packages" in plugins_metadata["errors"]
-
-    assert "distgit_fetch_artefacts" in plugins_metadata["durations"]
     assert "all_rpm_packages" in plugins_metadata["durations"]
 
 def test_labels_metadata_plugin(tmpdir):

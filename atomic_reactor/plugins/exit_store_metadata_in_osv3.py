@@ -16,7 +16,6 @@ from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException
 
 from atomic_reactor.plugin import ExitPlugin
-from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 from atomic_reactor.util import get_build_json
 
@@ -157,7 +156,6 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         annotations = {
             "dockerfile": open(self.workflow.builder.df_path).read(),
-            "artefacts": self.get_pre_result(DistgitFetchArtefactsPlugin.key),
 
             # We no longer store the 'docker build' logs as an annotation
             "logs": '',
