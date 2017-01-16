@@ -37,7 +37,7 @@ class X(object):
     base_image = ImageName(repo="qwe", tag="asd")
 
 
-def prepare(insecure_registry=None, retry_delay=None, namespace=None):
+def prepare(insecure_registry=None, retry_delay=None, retry_attempts=None, namespace=None):
     """
     Boiler-plate test set-up
     """
@@ -70,6 +70,7 @@ def prepare(insecure_registry=None, retry_delay=None, namespace=None):
             'use_auth': False,
             'insecure_registry': insecure_registry,
             'retry_delay': retry_delay or 0,
+            'retry_attempts': retry_attempts or 3,
         }}])
 
     return runner
@@ -167,7 +168,7 @@ def test_import_image_retry(monkeypatch):
     Test retrying importing tags for an existing ImageStream
     """
 
-    runner = prepare(retry_delay=1)
+    runner = prepare(retry_delay=1, retry_attempts=2)
 
     build_json = {"metadata": {}}
     monkeypatch.setenv("BUILD", json.dumps(build_json))
@@ -186,6 +187,35 @@ def test_import_image_retry(monkeypatch):
      .and_return(False)
      .and_return(True))
     runner.run()
+
+
+def test_import_image_retry_and_fail(monkeypatch):
+    """
+    Test retrying importing tags for an existing ImageStream
+    """
+
+    runner = prepare(retry_delay=1, retry_attempts=3)
+
+    build_json = {"metadata": {}}
+    monkeypatch.setenv("BUILD", json.dumps(build_json))
+
+    (flexmock(OSBS)
+     .should_receive('get_image_stream')
+     .once()
+     .with_args(TEST_IMAGESTREAM))
+    (flexmock(OSBS)
+     .should_receive('create_image_stream')
+     .never())
+    (flexmock(OSBS)
+     .should_receive('import_image')
+     .times(3)
+     .with_args(TEST_IMAGESTREAM)
+     .and_return(False)
+     .and_return(False)
+     .and_return(False))
+
+    with pytest.raises(PluginFailedException):
+        runner.run()
 
 
 def test_exception_during_create(monkeypatch):
