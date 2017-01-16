@@ -55,14 +55,13 @@ class PrePublishSquashPlugin(PrePublishPlugin):
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, tag=None, from_base=True, from_layer=None,
-                 remove_former_image=True, dont_load=False):
+                 dont_load=False):
         """
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param from_base: bool, squash from base-image layer, on by default
         :param from_layer: layer from we will squash - if specified, takes precedence over from_base
         :param tag: str, new name of the image - by default use the former one
-        :param remove_former_image: not used
         :param dont_load: if `False` (default), squashed image is loaded into Docker *and* saved
             to `$tmpdir/image.tar`; if `True`, squashed image is only saved as a file
         """
