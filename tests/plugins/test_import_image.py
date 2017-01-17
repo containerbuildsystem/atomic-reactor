@@ -37,7 +37,7 @@ class X(object):
     base_image = ImageName(repo="qwe", tag="asd")
 
 
-def prepare(insecure_registry=None, retry_delay=None, retry_attempts=None, namespace=None):
+def prepare(insecure_registry=None, retry_delay=0, import_attempts=3, namespace=None):
     """
     Boiler-plate test set-up
     """
@@ -69,8 +69,8 @@ def prepare(insecure_registry=None, retry_delay=None, retry_attempts=None, names
             'verify_ssl': False,
             'use_auth': False,
             'insecure_registry': insecure_registry,
-            'retry_delay': retry_delay or 0,
-            'retry_attempts': retry_attempts or 3,
+            'retry_delay': retry_delay,
+            'import_attempts': import_attempts,
         }}])
 
     return runner
@@ -163,12 +163,17 @@ def test_import_image(namespace, monkeypatch):
     runner.run()
 
 
-def test_import_image_retry(monkeypatch):
+@pytest.mark.parametrize(('retry_delay', 'results'), [
+    (1, [False, True]),
+    (0, [False, False, False]),
+    (2, [True]),
+])
+def test_import_image_retry(retry_delay, results, monkeypatch):
     """
     Test retrying importing tags for an existing ImageStream
     """
-
-    runner = prepare(retry_delay=1, retry_attempts=2)
+    import_attempts = len(results)
+    runner = prepare(retry_delay=retry_delay, import_attempts=import_attempts)
 
     build_json = {"metadata": {}}
     monkeypatch.setenv("BUILD", json.dumps(build_json))
@@ -182,39 +187,15 @@ def test_import_image_retry(monkeypatch):
      .never())
     (flexmock(OSBS)
      .should_receive('import_image')
-     .twice()
      .with_args(TEST_IMAGESTREAM)
-     .and_return(False)
-     .and_return(True))
-    runner.run()
+     .times(import_attempts)
+     .and_return(*results)
+     .one_by_one())
 
-
-def test_import_image_retry_and_fail(monkeypatch):
-    """
-    Test retrying importing tags for an existing ImageStream
-    """
-
-    runner = prepare(retry_delay=1, retry_attempts=3)
-
-    build_json = {"metadata": {}}
-    monkeypatch.setenv("BUILD", json.dumps(build_json))
-
-    (flexmock(OSBS)
-     .should_receive('get_image_stream')
-     .once()
-     .with_args(TEST_IMAGESTREAM))
-    (flexmock(OSBS)
-     .should_receive('create_image_stream')
-     .never())
-    (flexmock(OSBS)
-     .should_receive('import_image')
-     .times(3)
-     .with_args(TEST_IMAGESTREAM)
-     .and_return(False)
-     .and_return(False)
-     .and_return(False))
-
-    with pytest.raises(PluginFailedException):
+    if not results[-1]:
+        with pytest.raises(PluginFailedException):
+            runner.run()
+    else:
         runner.run()
 
 

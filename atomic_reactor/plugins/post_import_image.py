@@ -14,7 +14,7 @@ from osbs.api import OSBS
 from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException
 
-from atomic_reactor.plugin import PostBuildPlugin, PluginFailedException
+from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.util import get_build_json
 
 
@@ -29,7 +29,7 @@ class ImportImagePlugin(PostBuildPlugin):
 
     def __init__(self, tasker, workflow, imagestream, docker_image_repo,
                  url, build_json_dir, verify_ssl=True, use_auth=True,
-                 insecure_registry=None, retry_delay=30, retry_attempts=3):
+                 insecure_registry=None, retry_delay=30, import_attempts=3):
         """
         constructor
 
@@ -44,8 +44,8 @@ class ImportImagePlugin(PostBuildPlugin):
         :param insecure_registry: bool, whether the Docker registry uses
                plain HTTP
         :param retry_delay: int, number of seconds to delay before retrying
-        :param retry_attempts: int, number of times it will be retried to
-               import image
+        :param import_attempts: int, number of times it will be retried to
+               import image; at least 1.
         """
         # call parent constructor
         super(ImportImagePlugin, self).__init__(tasker, workflow)
@@ -57,7 +57,12 @@ class ImportImagePlugin(PostBuildPlugin):
         self.use_auth = use_auth
         self.insecure_registry = insecure_registry
         self.retry_delay = retry_delay
-        self.retry_attempts = retry_attempts
+
+        if import_attempts < 1:
+            msg = "import_attempts is %d, should be at least 1"
+            raise ValueError(msg % import_attempts)
+
+        self.import_attempts = import_attempts
 
     def run(self):
         metadata = get_build_json().get("metadata", {})
@@ -88,15 +93,14 @@ class ImportImagePlugin(PostBuildPlugin):
         else:
             self.log.info("Importing new tags for %s", self.imagestream)
 
-            for attempts in range(self.retry_attempts):
-                new_tags_imported = osbs.import_image(self.imagestream)
-                if new_tags_imported:
-                    break
+            attempts = 0
+            while not osbs.import_image(self.imagestream):
+                attempts += 1
+
+                if attempts >= self.import_attempts:
+                    msg = "Failed to import new tags for %s"
+                    raise RuntimeError(msg % self.imagestream)
 
                 self.log.info("no new tags, will retry after %d seconds (%d/%d)",
-                              self.retry_delay, attempts + 1, self.retry_attempts)
+                              self.retry_delay, attempts, self.import_attempts)
                 sleep(self.retry_delay)
-
-            if not new_tags_imported:
-                msg = "Failed to import new tags for %s"
-                raise PluginFailedException(msg % self.imagestream)
