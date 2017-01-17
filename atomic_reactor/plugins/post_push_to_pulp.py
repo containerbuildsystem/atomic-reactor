@@ -40,7 +40,6 @@ pulp_secret_path:
 
 from __future__ import print_function, unicode_literals
 from dockpulp import setup_logger
-from atomic_reactor import set_logging
 
 from atomic_reactor.plugins.post_pulp_sync import PulpSyncPlugin
 from atomic_reactor.plugin import PostBuildPlugin
@@ -83,8 +82,6 @@ class PulpUploader(object):
         self.username = username
         self.password = password
         self.publish = publish
-
-        set_logging("dockpulp")
 
     def _check_file(self):
         # Sanity-check image
