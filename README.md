@@ -13,7 +13,8 @@ Python library with command line interface for building docker images.
  * build inside a docker container (so your builds are separated between each other)
  * git as a source to your Dockerfile (you may specify commit/branch and path to Dockerfile within the git repo)
  * collect build logs
- * integration with [koji](http://koji.fedoraproject.org/koji/) build system
+ * integration with
+   [koji](https://github.com/projectatomic/atomic-reactor/blob/master/docs/koji.md) build system
  * integration with [fedora packaging system](http://fedoraproject.org/wiki/Package_maintenance_guide)
  * inject arbitrary yum repo inside Dockerfile (change source of your packages)
  * retag base image so it matches `FROM` instruction in Dockerfile
