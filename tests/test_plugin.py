@@ -17,7 +17,8 @@ import pytest
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import (BuildPluginsRunner, PreBuildPluginsRunner,
                                    PostBuildPluginsRunner, InputPluginsRunner,
-                                   PluginFailedException)
+                                   PluginFailedException, PrePublishPluginsRunner,
+                                   ExitPluginsRunner)
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
 from atomic_reactor.util import ImageName
@@ -62,6 +63,30 @@ def test_build_plugin_failure(docker_tasker):
     with pytest.raises(PluginFailedException):
         results = runner.run()
     assert workflow.build_process_failed is True
+
+
+@pytest.mark.parametrize('runner_type', [
+    PreBuildPluginsRunner,
+    PrePublishPluginsRunner,
+    PostBuildPluginsRunner,
+    ExitPluginsRunner,
+])
+@pytest.mark.parametrize('required', [
+    True,
+    False,
+])
+def test_not_required_prebuild_plugin_failure(docker_tasker, runner_type, required):
+    workflow = DockerBuildWorkflow(SOURCE, "test-image")
+    assert workflow.plugin_failed is False
+    runner = runner_type(docker_tasker, workflow,
+                         [{"name": "no_such_plugin",
+                           "required": required}])
+    if required:
+        with pytest.raises(PluginFailedException):
+            results = runner.run()
+    else:
+        results = runner.run()
+    assert workflow.plugin_failed is required
 
 
 class TestBuildPluginsRunner(object):
