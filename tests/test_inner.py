@@ -75,7 +75,7 @@ class X(object):
 
 
 class MockInsideBuilder(object):
-    def __init__(self, failed=False, timeout=10):
+    def __init__(self, failed=False, timeout=0):
         self.tasker = MockDockerTasker()
         self.base_image = ImageName(repo='Fedora', tag='22')
         self.image_id = 'asd'
@@ -96,7 +96,9 @@ class MockInsideBuilder(object):
         result = X()
         setattr(result, 'logs', None)
         setattr(result, 'is_failed', lambda: self.failed)
-        sleep(self.timeout)
+        if self.timeout:
+            sleep(self.timeout)
+
         return result
 
     def inspect_built_image(self):
