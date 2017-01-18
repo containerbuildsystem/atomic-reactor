@@ -232,13 +232,15 @@ class PluginsRunner(object):
             except Exception as ex:
                 msg = "plugin '%s' raised an exception: %r" % (plugin_class.key, ex)
                 logger.debug(traceback.format_exc())
+                if not plugin_is_allowed_to_fail:
+                    self.on_plugin_failed(plugin_class.key, ex)
+
                 if plugin_is_allowed_to_fail or keep_going:
                     logger.warning(msg)
                     logger.info("error is not fatal, continuing...")
                     if not plugin_is_allowed_to_fail:
                         failed_msgs.append(msg)
                 else:
-                    self.on_plugin_failed(plugin_class.key, ex)
                     logger.error(msg)
                     raise PluginFailedException(msg)
 
