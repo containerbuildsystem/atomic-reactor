@@ -164,9 +164,9 @@ def test_import_image(namespace, monkeypatch):
 
 
 @pytest.mark.parametrize(('retry_delay', 'results'), [
-    (1, [False, True]),
-    (0, [False, False, False]),
-    (2, [True]),
+    (0, [False, True]),
+    (0.01, [False, False, False]),
+    (0.02, [True]),
 ])
 def test_import_image_retry(retry_delay, results, monkeypatch):
     """
@@ -197,6 +197,31 @@ def test_import_image_retry(retry_delay, results, monkeypatch):
             runner.run()
     else:
         runner.run()
+
+
+@pytest.mark.parametrize(('import_attempts'), [0, 1, 2])
+def test_import_image_attempts_config(import_attempts):
+    """
+    Test the validation of import_attempts
+    """
+    args = {
+        "tasker": None,
+        "workflow": None,
+        "imagestream": None,
+        "docker_image_repo": None,
+        "url": None,
+        "build_json_dir": None,
+        "import_attempts": import_attempts,
+    }
+
+    if import_attempts > 0:
+        plugin = ImportImagePlugin(**args)
+        assert plugin.import_attempts == import_attempts
+    else:
+        with pytest.raises(ValueError) as value_error:
+            ImportImagePlugin(**args)
+            assert value_error.value.message == (
+                "import_attempts is %d, should be at least 1" % import_attempts)
 
 
 def test_exception_during_create(monkeypatch):
