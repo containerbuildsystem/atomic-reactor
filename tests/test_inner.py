@@ -652,7 +652,11 @@ def test_autorebuild_stop_prevents_build():
     assert workflow.autorebuild_canceled == True
 
 
-@pytest.mark.parametrize('fail_at', ['pre', 'prepub', 'post', 'exit', 'exit_allowed'])
+@pytest.mark.parametrize('fail_at', ['pre_raises',
+                                     'prepub_raises',
+                                     'post_raises',
+                                     'exit_raises',
+                                     'exit_raises_allowed'])
 def test_workflow_plugin_error(fail_at):
     """
     This is a test for what happens when plugins fail.
@@ -688,16 +692,14 @@ def test_workflow_plugin_error(fail_at):
                      }}]
 
     # Insert a failing plugin into one of the build phases
-    if fail_at == 'pre':
-        prebuild_plugins.insert(0, {'name': 'pre_raises', 'args': {}})
-    elif fail_at == 'prepub':
-        prepublish_plugins.insert(0, {'name': 'prepub_raises', 'args': {}})
-    elif fail_at == 'post':
-        postbuild_plugins.insert(0, {'name': 'post_raises', 'args': {}})
-    elif fail_at == 'exit':
-        exit_plugins.insert(0, {'name': 'exit_raises', 'args': {}})
-    elif fail_at == 'exit_allowed':
-        exit_plugins.insert(0, {'name': 'exit_raises_allowed', 'args': {}})
+    if fail_at == 'pre_raises':
+        prebuild_plugins.insert(0, {'name': fail_at, 'args': {}})
+    elif fail_at == 'prepub_raises':
+        prepublish_plugins.insert(0, {'name': fail_at, 'args': {}})
+    elif fail_at == 'post_raises':
+        postbuild_plugins.insert(0, {'name': fail_at, 'args': {}})
+    elif fail_at == 'exit_raises' or fail_at == 'exit_raises_allowed':
+        exit_plugins.insert(0, {'name': fail_at, 'args': {}})
     else:
         # Typo in the parameter list?
         assert False
@@ -711,24 +713,30 @@ def test_workflow_plugin_error(fail_at):
 
     # Most failures cause the build process to abort. Unless, it's
     # an exit plugin that's explicitly allowed to fail.
-    if fail_at == 'exit_allowed':
+    if fail_at == 'exit_raises_allowed':
         build_result = workflow.build_docker_image()
         assert build_result and not build_result.is_failed()
+        assert not workflow.plugins_errors
     else:
         with pytest.raises(PluginFailedException):
             workflow.build_docker_image()
 
+        assert fail_at in workflow.plugins_errors
+
     # The pre-build phase should only complete if there were no
     # earlier plugin failures.
-    assert watch_pre.was_called() == (fail_at != 'pre')
+    assert watch_pre.was_called() == (fail_at != 'pre_raises')
 
     # The prepublish phase should only complete if there were no
     # earlier plugin failures.
-    assert watch_prepub.was_called() == (fail_at not in ('pre', 'prepub'))
+    assert watch_prepub.was_called() == (fail_at not in ('pre_raises',
+                                                         'prepub_raises'))
 
     # The post-build phase should only complete if there were no
     # earlier plugin failures.
-    assert watch_post.was_called() == (fail_at not in ('pre', 'prepub', 'post'))
+    assert watch_post.was_called() == (fail_at not in ('pre_raises',
+                                                       'prepub_raises',
+                                                       'post_raises'))
 
     # But all exit plugins should run, even if one of them also raises
     # an exception.
