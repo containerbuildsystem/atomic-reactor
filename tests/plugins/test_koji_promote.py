@@ -1186,10 +1186,19 @@ class TestKojiPromote(object):
                                             version='1.0',
                                             release='1',
                                             session=session)
-        if expect_result in ['empty_result', 'pass']:
-            workflow.prebuild_plugins_conf[AddHelpPlugin.key] = {
-                'help_file': 'foo.md',
-            }
+
+        if expect_result == 'pass':
+            workflow.prebuild_plugins_conf = [{
+                "name": AddHelpPlugin.key,
+                "args": {
+                  "help_file": 'foo.md',
+                }
+            }]
+
+        if expect_result == 'empty_config':
+            workflow.prebuild_plugins_conf = [{
+                "name": AddHelpPlugin.key,
+            }]
 
         if expect_result != 'skip':
             workflow.prebuild_results[AddHelpPlugin.key] = "FROM rhel"
