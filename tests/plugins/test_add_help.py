@@ -6,8 +6,6 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from __future__ import unicode_literals
-
 import os
 import subprocess
 import pytest
@@ -20,7 +18,6 @@ from tests.constants import MOCK_SOURCE
 from tests.fixtures import docker_tasker
 
 import atomic_reactor
-from tests.test_inner import FakeLogger
 from textwrap import dedent
 from flexmock import flexmock
 
@@ -35,6 +32,23 @@ class X(object):
     source.dockerfile_path = None
     source.path = None
     base_image = ImageName(repo="qwe", tag="asd")
+
+
+class MockedPopen(object):
+    def __init__(self, *args, **kwargs):
+        self.args = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        pass
+
+    def poll(self):
+        pass
+
+    def communicate(self, input=None, timeout=None):
+        return ('', '')
 
 
 def generate_a_file(destpath, contents):
@@ -63,13 +77,14 @@ def test_add_help_plugin(tmpdir, docker_tasker, filename):
 
     cmd = ['go-md2man', '-in={}'.format(help_markdown_path), '-out={}'.format(help_man_path)]
 
-    def check_cmd(received_cmd, stderr):
-        assert received_cmd == cmd
-        assert stderr == subprocess.STDOUT
+    def check_popen(*args, **kwargs):
+        assert args[0] == cmd
+        return MockedPopen()
 
     (flexmock(subprocess)
-         .should_receive("check_output")
-         .replace_with(check_cmd))
+         .should_receive("Popen")
+         .once()
+         .replace_with(check_popen))
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -113,7 +128,8 @@ def test_add_help_no_help_file(request, tmpdir, docker_tasker, filename):
 
 @pytest.mark.parametrize('filename', ['help.md', 'other_file.md'])
 @pytest.mark.parametrize('go_md2man_result', ['binary_missing', 'result_missing', 'fail', 'pass'])
-def test_add_help_md2man_error(request, tmpdir, docker_tasker, filename, go_md2man_result):
+def test_add_help_md2man_error(request, tmpdir, docker_tasker, filename,
+                               go_md2man_result, caplog):
     df_content = "FROM fedora"
     df = df_parser(str(tmpdir))
     df.content = df_content
@@ -129,42 +145,38 @@ def test_add_help_md2man_error(request, tmpdir, docker_tasker, filename, go_md2m
     if go_md2man_result != 'result_missing':
         generate_a_file(help_man_path, "bar")
 
-    cmd = [u'go-md2man', u'-in={}'.format(help_markdown_path), u'-out={}'.format(help_man_path)]
+    cmd = ['go-md2man',
+           '-in={}'.format(help_markdown_path),
+           '-out={}'.format(help_man_path)]
 
-    def check_cmd_pass(received_cmd, stderr):
-        assert received_cmd == cmd
-        assert stderr == subprocess.STDOUT
+    def check_popen_pass(*args, **kwargs):
+        assert args[0] == cmd
+        return MockedPopen()
 
-    def check_cmd_binary_missing(received_cmd, stderr):
-        check_cmd_pass(received_cmd, stderr)
-        raise subprocess.CalledProcessError(returncode=127, cmd=received_cmd)
+    def check_popen_binary_missing(*args, **kwargs):
+        check_popen_pass(*args, **kwargs)
+        raise OSError(2, "No such file or directory")
 
-    def check_cmd_fail(received_cmd, stderr):
-        check_cmd_pass(received_cmd, stderr)
-        raise subprocess.CalledProcessError(returncode=1, cmd=received_cmd)
+    def check_popen_fail(*args, **kwargs):
+        check_popen_pass(*args, **kwargs)
+        raise subprocess.CalledProcessError(returncode=1, cmd=args[0])
 
 
     if go_md2man_result == 'binary_missing':
         (flexmock(subprocess)
-             .should_receive("check_output")
-             .replace_with(check_cmd_binary_missing))
+             .should_receive("Popen")
+             .once()
+             .replace_with(check_popen_binary_missing))
     elif go_md2man_result == 'fail':
         (flexmock(subprocess)
-             .should_receive("check_output")
-             .replace_with(check_cmd_fail))
+             .should_receive("Popen")
+             .once()
+             .replace_with(check_popen_fail))
     elif go_md2man_result in ['pass', 'result_missing']:
         (flexmock(subprocess)
-             .should_receive("check_output")
-             .replace_with(check_cmd_pass))
-
-    fake_logger = FakeLogger()
-    existing_logger = atomic_reactor.plugin.logger
-
-    def restore_logger():
-        atomic_reactor.plugin.logger = existing_logger
-
-    request.addfinalizer(restore_logger)
-    atomic_reactor.plugin.logger = fake_logger
+             .should_receive("Popen")
+             .once()
+             .replace_with(check_popen_pass))
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -187,5 +199,5 @@ def test_add_help_md2man_error(request, tmpdir, docker_tasker, filename, go_md2m
     if go_md2man_result != 'pass':
         # Python 2 prints the error message as "RuntimeError(u'...", but not py3
         # The test checks for correct plugin and error message text in two passes
-        assert "plugin 'add_help' raised an exception: RuntimeError" in fake_logger.warnings[-1][0]
-        assert error_message in fake_logger.warnings[-1][0]
+        assert "plugin 'add_help' raised an exception: RuntimeError" in caplog.text()
+        assert error_message in caplog.text()
