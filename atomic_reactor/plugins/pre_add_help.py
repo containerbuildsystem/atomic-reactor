@@ -17,6 +17,7 @@ Example configuration:
 }
 """
 
+import errno
 import os
 from subprocess import check_output, CalledProcessError, STDOUT
 from atomic_reactor.plugin import PreBuildPlugin
@@ -58,10 +59,13 @@ class AddHelpPlugin(PreBuildPlugin):
 
         try:
             check_output(go_md2man_cmd, stderr=STDOUT)
-        except CalledProcessError as e:
-            if e.returncode == 127:
+        except OSError as e:
+            if e.errno == errno.ENOENT:
                 raise RuntimeError(
                     "Help file is available, but go-md2man is not present in a buildroot")
+
+            raise
+        except CalledProcessError as e:
             raise RuntimeError("Error running %s: %r, exit code: %s, output: '%s'" % (
                 e.cmd, e, e.returncode, e.output))
 
