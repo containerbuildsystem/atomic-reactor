@@ -23,7 +23,7 @@ from flexmock import flexmock
 import pytest
 from tests.constants import MOCK_SOURCE, SOURCE
 from tests.docker_mock import mock_docker
-from tests.util import requires_internet
+from tests.util import requires_internet, is_string_type
 import inspect
 import signal
 import threading
@@ -597,9 +597,15 @@ def test_plugin_errors(request, plugins, should_fail, should_log):
             workflow.build_docker_image()
 
         assert not watcher.was_called()
+        assert workflow.plugins_errors
+        assert all([is_string_type(plugin)
+                    for plugin in workflow.plugins_errors])
+        assert all([is_string_type(reason)
+                    for reason in workflow.plugins_errors.values()])
     else:
         workflow.build_docker_image()
         assert watcher.was_called()
+        assert not workflow.plugins_errors
 
     if should_log:
         assert len(fake_logger.errors) > 0
