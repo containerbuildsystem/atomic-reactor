@@ -183,28 +183,29 @@ class PluginsRunner(object):
             try:
                 plugin_name = plugin_request['name']
             except (TypeError, KeyError):
-                self.on_plugin_failed()
                 msg = "invalid plugin request, no key 'name': %s" % plugin_request
+                exc = None if keep_going else PluginFailedException(msg)
+                self.on_plugin_failed('?', exc)
                 logger.error(msg)
                 if keep_going:
                     continue
 
-                raise PluginFailedException(msg)
+                raise exc
 
             plugin_conf = plugin_request.get("args", {})
             try:
                 plugin_class = self.plugin_classes[plugin_name]
             except KeyError:
                 if plugin_request.get('required', True):
-                    self.on_plugin_failed()
                     msg = ("no such plugin: '%s', did you set "
                            "the correct plugin type?") %  plugin_name
+                    exc = None if keep_going else PluginFailedException(msg)
+                    self.on_plugin_failed(plugin_name, exc)
                     logger.error(msg)
-
                     if keep_going:
                         continue
 
-                    raise PluginFailedException(msg)
+                    raise exc
                 else:
                     # This plugin is marked as not being required
                     logger.warning("plugin '%s' requested but not available",
