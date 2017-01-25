@@ -16,6 +16,7 @@ import responses
 import six
 
 from tempfile import mkdtemp
+from textwrap import dedent
 from flexmock import flexmock
 
 try:
@@ -24,6 +25,7 @@ except ImportError:
     # Python 2.6
     from ordereddict import OrderedDict
 import docker
+from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  LazyGit, figure_out_dockerfile,
                                  render_yum_repo, process_substitutions,
@@ -33,7 +35,9 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_manifest_digests, ManifestDigest,
                                  get_build_json, is_scratch_build, df_parser)
 from atomic_reactor import util
-from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1
+from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1, MOCK_SOURCE
+from atomic_reactor.constants import INSPECT_CONFIG
+
 from tests.util import requires_internet
 
 if MOCK:
@@ -455,4 +459,40 @@ def test_df_parser(tmpdir):
     assert df.envs.get('foo') == 'bar'
     assert len(df.labels) == 1
     assert df.labels.get('label') == 'foobar barfoo'
+
+def test_df_parser_parent_env_arg(tmpdir):
+    p_env = {
+        "test_env": "first"
+    }
+    df_content = dedent("""\
+        FROM fedora
+        ENV foo=bar
+        LABEL label="foobar $test_env"
+        """)
+    df = df_parser(str(tmpdir), parent_env=p_env)
+    df.content = df_content
+    assert df.labels.get('label') == 'foobar first'
+
+@pytest.mark.parametrize('env_arg', [
+    {"test_env": "first"},
+    ['test_env=first'],
+    ['test_env_first'],
+])
+def test_df_parser_parent_env_wf(tmpdir, caplog, env_arg):
+    df_content = dedent("""\
+        FROM fedora
+        ENV foo=bar
+        LABEL label="foobar $test_env"
+        """)
+    env_conf = {INSPECT_CONFIG: {"Env": env_arg}}
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    flexmock(workflow, base_image_inspect=env_conf)
+    df = df_parser(str(tmpdir), workflow=workflow)
+    df.content = df_content
+
+    if isinstance(env_arg, list) and ('=' not in env_arg[0]):
+        expected_log_message = "Unable to parse all of Parent Config ENV"
+        assert expected_log_message in [l.getMessage() for l in caplog.records()]
+    else:
+        assert df.labels.get('label') == 'foobar first'
 
