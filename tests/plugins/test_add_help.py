@@ -123,11 +123,17 @@ def test_add_help_no_help_file(request, tmpdir, docker_tasker, filename):
         }]
     )
     # Runner should not crash if no help.md found
-    runner.run()
+    result = runner.run()
+    assert result == {'add_help': {
+        'status': AddHelpPlugin.NO_HELP_FILE_FOUND,
+        'help_file': filename
+    }}
 
 
 @pytest.mark.parametrize('filename', ['help.md', 'other_file.md'])
-@pytest.mark.parametrize('go_md2man_result', ['binary_missing', 'result_missing', 'fail', 'pass'])
+@pytest.mark.parametrize('go_md2man_result', [
+    'binary_missing', 'input_missing', 'other_os_error',
+    'result_missing', 'fail', 'pass'])
 def test_add_help_md2man_error(request, tmpdir, docker_tasker, filename,
                                go_md2man_result, caplog):
     df_content = "FROM fedora"
@@ -140,7 +146,8 @@ def test_add_help_md2man_error(request, tmpdir, docker_tasker, filename,
     workflow.builder.df_dir = str(tmpdir)
 
     help_markdown_path = os.path.join(workflow.builder.df_dir, filename)
-    generate_a_file(help_markdown_path, "foo")
+    if go_md2man_result != 'input_missing':
+        generate_a_file(help_markdown_path, "foo")
     help_man_path = os.path.join(workflow.builder.df_dir, AddHelpPlugin.man_filename)
     if go_md2man_result != 'result_missing':
         generate_a_file(help_man_path, "bar")
@@ -157,6 +164,10 @@ def test_add_help_md2man_error(request, tmpdir, docker_tasker, filename,
         check_popen_pass(*args, **kwargs)
         raise OSError(2, "No such file or directory")
 
+    def check_popen_other_os_error(*args, **kwargs):
+        check_popen_pass(*args, **kwargs)
+        raise OSError(0, "Other error")
+
     def check_popen_fail(*args, **kwargs):
         check_popen_pass(*args, **kwargs)
         raise subprocess.CalledProcessError(returncode=1, cmd=args[0])
@@ -167,6 +178,11 @@ def test_add_help_md2man_error(request, tmpdir, docker_tasker, filename,
              .should_receive("Popen")
              .once()
              .replace_with(check_popen_binary_missing))
+    elif go_md2man_result == 'other_os_error':
+        (flexmock(subprocess)
+             .should_receive("Popen")
+             .once()
+             .replace_with(check_popen_other_os_error))
     elif go_md2man_result == 'fail':
         (flexmock(subprocess)
              .should_receive("Popen")
@@ -187,17 +203,43 @@ def test_add_help_md2man_error(request, tmpdir, docker_tasker, filename,
         }]
     )
 
-    runner.run()
+    result = runner.run()
 
     if go_md2man_result == 'binary_missing':
-        error_message = "Help file is available, but go-md2man is not present in a buildroot"
-    elif go_md2man_result == 'fail':
-        error_message = "CalledProcessError()"
-    elif go_md2man_result == 'result_missing':
-        error_message = "go-md2man run complete, but man file is not found"
+        assert list(result.keys()) == ['add_help']
+        assert isinstance(result['add_help'], RuntimeError)
+        assert 'Help file is available, but go-md2man is not present in a buildroot' \
+            == str(result['add_help'])
 
-    if go_md2man_result != 'pass':
-        # Python 2 prints the error message as "RuntimeError(u'...", but not py3
-        # The test checks for correct plugin and error message text in two passes
-        assert "plugin 'add_help' raised an exception: RuntimeError" in caplog.text()
-        assert error_message in caplog.text()
+    elif go_md2man_result == 'other_os_error':
+        assert list(result.keys()) == ['add_help']
+        assert isinstance(result['add_help'], OSError)
+
+
+    elif go_md2man_result == 'result_missing':
+        assert list(result.keys()) == ['add_help']
+        assert isinstance(result['add_help'], RuntimeError)
+        assert 'go-md2man run complete, but man file is not found' == str(result['add_help'])
+
+    elif go_md2man_result == 'input_missing':
+        expected_result = {
+            'add_help': {
+                'status': AddHelpPlugin.NO_HELP_FILE_FOUND,
+                'help_file': filename
+            }
+        }
+        assert result == expected_result
+
+    elif go_md2man_result == 'pass':
+        expected_result = {
+            'add_help': {
+                'status': AddHelpPlugin.HELP_GENERATED,
+                'help_file': filename
+            }
+        }
+        assert result == expected_result
+
+    elif go_md2man_result == 'fail':
+        assert list(result.keys()) == ['add_help']
+        assert isinstance(result['add_help'], RuntimeError)
+        assert 'Error running' in str(result['add_help'])

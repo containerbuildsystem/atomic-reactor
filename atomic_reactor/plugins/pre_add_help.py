@@ -30,6 +30,9 @@ class AddHelpPlugin(PreBuildPlugin):
     key = "add_help"
     man_filename = "help.1"
 
+    NO_HELP_FILE_FOUND = 1
+    HELP_GENERATED = 2
+
     def __init__(self, tasker, workflow, help_file=DEFAULT_HELP_FILENAME):
         """
         constructor
@@ -45,13 +48,23 @@ class AddHelpPlugin(PreBuildPlugin):
     def run(self):
         """
         run the plugin
+
+        The plugin returns None if exception occurred,
+        self.NO_HELP_FILE_FOUND if no help found
+        or self.HELP_GENERATED if help man page was generated
         """
+
+        result = {
+            'help_file': self.help_file,
+            'status': None
+        }
 
         help_path = os.path.join(self.workflow.builder.df_dir, self.help_file)
 
         if not os.path.exists(help_path):
             self.log.info("File %s not found", help_path)
-            return
+            result['status'] = self.NO_HELP_FILE_FOUND
+            return result
 
         man_path = os.path.join(self.workflow.builder.df_dir, self.man_filename)
 
@@ -84,4 +97,5 @@ class AddHelpPlugin(PreBuildPlugin):
 
         self.log.info("added %s", man_path)
 
-        return content
+        result['status'] = self.HELP_GENERATED
+        return result

@@ -25,7 +25,7 @@ from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
-from atomic_reactor.plugins.pre_add_help import AddHelpPlugin, DEFAULT_HELP_FILENAME
+from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.constants import PROG
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json, get_preferred_label,
@@ -537,7 +537,7 @@ class KojiPromotePlugin(ExitPlugin):
         if not isinstance(source, GitSource):
             raise RuntimeError('git source required')
 
-        extra = {'image': {'autorebuild': is_rebuild(self.workflow), 'help': None}}
+        extra = {'image': {'autorebuild': is_rebuild(self.workflow)}}
         koji_task_id = metadata.get('labels', {}).get('koji-task-id')
         if koji_task_id is not None:
             self.log.info("build configuration created by Koji Task ID %s",
@@ -563,13 +563,13 @@ class KojiPromotePlugin(ExitPlugin):
                     extra['filesystem_koji_task_id'] = task_id
 
         help_result = self.workflow.prebuild_results.get(AddHelpPlugin.key)
-        if help_result is not None:
-            try:
-                add_help_config = [x for x in self.workflow.prebuild_plugins_conf
-                                   if x['name'] == AddHelpPlugin.key][0]
-                extra['image']['help'] = add_help_config['args']['help_file']
-            except (KeyError, TypeError, IndexError):
-                extra['image']['help'] = DEFAULT_HELP_FILENAME
+        if isinstance(help_result, dict) and 'help_file' in help_result and 'status' in help_result:
+            if help_result['status'] == AddHelpPlugin.NO_HELP_FILE_FOUND:
+                extra['image']['help'] = None
+            elif help_result['status'] == AddHelpPlugin.HELP_GENERATED:
+                extra['image']['help'] = help_result['help_file']
+            else:
+                self.log.error("Unknown result from add_help plugin: %s", help_result)
 
         build = {
             'name': component,
