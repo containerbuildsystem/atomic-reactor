@@ -1176,8 +1176,10 @@ class TestKojiPromote(object):
 
     @pytest.mark.parametrize('expect_result', [
         'empty_config',
+        'no_help_file',
         'skip',
         'pass',
+        'unknown_status'
     ])
     def test_koji_promote_add_help(self, tmpdir, os_env, expect_result):
         session = MockedClientSession('')
@@ -1188,20 +1190,31 @@ class TestKojiPromote(object):
                                             session=session)
 
         if expect_result == 'pass':
-            workflow.prebuild_plugins_conf = [{
-                "name": AddHelpPlugin.key,
-                "args": {
-                  "help_file": 'foo.md',
-                }
-            }]
+            workflow.prebuild_results[AddHelpPlugin.key] = {
+                'help_file': 'foo.md',
+                'status': AddHelpPlugin.HELP_GENERATED
+            }
 
-        if expect_result == 'empty_config':
-            workflow.prebuild_plugins_conf = [{
-                "name": AddHelpPlugin.key,
-            }]
+        elif expect_result == 'empty_config':
+            workflow.prebuild_results[AddHelpPlugin.key] = {
+                'help_file': 'help.md',
+                'status': AddHelpPlugin.HELP_GENERATED
+            }
 
-        if expect_result != 'skip':
-            workflow.prebuild_results[AddHelpPlugin.key] = "FROM rhel"
+        elif expect_result == 'no_help_file':
+            workflow.prebuild_results[AddHelpPlugin.key] = {
+                'help_file': 'foo.md',
+                'status': AddHelpPlugin.NO_HELP_FILE_FOUND
+            }
+
+        elif expect_result == 'unknown_status':
+            workflow.prebuild_results[AddHelpPlugin.key] = {
+                'help_file': 'foo.md',
+                'status': 99999
+            }
+
+        elif expect_result == 'skip':
+            workflow.prebuild_results[AddHelpPlugin.key] = None
 
         runner = create_runner(tasker, workflow)
         runner.run()
@@ -1216,11 +1229,15 @@ class TestKojiPromote(object):
         assert 'image' in extra
         image = extra['image']
         assert isinstance(image, dict)
-        assert 'help' in image.keys()
 
         if expect_result == 'pass':
+            assert 'help' in image.keys()
             assert image['help'] == 'foo.md'
-        if expect_result == 'empty_config':
+        elif expect_result == 'empty_config':
+            assert 'help' in image.keys()
             assert image['help'] == 'help.md'
-        elif expect_result == 'skip':
+        elif expect_result == 'no_help_file':
+            assert 'help' in image.keys()
             assert image['help'] is None
+        elif expect_result in ['skip', 'unknown_status']:
+            assert 'help' not in image.keys()
