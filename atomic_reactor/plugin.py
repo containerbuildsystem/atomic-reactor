@@ -18,7 +18,9 @@ import imp
 import datetime
 import inspect
 
+from atomic_reactor.build import BuildResult
 from atomic_reactor.util import process_substitutions
+from dockerfile_parse import DockerfileParser
 
 MODULE_EXTENSIONS = ('.py', '.pyc', '.pyo')
 logger = logging.getLogger(__name__)
@@ -40,6 +42,10 @@ class PluginFailedException(Exception):
 
 class BuildCanceledException(Exception):
     """Build was canceled"""
+
+
+class InappropriateBuildStepError(Exception):
+    """Requested build step is not appropriate"""
 
 
 class Plugin(object):
@@ -171,15 +177,21 @@ class PluginsRunner(object):
     def save_plugin_duration(self, plugin, duration):
         pass
 
-    def run(self, keep_going=False):
+    def run(self, keep_going=False, buildstep_phase=False):
         """
         run all requested plugins
 
         :param keep_going: bool, whether to keep going after unexpected
                                  failure (only used for exit plugins)
+        :param buildstep_phase: bool, when True remaining plugins will
+                                not be executed after a plugin completes
+                                (only used for build-step plugins)
         """
         failed_msgs = []
+        plugin_successful = False
+        plugin_response = None
         for plugin_request in self.plugins_conf:
+            plugin_successful = False
             try:
                 plugin_name = plugin_request['name']
             except (TypeError, KeyError):
@@ -219,10 +231,23 @@ class PluginsRunner(object):
             logger.debug("running plugin '%s'", plugin_name)
             start_time = datetime.datetime.now()
 
+            plugin_response = None
+            skip_response = False
             try:
                 plugin_instance = self.create_instance_from_plugin(plugin_class, plugin_conf)
                 self.save_plugin_timestamp(plugin_class.key, start_time)
                 plugin_response = plugin_instance.run()
+                plugin_successful = True
+                if buildstep_phase:
+                    assert isinstance(plugin_response, BuildResult)
+                    if plugin_response.is_failed():
+                        msg = "Build step plugin %s failed" % plugin_class.key
+                        logger.error(msg)
+                        self.on_plugin_failed(plugin_class.key, "Buildstep plugin failed")
+                        plugin_successful = False
+                        self.plugins_results[plugin_class.key] = plugin_response
+                        break
+
             except AutoRebuildCanceledException as ex:
                 # if auto rebuild is canceled, then just reraise
                 # NOTE: We need to catch and reraise explicitly, so that the below except clause
@@ -230,6 +255,12 @@ class PluginsRunner(object):
                 #   (calling methods would then need to parse exception message to see if
                 #   AutoRebuildCanceledException was raised here)
                 raise
+            except InappropriateBuildStepError:
+                logger.debug('Build step %s is not appropriate', plugin_class.key)
+                # don't put None, in results for InappropriateBuildStepError
+                skip_response = True
+                if not buildstep_phase:
+                    raise
             except Exception as ex:
                 msg = "plugin '%s' raised an exception: %r" % (plugin_class.key, ex)
                 logger.debug(traceback.format_exc())
@@ -257,11 +288,23 @@ class PluginsRunner(object):
             except Exception:
                 logger.exception("failed to save plugin duration")
 
-            self.plugins_results[plugin_class.key] = plugin_response
+            if not skip_response:
+                self.plugins_results[plugin_class.key] = plugin_response
+
+            if plugin_successful and buildstep_phase:
+                logger.debug('stopping further execution of plugins '
+                             'after first successful plugin')
+                break
+
         if len(failed_msgs) == 1:
             raise PluginFailedException(failed_msgs[0])
         elif len(failed_msgs) > 1:
             raise PluginFailedException("Multiple plugins raised an exception: " + str(failed_msgs))
+
+        if not plugin_successful and buildstep_phase and not plugin_response:
+            self.on_plugin_failed("BuildStepPlugin", "No appropriate build step")
+            raise PluginFailedException("No appropriate build step")
+
         return self.plugins_results
 
 
@@ -353,6 +396,44 @@ class PreBuildPluginsRunner(BuildPluginsRunner):
         logger.info("initializing runner of pre-build plugins")
         self.plugins_results = workflow.prebuild_results
         super(PreBuildPluginsRunner, self).__init__(dt, workflow, 'PreBuildPlugin', plugins_conf, *args, **kwargs)
+
+
+class BuildStepPlugin(BuildPlugin):
+    pass
+
+
+class BuildStepPluginsRunner(BuildPluginsRunner):
+
+    def __init__(self, dt, workflow, plugin_conf, *args, **kwargs):
+        logger.info("initializing runner of build-step plugin")
+        self.plugins_results = workflow.buildstep_result
+
+        if not plugin_conf:
+            # if none buildstep plugins specified, fallback to docker api plugin
+            plugin_conf = [{'name': 'docker_api', 'is_allowed_to_fail': False}]
+        else:
+            # any non existing buildstep plugin must be skipped without error
+            for i in range(len(plugin_conf)):
+                plugin_conf[i]['required'] = False
+                plugin_conf[i]['is_allowed_to_fail'] = False
+
+        super(BuildStepPluginsRunner, self).__init__(
+            dt, workflow, 'BuildStepPlugin', plugin_conf, *args, **kwargs)
+
+    def run(self, *args, **kwargs):
+        builder = self.workflow.builder
+
+        logger.info('building image %r inside current environment',
+                    builder.image)
+        builder.ensure_not_built()
+        logger.debug('using dockerfile:\n%s',
+                     DockerfileParser(builder.df_path).content)
+
+        kwargs['buildstep_phase'] = True
+
+        plugins_results = super(BuildStepPluginsRunner, self).run(*args, **kwargs)
+        return list(plugins_results.values())[0]
+
 
 class PrePublishPlugin(BuildPlugin):
     pass
@@ -450,7 +531,7 @@ class InputPluginsRunner(PluginsRunner):
         self.plugins_results = {}
         self.autoinput = self.plugins_conf[0]['name'] == 'auto'
 
-    def run(self, keep_going=False):
+    def run(self, *args, **kwargs):
         """Wrap `PluginsRunner.run()` while implementing the `auto` input behaviour.
 
         If input plugin name is `auto`, then call `is_autousable` on all input plugins.
@@ -475,7 +556,7 @@ class InputPluginsRunner(PluginsRunner):
             logger.debug('using "%s" for input', autousable)
             self.plugins_conf[0]['name'] = autousable
 
-        result = super(InputPluginsRunner, self).run(keep_going=keep_going)
+        result = super(InputPluginsRunner, self).run(*args, **kwargs)
 
         if self.autoinput:
             result['auto'] = result.pop(autousable)

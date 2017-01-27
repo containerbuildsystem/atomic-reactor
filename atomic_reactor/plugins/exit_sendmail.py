@@ -231,7 +231,7 @@ class SendMailPlugin(ExitPlugin):
                                         '", "'.join(sorted(unknown_states)))
 
         rebuild = is_rebuild(self.workflow)
-        success = not self.workflow.build_failed
+        success = not self.workflow.build_result.is_failed()
         canceled = self.workflow.autorebuild_canceled
 
         self.log.info('checking conditions for sending notification ...')

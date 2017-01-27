@@ -10,13 +10,14 @@ from __future__ import unicode_literals
 import os
 import pytest
 
-from atomic_reactor.build import InsideBuilder, ExceptionBuildResult
+from atomic_reactor.build import InsideBuilder, BuildResult
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.util import ImageName
 from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, DOCKERFILE_OK_PATH,\
         DOCKERFILE_ERROR_BUILD_PATH, MOCK, SOURCE, DOCKERFILE_FILENAME
 from tests.util import requires_internet
+from flexmock import flexmock
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -36,75 +37,19 @@ with_all_sources = pytest.mark.parametrize('source_params', [
 
 @requires_internet
 @with_all_sources
-def test_build_image(tmpdir, source_params):
-    provided_image = "test-build:test_tag"
-    if MOCK:
-        mock_docker(provided_image_repotags=provided_image)
-
-    source_params.update({'tmpdir': str(tmpdir)})
-    s = get_source_instance_for(source_params)
-    t = DockerTasker()
-    b = InsideBuilder(s, provided_image)
-    build_result = b.build()
-    assert t.inspect_image(build_result.image_id)
-    # clean
-    t.remove_image(build_result.image_id)
-
-@requires_internet
-@pytest.mark.parametrize('source_params', [
-    {'provider': 'git', 'uri': DOCKERFILE_GIT, 'provider_params': {'git_commit': 'error-build'}},
-    {'provider': 'path', 'uri': 'file://' + DOCKERFILE_ERROR_BUILD_PATH},
-])
-def test_build_bad_git_commit_dockerfile(tmpdir, source_params):
-    provided_image = "test-build:test_tag"
-    if MOCK:
-        mock_docker(build_should_fail=True, provided_image_repotags=provided_image)
-
-    source_params.update({'tmpdir': str(tmpdir)})
-    s = get_source_instance_for(source_params)
-    b = InsideBuilder(s, provided_image)
-    build_result = b.build()
-    assert build_result.is_failed()
-
-
-@requires_internet
-@with_all_sources
 def test_inspect_built_image(tmpdir, source_params):
     provided_image = "test-build:test_tag"
     if MOCK:
         mock_docker(provided_image_repotags=provided_image)
 
+    flexmock(InsideBuilder, ensure_is_built=None)
     source_params.update({'tmpdir': str(tmpdir)})
     s = get_source_instance_for(source_params)
-    t = DockerTasker()
     b = InsideBuilder(s, provided_image)
-    build_result = b.build()
     built_inspect = b.inspect_built_image()
 
     assert built_inspect is not None
     assert built_inspect["Id"] is not None
-
-    # clean
-    t.remove_image(build_result.image_id)
-
-
-@requires_internet
-def test_build_generator_raises(tmpdir):
-    provided_image = "test-build:test_tag"
-    if MOCK:
-        mock_docker(provided_image_repotags=provided_image,
-                    build_should_fail=True, build_should_fail_generator=True)
-
-    source_params = SOURCE.copy()
-    source_params.update({'tmpdir': str(tmpdir)})
-    s = get_source_instance_for(source_params)
-    t = DockerTasker()
-    b = InsideBuilder(s, provided_image)
-    build_result = b.build()
-
-    assert isinstance(build_result, ExceptionBuildResult)
-    assert build_result.is_failed()
-    assert 'build generator failure' in build_result.logs
 
 
 @requires_internet
@@ -124,15 +69,81 @@ def test_inspect_base_image(tmpdir, source_params):
 
 @requires_internet
 @with_all_sources
-def test_get_base_image_info(tmpdir, source_params):
+@pytest.mark.parametrize(('image', 'will_raise'), [
+    (
+        "buildroot-fedora:latest",
+        False,
+    ),
+    (
+        "non-existing",
+        True,
+    ),
+])
+def test_get_base_image_info(tmpdir, source_params, image, will_raise):
     if MOCK:
-        mock_docker(provided_image_repotags='fedora:latest')
+        mock_docker(provided_image_repotags=image)
+
+    source_params.update({'tmpdir': str(tmpdir)})
+    s = get_source_instance_for(source_params)
+    b = InsideBuilder(s, image)
+
+    if will_raise:
+        with pytest.raises(Exception):
+            built_inspect = b.get_base_image_info()
+    else:
+        built_inspect = b.get_base_image_info()
+        assert built_inspect is not None
+        assert built_inspect["Id"] is not None
+        assert built_inspect["RepoTags"] is not None
+
+
+@requires_internet
+@with_all_sources
+@pytest.mark.parametrize('is_built', [
+    True,
+    False,
+])
+def test_ensure_built(tmpdir, source_params, is_built):
+    if MOCK:
+        mock_docker()
 
     source_params.update({'tmpdir': str(tmpdir)})
     s = get_source_instance_for(source_params)
     b = InsideBuilder(s, '')
-    built_inspect = b.get_base_image_info()
+    b.is_built = is_built
 
-    assert built_inspect is not None
-    assert built_inspect["Id"] is not None
-    assert built_inspect["RepoTags"] is not None
+    if is_built:
+        assert b.ensure_is_built() == None
+        with pytest.raises(Exception):
+            b.ensure_not_built()
+    else:
+        assert b.ensure_not_built() == None
+        with pytest.raises(Exception):
+            b.ensure_is_built()
+
+
+@requires_internet
+@with_all_sources
+@pytest.mark.parametrize(('image', 'will_raise'), [
+    (
+        "buildroot-fedora:latest",
+        False,
+    ),
+    (
+        "non-existing",
+        True,
+    ),
+])
+def test_get_image_built_info(tmpdir, source_params, image, will_raise):
+    if MOCK:
+        mock_docker(provided_image_repotags=image)
+
+    source_params.update({'tmpdir': str(tmpdir)})
+    s = get_source_instance_for(source_params)
+    b = InsideBuilder(s, image)
+
+    if will_raise:
+        with pytest.raises(Exception):
+            b.get_built_image_info()
+    else:
+        b.get_built_image_info()

@@ -47,7 +47,7 @@ class BuildManager(BuilderStateMachine):
         :return: BuildResults
         """
         logger.info("building image '%s'", self.image)
-        self._ensure_not_built()
+        self.ensure_not_built()
         self.temp_dir = tempfile.mkdtemp()
         temp_path = os.path.join(self.temp_dir, BUILD_JSON)
         try:
@@ -103,7 +103,7 @@ class BuildManager(BuilderStateMachine):
         :return:
         """
         logger.info("committing buildroot")
-        self._ensure_is_built()
+        self.ensure_is_built()
 
         commit_message = "docker build of '%s' (%s)" % (self.image, self.uri)
         self.buildroot_image_name = ImageName(
@@ -115,7 +115,7 @@ class BuildManager(BuilderStateMachine):
 
     def push_buildroot(self, registry):
         logger.info("pushing buildroot to registry")
-        self._ensure_is_built()
+        self.ensure_is_built()
 
         image_name_with_registry = self.buildroot_image_name.copy()
         image_name_with_registry.registry = registry

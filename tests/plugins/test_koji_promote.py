@@ -38,6 +38,7 @@ from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
 from atomic_reactor.util import ImageName, ManifestDigest
 from atomic_reactor.source import GitSource, PathSource
+from atomic_reactor.build import BuildResult
 from tests.constants import SOURCE, MOCK
 
 from flexmock import flexmock
@@ -232,7 +233,6 @@ def mock_environment(tmpdir, session=None, name=None,
     setattr(workflow, 'source', source)
     setattr(workflow.source, 'lg', X())
     setattr(workflow.source.lg, 'commit_id', '123456')
-    setattr(workflow, 'build_logs', ['docker build log - \u2018 \u2017 \u2019 \n'])
     setattr(workflow, 'push_conf', PushConf())
     if docker_registry:
         docker_reg = workflow.push_conf.add_docker_registry('docker.example.com')
@@ -259,7 +259,12 @@ def mock_environment(tmpdir, session=None, name=None,
         fp.write('x' * 2**12)
         setattr(workflow, 'exported_image_sequence', [{'path': fp.name}])
 
-    setattr(workflow, 'build_failed', build_process_failed)
+    if build_process_failed:
+        workflow.build_result = BuildResult(logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
+                                            fail_reason="not built")
+    else:
+        workflow.build_result = BuildResult(logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
+                                            image_id="id1234")
     workflow.prebuild_plugins_conf = {}
     workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_rebuild
     workflow.postbuild_results[PostBuildRPMqaPlugin.key] = [

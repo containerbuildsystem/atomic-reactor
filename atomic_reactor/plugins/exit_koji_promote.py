@@ -352,7 +352,7 @@ class KojiPromotePlugin(ExitPlugin):
         docker_logs = NamedTemporaryFile(prefix="docker-%s" % self.build_id,
                                          suffix=".log",
                                          mode='wb')
-        docker_logs.write("\n".join(self.workflow.build_logs).encode('UTF-8'))
+        docker_logs.write("\n".join(self.workflow.build_result.logs).encode('UTF-8'))
         docker_logs.flush()
         output.append(Output(file=docker_logs,
                              metadata=self.get_output_metadata(docker_logs.name,

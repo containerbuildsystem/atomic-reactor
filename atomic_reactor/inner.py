@@ -12,15 +12,23 @@ Script for building docker image. This is expected to run inside container.
 import json
 import logging
 import tempfile
-import datetime
 import signal
 
 from atomic_reactor.build import InsideBuilder
 from atomic_reactor.plugin import (
-    PostBuildPluginsRunner, PreBuildPluginsRunner, InputPluginsRunner, PrePublishPluginsRunner,
-    ExitPluginsRunner, PluginFailedException, AutoRebuildCanceledException, BuildCanceledException)
+    AutoRebuildCanceledException,
+    BuildCanceledException,
+    BuildStepPluginsRunner,
+    ExitPluginsRunner,
+    InputPluginsRunner,
+    PluginFailedException,
+    PostBuildPluginsRunner,
+    PreBuildPluginsRunner,
+    PrePublishPluginsRunner,
+)
 from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.util import ImageName
+from atomic_reactor.build import BuildResult
 
 
 logger = logging.getLogger(__name__)
@@ -240,7 +248,8 @@ class DockerBuildWorkflow(object):
 
     def __init__(self, source, image, prebuild_plugins=None, prepublish_plugins=None,
                  postbuild_plugins=None, exit_plugins=None, plugin_files=None,
-                 openshift_build_selflink=None, client_version=None, **kwargs):
+                 openshift_build_selflink=None, client_version=None,
+                 buildstep_plugins=None, **kwargs):
         """
         :param source: dict, where/how to get source code to put in image
         :param image: str, tag for built image ([registry/]image_name[:tag])
@@ -250,31 +259,34 @@ class DockerBuildWorkflow(object):
         :param plugin_files: list of str, load plugins also from these files
         :param openshift_build_selflink: str, link to openshift build (if we're actually running
             on openshift) without the actual hostname/IP address
+        :param client_version: str, osbs-client version used to render build json
+        :param buildstep_plugins: dict, arguments for build-step plugins
         """
         self.source = get_source_instance_for(source, tmpdir=tempfile.mkdtemp())
         self.image = image
 
         self.prebuild_plugins_conf = prebuild_plugins
+        self.buildstep_plugins_conf = buildstep_plugins
         self.prepublish_plugins_conf = prepublish_plugins
         self.postbuild_plugins_conf = postbuild_plugins
         self.exit_plugins_conf = exit_plugins
         self.prebuild_results = {}
+        self.buildstep_result = {}
         self.postbuild_results = {}
         self.prepub_results = {}
         self.exit_results = {}
+        self.build_result = BuildResult(fail_reason="not built")
         self.plugin_workspace = {}
         self.plugins_timestamps = {}
         self.plugins_durations = {}
         self.plugins_errors = {}
         self.autorebuild_canceled = False
-        self.build_failed = False
         self.plugin_failed = False
         self.plugin_files = plugin_files
 
         self.kwargs = kwargs
 
         self.builder = None
-        self.build_logs = []
         self.built_image_inspect = None
         self._base_image_inspect = None
 
@@ -308,7 +320,7 @@ class DockerBuildWorkflow(object):
         """
         Has any aspect of the build process failed?
         """
-        return self.build_failed or self.plugin_failed
+        return self.build_result.is_failed() or self.plugin_failed
 
     # inspect base image lazily just before it's needed - pre plugins may change the base image
     @property
@@ -324,7 +336,7 @@ class DockerBuildWorkflow(object):
         """
         build docker image
 
-        :return: BuildResults
+        :return: BuildResult
         """
         self.builder = InsideBuilder(self.source, self.image)
         try:
@@ -343,31 +355,26 @@ class DockerBuildWorkflow(object):
                 self.autorebuild_canceled = True
                 raise
 
-            start_time = datetime.datetime.now()
-            self.plugins_timestamps['dockerbuild'] = start_time.isoformat()
-
-            build_result = self.builder.build()
-
+            logger.info("running buildstep plugins")
+            buildstep_runner = BuildStepPluginsRunner(self.builder.tasker, self,
+                                                      self.buildstep_plugins_conf,
+                                                      plugin_files=self.plugin_files)
             try:
-                finish_time = datetime.datetime.now()
-                duration = finish_time - start_time
-                seconds = duration.total_seconds()
-                logger.debug("build finished in %ds", seconds)
-                self.plugins_durations['dockerbuild'] = seconds
-            except Exception:
-                logger.exception("failed to save build duration")
+                self.build_result = buildstep_runner.run()
 
-            self.build_logs = build_result.logs
+                if self.build_result.is_failed():
+                    logger.error('buildstep plugin failed: %s',
+                                 self.build_result.fail_reason)
+                    raise PluginFailedException('buildstep plugin failed')
+                
+                self.builder.is_built = True
+                self.builder.image_id = self.build_result.image_id
+                self.built_image_inspect = self.builder.inspect_built_image()
 
-            self.build_failed = build_result.is_failed()
-
-            if build_result.is_failed():
-                # The docker build failed. Finish here, just run the
-                # exit plugins (from the 'finally:' block below).
-                self.plugins_errors['dockerbuild'] = ''
-                return build_result
-
-            self.built_image_inspect = self.builder.inspect_built_image()
+            except PluginFailedException as ex:
+                self.builder.is_built = False
+                logger.error('buildstep plugin failed: %s', ex)
+                raise
 
             # run prepublish plugins
             prepublish_runner = PrePublishPluginsRunner(self.builder.tasker, self, self.prepublish_plugins_conf,
@@ -386,7 +393,7 @@ class DockerBuildWorkflow(object):
                 logger.error("one or more postbuild plugins failed: %s", ex)
                 raise
 
-            return build_result
+            return self.build_result
         finally:
             # We need to make sure all exit plugins are executed
             signal.signal(signal.SIGTERM, lambda *args: None)

@@ -12,9 +12,8 @@ Logic above these classes has to set the workflow itself.
 import json
 
 import logging
-import traceback
 from atomic_reactor.core import DockerTasker, LastLogger
-from atomic_reactor.util import wait_for_command, ImageName, print_version_of_tools, df_parser
+from atomic_reactor.util import ImageName, print_version_of_tools, df_parser
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +31,7 @@ class BuilderStateMachine(object):
         self.is_built = False
         self.image = None
 
-    def _ensure_is_built(self):
+    def ensure_is_built(self):
         """
         ensure that image is already built
 
@@ -42,7 +41,7 @@ class BuilderStateMachine(object):
             logger.error("image '%s' is not built yet!", self.image)
             raise ImageNotBuilt()
 
-    def _ensure_not_built(self):
+    def ensure_not_built(self):
         """
         verify that image wasn't built with 'build' method yet
 
@@ -54,37 +53,35 @@ class BuilderStateMachine(object):
 
 
 class BuildResult(object):
-    def __init__(self, command_result, image_id=None):
-        """ when build fails, image_id is None """
-        self.command_result = command_result
+    def __init__(self, logs=None, fail_reason=None, image_id=None):
+        """
+        :param logs: iterable of log lines (without newlines)
+        :param fail_reason: str, description of failure or None if successful
+        :param image_id: str, ID of built container image
+        """
+        assert fail_reason is None or bool(fail_reason), \
+            "If fail_reason provided, can't be falsy"
+        # must provide one, not both
+        assert bool(fail_reason) != bool(image_id), \
+            "Either fail_reason or image_id should be provided, not both"
+        self._logs = logs or []
+        self._fail_reason = fail_reason
         self._image_id = image_id
-
-    @property
-    def image_id(self):
-        return self._image_id
-
-    def is_failed(self):
-        return self.command_result.is_failed()
-
-    @property
-    def logs(self):
-        return self.command_result.logs
-
-
-class ExceptionBuildResult(object):
-    def __init__(self):
-        self._logs = traceback.format_exc()
-
-    @property
-    def image_id(self):
-        return None
-
-    def is_failed(self):
-        return True
 
     @property
     def logs(self):
         return self._logs
+
+    @property
+    def fail_reason(self):
+        return self._fail_reason
+
+    def is_failed(self):
+        return self._fail_reason is not None
+
+    @property
+    def image_id(self):
+        return self._image_id
 
 
 class InsideBuilder(LastLogger, BuilderStateMachine):
@@ -120,35 +117,6 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         if not self.base_image.tag:
             self.base_image.tag = 'latest'
 
-    def build(self):
-        """
-        build image inside current environment;
-        it's expected this may run within (privileged) docker container
-
-        :return: image string (e.g. fedora-python:34)
-        """
-        try:
-            logger.info("building image '%s' inside current environment", self.image)
-            self._ensure_not_built()
-            logger.debug("using dockerfile:\n%s", df_parser(self.df_path).content)
-            logs_gen = self.tasker.build_image_from_path(
-                self.df_dir,
-                self.image,
-            )
-            logger.debug("build is submitted, waiting for it to finish")
-            command_result = wait_for_command(logs_gen)  # wait for build to finish
-            logger.info("build %s!", 'failed' if command_result.is_failed() else 'succeeded')
-            self.is_built = True
-            if not command_result.is_failed():
-                self.built_image_info = self.get_built_image_info()
-                # self.base_image_id = self.built_image_info['ParentId']  # parent id is not base image!
-                self.image_id = self.built_image_info['Id']
-            build_result = BuildResult(command_result, self.image_id)
-            return build_result
-        except:
-            logger.exception("build failed")
-            return ExceptionBuildResult()
-
     def set_base_image(self, base_image):
         self.base_image = ImageName.parse(base_image)
 
@@ -169,7 +137,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         :return: dict
         """
         logger.info("inspecting built image '%s'", self.image_id)
-        self._ensure_is_built()
+        self.ensure_is_built()
         inspect_data = self.tasker.inspect_image(self.image_id)  # dict with lots of data, see man docker-inspect
         return inspect_data
 
@@ -198,7 +166,6 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         :return dict
         """
         logger.info("getting information about built image '%s'", self.image)
-        self._ensure_is_built()
         image_info = self.tasker.get_image_info_by_image_name(self.image)
         items_count = len(image_info)
         if items_count == 1:
