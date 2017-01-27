@@ -340,6 +340,9 @@ class PulpPushPlugin(PostBuildPlugin):
             self.log.info("fetching image %s from docker", image)
             with tempfile.NamedTemporaryFile(prefix='docker-image-', suffix='.tar') as image_file:
                 image_file.write(self.tasker.d.get_image(image).data)
+                # This file will be referenced by its filename, not file
+                # discriptor - must ensure contents are written to disk
+                image_file.flush()
                 crane_repos = self.push_tar(image_file.name, image_names)
 
         for image_name in crane_repos:

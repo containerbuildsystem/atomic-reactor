@@ -18,7 +18,9 @@ import imp
 import datetime
 import inspect
 
+from atomic_reactor.build import BuildResult
 from atomic_reactor.util import process_substitutions
+from dockerfile_parse import DockerfileParser
 
 MODULE_EXTENSIONS = ('.py', '.pyc', '.pyo')
 logger = logging.getLogger(__name__)
@@ -353,6 +355,49 @@ class PreBuildPluginsRunner(BuildPluginsRunner):
         logger.info("initializing runner of pre-build plugins")
         self.plugins_results = workflow.prebuild_results
         super(PreBuildPluginsRunner, self).__init__(dt, workflow, 'PreBuildPlugin', plugins_conf, *args, **kwargs)
+
+
+class BuildStepPlugin(BuildPlugin):
+    pass
+
+
+class BuildStepPluginRunner(BuildPluginsRunner):
+
+    def __init__(self, dt, workflow, plugin_conf, *args, **kwargs):
+        self._build_result = None
+
+        logger.info("initializing runner of build-step plugin")
+        self.plugins_results = workflow.buildstep_result
+
+        if not plugin_conf:
+            plugin_conf = {'name': 'docker_api'}
+
+        super(BuildStepPluginRunner, self).__init__(
+            dt, workflow, 'BuildStepPlugin', [plugin_conf], *args, **kwargs)
+
+    def run(self):
+        builder = self.workflow.builder
+
+        logger.info('building image %r inside current environment',
+                    builder.image)
+        builder._ensure_not_built()
+        logger.debug('using dockerfile:\n%s',
+                     DockerfileParser(builder.df_path).content)
+
+        plugins_results = super(BuildStepPluginRunner, self).run()
+
+        builder.is_built = True
+
+        image_id = builder.get_built_image_info()['Id']
+        builder.image_id = image_id
+
+        self._build_result = BuildResult(plugins_results.values()[0], image_id)
+
+        return plugins_results
+
+    def get_build_result(self):
+        return self._build_result
+
 
 class PrePublishPlugin(BuildPlugin):
     pass
