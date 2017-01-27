@@ -249,7 +249,7 @@ class DockerBuildWorkflow(object):
     def __init__(self, source, image, prebuild_plugins=None, prepublish_plugins=None,
                  postbuild_plugins=None, exit_plugins=None, plugin_files=None,
                  openshift_build_selflink=None, client_version=None,
-                 buildstep_plugin=None, **kwargs):
+                 buildstep_plugins=None, **kwargs):
         """
         :param source: dict, where/how to get source code to put in image
         :param image: str, tag for built image ([registry/]image_name[:tag])
@@ -259,12 +259,14 @@ class DockerBuildWorkflow(object):
         :param plugin_files: list of str, load plugins also from these files
         :param openshift_build_selflink: str, link to openshift build (if we're actually running
             on openshift) without the actual hostname/IP address
+        :param client_version: str, osbs-client version used to render build json
+        :param buildstep_plugins: dict, arguments for build-step plugins
         """
         self.source = get_source_instance_for(source, tmpdir=tempfile.mkdtemp())
         self.image = image
 
         self.prebuild_plugins_conf = prebuild_plugins
-        self.buildstep_plugin_conf = buildstep_plugin
+        self.buildstep_plugins_conf = buildstep_plugins
         self.prepublish_plugins_conf = prepublish_plugins
         self.postbuild_plugins_conf = postbuild_plugins
         self.exit_plugins_conf = exit_plugins
@@ -358,10 +360,10 @@ class DockerBuildWorkflow(object):
             self.plugins_timestamps['dockerbuild'] = start_time.isoformat()
 
             buildstep_runner = BuildStepPluginRunner(self.builder.tasker, self,
-                                                     self.buildstep_plugin_conf,
+                                                     self.buildstep_plugins_conf,
                                                      plugin_files=self.plugin_files)
             try:
-                buildstep_runner.run()
+                buildstep_runner.run(stop_on_success=True)
             except PluginFailedException as ex:
                 logger.error('buildstep plugin failed: %s', ex)
                 raise

@@ -9,7 +9,7 @@ from __future__ import print_function, unicode_literals
 
 from atomic_reactor.build import BuildResult
 from atomic_reactor.constants import EXPORTED_BUILT_IMAGE_NAME
-from atomic_reactor.plugin import BuildStepPlugin
+from atomic_reactor.plugin import BuildStepPlugin, InappropriateBuildStepError
 from atomic_reactor.util import get_exported_image_metadata, wait_for_command
 from dockerfile_parse import DockerfileParser
 
@@ -35,6 +35,8 @@ class OCDockerbuildPlugin(BuildStepPlugin):
 
     def run(self):
         builder = self.workflow.builder
+
+        raise InappropriateBuildStepError('Nah!')
 
         image = builder.image.to_str()
         oc_process = Popen([

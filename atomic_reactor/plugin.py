@@ -43,6 +43,9 @@ class PluginFailedException(Exception):
 class BuildCanceledException(Exception):
     """Build was canceled"""
 
+class InappropriateBuildStepError(Exception):
+    """Requested build step is not appropriate"""
+
 
 class Plugin(object):
     """ abstract plugin class """
@@ -173,15 +176,19 @@ class PluginsRunner(object):
     def save_plugin_duration(self, plugin, duration):
         pass
 
-    def run(self, keep_going=False):
+    def run(self, keep_going=False, stop_on_success=False):
         """
         run all requested plugins
 
         :param keep_going: bool, whether to keep going after unexpected
                                  failure (only used for exit plugins)
+        :param stop_on_success: bool, when True remaining plugins will
+                                not be executed after a plugin succeeds
+                                (only used for build-step plugins)
         """
         failed_msgs = []
         for plugin_request in self.plugins_conf:
+            plugin_successful = False
             try:
                 plugin_name = plugin_request['name']
             except (TypeError, KeyError):
@@ -221,10 +228,12 @@ class PluginsRunner(object):
             logger.debug("running plugin '%s'", plugin_name)
             start_time = datetime.datetime.now()
 
+            plugin_response = None
             try:
                 plugin_instance = self.create_instance_from_plugin(plugin_class, plugin_conf)
                 self.save_plugin_timestamp(plugin_class.key, start_time)
                 plugin_response = plugin_instance.run()
+                plugin_successful = True
             except AutoRebuildCanceledException as ex:
                 # if auto rebuild is canceled, then just reraise
                 # NOTE: We need to catch and reraise explicitly, so that the below except clause
@@ -232,6 +241,8 @@ class PluginsRunner(object):
                 #   (calling methods would then need to parse exception message to see if
                 #   AutoRebuildCanceledException was raised here)
                 raise
+            except InappropriateBuildStepError:
+                logger.debug('Build step %s is not appropriate', plugin_class.key)
             except Exception as ex:
                 msg = "plugin '%s' raised an exception: %r" % (plugin_class.key, ex)
                 logger.debug(traceback.format_exc())
@@ -260,6 +271,12 @@ class PluginsRunner(object):
                 logger.exception("failed to save plugin duration")
 
             self.plugins_results[plugin_class.key] = plugin_response
+
+            if plugin_successful and stop_on_success:
+                logger.debug('stopping further execution of plugins '
+                             'after first successful plugin')
+                break
+
         if len(failed_msgs) == 1:
             raise PluginFailedException(failed_msgs[0])
         elif len(failed_msgs) > 1:
@@ -370,12 +387,12 @@ class BuildStepPluginRunner(BuildPluginsRunner):
         self.plugins_results = workflow.buildstep_result
 
         if not plugin_conf:
-            plugin_conf = {'name': 'docker_api'}
+            plugin_conf = [{'name': 'docker_api'}]
 
         super(BuildStepPluginRunner, self).__init__(
-            dt, workflow, 'BuildStepPlugin', [plugin_conf], *args, **kwargs)
+            dt, workflow, 'BuildStepPlugin', plugin_conf, *args, **kwargs)
 
-    def run(self):
+    def run(self, *args, **kwargs):
         builder = self.workflow.builder
 
         logger.info('building image %r inside current environment',
@@ -384,14 +401,19 @@ class BuildStepPluginRunner(BuildPluginsRunner):
         logger.debug('using dockerfile:\n%s',
                      DockerfileParser(builder.df_path).content)
 
-        plugins_results = super(BuildStepPluginRunner, self).run()
+        plugins_results = super(BuildStepPluginRunner, self).run(*args, **kwargs)
 
         builder.is_built = True
 
         image_id = builder.get_built_image_info()['Id']
         builder.image_id = image_id
 
-        self._build_result = BuildResult(plugins_results.values()[0], image_id)
+        self._build_result = None
+        for conf in self.plugins_conf:
+            plugin_name = conf['name']
+            result = plugins_results[plugin_name]
+            if result:
+                self._build_result = BuildResult(result, image_id)
 
         return plugins_results
 
@@ -495,7 +517,7 @@ class InputPluginsRunner(PluginsRunner):
         self.plugins_results = {}
         self.autoinput = self.plugins_conf[0]['name'] == 'auto'
 
-    def run(self, keep_going=False):
+    def run(self, *args, **kwargs):
         """Wrap `PluginsRunner.run()` while implementing the `auto` input behaviour.
 
         If input plugin name is `auto`, then call `is_autousable` on all input plugins.
@@ -520,7 +542,7 @@ class InputPluginsRunner(PluginsRunner):
             logger.debug('using "%s" for input', autousable)
             self.plugins_conf[0]['name'] = autousable
 
-        result = super(InputPluginsRunner, self).run(keep_going=keep_going)
+        result = super(InputPluginsRunner, self).run(*args, **kwargs)
 
         if self.autoinput:
             result['auto'] = result.pop(autousable)
