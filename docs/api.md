@@ -331,9 +331,7 @@ Python API for atomic-reactor. This is the official way of interacting with atom
 
 * base_image_inspect
 
-* build_failed
-
-* build_logs
+* build_result
 
 * build_process_failed  
 `Has any aspect of the build process failed?`

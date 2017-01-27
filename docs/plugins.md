@@ -5,17 +5,19 @@ One of the biggest strength of Atomic Reactor is its plugin system.
 
 ## Plugin types
 
-There are 5 types of plugins:
+There are 6 types of plugins:
 
 1. **Input** — when running Atomic Reactor inside a build container, input plugin fetches build input (it can live in [path](https://github.com/projectatomic/atomic-reactor/blob/master/atomic_reactor/plugins/input_path.py), [environment variable](https://github.com/projectatomic/atomic-reactor/blob/master/atomic_reactor/plugins/input_env.py), ...)
 2. **Pre-build** — this plugin is executed after cloning a git repo (so you can edit sources, Dockerfile, ...), prior to build
-3. **Pre-publish** — once build finishes, the built image is pushed to registry, but prior to that, pre-publish plugins are executed (time for some simple tests)
-4. **Post-build** — these are run when the build is finished and the image was pushed to registries
-5. **Exit** — these are run last of all, and will always run even if a previous build step failed
+3. **Buildstep** — this plugin is doing the actual building
+4. **Pre-publish** — once build finishes, the built image is pushed to registry, but prior to that, pre-publish plugins are executed (time for some simple tests)
+5. **Post-build** — these are run when the build is finished and the image was pushed to registries
+6. **Exit** — these are run last of all, and will always run even if a previous build step failed
 
 ## Plugin configuration
 
-Build plugins are requested and configured via input json: key `prebuild_plugins`, `postbuild_plugins` or `prepublish_plugins`. Each field is an array of following items:
+Build plugins are requested and configured via input json: key `prebuild_plugins`, `buildstep_plugins`, `prepublish_plugins`, `postbuild_plugins` or `exit_plugins`.
+Each field is an array of following items:
 
 ```
 {
@@ -68,6 +70,16 @@ All you need to do to accomplish this is to pass argument `--substitute` with va
  * `plugin_type.plugin_name.argument_name=argument_value`
 
 E.g. `--substitute image=my-nice-image --substitute prebuild_plugins.koji.target=f22`.
+
+
+## Buidstep plugins
+
+
+Unlike other plugins, buildstep plugins have some differences.
+The `required` and `is_allowed_to_fail` properties will be set to `false` at runtime.
+Buildstep plugins are run in order, and if one plugin successfully completes or fails,
+the remaining buildstep plugins will not be attempted.
+The run() method must return a BuildResult instance, or raise `InappropriateBuildStepError` to indicate the next buildstep plugin in the list should be attempted.
 
 
 ## Default workflow
@@ -124,11 +136,17 @@ These are run after 'git clone' is used to fetch the git repository content cont
    * Status: enabled
    * The distribution-scope image labels for the parent and the current image are compared and invalid combinations cause the build to fail.
 
-After the pre-build plugins have finished, 'docker build' is started.
+### Buildstep plugins
+
+These are run after we have everything ready for build
+
+ * **docker_api**
+   * Status: enabled
+   * Builds image inside current environment, using docker api
 
 ### Pre-publish and post-build plugins
 
-These are run after 'docker build' has finished.
+These are run after buildstep plugin has successfully finished.
 
  * **squash**
    * Status: enabled

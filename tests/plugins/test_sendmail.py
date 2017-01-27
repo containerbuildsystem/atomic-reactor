@@ -12,6 +12,7 @@ from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildP
 from atomic_reactor.plugins.exit_sendmail import SendMailPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.util import ImageName
+from atomic_reactor.build import BuildResult
 
 MS, MF = SendMailPlugin.MANUAL_SUCCESS, SendMailPlugin.MANUAL_FAIL
 AS, AF = SendMailPlugin.AUTO_SUCCESS, SendMailPlugin.AUTO_FAIL
@@ -241,7 +242,7 @@ class TestSendMailPlugin(object):
 
     def test_run_ok(self):
         class WF(object):
-            build_failed = True
+            build_result = BuildResult(fail_reason="not built")
             autorebuild_canceled = False
             prebuild_results = {CheckAndSetRebuildPlugin.key: True}
             image = ImageName.parse('repo/name')
@@ -256,7 +257,7 @@ class TestSendMailPlugin(object):
 
     def test_run_fails_to_obtain_receivers(self):
         class WF(object):
-            build_failed = True
+            build_result = BuildResult(fail_reason="not built")
             autorebuild_canceled = False
             prebuild_results = {CheckAndSetRebuildPlugin.key: True}
             image = ImageName.parse('repo/name')
@@ -272,7 +273,7 @@ class TestSendMailPlugin(object):
 
     def test_run_does_nothing_if_conditions_not_met(self):
         class WF(object):
-            build_failed = True
+            build_result = BuildResult(fail_reason="not built")
             autorebuild_canceled = False
             prebuild_results = {CheckAndSetRebuildPlugin.key: True}
             image = ImageName.parse('repo/name')
