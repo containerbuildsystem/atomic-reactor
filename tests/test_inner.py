@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
+from collections import defaultdict
 import json
 import os
 
@@ -227,15 +228,16 @@ class Watcher(object):
         return self.called
 
 
-class WatcherWithPause(Watcher):
+class WatcherWithSignal(Watcher):
 
-    def __init__(self, timeout=10):
-        super(WatcherWithPause, self).__init__()
-        self.timeout = timeout
+    def __init__(self, signal=None):
+        super(WatcherWithSignal, self).__init__()
+        self.signal = signal
 
     def call(self):
-        super(WatcherWithPause, self).call()
-        sleep(self.timeout)
+        super(WatcherWithSignal, self).call()
+        if self.signal:
+            os.kill(os.getpid(), self.signal)
 
 
 def test_workflow():
@@ -889,20 +891,21 @@ def test_cancel_build(request, fail_at):
     """
     Verifies that exit plugins are executed when the build is canceled
     """
-    phase_duration = 10
-    sigterm_timeout = 2
 
-    phase_timeout = {'pre': 0, 'prepub': 0, 'build': 0, 'post': 0, 'exit': 0}
-    phase_timeout[fail_at] = phase_duration
+    # Make the phase we're testing send us SIGTERM
+    phase_signal = defaultdict(lambda: None)
+    phase_signal[fail_at] = signal.SIGTERM
 
     this_file = inspect.getfile(PreRaises)
     mock_docker()
-    fake_builder = MockInsideBuilder(timeout=phase_timeout['build'])
+    build_timeout = 10 if fail_at == 'build' else 0
+    sigterm_timeout = 2
+    fake_builder = MockInsideBuilder(timeout=build_timeout)
     flexmock(InsideBuilder).new_instances(fake_builder)
-    watch_pre = WatcherWithPause(phase_timeout['pre'])
-    watch_prepub = WatcherWithPause(phase_timeout['prepub'])
-    watch_post = WatcherWithPause(phase_timeout['post'])
-    watch_exit = WatcherWithPause(phase_timeout['exit'])
+    watch_pre = WatcherWithSignal(phase_signal['pre'])
+    watch_prepub = WatcherWithSignal(phase_signal['prepub'])
+    watch_post = WatcherWithSignal(phase_signal['post'])
+    watch_exit = WatcherWithSignal(phase_signal['exit'])
 
     fake_logger = FakeLogger()
     existing_logger = atomic_reactor.plugin.logger
@@ -932,14 +935,14 @@ def test_cancel_build(request, fail_at):
                                                   }}],
                                    plugin_files=[this_file])
 
-    pid = os.getpid()
-    thread = threading.Thread(
-        target=lambda: (
-            sleep(sigterm_timeout),
-            os.kill(pid, signal.SIGTERM)))
-    thread.start()
-
     if fail_at == 'build':
+        pid = os.getpid()
+        thread = threading.Thread(
+            target=lambda: (
+                sleep(sigterm_timeout),
+                os.kill(pid, signal.SIGTERM)))
+        thread.start()
+
         with pytest.raises(BuildCanceledException):
             workflow.build_docker_image()
     else:
