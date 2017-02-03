@@ -71,3 +71,38 @@ def test_plugins_variable(plugins_variable):
 
     plugin = OSv3InputPlugin()
     assert plugin.run()['postbuild_plugins'] is not None
+
+def test_remove_dockerfile_content():
+    plugins_json = {
+        'prebuild_plugins': [
+            {
+                'name': 'before',
+            },
+            {
+                'name': 'dockerfile_content',
+            },
+            {
+                'name': 'after',
+            },
+        ]
+    }
+
+    mock_env = {
+        'BUILD': '{}',
+        'SOURCE_URI': 'https://github.com/foo/bar.git',
+        'SOURCE_REF': 'master',
+        'OUTPUT_IMAGE': 'asdf:fdsa',
+        'OUTPUT_REGISTRY': 'localhost:5000',
+        'ATOMIC_REACTOR_PLUGINS': json.dumps(plugins_json),
+    }
+    flexmock(os, environ=mock_env)
+
+    plugin = OSv3InputPlugin()
+    assert plugin.run()['prebuild_plugins'] == [
+        {
+            'name': 'before',
+        },
+        {
+            'name': 'after',
+        },
+    ]
