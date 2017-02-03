@@ -38,7 +38,8 @@ Summary:        Improved builder for Docker images
 Group:          Development/Tools
 License:        BSD
 URL:            https://github.com/%{owner}/%{project}
-Source0:        https://github.com/%{owner}/%{project}/archive/%{commit}/%{project}-%{commit}.tar.gz
+Source0:        %{name}-%{version}.tar.gz
+BuildRoot:      %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 
 BuildArch:      noarch
 
@@ -216,7 +217,7 @@ Plugins for automated rebuilds
 
 
 %prep
-%setup -qn %{name}-%{commit}
+%setup -q
 
 
 %build
