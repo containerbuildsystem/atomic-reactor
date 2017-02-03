@@ -31,7 +31,7 @@
 %global dock_obsolete_vr 1.3.7-2
 
 Name:           %{project}
-Version:        1.6.19
+Version:        1.6.21
 Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
@@ -386,6 +386,12 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 
 %changelog
+* Fri Feb 03 2017 Vadim Rutkovsky <vrutkovs@redhat.com> 1.6.21-1
+- new package built with tito
+
+* Fri Feb 03 2017 Vadim Rutkovsky <vrutkovs@redhat.com>
+- new package built with tito
+
 * Wed Nov 29 2016 Vadim Rutkovsky <vrutkovs@redhat.com> - 1.16.19-1
 - 1.6.19 release
 
