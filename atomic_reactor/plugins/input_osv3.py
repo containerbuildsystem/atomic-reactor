@@ -62,6 +62,16 @@ class OSv3InputPlugin(InputPlugin):
 
         self.log.debug("build json: %s", input_json)
 
+        # Compatibility code for dockerfile_content plugin
+        # If this (removed) plugin is requested, ignore it.
+        if 'prebuild_plugins' in self.plugins_json:
+            for index, plugin in enumerate(self.plugins_json['prebuild_plugins']):
+                if plugin['name'] == 'dockerfile_content':
+                    self.log.info("removing dockerfile_content plugin request; "
+                                  "please update your osbs-client!")
+                    del self.plugins_json['prebuild_plugins'][index]
+                    break
+
         return input_json
 
     @classmethod
