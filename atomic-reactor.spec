@@ -32,7 +32,7 @@
 
 Name:           %{project}
 Version:        1.6.19
-Release:        1%{?dist}
+Release:        2%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -385,6 +385,9 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 
 %changelog
+* Fri Feb 03 2017 Vadim Rutkovsky <vrutkovs@redhat.com> 1.6.19-2
+- new package built with tito
+
 * Wed Nov 29 2016 Vadim Rutkovsky <vrutkovs@redhat.com> - 1.16.19-1
 - 1.6.19 release
 
