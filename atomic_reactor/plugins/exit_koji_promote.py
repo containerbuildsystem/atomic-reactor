@@ -24,7 +24,6 @@ from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
-from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.constants import PROG
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
@@ -34,6 +33,12 @@ from atomic_reactor.koji_util import create_koji_session, TaskWatcher
 from osbs.conf import Configuration
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
+
+try:
+    from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
+except ImportError:
+    # If this plugin is not available assume we are not in a rebuild
+    is_rebuild = lambda _: False
 
 # An output file and its metadata
 Output = namedtuple('Output', ['file', 'metadata'])
