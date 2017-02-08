@@ -285,7 +285,6 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %exclude %{python2_sitelib}/atomic_reactor/plugins/post_import_image.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_add_filesystem.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
-%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py*
 %exclude %{python2_sitelib}/integration-tests
@@ -310,7 +309,6 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %files -n python-atomic-reactor-rebuilds
 %{python2_sitelib}/atomic_reactor/plugins/exit_sendmail.py*
 %{python2_sitelib}/atomic_reactor/plugins/post_import_image.py*
-%{python2_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py*
 
 
