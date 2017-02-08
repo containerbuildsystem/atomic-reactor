@@ -11,13 +11,15 @@ from __future__ import unicode_literals
 from collections import defaultdict
 import json
 import os
+from dockerfile_parse import DockerfileParser
 
 from atomic_reactor.build import InsideBuilder
 from atomic_reactor.util import ImageName
 from atomic_reactor.plugin import (PreBuildPlugin, PrePublishPlugin, PostBuildPlugin, ExitPlugin,
                                    AutoRebuildCanceledException, PluginFailedException,
-                                   BuildCanceledException)
+                                   BuildCanceledException, BuildStepPlugin)
 import atomic_reactor.plugin
+from atomic_reactor.plugins.build_docker_api import DockerApiPlugin
 import atomic_reactor.inner
 import logging
 from flexmock import flexmock
@@ -70,18 +72,26 @@ class MockDockerTasker(object):
     def inspect_image(self, name):
         return {}
 
+    def build_image_from_path(self):
+        return True
 
 class X(object):
     pass
 
 
 class MockInsideBuilder(object):
-    def __init__(self, failed=False, timeout=0):
+    def __init__(self, failed=False):
         self.tasker = MockDockerTasker()
         self.base_image = ImageName(repo='Fedora', tag='22')
         self.image_id = 'asd'
+        self.image = 'image'
         self.failed = failed
-        self.timeout = timeout
+        self.df_path = 'some'
+        self.df_dir = 'some'
+
+        def simplegen(x, y):
+            yield "some"
+        flexmock(self.tasker, build_image_from_path=simplegen)
 
     @property
     def source(self):
@@ -93,17 +103,14 @@ class MockInsideBuilder(object):
     def pull_base_image(self, source_registry, insecure=False):
         pass
 
-    def build(self):
-        result = X()
-        setattr(result, 'logs', None)
-        setattr(result, 'is_failed', lambda: self.failed)
-        if self.timeout:
-            sleep(self.timeout)
-
-        return result
+    def get_built_image_info(self):
+        return {'Id': 'some'}
 
     def inspect_built_image(self):
         return None
+
+    def _ensure_not_built(self):
+        pass
 
 
 class RaisesMixIn(object):
@@ -127,6 +134,14 @@ class PreRaises(RaisesMixIn, PreBuildPlugin):
     """
 
     key = 'pre_raises'
+
+
+class BuildStepRaises(RaisesMixIn, BuildStepPlugin):
+    """
+    This plugin must run and cause the build to abort.
+    """
+
+    key = 'buildstep_raises'
 
 
 class PostRaises(RaisesMixIn, PostBuildPlugin):
@@ -175,6 +190,14 @@ class PrePubWatched(WatchedMixIn, PrePublishPlugin):
     key = 'prepub_watched'
 
 
+class BuildStepWatched(WatchedMixIn, BuildStepPlugin):
+    """
+    A BuildStep plugin we can watch.
+    """
+
+    key = 'buildstep_watched'
+
+
 class PostWatched(WatchedMixIn, PostBuildPlugin):
     """
     A PostBuild plugin we can watch.
@@ -218,18 +241,20 @@ class ExitCompat(WatchedMixIn, ExitPlugin):
 
 
 class Watcher(object):
-    def __init__(self):
+    def __init__(self, raise_exc=False):
         self.called = False
+        self.raise_exc = raise_exc
 
     def call(self):
         self.called = True
+        if self.raise_exc:
+            raise Exception
 
     def was_called(self):
         return self.called
 
 
 class WatcherWithSignal(Watcher):
-
     def __init__(self, signal=None):
         super(WatcherWithSignal, self).__init__()
         self.signal = signal
@@ -245,12 +270,14 @@ def test_workflow():
     Test normal workflow.
     """
 
+    flexmock(DockerfileParser, content='df_content')
     this_file = inspect.getfile(PreWatched)
     mock_docker()
     fake_builder = MockInsideBuilder()
     flexmock(InsideBuilder).new_instances(fake_builder)
     watch_pre = Watcher()
     watch_prepub = Watcher()
+    watch_buildstep = Watcher()
     watch_post = Watcher()
     watch_exit = Watcher()
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
@@ -258,6 +285,11 @@ def test_workflow():
                                                       'args': {
                                                           'watcher': watch_pre
                                                       }}],
+                                   buildstep_plugins=[{'name': 'buildstep_watched',
+                                                       'args': {
+                                                           'watcher': watch_buildstep
+                                                       }}],
+
                                    prepublish_plugins=[{'name': 'prepub_watched',
                                                         'args': {
                                                             'watcher': watch_prepub,
@@ -276,6 +308,7 @@ def test_workflow():
 
     assert watch_pre.was_called()
     assert watch_prepub.was_called()
+    assert watch_buildstep.was_called()
     assert watch_post.was_called()
     assert watch_exit.was_called()
 
@@ -286,6 +319,7 @@ class FakeLogger(object):
         self.infos = []
         self.warnings = []
         self.errors = []
+        self.exc = []
 
     def log(self, logs, args):
         logs.append(args)
@@ -302,6 +336,9 @@ class FakeLogger(object):
     def error(self, *args):
         self.log(self.errors, args)
 
+    def exception(self, *args):
+        self.log(self.exc, args)
+
 
 def test_workflow_compat(request):
     """
@@ -309,7 +346,7 @@ def test_workflow_compat(request):
     being run at exit. Let's test what happens when we try running an
     exit plugin as a post-build plugin.
     """
-
+    flexmock(DockerfileParser, content='df_content')
     this_file = inspect.getfile(PreWatched)
     mock_docker()
     fake_builder = MockInsideBuilder()
@@ -329,6 +366,8 @@ def test_workflow_compat(request):
                                                        'args': {
                                                            'watcher': watch_exit
                                                        }}],
+
+                                   buildstep_plugins=[{'name': 'buildstep_watched'}],
                                    plugin_files=[this_file])
 
     workflow.build_docker_image()
@@ -342,6 +381,14 @@ class Pre(PreBuildPlugin):
     """
 
     key = 'pre'
+
+
+class BuildStep(BuildStepPlugin):
+    """
+    This plugin does nothing. It's only used for configuration testing.
+    """
+
+    key = 'buildstep'
 
 
 class Post(PostBuildPlugin):
@@ -377,6 +424,19 @@ class Exit(ExitPlugin):
                                   'watcher': Watcher(),
                               }
                              }],
+      },
+     True,  # is fatal
+     True,  # logs error
+    ),
+
+    # No 'name' key, buildstep
+    ({
+        'buildstep_plugins': [{'args': {}},
+                              {'name': 'buildstep_watched',
+                               'args': {
+                                   'watcher': Watcher(),
+                               }
+                              }],
       },
      True,  # is fatal
      True,  # logs error
@@ -432,6 +492,17 @@ class Exit(ExitPlugin):
      False,  # no error logged
     ),
 
+    # No 'args' key, buildstep
+    ({'buildstep_plugins': [{'name': 'buildstep'},
+                            {'name': 'buildstep_watched',
+                             'args': {
+                                 'watcher': Watcher(),
+                             }
+                            }]},
+     False,  # not fatal
+     False,  # no error logged
+    ),
+
     # No 'args' key, postbuild
     ({'postbuild_plugins': [{'name': 'post'},
                             {'name': 'post_watched',
@@ -473,6 +544,18 @@ class Exit(ExitPlugin):
                                 'watcher': Watcher(),
                             }
                            }]},
+     True,  # is fatal
+     True,  # logs error
+    ),
+
+    # No such plugin, buildstep
+    ({'buildstep_plugins': [{'name': 'no plugin',
+                             'args': {}},
+                            {'name': 'buildstep_watched',
+                             'args': {
+                                 'watcher': Watcher(),
+                             }
+                            }]},
      True,  # is fatal
      True,  # logs error
     ),
@@ -526,6 +609,19 @@ class Exit(ExitPlugin):
      False,  # does not log error
     ),
 
+    # No such plugin, buildstep, not required
+    ({'buildstep_plugins': [{'name': 'no plugin',
+                             'args': {},
+                             'required': False},
+                            {'name': 'buildstep_watched',
+                             'args': {
+                                 'watcher': Watcher(),
+                             }
+                            }]},
+     False,  # not fatal
+     False,  # does not log error
+    ),
+
     # No such plugin, postbuild, not required
     ({'postbuild_plugins': [{'name': 'no plugin',
                              'args': {},
@@ -569,7 +665,8 @@ def test_plugin_errors(request, plugins, should_fail, should_log):
     """
     Try bad plugin configuration.
     """
-
+    flexmock(DockerfileParser, content='df_content')
+    flexmock(DockerApiPlugin).should_receive('run').and_return(True)
     this_file = inspect.getfile(PreRaises)
     mock_docker()
     fake_builder = MockInsideBuilder()
@@ -661,6 +758,7 @@ def test_autorebuild_stop_prevents_build():
 
 
 @pytest.mark.parametrize('fail_at', ['pre_raises',
+                                     'buildstep_raises',
                                      'prepub_raises',
                                      'post_raises',
                                      'exit_raises',
@@ -673,19 +771,24 @@ def test_workflow_plugin_error(fail_at):
     is_allowed_to_fail=True set, the whole build should fail.
     However, all the exit plugins should run.
     """
-
+    flexmock(DockerfileParser, content='df_content')
     this_file = inspect.getfile(PreRaises)
     mock_docker()
     fake_builder = MockInsideBuilder()
     flexmock(InsideBuilder).new_instances(fake_builder)
     watch_pre = Watcher()
     watch_prepub = Watcher()
+    watch_buildstep = Watcher()
     watch_post = Watcher()
     watch_exit = Watcher()
     prebuild_plugins = [{'name': 'pre_watched',
                          'args': {
                              'watcher': watch_pre,
                          }}]
+    buildstep_plugins = [{'name': 'buildstep_watched',
+                          'args': {
+                              'watcher': watch_buildstep,
+                          }}]
     prepublish_plugins = [{'name': 'prepub_watched',
                            'args': {
                                'watcher': watch_prepub,
@@ -702,6 +805,8 @@ def test_workflow_plugin_error(fail_at):
     # Insert a failing plugin into one of the build phases
     if fail_at == 'pre_raises':
         prebuild_plugins.insert(0, {'name': fail_at, 'args': {}})
+    elif fail_at == 'buildstep_raises':
+        buildstep_plugins.insert(0, {'name': fail_at, 'args': {}})
     elif fail_at == 'prepub_raises':
         prepublish_plugins.insert(0, {'name': fail_at, 'args': {}})
     elif fail_at == 'post_raises':
@@ -714,6 +819,7 @@ def test_workflow_plugin_error(fail_at):
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
                                    prebuild_plugins=prebuild_plugins,
+                                   buildstep_plugins=buildstep_plugins,
                                    prepublish_plugins=prepublish_plugins,
                                    postbuild_plugins=postbuild_plugins,
                                    exit_plugins=exit_plugins,
@@ -722,8 +828,7 @@ def test_workflow_plugin_error(fail_at):
     # Most failures cause the build process to abort. Unless, it's
     # an exit plugin that's explicitly allowed to fail.
     if fail_at == 'exit_raises_allowed':
-        build_result = workflow.build_docker_image()
-        assert build_result and not build_result.is_failed()
+        workflow.build_docker_image()
         assert not workflow.plugins_errors
     else:
         with pytest.raises(PluginFailedException):
@@ -735,15 +840,22 @@ def test_workflow_plugin_error(fail_at):
     # earlier plugin failures.
     assert watch_pre.was_called() == (fail_at != 'pre_raises')
 
+    # The buildstep phase should only complete if there were no
+    # earlier plugin failures.
+    assert watch_buildstep.was_called() == (fail_at not in ('pre_raises',
+                                                            'buildstep_raises'))
+
     # The prepublish phase should only complete if there were no
     # earlier plugin failures.
     assert watch_prepub.was_called() == (fail_at not in ('pre_raises',
-                                                         'prepub_raises'))
+                                                         'prepub_raises',
+                                                         'buildstep_raises'))
 
     # The post-build phase should only complete if there were no
     # earlier plugin failures.
     assert watch_post.was_called() == (fail_at not in ('pre_raises',
                                                        'prepub_raises',
+                                                       'buildstep_raises',
                                                        'post_raises'))
 
     # But all exit plugins should run, even if one of them also raises
@@ -755,16 +867,28 @@ def test_workflow_docker_build_error():
     """
     This is a test for what happens when the docker build fails.
     """
-
+    flexmock(DockerfileParser, content='df_content')
     this_file = inspect.getfile(PreRaises)
     mock_docker()
     fake_builder = MockInsideBuilder(failed=True)
     flexmock(InsideBuilder).new_instances(fake_builder)
+    watch_pre = Watcher()
+    watch_buildstep = Watcher(raise_exc=True)
     watch_prepub = Watcher()
     watch_post = Watcher()
     watch_exit = Watcher()
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+                                   prebuild_plugins=[{'name': 'pre_watched',
+                                                      'args': {
+                                                          'watcher': watch_pre
+                                                      }}],
+                                   buildstep_plugins=[{'name': 'buildstep_watched',
+                                                       'args': {
+                                                           'watcher': watch_buildstep,
+                                                       },
+                                                       'is_allowed_to_fail': False
+                                                       }],
                                    prepublish_plugins=[{'name': 'prepub_watched',
                                                         'args': {
                                                             'watcher': watch_prepub,
@@ -779,9 +903,11 @@ def test_workflow_docker_build_error():
                                                   }}],
                                    plugin_files=[this_file])
 
-    assert workflow.build_docker_image().is_failed()
-
+    with pytest.raises(Exception):
+        workflow.build_docker_image()
     # No subsequent build phases should have run except 'exit'
+    assert watch_pre.was_called()
+    assert watch_buildstep.was_called()
     assert not watch_prepub.was_called()
     assert not watch_post.was_called()
     assert watch_exit.was_called()
@@ -797,6 +923,7 @@ class ExitUsesSource(ExitWatched):
 
 @requires_internet
 def test_source_not_removed_for_exit_plugins():
+    flexmock(DockerfileParser, content='df_content')
     this_file = inspect.getfile(PreRaises)
     mock_docker()
     fake_builder = MockInsideBuilder()
@@ -807,6 +934,8 @@ def test_source_not_removed_for_exit_plugins():
                                                   'args': {
                                                       'watcher': watch_exit,
                                                   }}],
+
+                                   buildstep_plugins=[{'name': 'buildstep_watched'}],
                                    plugin_files=[this_file])
 
     workflow.build_docker_image()
@@ -830,6 +959,14 @@ class PreBuildResult(ValueMixIn, PreBuildPlugin):
     """
 
     key = 'pre_build_value'
+
+
+class BuildStepResult(ValueMixIn, BuildStepPlugin):
+    """
+    Post build plugin that returns a result when run.
+    """
+
+    key = 'buildstep_value'
 
 
 class PostBuildResult(ValueMixIn, PostBuildPlugin):
@@ -862,18 +999,21 @@ def test_workflow_plugin_results():
     are stored properly.
     """
 
+    flexmock(DockerfileParser, content='df_content')
     this_file = inspect.getfile(PreRaises)
     mock_docker()
     fake_builder = MockInsideBuilder()
     flexmock(InsideBuilder).new_instances(fake_builder)
 
     prebuild_plugins = [{'name': 'pre_build_value'}]
+    buildstep_plugins = [{'name': 'buildstep_value'}]
     postbuild_plugins = [{'name': 'post_build_value'}]
     prepublish_plugins = [{'name': 'pre_publish_value'}]
     exit_plugins = [{'name': 'exit_value'}]
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
                                    prebuild_plugins=prebuild_plugins,
+                                   buildstep_plugins=buildstep_plugins,
                                    prepublish_plugins=prepublish_plugins,
                                    postbuild_plugins=postbuild_plugins,
                                    exit_plugins=exit_plugins,
@@ -881,29 +1021,28 @@ def test_workflow_plugin_results():
 
     workflow.build_docker_image()
     assert workflow.prebuild_results == {'pre_build_value': 'pre_build_value_result'}
+    assert workflow.buildstep_result == {'buildstep_value': 'buildstep_value_result'}
     assert workflow.postbuild_results == {'post_build_value': 'post_build_value_result'}
     assert workflow.prepub_results == {'pre_publish_value': 'pre_publish_value_result'}
     assert workflow.exit_results == {'exit_value': 'exit_value_result'}
 
 
-@pytest.mark.parametrize('fail_at', ['pre', 'prepub', 'build', 'post', 'exit'])
+@pytest.mark.parametrize('fail_at', ['pre', 'prepub', 'buildstep', 'post', 'exit'])
 def test_cancel_build(request, fail_at):
     """
     Verifies that exit plugins are executed when the build is canceled
     """
-
     # Make the phase we're testing send us SIGTERM
     phase_signal = defaultdict(lambda: None)
     phase_signal[fail_at] = signal.SIGTERM
-
+    flexmock(DockerfileParser, content='df_content')
     this_file = inspect.getfile(PreRaises)
     mock_docker()
-    build_timeout = 10 if fail_at == 'build' else 0
-    sigterm_timeout = 2
-    fake_builder = MockInsideBuilder(timeout=build_timeout)
+    fake_builder = MockInsideBuilder()
     flexmock(InsideBuilder).new_instances(fake_builder)
     watch_pre = WatcherWithSignal(phase_signal['pre'])
     watch_prepub = WatcherWithSignal(phase_signal['prepub'])
+    watch_buildstep = WatcherWithSignal(phase_signal['buildstep'])
     watch_post = WatcherWithSignal(phase_signal['post'])
     watch_exit = WatcherWithSignal(phase_signal['exit'])
 
@@ -925,6 +1064,10 @@ def test_cancel_build(request, fail_at):
                                                         'args': {
                                                             'watcher': watch_prepub,
                                                         }}],
+                                   buildstep_plugins=[{'name': 'buildstep_watched',
+                                                       'args': {
+                                                           'watcher': watch_buildstep
+                                                       }}],
                                    postbuild_plugins=[{'name': 'post_watched',
                                                        'args': {
                                                            'watcher': watch_post
@@ -935,20 +1078,9 @@ def test_cancel_build(request, fail_at):
                                                   }}],
                                    plugin_files=[this_file])
 
-    if fail_at == 'build':
-        pid = os.getpid()
-        thread = threading.Thread(
-            target=lambda: (
-                sleep(sigterm_timeout),
-                os.kill(pid, signal.SIGTERM)))
-        thread.start()
+    workflow.build_docker_image()
 
-        with pytest.raises(BuildCanceledException):
-            workflow.build_docker_image()
-    else:
-        workflow.build_docker_image()
-
-    if fail_at not in ['exit', 'build']:
+    if fail_at != 'exit':
         assert ("plugin '%s_watched' raised an exception:" % fail_at +
                 " BuildCanceledException('Build was canceled',)",) in fake_logger.warnings
 
@@ -969,6 +1101,8 @@ def test_show_version(request, has_version):
     if available
     """
     VERSION = "1.0"
+    flexmock(DockerfileParser, content='df_content')
+    this_file = inspect.getfile(PreRaises)
 
     mock_docker()
     fake_builder = MockInsideBuilder()
@@ -985,9 +1119,11 @@ def test_show_version(request, has_version):
 
     params = {
         'prebuild_plugins': [],
+        'buildstep_plugins': [{'name': 'buildstep_watched'}],
         'prepublish_plugins': [],
         'postbuild_plugins': [],
-        'exit_plugins': []
+        'exit_plugins': [],
+        'plugin_files' : [this_file],
     }
     if has_version:
         params['client_version'] = VERSION

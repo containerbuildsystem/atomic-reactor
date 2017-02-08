@@ -411,7 +411,7 @@ class BuildStepPluginRunner(BuildPluginsRunner):
         self._build_result = None
         for conf in self.plugins_conf:
             plugin_name = conf['name']
-            result = plugins_results[plugin_name]
+            result = plugins_results.get(plugin_name)
             if result:
                 self._build_result = BuildResult(result, image_id)
 

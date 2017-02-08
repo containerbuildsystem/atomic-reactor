@@ -11,6 +11,7 @@ from __future__ import unicode_literals
 import json
 import os
 
+from dockerfile_parse import DockerfileParser
 from flexmock import flexmock
 import pytest
 
@@ -18,10 +19,14 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import (BuildPluginsRunner, PreBuildPluginsRunner,
                                    PostBuildPluginsRunner, InputPluginsRunner,
                                    PluginFailedException, PrePublishPluginsRunner,
-                                   ExitPluginsRunner)
+                                   ExitPluginsRunner, BuildStepPluginRunner,
+                                   PluginsRunner, InappropriateBuildStepError,
+                                   BuildStepPlugin)
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
-from atomic_reactor.util import ImageName
+from atomic_reactor.plugins.build_docker_api import DockerApiPlugin
+from atomic_reactor.util import ImageName, df_parser
+
 from tests.fixtures import docker_tasker
 from tests.constants import DOCKERFILE_GIT, MOCK
 if MOCK:
@@ -31,15 +36,41 @@ if MOCK:
 TEST_IMAGE = "fedora:latest"
 SOURCE = {"provider": "git", "uri": DOCKERFILE_GIT}
 
+def mock_workflow(tmpdir):
+    if MOCK:
+        mock_docker()
 
-def test_load_prebuild_plugins(docker_tasker):
-    runner = PreBuildPluginsRunner(docker_tasker, DockerBuildWorkflow(SOURCE, ""), None)
-    assert runner.plugin_classes is not None
-    assert len(runner.plugin_classes) > 0
+    workflow = DockerBuildWorkflow(SOURCE, 'test-image')
+    setattr(workflow, 'builder', X())
+    flexmock(DockerfileParser, content='df_content')
+    setattr(workflow.builder, 'get_built_image_info', flexmock())
+    flexmock(workflow.builder, get_built_image_info={'Id': 'some'})
+    setattr(workflow.builder, '_ensure_not_built', flexmock())
+    flexmock(workflow.builder, _ensure_not_built=None)
+    setattr(workflow.builder, 'image_id', 'image-id')
+    setattr(workflow.builder, 'source', flexmock())
+    setattr(workflow.builder, 'df_path', 'df_path')
+    setattr(workflow.builder.source, 'dockerfile_path', 'dockerfile-path')
+    setattr(workflow.builder, 'image', flexmock())
+    setattr(workflow.builder.image, 'to_str', lambda: 'image')
+    setattr(workflow.builder.source, 'path', 'path')
+    setattr(workflow.builder, 'base_image', flexmock())
+    setattr(workflow.builder.base_image, 'to_str', lambda: 'base-image')
 
+    return workflow
 
-def test_load_postbuild_plugins(docker_tasker):
-    runner = PostBuildPluginsRunner(docker_tasker, DockerBuildWorkflow(SOURCE, ""), None)
+@pytest.mark.parametrize('runner_type', [
+    PreBuildPluginsRunner,
+    PrePublishPluginsRunner,
+    PostBuildPluginsRunner,
+    ExitPluginsRunner,
+    BuildStepPluginRunner,
+])
+def test_load_plugins(docker_tasker, runner_type):
+    """
+    test loading plugins
+    """
+    runner = runner_type(docker_tasker, DockerBuildWorkflow(SOURCE, ""), None)
     assert runner.plugin_classes is not None
     assert len(runner.plugin_classes) > 0
 
@@ -48,7 +79,7 @@ class X(object):
     pass
 
 
-def test_build_plugin_failure(docker_tasker):
+def test_prebuild_plugin_failure(docker_tasker):
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     assert workflow.build_process_failed is False
     setattr(workflow, 'builder', X())
@@ -70,13 +101,19 @@ def test_build_plugin_failure(docker_tasker):
     PrePublishPluginsRunner,
     PostBuildPluginsRunner,
     ExitPluginsRunner,
+    BuildStepPluginRunner,
 ])
 @pytest.mark.parametrize('required', [
     True,
     False,
 ])
-def test_not_required_prebuild_plugin_failure(docker_tasker, runner_type, required):
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
+def test_required_plugin_failure(tmpdir, docker_tasker, runner_type, required):
+    """
+    test required option for plugins
+    and check if it fails when is required
+    and also check plugin_failed value
+    """
+    workflow = mock_workflow(tmpdir)
     assert workflow.plugin_failed is False
     runner = runner_type(docker_tasker, workflow,
                          [{"name": "no_such_plugin",
@@ -87,6 +124,134 @@ def test_not_required_prebuild_plugin_failure(docker_tasker, runner_type, requir
     else:
         results = runner.run()
     assert workflow.plugin_failed is required
+
+@pytest.mark.parametrize('success1,success2', [
+    (True, True),
+    (True, False),
+    (False, True),
+    (False, False),
+])
+@pytest.mark.parametrize('stop', [
+    True,
+    False,
+])
+def test_stop_on_success_build_plugin(caplog, tmpdir, docker_tasker, stop, success1, success2):
+    """
+    test stop on success option
+    if 'stop' is true, plugin runner should stop after first successful plugin
+    and if 'stop' is false it should run all plugins
+    InappropriateBuildStepError exception isn't critical,
+    and won't fail buildstep runner
+    """
+    workflow = mock_workflow(tmpdir)
+    flexmock(PluginsRunner, load_plugins=lambda x: {
+                                        DockerApiPlugin.key: DockerApiPlugin,
+                                        MyPlugin.key: MyPlugin})
+
+    class MyPlugin(BuildStepPlugin):
+        key = 'MyPlugin'
+
+    runner = BuildStepPluginRunner(docker_tasker, workflow,
+                                   [{"name": DockerApiPlugin.key},
+                                    {"name": MyPlugin.key}])
+
+    if stop:
+        if success1:
+            flexmock(DockerApiPlugin).should_receive('run')
+            flexmock(MyPlugin).should_receive('run').times(0)
+        else:
+            flexmock(DockerApiPlugin).should_receive('run').and_raise(InappropriateBuildStepError).times(1)
+            flexmock(MyPlugin).should_receive('run').times(1)
+    else:
+        if success1:
+            flexmock(DockerApiPlugin).should_receive('run').times(1)
+        else:
+            flexmock(DockerApiPlugin).should_receive('run').and_raise(InappropriateBuildStepError).times(1)
+        if success2:
+            flexmock(MyPlugin).should_receive('run').times(1)
+        else:
+            flexmock(MyPlugin).should_receive('run').and_raise(InappropriateBuildStepError).times(1)
+
+    results = runner.run(stop_on_success=stop)
+
+    if stop:
+        expected_log_message = "stopping further execution of plugins after first successful plugin"
+        assert expected_log_message in [l.getMessage() for l in caplog.records()]
+
+@pytest.mark.parametrize('success1,success2', [
+    (True, True),
+    (True, False),
+    (False, True),
+    (False, False),
+])
+@pytest.mark.parametrize('stop', [
+    True,
+    False,
+])
+def test_stop_on_success_build_plugin_failing_exception(tmpdir, caplog, docker_tasker, stop, success1, success2):
+    """
+    test stop on success option
+    if 'stop' is true, plugin runner should stop after first successful plugin
+    and if 'stop' is false it should run all plugins
+    Exception exception is critical,
+    and will fail buildstep runner
+    """
+    workflow = mock_workflow(tmpdir)
+    flexmock(PluginsRunner, load_plugins=lambda x: {
+                                        DockerApiPlugin.key: DockerApiPlugin,
+                                        MyPlugin.key: MyPlugin})
+
+    class MyPlugin(BuildStepPlugin):
+        key = 'MyPlugin'
+
+    runner = BuildStepPluginRunner(docker_tasker, workflow,
+                                   [{"name": DockerApiPlugin.key},
+                                    {"name": MyPlugin.key}])
+
+    will_fail = False
+    if stop:
+        if success1:
+            flexmock(DockerApiPlugin).should_receive('run')
+            flexmock(MyPlugin).should_receive('run').times(0)
+        else:
+            flexmock(DockerApiPlugin).should_receive('run').and_raise(Exception).times(1)
+            will_fail = True
+            flexmock(MyPlugin).should_receive('run').times(0)
+    else:
+        if success1:
+            flexmock(DockerApiPlugin).should_receive('run').times(1)
+            if success2:
+                flexmock(MyPlugin).should_receive('run').times(1)
+            else:
+                flexmock(MyPlugin).should_receive('run').and_raise(InappropriateBuildStepError).times(1)
+
+        else:
+            flexmock(DockerApiPlugin).should_receive('run').and_raise(Exception).times(1)
+            will_fail = True
+            flexmock(MyPlugin).should_receive('run').times(0)
+
+    if will_fail:
+        with pytest.raises(Exception):
+            runner.run(stop_on_success=stop)
+
+    else:
+        runner.run(stop_on_success=stop)
+        if stop:
+            expected_log_message = "stopping further execution of plugins after first successful plugin"
+            assert expected_log_message in [l.getMessage() for l in caplog.records()]
+
+
+def test_fallback_to_docker_build(docker_tasker):
+    """
+    test fallback to docker build
+    if no build plugins specified
+    docker build plugin should be added and run
+    """
+    workflow = DockerBuildWorkflow(SOURCE, 'test-image')
+    setattr(workflow, 'builder', X())
+
+    runner = BuildStepPluginRunner(docker_tasker, workflow, [])
+    assert runner.plugins_conf == [{'name': 'docker_api'}]
 
 
 class TestBuildPluginsRunner(object):

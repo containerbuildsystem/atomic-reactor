@@ -379,16 +379,6 @@ class DockerBuildWorkflow(object):
             except Exception:
                 logger.exception("failed to save build duration")
 
-            self.build_logs = build_result.logs
-
-            self.build_failed = build_result.is_failed()
-
-            if build_result.is_failed():
-                # The docker build failed. Finish here, just run the
-                # exit plugins (from the 'finally:' block below).
-                self.plugins_errors['dockerbuild'] = ''
-                return build_result
-
             self.built_image_inspect = self.builder.inspect_built_image()
 
             # run prepublish plugins
