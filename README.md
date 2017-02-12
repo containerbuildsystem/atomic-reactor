@@ -129,7 +129,7 @@ As soon as our build image is built, we can start building stuff in it:
 $ atomic-reactor build git --method hostdocker --build-image buildroot-hostdocker --image test-image --uri "https://github.com/TomasTomecek/docker-hello-world.git"
 ```
 
-Built image will be in the build container. Therefore this example doesn't make much sense. If you would like to access the built image, you should probably push it to your registry and build it like this:
+The built image will be in the build container. Therefore, this example doesn't make much sense. If you would like to access the built image, you should probably push it to your registry and build it like this:
 
 ```bash
 $ atomic-reactor build git --method hostdocker \
@@ -146,7 +146,7 @@ Both of these examples use the `git` source provider (`atomic-reactor build git`
 IP address `172.17.42.1` should be address of docker0 network interface. Update it if yours is different. Also, don't forget to start the registry.
 
 
-Bear in mind that you shouldn't mix build methods: if you use _hostdocker_ method with build image for _privileged_ method, it won't work.
+Bear in mind that you shouldn't mix build methods. If you use _hostdocker_ method with build image for _privileged_ method, then it won't work.
 
 
 ## Further reading
