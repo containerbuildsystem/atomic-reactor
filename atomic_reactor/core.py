@@ -90,8 +90,8 @@ class BuildContainerFactory(object):
             raise RuntimeError("Provided build image doesn't exist: '%s'" % image)
 
     def _obtain_source_from_path_if_needed(self, local_path, container_path=CONTAINER_SHARE_PATH):
-        # TODO: maybe we should do this for any provider? (if we expand to various providers
-        #  like mercurial, we don't to force container to have mercurial installed, etc.)
+        # TODO: maybe we should do this for any provider? If we expand to various providers
+        #  like mercurial, then we don't want to force the container to have mercurial installed, etc.
         build_json_path = os.path.join(local_path, BUILD_JSON)
         with open(build_json_path, 'r') as fp:
             build_json = json.load(fp)
