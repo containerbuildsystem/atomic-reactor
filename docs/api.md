@@ -1,6 +1,6 @@
 # API
 
-atomic-reactor has proper python API. You can use it in your scripts or services without invoking shell:
+atomic-reactor has a proper Python API. You can use it in your scripts or services without invoking shell:
 
 ```python
 from atomic_reactor.api import build_image_in_privileged_container
