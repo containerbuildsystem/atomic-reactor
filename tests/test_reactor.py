@@ -15,6 +15,7 @@ import pytest
 
 from atomic_reactor import constants as dconstants
 
+from atomic_reactor.constants import CONTAINER_SHARE_SOURCE_SUBDIR
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.outer import PrivilegedBuildManager, DockerhostBuildManager
 from atomic_reactor.util import ImageName
@@ -33,22 +34,20 @@ with_all_sources = pytest.mark.parametrize('source_params', [
 ])
 
 
-def assert_source_from_path_mounted_ok(caplog, tmpdir):
+def assert_source_from_path_mounted_ok(caplog, tmpdir, expected_dirname):
     # assert that build json has properly modified source uri
     container_uri = 'file://' + os.path.join(dconstants.CONTAINER_SHARE_PATH,
-            dconstants.CONTAINER_SHARE_SOURCE_SUBDIR)
-    container_uri_re = re.compile(r'build json mounted in container.*"uri": "%s"' % container_uri)
+                                             expected_dirname)
+    pattern = r'build json mounted in container.*"uri": %r' % container_uri
+    container_uri_re = re.compile(pattern)
 
     # verify that source code was copied in - actually only verifies
     #  that source dir has been created
-    source_exists = "source path is '%s'" %\
-            os.path.join(tmpdir, dconstants.CONTAINER_SHARE_SOURCE_SUBDIR)
+    source_exists = "source path is %r" % os.path.join(tmpdir,
+                                                       expected_dirname)
+    import pdb; pdb.set_trace()
     assert any([container_uri_re.search(l.getMessage()) for l in caplog.records()])
     assert source_exists in [l.getMessage() for l in caplog.records()]
-
-    # make sure that double source (i.e. source/source) is not created
-    source_path_is_re = re.compile(r"source path is '.*/source/source'")
-    assert not any([source_path_is_re.search(l.getMessage()) for l in caplog.records()])
 
 
 @with_all_sources
@@ -70,20 +69,7 @@ def test_hostdocker_build(caplog, source_params):
     dt = DockerTasker()
     dt.pull_image(remote_image, insecure=True)
 
-    if source_params['provider'] == 'path':
-        assert_source_from_path_mounted_ok(caplog, m.temp_dir)
-
     assert len(results.build_logs) > 0
-    #assert re.search(r'build json mounted in container .+"uri": %s' %
-    #        os.path.join(dconstants.CONTAINER_SHARE_PATH, 'source'))
-    # assert isinstance(results.built_img_inspect, dict)
-    # assert len(results.built_img_inspect.items()) > 0
-    # assert isinstance(results.built_img_info, dict)
-    # assert len(results.built_img_info.items()) > 0
-    # assert isinstance(results.base_img_info, dict)
-    # assert len(results.base_img_info.items()) > 0
-    # assert len(results.base_plugins_output) > 0
-    # assert len(results.built_img_plugins_output) > 0
     dt.remove_container(results.container_id)
     dt.remove_image(remote_image)
 
@@ -134,18 +120,7 @@ def test_privileged_gitrepo_build(caplog, source_params):
     dt = DockerTasker()
     dt.pull_image(remote_image, insecure=True)
 
-    if source_params['provider'] == 'path':
-        assert_source_from_path_mounted_ok(caplog, m.temp_dir)
-
     assert len(results.build_logs) > 0
-    # assert isinstance(results.built_img_inspect, dict)
-    # assert len(results.built_img_inspect.items()) > 0
-    # assert isinstance(results.built_img_info, dict)
-    # assert len(results.built_img_info.items()) > 0
-    # assert isinstance(results.base_img_info, dict)
-    # assert len(results.base_img_info.items()) > 0
-    # assert len(results.base_plugins_output) > 0
-    # assert len(results.built_img_plugins_output) > 0
     dt.remove_container(results.container_id)
     dt.remove_image(remote_image)
 
@@ -169,18 +144,7 @@ def test_privileged_build(caplog, source_params):
     dt = DockerTasker()
     dt.pull_image(remote_image, insecure=True)
 
-    if source_params['provider'] == 'path':
-        assert_source_from_path_mounted_ok(caplog, m.temp_dir)
-
     assert len(results.build_logs) > 0
-    # assert isinstance(results.built_img_inspect, dict)
-    # assert len(results.built_img_inspect.items()) > 0
-    # assert isinstance(results.built_img_info, dict)
-    # assert len(results.built_img_info.items()) > 0
-    # assert isinstance(results.base_img_info, dict)
-    # assert len(results.base_img_info.items()) > 0
-    # assert len(results.base_plugins_output) > 0
-    # assert len(results.built_img_plugins_output) > 0
     dt.remove_container(results.container_id)
     dt.remove_image(remote_image)
 

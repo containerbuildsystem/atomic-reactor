@@ -30,8 +30,6 @@ YUM_REPOS_DIR = '/etc/yum.repos.d/'
 RELATIVE_REPOS_PATH = "atomic-reactor-repos/"
 DEFAULT_YUM_REPOFILE_NAME = 'atomic-reactor-injected.repo'
 
-SOURCE_DIRECTORY_NAME = "source"
-
 # key in dictionary returned by "docker inspect" that holds the image
 # configuration (such as labels)
 INSPECT_CONFIG = "Config"

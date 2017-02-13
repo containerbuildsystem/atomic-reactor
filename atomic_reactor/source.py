@@ -15,9 +15,12 @@ import os
 import shutil
 import tempfile
 import collections
+try:
+    from urlparse import urlparse
+except ImportError:
+    from urllib.parse import urlparse
 
 from atomic_reactor import util
-from atomic_reactor.constants import SOURCE_DIRECTORY_NAME
 
 
 logger = logging.getLogger(__name__)
@@ -37,7 +40,12 @@ class Source(object):
         # TODO: do we want to delete tmpdir when destroying the object?
         self.tmpdir = tmpdir or tempfile.mkdtemp()
         logger.debug("workdir is %r", self.tmpdir)
-        self.source_path = os.path.join(self.tmpdir, SOURCE_DIRECTORY_NAME)
+        parsed_uri = urlparse(uri)
+        git_reponame = os.path.basename(parsed_uri.path)
+        if git_reponame.endswith('.git'):
+            git_reponame = git_reponame[:-4]
+
+        self.source_path = os.path.join(self.tmpdir, git_reponame)
         logger.debug("source path is %r", self.source_path)
 
     @property

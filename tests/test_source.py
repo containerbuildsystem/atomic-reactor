@@ -16,9 +16,10 @@ class TestSource(object):
 
 @requires_internet
 class TestGitSource(object):
-    def test_checks_out_repo(self, tmpdir):
+    def test_checks_out_repo(self):
         gs = GitSource('git', DOCKERFILE_GIT)
         assert os.path.exists(os.path.join(gs.path, '.git'))
+        assert os.path.basename(gs.path) == 'docker-hello-world'
 
 
 class TestPathSource(object):
