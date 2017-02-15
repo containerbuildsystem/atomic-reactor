@@ -13,9 +13,6 @@ import inspect
 
 import pytest
 
-from atomic_reactor import constants as dconstants
-
-from atomic_reactor.constants import CONTAINER_SHARE_SOURCE_SUBDIR
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.outer import PrivilegedBuildManager, DockerhostBuildManager
 from atomic_reactor.util import ImageName
@@ -32,22 +29,6 @@ with_all_sources = pytest.mark.parametrize('source_params', [
     {'provider': 'path', 'uri': 'file://' + DOCKERFILE_SUBDIR_PATH,
      'dockerfile_path': 'ssh/'},
 ])
-
-
-def assert_source_from_path_mounted_ok(caplog, tmpdir, expected_dirname):
-    # assert that build json has properly modified source uri
-    container_uri = 'file://' + os.path.join(dconstants.CONTAINER_SHARE_PATH,
-                                             expected_dirname)
-    pattern = r'build json mounted in container.*"uri": %r' % container_uri
-    container_uri_re = re.compile(pattern)
-
-    # verify that source code was copied in - actually only verifies
-    #  that source dir has been created
-    source_exists = "source path is %r" % os.path.join(tmpdir,
-                                                       expected_dirname)
-    import pdb; pdb.set_trace()
-    assert any([container_uri_re.search(l.getMessage()) for l in caplog.records()])
-    assert source_exists in [l.getMessage() for l in caplog.records()]
 
 
 @with_all_sources
