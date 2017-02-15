@@ -387,6 +387,10 @@ class DockerBuildWorkflow(object):
                 raise
 
             return build_result
+        except PluginFailedException:
+            pass
+        except Exception:
+            logger.error("build failed", exc_info=True)
         finally:
             # We need to make sure all exit plugins are executed
             signal.signal(signal.SIGTERM, lambda *args: None)
