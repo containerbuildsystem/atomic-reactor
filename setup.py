@@ -53,7 +53,5 @@ setup(
     packages=find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests"]),
     install_requires=_install_requirements(),
     data_files=data_files.items(),
-    setup_requires=['pytest-runner'],
-    tests_require=_get_requirements('tests/requirements.txt'),
 )
 
