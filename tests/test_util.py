@@ -476,6 +476,8 @@ def test_df_parser_parent_env_arg(tmpdir):
 @pytest.mark.parametrize('env_arg', [
     {"test_env": "first"},
     ['test_env=first'],
+    ['test_env='],
+    ['test_env=--option=first --option=second'],
     ['test_env_first'],
 ])
 def test_df_parser_parent_env_wf(tmpdir, caplog, env_arg):
@@ -493,6 +495,8 @@ def test_df_parser_parent_env_wf(tmpdir, caplog, env_arg):
     if isinstance(env_arg, list) and ('=' not in env_arg[0]):
         expected_log_message = "Unable to parse all of Parent Config ENV"
         assert expected_log_message in [l.getMessage() for l in caplog.records()]
+    elif isinstance(env_arg, dict):
+        assert df.labels.get('label') == ('foobar ' + env_arg['test_env'])
     else:
-        assert df.labels.get('label') == 'foobar first'
+        assert df.labels.get('label') == 'foobar ' + env_arg[0].split('=', 1)[1]
 
