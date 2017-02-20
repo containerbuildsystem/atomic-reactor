@@ -825,7 +825,7 @@ def df_parser(df_path, workflow=None, cache_content=False, env_replace=True, par
                 elif isinstance(tmp_env, list):
                     try:
                         for key_val in tmp_env:
-                            key, val = key_val.split("=")
+                            key, val = key_val.split("=", 1)
                             p_env[key] = val
 
                     except ValueError:
