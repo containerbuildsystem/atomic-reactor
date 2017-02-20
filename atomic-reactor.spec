@@ -104,8 +104,10 @@ Requires:       python-setuptools
 Requires:       python-dockerfile-parse >= 0.0.5
 Requires:       python-docker-squash >= 1.0.0-0.3
 Requires:       python-backports-lzma
+Requires:       python-jsonschema
 # Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
 Requires:       nfs-utils
+Requires:       PyYAML
 Provides:       python-dock = %{version}-%{release}
 Obsoletes:      python-dock < %{dock_obsolete_vr}
 %{?python_provide:%python_provide python-atomic-reactor}
@@ -166,8 +168,10 @@ Requires:       python3-requests
 Requires:       python3-setuptools
 Requires:       python3-dockerfile-parse >= 0.0.5
 Requires:       python3-docker-squash >= 1.0.0-0.3
+Requires:       python3-jsonschema
 # Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
 Requires:       nfs-utils
+Requires:       python3-PyYAML
 Provides:       python3-dock = %{version}-%{release}
 Obsoletes:      python3-dock < %{dock_obsolete_vr}
 %{?python_provide:%python_provide python3-atomic-reactor}
@@ -273,6 +277,7 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python2_sitelib}/atomic_reactor/*.*
 %{python2_sitelib}/atomic_reactor/cli
 %{python2_sitelib}/atomic_reactor/plugins
+%{python2_sitelib}/atomic_reactor/schemas
 %exclude %{python2_sitelib}/atomic_reactor/koji_util.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_sendmail.py*
@@ -323,6 +328,7 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python3_sitelib}/atomic_reactor/*.*
 %{python3_sitelib}/atomic_reactor/cli
 %{python3_sitelib}/atomic_reactor/plugins
+%{python3_sitelib}/atomic_reactor/schemas
 %{python3_sitelib}/atomic_reactor/__pycache__/*.py*
 %exclude %{python3_sitelib}/atomic_reactor/koji_util.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_koji_promote.py

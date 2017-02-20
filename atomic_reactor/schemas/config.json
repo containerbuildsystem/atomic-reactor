@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+
+  "title": "atomic-reactor server-side configuration",
+
+  "type": ["object", "null"],
+  "properties": {
+    "version": {
+      "type": "integer"
+    },
+
+    "clusters": {
+      "description": "Clusters grouped by platform name",
+      "type": "object",
+      "patternProperties": {
+        "^[a-zA-Z0-9_]*$": {
+          "description": "List of clusters for this platform",
+          "type": "array",
+          "items": {
+            "properties": {
+              "name": {
+                "description": "osbs-client instance name for this cluster",
+                "type": "string"
+              },
+              "max_concurrent_builds": {
+                "description": "Maximum number of active builds",
+                "type": "integer",
+                "minimum": 0
+              },
+              "enabled": {
+                "description": "Whether this cluster should be used",
+                "type": "boolean",
+                "default": true
+              }
+            },
+            "additionalProperties": false,
+            "required": ["name", "max_concurrent_builds"]
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["version"]
+}

@@ -52,6 +52,7 @@ setup(
     },
     packages=find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests"]),
     install_requires=_install_requirements(),
+    package_data={'atomic_reactor': ['schemas/*.json']},
     data_files=data_files.items(),
 )
 
