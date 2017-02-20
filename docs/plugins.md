@@ -78,6 +78,9 @@ The plugins listed as part of the production workflow in the default prod_inner.
 
 These are run after 'git clone' is used to fetch the git repository content containing the Dockerfile.
 
+ * **reactor_config**
+   * Status: not yet enabled (multi-cluster)
+   * Parse, validate, and make available to other plugins the atomic-reactor configuration file
  * **is_autorebuild**
    * Status: not yet enabled (chain rebuilds)
    * Several plugins have specific duties to perform only in the case of automated rebuilds. This plugin figures out whether this OpenShift Build is an explicit build requested by a developer (via Koji), or whether it is a build triggered by a change in the parent layer.
