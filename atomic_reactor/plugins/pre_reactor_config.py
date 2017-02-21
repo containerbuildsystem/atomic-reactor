@@ -11,6 +11,7 @@ from atomic_reactor.plugin import PreBuildPlugin
 import codecs
 import json
 import jsonschema
+import os
 from pkg_resources import resource_stream
 import yaml
 
@@ -88,17 +89,19 @@ class ReactorConfigPlugin(PreBuildPlugin):
     # Exceptions from this plugin should fail the build
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, config_path):
+    def __init__(self, tasker, workflow, config_path, basename='config.yaml'):
         """
         constructor
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param config_path: str, configuration filename
+        :param config_path: str, configuration path (directory)
+        :param basename: str, filename within directory; default is config.yaml
         """
         # call parent constructor
         super(ReactorConfigPlugin, self).__init__(tasker, workflow)
         self.config_path = config_path
+        self.basename = basename
 
     def run(self):
         """
@@ -108,8 +111,9 @@ class ReactorConfigPlugin(PreBuildPlugin):
         Store in workflow workspace for later retrieval.
         """
 
-        self.log.info("reading config from %s", self.config_path)
-        with open(self.config_path) as fp:
+        config_filename = os.path.join(self.config_path, self.basename)
+        self.log.info("reading config from %s", config_filename)
+        with open(config_filename) as fp:
             conf = yaml.safe_load(fp)
 
         # Validate against JSON schema

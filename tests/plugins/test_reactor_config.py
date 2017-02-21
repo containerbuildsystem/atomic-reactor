@@ -42,6 +42,24 @@ class TestReactorConfigPlugin(object):
         same_conf = get_config(workflow)
         assert conf is same_conf
 
+    @pytest.mark.parametrize('basename', ['reactor-config.yaml', None])
+    def test_filename(self, tmpdir, basename):
+        filename = os.path.join(str(tmpdir), basename or 'config.yaml')
+        with open(filename, 'w'):
+            pass
+
+        tasker, workflow = self.prepare()
+        plugin = ReactorConfigPlugin(tasker, workflow,
+                                     config_path=str(tmpdir),
+                                     basename=filename)
+        assert plugin.run() == None
+
+    def test_filename_not_found(self):
+        tasker, workflow = self.prepare()
+        plugin = ReactorConfigPlugin(tasker, workflow, config_path='/not-found')
+        with pytest.raises(Exception):
+            plugin.run()
+
     def test_no_schema_resource(self, tmpdir, caplog):
         class FakeProvider(object):
             def get_resource_stream(self, pkg, rsc):
@@ -53,12 +71,12 @@ class TestReactorConfigPlugin(object):
             .should_receive('get_provider')
             .and_return(FakeProvider()))
 
-        filename = os.path.join(str(tmpdir), 'reactor_config.yaml')
+        filename = os.path.join(str(tmpdir), 'config.yaml')
         with open(filename, 'w'):
             pass
 
         tasker, workflow = self.prepare()
-        plugin = ReactorConfigPlugin(tasker, workflow, config_path=filename)
+        plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
         with caplog.atLevel(logging.ERROR):
             with pytest.raises(Exception):
                 plugin.run()
@@ -84,12 +102,12 @@ class TestReactorConfigPlugin(object):
             .should_receive('get_provider')
             .and_return(FakeProvider()))
 
-        filename = os.path.join(str(tmpdir), 'reactor_config.yaml')
+        filename = os.path.join(str(tmpdir), 'config.yaml')
         with open(filename, 'w'):
             pass
 
         tasker, workflow = self.prepare()
-        plugin = ReactorConfigPlugin(tasker, workflow, config_path=filename)
+        plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
         with caplog.atLevel(logging.ERROR):
             with pytest.raises(Exception):
                 plugin.run()
@@ -184,11 +202,11 @@ class TestReactorConfigPlugin(object):
         ])
     ])
     def test_bad_cluster_config(self, tmpdir, caplog, config, errors):
-        filename = os.path.join(str(tmpdir), 'reactor_config.yaml')
+        filename = os.path.join(str(tmpdir), 'config.yaml')
         with open(filename, 'w') as fp:
             fp.write(dedent(config))
         tasker, workflow = self.prepare()
-        plugin = ReactorConfigPlugin(tasker, workflow, config_path=filename)
+        plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
 
         with caplog.atLevel(logging.ERROR):
             with pytest.raises(ValidationError):
@@ -204,11 +222,11 @@ class TestReactorConfigPlugin(object):
                 assert error in captured_errs
 
     def test_bad_version(self, tmpdir):
-        filename = os.path.join(str(tmpdir), 'reactor_config.yaml')
+        filename = os.path.join(str(tmpdir), 'config.yaml')
         with open(filename, 'w') as fp:
             fp.write("version: 2")
         tasker, workflow = self.prepare()
-        plugin = ReactorConfigPlugin(tasker, workflow, config_path=filename)
+        plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
 
         with pytest.raises(ValueError):
             plugin.run()
@@ -247,11 +265,11 @@ class TestReactorConfigPlugin(object):
         ]),
     ])
     def test_good_cluster_config(self, tmpdir, config, clusters):
-        filename = os.path.join(str(tmpdir), 'reactor_config.yaml')
+        filename = os.path.join(str(tmpdir), 'config.yaml')
         with open(filename, 'w') as fp:
             fp.write(dedent(config))
         tasker, workflow = self.prepare()
-        plugin = ReactorConfigPlugin(tasker, workflow, config_path=filename)
+        plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
         assert plugin.run() == None
 
         conf = get_config(workflow)
