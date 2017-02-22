@@ -408,8 +408,8 @@ class BuildStepPluginsRunner(BuildPluginsRunner):
         logger.info("initializing runner of build-step plugin")
         self.plugins_results = workflow.buildstep_result
 
-        if not plugin_conf:
-            # if none buildstep plugins specified, fallback to docker api plugin
+        if plugin_conf is None:
+            # if there is no buildstep_plugins key, fallback to docker api plugin
             plugin_conf = [{'name': 'docker_api', 'is_allowed_to_fail': False}]
         else:
             # any non existing buildstep plugin must be skipped without error
