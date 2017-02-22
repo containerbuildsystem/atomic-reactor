@@ -364,15 +364,14 @@ class DockerBuildWorkflow(object):
 
                 if self.build_result.is_failed():
                     raise PluginFailedException(self.build_result.fail_reason)
-                
-                self.builder.is_built = True
-                self.builder.image_id = self.build_result.image_id
-                self.built_image_inspect = self.builder.inspect_built_image()
-
             except PluginFailedException as ex:
                 self.builder.is_built = False
                 logger.error('buildstep plugin failed: %s', ex)
                 raise
+
+            self.builder.is_built = True
+            self.builder.image_id = self.build_result.image_id
+            self.built_image_inspect = self.builder.inspect_built_image()
 
             # run prepublish plugins
             prepublish_runner = PrePublishPluginsRunner(self.builder.tasker, self, self.prepublish_plugins_conf,
@@ -392,6 +391,9 @@ class DockerBuildWorkflow(object):
                 raise
 
             return self.build_result
+        except Exception as ex:
+            logger.debug("caught exception (%r) so running exit plugins", ex)
+            raise
         finally:
             # We need to make sure all exit plugins are executed
             signal.signal(signal.SIGTERM, lambda *args: None)
