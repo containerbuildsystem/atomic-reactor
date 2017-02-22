@@ -261,7 +261,8 @@ def test_fallback_to_docker_build(docker_tasker):
     setattr(workflow, 'builder', X())
 
     runner = BuildStepPluginsRunner(docker_tasker, workflow, [])
-    assert runner.plugins_conf == [{'name': 'docker_api', 'is_allowed_to_fail': False}]
+    assert runner.plugins_conf == []
+
     runner = BuildStepPluginsRunner(docker_tasker, workflow, None)
     assert runner.plugins_conf == [{'name': 'docker_api', 'is_allowed_to_fail': False}]
 
