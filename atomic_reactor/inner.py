@@ -363,9 +363,7 @@ class DockerBuildWorkflow(object):
                 self.build_result = buildstep_runner.run()
 
                 if self.build_result.is_failed():
-                    logger.error('buildstep plugin failed: %s',
-                                 self.build_result.fail_reason)
-                    raise PluginFailedException('buildstep plugin failed')
+                    raise PluginFailedException(self.build_result.fail_reason)
                 
                 self.builder.is_built = True
                 self.builder.image_id = self.build_result.image_id
