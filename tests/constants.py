@@ -23,7 +23,6 @@ DOCKERFILE_SHA1 = "6e592f1420efcd331cd28b360a7e02f669caf540"
 DOCKERFILE_OK_PATH = os.path.join(FILES, 'docker-hello-world')
 DOCKERFILE_ERROR_BUILD_PATH = os.path.join(FILES, 'docker-hello-world-error-build')
 DOCKERFILE_SUBDIR_PATH = os.path.join(FILES, 'df-in-subdir')
-DOCKERFILE_SHA1 = "6e592f1420efcd331cd28b360a7e02f669caf540"
 
 SOURCE = {
     'provider': 'git',

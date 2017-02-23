@@ -370,8 +370,9 @@ class DockerBuildWorkflow(object):
                 raise
 
             self.builder.is_built = True
-            self.builder.image_id = self.build_result.image_id
-            self.built_image_inspect = self.builder.inspect_built_image()
+            if self.build_result.is_image_available():
+                self.builder.image_id = self.build_result.image_id
+                self.built_image_inspect = self.builder.inspect_built_image()
 
             # run prepublish plugins
             prepublish_runner = PrePublishPluginsRunner(self.builder.tasker, self, self.prepublish_plugins_conf,

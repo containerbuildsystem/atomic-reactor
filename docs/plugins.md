@@ -144,6 +144,10 @@ These are run after we have everything ready for build
    * Status: enabled
    * Builds image inside current environment, using docker api
 
+ * **orchestrate_build**
+   * Status: not yet enabled
+   * Builds image in remote environment
+
 ### Pre-publish and post-build plugins
 
 These are run after buildstep plugin has successfully finished.
