@@ -50,26 +50,41 @@ class ClusterConfig(object):
         self.enabled = enabled
 
 
-class ReactorConfig(object):
+class ReactorConfigKeys(object):
     """
-    Class to parse the atomic-reactor configuration file
+    Symbolic names to use for the key names in the configuration file
+
+    Use the symbols defined in this class to fetch key values from
+    the configuration file rather than using string literals. This
+    way if you mis-spell one it will cause an exception to be raised
+    rather than the key seeming not to be present in the config file.
+
+    At top level:
+    - VERSION_KEY: this is the version of the config file schema
+    - CLUSTERS_KEY: this holds details about clusters, by platform
     """
 
     VERSION_KEY = 'version'
     CLUSTERS_KEY = 'clusters'
 
-    DEFAULT_CONFIG = {'version': 1}
+class ReactorConfig(object):
+    """
+    Class to parse the atomic-reactor configuration file
+    """
+
+    DEFAULT_CONFIG = {ReactorConfigKeys.VERSION_KEY: 1}
 
     def __init__(self, config=None):
         self.conf = config or self.DEFAULT_CONFIG
 
-        version = self.conf[self.VERSION_KEY]
+        version = self.conf[ReactorConfigKeys.VERSION_KEY]
         if version != 1:
             raise ValueError("version %r unknown" % version)
 
         # Prepare cluster configurations
         self.cluster_configs = {}
-        for platform, clusters in self.conf.get(self.CLUSTERS_KEY, {}).items():
+        for platform, clusters in self.conf.get(ReactorConfigKeys.CLUSTERS_KEY,
+                                                {}).items():
             cluster_configs = [ClusterConfig(**cluster) for cluster in clusters]
             self.cluster_configs[platform] = [conf for conf in cluster_configs
                                               if conf.enabled]
