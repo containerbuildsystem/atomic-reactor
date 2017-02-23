@@ -44,7 +44,10 @@ BUILD_RESULTS_ATTRS = ['build_logs',
                        'base_img_info',
                        'base_plugins_output',
                        'built_img_plugins_output']
-DUMMY_BUILD_RESULT  = BuildResult(image_id="image_id")
+DUMMY_BUILD_RESULT = BuildResult(image_id="image_id")
+DUMMY_FAILED_BUILD_RESULT = BuildResult(fail_reason='it happens')
+DUMMY_REMOTE_BUILD_RESULT = BuildResult.make_remote_image_result()
+
 
 def test_build_results_encoder():
     results = BuildResults()
@@ -986,6 +989,18 @@ class ValueBuildStep(object):
         return DUMMY_BUILD_RESULT
 
 
+class ValueFailedBuildStep(object):
+
+    def run(self):
+        return DUMMY_FAILED_BUILD_RESULT
+
+
+class ValueRemoteBuildStep(object):
+
+    def run(self):
+        return DUMMY_REMOTE_BUILD_RESULT
+
+
 class PreBuildResult(ValueMixIn, PreBuildPlugin):
     """
     Pre build plugin that returns a result when run.
@@ -996,10 +1011,26 @@ class PreBuildResult(ValueMixIn, PreBuildPlugin):
 
 class BuildStepResult(ValueBuildStep, BuildStepPlugin):
     """
-    Post build plugin that returns a result when run.
+    Build step plugin that returns a result when run.
     """
 
     key = 'buildstep_value'
+
+
+class BuildStepFailedResult(ValueFailedBuildStep, BuildStepPlugin):
+    """
+    Build step plugin that returns a failed result when run.
+    """
+
+    key = 'buildstep_failed_value'
+
+
+class BuildStepRemoteResult(ValueRemoteBuildStep, BuildStepPlugin):
+    """
+    Build step plugin that returns a failed result when run.
+    """
+
+    key = 'buildstep_remote_value'
 
 
 class PostBuildResult(ValueMixIn, PostBuildPlugin):
@@ -1026,10 +1057,16 @@ class ExitResult(ValueMixIn, ExitPlugin):
     key = 'exit_value'
 
 
-def test_workflow_plugin_results():
+@pytest.mark.parametrize(['buildstep_plugin', 'buildstep_raises'], [
+    ['buildstep_value', False],
+    ['buildstep_remote_value', False],
+    ['buildstep_failed_value', True],
+])
+def test_workflow_plugin_results(buildstep_plugin, buildstep_raises):
     """
     Verifies the results of plugins in different phases
     are stored properly.
+    It also verifies failed and remote BuildResult is handled properly.
     """
 
     flexmock(DockerfileParser, content='df_content')
@@ -1039,7 +1076,7 @@ def test_workflow_plugin_results():
     flexmock(InsideBuilder).new_instances(fake_builder)
 
     prebuild_plugins = [{'name': 'pre_build_value'}]
-    buildstep_plugins = [{'name': 'buildstep_value'}]
+    buildstep_plugins = [{'name': buildstep_plugin}]
     postbuild_plugins = [{'name': 'post_build_value'}]
     prepublish_plugins = [{'name': 'pre_publish_value'}]
     exit_plugins = [{'name': 'exit_value'}]
@@ -1052,11 +1089,22 @@ def test_workflow_plugin_results():
                                    exit_plugins=exit_plugins,
                                    plugin_files=[this_file])
 
-    workflow.build_docker_image()
+    if buildstep_raises:
+        with pytest.raises(PluginFailedException):
+            workflow.build_docker_image()
+    else:
+        workflow.build_docker_image()
+
     assert workflow.prebuild_results == {'pre_build_value': 'pre_build_value_result'}
-    assert isinstance(workflow.buildstep_result['buildstep_value'], BuildResult)
-    assert workflow.postbuild_results == {'post_build_value': 'post_build_value_result'}
-    assert workflow.prepub_results == {'pre_publish_value': 'pre_publish_value_result'}
+    assert isinstance(workflow.buildstep_result[buildstep_plugin], BuildResult)
+
+    if buildstep_raises:
+        assert workflow.postbuild_results == {}
+        assert workflow.prepub_results == {}
+    else:
+        assert workflow.postbuild_results == {'post_build_value': 'post_build_value_result'}
+        assert workflow.prepub_results == {'pre_publish_value': 'pre_publish_value_result'}
+
     assert workflow.exit_results == {'exit_value': 'exit_value_result'}
 
 

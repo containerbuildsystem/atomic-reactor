@@ -147,3 +147,27 @@ def test_get_image_built_info(tmpdir, source_params, image, will_raise):
             b.get_built_image_info()
     else:
         b.get_built_image_info()
+
+
+def test_build_result():
+    with pytest.raises(AssertionError):
+        BuildResult(fail_reason='it happens', image_id='spam')
+
+    with pytest.raises(AssertionError):
+        BuildResult(fail_reason='', image_id='spam')
+
+    assert BuildResult(fail_reason='it happens').is_failed()
+    assert not BuildResult(image_id='spam').is_failed()
+
+    assert BuildResult(image_id='spam', logs=list('logs')).logs == list('logs')
+
+    assert BuildResult(fail_reason='it happens').fail_reason == 'it happens'
+    assert BuildResult(image_id='spam').image_id == 'spam'
+
+    assert BuildResult(image_id='spam', annotations={'ham': 'mah'}).annotations == {'ham': 'mah'}
+
+    assert BuildResult(image_id='spam').is_image_available()
+    assert not BuildResult(fail_reason='it happens').is_image_available()
+    assert not BuildResult.make_remote_image_result().is_image_available()
+
+    assert not BuildResult.make_remote_image_result().is_failed()
