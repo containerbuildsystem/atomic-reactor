@@ -43,7 +43,7 @@ class BumpReleasePlugin(PreBuildPlugin):
         run the plugin
         """
 
-        parser = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
+        parser = df_parser(self.workflow.builder.df_path)
         release_labels = get_all_label_keys('release')
         dockerfile_labels = parser.labels
         if any(release_label in dockerfile_labels
