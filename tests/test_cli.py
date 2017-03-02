@@ -11,12 +11,16 @@ from __future__ import print_function, unicode_literals
 import logging
 import os
 import sys
+import jsonschema
+from collections import deque
 
 import pytest
 
 from atomic_reactor.buildimage import BuildImageBuilder
 from atomic_reactor.core import DockerTasker
 import atomic_reactor.cli.main
+
+from tempfile import NamedTemporaryFile
 
 from tests.fixtures import is_registry_running, temp_image_name, get_uuid
 from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, DOCKERFILE_OK_PATH, FILES, MOCK
@@ -171,4 +175,62 @@ class TestCLISuite(object):
         with pytest.raises(SystemExit) as excinfo:
             self.exec_cli(command)
         assert excinfo.value.code == 0
+
+    @pytest.mark.parametrize('build_json', [
+        {'valid_json': False, 'valid_schema': False, 'validation_error': False, 'contents':
+            b'this is not a json'},
+        {'valid_json': True, 'valid_schema': False, 'validation_error': False, 'contents':
+            b'{ "this": "is", "json": "but", "its": "invalid" }'},
+        {'valid_json': True, 'valid_schema': True, 'validation_error': False, 'contents':
+            b'{"image": "image_name", "source": {"provider": "path", "uri": "bar"}}'},
+        {'valid_json': True, 'valid_schema': True, 'validation_error': True, 'contents':
+            b'{"image": "image_name", "source": {"uri": "bar"}}'}
+    ])
+    def test_json_validation(self, is_registry_running, temp_image_name, build_json):
+        if MOCK:
+            mock_docker()
+
+        with NamedTemporaryFile(delete=True) as temp_json_file_handle:
+            temp_json_file_handle.write(build_json['contents'])
+            temp_json_file_handle.flush()
+
+            temp_image = temp_image_name
+            command = [
+                "main.py",
+                "--verbose",
+                "build",
+                "json",
+                "--method", "hostdocker",
+                "--build-image", DH_BUILD_IMAGE,
+                temp_json_file_handle.name,
+                "--substitute", "image={0}".format(temp_image),
+                "source.uri={0}".format(DOCKERFILE_OK_PATH)
+            ]
+            if is_registry_running:
+                logger.info("registry is running")
+                command += ["--source-registry", LOCALHOST_REGISTRY]
+            else:
+                logger.info("registry is NOT running")
+
+            expected_exception = SystemExit
+            if not build_json['valid_json']:
+                # This one is thrown by json.loads
+                expected_exception = ValueError
+            elif not build_json['valid_schema']:
+                # This one is thrown by jsonschema.loads
+                expected_exception = jsonschema.ValidationError
+            elif build_json['validation_error']:
+                # This is a schema validation error
+                expected_exception = jsonschema.ValidationError
+
+            with pytest.raises(expected_exception) as excinfo:
+                self.exec_cli(command)
+            if hasattr(expected_exception, "value.code"):
+                assert excinfo.value.code == 0
+
+            if build_json['validation_error']:
+                # verify details of validation error
+                assert excinfo.value.message == "'provider' is a required property"
+                assert excinfo.value.schema_path == deque(['properties', 'source', 'required'])
+
         dt.remove_image(temp_image, noprune=True)

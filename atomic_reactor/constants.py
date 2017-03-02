@@ -14,6 +14,77 @@ BUILD_JSON = 'build.json'
 BUILD_JSON_ENV = 'BUILD_JSON'
 RESULTS_JSON = 'results.json'
 
+JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "osbs_client": {"type": "string"},
+        "image": {"type": "string"},
+        "git_url": {"type": "string"},
+        "source": {
+            "type": "object",
+            "properties": {
+                "provider": {"type": "string"},
+                "url": {"type": "string"}
+            },
+            "required": ["provider"]
+        },
+        "prebuild_plugins": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "is_allowed_to_fail": {"type": "boolean"},
+                    "required": {"type": "boolean"},
+                    "args": {"type": "object"},
+                },
+                "required": ["name"]
+            }
+        },
+        "postbuild_plugins": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "is_allowed_to_fail": {"type": "boolean"},
+                    "required": {"type": "boolean"},
+                    "args": {"type": "object"},
+                },
+                "required": ["name"]
+            }
+        },
+        "prepublish_plugins": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "is_allowed_to_fail": {"type": "boolean"},
+                    "required": {"type": "boolean"},
+                    "args": {"type": "object"},
+                },
+                "required": ["name"]
+            }
+        },
+        "exit_plugins": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "is_allowed_to_fail": {"type": "boolean"},
+                    "required": {"type": "boolean"},
+                    "args": {"type": "object"},
+                },
+                "required": ["name"]
+            }
+        },
+    },
+    "required": ["image"]
+}
+
+
 CONTAINER_SHARE_PATH = '/run/share/'
 CONTAINER_SHARE_SOURCE_SUBDIR = 'source'
 CONTAINER_SECRET_PATH = ''
