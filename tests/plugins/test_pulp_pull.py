@@ -9,8 +9,8 @@ of the BSD license. See the LICENSE file for details.
 from atomic_reactor.plugins.post_pulp_pull import (PulpPullPlugin,
                                                    CraneTimeoutError)
 from atomic_reactor.inner import TagConf, PushConf
+from atomic_reactor.util import ImageName
 from docker.errors import NotFound
-import time
 
 from flexmock import flexmock
 import pytest
@@ -20,7 +20,7 @@ class MockerTasker(object):
     def __init__(self):
         self.pulled_images = []
 
-    def pull_image(self, image):
+    def pull_image(self, image, insecure):
         self.pulled_images.append(image)
         return image.to_str()
 
@@ -31,6 +31,8 @@ class MockerTasker(object):
 class TestPostPulpPull(object):
     TEST_UNIQUE_IMAGE = 'foo:unique-tag'
     CRANE_URI = 'crane.example.com'
+    EXPECTED_IMAGE = ImageName.parse('%s/%s' % (CRANE_URI, TEST_UNIQUE_IMAGE))
+    EXPECTED_PULLSPEC = EXPECTED_IMAGE.to_str()
 
     def workflow(self):
         tag_conf = TagConf()
@@ -44,32 +46,34 @@ class TestPostPulpPull(object):
                         builder=builder,
                         plugin_workspace={})
 
-    def test_pull_first_time(self):
+    @pytest.mark.parametrize('insecure', [True, False])
+    def test_pull_first_time(self, insecure):
         workflow = self.workflow()
         tasker = MockerTasker()
-        expected_pullspec = '%s/%s' % (self.CRANE_URI, self.TEST_UNIQUE_IMAGE)
+
         test_id = 'sha256:(new)'
 
         (flexmock(tasker)
             .should_call('pull_image')
-            .and_return(expected_pullspec)
+            .with_args(self.EXPECTED_IMAGE, insecure=insecure)
+            .and_return(self.EXPECTED_PULLSPEC)
             .once()
             .ordered())
 
         (flexmock(tasker)
             .should_receive('inspect_image')
-            .with_args(expected_pullspec)
+            .with_args(self.EXPECTED_PULLSPEC)
             .and_return({'Id': test_id})
             .once())
 
-        plugin = PulpPullPlugin(tasker, workflow)
+        plugin = PulpPullPlugin(tasker, workflow, insecure=insecure)
 
         # Plugin return value is the new ID
         assert plugin.run() == test_id
 
         assert len(tasker.pulled_images) == 1
         pulled = tasker.pulled_images[0].to_str()
-        assert pulled == expected_pullspec
+        assert pulled == self.EXPECTED_PULLSPEC
 
         # Image ID is updated in workflow
         assert workflow.builder.image_id == test_id
@@ -77,16 +81,15 @@ class TestPostPulpPull(object):
     def test_pull_timeout(self):
         workflow = self.workflow()
         tasker = MockerTasker()
-        expected_pullspec = '%s/%s' % (self.CRANE_URI, self.TEST_UNIQUE_IMAGE)
 
         (flexmock(tasker)
             .should_call('pull_image')
-            .and_return(expected_pullspec)
+            .and_return(self.EXPECTED_PULLSPEC)
             .times(3))
 
         (flexmock(tasker)
             .should_receive('inspect_image')
-            .with_args(expected_pullspec)
+            .with_args(self.EXPECTED_PULLSPEC)
             .and_raise(NotFound('message', flexmock(content=None)))
             .times(3))
 
@@ -99,17 +102,16 @@ class TestPostPulpPull(object):
     def test_pull_retry(self):
         workflow = self.workflow()
         tasker = MockerTasker()
-        expected_pullspec = '%s/%s' % (self.CRANE_URI, self.TEST_UNIQUE_IMAGE)
         test_id = 'sha256:(new)'
 
         (flexmock(tasker)
             .should_call('pull_image')
-            .and_return(expected_pullspec)
+            .and_return(self.EXPECTED_PULLSPEC)
             .times(3))
 
         (flexmock(tasker)
             .should_receive('inspect_image')
-            .with_args(expected_pullspec)
+            .with_args(self.EXPECTED_PULLSPEC)
             .and_raise(NotFound('message', flexmock(content=None)))
             .and_raise(NotFound('message', flexmock(content=None)))
             .and_return({'Id': test_id})
@@ -123,7 +125,7 @@ class TestPostPulpPull(object):
         assert len(tasker.pulled_images) == 3
         for image in tasker.pulled_images:
             pulled = image.to_str()
-            assert pulled == expected_pullspec
+            assert pulled == self.EXPECTED_PULLSPEC
 
         # Image ID is updated in workflow
         assert workflow.builder.image_id == test_id

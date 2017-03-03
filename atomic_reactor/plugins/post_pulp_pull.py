@@ -30,7 +30,7 @@ class PulpPullPlugin(PostBuildPlugin):
     key = 'pulp_pull'
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, timeout=600, retry_delay=30):
+    def __init__(self, tasker, workflow, timeout=600, retry_delay=30, insecure=False):
         """
         constructor
 
@@ -43,6 +43,7 @@ class PulpPullPlugin(PostBuildPlugin):
         super(PulpPullPlugin, self).__init__(tasker, workflow)
         self.timeout = timeout
         self.retry_delay = retry_delay
+        self.insecure = insecure
 
     def run(self):
         start = time()
@@ -59,7 +60,7 @@ class PulpPullPlugin(PostBuildPlugin):
 
         while True:
             # Pull the image from Crane
-            name = self.tasker.pull_image(pullspec)
+            name = self.tasker.pull_image(pullspec, insecure=self.insecure)
 
             # Inspect it
             try:
