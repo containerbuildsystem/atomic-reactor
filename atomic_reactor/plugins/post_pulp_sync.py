@@ -119,6 +119,18 @@ class PulpSyncPlugin(PostBuildPlugin):
             self.log.error("will not delete from registry as instructed: "
                            "not implemented")
 
+        found_self = False
+        self.publish = True
+        for plugin in workflow.postbuild_plugins_conf or []:
+            if plugin['name'] == self.key:
+                found_self = True
+                continue
+
+            # A hardcoded name is used to avoid circular imports
+            if found_self and plugin['name'] == 'pulp_push':
+                self.publish = False
+                break
+
     def set_auth(self, pulp):
         path = self.pulp_secret_path
         if path is not None:
@@ -216,10 +228,15 @@ class PulpSyncPlugin(PostBuildPlugin):
                 repos[image.pulp_repo] = repo_id
 
             images.append(ImageName(registry=pulp_registry,
-                                    repo=image.repo))
+                                    repo=image.repo,
+                                    tag=image.tag))
 
         self.log.info("publishing to crane")
         pulp.crane(list(repos.values()), wait=True)
+
+        if self.publish:
+            for image_name in images:
+                self.log.info("image available at %s", str(image_name))
 
         # Return the set of qualified repo names for this image
         return images

@@ -17,7 +17,6 @@ from atomic_reactor.util import ImageName
 try:
     import dockpulp
     from atomic_reactor.plugins.post_push_to_pulp import PulpPushPlugin
-    from atomic_reactor.plugins.post_pulp_sync import PulpSyncPlugin
 except (ImportError, SyntaxError):
     dockpulp = None
 

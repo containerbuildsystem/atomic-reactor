@@ -82,7 +82,8 @@ class TestPostPulpSync(object):
         tag_conf = flexmock(images=images)
         push_conf = PushConf()
         return flexmock(tag_conf=tag_conf,
-                        push_conf=push_conf)
+                        push_conf=push_conf,
+                        postbuild_plugins_conf=[])
 
     @pytest.mark.parametrize('get_prefix', [True, False])
     @pytest.mark.parametrize(('pulp_repo_prefix', 'expected_prefix'), [
@@ -599,3 +600,62 @@ class TestPostPulpSync(object):
             .and_return(mockpulp))
 
         plugin.run()
+
+    @pytest.mark.parametrize('has_pulp_push', [False, True])
+    def test_print_availability_info(self, has_pulp_push, caplog):
+        docker_registry = 'http://registry.example.com'
+        docker_repository = 'prod/myrepository'
+        pulp_repoid = 'prod-myrepository'
+        prefixed_pulp_repoid = 'redhat-prod-myrepository'
+        env = 'pulp'
+        workflow = self.workflow([docker_repository])
+
+        mockpulp = MockPulp()
+        (flexmock(mockpulp)
+            .should_receive('login')
+            .never())
+        (flexmock(mockpulp)
+            .should_receive('set_certs')
+            .never())
+        (flexmock(mockpulp)
+            .should_receive('getRepos')
+            .with_args([prefixed_pulp_repoid], fields=['id'])
+            .and_return([{'id': prefixed_pulp_repoid}])
+            .once()
+            .ordered())
+        (flexmock(mockpulp)
+            .should_receive('syncRepo')
+            .with_args(repo=prefixed_pulp_repoid,
+                       feed=docker_registry)
+            .and_return(([], []))
+            .once()
+            .ordered())
+        (flexmock(mockpulp)
+            .should_receive('crane')
+            .with_args([prefixed_pulp_repoid], wait=True)
+            .once()
+            .ordered())
+        (flexmock(dockpulp)
+            .should_receive('Pulp')
+            .with_args(env=env)
+            .and_return(mockpulp))
+
+        workflow.postbuild_plugins_conf.append({'name': PulpSyncPlugin.key})
+        if has_pulp_push:
+            # PulpPushPlugin.key is not imported here to avoid circular import
+            workflow.postbuild_plugins_conf.append({'name': 'pulp_push'})
+
+        plugin = PulpSyncPlugin(tasker=None,
+                                workflow=workflow,
+                                pulp_registry_name=env,
+                                docker_registry=docker_registry)
+
+        plugin.run()
+        log_messages = [l.getMessage() for l in caplog.records()]
+
+        for image in workflow.tag_conf.images:
+            expected_log = 'image available at %s/%s' % (mockpulp.registry, image.to_str())
+            if has_pulp_push:
+                assert expected_log not in log_messages
+            else:
+                assert expected_log in log_messages
