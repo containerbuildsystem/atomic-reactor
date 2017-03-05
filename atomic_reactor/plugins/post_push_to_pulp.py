@@ -342,7 +342,8 @@ class PulpPushPlugin(PostBuildPlugin):
                 image_file.flush()
                 crane_repos = self.push_tar(image_file.name, image_names)
 
-        for image_name in crane_repos:
-            self.log.info("image available at %s", str(image_name))
+        if self.publish:
+            for image_name in crane_repos:
+                self.log.info("image available at %s", str(image_name))
 
         return crane_repos
