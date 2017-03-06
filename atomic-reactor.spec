@@ -31,7 +31,7 @@
 %global dock_obsolete_vr 1.3.7-2
 
 Name:           %{project}
-Version:        1.6.21
+Version:        1.6.22
 Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
@@ -387,6 +387,9 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 
 %changelog
+* Mon Mar 06 2017 Robert Cerven <rcerven@redhat.com> - 1.6.22-1
+- new upstream release: 1.6.22
+
 * Mon Feb 13 2017 Vadim Rutkovsky <vrutkovs@redhat.com> - 1.16.21-1
 - 1.6.21 release
 
