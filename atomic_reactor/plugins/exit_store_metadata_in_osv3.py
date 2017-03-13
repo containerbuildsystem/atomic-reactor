@@ -126,6 +126,12 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         return labels
 
+    def apply_build_result_annotations(self, annotations):
+        updates = self.workflow.build_result.annotations
+        if updates:
+            updates = {key: json.dumps(value) for key, value in updates.items()}
+            annotations.update(updates)
+
     def run(self):
         metadata = get_build_json().get("metadata", {})
 
@@ -187,6 +193,9 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
                 "sha256sum": tar_sha256sum,
                 "filename": os.path.basename(tar_path),
             })
+
+        self.apply_build_result_annotations(annotations)
+
         try:
             osbs.set_annotations_on_build(build_id, annotations)
         except OsbsResponseException:
