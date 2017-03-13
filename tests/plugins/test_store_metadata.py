@@ -35,6 +35,7 @@ from flexmock import flexmock
 from osbs.api import OSBS
 import osbs.conf
 from osbs.exceptions import OsbsResponseException
+from atomic_reactor.build import BuildResult
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import ExitPluginsRunner
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
@@ -119,7 +120,12 @@ def prepare(pulp_registries=None, docker_registries=None):
     return workflow
 
 
-def test_metadata_plugin(tmpdir):
+@pytest.mark.parametrize(('br_annotations', 'expected_br_annotations'), (
+    (None, None),
+    ('spam', '"spam"'),
+    (['s', 'p', 'a', 'm'], '["s", "p", "a", "m"]'),
+))
+def test_metadata_plugin(tmpdir, br_annotations, expected_br_annotations):
     initial_timestamp = datetime.now()
     workflow = prepare()
     df_content = """
@@ -136,6 +142,12 @@ CMD blabla"""
     workflow.postbuild_results = {
         PostBuildRPMqaPlugin.key: "rpm1\nrpm2",
     }
+
+    if br_annotations:
+        workflow.build_result = BuildResult(
+            image_id=INPUT_IMAGE,
+            annotations={'br_annotations': br_annotations})
+
     workflow.plugins_timestamps = {
         PostBuildRPMqaPlugin.key: (initial_timestamp + timedelta(seconds=3)).isoformat(),
     }
@@ -199,6 +211,11 @@ CMD blabla"""
 
     plugins_metadata = json.loads(annotations["plugins-metadata"])
     assert "all_rpm_packages" in plugins_metadata["durations"]
+
+    if br_annotations:
+        assert annotations['br_annotations'] == expected_br_annotations
+    else:
+        assert 'br_annotations' not in annotations
 
 
 def test_metadata_plugin_rpmqa_failure(tmpdir):
