@@ -186,6 +186,38 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         return build_kwargs
 
+    def _apply_repositories(self, annotations):
+        unique = set()
+        primary = set()
+
+        for build_info in self.worker_builds:
+            if not build_info.build:
+                continue
+            repositories = build_info.build.get_repositories() or {}
+            unique.update(repositories.get('unique', []))
+            primary.update(repositories.get('primary', []))
+
+        if unique or primary:
+            annotations['repositories'] = {
+                'unique': sorted(list(unique)),
+                'primary': sorted(list(primary)),
+            }
+
+    def _make_labels(self):
+        labels = {}
+        koji_build_id = None
+        ids = set([build_info.build.get_koji_build_id()
+                   for build_info in self.worker_builds
+                   if build_info.build])
+        self.log.debug('all koji-build-ids: %s', ids)
+        if ids:
+            koji_build_id = ids.pop()
+
+        if koji_build_id:
+            labels['koji-build-id'] = koji_build_id
+
+        return labels
+
     def do_worker_build(self, release, cluster_info):
         build = None
         try:
@@ -242,6 +274,10 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             for build_info in self.worker_builds if build_info.build
         }}
 
+        self._apply_repositories(annotations)
+
+        labels = self._make_labels()
+
         fail_reasons = {
             build_info.platform: build_info.get_fail_reason()
             for build_info in self.worker_builds
@@ -250,6 +286,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         if fail_reasons:
             return BuildResult(fail_reason=json.dumps(fail_reasons),
-                               annotations=annotations)
+                               annotations=annotations, labels=labels)
 
-        return BuildResult.make_remote_image_result(annotations)
+        return BuildResult.make_remote_image_result(annotations, labels=labels)

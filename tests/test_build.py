@@ -166,6 +166,8 @@ def test_build_result():
 
     assert BuildResult(image_id='spam', annotations={'ham': 'mah'}).annotations == {'ham': 'mah'}
 
+    assert BuildResult(image_id='spam', labels={'ham': 'mah'}).labels == {'ham': 'mah'}
+
     assert BuildResult(image_id='spam').is_image_available()
     assert not BuildResult(fail_reason='it happens').is_image_available()
     assert not BuildResult.make_remote_image_result().is_image_available()

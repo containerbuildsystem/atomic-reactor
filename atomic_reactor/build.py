@@ -57,13 +57,15 @@ class BuildResult(object):
     REMOTE_IMAGE = object()
 
     def __init__(self, logs=None, fail_reason=None, image_id=None,
-                 annotations=None):
+                 annotations=None, labels=None):
         """
         :param logs: iterable of log lines (without newlines)
         :param fail_reason: str, description of failure or None if successful
         :param image_id: str, ID of built container image
         :param annotations: dict, data captured during build step which
                             should be annotated to OpenShift build
+        :param labels: dict, data captured during build step which
+                       should be set as labels on OpenShift build
         """
         assert fail_reason is None or bool(fail_reason), \
             "If fail_reason provided, can't be falsy"
@@ -74,12 +76,13 @@ class BuildResult(object):
         self._fail_reason = fail_reason
         self._image_id = image_id
         self._annotations = annotations
+        self._labels = labels
 
     @staticmethod
-    def make_remote_image_result(annotations=None):
+    def make_remote_image_result(annotations=None, labels=None):
         """Instantiate BuildResult for image not built locally."""
         return BuildResult(image_id=BuildResult.REMOTE_IMAGE,
-                           annotations=annotations)
+                           annotations=annotations, labels=labels)
 
     @property
     def logs(self):
@@ -99,6 +102,10 @@ class BuildResult(object):
     @property
     def annotations(self):
         return self._annotations
+
+    @property
+    def labels(self):
+        return self._labels
 
     def is_image_available(self):
         return self._image_id and self._image_id is not self.REMOTE_IMAGE
