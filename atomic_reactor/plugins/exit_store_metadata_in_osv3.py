@@ -124,6 +124,11 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         if koji_build_id:
             labels["koji-build-id"] = str(koji_build_id)
 
+        updates = self.workflow.build_result.labels
+        if updates:
+            updates = {key: str(value) for key, value in updates.items()}
+            labels.update(updates)
+
         return labels
 
     def apply_build_result_annotations(self, annotations):

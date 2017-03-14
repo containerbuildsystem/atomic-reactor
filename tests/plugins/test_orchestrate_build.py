@@ -144,15 +144,19 @@ def mock_osbs(current_builds=2, worker_builds=1):
         .replace_with(mock_wait_for_build_to_finish))
 
 
-def make_build_response(name, status):
-    return BuildResponse({
+def make_build_response(name, status, annotations=None, labels=None):
+    build_response = {
         'metadata': {
-            'name': name
+            'name': name,
+            'annotations': annotations or {},
+            'labels': labels or {},
         },
         'status': {
             'phase': status
         }
-    })
+    }
+
+    return BuildResponse(build_response)
 
 
 def make_worker_build_kwargs(**overrides):
@@ -185,17 +189,112 @@ def test_orchestrate_build(tmpdir):
     build_result = runner.run()
     assert not build_result.is_failed()
 
-    assert (build_result.annotations == {'worker-builds': {
-        'x86_64': {
-            'build': {
-                'build-name': 'worker-build-x86_64',
-                'cluster-url': 'https://worker_x86_64.com/',
-                'namespace': 'worker_x86_64_namespace'
-            },
-            'digests': [],
-            'plugins-metadata': {}
+    assert (build_result.annotations == {
+        'worker-builds': {
+            'x86_64': {
+                'build': {
+                    'build-name': 'worker-build-x86_64',
+                    'cluster-url': 'https://worker_x86_64.com/',
+                    'namespace': 'worker_x86_64_namespace'
+                },
+                'digests': [],
+                'plugins-metadata': {}
+            }
         }
-    }})
+    })
+
+    assert (build_result.labels == {})
+
+
+def test_orchestrate_build_annotations_and_labels(tmpdir):
+    workflow = mock_workflow(tmpdir)
+    mock_osbs()
+
+    def mock_wait_for_build_to_finish(build_name):
+        annotations = {
+            'repositories': json.dumps({
+                'unique': ['{}-unique'.format(build_name)],
+                'primary': ['{}-primary'.format(build_name)],
+            }),
+            'digests': json.dumps([
+                {
+                    'digest': 'sha256:{}-digest'.format(build_name),
+                    'tag': '{}-latest'.format(build_name),
+                    'registry': '{}-registry'.format(build_name),
+                    'repository': '{}-repository'.format(build_name),
+                },
+            ]),
+        }
+        labels = {'koji-build-id': 'koji-build-id'}
+        return make_build_response(build_name, 'Complete', annotations, labels)
+    (flexmock(OSBS)
+        .should_receive('wait_for_build_to_finish')
+        .replace_with(mock_wait_for_build_to_finish))
+
+    mock_reactor_config(tmpdir)
+    runner = BuildStepPluginsRunner(
+        workflow.builder.tasker,
+        workflow,
+        [{
+            'name': OrchestrateBuildPlugin.key,
+            'args': {
+                'platforms': ['x86_64', 'ppc64le'],
+                'build_kwargs': make_worker_build_kwargs(),
+                'osbs_client_config': str(tmpdir),
+            }
+        }]
+    )
+    build_result = runner.run()
+    assert not build_result.is_failed()
+
+    assert (build_result.annotations == {
+        'worker-builds': {
+            'x86_64': {
+                'build': {
+                    'build-name': 'worker-build-x86_64',
+                    'cluster-url': 'https://worker_x86_64.com/',
+                    'namespace': 'worker_x86_64_namespace'
+                },
+                'digests': [
+                    {
+                        'digest': 'sha256:worker-build-x86_64-digest',
+                        'tag': 'worker-build-x86_64-latest',
+                        'registry': 'worker-build-x86_64-registry',
+                        'repository': 'worker-build-x86_64-repository',
+                    },
+                ],
+                'plugins-metadata': {}
+            },
+            'ppc64le': {
+                'build': {
+                    'build-name': 'worker-build-ppc64le',
+                    'cluster-url': 'https://worker_ppc64le.com/',
+                    'namespace': 'worker_ppc64le_namespace'
+                },
+                'digests': [
+                    {
+                        'digest': 'sha256:worker-build-ppc64le-digest',
+                        'tag': 'worker-build-ppc64le-latest',
+                        'registry': 'worker-build-ppc64le-registry',
+                        'repository': 'worker-build-ppc64le-repository',
+                    },
+                ],
+                'plugins-metadata': {}
+            },
+        },
+        'repositories': {
+            'unique': [
+                'worker-build-ppc64le-unique',
+                'worker-build-x86_64-unique',
+            ],
+            'primary': [
+                'worker-build-ppc64le-primary',
+                'worker-build-x86_64-primary',
+            ],
+        },
+    })
+
+    assert (build_result.labels == {'koji-build-id': 'koji-build-id'})
 
 
 def test_orchestrate_build_cancelation(tmpdir):

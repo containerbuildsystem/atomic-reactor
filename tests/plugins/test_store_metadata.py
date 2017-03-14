@@ -125,7 +125,13 @@ def prepare(pulp_registries=None, docker_registries=None):
     ('spam', '"spam"'),
     (['s', 'p', 'a', 'm'], '["s", "p", "a", "m"]'),
 ))
-def test_metadata_plugin(tmpdir, br_annotations, expected_br_annotations):
+@pytest.mark.parametrize(('br_labels', 'expected_br_labels'), (
+    (None, None),
+    ('bacon', 'bacon'),
+    (123, '123'),
+))
+def test_metadata_plugin(tmpdir, br_annotations, expected_br_annotations,
+                         br_labels, expected_br_labels):
     initial_timestamp = datetime.now()
     workflow = prepare()
     df_content = """
@@ -143,10 +149,12 @@ CMD blabla"""
         PostBuildRPMqaPlugin.key: "rpm1\nrpm2",
     }
 
-    if br_annotations:
+    if br_annotations or br_labels:
         workflow.build_result = BuildResult(
             image_id=INPUT_IMAGE,
-            annotations={'br_annotations': br_annotations})
+            annotations={'br_annotations': br_annotations} if br_annotations else None,
+            labels={'br_labels': br_labels} if br_labels else None,
+        )
 
     workflow.plugins_timestamps = {
         PostBuildRPMqaPlugin.key: (initial_timestamp + timedelta(seconds=3)).isoformat(),
@@ -168,6 +176,7 @@ CMD blabla"""
     )
     output = runner.run()
     assert StoreMetadataInOSv3Plugin.key in output
+    labels = output[StoreMetadataInOSv3Plugin.key]["labels"]
     annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
     assert "dockerfile" in annotations
     assert is_string_type(annotations['dockerfile'])
@@ -216,6 +225,11 @@ CMD blabla"""
         assert annotations['br_annotations'] == expected_br_annotations
     else:
         assert 'br_annotations' not in annotations
+
+    if br_labels:
+        assert labels['br_labels'] == expected_br_labels
+    else:
+        assert 'br_labels' not in labels
 
 
 def test_metadata_plugin_rpmqa_failure(tmpdir):
