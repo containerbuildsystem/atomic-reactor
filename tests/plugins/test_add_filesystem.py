@@ -142,12 +142,12 @@ def mock_image_build_file(tmpdir, contents=None):
             name = fedora-23
             version = 1.0
             target = guest-fedora-23-docker
-            install_tree = http://install-tree.com/fedora23/
+            install_tree = http://install-tree.com/$arch/fedora23/
             arches = x86_64
 
             format = docker
             distro = Fedora-23
-            repo = http://repo.com/fedora/x86_64/os/
+            repo = http://repo.com/fedora/$arch/os/
 
             ksurl = git+http://ksrul.com/git/spin-kickstarts.git?fedora23#b232f73e
             ksversion = FEDORA23
@@ -245,7 +245,7 @@ def test_image_build_file_parse(tmpdir):
         '1.0',
         ['x86_64'],
         'guest-fedora-23-docker',
-        'http://install-tree.com/fedora23/'
+        'http://install-tree.com/$arch/fedora23/'
     ]
     assert opts['opts'] == {
         'disk_size': 10,
@@ -256,7 +256,7 @@ def test_image_build_file_parse(tmpdir):
         'kickstart': 'fedora-23.ks',
         'ksurl': 'git+http://ksrul.com/git/spin-kickstarts.git?fedora23#b232f73e',
         'ksversion': 'FEDORA23',
-        'repo': ['http://repo.com/fedora/x86_64/os/'],
+        'repo': ['http://repo.com/fedora/$arch/os/'],
     }
 
 
@@ -340,20 +340,20 @@ def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_err
 def test_image_build_defaults(tmpdir):
     repos = [
         'http://install-tree.com/fedora23.repo',
-        'http://repo.com/fedora/x86_64/os.repo',
+        'http://repo.com/fedora/os.repo',
     ]
     responses.add(responses.GET, 'http://install-tree.com/fedora23.repo',
                   body=dedent("""\
                     [fedora-23]
                     baseurl = http://install-tree.com/$basearch/fedora23
                     """))
-    responses.add(responses.GET, 'http://repo.com/fedora/x86_64/os.repo',
+    responses.add(responses.GET, 'http://repo.com/fedora/os.repo',
                  body=dedent("""\
                     [fedora-os]
                     baseurl = http://repo.com/fedora/$basearch/os
 
                     [fedora-os2]
-                    baseurl = http://repo.com/fedora/x86_64/os2
+                    baseurl = http://repo.com/fedora/$basearch/os2
                     """))
     plugin = create_plugin_instance(tmpdir, {'repos': repos})
     image_build_conf = dedent("""\
@@ -374,7 +374,7 @@ def test_image_build_defaults(tmpdir):
         '1.0',
         ['x86_64'],
         'guest-fedora-23-docker',
-        'http://install-tree.com/x86_64/fedora23',
+        'http://install-tree.com/$arch/fedora23',
     ]
     assert opts['opts'] == {
         'disk_size': 10,
@@ -385,9 +385,9 @@ def test_image_build_defaults(tmpdir):
         'ksurl': '{}#{}'.format(DOCKERFILE_GIT, DOCKERFILE_SHA1),
         'ksversion': 'FEDORA23',
         'repo': [
-            'http://install-tree.com/x86_64/fedora23',
-            'http://repo.com/fedora/x86_64/os',
-            'http://repo.com/fedora/x86_64/os2',
+            'http://install-tree.com/$arch/fedora23',
+            'http://repo.com/fedora/$arch/os',
+            'http://repo.com/fedora/$arch/os2',
         ],
     }
 
@@ -396,17 +396,17 @@ def test_image_build_defaults(tmpdir):
 def test_image_build_overwrites(tmpdir):
     repos = [
         'http://default-install-tree.com/fedora23.repo',
-        'http://default-repo.com/fedora/x86_64/os.repo',
+        'http://default-repo.com/fedora/os.repo',
     ]
     responses.add(responses.GET, 'http://default-install-tree.com/fedora23.repo',
                   body=dedent("""\
                     [fedora-23]
-                    baseurl = http://default-install-tree.com/fedora23
+                    baseurl = http://default-install-tree.com/$basearch/fedora23
                     """))
-    responses.add(responses.GET, 'http://default-repo.com/fedora/x86_64/os.repo',
+    responses.add(responses.GET, 'http://default-repo.com/fedora/os.repo',
                  body=dedent("""\
                     [fedora-os]
-                    baseurl = http://default-repo.com/fedora/x86_64/os.repo
+                    baseurl = http://default-repo.com/fedora/$basearch/os.repo
                     """))
     plugin = create_plugin_instance(tmpdir, {'repos': repos})
     image_build_conf = dedent("""\
@@ -415,12 +415,12 @@ def test_image_build_overwrites(tmpdir):
         version = 1.0
         arches = i386,i486
         target = guest-fedora-23-docker
-        install_tree = http://install-tree.com/fedora23/
+        install_tree = http://install-tree.com/$arch/fedora23/
         format = locker,mocker
         disk_size = 20
 
         distro = Fedora-23
-        repo = http://install-tree.com/fedora23/,http://repo.com/fedora/x86_64/os/
+        repo = http://install-tree.com/$arch/fedora23/,http://repo.com/fedora/$arch/os/
 
         ksurl = http://ksurl#123
         kickstart = my-kickstart.ks
@@ -438,7 +438,7 @@ def test_image_build_overwrites(tmpdir):
         '1.0',
         ['i386', 'i486'],
         'guest-fedora-23-docker',
-        'http://install-tree.com/fedora23/',
+        'http://install-tree.com/$arch/fedora23/',
     ]
     assert opts['opts'] == {
         'disk_size': 20,
@@ -449,8 +449,8 @@ def test_image_build_overwrites(tmpdir):
         'ksurl': 'http://ksurl#123',
         'ksversion': 'FEDORA23',
         'repo': [
-            'http://install-tree.com/fedora23/',
-            'http://repo.com/fedora/x86_64/os/',
+            'http://install-tree.com/$arch/fedora23/',
+            'http://repo.com/fedora/$arch/os/',
         ],
     }
 

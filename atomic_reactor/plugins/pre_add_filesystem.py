@@ -133,7 +133,8 @@ class AddFilesystemPlugin(PreBuildPlugin):
         base_urls = []
         for repo in self.repos:
             for url in self.extract_base_url(repo):
-                url = url.replace('$basearch', 'x86_64')
+                # Imagefactory only supports $arch variable.
+                url = url.replace('$basearch', '$arch')
                 base_urls.append(url)
 
         install_tree = base_urls[0] if base_urls else ''
