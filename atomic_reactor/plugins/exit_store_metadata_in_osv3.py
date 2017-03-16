@@ -17,7 +17,7 @@ from osbs.exceptions import OsbsResponseException
 
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
-from atomic_reactor.util import get_build_json
+from atomic_reactor.util import get_build_json_metadata
 
 
 class StoreMetadataInOSv3Plugin(ExitPlugin):
@@ -127,7 +127,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         return labels
 
     def run(self):
-        metadata = get_build_json().get("metadata", {})
+        metadata = get_build_json_metadata(self.workflow)
 
         try:
             build_id = metadata["name"]

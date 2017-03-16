@@ -12,7 +12,7 @@ from osbs.api import OSBS
 from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import get_build_json
+from atomic_reactor.util import get_build_json_metadata
 
 
 def is_rebuild(workflow):
@@ -75,7 +75,7 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
         run the plugin
         """
 
-        metadata = get_build_json().get("metadata", {})
+        metadata = get_build_json_metadata(self.workflow)
         labels = metadata.get("labels", {})
         buildconfig = labels["buildconfig"]
         is_rebuild = labels.get(self.label_key) == self.label_value

@@ -112,7 +112,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         self.poll_interval = poll_interval
         self.blocksize = blocksize
         self.repos = repos or []
-        self.scratch = util.is_scratch_build()
+        self.scratch = util.is_scratch_build(workflow=workflow)
 
     def is_image_build_type(self, base_image):
         return base_image.strip().lower() == 'koji/image-build'

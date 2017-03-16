@@ -116,6 +116,8 @@ class TestCheckRebuild(object):
         }
 
         build_json["metadata"].update(namespace_dict)
+        setattr(workflow, 'metadata', build_json['metadata'])
+
         monkeypatch.setenv("BUILD", json.dumps(build_json))
         runner.run()
         assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] == False
@@ -126,14 +128,16 @@ class TestCheckRebuild(object):
         value = 'true'
         workflow, runner = self.prepare(key, value)
 
-        monkeypatch.setenv("BUILD", json.dumps({
+        build_json = {
             "metadata": {
                 "labels": {
                     "buildconfig": "buildconfig1",
                     key: value,
                 }
             }
-        }))
+        }
+        monkeypatch.setenv("BUILD", json.dumps(build_json))
+        setattr(workflow, 'metadata', build_json['metadata'])
         runner.run()
         assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] == True
         assert is_rebuild(workflow)
@@ -148,12 +152,14 @@ class TestCheckRebuild(object):
             .and_raise(OsbsResponseException('conflict', 409))
             .and_return(None))
 
-        monkeypatch.setenv("BUILD", json.dumps({
+        build_json = {
             "metadata": {
                 "labels": {
                     "buildconfig": "buildconfig1",
                     key: 'false',
                 }
             }
-        }))
+        }
+        monkeypatch.setenv("BUILD", json.dumps(build_json))
+        setattr(workflow, 'metadata', build_json['metadata'])
         runner.run()

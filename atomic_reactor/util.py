@@ -597,13 +597,22 @@ def get_build_json():
         raise
 
 
-def is_scratch_build():
-    build_json = get_build_json()
-    try:
-        return build_json['metadata']['labels'].get('scratch', False)
-    except KeyError:
-        logger.error('metadata.labels not found in build json')
-        raise
+def get_build_json_metadata(workflow):
+    if workflow.metadata:
+        metadata = workflow.metadata
+        if 'labels' not in metadata:
+            metadata['labels'] = {}
+        if 'name' not in metadata:
+            metadata['name'] = 'default-config'
+    else:
+        metadata = {'labels': {}, 'name': 'local-config'}
+    return metadata
+
+
+def is_scratch_build(workflow):
+    metadata = get_build_json_metadata(workflow)
+
+    return metadata['labels'].get('scratch', False)
 
 
 # copypasted and slightly modified from

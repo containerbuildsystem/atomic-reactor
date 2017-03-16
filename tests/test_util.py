@@ -435,16 +435,17 @@ def test_get_build_json(environ, expected):
     ({'metadata': {'labels': {'scratch': True}}}, True),
     ({'metadata': {'labels': {'scratch': False}}}, False),
     ({'metadata': {'labels': {}}}, False),
-    ({'metadata': {}}, None),
-    ({}, None),
+    ({'metadata': {}}, False),
+    ({}, False),
 ])
 def test_is_scratch_build(build_json, scratch):
-    flexmock(util).should_receive('get_build_json').and_return(build_json)
-    if scratch is None:
-        with pytest.raises(KeyError):
-            is_scratch_build()
+    if build_json:
+        workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+                                       metadata=build_json.get('metadata'))
     else:
-        assert is_scratch_build() == scratch
+        workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+
+    assert is_scratch_build(workflow) == scratch
 
 def test_df_parser(tmpdir):
     tmpdir_path = str(tmpdir.realpath())

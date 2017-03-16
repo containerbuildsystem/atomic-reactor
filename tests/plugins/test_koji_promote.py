@@ -51,6 +51,13 @@ from six import string_types
 
 NAMESPACE = 'mynamespace'
 BUILD_ID = 'build-1'
+BUILD_JSON = {
+    "metadata": {
+        "creationTimestamp": "2015-07-27T09:24:00Z",
+        "namespace": NAMESPACE,
+        "name": BUILD_ID,
+    }
+}
 
 
 class X(object):
@@ -187,7 +194,7 @@ def mock_environment(tmpdir, session=None, name=None,
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
+    workflow = DockerBuildWorkflow(SOURCE, "test-image", metadata=BUILD_JSON['metadata'])
     base_image_id = '123456parent-id'
     setattr(workflow, '_base_image_inspect', {'Id': base_image_id})
     setattr(workflow, 'builder', X())
@@ -279,13 +286,7 @@ def mock_environment(tmpdir, session=None, name=None,
 
 @pytest.fixture
 def os_env(monkeypatch):
-    monkeypatch.setenv('BUILD', json.dumps({
-        "metadata": {
-            "creationTimestamp": "2015-07-27T09:24:00Z",
-            "namespace": NAMESPACE,
-            "name": BUILD_ID,
-        }
-    }))
+    monkeypatch.setenv('BUILD', json.dumps(BUILD_JSON))
     monkeypatch.setenv('OPENSHIFT_CUSTOM_BUILD_BASE_IMAGE', 'buildroot:latest')
 
 
@@ -382,20 +383,6 @@ class TestKojiPromote(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_promote_no_build_env(self, tmpdir, monkeypatch, os_env):
-        tasker, workflow = mock_environment(tmpdir,
-                                            name='ns/name',
-                                            version='1.0',
-                                            release='1')
-        runner = create_runner(tasker, workflow)
-
-        # No BUILD environment variable
-        monkeypatch.delenv("BUILD", raising=False)
-
-        with pytest.raises(PluginFailedException) as exc:
-            runner.run()
-        assert "plugin 'koji_promote' raised an exception: KeyError" in str(exc)
-
     def test_koji_promote_no_build_metadata(self, tmpdir, monkeypatch, os_env):
         tasker, workflow = mock_environment(tmpdir,
                                             name='ns/name',
@@ -405,6 +392,7 @@ class TestKojiPromote(object):
 
         # No BUILD metadata
         monkeypatch.setenv("BUILD", json.dumps({}))
+        setattr(runner.workflow, 'metadata', None)
         with pytest.raises(PluginFailedException):
             runner.run()
 
@@ -434,7 +422,7 @@ class TestKojiPromote(object):
                                             release='1')
         runner = create_runner(tasker, workflow)
 
-        monkeypatch.setenv("BUILD", json.dumps({
+        build_json = {
             'metadata': {
                 'creationTimestamp': '2015-07-27T09:24:00Z',
                 'namespace': NAMESPACE,
@@ -443,7 +431,9 @@ class TestKojiPromote(object):
                     'koji-task-id': str(koji_task_id),
                 },
             }
-        }))
+        }
+        monkeypatch.setenv("BUILD", json.dumps(build_json))
+        setattr(runner.workflow, 'metadata', build_json['metadata'])
 
         runner.run()
         metadata = session.metadata
