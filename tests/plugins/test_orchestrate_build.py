@@ -20,6 +20,7 @@ from dockerfile_parse import DockerfileParser
 from flexmock import flexmock
 from multiprocessing.pool import AsyncResult
 from osbs.api import OSBS
+from osbs.conf import Configuration
 from osbs.build.build_response import BuildResponse
 from osbs.exceptions import OsbsException
 from tests.constants import MOCK_SOURCE, TEST_IMAGE, INPUT_IMAGE, SOURCE
@@ -170,22 +171,40 @@ def make_worker_build_kwargs(**overrides):
     return kwargs
 
 
-def test_orchestrate_build(tmpdir):
+@pytest.mark.parametrize('worker_build_image', [
+    'fedora:latest',
+    None
+])
+def test_orchestrate_build(tmpdir, worker_build_image):
     workflow = mock_workflow(tmpdir)
     mock_osbs()
     mock_reactor_config(tmpdir)
+    plugin_args = {
+        'platforms': ['x86_64'],
+        'build_kwargs': make_worker_build_kwargs(),
+        'osbs_client_config': str(tmpdir),
+    }
+    if worker_build_image:
+        plugin_args['worker_build_image'] = worker_build_image
+
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
-            'args': {
-                'platforms': ['x86_64'],
-                'build_kwargs': make_worker_build_kwargs(),
-                'osbs_client_config': str(tmpdir),
-            }
+            'args': plugin_args
         }]
     )
+
+    expected_kwargs = {
+        'conf_section': 'worker_x86_64',
+        'conf_file': tmpdir + '/osbs.conf',
+    }
+    if worker_build_image:
+        expected_kwargs['build_image'] = worker_build_image
+
+    (flexmock(Configuration).should_call('__init__').with_args(**expected_kwargs).once())
+
     build_result = runner.run()
     assert not build_result.is_failed()
 
