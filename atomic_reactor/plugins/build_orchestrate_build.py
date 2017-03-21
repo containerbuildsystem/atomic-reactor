@@ -102,6 +102,11 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     image is built in the worker builds which is likely a different
     host than the one running this build. This means that the local
     docker daemon has no knowledge of the built image.
+
+    If build_image is defined it is passed to the worker build,
+    but there is still possibility to have build_imagestream inside
+    osbs.conf in the secret, and that would take precendence over
+    build_image from kwargs
     """
 
     EXCLUDE_FILENAME = 'exclude-platform'
@@ -109,7 +114,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     key = 'orchestrate_build'
 
     def __init__(self, tasker, workflow, platforms, build_kwargs,
-                 osbs_client_config=None):
+                 osbs_client_config=None, worker_build_image=None):
         """
         constructor
 
@@ -118,11 +123,13 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         :param platforms: list<str>, platforms to build
         :param build_kwargs: dict, keyword arguments for starting worker builds
         :param osbs_client_config: str, path to directory containing osbs.conf
+        :param worker_build_image: str, the builder image to use for worker builds
         """
         super(OrchestrateBuildPlugin, self).__init__(tasker, workflow)
         self.platforms = set(platforms)
         self.build_kwargs = build_kwargs
         self.osbs_client_config = osbs_client_config
+        self.worker_build_image = worker_build_image
 
         self.worker_builds = []
 
@@ -152,6 +159,10 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         kwargs = {'conf_section': cluster.name}
         if self.osbs_client_config:
             kwargs['conf_file'] = os.path.join(self.osbs_client_config, 'osbs.conf')
+
+        if self.worker_build_image:
+            kwargs['build_image'] = self.worker_build_image
+
         conf = Configuration(**kwargs)
         osbs = OSBS(conf, conf)
         current_builds = self.get_current_builds(osbs)
