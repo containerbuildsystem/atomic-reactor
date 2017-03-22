@@ -70,6 +70,9 @@ def mock_workflow(tmpdir):
     (['spam', 'bacon'], 'foo', ['foo:spam', 'foo:bacon']),
     # ignore tags with hyphens
     (['foo-bar', 'baz'], 'name', ['name:baz']),
+    # make sure that tags are also valid
+    (['illegal@char', '.starts.with.dot'], 'bar', []),
+    (['has_under', 'ends.dot.'], 'bar', ['bar:has_under', 'bar:ends.dot.']),
     (None, 'fedora', []),
 ])
 def test_tag_from_config_plugin_generated(tmpdir, docker_tasker, tags, name,
