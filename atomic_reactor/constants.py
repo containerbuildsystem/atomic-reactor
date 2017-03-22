@@ -58,3 +58,5 @@ TOOLS_USED = (
 )
 
 DEFAULT_DOWNLOAD_BLOCK_SIZE = 10 * 1024 * 1024 # 10Mb
+
+TAG_NAME_REGEX = r'^[\w][\w.-]{0,127}$'

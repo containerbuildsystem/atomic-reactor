@@ -850,6 +850,3 @@ def df_parser(df_path, workflow=None, cache_content=False, env_replace=True, par
         )
 
     return dfparser
-
-
-

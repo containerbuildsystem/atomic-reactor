@@ -7,9 +7,10 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import os
+import re
 
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.constants import INSPECT_CONFIG
+from atomic_reactor.constants import INSPECT_CONFIG, TAG_NAME_REGEX
 from atomic_reactor.util import get_preferred_label_key
 
 
@@ -56,11 +57,13 @@ class TagFromConfigPlugin(PostBuildPlugin):
         with open(tags_filename) as tags_file:
             for tag in tags_file:
                 tag = tag.strip()
-                if tag:
-                    if '-' in tag:
-                        self.log.warning("tag '%s' includes '-', ignoring", tag)
-                    else:
-                        tags.append(tag)
+                tag_name_is_valid = re.match(TAG_NAME_REGEX, tag) is not None
+
+                if tag_name_is_valid and '-' not in tag:
+                    tags.append(tag)
+                else:
+                    self.log.warning("tag '%s' does not match '%s'"
+                        "or includes dashes, ignoring", tag, TAG_NAME_REGEX)
 
         return tags
 
