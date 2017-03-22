@@ -220,7 +220,8 @@ class PulpSyncPlugin(PostBuildPlugin):
             if image.pulp_repo not in repos:
                 repo_id = self.create_repo_if_missing(pulp,
                                                       image.pulp_repo,
-                                                      image.repo)
+                                                      image.to_str(registry=False,
+                                                                   tag=False))
                 self.log.info("syncing %s", repo_id)
                 pulp.syncRepo(repo=repo_id,
                               feed=self.docker_registry,
@@ -229,6 +230,7 @@ class PulpSyncPlugin(PostBuildPlugin):
 
             images.append(ImageName(registry=pulp_registry,
                                     repo=image.repo,
+                                    namespace=image.namespace,
                                     tag=image.tag))
 
         self.log.info("publishing to crane")
@@ -236,7 +238,7 @@ class PulpSyncPlugin(PostBuildPlugin):
 
         if self.publish:
             for image_name in images:
-                self.log.info("image available at %s", str(image_name))
+                self.log.info("image available at %s", image_name.to_str())
 
         # Return the set of qualified repo names for this image
         return images
