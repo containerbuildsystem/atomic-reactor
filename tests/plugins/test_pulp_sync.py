@@ -73,11 +73,12 @@ class MockPulp(object):
 
 class TestPostPulpSync(object):
     @staticmethod
-    def workflow(docker_repos):
+    def workflow(docker_repos, registry=None):
         images = []
         for tag in ['1.0-1', '1.0', 'latest', 'unique-timestamp']:
-            images.extend([ImageName(repo=repo, tag=tag)
-                                   for repo in docker_repos])
+            images.extend([ImageName.parse(
+                            '{0}/{1}:{2}'.format(registry, repo, tag).lstrip('/')
+                          ) for repo in docker_repos])
 
         tag_conf = flexmock(images=images)
         push_conf = PushConf()
@@ -567,7 +568,6 @@ class TestPostPulpSync(object):
                                 workflow=self.workflow([docker_repository]),
                                 pulp_registry_name=env,
                                 docker_registry=docker_registry)
-
         mockpulp = MockPulp()
         (flexmock(mockpulp)
             .should_receive('getRepos')
@@ -608,7 +608,6 @@ class TestPostPulpSync(object):
         pulp_repoid = 'prod-myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
         env = 'pulp'
-        workflow = self.workflow([docker_repository])
 
         mockpulp = MockPulp()
         (flexmock(mockpulp)
@@ -640,6 +639,7 @@ class TestPostPulpSync(object):
             .with_args(env=env)
             .and_return(mockpulp))
 
+        workflow = self.workflow([docker_repository], mockpulp.registry)
         workflow.postbuild_plugins_conf.append({'name': PulpSyncPlugin.key})
         if has_pulp_push:
             # PulpPushPlugin.key is not imported here to avoid circular import
@@ -654,7 +654,7 @@ class TestPostPulpSync(object):
         log_messages = [l.getMessage() for l in caplog.records()]
 
         for image in workflow.tag_conf.images:
-            expected_log = 'image available at %s/%s' % (mockpulp.registry, image.to_str())
+            expected_log = 'image available at %s' % image.to_str()
             if has_pulp_push:
                 assert expected_log not in log_messages
             else:
