@@ -28,7 +28,7 @@ from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.constants import PROG
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
-                                 get_build_json, get_preferred_label,
+                                 get_build_json_metadata, get_preferred_label,
                                  get_docker_architecture, df_parser)
 from atomic_reactor.koji_util import create_koji_session, TaskWatcher
 from osbs.conf import Configuration
@@ -127,7 +127,7 @@ class KojiPromotePlugin(ExitPlugin):
         self.target = target
         self.poll_interval = poll_interval
 
-        self.namespace = get_build_json().get('metadata', {}).get('namespace', None)
+        self.namespace = get_build_json_metadata(self.workflow).get('namespace', None)
         osbs_conf = Configuration(conf_file=None, openshift_uri=url,
                                   use_auth=use_auth, verify_ssl=verify_ssl,
                                   namespace=self.namespace)
@@ -592,12 +592,8 @@ class KojiPromotePlugin(ExitPlugin):
 
         :return: tuple, the metadata and the list of Output instances
         """
-        try:
-            metadata = get_build_json()["metadata"]
-            self.build_id = metadata["name"]
-        except KeyError:
-            self.log.error("No build metadata")
-            raise
+        metadata = get_build_json_metadata(self.workflow)
+        self.build_id = metadata["name"]
 
         for image in self.workflow.tag_conf.unique_images:
             self.pullspec_image = image

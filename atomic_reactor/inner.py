@@ -249,7 +249,7 @@ class DockerBuildWorkflow(object):
     def __init__(self, source, image, prebuild_plugins=None, prepublish_plugins=None,
                  postbuild_plugins=None, exit_plugins=None, plugin_files=None,
                  openshift_build_selflink=None, client_version=None,
-                 buildstep_plugins=None, **kwargs):
+                 buildstep_plugins=None, metadata=None, **kwargs):
         """
         :param source: dict, where/how to get source code to put in image
         :param image: str, tag for built image ([registry/]image_name[:tag])
@@ -283,6 +283,7 @@ class DockerBuildWorkflow(object):
         self.autorebuild_canceled = False
         self.plugin_failed = False
         self.plugin_files = plugin_files
+        self.metadata = metadata
 
         self.kwargs = kwargs
 

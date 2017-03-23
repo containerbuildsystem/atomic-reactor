@@ -76,14 +76,14 @@ def prepare(pulp_registries=None, docker_registries=None):
     def update_labels_on_build(build_id, labels):
         pass
     new_environ = deepcopy(os.environ)
-    new_environ["BUILD"] = dedent('''\
-        {
-          "metadata": {
+    build_json = {
+        "metadata": {
             "name": "asd",
             "namespace": "namespace"
-          }
         }
-        ''')
+    }
+
+    new_environ["BUILD"] = json.dumps(build_json)
     flexmock(OSBS, set_annotations_on_build=set_annotations_on_build)
     flexmock(OSBS, update_labels_on_build=update_labels_on_build)
     (flexmock(osbs.conf)
@@ -94,7 +94,9 @@ def prepare(pulp_registries=None, docker_registries=None):
     flexmock(os)
     os.should_receive("environ").and_return(new_environ)
 
-    workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, "test-image")
+    workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"},
+                                   "test-image",
+                                   metadata=build_json['metadata'])
 
     for name, crane_uri in pulp_registries:
         workflow.push_conf.add_pulp_registry(name, crane_uri)
@@ -107,7 +109,6 @@ def prepare(pulp_registries=None, docker_registries=None):
         r.digests[TEST_IMAGE] = ManifestDigest(v1='not-used', v2=DIGEST1)
         r.digests["namespace/image:asd123"] = ManifestDigest(v1='not-used',
                                                              v2=DIGEST2)
-
     setattr(workflow, 'builder', X)
     setattr(workflow, '_base_image_inspect', {'Id': '01234567'})
     workflow.build_logs = [

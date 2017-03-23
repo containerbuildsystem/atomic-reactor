@@ -114,6 +114,7 @@ def test_create_image(insecure_registry, namespace, monkeypatch):
         build_json['metadata']['namespace'] = namespace
 
     monkeypatch.setenv("BUILD", json.dumps(build_json))
+    setattr(runner.workflow, 'metadata', build_json['metadata'])
 
     (flexmock(OSBS)
      .should_receive('get_image_stream')
@@ -147,6 +148,7 @@ def test_import_image(namespace, monkeypatch):
     build_json = {"metadata": {}}
     build_json["metadata"].update(namespace)
     monkeypatch.setenv("BUILD", json.dumps(build_json))
+    setattr(runner.workflow, 'metadata', build_json['metadata'])
 
     (flexmock(OSBS)
      .should_receive('get_image_stream')

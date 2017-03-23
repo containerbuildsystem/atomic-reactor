@@ -15,7 +15,7 @@ from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException
 
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.util import get_build_json
+from atomic_reactor.util import get_build_json_metadata
 
 
 class ImportImagePlugin(PostBuildPlugin):
@@ -65,7 +65,7 @@ class ImportImagePlugin(PostBuildPlugin):
         self.import_attempts = import_attempts
 
     def run(self):
-        metadata = get_build_json().get("metadata", {})
+        metadata = get_build_json_metadata(self.workflow)
         kwargs = {}
 
         # FIXME: remove `openshift_uri` once osbs-client is released
