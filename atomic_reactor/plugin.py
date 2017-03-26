@@ -241,9 +241,11 @@ class PluginsRunner(object):
                 if buildstep_phase:
                     assert isinstance(plugin_response, BuildResult)
                     if plugin_response.is_failed():
-                        msg = "Build step plugin %s failed" % plugin_class.key
-                        logger.error(msg)
-                        self.on_plugin_failed(plugin_class.key, "Buildstep plugin failed")
+                        logger.error("Build step plugin %s failed: %s",
+                                     plugin_class.key,
+                                     plugin_response.fail_reason)
+                        self.on_plugin_failed(plugin_class.key,
+                                              plugin_response.fail_reason)
                         plugin_successful = False
                         self.plugins_results[plugin_class.key] = plugin_response
                         break
