@@ -15,6 +15,8 @@ from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
 from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.constants import INSPECT_CONFIG
+from atomic_reactor import start_time as atomic_reactor_start_time
+import datetime
 import re
 import json
 import logging
@@ -236,6 +238,10 @@ def test_add_labels_plugin_generated(tmpdir, docker_tasker, auto_label, value_re
     runner.run()
     if value_re_part:
         assert re.match(value_re_part, df.labels[auto_label])
+
+    if auto_label == "build-date":
+        utc_dt = datetime.datetime.utcfromtimestamp(atomic_reactor_start_time).isoformat()
+        assert df.labels[auto_label] == utc_dt
 
 
 @pytest.mark.parametrize('df_old_as_plugin_arg', [True, False])  # noqa
