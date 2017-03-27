@@ -122,7 +122,7 @@ class AddLabelsPlugin(PreBuildPlugin):
         all_labels.update(plugin_labels)
 
         # build date
-        dt = datetime.datetime.fromtimestamp(atomic_reactor_start_time)
+        dt = datetime.datetime.utcfromtimestamp(atomic_reactor_start_time)
         generated['build-date'] = dt.isoformat()
 
         # architecture - assuming host and image architecture is the same
