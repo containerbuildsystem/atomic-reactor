@@ -33,7 +33,8 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_version_of_tools, get_preferred_label_key,
                                  human_size, CommandResult,
                                  get_manifest_digests, ManifestDigest,
-                                 get_build_json, is_scratch_build, df_parser)
+                                 get_build_json, is_scratch_build, df_parser,
+                                 are_plugins_in_order)
 from atomic_reactor import util
 from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1, MOCK_SOURCE
 from atomic_reactor.constants import INSPECT_CONFIG
@@ -500,3 +501,16 @@ def test_df_parser_parent_env_wf(tmpdir, caplog, env_arg):
     else:
         assert df.labels.get('label') == 'foobar ' + env_arg[0].split('=', 1)[1]
 
+
+@pytest.mark.parametrize(('available', 'requested', 'result'), (
+    (['spam', 'bacon', 'eggs'], ['spam'], True),
+    (['spam', 'bacon', 'eggs'], ['spam', 'bacon'], True),
+    (['spam', 'bacon', 'eggs'], ['spam', 'bacon', 'eggs'], True),
+    (['spam', 'bacon', 'eggs'], ['spam', 'eggs'], True),
+    (['spam', 'bacon', 'eggs'], ['eggs', 'spam'], False),
+    (['spam', 'bacon', 'eggs'], ['spam', 'eggs', 'bacon'], False),
+    (['spam', 'bacon', 'eggs'], ['sausage'], False),
+))
+def test_are_plugins_in_order(available, requested, result):
+    assert are_plugins_in_order([{'name': plugin} for plugin in available],
+                                *requested) == result

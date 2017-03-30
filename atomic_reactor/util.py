@@ -850,3 +850,15 @@ def df_parser(df_path, workflow=None, cache_content=False, env_replace=True, par
         )
 
     return dfparser
+
+
+def are_plugins_in_order(plugins_conf, *plugins_names):
+    """Check if plugins are configured in given order."""
+    all_plugins_names = [plugin['name'] for plugin in plugins_conf or []]
+    start_index = 0
+    for plugin_name in plugins_names:
+        try:
+            start_index = all_plugins_names.index(plugin_name, start_index)
+        except ValueError:
+            return False
+    return True
