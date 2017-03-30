@@ -50,8 +50,9 @@ pulp_secret_path:
 
 from __future__ import print_function, unicode_literals
 
+from atomic_reactor.constants import PLUGIN_PULP_SYNC_KEY, PLUGIN_PULP_PUSH_KEY
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.util import ImageName, Dockercfg
+from atomic_reactor.util import ImageName, Dockercfg, are_plugins_in_order
 import dockpulp
 import os
 import re
@@ -66,7 +67,7 @@ filterwarnings("module")
 
 
 class PulpSyncPlugin(PostBuildPlugin):
-    key = 'pulp_sync'
+    key = PLUGIN_PULP_SYNC_KEY
     is_allowed_to_fail = False
 
     CER = 'pulp.cer'
@@ -119,17 +120,8 @@ class PulpSyncPlugin(PostBuildPlugin):
             self.log.error("will not delete from registry as instructed: "
                            "not implemented")
 
-        found_self = False
-        self.publish = True
-        for plugin in workflow.postbuild_plugins_conf or []:
-            if plugin['name'] == self.key:
-                found_self = True
-                continue
-
-            # A hardcoded name is used to avoid circular imports
-            if found_self and plugin['name'] == 'pulp_push':
-                self.publish = False
-                break
+        self.publish = not are_plugins_in_order(self.workflow.postbuild_plugins_conf,
+                                                self.key, PLUGIN_PULP_PUSH_KEY)
 
     def set_auth(self, pulp):
         path = self.pulp_secret_path

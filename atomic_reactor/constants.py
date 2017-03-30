@@ -60,3 +60,6 @@ TOOLS_USED = (
 DEFAULT_DOWNLOAD_BLOCK_SIZE = 10 * 1024 * 1024 # 10Mb
 
 TAG_NAME_REGEX = r'^[\w][\w.-]{0,127}$'
+
+PLUGIN_PULP_PUSH_KEY = 'pulp_push'
+PLUGIN_PULP_SYNC_KEY = 'pulp_sync'

@@ -41,9 +41,9 @@ pulp_secret_path:
 from __future__ import print_function, unicode_literals
 from dockpulp import setup_logger
 
-from atomic_reactor.plugins.post_pulp_sync import PulpSyncPlugin
+from atomic_reactor.constants import PLUGIN_PULP_SYNC_KEY, PLUGIN_PULP_PUSH_KEY
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.util import ImageName
+from atomic_reactor.util import ImageName, are_plugins_in_order
 
 import dockpulp
 import dockpulp.imgutils
@@ -236,7 +236,7 @@ class PulpUploader(object):
             p.watch_tasks(task_ids)
         else:
             self.log.info("publishing deferred until %s plugin runs",
-                          PulpSyncPlugin.key)
+                          PLUGIN_PULP_SYNC_KEY)
 
         # Store the registry URI in the push configuration
 
@@ -255,7 +255,7 @@ class PulpUploader(object):
 
 
 class PulpPushPlugin(PostBuildPlugin):
-    key = "pulp_push"
+    key = PLUGIN_PULP_PUSH_KEY
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, pulp_registry_name, load_squashed_image=None,
@@ -291,16 +291,8 @@ class PulpPushPlugin(PostBuildPlugin):
         self.username = username
         self.password = password
 
-        found_self = False
-        self.publish = True
-        for plugin in self.workflow.postbuild_plugins_conf or []:
-            if plugin['name'] == self.key:
-                found_self = True
-                continue
-
-            if found_self and plugin['name'] == PulpSyncPlugin.key:
-                self.publish = False
-                break
+        self.publish = not are_plugins_in_order(self.workflow.postbuild_plugins_conf,
+                                                self.key, PLUGIN_PULP_SYNC_KEY)
 
         if dockpulp_loglevel is not None:
             logger = setup_logger(dockpulp.log)
