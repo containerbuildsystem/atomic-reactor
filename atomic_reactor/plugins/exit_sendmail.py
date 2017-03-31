@@ -7,7 +7,6 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from email.mime.text import MIMEText
-import os
 import smtplib
 import socket
 try:
@@ -15,12 +14,11 @@ try:
 except ImportError:
     from urllib.parse import urljoin
 
-import requests
-
 from atomic_reactor.plugin import ExitPlugin, PluginFailedException
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
-from atomic_reactor.source import GitSource
-from atomic_reactor.util import df_parser
+from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
+from atomic_reactor.koji_util import create_koji_session
+from atomic_reactor.util import get_build_json
 
 
 class SendMailPlugin(ExitPlugin):
@@ -32,17 +30,13 @@ class SendMailPlugin(ExitPlugin):
                 "args": {
                     "send_on": ["auto_canceled", "auto_fail"],
                     "url": "https://openshift-instance.com",
-                    "pdc_url": "https://pdc-instance.com",
-                    # pdc_secret_path is filled in automatically by osbs-client
-                    "pdc_secret_path": "/path/to/file/with/pdc/token",
-                    "smtp_uri": "smtp-server.com",
+                    "smtp_host": "smtp-server.com",
                     "from_address": "osbs@mycompany.com",
-                    "error_addresses": ["admin@mycompany.com"],
-                    # optional arguments follow
-                    "submitter": "John Smith <jsmith@mycompany.com>",
-                    "pdc_verify_cert": true,
-                    "pdc_component_df_label": "com.redhat.component",
-                    "pdc_contact_role": "Devel_Owner"
+                    "error_addresses": ["admin@mycompany.com", "manager@mycompany.com"],
+                    "additional_addresses": ["jsmith@mycompany.com", "user@mycompany.com"],
+                    "email_domain": "example.com",
+                    "to_koji_submitter": True,
+                    "to_koji_pkgowner": True,
                 }
         }]
     """
@@ -51,51 +45,100 @@ class SendMailPlugin(ExitPlugin):
     # symbolic constants for states
     MANUAL_SUCCESS = 'manual_success'
     MANUAL_FAIL = 'manual_fail'
+    MANUAL_CANCELED = 'manual_canceled'
     AUTO_SUCCESS = 'auto_success'
     AUTO_FAIL = 'auto_fail'
     AUTO_CANCELED = 'auto_canceled'
+    DEFAULT_SUBMITTER = 'Unknown'
 
-    allowed_states = set([MANUAL_SUCCESS, MANUAL_FAIL, AUTO_SUCCESS, AUTO_FAIL, AUTO_CANCELED])
+    allowed_states = set([MANUAL_SUCCESS, MANUAL_FAIL, MANUAL_CANCELED,
+                          AUTO_SUCCESS, AUTO_FAIL, AUTO_CANCELED])
 
-    PDC_TOKEN_FILE = 'pdc.token'
-    PDC_CONTACT_ROLE = 'Devel_Owner'
-
-    def __init__(self, tasker, workflow, send_on=None, url=None, submitter='unknown', pdc_url=None,
-                 pdc_verify_cert=True, pdc_component_df_label="com.redhat.component", pdc_secret_path=None,
-                 pdc_contact_role=None, smtp_uri=None, from_address=None,
-                 error_addresses=None):
+    def __init__(self, tasker, workflow,
+                 smtp_host, from_address,
+                 send_on=(AUTO_CANCELED, AUTO_FAIL, MANUAL_SUCCESS, MANUAL_FAIL),
+                 url=None,
+                 error_addresses=(),
+                 additional_addresses=(),
+                 email_domain=None,
+                 koji_hub=None,
+                 koji_root=None,
+                 koji_proxyuser=None,
+                 koji_ssl_certs_dir=None,
+                 koji_krb_principal=None,
+                 koji_krb_keytab=None,
+                 to_koji_submitter=False,
+                 to_koji_pkgowner=False):
         """
         constructor
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param send_on: list of build states when a notification should be sent
-        :param url: URL to OSv3 instance where the build logs are stored
-        :param submitter: name of user who submitted a build (plain string)
-        :param pdc_url: URL of PDC to query for contact information
-        :param pdc_verify_cert: whether or not to verify SSL cert of PDC (defaults to True)
-        :param pdc_component_df_label: name of Dockerfile label to use as PDC global_component
-        :param pdc_secret_path: path to pdc.token file; $SOURCE_SECRET_PATH otherwise
-        :param pdc_contact_role: name of PDC role to contact
-        :param smtp_uri: URL of SMTP server to use to send the message (e.g. "foo.com:25")
-        :param from_address: the "From" of the notification email
-        :param error_addresses: list of email addresses where to send an email if there's an error
-            (e.g. if we can't find out who to notify about the failed build)
+        :param send_on: list of str, list of build states when a notification should be sent
+            see 'allowed_states' constant and rules in '_should_send' function
+        :param url: str, URL to OSv3 instance where the build logs are stored
+        :param smtp_host: str, URL of SMTP server to use to send the message (e.g. "foo.com:25")
+        :param from_address: str, the "From" of the notification email
+        :param error_addresses: list of str, list of email addresses where to send an email
+            if an error occurred (e.g. if we can't find out who to notify about the failed build)
+        :param additional_addresses: list of str, always send a message to these email addresses
+        :param email_domain: str, email domain used when email addresses cannot be fetched via
+            kerberos principal
+        :param koji_hub: str, koji hub (xmlrpc)
+        :param koji_root: str, koji root (storage)
+        :param koji_proxyuser: str, proxy user
+        :param koji_ssl_certs_dir: str, path to "cert", "ca", and "serverca"
+        :param koji_krb_principal: str, name of Kerberos principal
+        :param koji_krb_keytab: str, Kerberos keytab
+        :param to_koji_submitter: bool, send a message to the koji submitter
+        :param to_koji_pkgowner: bool, send messages to koji package owners
         """
         super(SendMailPlugin, self).__init__(tasker, workflow)
-        self.send_on = send_on
+        self.send_on = set(send_on)
         self.url = url
-        self.submitter = submitter
-        self.pdc_url = pdc_url
-        self.pdc_verify_cert = pdc_verify_cert
-        self.pdc_component_df_label = pdc_component_df_label
-        self.pdc_secret_path = pdc_secret_path
-        self.pdc_contact_role = pdc_contact_role or self.PDC_CONTACT_ROLE
-        self.smtp_uri = smtp_uri
+        self.additional_addresses = list(additional_addresses)
+        self.smtp_host = smtp_host
         self.from_address = from_address
-        self.error_addresses = error_addresses
+        self.error_addresses = list(error_addresses)
+        self.email_domain = email_domain
+        self.koji_hub = koji_hub
+        self.koji_root = koji_root
+        self.koji_auth_info = {
+            'proxyuser': koji_proxyuser,
+            'ssl_certs_dir': koji_ssl_certs_dir,
+            'krb_principal': koji_krb_principal,
+            'krb_keytab': koji_krb_keytab,
+        }
+        self.to_koji_submitter = to_koji_submitter
+        self.to_koji_pkgowner = to_koji_pkgowner
+        self.submitter = self.DEFAULT_SUBMITTER
 
-    def _should_send(self, rebuild, success, canceled):
+        try:
+            metadata = get_build_json().get("metadata", {})
+            self.koji_task_id = int(metadata['labels']['koji-task-id'])
+        except Exception:
+            self.log.exception("Failed to fetch koji task ID")
+            self.koji_task_id = None
+        else:
+            self.log.info("Koji task ID: %s", self.koji_task_id)
+
+        try:
+            self.koji_build_id = self.workflow.exit_results.get(KojiPromotePlugin.key)
+        except Exception:
+            self.log.exception("Failed to fetch koji build ID")
+            self.koji_build_id = None
+        else:
+            self.log.info("Koji build ID: %s", self.koji_build_id)
+
+        try:
+            self.session = create_koji_session(self.koji_hub, self.koji_auth_info)
+        except Exception:
+            self.log.exception("Failed to connect to koji")
+            self.session = None
+        else:
+            self.log.info("Koji connection established")
+
+    def _should_send(self, rebuild, success, auto_canceled, manual_canceled):
         """Return True if any state in `self.send_on` meets given conditions, thus meaning
         that a notification mail should be sent.
         """
@@ -104,18 +147,19 @@ class SendMailPlugin(ExitPlugin):
         should_send_mapping = {
             self.MANUAL_SUCCESS: not rebuild and success,
             self.MANUAL_FAIL: not rebuild and not success,
+            self.MANUAL_CANCELED: not rebuild and manual_canceled,
             self.AUTO_SUCCESS: rebuild and success,
             self.AUTO_FAIL: rebuild and not success,
-            self.AUTO_CANCELED: rebuild and canceled
+            self.AUTO_CANCELED: rebuild and auto_canceled
         }
 
         for state in self.send_on:
             should_send |= should_send_mapping[state]
         return should_send
 
-    def _render_mail(self, rebuild, success, canceled):
+    def _render_mail(self, rebuild, success, auto_canceled, manual_canceled):
         """Render and return subject and body of the mail to send."""
-        subject_template = 'Image %(image)s; Status %(endstate)s; Submitted by %(user)s'
+        subject_template = '%(endstate)s building image %(image)s'
         body_template = '\n'.join([
             'Image: %(image)s',
             'Status: %(endstate)s',
@@ -124,13 +168,12 @@ class SendMailPlugin(ExitPlugin):
         ])
 
         endstate = None
-        if canceled:
-            endstate = 'canceled'
+        if auto_canceled or manual_canceled:
+            endstate = 'Canceled'
         else:
-            endstate = 'successful' if success else 'failed'
-        url = None
-        if self.url and self.workflow.openshift_build_selflink:
-            url = urljoin(self.url, self.workflow.openshift_build_selflink + '/log')
+            endstate = 'Succeeded' if success else 'Failed'
+
+        url = self._get_logs_url()
 
         formatting_dict = {
             'image': self.workflow.image,
@@ -140,120 +183,131 @@ class SendMailPlugin(ExitPlugin):
         }
         return (subject_template % formatting_dict, body_template % formatting_dict)
 
-    def _get_pdc_token(self):
-        # we want to allow pdc_secret_path to be None in __init__ - I'm assuming that in future
-        #  we'll want different sources of contact info, so we only want to raise when
-        #  the plugin actually tries to authenticate against PDC and doesn't have pdc_secret_path
-        if self.pdc_secret_path is None:
-            raise PluginFailedException('Getting PDC token, but pdc_secret_path is unspecified')
-        token_file = os.path.join(self.pdc_secret_path, self.PDC_TOKEN_FILE)
-
-        self.log.debug('getting PDC token from file %s', token_file)
-
-        with open(token_file, 'r') as f:
-            return f.read().strip()
-
-    def _get_component_label(self):
-        """Get value of Dockerfile label that is to be used as `global_component` to query
-        PDC release-components API endpoint.
-        """
-        labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels
-        if self.pdc_component_df_label not in labels:
-            raise PluginFailedException('No %s label in Dockerfile, can\'t get PDC component',
-                                        self.pdc_component_df_label)
-        return labels[self.pdc_component_df_label]
-
-    def _get_receivers_list(self):
-        """Return list of receivers of the notification.
-
-        :raises RuntimeError: if PDC can't be contacted or doesn't provide sufficient data
-        :raises PluginFailedException: if there's a critical error while getting PDC data
-        """
-
-        # TODO: document what this plugin expects to be in Dockerfile/where it gets info from
-        global_component = self._get_component_label()
-        # this relies on bump_release plugin configuring source.git_commit to actually be
-        #  branch name, not a commit
-        if not isinstance(self.workflow.source, GitSource):
-            raise PluginFailedException('Source is not of type "GitSource", panic!')
-        git_branch = self.workflow.source.git_commit
-        try:
-            r = requests.get(urljoin(self.pdc_url, 'rest_api/v1/release-component-contacts/'),
-                             headers={'Authorization': 'Token %s' % self._get_pdc_token()},
-                             params={'global_component': global_component,
-                                     'dist_git_branch': git_branch,
-                                     'role': self.pdc_contact_role},
-                             verify=self.pdc_verify_cert)
-        except requests.RequestException as e:
-            self.log.error('failed to connect to PDC: %s', str(e))
-            raise RuntimeError(e)
-
-        if r.status_code != 200:
-            self.log.error('PDC returned status code %s, full response: %s',
-                           r.status_code, r.text)
-            raise RuntimeError('PDC returned non-200 status code (%s), see referenced build log' %
-                               r.status_code)
-
-        contacts = r.json()
-
-        if contacts['count'] == 0:
-            self.log.error('no %s role for the component', self.pdc_contact_role)
-            raise RuntimeError('no %s role for the component' % self.pdc_contact_role)
-
-        send_to = []
-        for contact in contacts['results']:
-            send_to.append(contact['contact']['email'])
-
-        return send_to
-
     def _send_mail(self, receivers_list, subject, body):
         """Actually sends the mail with `subject` and `body` to all members of `receivers_list`."""
         msg = MIMEText(body)
         msg['Subject'] = subject
         msg['From'] = self.from_address
-        msg['To'] = ', '.join(receivers_list)
+        msg['To'] = ', '.join([x.strip() for x in receivers_list])
 
         s = None
         try:
-            s = smtplib.SMTP(self.smtp_uri)
+            s = smtplib.SMTP(self.smtp_host)
             s.sendmail(self.from_address, receivers_list, msg.as_string())
-        except (socket.gaierror, smtplib.SMTPException) as e:
-            raise PluginFailedException('Error communicating with SMTP server: %s' % str(e))
+        except (socket.gaierror, smtplib.SMTPException):
+            self.log.error('Error communicating with SMTP server')
+            raise
         finally:
             if s is not None:
                 s.quit()
 
+    def _get_email_from_koji_obj(self, obj):
+        if obj.get('krb_principal'):
+            return obj['krb_principal'].lower()
+        else:
+            if not self.email_domain:
+                raise RuntimeError("Empty email_domain specified")
+            return '@'.join([obj['name'], self.email_domain])
+
+    def _get_koji_submitter(self):
+        koji_task_info = self.session.getTaskInfo(self.koji_task_id)
+        koji_task_owner = self.session.getUser(koji_task_info['owner'])
+        koji_task_owner_email = self._get_email_from_koji_obj(koji_task_owner)
+        self.submitter = koji_task_owner_email
+        return koji_task_owner_email
+
+    def _get_koji_owners(self):
+        result = []
+        koji_build_info = self.session.getBuild(self.koji_build_id)
+
+        koji_tags = self.session.listTags(self.koji_build_id)
+        for koji_tag in koji_tags:
+            koji_tag_id = koji_tag['id']
+            koji_package_id = koji_build_info['package_id']
+            koji_pkg_tag_config = self.session.getPackageConfig(koji_tag_id, koji_package_id)
+            koji_pkg_tag_owner = self.session.getUser(koji_pkg_tag_config['owner_id'])
+
+            result.append(self._get_email_from_koji_obj(koji_pkg_tag_owner))
+
+        return result
+
+    def _get_logs_url(self):
+        url = None
+        try:
+            # We're importing this here in order to trap ImportError
+            from koji import PathInfo
+            pathinfo = PathInfo(topdir=self.koji_root)
+            url = urljoin(pathinfo.work(), pathinfo.taskrelpath(self.koji_task_id))
+        except Exception:
+            self.log.exception("Failed to fetch logs from koji")
+            if self.url and self.workflow.openshift_build_selflink:
+                url = urljoin(self.url, self.workflow.openshift_build_selflink + '/log')
+        return url
+
+    def _get_receivers_list(self):
+        receivers_list = []
+        if self.additional_addresses:
+            receivers_list += self.additional_addresses
+
+        if self.session and (self.to_koji_submitter or self.to_koji_pkgowner):
+            if self.to_koji_submitter:
+                try:
+                    koji_task_owner_email = self._get_koji_submitter()
+                except Exception:
+                    self.log.exception("Failed to include a task submitter")
+                else:
+                    receivers_list.append(koji_task_owner_email)
+
+            if self.to_koji_pkgowner:
+                try:
+                    koji_task_owner_emails = self._get_koji_owners()
+                except Exception:
+                    self.log.exception("Failed to include a package owner")
+                else:
+                    receivers_list += koji_task_owner_emails
+
+        # Remove duplicates
+        receivers_list = list(set(receivers_list))
+
+        if not receivers_list:
+            raise RuntimeError("No recepients found")
+
+        return receivers_list
+
     def run(self):
         # verify that given states are subset of allowed states
-        unknown_states = set(self.send_on) - self.allowed_states
+        unknown_states = self.send_on - self.allowed_states
         if len(unknown_states) > 0:
             raise PluginFailedException('Unknown state(s) "%s" for sendmail plugin' %
                                         '", "'.join(sorted(unknown_states)))
 
         rebuild = is_rebuild(self.workflow)
-        success = not self.workflow.build_result.is_failed()
-        canceled = self.workflow.autorebuild_canceled
+        success = not self.workflow.build_process_failed
+        auto_canceled = self.workflow.autorebuild_canceled
+        manual_canceled = self.workflow.build_canceled
 
         self.log.info('checking conditions for sending notification ...')
-        if self._should_send(rebuild, success, canceled):
+        if self._should_send(rebuild, success, auto_canceled, manual_canceled):
             self.log.info('notification about build result will be sent')
-            subject, body = self._render_mail(rebuild, success, canceled)
             try:
                 self.log.debug('getting list of receivers for this component ...')
                 receivers = self._get_receivers_list()
             except RuntimeError as e:
                 self.log.error('couldn\'t get list of receivers, sending error message ...')
-                # TODO: maybe improve the error message/subject
+                # Render the body although the receivers cannot be fetched for error message
+                _, expected_body = self._render_mail(
+                    rebuild, success, auto_canceled, manual_canceled)
                 body = '\n'.join([
                     'Failed to get contact for %s, error: %s' % (str(self.workflow.image), str(e)),
                     'Since your address is in "error_addresses", this email was sent to you to '
                     'take action on this.',
                     'Wanted to send following mail:',
                     '',
-                    body
+                    expected_body
                 ])
                 receivers = self.error_addresses
             self.log.info('sending notification to %s ...', receivers)
+            subject, body = self._render_mail(rebuild, success, auto_canceled, manual_canceled)
             self._send_mail(receivers, subject, body)
         else:
             self.log.info('conditions for sending notification not met, doing nothing')
