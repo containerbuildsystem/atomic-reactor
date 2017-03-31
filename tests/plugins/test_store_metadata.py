@@ -37,7 +37,7 @@ import osbs.conf
 from osbs.exceptions import OsbsResponseException
 from atomic_reactor.build import BuildResult
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import ExitPluginsRunner
+from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
@@ -383,7 +383,8 @@ CMD blabla"""
     (flexmock(OSBS)
         .should_receive('set_annotations_on_build')
         .and_raise(OsbsResponseException('/', 'failed', 0)))
-    output = runner.run()
+    with pytest.raises(PluginFailedException):
+        output = runner.run()
     assert 'annotations:' in caplog.text()
 
 
@@ -407,8 +408,10 @@ def test_store_metadata_fail_update_labels(tmpdir, caplog):
     (flexmock(OSBS)
         .should_receive('update_labels_on_build')
         .and_raise(OsbsResponseException('/', 'failed', 0)))
-    output = runner.run()
+    with pytest.raises(PluginFailedException):
+        output = runner.run()
     assert 'labels:' in caplog.text()
+
 
 @pytest.mark.parametrize(('pulp_registries', 'docker_registries', 'prefixes'), [
     [[], [], []],
