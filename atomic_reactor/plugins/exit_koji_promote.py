@@ -32,7 +32,7 @@ from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json, get_preferred_label,
                                  get_docker_architecture, df_parser,
                                  are_plugins_in_order)
-from atomic_reactor.koji_util import create_koji_session, TaskWatcher
+from atomic_reactor.koji_util import create_koji_session, tag_koji_build
 from osbs.conf import Configuration
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
@@ -725,16 +725,7 @@ class KojiPromotePlugin(ExitPlugin):
                                          PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                          PLUGIN_KOJI_TAG_BUILD_KEY)
         if not tag_later and build_id is not None and self.target is not None:
-
-            self.log.debug("Finding build tag for target %s", self.target)
-            target_info = session.getBuildTarget(self.target)
-            build_tag = target_info['dest_tag_name']
-            self.log.info("Tagging build with %s", build_tag)
-            task_id = session.tagBuild(build_tag, build_id)
-            task = TaskWatcher(session, task_id,
-                               poll_interval=self.poll_interval)
-            task.wait()
-            if task.failed():
-                raise RuntimeError("Task %s failed to tag koji build" % task_id)
+            tag_koji_build(session, build_id, self.target,
+                           poll_interval=self.poll_interval)
 
         return build_id
