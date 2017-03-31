@@ -117,3 +117,18 @@ def stream_task_output(session, task_id, file_name,
             yield contents
 
     logger.debug('Finished streaming {} from task {}'.format(file_name, task_id))
+
+
+def tag_koji_build(session, build_id, target, poll_interval=5):
+    logger.debug('Finding build tag for target %s', target)
+    target_info = session.getBuildTarget(target)
+    build_tag = target_info['dest_tag_name']
+    logger.info('Tagging build with %s', build_tag)
+    task_id = session.tagBuild(build_tag, build_id)
+
+    task = TaskWatcher(session, task_id, poll_interval=poll_interval)
+    task.wait()
+    if task.failed():
+        raise RuntimeError('Task %s failed to tag koji build' % task_id)
+
+    return build_tag

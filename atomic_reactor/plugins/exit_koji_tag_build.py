@@ -9,7 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 from atomic_reactor.constants import PLUGIN_KOJI_TAG_BUILD_KEY
-from atomic_reactor.koji_util import create_koji_session, TaskWatcher
+from atomic_reactor.koji_util import create_koji_session, tag_koji_build
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 
@@ -82,16 +82,7 @@ class KojiTagBuildPlugin(ExitPlugin):
             return
 
         session = create_koji_session(self.kojihub, self.koji_auth)
-
-        self.log.debug('Finding build tag for target %s', self.target)
-        target_info = session.getBuildTarget(self.target)
-        build_tag = target_info['dest_tag_name']
-        self.log.info('Tagging build with %s', build_tag)
-        task_id = session.tagBuild(build_tag, build_id)
-        task = TaskWatcher(session, task_id,
-                           poll_interval=self.poll_interval)
-        task.wait()
-        if task.failed():
-            raise RuntimeError('Task %s failed to tag koji build' % task_id)
+        build_tag = tag_koji_build(session, build_id, self.target,
+                                   poll_interval=self.poll_interval)
 
         return build_tag

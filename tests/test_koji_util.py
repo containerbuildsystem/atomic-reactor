@@ -25,7 +25,8 @@ except ImportError:
     del koji
     import koji
 
-from atomic_reactor.koji_util import koji_login, create_koji_session, TaskWatcher
+from atomic_reactor.koji_util import (koji_login, create_koji_session,
+                                      TaskWatcher, tag_koji_build)
 from atomic_reactor import koji_util
 import flexmock
 import pytest
@@ -150,3 +151,43 @@ class TestTaskWatcher(object):
         task = TaskWatcher(session, task_id, poll_interval=0)
         assert task.wait() == exp_state
         assert task.failed() == exp_failed
+
+
+class TestTagKojiBuild(object):
+    @pytest.mark.parametrize(('task_state', 'failure'), (
+        ('CLOSED', False),
+        ('CANCELED', True),
+        ('FAILED', True),
+    ))
+    def test_tagging(self, task_state, failure):
+        session = flexmock()
+        task_id = 9876
+        build_id = 1234
+        target_name = 'target'
+        tag_name = 'images-candidate'
+        target_info = {'dest_tag_name': tag_name}
+        task_info = {'state': koji.TASK_STATES[task_state]}
+
+        (session
+            .should_receive('getBuildTarget')
+            .with_args(target_name)
+            .and_return(target_info))
+        (session
+            .should_receive('tagBuild')
+            .with_args(tag_name, build_id)
+            .and_return(task_id))
+        (session
+            .should_receive('taskFinished')
+            .with_args(task_id)
+            .and_return(True))
+        (session
+            .should_receive('getTaskInfo')
+            .with_args(task_id, request=True)
+            .and_return(task_info))
+
+        if failure:
+            with pytest.raises(RuntimeError):
+                tag_koji_build(session, build_id, target_name)
+        else:
+            build_tag = tag_koji_build(session, build_id, target_name)
+            assert build_tag == tag_name
