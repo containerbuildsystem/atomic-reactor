@@ -26,10 +26,12 @@ from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
-from atomic_reactor.constants import PROG
+from atomic_reactor.constants import (PROG, PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
+                                      PLUGIN_KOJI_TAG_BUILD_KEY)
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json, get_preferred_label,
-                                 get_docker_architecture, df_parser)
+                                 get_docker_architecture, df_parser,
+                                 are_plugins_in_order)
 from atomic_reactor.koji_util import create_koji_session, TaskWatcher
 from osbs.conf import Configuration
 from osbs.api import OSBS
@@ -86,7 +88,7 @@ class KojiPromotePlugin(ExitPlugin):
     plugins.
     """
 
-    key = "koji_promote"
+    key = PLUGIN_KOJI_PROMOTE_PLUGIN_KEY
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, kojihub, url,
@@ -718,8 +720,12 @@ class KojiPromotePlugin(ExitPlugin):
         self.log.debug("Build information: %s",
                        json.dumps(build_info, sort_keys=True, indent=4))
 
-        # Tag the build
-        if build_id is not None and self.target is not None:
+        # If configured, koji_tag_build plugin will perform build tagging
+        tag_later = are_plugins_in_order(self.workflow.exit_plugins_conf,
+                                         PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
+                                         PLUGIN_KOJI_TAG_BUILD_KEY)
+        if not tag_later and build_id is not None and self.target is not None:
+
             self.log.debug("Finding build tag for target %s", self.target)
             target_info = session.getBuildTarget(self.target)
             build_tag = target_info['dest_tag_name']

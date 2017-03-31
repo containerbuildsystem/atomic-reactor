@@ -1,6 +1,6 @@
 ## Koji integration
 
-The `add_filesystem` and `koji` pre-build plugins and the `koji_promote` exit plugin provide integration with [Koji](https://docs.pagure.org/koji/).
+The `add_filesystem` and `koji` pre-build plugins and the `koji_promote` and `koji_tag_build` exit plugins provide integration with [Koji](https://docs.pagure.org/koji/).
 
 ## Pre-build plugins
 
@@ -8,13 +8,17 @@ The `add_filesystem` pre-build plugin provides special handling for images with 
 
 The `koji` pre-build plugin creates a yum repofile to allow instructions in the Dockerfile to have access to RPMs available from the appropriate Koji tag.
 
-## Exit plugin
+## Exit plugins
 
 The `koji_promote` exit plugin uses the [Koji Content Generator API](https://docs.pagure.org/koji/content_generators/) to import the built image, and logs generated during the build, into Koji.
 
 When importing a build using the Content Generator API, metadata to describe the build is generated. This follows [the metadata format specification](https://docs.pagure.org/koji/content_generator_metadata/) but in some cases content generators are free to choose how metadata is expressed.
 
 Each build creates a single output archive, in the [Combined Image JSON + Filesystem Changeset format](https://github.com/docker/docker/blob/master/image/spec/v1.2.md#combined-image-json--filesystem-changeset-format).
+
+This plugin will also tag the imported build, if `koji_tag_build` is *not* configured. Otherwise, it assumes `koji_tag_build` will perform build tagging.
+
+The `koji_tag_build` exit plugin is used to tag the imported koji build based on a target. [Koji Tags and Targets](https://docs.pagure.org/koji/#tags-and-targets)
 
 # Type-specific build metadata
 

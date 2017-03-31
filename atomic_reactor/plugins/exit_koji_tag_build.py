@@ -8,9 +8,10 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
+from atomic_reactor.constants import PLUGIN_KOJI_TAG_BUILD_KEY
+from atomic_reactor.koji_util import create_koji_session, TaskWatcher
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
-from atomic_reactor.koji_util import create_koji_session, TaskWatcher
 
 
 class KojiTagBuildPlugin(ExitPlugin):
@@ -29,7 +30,7 @@ class KojiTagBuildPlugin(ExitPlugin):
     in a Kubernetes secret by specifying 'FILE:/path/to/key'.
     """
 
-    key = "koji_tag_build"
+    key = PLUGIN_KOJI_TAG_BUILD_KEY
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, kojihub, target,
