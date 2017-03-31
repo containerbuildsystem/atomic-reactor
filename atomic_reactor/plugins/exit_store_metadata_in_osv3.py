@@ -22,6 +22,7 @@ from atomic_reactor.util import get_build_json
 
 class StoreMetadataInOSv3Plugin(ExitPlugin):
     key = "store_metadata_in_osv3"
+    is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, url, verify_ssl=True, use_auth=True):
         """
