@@ -17,7 +17,7 @@ except ImportError:
     import inspect
     import sys
 
-    # Find out mocked koji module
+    # Find our mocked koji module
     import tests.koji as koji
     mock_koji_path = os.path.dirname(inspect.getfile(koji.ClientSession))
     if mock_koji_path not in sys.path:

@@ -781,6 +781,7 @@ def test_autorebuild_stop_prevents_build():
     assert not watch_post.was_called()
     assert watch_exit.was_called()
     assert workflow.autorebuild_canceled == True
+    assert not workflow.build_canceled
 
 
 @pytest.mark.parametrize('fail_at', ['pre_raises',
@@ -1161,14 +1162,18 @@ def test_cancel_build(request, fail_at):
     if fail_at == 'buildstep':
         with pytest.raises(PluginFailedException):
             workflow.build_docker_image()
+        assert workflow.build_canceled
         assert ("plugin '%s_watched' raised an exception:" % fail_at +
                 " BuildCanceledException('Build was canceled',)",) in fake_logger.errors
     else:
         workflow.build_docker_image()
 
         if fail_at != 'exit':
+            assert workflow.build_canceled
             assert ("plugin '%s_watched' raised an exception:" % fail_at +
                     " BuildCanceledException('Build was canceled',)",) in fake_logger.warnings
+        else:
+            assert not workflow.build_canceled
 
     assert watch_exit.was_called()
     assert watch_pre.was_called()

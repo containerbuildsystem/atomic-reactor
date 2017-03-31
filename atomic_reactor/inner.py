@@ -281,6 +281,7 @@ class DockerBuildWorkflow(object):
         self.plugins_durations = {}
         self.plugins_errors = {}
         self.autorebuild_canceled = False
+        self.build_canceled = False
         self.plugin_failed = False
         self.plugin_files = plugin_files
 
@@ -330,6 +331,7 @@ class DockerBuildWorkflow(object):
         return self._base_image_inspect
 
     def throw_canceled_build_exception(self, *args, **kwargs):
+        self.build_canceled = True
         raise BuildCanceledException("Build was canceled")
 
     def build_docker_image(self):
