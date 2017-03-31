@@ -197,6 +197,9 @@ These are run at the end of the build, even for failed builds.
  * **store_metadata_in_osv3**
    * Status: enabled
    * The OpenShift Build object is annotated with information about the build, such as the Koji Build ID, built docker image ID, parent docker image ID, etc.
+ * **koji_tag_build**
+   * Status: enabled
+   * Tags the imported Koji build based on a given target.
  * **remove_built_image**
    * Status: enabled
    * The built image is removed from the docker engine.

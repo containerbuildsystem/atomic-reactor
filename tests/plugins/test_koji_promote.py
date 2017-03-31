@@ -30,6 +30,7 @@ except ImportError:
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.exit_koji_promote import (KojiUploadLogger,
                                                       KojiPromotePlugin)
+from atomic_reactor.plugins.exit_koji_tag_build import KojiTagBuildPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
@@ -291,7 +292,7 @@ def os_env(monkeypatch):
 
 def create_runner(tasker, workflow, ssl_certs=False, principal=None,
                   keytab=None, metadata_only=False, blocksize=None,
-                  target=None):
+                  target=None, tag_later=False):
     args = {
         'kojihub': '',
         'url': '/',
@@ -315,14 +316,18 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
         args['target'] = target
         args['poll_interval'] = 0
 
-    runner = ExitPluginsRunner(tasker, workflow,
-                               [
-                                   {
-                                       'name': KojiPromotePlugin.key,
-                                       'args': args,
-                                   },
-                               ])
+    plugins_conf = [
+        {'name': KojiPromotePlugin.key, 'args': args},
+    ]
 
+    if target and tag_later:
+        plugins_conf.append({'name': KojiTagBuildPlugin.key,
+                             'args': {
+                                 'kojihub': '',
+                                 'target': target,
+                                 'poll_interval': 0.01}})
+    workflow.exit_plugins_conf = plugins_conf
+    runner = ExitPluginsRunner(tasker, workflow, plugins_conf)
     return runner
 
 
@@ -974,10 +979,19 @@ class TestKojiPromote(object):
         (False,
          False),
     ])
+    @pytest.mark.parametrize('tag_later', (True, False))
     def test_koji_promote_success(self, tmpdir, apis, docker_registry,
-                                  pulp_registries,
-                                  metadata_only, blocksize, target, os_env, has_config, is_autorebuild):
+                                  pulp_registries, metadata_only, blocksize,
+                                  target, os_env, has_config, is_autorebuild,
+                                  tag_later):
         session = MockedClientSession('')
+        # When target is provided koji build will always be tagged,
+        # either by koji_promote or koji_tag_build.
+        (flexmock(session)
+            .should_call('tagBuild')
+            .with_args('images-candidate', '123')
+            .times(1 if target else 0))
+
         component = 'component'
         name = 'ns/name'
         version = '1.0'
@@ -999,8 +1013,16 @@ class TestKojiPromote(object):
                                             has_config=has_config)
         workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_autorebuild
         runner = create_runner(tasker, workflow, metadata_only=metadata_only,
-                               blocksize=blocksize, target=target)
-        runner.run()
+                               blocksize=blocksize, target=target,
+                               tag_later=tag_later)
+        result = runner.run()
+
+        # Look at koji_tag_build result for determining which plugin
+        # performing koji build taggging
+        if tag_later and target:
+            assert result[KojiTagBuildPlugin.key] == 'images-candidate'
+        else:
+            assert result.get(KojiTagBuildPlugin.key) is None
 
         data = session.metadata
         if metadata_only:
