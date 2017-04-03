@@ -7,11 +7,12 @@ of the BSD license. See the LICENSE file for details.
 """
 from __future__ import print_function, unicode_literals
 
+import os
+
 try:
     import koji as koji
 except ImportError:
     import inspect
-    import os
     import sys
 
     # Find our mocked koji module
@@ -83,6 +84,12 @@ class MockedClientSession(object):
             return None
         return GET_REPO_RESPONSE
 
+    def ssl_login(self, cert, ca, serverca, proxyuser=None):
+        self.ca_path = ca
+        self.cert_path = cert
+        self.serverca_path = serverca
+        return True
+
 
 class MockedPathInfo(object):
     def __init__(self, topdir=None):
@@ -105,8 +112,10 @@ def prepare():
     setattr(workflow.builder.source, 'dockerfile_path', None)
     setattr(workflow.builder.source, 'path', None)
 
+    session = MockedClientSession(hub='', opts=None)
+    workflow.koji_session = session
     flexmock(koji,
-             ClientSession=MockedClientSession,
+             ClientSession=session,
              PathInfo=MockedPathInfo)
 
     return tasker, workflow
@@ -162,6 +171,14 @@ class TestKoji(object):
         #  'sslcacert=/etc/yum.repos.d/example.com.cert',
         #  '/etc/yum.repos.d/example.com.cert'),
 
+        # https with a cert for authentication
+        ('https://nosuchwebsiteforsure.com',
+         True,
+         'sslverify=0',
+         None,
+         'http://proxy.example.com'),
+
+
     ])
     def test_koji_plugin(self,
                          target, expect_success,
@@ -172,13 +189,17 @@ class TestKoji(object):
             'target': target,
             'hub': '',
             'root': root,
-            'proxy': proxy
+            'proxy': proxy,
         }
 
         if koji_ssl_certs:
-            args['koji_ssl_certs'] = str(tmpdir)
+            args['koji_ssl_certs_dir'] = str(tmpdir)
             with open('{}/ca'.format(tmpdir), 'w') as ca_fd:
                 ca_fd.write('ca')
+            with open('{}/cert'.format(tmpdir), 'w') as cert_fd:
+                cert_fd.write('cert')
+            with open('{}/serverca'.format(tmpdir), 'w') as serverca_fd:
+                serverca_fd.write('serverca')
 
         runner = PreBuildPluginsRunner(tasker, workflow, [{
             'name': KojiPlugin.key,
@@ -189,6 +210,15 @@ class TestKoji(object):
 
         if not expect_success:
             return
+
+        if koji_ssl_certs:
+            for file_path, expected in [(workflow.koji_session.ca_path, 'ca'),
+                                        (workflow.koji_session.cert_path, 'cert'),
+                                        (workflow.koji_session.serverca_path, 'serverca')]:
+
+                assert os.path.isfile(file_path)
+                with open(file_path, 'r') as fd:
+                    assert fd.read() == expected
 
         repofile = '/etc/yum.repos.d/target.repo'
         assert repofile in workflow.files
