@@ -36,7 +36,8 @@ class TestBumpRelease(object):
     def prepare(self,
                 tmpdir,
                 labels=None,
-                include_target=True):
+                include_target=True,
+                certs=False):
         if labels is None:
             labels = {}
 
@@ -49,10 +50,22 @@ class TestBumpRelease(object):
                 df.write('LABEL {key}={value}\n'.format(key=key, value=value))
 
         setattr(workflow.builder, 'df_path', filename)
-        args = [None, workflow, 'hub']
+        kwargs = {
+            'tasker': None,
+            'workflow': workflow,
+            'hub': ''
+        }
         if include_target:
-            args.append('target')
-        plugin = BumpReleasePlugin(*args)
+            kwargs['target'] = 'foo'
+        if certs:
+            with open('{}/ca'.format(tmpdir), 'w') as ca_fd:
+                ca_fd.write('ca')
+            with open('{}/cert'.format(tmpdir), 'w') as cert_fd:
+                cert_fd.write('cert')
+            with open('{}/serverca'.format(tmpdir), 'w') as serverca_fd:
+                serverca_fd.write('serverca')
+            kwargs['koji_ssl_certs_dir'] = str(tmpdir)
+        plugin = BumpReleasePlugin(**kwargs)
         return plugin
 
     def test_component_missing(self, tmpdir):
@@ -104,9 +117,8 @@ class TestBumpRelease(object):
     def test_increment(self, tmpdir, component, version, next_release,
                        include_target):
 
-
         class MockedClientSession(object):
-            def __init__(self):
+            def __init__(self, hub, opts=None):
                 pass
 
             def getNextRelease(self, build_info):
@@ -121,8 +133,13 @@ class TestBumpRelease(object):
                     return None
                 return True
 
+            def ssl_login(self, cert, ca, serverca, proxyuser=None):
+                self.ca_path = ca
+                self.cert_path = cert
+                self.serverca_path = serverca
+                return True
 
-        session = MockedClientSession()
+        session = MockedClientSession('')
         flexmock(koji, ClientSession=session)
 
         labels = {}
@@ -130,8 +147,17 @@ class TestBumpRelease(object):
         labels.update(version)
 
         plugin = self.prepare(tmpdir, labels=labels,
-                              include_target=include_target)
+                              include_target=include_target,
+                              certs=True)
         plugin.run()
+
+        for file_path, expected in [(session.ca_path, 'ca'),
+                                    (session.cert_path, 'cert'),
+                                    (session.serverca_path, 'serverca')]:
+
+            assert os.path.isfile(file_path)
+            with open(file_path, 'r') as fd:
+                assert fd.read() == expected
 
         parser = df_parser(plugin.workflow.builder.df_path, workflow=plugin.workflow)
         assert parser.labels['release'] == next_release['expected']
