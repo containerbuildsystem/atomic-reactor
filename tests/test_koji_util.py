@@ -28,6 +28,7 @@ except ImportError:
 from atomic_reactor.koji_util import (koji_login, create_koji_session,
                                       TaskWatcher, tag_koji_build)
 from atomic_reactor import koji_util
+from atomic_reactor.plugin import BuildCanceledException
 import flexmock
 import pytest
 
@@ -151,6 +152,20 @@ class TestTaskWatcher(object):
         task = TaskWatcher(session, task_id, poll_interval=0)
         assert task.wait() == exp_state
         assert task.failed() == exp_failed
+
+    def test_cancel(self):
+        session = flexmock()
+        task_id = 1234
+        (session
+            .should_receive('taskFinished')
+            .with_args(task_id)
+            .and_raise(BuildCanceledException))
+
+        task = TaskWatcher(session, task_id, poll_interval=0)
+        with pytest.raises(BuildCanceledException):
+            task.wait()
+
+        assert task.failed()
 
 
 class TestTagKojiBuild(object):

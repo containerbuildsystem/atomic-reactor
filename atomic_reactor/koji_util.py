@@ -85,6 +85,7 @@ class TaskWatcher(object):
         self.session = session
         self.task_id = task_id
         self.poll_interval = poll_interval
+        self.state = 'CANCELED'
 
     def wait(self):
         logger.debug("waiting for koji task %r to finish", self.task_id)
