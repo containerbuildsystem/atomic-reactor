@@ -80,9 +80,10 @@ def test_build(is_failed):
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     flexmock(CommandResult).should_receive('is_failed').and_return(is_failed)
-    error_detail = 'error detail'
+    error = "error message"
+    error_detail = "{u'message': u\"%s\"}" % error
     if is_failed:
-        flexmock(CommandResult, error_detail=error_detail)
+        flexmock(CommandResult, error=error, error_detail=error_detail)
         with pytest.raises(PluginFailedException):
             workflow.build_docker_image()
     else:
@@ -93,5 +94,6 @@ def test_build(is_failed):
     assert workflow.build_result.is_failed() == is_failed
 
     if is_failed:
-        assert workflow.build_result.fail_reason == error_detail
-        assert error_detail in workflow.plugins_errors['docker_api']
+        assert workflow.build_result.fail_reason == error
+        assert '\\' not in workflow.plugins_errors['docker_api']
+        assert error in workflow.plugins_errors['docker_api']

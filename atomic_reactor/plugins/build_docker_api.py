@@ -45,7 +45,7 @@ class DockerApiPlugin(BuildStepPlugin):
 
         if command_result.is_failed():
             return BuildResult(logs=command_result.logs,
-                               fail_reason=command_result.error_detail)
+                               fail_reason=command_result.error)
         else:
             image_id = builder.get_built_image_info()['Id']
             return BuildResult(logs=command_result.logs, image_id=image_id)
