@@ -53,9 +53,10 @@ from __future__ import unicode_literals
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import INSPECT_CONFIG
-from atomic_reactor.util import get_docker_architecture, _PREFERRED_LABELS, df_parser
+from atomic_reactor.util import get_docker_architecture, df_parser
 import json
 import datetime
+import string
 
 
 class AddLabelsPlugin(PreBuildPlugin):
@@ -83,7 +84,8 @@ class AddLabelsPlugin(PreBuildPlugin):
                               "vcs-ref",
                               "com.redhat.build-host"),
                  aliases=None,
-                 dont_overwrite_if_in_dockerfile=("distribution-scope",)):
+                 dont_overwrite_if_in_dockerfile=("distribution-scope",),
+                 info_url_format=None):
         """
         constructor
 
@@ -98,6 +100,7 @@ class AddLabelsPlugin(PreBuildPlugin):
                         added (with the same value)
         :param dont_overwrite_if_in_dockerfile : iterable, list of label keys which should not be
                                                  overwritten if they are present in dockerfile
+        :param info_url_format : string, format for url dockerfile label
         """
         # call parent constructor
         super(AddLabelsPlugin, self).__init__(tasker, workflow)
@@ -109,6 +112,7 @@ class AddLabelsPlugin(PreBuildPlugin):
         self.dont_overwrite = dont_overwrite
         self.dont_overwrite_if_in_dockerfile = dont_overwrite_if_in_dockerfile
         self.aliases = aliases or self.DEFAULT_ALIASES
+        self.info_url_format = info_url_format
 
         self.generate_auto_labels(auto_labels)
 
@@ -196,6 +200,23 @@ class AddLabelsPlugin(PreBuildPlugin):
             self.log.debug("applied only some aliases, following old labels were not found: %s",
                            ", ".join(not_applied))
 
+    def add_info_url(self, base_labels, df_labels, plugin_labels):
+        all_labels = base_labels.copy()
+        all_labels.update(df_labels)
+        all_labels.update(plugin_labels)
+
+        class MyFormatter(string.Formatter):
+            """
+            using this because str.format can't handle keys with dots and dashes
+            which are included in some of the labels, such as
+            'authoritative-source-url', 'com.redhat.component', etc
+            """
+            def get_field(self, field_name, args, kwargs):
+                return (self.get_value(field_name, args, kwargs), field_name)
+
+        info_url = MyFormatter().vformat(self.info_url_format, [], all_labels)
+        self.labels['url'] = info_url
+
     def run(self):
         """
         run the plugin
@@ -216,6 +237,8 @@ class AddLabelsPlugin(PreBuildPlugin):
         # changing dockerfile.labels writes out modified Dockerfile - err on
         # the safe side and make a copy
         self.add_aliases(base_image_labels.copy(), dockerfile.labels.copy(), self.labels.copy())
+        if self.info_url_format:
+            self.add_info_url(base_image_labels.copy(), dockerfile.labels.copy(), self.labels.copy())
 
         # correct syntax is:
         #   LABEL "key"="value" "key2"="value2"
