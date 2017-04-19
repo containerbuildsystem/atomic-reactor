@@ -110,7 +110,7 @@ These are run after 'git clone' is used to fetch the git repository content cont
    * In order to support automated rebuilds, this plugin is tasked with incrementing the 'release' label in the Dockerfile.
  * **add_labels_in_dockerfile**
    * Status: enabled
-   * Labels that are specified in the builder configuration, such as the vendor name, distribution scope, and authoritative registry, are added to the Dockerfile using LABEL. This plugin also adds automatic labels such as the build date, architecture, build host, and git reference.
+   * Labels that are specified in the builder configuration, such as the vendor name, distribution scope, and authoritative registry, are added to the Dockerfile using LABEL. This plugin also adds automatic labels such as the build date, architecture, build host, info url, and git reference.
  * **change_from_in_dockerfile**
    * Status: enabled
    * The FROM line in the Dockerfile is changed so that it references the specific docker image ID we pulled/imported earlier.

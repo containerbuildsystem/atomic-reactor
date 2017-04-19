@@ -50,6 +50,14 @@ FROM fedora"""
 DF_CONTENT_LABEL = '''\
 FROM fedora
 LABEL "label2"="df value"'''
+DF_CONTENT_LABELS = '''\
+FROM fedora
+LABEL "label1"="label1_value"
+LABEL "label2"="label2_value"
+LABEL "Authoritative_Registry"="authoritative-source-url_value"
+LABEL "BZComponent"="com.redhat.component_value"
+LABEL "Build_Host"="com.redhat.build-host_value"
+LABEL "Version"="version_value"'''
 LABELS_CONF_BASE = {INSPECT_CONFIG: {"Labels": {"label1": "base value"}}}
 LABELS_CONF_BASE_NONE = {INSPECT_CONFIG: {"Labels": None}}
 LABELS_CONF = OrderedDict({'label1': 'value 1', 'label2': 'long value'})
@@ -354,3 +362,48 @@ def test_dont_overwrite_distribution_scope(tmpdir, docker_tasker, parent_scope,
 
     result = df.labels.get("distribution-scope")
     assert result == result_scope
+
+
+@pytest.mark.parametrize('url_format, info_url, expected_log', [
+    ('url_pre {label1} {label2} url_post', 'url_pre label1_value label2_value url_post', None),
+    ('url_pre url_post', 'url_pre url_post', None),
+    ('url_pre {label1} {label2} {label3_non_existent} url_post', None, "plugin 'add_labels_in_dockerfile' raised an exception: KeyError"),
+    ('url_pre {label1} {label2} {version} url_post', 'url_pre label1_value label2_value version_value url_post', None),
+    ('url_pre {authoritative-source-url} {com.redhat.component} {com.redhat.build-host} url_post',
+     'url_pre authoritative-source-url_value com.redhat.component_value com.redhat.build-host_value url_post', None),
+])
+def test_url_label(tmpdir, docker_tasker, caplog, url_format, info_url, expected_log):
+    if MOCK:
+        mock_docker()
+
+    plugin_labels = {}
+    base_labels = {INSPECT_CONFIG: {"Labels": {}}}
+    df = df_parser(str(tmpdir))
+    df.content = DF_CONTENT_LABELS
+
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    setattr(workflow, 'builder', X)
+    flexmock(workflow, base_image_inspect=base_labels)
+    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': AddLabelsPlugin.key,
+            'args': {
+                'labels': plugin_labels,
+                'dont_overwrite': [],
+                'auto_labels': [],
+                'info_url_format': url_format
+            }
+        }]
+    )
+
+    runner.run()
+    assert AddLabelsPlugin.key is not None
+
+    if info_url:
+        assert df.labels.get("url") == info_url
+    else:
+        assert expected_log in caplog.text()
