@@ -379,11 +379,23 @@ class TestSendMailPlugin(object):
     @pytest.mark.parametrize('exception_location, expected_receivers', [
         ('koji_connection', []),
         ('submitter', [MOCK_KOJI_OWNER_EMAIL]),
+        ('empty_submitter', [MOCK_KOJI_OWNER_EMAIL]),
         ('owner', [MOCK_KOJI_SUBMITTER_EMAIL]),
+        ('empty_owner', [MOCK_KOJI_SUBMITTER_EMAIL]),
         ('empty_email_domain', [])])
     def test_koji_recepients_exception(self, monkeypatch, exception_location, expected_receivers):
         class TagConf(object):
             unique_images = []
+
+        if exception_location == 'empty_owner':
+            koji_build_id = None
+        else:
+            koji_build_id = MOCK_KOJI_BUILD_ID
+
+        if exception_location == 'empty_submitter':
+            koji_task_id = None
+        else:
+            koji_task_id = MOCK_KOJI_TASK_ID
 
         class WF(object):
             image = util.ImageName.parse('foo/bar:baz')
@@ -391,13 +403,13 @@ class TestSendMailPlugin(object):
             build_process_failed = False
             tag_conf = TagConf()
             exit_results = {
-                KojiPromotePlugin.key: MOCK_KOJI_BUILD_ID
+                KojiPromotePlugin.key: koji_build_id
             }
 
         monkeypatch.setenv("BUILD", json.dumps({
             'metadata': {
                 'labels': {
-                    'koji-task-id': MOCK_KOJI_TASK_ID,
+                    'koji-task-id': koji_task_id,
                 },
             }
         }))
