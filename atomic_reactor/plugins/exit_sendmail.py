@@ -210,6 +210,9 @@ class SendMailPlugin(ExitPlugin):
             return '@'.join([obj['name'], self.email_domain])
 
     def _get_koji_submitter(self):
+        if not self.koji_task_id:
+            return ""
+
         koji_task_info = self.session.getTaskInfo(self.koji_task_id)
         koji_task_owner = self.session.getUser(koji_task_info['owner'])
         koji_task_owner_email = self._get_email_from_koji_obj(koji_task_owner)
@@ -218,6 +221,9 @@ class SendMailPlugin(ExitPlugin):
 
     def _get_koji_owners(self):
         result = []
+        if not self.koji_build_id:
+            return result
+
         koji_build_info = self.session.getBuild(self.koji_build_id)
 
         koji_tags = self.session.listTags(self.koji_build_id)
@@ -268,6 +274,9 @@ class SendMailPlugin(ExitPlugin):
 
         # Remove duplicates
         receivers_list = list(set(receivers_list))
+
+        # Remove empty and None items
+        receivers_list = [x for x in receivers_list if x]
 
         if not receivers_list:
             raise RuntimeError("No recepients found")
