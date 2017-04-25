@@ -14,7 +14,7 @@ except ImportError:
     # Python 2.6
     from ordereddict import OrderedDict
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PreBuildPluginsRunner
+from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
 from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.source import VcsInfo
@@ -148,11 +148,13 @@ def test_add_labels_plugin(tmpdir, docker_tasker,
         }]
     )
 
-    runner.run()
     if isinstance(expected_output, RuntimeError):
+        with pytest.raises(PluginFailedException):
+            runner.run()
         assert "plugin 'add_labels_in_dockerfile' raised an exception: RuntimeError" in caplog.text()
 
     else:
+        runner.run()
         assert AddLabelsPlugin.key is not None
         assert df.content in expected_output
 
@@ -364,15 +366,15 @@ def test_dont_overwrite_distribution_scope(tmpdir, docker_tasker, parent_scope,
     assert result == result_scope
 
 
-@pytest.mark.parametrize('url_format, info_url, expected_log', [
-    ('url_pre {label1} {label2} url_post', 'url_pre label1_value label2_value url_post', None),
-    ('url_pre url_post', 'url_pre url_post', None),
-    ('url_pre {label1} {label2} {label3_non_existent} url_post', None, "plugin 'add_labels_in_dockerfile' raised an exception: KeyError"),
-    ('url_pre {label1} {label2} {version} url_post', 'url_pre label1_value label2_value version_value url_post', None),
+@pytest.mark.parametrize('url_format, info_url', [
+    ('url_pre {label1} {label2} url_post', 'url_pre label1_value label2_value url_post'),
+    ('url_pre url_post', 'url_pre url_post'),
+    ('url_pre {label1} {label2} {label3_non_existent} url_post', None),
+    ('url_pre {label1} {label2} {version} url_post', 'url_pre label1_value label2_value version_value url_post'),
     ('url_pre {authoritative-source-url} {com.redhat.component} {com.redhat.build-host} url_post',
-     'url_pre authoritative-source-url_value com.redhat.component_value com.redhat.build-host_value url_post', None),
+     'url_pre authoritative-source-url_value com.redhat.component_value com.redhat.build-host_value url_post'),
 ])
-def test_url_label(tmpdir, docker_tasker, caplog, url_format, info_url, expected_log):
+def test_url_label(tmpdir, docker_tasker, caplog, url_format, info_url):
     if MOCK:
         mock_docker()
 
@@ -400,10 +402,12 @@ def test_url_label(tmpdir, docker_tasker, caplog, url_format, info_url, expected
         }]
     )
 
-    runner.run()
-    assert AddLabelsPlugin.key is not None
-
-    if info_url:
+    if info_url is not None:
+        runner.run()
         assert df.labels.get("url") == info_url
+
     else:
-        assert expected_log in caplog.text()
+        with pytest.raises(PluginFailedException):
+            runner.run()
+
+    assert AddLabelsPlugin.key is not None
