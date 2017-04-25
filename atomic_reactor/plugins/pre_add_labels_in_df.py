@@ -61,6 +61,7 @@ import string
 
 class AddLabelsPlugin(PreBuildPlugin):
     key = "add_labels_in_dockerfile"
+    is_allowed_to_fail = False
 
     DEFAULT_ALIASES = {
         'Name': 'name',
