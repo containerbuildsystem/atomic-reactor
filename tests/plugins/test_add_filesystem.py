@@ -314,9 +314,8 @@ def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_err
         }]
     )
 
-    with caplog.atLevel(logging.INFO):
-        with pytest.raises(PluginFailedException) as exc:
-            results = runner.run()
+    with caplog.atLevel(logging.INFO), pytest.raises(PluginFailedException) as exc:
+        results = runner.run()
 
     assert task_result in str(exc)
     # Also ensure getTaskResult exception message is wrapped properly

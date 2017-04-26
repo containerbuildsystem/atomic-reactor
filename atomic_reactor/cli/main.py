@@ -265,12 +265,7 @@ class CLI(object):
     def run(self):
         self.set_arguments()
         args = self.parser.parse_args()
-        try:
-            # Capture any warning.warn() calls and log them
-            logging.captureWarnings(True)
-        except AttributeError:
-            # Python 2.6 doesn't have captureWarnings()
-            pass
+        logging.captureWarnings(True)
 
         if args.verbose:
             set_logging(level=logging.DEBUG)

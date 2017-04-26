@@ -18,7 +18,7 @@ We try to write good code. This is what it means to us:
 
 * Maximum line length is 100 characters
 * Pull Request *must* pass following checks:
-  * [Travis CI test](https://travis-ci.org/projectatomic/atomic-reactor) - This means that no tests fail on Python 2.6, 2.7 and >= 3.4
+  * [Travis CI test](https://travis-ci.org/projectatomic/atomic-reactor) - This means that no tests fail on Python 2.7 and >= 3.4
     * You can run tests locally using `pytest`
   * [Landscape test](https://landscape.io/github/projectatomic/atomic-reactor) - This means that code follows pep8 and is otherwise sane. To check this, run these commands:
     * `pyflakes atomic_reactor`
