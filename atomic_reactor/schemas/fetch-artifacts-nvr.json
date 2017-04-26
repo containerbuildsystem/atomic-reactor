@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+
+  "title": "Artifacts to be fetched from Koji builds",
+
+  "type": "array",
+  "items": {
+    "type": "object",
+    "description": "A specific Koji buid and archives to be fetched",
+    "properties": {
+      "nvr": {
+        "description": "The Name-Version-Release of a Koji build",
+        "type": "string"
+      },
+      "archives": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "description": "Matcher for archives in Koji build",
+          "properties": {
+            "filename": {
+              "description": "Match by archive filename - supports glob matching",
+              "type": "string"
+            },
+            "group_id": {
+              "description": "Match by archive group_id",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "nvr"
+    ]
+  }
+}

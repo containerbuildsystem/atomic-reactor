@@ -135,6 +135,9 @@ These are run after 'git clone' is used to fetch the git repository content cont
  * **distribution_scope**
    * Status: enabled
    * The distribution-scope image labels for the parent and the current image are compared and invalid combinations cause the build to fail.
+ * **fetch_maven_artifacts**
+   * Status: enabled
+   * Download artifacts from either a koji build or directly from a URL.
 
 ### Buildstep plugins
 
