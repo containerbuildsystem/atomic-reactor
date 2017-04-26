@@ -10,6 +10,7 @@ from __future__ import print_function, unicode_literals
 
 import hashlib
 import json
+import jsonschema
 import os
 import re
 from pipes import quote
@@ -19,10 +20,13 @@ import subprocess
 import tempfile
 import logging
 import uuid
+import yaml
+import codecs
 
 from atomic_reactor.constants import DOCKERFILE_FILENAME, TOOLS_USED, INSPECT_CONFIG
 
 from dockerfile_parse import DockerfileParser
+from pkg_resources import resource_stream
 
 from importlib import import_module
 
@@ -835,3 +839,46 @@ def are_plugins_in_order(plugins_conf, *plugins_names):
         except ValueError:
             return False
     return True
+
+
+def read_yaml(yaml_file_path, schema):
+    with open(yaml_file_path) as f:
+        data = yaml.safe_load(f)
+
+    try:
+        resource = resource_stream('atomic_reactor', schema)
+        schema = codecs.getreader('utf-8')(resource)
+    except (IOError, TypeError):
+        logger.error('unable to extract JSON schema, cannot validate')
+        raise
+
+    try:
+        schema = json.load(schema)
+    except ValueError:
+        logger.error('unable to decode JSON schema, cannot validate')
+        raise
+
+    validator = jsonschema.Draft4Validator(schema=schema)
+    try:
+        jsonschema.Draft4Validator.check_schema(schema)
+        validator.validate(data)
+    except jsonschema.SchemaError:
+        logger.error('invalid schema, cannot validate')
+        raise
+    except jsonschema.ValidationError:
+        for error in validator.iter_errors(data):
+            path = ''
+            for element in error.absolute_path:
+                if isinstance(element, int):
+                    path += '[{}]'.format(element)
+                else:
+                    path += '.{}'.format(element)
+
+            if path.startswith('.'):
+                path = path[1:]
+
+            logger.error('validation error (%s): %s', path or 'at top level', error.message)
+
+        raise
+
+    return data

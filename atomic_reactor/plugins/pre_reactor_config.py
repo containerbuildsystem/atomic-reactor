@@ -7,13 +7,10 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.util import read_yaml
 
-import codecs
-import json
-import jsonschema
+
 import os
-from pkg_resources import resource_stream
-import yaml
 
 
 # Key used to store the config object in the plugin workspace
@@ -128,48 +125,7 @@ class ReactorConfigPlugin(PreBuildPlugin):
 
         config_filename = os.path.join(self.config_path, self.basename)
         self.log.info("reading config from %s", config_filename)
-        with open(config_filename) as fp:
-            conf = yaml.safe_load(fp)
-
-        # Validate against JSON schema
-        try:
-            resource = resource_stream('atomic_reactor', 'schemas/config.json')
-            config_schema = codecs.getreader('utf-8')(resource)
-        except (IOError, TypeError):
-            self.log.error("unable to extract JSON schema, cannot validate")
-            raise
-
-        try:
-            schema = json.load(config_schema)
-        except ValueError:
-            self.log.error("unable to decode JSON schema, cannot validate")
-            raise
-
-        validator = jsonschema.Draft4Validator(schema=schema)
-        try:
-            jsonschema.Draft4Validator.check_schema(schema)
-            validator.validate(conf)
-        except jsonschema.SchemaError:
-            self.log.error("invalid schema, cannot validate")
-            raise
-        except jsonschema.ValidationError:
-            for error in validator.iter_errors(conf):
-                path = ''
-                for element in error.absolute_path:
-                    if isinstance(element, int):
-                        path += '[{}]'.format(element)
-                    else:
-                        path += '.{}'.format(element)
-
-                if path.startswith('.'):
-                    path = path[1:]
-
-                self.log.error("validation error (%s): %s",
-                               path or "at top level",
-                               error.message)
-
-            raise
-
+        conf = read_yaml(config_filename, 'schemas/config.json')
         reactor_conf = ReactorConfig(conf)
         workspace = self.workflow.plugin_workspace.get(self.key, {})
         workspace[WORKSPACE_CONF_KEY] = reactor_conf
