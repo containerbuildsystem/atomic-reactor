@@ -19,11 +19,7 @@ from tempfile import mkdtemp
 from textwrap import dedent
 from flexmock import flexmock
 
-try:
-    from collections import OrderedDict
-except ImportError:
-    # Python 2.6
-    from ordereddict import OrderedDict
+from collections import OrderedDict
 import docker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
