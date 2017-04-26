@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+
+  "title": "Artifacts to be fetched by url",
+
+  "type": "array",
+  "items": {
+    "type": "object",
+    "description": "A specific artifact to be fetched by URL",
+    "properties": {
+      "url": {
+        "description": "The URL to be used to fetch artifact",
+        "type": "string"
+      },
+      "md5sum": {
+        "description": "The checksum of the artifact",
+        "type": "string",
+        "pattern": "^[a-f0-9]{32}$"
+      },
+      "target": {
+        "description": "Name to be used when saving artifact to disk",
+        "type": "string"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "url",
+      "md5sum"
+    ]
+  }
+}

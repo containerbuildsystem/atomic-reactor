@@ -1,12 +1,14 @@
 ## Koji integration
 
-The `add_filesystem` and `koji` pre-build plugins and the `koji_promote` and `koji_tag_build` exit plugins provide integration with [Koji](https://docs.pagure.org/koji/).
+The `add_filesystem`, `koji`, `fetch_maven_artifacts` pre-build plugins and the `koji_promote` and `koji_tag_build` exit plugins provide integration with [Koji](https://docs.pagure.org/koji/).
 
 ## Pre-build plugins
 
 The `add_filesystem` pre-build plugin provides special handling for images with "FROM koji/image-build". For these images it creates a Koji task to create a installed filesystem archive as [described here](https://github.com/projectatomic/atomic-reactor/blob/master/docs/base_images.md).
 
 The `koji` pre-build plugin creates a yum repofile to allow instructions in the Dockerfile to have access to RPMs available from the appropriate Koji tag.
+
+The `fetch_maven_artifacts` pre-build plugin will use configuration files to download external maven artifacts. One of these sources can be a Koji build.
 
 ## Exit plugins
 
