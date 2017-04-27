@@ -171,11 +171,17 @@ def make_worker_build_kwargs(**overrides):
     return kwargs
 
 
+@pytest.mark.parametrize('config_kwargs', [
+    None,
+    {},
+    {'build_image': 'osbs-buildroot:latest'},
+    {'build_image': 'osbs-buildroot:latest', 'sources_command': 'fedpkg source'},
+])
 @pytest.mark.parametrize('worker_build_image', [
     'fedora:latest',
     None
 ])
-def test_orchestrate_build(tmpdir, worker_build_image):
+def test_orchestrate_build(tmpdir, config_kwargs, worker_build_image):
     workflow = mock_workflow(tmpdir)
     mock_osbs()
     mock_reactor_config(tmpdir)
@@ -186,6 +192,8 @@ def test_orchestrate_build(tmpdir, worker_build_image):
     }
     if worker_build_image:
         plugin_args['worker_build_image'] = worker_build_image
+    if config_kwargs is not None:
+        plugin_args['config_kwargs'] = config_kwargs
 
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
@@ -202,6 +210,10 @@ def test_orchestrate_build(tmpdir, worker_build_image):
     }
     if worker_build_image:
         expected_kwargs['build_image'] = worker_build_image
+    # Update with config_kwargs last to ensure that, when set
+    # always has precedence over worker_build_image param.
+    if config_kwargs is not None:
+        expected_kwargs.update(config_kwargs)
 
     (flexmock(Configuration).should_call('__init__').with_args(**expected_kwargs).once())
 
