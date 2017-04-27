@@ -114,7 +114,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     key = 'orchestrate_build'
 
     def __init__(self, tasker, workflow, platforms, build_kwargs,
-                 osbs_client_config=None, worker_build_image=None):
+                 osbs_client_config=None, worker_build_image=None,
+                 config_kwargs=None):
         """
         constructor
 
@@ -124,12 +125,18 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         :param build_kwargs: dict, keyword arguments for starting worker builds
         :param osbs_client_config: str, path to directory containing osbs.conf
         :param worker_build_image: str, the builder image to use for worker builds
+                                  (deprecated, use config_kwargs instead)
+        :param config_kwargs: dict, keyword arguments to override worker configuration
         """
         super(OrchestrateBuildPlugin, self).__init__(tasker, workflow)
         self.platforms = set(platforms)
         self.build_kwargs = build_kwargs
         self.osbs_client_config = osbs_client_config
-        self.worker_build_image = worker_build_image
+        self.config_kwargs = config_kwargs or {}
+
+        if worker_build_image:
+            self.log.warning('worker_build_image is deprecated, use config_kwargs instead')
+            self.config_kwargs.setdefault('build_image', worker_build_image)
 
         self.worker_builds = []
 
@@ -156,12 +163,10 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         return len(osbs.list_builds(field_selector=field_selector))
 
     def get_cluster_info(self, cluster, platform):
-        kwargs = {'conf_section': cluster.name}
+        kwargs = deepcopy(self.config_kwargs)
+        kwargs['conf_section'] = cluster.name
         if self.osbs_client_config:
             kwargs['conf_file'] = os.path.join(self.osbs_client_config, 'osbs.conf')
-
-        if self.worker_build_image:
-            kwargs['build_image'] = self.worker_build_image
 
         conf = Configuration(**kwargs)
         osbs = OSBS(conf, conf)
