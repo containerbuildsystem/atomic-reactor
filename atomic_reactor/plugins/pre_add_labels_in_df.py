@@ -54,6 +54,7 @@ from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.util import get_docker_architecture, df_parser
+from osbs.utils import Labels
 import json
 import datetime
 import string
@@ -62,20 +63,6 @@ import string
 class AddLabelsPlugin(PreBuildPlugin):
     key = "add_labels_in_dockerfile"
     is_allowed_to_fail = False
-
-    DEFAULT_ALIASES = {
-        'Name': 'name',
-        'Version': 'version',
-        'Release': 'release',
-        'Architecture': 'architecture',
-        'Vendor': 'vendor',
-        'RUN': 'run',
-        'INSTALL': 'install',
-        'UNINSTALL': 'uninstall',
-        'Authoritative_Registry': 'authoritative-source-url',
-        'BZComponent': 'com.redhat.component',
-        'Build_Host': 'com.redhat.build-host',
-    }
 
     def __init__(self, tasker, workflow, labels,
                  dont_overwrite=("Architecture", "architecture"),
@@ -86,7 +73,8 @@ class AddLabelsPlugin(PreBuildPlugin):
                               "com.redhat.build-host"),
                  aliases=None,
                  dont_overwrite_if_in_dockerfile=("distribution-scope",),
-                 info_url_format=None):
+                 info_url_format=None,
+                 equal_labels=None):
         """
         constructor
 
@@ -102,6 +90,7 @@ class AddLabelsPlugin(PreBuildPlugin):
         :param dont_overwrite_if_in_dockerfile : iterable, list of label keys which should not be
                                                  overwritten if they are present in dockerfile
         :param info_url_format : string, format for url dockerfile label
+        :param equal_labels: list, with equal labels groups as lists
         """
         # call parent constructor
         super(AddLabelsPlugin, self).__init__(tasker, workflow)
@@ -112,8 +101,11 @@ class AddLabelsPlugin(PreBuildPlugin):
         self.labels = labels
         self.dont_overwrite = dont_overwrite
         self.dont_overwrite_if_in_dockerfile = dont_overwrite_if_in_dockerfile
-        self.aliases = aliases or self.DEFAULT_ALIASES
+        self.aliases = aliases or Labels.get_new_names_by_old()
         self.info_url_format = info_url_format
+        self.equal_labels = equal_labels or []
+        if not isinstance(self.equal_labels, list):
+            raise RuntimeError("equal_labels have to be list")
 
         self.generate_auto_labels(auto_labels)
 
@@ -184,6 +176,7 @@ class AddLabelsPlugin(PreBuildPlugin):
             if new in new_labels:
                 if all_labels[old] != all_labels[new]:
                     if is_old_inherited:
+                        # set old label with value from new label if old was in base
                         add_as_an_alias(new, old, is_old_inherited)
                         continue
                     self.log.warning("labels %r=%r and %r=%r should probably have same value",
@@ -192,6 +185,7 @@ class AddLabelsPlugin(PreBuildPlugin):
                 self.log.debug("alias label %r for %r already exists, skipping", new, old)
                 continue
 
+            # new label is in base or doesn't exists and we have somewhere old label
             add_as_an_alias(new, old, is_old_inherited)
             applied_alias = True
             self.log.info(self.labels)
@@ -200,6 +194,65 @@ class AddLabelsPlugin(PreBuildPlugin):
         if applied_alias and not_applied:
             self.log.debug("applied only some aliases, following old labels were not found: %s",
                            ", ".join(not_applied))
+
+        def check_if_all_same(labels_to_check, source):
+            """
+            checks if all specified equal labels have same values
+            within same scope (base or new_labels)
+            """
+            if labels_to_check:
+                list_to_check = list(labels_to_check)
+
+                for equal_name in list_to_check[1:]:
+                    if source[list_to_check[0]] != source[equal_name]:
+                        return False
+            return True
+
+        def set_missing_labels(labels_set, all_labels, value_from, not_in=(), not_value=None):
+            labels_to_set = all_labels.difference(labels_set)
+            list_labels_set = list(labels_set)
+
+            for set_label in labels_to_set:
+                if set_label in not_in and value_from[list_labels_set[0]] == not_value[set_label]:
+                    self.log.debug("skipping label %r because it is set correctly in base image",
+                                   set_label)
+                else:
+                    self.labels[set_label] = value_from[list_labels_set[0]]
+                    self.log.warning("adding equal label %r with value %r",
+                                     set_label, value_from[list_labels_set[0]])
+
+        fail_build = False
+        for equal_list in self.equal_labels:
+            all_equal = set(equal_list)
+            found_labels_base = set()
+            found_labels_new = set()
+            for equal_label in equal_list:
+                if equal_label in new_labels:
+                    found_labels_new.add(equal_label)
+                elif equal_label in base_labels:
+                    found_labels_base.add(equal_label)
+
+            if found_labels_new:
+                if not check_if_all_same(found_labels_new, new_labels):
+                    self.log.error("labels in dockerfile don't have same values %s", equal_list)
+                    fail_build = True
+                    continue
+
+                if not fail_build:
+                    set_missing_labels(found_labels_new, all_equal, new_labels,
+                                       found_labels_base, base_labels)
+
+            elif found_labels_base:
+                if not check_if_all_same(found_labels_base, base_labels):
+                    self.log.error("labels in parent don't have same values %s", equal_list)
+                    fail_build = True
+                    continue
+
+                if not fail_build:
+                    set_missing_labels(found_labels_base, all_equal, base_labels)
+
+        if fail_build:
+            raise RuntimeError("equal labels have different values")
 
     def add_info_url(self, base_labels, df_labels, plugin_labels):
         all_labels = base_labels.copy()
