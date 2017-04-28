@@ -154,13 +154,13 @@ class AddLabelsPlugin(PreBuildPlugin):
             else:
                 self.log.warning("requested automatic label %r is not available", lbl)
 
-    def add_aliases(self, base_labels, df_labels, plugin_labels):
+    def add_aliases(self, base_labels, df_labels):
         all_labels = base_labels.copy()
         all_labels.update(df_labels)
-        all_labels.update(plugin_labels)
+        all_labels.update(self.labels)
 
         new_labels = df_labels.copy()
-        new_labels.update(plugin_labels)
+        new_labels.update(self.labels)
 
         applied_alias = False
         not_applied = []
@@ -178,8 +178,7 @@ class AddLabelsPlugin(PreBuildPlugin):
                 continue
 
             is_old_inherited = old in base_labels and \
-                old not in df_labels and \
-                old not in plugin_labels
+                old not in new_labels
 
             if new in new_labels:
                 if all_labels[old] != all_labels[new]:
@@ -201,10 +200,10 @@ class AddLabelsPlugin(PreBuildPlugin):
             self.log.debug("applied only some aliases, following old labels were not found: %s",
                            ", ".join(not_applied))
 
-    def add_info_url(self, base_labels, df_labels, plugin_labels):
+    def add_info_url(self, base_labels, df_labels):
         all_labels = base_labels.copy()
         all_labels.update(df_labels)
-        all_labels.update(plugin_labels)
+        all_labels.update(self.labels)
 
         class MyFormatter(string.Formatter):
             """
@@ -237,9 +236,9 @@ class AddLabelsPlugin(PreBuildPlugin):
 
         # changing dockerfile.labels writes out modified Dockerfile - err on
         # the safe side and make a copy
-        self.add_aliases(base_image_labels.copy(), dockerfile.labels.copy(), self.labels.copy())
+        self.add_aliases(base_image_labels.copy(), dockerfile.labels.copy())
         if self.info_url_format:
-            self.add_info_url(base_image_labels.copy(), dockerfile.labels.copy(), self.labels.copy())
+            self.add_info_url(base_image_labels.copy(), dockerfile.labels.copy())
 
         # correct syntax is:
         #   LABEL "key"="value" "key2"="value2"
