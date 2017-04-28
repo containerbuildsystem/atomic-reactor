@@ -237,9 +237,9 @@ class AddLabelsPlugin(PreBuildPlugin):
 
         # changing dockerfile.labels writes out modified Dockerfile - err on
         # the safe side and make a copy
-        self.add_aliases(base_image_labels.copy(), dockerfile.labels.copy(), self.labels.copy())
+        self.add_aliases(base_image_labels, dockerfile.labels, self.labels)
         if self.info_url_format:
-            self.add_info_url(base_image_labels.copy(), dockerfile.labels.copy(), self.labels.copy())
+            self.add_info_url(base_image_labels, dockerfile.labels, self.labels)
 
         # correct syntax is:
         #   LABEL "key"="value" "key2"="value2"
