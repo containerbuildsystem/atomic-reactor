@@ -302,6 +302,157 @@ def test_add_labels_aliases(tmpdir, docker_tasker, caplog,
     if expected_log:
         assert expected_log in caplog.text()
 
+@pytest.mark.parametrize('base_fst, base_snd, df_fst, df_snd, expected, expected_log', [  # noqa
+    (None,  None,  None,  None,  None,  None),
+    (None,  None,  None,  'A',   'A',   'adding equal label'),
+    (None,  None,  'A',   None,  'A',   'adding equal label'),
+    ('A',   None,  None,  None,  'A',   'adding equal label'),
+    (None,  'A',   None,  None,  'A',   'adding equal label'),
+    ('A',   'B',   None,  None,  None,  RuntimeError()),
+    (None,  None,  'A',   'B',   None,  RuntimeError()),
+    ('A',   'A',   None,  None,  'A',   None),
+    ('A',   None,  'A',   None,  'A',   'adding equal label'),
+    (None,  'A',   None,  'A',   'A',   'adding equal label'),
+    ('A',   None,  'B',   None,  'B',   'adding equal label'),
+    (None,  'A',   None,  'B',   'B',   'adding equal label'),
+    ('A',   'C',   'B',   None,  'B',   'adding equal label'),
+    ('A',   'C',   None,  'B',   'B',   'adding equal label'),
+    ('A',   'C',   'B',   'B',   'B',   None),
+    (None,  'A',   'B',   'B',   'B',   None),
+    ('A',   None,  'B',   'B',   'B',   None),
+    ('A',   'A',   None,  None,  'A',   None),
+    ('A',   None,  None,  'A',   'A',   'skipping label'),
+    (None,  'A',   'A',   None,  'A',   'skipping label'),
+])
+def test_add_labels_equal_aliases(tmpdir, docker_tasker, caplog,
+                                  base_fst, base_snd, df_fst, df_snd, expected, expected_log):
+    if MOCK:
+        mock_docker()
+
+    df_content = "FROM fedora\n"
+    plugin_labels = {}
+    if df_fst:
+        df_content += 'LABEL description="{0}"\n'.format(df_fst)
+    if df_snd:
+        df_content += 'LABEL io.k8s.description="{0}"\n'.format(df_snd)
+
+    base_labels = {INSPECT_CONFIG: {"Labels": {}}}
+    if base_fst:
+        base_labels[INSPECT_CONFIG]["Labels"]["description"] = base_fst
+    if base_snd:
+        base_labels[INSPECT_CONFIG]["Labels"]["io.k8s.description"] = base_snd
+
+    df = df_parser(str(tmpdir))
+    df.content = df_content
+
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    setattr(workflow, 'builder', X)
+    flexmock(workflow, base_image_inspect=base_labels)
+    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': AddLabelsPlugin.key,
+            'args': {
+                'labels': plugin_labels,
+                'dont_overwrite': [],
+                'auto_labels': [],
+                'aliases': {},
+                'equal_labels': [['description', 'io.k8s.description']]
+            }
+        }]
+    )
+
+    if isinstance(expected_log, RuntimeError):
+        with pytest.raises(PluginFailedException):
+            runner.run()
+    else:
+        runner.run()
+        assert AddLabelsPlugin.key is not None
+        result_fst = df.labels.get("description") or base_labels[INSPECT_CONFIG]["Labels"].get("description")
+        result_snd = df.labels.get("io.k8s.description") or base_labels[INSPECT_CONFIG]["Labels"].get("io.k8s.description")
+        assert result_fst == expected
+        assert result_snd == expected
+
+        if expected_log:
+            assert expected_log in caplog.text()
+
+@pytest.mark.parametrize('base_fst, base_snd, base_trd, df_fst, df_snd, df_trd, expected, expected_log', [  # noqa
+    (None,  None,  None,  None,  None,  None,  None,  None),
+    (None,  None,  None,  None,  None,  'A',   'A',   'adding equal label'),
+    ('A',   'B',   'B',   None,  None,  None,  None,  RuntimeError()),
+    (None,  None,  None,  'A',   'B',   'B',   None,  RuntimeError()),
+    ('A',   'A',   'A',   None,  None,  None,  'A',   None),
+    ('A',   None,  'A',   'A',   None,  'A',   'A',   'adding equal label'),
+    ('A',   None,  None,  None,  'A',   'A',   'A',   'skipping label'),
+    (None,  'A',   'A',   'A',   'A',   None,  'A',   'skipping label'),
+])
+def test_add_labels_equal_aliases2(tmpdir, docker_tasker, caplog, base_fst, base_snd, base_trd,
+                                   df_fst, df_snd, df_trd, expected, expected_log):
+    """
+    test with 3 equal labels
+    """
+    if MOCK:
+        mock_docker()
+
+    df_content = "FROM fedora\n"
+    plugin_labels = {}
+    if df_fst:
+        df_content += 'LABEL description="{0}"\n'.format(df_fst)
+    if df_snd:
+        df_content += 'LABEL io.k8s.description="{0}"\n'.format(df_snd)
+    if df_trd:
+        df_content += 'LABEL description_third="{0}"\n'.format(df_trd)
+
+    base_labels = {INSPECT_CONFIG: {"Labels": {}}}
+    if base_fst:
+        base_labels[INSPECT_CONFIG]["Labels"]["description"] = base_fst
+    if base_snd:
+        base_labels[INSPECT_CONFIG]["Labels"]["io.k8s.description"] = base_snd
+    if base_trd:
+        base_labels[INSPECT_CONFIG]["Labels"]["description_third"] = base_trd
+
+    df = df_parser(str(tmpdir))
+    df.content = df_content
+
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    setattr(workflow, 'builder', X)
+    flexmock(workflow, base_image_inspect=base_labels)
+    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': AddLabelsPlugin.key,
+            'args': {
+                'labels': plugin_labels,
+                'dont_overwrite': [],
+                'auto_labels': [],
+                'aliases': {},
+                'equal_labels': [['description', 'io.k8s.description', 'description_third']]
+            }
+        }]
+    )
+
+    if isinstance(expected_log, RuntimeError):
+        with pytest.raises(PluginFailedException):
+            runner.run()
+    else:
+        runner.run()
+        assert AddLabelsPlugin.key is not None
+        result_fst = df.labels.get("description") or base_labels[INSPECT_CONFIG]["Labels"].get("description")
+        result_snd = df.labels.get("io.k8s.description") or base_labels[INSPECT_CONFIG]["Labels"].get("io.k8s.description")
+        result_trd = df.labels.get("description_third") or base_labels[INSPECT_CONFIG]["Labels"].get("description_third")
+        assert result_fst == expected
+        assert result_snd == expected
+        assert result_trd == expected
+
+        if expected_log:
+            assert expected_log in caplog.text()
+
 @pytest.mark.parametrize("parent_scope, docker_scope, result_scope, dont_overwrite", [
     (None, None, "restricted", False),
     ("public", None, "restricted", False),
