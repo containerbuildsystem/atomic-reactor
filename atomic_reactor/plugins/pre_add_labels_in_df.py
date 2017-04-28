@@ -161,12 +161,13 @@ class AddLabelsPlugin(PreBuildPlugin):
         all_labels = base_labels.copy()
         all_labels.update(new_labels)
 
-        applied_alias = False
+        self.applied_alias = False
         not_applied = []
 
         def add_as_an_alias(src, dest):
             self.log.warning("adding label %r as an alias for label %r", dest, src)
             self.labels[dest] = all_labels[src]
+            self.applied_alias = True
 
         for old, new in self.aliases.items():
             if old not in all_labels:
@@ -180,7 +181,7 @@ class AddLabelsPlugin(PreBuildPlugin):
                 add_as_an_alias(new, old)
 
             if new in new_labels:
-                if all_labels[old] != all_labels[new]:
+                if not is_old_inherited and all_labels[old] != all_labels[new]:
                     self.log.warning("labels %r=%r and %r=%r should probably have same value",
                                      old, all_labels[old], new, all_labels[new])
 
@@ -190,11 +191,10 @@ class AddLabelsPlugin(PreBuildPlugin):
             if not is_old_inherited or new not in base_labels:
                 add_as_an_alias(old, new)
 
-            applied_alias = True
             self.log.info(self.labels)
 
         # warn if we applied only some aliases
-        if applied_alias and not_applied:
+        if self.applied_alias and not_applied:
             self.log.debug("applied only some aliases, following old labels were not found: %s",
                            ", ".join(not_applied))
 
