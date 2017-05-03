@@ -12,8 +12,8 @@ constants
 import logging
 import time
 
+from atomic_reactor.version import __version__
 
-__version__ = "1.6.23"
 start_time = time.time()
 
 
