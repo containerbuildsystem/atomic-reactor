@@ -6,5 +6,5 @@ changelog_format = %s (%ae)
 tag_format = {version}
 
 [version_template]
-destination_file = ./atomic-reactor/version.py
+destination_file = ./atomic_reactor/version.py
 template_file = ./rel-eng/version.template
