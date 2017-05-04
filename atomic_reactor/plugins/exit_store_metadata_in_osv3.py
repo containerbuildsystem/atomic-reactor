@@ -9,7 +9,6 @@ from __future__ import unicode_literals
 
 import json
 import os
-import docker
 
 from osbs.api import OSBS
 from osbs.conf import Configuration
@@ -163,7 +162,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         try:
             base_image_id = self.workflow.base_image_inspect['Id']
-        except docker.errors.NotFound:
+        except KeyError:
             base_image_id = ""
 
         annotations = {
