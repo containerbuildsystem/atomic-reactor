@@ -13,6 +13,7 @@ import json
 import logging
 import tempfile
 import signal
+import docker
 
 from atomic_reactor.build import InsideBuilder
 from atomic_reactor.plugin import (
@@ -327,7 +328,13 @@ class DockerBuildWorkflow(object):
     @property
     def base_image_inspect(self):
         if self._base_image_inspect is None:
-            self._base_image_inspect = self.builder.tasker.inspect_image(self.builder.base_image)
+            try:
+                self._base_image_inspect = self.builder.tasker.inspect_image(
+                    self.builder.base_image)
+            except docker.errors.NotFound:
+                # If the base image cannot be found throw KeyError - as this property should behave
+                # like a dict
+                raise KeyError("Unprocessed base image Dockerfile cannot be inspected")
         return self._base_image_inspect
 
     def throw_canceled_build_exception(self, *args, **kwargs):
