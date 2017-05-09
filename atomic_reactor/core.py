@@ -494,7 +494,8 @@ class DockerTasker(LastLogger):
         command_result = wait_for_command(logs)
         self.last_logs = command_result.logs
         if command_result.is_failed():
-            raise RuntimeError("Failed to push image %s" % image)
+            detail = command_result.error_detail
+            raise RuntimeError("Failed to push image %s: %s" % (image, detail))
         return command_result.parsed_logs
 
     def tag_and_push_image(self, image, target_image, insecure=False, force=False, dockercfg=None):

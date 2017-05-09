@@ -200,6 +200,7 @@ def test_push_image(temp_image_name, should_fail):
         with pytest.raises(RuntimeError) as exc:
             output = t.push_image(temp_image_name, insecure=True)
         assert "Failed to push image" in str(exc)
+        assert "connection refused" in str(exc)
     else:
         output = t.push_image(temp_image_name, insecure=True)
         assert output is not None
