@@ -42,8 +42,6 @@ class GarbageCollectionPlugin(ExitPlugin):
         image = self.workflow.builder.image_id
         if image:
             self.remove_image(image, force=True)
-        else:
-            self.log.error("no built image, nothing to remove")
 
         if self.remove_base_image and self.workflow.pulled_base_images:
             # FIXME: we may need to add force here, let's try it like this for now
