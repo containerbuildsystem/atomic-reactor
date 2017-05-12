@@ -64,3 +64,35 @@ def test_assertlabels_plugin(tmpdir, docker_tasker, df_content, req_labels, expe
             runner.run()
     else:
         runner.run()
+
+
+@pytest.mark.parametrize('df_content, req_labels', [  # noqa
+    (DF_CONTENT_LABELS, ['xyz']),
+    (DF_CONTENT_LABELS, ['xyz', 'abc']),
+    (DF_CONTENT_LABELS, ['xyz', 'some', 'some2'])
+])
+def test_all_missing_required_labels(tmpdir, docker_tasker, caplog, df_content, req_labels):
+    df = df_parser(str(tmpdir))
+    df.content = df_content
+
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    workflow.builder = X
+    workflow.builder.df_path = df.dockerfile_path
+    workflow.builder.df_dir = str(tmpdir)
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': AssertLabelsPlugin.key,
+            'args': {'required_labels': req_labels}
+        }]
+    )
+
+    assert AssertLabelsPlugin.key is not None
+
+    with pytest.raises(PluginFailedException):
+        runner.run()
+
+    error_msg = "Dockerfile is missing required labels: {0}".format(req_labels)
+    assert error_msg in caplog.text()
