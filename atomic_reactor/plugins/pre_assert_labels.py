@@ -37,8 +37,8 @@ class AssertLabelsPlugin(PreBuildPlugin):
         run the plugin
         """
         labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels
-        for label in self.required_labels:
-            if labels.get(label) is None:
-                msg = "Dockerfile is missing '{0}' label.".format(label)
-                self.log.error(msg)
-                raise AssertionError(msg)
+
+        missing_labels = [x for x in self.required_labels if not labels.get(x)]
+        if missing_labels:
+            raise RuntimeError("Dockerfile is missing required labels: {0}".
+                               format(missing_labels))
