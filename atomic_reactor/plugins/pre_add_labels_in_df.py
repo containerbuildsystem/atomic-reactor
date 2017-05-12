@@ -154,23 +154,20 @@ class AddLabelsPlugin(PreBuildPlugin):
             else:
                 self.log.warning("requested automatic label %r is not available", lbl)
 
-    def add_aliases(self, base_labels, df_labels, plugin_labels):
-        all_labels = base_labels.copy()
-        all_labels.update(df_labels)
-        all_labels.update(plugin_labels)
-
+    def add_aliases(self, base_labels, df_labels):
         new_labels = df_labels.copy()
-        new_labels.update(plugin_labels)
+        new_labels.update(self.labels)
 
-        applied_alias = False
+        all_labels = base_labels.copy()
+        all_labels.update(new_labels)
+
+        self.applied_alias = False
         not_applied = []
 
-        def add_as_an_alias(new, old, is_old_inherited):
-            self.log.warning("adding label %r as an alias for label %r", new, old)
-            if is_old_inherited and new in all_labels:
-                self.labels[old] = all_labels[new]
-            else:
-                self.labels[new] = all_labels[old]
+        def add_as_an_alias(src, dest):
+            self.log.warning("adding label %r as an alias for label %r", dest, src)
+            self.labels[dest] = all_labels[src]
+            self.applied_alias = True
 
         for old, new in self.aliases.items():
             if old not in all_labels:
@@ -178,33 +175,33 @@ class AddLabelsPlugin(PreBuildPlugin):
                 continue
 
             is_old_inherited = old in base_labels and \
-                old not in df_labels and \
-                old not in plugin_labels
+                old not in new_labels
+
+            if is_old_inherited and new in all_labels:
+                add_as_an_alias(new, old)
 
             if new in new_labels:
-                if all_labels[old] != all_labels[new]:
-                    if is_old_inherited:
-                        add_as_an_alias(new, old, is_old_inherited)
-                        continue
+                if not is_old_inherited and all_labels[old] != all_labels[new]:
                     self.log.warning("labels %r=%r and %r=%r should probably have same value",
                                      old, all_labels[old], new, all_labels[new])
 
                 self.log.debug("alias label %r for %r already exists, skipping", new, old)
                 continue
 
-            add_as_an_alias(new, old, is_old_inherited)
-            applied_alias = True
+            if not is_old_inherited or new not in base_labels:
+                add_as_an_alias(old, new)
+
             self.log.info(self.labels)
 
         # warn if we applied only some aliases
-        if applied_alias and not_applied:
+        if self.applied_alias and not_applied:
             self.log.debug("applied only some aliases, following old labels were not found: %s",
                            ", ".join(not_applied))
 
-    def add_info_url(self, base_labels, df_labels, plugin_labels):
+    def add_info_url(self, base_labels, df_labels):
         all_labels = base_labels.copy()
         all_labels.update(df_labels)
-        all_labels.update(plugin_labels)
+        all_labels.update(self.labels)
 
         class MyFormatter(string.Formatter):
             """
@@ -237,9 +234,9 @@ class AddLabelsPlugin(PreBuildPlugin):
 
         # changing dockerfile.labels writes out modified Dockerfile - err on
         # the safe side and make a copy
-        self.add_aliases(base_image_labels.copy(), dockerfile.labels.copy(), self.labels.copy())
+        self.add_aliases(base_image_labels, dockerfile.labels)
         if self.info_url_format:
-            self.add_info_url(base_image_labels.copy(), dockerfile.labels.copy(), self.labels.copy())
+            self.add_info_url(base_image_labels, dockerfile.labels)
 
         # correct syntax is:
         #   LABEL "key"="value" "key2"="value2"
