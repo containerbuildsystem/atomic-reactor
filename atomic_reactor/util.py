@@ -949,3 +949,7 @@ class LabelFormatter(string.Formatter):
     """
     def get_field(self, field_name, args, kwargs):
         return (self.get_value(field_name, args, kwargs), field_name)
+
+
+def base_image_is_scratch(base_image_name):
+    return re.match('^scratch(:latest)?$', base_image_name)

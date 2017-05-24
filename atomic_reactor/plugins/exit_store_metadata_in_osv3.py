@@ -21,7 +21,7 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_PULP_PUSH_KEY)
 from atomic_reactor.plugin import ExitPlugin
-from atomic_reactor.util import get_build_json
+from atomic_reactor.util import get_build_json, base_image_is_scratch
 
 
 class StoreMetadataInOSv3Plugin(ExitPlugin):
@@ -174,10 +174,12 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         except AttributeError:
             commit_id = ""
 
-        try:
-            base_image_id = self.workflow.base_image_inspect['Id']
-        except KeyError:
-            base_image_id = ""
+        base_image_id = ""
+        if not base_image_is_scratch(self.workflow.builder.base_image.to_str()):
+            try:
+                base_image_id = self.workflow.base_image_inspect['Id']
+            except KeyError:
+                self.log.error("cannot get base image id and it is not a scratch image")
 
         annotations = {
             "dockerfile": open(self.workflow.builder.df_path).read(),
