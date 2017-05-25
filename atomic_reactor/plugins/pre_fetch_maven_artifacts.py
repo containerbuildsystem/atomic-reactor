@@ -9,6 +9,7 @@ from __future__ import unicode_literals
 
 import fnmatch
 import hashlib
+import koji
 import os
 import requests
 
@@ -16,8 +17,6 @@ from atomic_reactor import util
 from atomic_reactor.koji_util import create_koji_session
 from atomic_reactor.plugin import PreBuildPlugin
 from collections import namedtuple
-from koji import PathInfo
-
 
 try:
     from urlparse import urlparse
@@ -61,7 +60,7 @@ class NvrRequest(object):
         return [archive for archive in self.archives if not archive['matched']]
 
 
-DownloadRequest = namedtuple('DownloadRequest', 'url dest md5')
+DownloadRequest = namedtuple('DownloadRequest', 'url dest checksums')
 
 
 class FetchMavenArtifactsPlugin(PreBuildPlugin):
@@ -104,7 +103,7 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
             'root': koji_root,
             'auth': koji_auth or None
         }
-        self.path_info = PathInfo(topdir=self.koji_info['root'])
+        self.path_info = koji.PathInfo(topdir=self.koji_info['root'])
         self.allowed_domains = set(domain.lower() for domain in allowed_domains or [])
         self.workdir = self.workflow.source.get_dockerfile_path()[1]
         self.session = None
@@ -147,8 +146,9 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
                 # not contain a trailing slash, which causes the last dir to
                 # be dropped.
                 url = maven_build_path + '/' + maven_file_path
-                download_queue.append(DownloadRequest(url, maven_file_path,
-                                                      build_archive['checksum']))
+                checksum_type = koji.CHECKSUM_TYPES[build_archive['checksum_type']]
+                checksums = {checksum_type: build_archive['checksum']}
+                download_queue.append(DownloadRequest(url, maven_file_path, checksums))
 
             unmatched_archive_requests = nvr_request.unmatched()
             if unmatched_archive_requests:
@@ -176,9 +176,11 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
                                   .format(file_url, self.allowed_domains))
                     continue
 
-            checksum = url_request['md5sum']
+            checksums = {algo: url_request[algo] for algo in hashlib.algorithms_guaranteed
+                         if algo in url_request}
+
             target = url_request.get('target', url.rsplit('/', 1)[-1])
-            download_queue.append(DownloadRequest(url, target, checksum))
+            download_queue.append(DownloadRequest(url, target, checksums))
 
         if errors:
             raise ValueError('Errors found while processing {}: {}'
@@ -200,18 +202,20 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
             self.log.debug('%d/%d downloading %s', index + 1, len(downloads),
                            download.url)
 
-            checksum = hashlib.md5()
+            checksums = {algo: hashlib.new(algo) for algo in download.checksums}
             request = requests.get(download.url, stream=True)
             request.raise_for_status()
             with open(dest_path, 'wb') as f:
                 for chunk in request.iter_content():
                     f.write(chunk)
-                    checksum.update(chunk)
+                    for checksum in checksums.values():
+                        checksum.update(chunk)
 
-            if checksum.hexdigest() != download.md5:
-                raise ValueError('Computed md5 checksum, {}, does not match '
-                                 'expected checksum, {}'
-                                 .format(checksum.hexdigest(), download.md5))
+            for algo, checksum in checksums.items():
+                if checksum.hexdigest() != download.checksums[algo]:
+                    raise ValueError(
+                        'Computed {} checksum, {}, does not match expected checksum, {}'
+                        .format(algo, checksum.hexdigest(), download.checksums[algo]))
 
     def run(self):
         self.session = create_koji_session(self.koji_info['hub'], self.koji_info.get('auth'))
