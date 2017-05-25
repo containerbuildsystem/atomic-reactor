@@ -172,6 +172,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         osbs = OSBS(conf, conf)
         current_builds = self.get_current_builds(osbs)
         load = current_builds / cluster.max_concurrent_builds
+        self.log.debug('enabled cluster %s for platform %s has load %s and active builds %s/%s',
+                       cluster.name, platform, load, current_builds, cluster.max_concurrent_builds)
         return ClusterInfo(cluster, platform, osbs, load)
 
     def choose_cluster(self, platform):
