@@ -15,6 +15,16 @@ TASK_STATES = {
     'FAILED': 5,
 }
 
+CHECKSUM_TYPES = {
+    0: 'md5',
+    1: 'sha1',
+    2: 'sha256',
+
+    'md5': 0,
+    'sha1': 1,
+    'sha256': 2,
+}
+
 TASK_STATES.update({value: name for name, value in TASK_STATES.items()})
 
 class ClientSession(object):

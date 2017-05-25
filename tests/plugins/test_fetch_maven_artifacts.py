@@ -18,7 +18,6 @@ try:
     import koji as koji
 except ImportError:
     import inspect
-    import os
     import sys
 
     # Find our mocked koji module
@@ -32,12 +31,11 @@ except ImportError:
     import koji as koji
 
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugins.pre_fetch_maven_artifacts import (
-    FetchMavenArtifactsPlugin, NvrRequest)
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugins.pre_fetch_maven_artifacts import FetchMavenArtifactsPlugin
 from atomic_reactor.util import ImageName
-from tests.fixtures import docker_tasker
 from tests.constants import MOCK_SOURCE
+from tests.fixtures import docker_tasker  # noqa
 from textwrap import dedent
 
 
@@ -65,6 +63,7 @@ ARCHIVE_JAXB_SUN_POM = {
     'artifact_id': 'jaxb-core',
     'build_id': 472397,
     'checksum': '697317209103338c7c841e327bb6e7b0',
+    'checksum_type': koji.CHECKSUM_TYPES['md5'],
     'filename': 'jaxb-core-2.2.11-4.pom',
     'group_id': 'com.sun.xml.bind',
     'id': 1269850,
@@ -77,6 +76,7 @@ ARCHIVE_JAXB_SUN_JAR = {
     'artifact_id': 'jaxb-core',
     'build_id': 472397,
     'checksum': '06bae6472e3d1635f0c3b79bd314fdf3',
+    'checksum_type': koji.CHECKSUM_TYPES['md5'],
     'filename': 'jaxb-core-2.2.11-4.jar',
     'group_id': 'com.sun.xml.bind',
     'id': 1269849,
@@ -89,6 +89,7 @@ ARCHIVE_JAXB_JAVADOC_SUN_JAR = {
     'artifact_id': 'jaxb-core',
     'build_id': 472397,
     'checksum': '3643ba275364b29117f2bc5f0bcf18d9',
+    'checksum_type': koji.CHECKSUM_TYPES['md5'],
     'filename': 'jaxb-core-2.2.11-4-javadoc.jar',
     'group_id': 'com.sun.xml.bind',
     'id': 1269848,
@@ -101,6 +102,7 @@ ARCHIVE_JAXB_GLASSFISH_POM = {
     'artifact_id': 'jaxb-core',
     'build_id': 472397,
     'checksum': 'cc7b7a4d1c33d83fba9adf95226af570',
+    'checksum_type': koji.CHECKSUM_TYPES['md5'],
     'filename': 'jaxb-core-2.2.11-4.pom',
     'group_id': 'org.glassfish.jaxb',
     'id': 1269791,
@@ -113,6 +115,7 @@ ARCHIVE_JAXB_GLASSFISH_JAR = {
     'artifact_id': 'jaxb-core',
     'build_id': 472397,
     'checksum': '2ba4912b1a3c699b09ec99e19820fb09',
+    'checksum_type': koji.CHECKSUM_TYPES['md5'],
     'filename': 'jaxb-core-2.2.11-4.jar',
     'group_id': 'org.glassfish.jaxb',
     'id': 1269790,
@@ -125,9 +128,36 @@ ARCHIVE_JAXB_JAVADOC_GLASSFIX_JAR = {
     'artifact_id': 'jaxb-core',
     'build_id': 472397,
     'checksum': '69bc6de0a57dd10c7370573a8e76f0b2',
+    'checksum_type': koji.CHECKSUM_TYPES['md5'],
     'filename': 'jaxb-core-2.2.11-4-javadoc.jar',
     'group_id': 'org.glassfish.jaxb',
     'id': 1269789,
+    'size': 524417,
+    'version': '2.2.11-4'
+}
+
+
+ARCHIVE_SHA1 = {
+    'artifact_id': 'jaxb-sha1',
+    'build_id': 472397,
+    'checksum': '66bd6b88ba636993ad0fd522cc1254c9ff5f5a1c',
+    'checksum_type': koji.CHECKSUM_TYPES['sha1'],
+    'filename': 'jaxb-core-2.2.11-4-sha1.jar',
+    'group_id': 'org.glassfish.jaxb.sha1',
+    'id': 1269792,
+    'size': 524417,
+    'version': '2.2.11-4'
+}
+
+
+ARCHIVE_SHA256 = {
+    'artifact_id': 'jaxb-sha256',
+    'build_id': 472397,
+    'checksum': 'ca52bcbda16954c9e83e4c0049277ac77f014ecc16a94ed92bc3203fa13aac7d',
+    'checksum_type': koji.CHECKSUM_TYPES['sha256'],
+    'filename': 'jaxb-core-2.2.11-4-sha256.jar',
+    'group_id': 'org.glassfish.jaxb.sha256',
+    'id': 1269792,
     'size': 524417,
     'version': '2.2.11-4'
 }
@@ -143,32 +173,55 @@ DEFAULT_ARCHIVES = [
     ARCHIVE_JAXB_GLASSFISH_POM,
     ARCHIVE_JAXB_GLASSFISH_JAR,
     ARCHIVE_JAXB_JAVADOC_GLASSFIX_JAR,
+    ARCHIVE_SHA1,
+    ARCHIVE_SHA256,
 ]
 
 
 REMOTE_FILE_SPAM = {
     'url': FILER_ROOT + '/spam/spam.jar',
-    'md5sum': 'ec61f019a3d0826c04ab20c55462aa24',
+    'md5': 'ec61f019a3d0826c04ab20c55462aa24',
 }
 
 
 REMOTE_FILE_BACON = {
     'url': FILER_ROOT + '/bacon/bacon.jar',
-    'md5sum': 'b4dbaf349d175aa5bbd5c5d076c00393',
+    'md5': 'b4dbaf349d175aa5bbd5c5d076c00393',
 }
 
 
 REMOTE_FILE_WITH_TARGET = {
     'url': FILER_ROOT + '/eggs/eggs.jar',
-    'md5sum': 'b1605c846e03035a6538873e993847e5',
+    'md5': 'b1605c846e03035a6538873e993847e5',
     'target': 'sgge.jar'
 }
 
 
+REMOTE_FILE_SHA1 = {
+    'url': FILER_ROOT + '/ham/ham.jar',
+    'sha1': 'c4f8d66d78f5ed17299ae88fed9f8a8c6f3c592a',
+}
+
+
+REMOTE_FILE_SHA256 = {
+    'url': FILER_ROOT + '/sausage/sausage.jar',
+    'sha256': '0da8e7df6c45b1006b10e4d0df5e1a8d5c4dc17c2c9c0ab53c5714dadb705d1c',
+}
+
+
+REMOTE_FILE_MULTI_HASH = {
+    'url': FILER_ROOT + '/biscuit/biscuit.jar',
+    'sha256': '05892a95a8257a6c51a5ee4ba122e14e9719d7ead3b1d44e7fbea604da2fc8d1',
+    'sha1': '0eb3dc253aeda45e272f07cf6e77fcc8bcf6628a',
+    'md5': '24e4dec8666658ec7141738dbde951c5',
+}
+
+
 # To avoid having to actually download archives during testing,
-# the md5sum value is based on the mocked download response,
+# the md5 value is based on the mocked download response,
 # which is simply the url.
-DEFAULT_REMOTE_FILES = [REMOTE_FILE_SPAM, REMOTE_FILE_BACON, REMOTE_FILE_WITH_TARGET]
+DEFAULT_REMOTE_FILES = [REMOTE_FILE_SPAM, REMOTE_FILE_BACON, REMOTE_FILE_WITH_TARGET,
+                        REMOTE_FILE_SHA1, REMOTE_FILE_SHA256, REMOTE_FILE_MULTI_HASH]
 
 
 class MockSource(object):
@@ -179,9 +232,6 @@ class MockSource(object):
 
     def get_dockerfile_path(self):
         return self.dockerfile_path, self.path
-
-    def get_vcs_info(self):
-        return VcsInfo('git', DOCKERFILE_GIT, DOCKERFILE_SHA1)
 
 
 class X(object):
@@ -300,7 +350,7 @@ def mock_url_downloads(remote_files=None, overrides=None):
         responses.add(responses.GET, url, body=body, status=status)
 
 
-@responses.activate
+@responses.activate  # noqa
 def test_fetch_maven_artifacts(tmpdir, docker_tasker):
     workflow = mock_workflow(tmpdir)
     mock_koji_session()
@@ -326,7 +376,7 @@ def test_fetch_maven_artifacts(tmpdir, docker_tasker):
         assert os.path.exists(dest)
 
 
-@pytest.mark.parametrize(('nvr_requests', 'expected'), (
+@pytest.mark.parametrize(('nvr_requests', 'expected'), (  # noqa
     ([
         {
             'nvr': 'com.sun.xml.bind.mvn-jaxb-parent-2.2.11.4-1',
@@ -372,14 +422,16 @@ def test_fetch_maven_artifacts_nvr_filtering(tmpdir, docker_tasker, nvr_requests
     plugin_result = results[FetchMavenArtifactsPlugin.key]
 
     assert len(plugin_result) == len(expected)
-    assert (set(download.md5 for download in plugin_result) ==
+    for download in plugin_result:
+        assert len(download.checksums.values()) == 1
+    assert (set(list(download.checksums.values())[0] for download in plugin_result) ==
             set(expectation['checksum'] for expectation in expected))
     for download in plugin_result:
         dest = os.path.join(str(tmpdir), FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest)
         assert os.path.exists(dest)
 
 
-@pytest.mark.parametrize(('nvr_requests', 'error_msg'), (
+@pytest.mark.parametrize(('nvr_requests', 'error_msg'), (  # noqa
     ([
         {
             'nvr': 'com.sun.xml.bind.mvn-jaxb-parent-2.2.11.4-1',
@@ -422,7 +474,7 @@ def test_fetch_maven_artifacts_nvr_no_match(tmpdir, docker_tasker, nvr_requests,
     assert error_msg in str(e)
 
 
-@responses.activate
+@responses.activate  # noqa
 def test_fetch_maven_artifacts_nvr_bad_checksum(tmpdir, docker_tasker):
     """Err when downloaded archive from Koji build has unexpected checksum."""
     workflow = mock_workflow(tmpdir)
@@ -444,7 +496,7 @@ def test_fetch_maven_artifacts_nvr_bad_checksum(tmpdir, docker_tasker):
     assert 'does not match expected checksum' in str(e)
 
 
-@responses.activate
+@responses.activate  # noqa
 def test_fetch_maven_artifacts_nvr_bad_url(tmpdir, docker_tasker):
     """Err on download errors for artifact from Koji build."""
     workflow = mock_workflow(tmpdir)
@@ -466,7 +518,7 @@ def test_fetch_maven_artifacts_nvr_bad_url(tmpdir, docker_tasker):
     assert '404 Client Error' in str(e)
 
 
-@responses.activate
+@responses.activate  # noqa
 def test_fetch_maven_artifacts_nvr_bad_nvr(tmpdir, docker_tasker):
     """Err when given nvr is not a valid build in Koji."""
     workflow = mock_workflow(tmpdir)
@@ -491,7 +543,7 @@ def test_fetch_maven_artifacts_nvr_bad_nvr(tmpdir, docker_tasker):
     assert 'Build where-is-this-build-3.0-2 not found' in str(e)
 
 
-@pytest.mark.parametrize('contents', (
+@pytest.mark.parametrize('contents', (  # noqa
     dedent("""\
         - nvo: invalid attribute
         """),
@@ -538,7 +590,7 @@ def test_fetch_maven_artifacts_nvr_schema_error(tmpdir, docker_tasker, contents)
     assert 'ValidationError' in str(e)
 
 
-@responses.activate
+@responses.activate  # noqa
 def test_fetch_maven_artifacts_url_with_target(tmpdir, docker_tasker):
     """Remote file is downloaded into specified filename."""
     workflow = mock_workflow(tmpdir)
@@ -567,7 +619,7 @@ def test_fetch_maven_artifacts_url_with_target(tmpdir, docker_tasker):
     assert not REMOTE_FILE_WITH_TARGET['url'].endswith(download.dest)
 
 
-@responses.activate
+@responses.activate  # noqa
 def test_fetch_maven_artifacts_url_bad_checksum(tmpdir, docker_tasker):
     """Err when downloaded remote file has unexpected checksum."""
     workflow = mock_workflow(tmpdir)
@@ -589,7 +641,7 @@ def test_fetch_maven_artifacts_url_bad_checksum(tmpdir, docker_tasker):
     assert 'does not match expected checksum' in str(e)
 
 
-@responses.activate
+@responses.activate  # noqa
 def test_fetch_maven_artifacts_url_bad_url(tmpdir, docker_tasker):
     """Err on download errors for remote file."""
     workflow = mock_workflow(tmpdir)
@@ -611,7 +663,7 @@ def test_fetch_maven_artifacts_url_bad_url(tmpdir, docker_tasker):
     assert '404 Client Error' in str(e)
 
 
-@pytest.mark.parametrize('contents', (
+@pytest.mark.parametrize('contents', (  # noqa
     dedent("""\
         - uru: invalid attribute
         """),
@@ -625,9 +677,23 @@ def test_fetch_maven_artifacts_url_bad_url(tmpdir, docker_tasker):
         """),
 
     dedent("""\
-        - url: missing md5sum
+        - url: missing hashing
         """),
 
+    dedent("""\
+        - url: invalid md5 checksum size
+          md5: a1234
+        """),
+
+    dedent("""\
+        - url: invalid sha1 checksum size
+          sha1: a1234
+        """),
+
+    dedent("""\
+        - url: invalid sha256 checksum size
+          sha256: a1234
+        """),
 ))
 @responses.activate
 def test_fetch_maven_artifacts_url_schema_error(tmpdir, docker_tasker, contents):
@@ -651,17 +717,20 @@ def test_fetch_maven_artifacts_url_schema_error(tmpdir, docker_tasker, contents)
     assert 'ValidationError' in str(e)
 
 
-@pytest.mark.parametrize(('domains', 'raises'), (
+@pytest.mark.parametrize(('domains', 'raises'), (  # noqa
     ([], False),
     ([FILER_ROOT_DOMAIN], False),
     ([FILER_ROOT_DOMAIN.upper()], False),
     ([FILER_ROOT_DOMAIN, 'spam.com'], False),
     ([
-        FILER_ROOT_DOMAIN+'/spam/',
-        FILER_ROOT_DOMAIN+'/bacon/',
-        FILER_ROOT_DOMAIN+'/eggs/',
+        FILER_ROOT_DOMAIN + '/spam/',
+        FILER_ROOT_DOMAIN + '/bacon/',
+        FILER_ROOT_DOMAIN + '/eggs/',
+        FILER_ROOT_DOMAIN + '/ham/',
+        FILER_ROOT_DOMAIN + '/sausage/',
+        FILER_ROOT_DOMAIN + '/biscuit/',
     ], False),
-    ([FILER_ROOT_DOMAIN+'/spam/'], True),
+    ([FILER_ROOT_DOMAIN + '/spam/'], True),
     (['spam.com'], True),
     (['spam.com', 'bacon.bz'], True),
 ))
