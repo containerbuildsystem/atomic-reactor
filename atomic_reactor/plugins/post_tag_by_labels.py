@@ -66,6 +66,15 @@ class TagByLabelsPlugin(PostBuildPlugin):
         version = get_label("version")
         release = get_label("release")
 
+        # docker tags cannot be longer than 128 chars
+        # see https://github.com/docker/docker/pull/8447
+        longest_tag = "%s-%s" % (version, release)
+        if len(longest_tag) > 128:
+            self.log.warn('Release is too long, docker only supports 128 char tags')
+            # Make sure that release is short enough - remove the length of version
+            # Remove one char for a dash and one as we count from zero
+            release = release[:128 - len(version) - 2]
+
         nvr = "%s:%s-%s" % (name, version, release)
         nv = "%s:%s" % (name, version)
         n = "%s:latest" % name
