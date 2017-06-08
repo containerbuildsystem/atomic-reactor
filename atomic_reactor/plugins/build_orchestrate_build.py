@@ -18,6 +18,7 @@ from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import BuildStepPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_config
 from atomic_reactor.util import get_preferred_label, df_parser
+from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY
 from osbs.api import OSBS
 from osbs.conf import Configuration
 from osbs.constants import BUILD_FINISHED_STATES
@@ -194,13 +195,15 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels
         return get_preferred_label(labels, 'release')
 
-    def get_worker_build_kwargs(self, release, platform):
+    def get_worker_build_kwargs(self, release, platform, task_id):
         build_kwargs = deepcopy(self.build_kwargs)
 
         build_kwargs.pop('architecture', None)
 
         build_kwargs['release'] = release
         build_kwargs['platform'] = platform
+        if task_id:
+            build_kwargs['filesystem_koji_task_id'] = task_id
 
         return build_kwargs
 
@@ -236,10 +239,34 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         return labels
 
-    def do_worker_build(self, release, cluster_info):
-        build = None
+    def get_fs_task_id(self):
+        task_id = None
+
+        fs_result = self.workflow.prebuild_results.get(PLUGIN_ADD_FILESYSTEM_KEY)
+        if fs_result is None:
+            return None
+
         try:
-            kwargs = self.get_worker_build_kwargs(release, cluster_info.platform)
+            task_id = int(fs_result['filesystem-koji-task-id'])
+        except KeyError:
+            self.log.error("%s: expected filesystem-koji-task-id in result",
+                           PLUGIN_ADD_FILESYSTEM_KEY)
+            raise
+        except (ValueError, TypeError):
+            self.log.exception("%s: returned an invalid task ID: %r",
+                               PLUGIN_ADD_FILESYSTEM_KEY, task_id)
+            raise
+
+        self.log.debug("%s: got filesystem_koji_task_id of %d",
+                       PLUGIN_ADD_FILESYSTEM_KEY, task_id)
+
+        return task_id
+
+    def do_worker_build(self, release, cluster_info, task_id):
+        build = None
+
+        try:
+            kwargs = self.get_worker_build_kwargs(release, cluster_info.platform, task_id)
             build = cluster_info.osbs.create_worker_build(**kwargs)
         except Exception:
             self.log.exception('%s - failed to create worker build',
@@ -262,10 +289,11 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     def run(self):
         release = self.get_release()
         platforms = self.get_platforms()
+        task_id = self.get_fs_task_id()
 
         thread_pool = ThreadPool(len(platforms))
         result = thread_pool.map_async(
-            lambda cluster_info: self.do_worker_build(release, cluster_info),
+            lambda cluster_info: self.do_worker_build(release, cluster_info, task_id),
             [self.choose_cluster(platform) for platform in platforms]
         )
 
