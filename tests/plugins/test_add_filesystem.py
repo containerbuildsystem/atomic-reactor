@@ -37,6 +37,7 @@ from atomic_reactor.plugin import (
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.source import VcsInfo
+from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY
 from atomic_reactor import koji_util, util
 from tests.constants import (MOCK_SOURCE, DOCKERFILE_GIT, DOCKERFILE_SHA1,
                              MOCK, IMPORTED_IMAGE_ID)
@@ -71,6 +72,7 @@ def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
                       scratch=False, image_task_fail=False,
                       throws_build_cancelled=False,
                       error_on_build_cancelled=False,
+                      download_filesystem=True,
                       get_task_result_mock=None):
 
     session = flexmock()
@@ -80,6 +82,9 @@ def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
             assert kwargs['opts']['scratch'] is True
         else:
             assert 'scratch' not in kwargs['opts']
+
+        if not download_filesystem:
+            return None
 
         return FILESYSTEM_TASK_ID
 
@@ -101,12 +106,15 @@ def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
             .replace_with(get_task_result_mock).once())
 
     session.should_receive('listTaskOutput').and_return([
-        'fedora-23-1.0.tar.gz',
+        'fedora-23-1.0.x86_64.tar.gz',
     ])
     session.should_receive('getTaskChildren').and_return([
         {'id': 1234568},
     ])
-    session.should_receive('downloadTaskOutput').and_return('tarball-contents')
+    if download_filesystem:
+        session.should_receive('downloadTaskOutput').and_return('tarball-contents')
+    else:
+        session.should_receive('downloadTaskOutput').never()
     koji_auth_info = {
         'proxyuser': koji_proxyuser,
         'ssl_certs_dir': koji_ssl_certs_dir,
@@ -143,7 +151,6 @@ def mock_image_build_file(tmpdir, contents=None):
             version = 1.0
             target = guest-fedora-23-docker
             install_tree = http://install-tree.com/$arch/fedora23/
-            arches = x86_64
 
             format = docker
             distro = Fedora-23
@@ -205,6 +212,7 @@ def test_add_filesystem_plugin_generated(tmpdir, docker_tasker, scratch):
         RUN dnf install -y python-django
         """)
     workflow = mock_workflow(tmpdir, dockerfile)
+    task_id = FILESYSTEM_TASK_ID
     mock_koji_session(scratch=scratch)
     mock_image_build_file(str(tmpdir))
 
@@ -212,13 +220,52 @@ def test_add_filesystem_plugin_generated(tmpdir, docker_tasker, scratch):
         docker_tasker,
         workflow,
         [{
-            'name': AddFilesystemPlugin.key,
-            'args': {'koji_hub': KOJI_HUB}
+            'name': PLUGIN_ADD_FILESYSTEM_KEY,
+            'args': {
+                'koji_hub': KOJI_HUB,
+                'from_task_id': task_id,
+                'architecture': 'x86_64'
+            }
+        }]
+    )
+
+    expected_results = {
+        'base-image-id': IMPORTED_IMAGE_ID,
+        'filesystem-koji-task-id': FILESYSTEM_TASK_ID,
+    }
+    results = runner.run()
+    plugin_result = results[PLUGIN_ADD_FILESYSTEM_KEY]
+    assert 'base-image-id' in plugin_result
+    assert 'filesystem-koji-task-id' in plugin_result
+    assert plugin_result == expected_results
+
+
+@pytest.mark.parametrize('scratch', [True, False])
+def test_add_filesystem_plugin_legacy(tmpdir, docker_tasker, scratch):
+    if MOCK:
+        mock_docker()
+
+    dockerfile = dedent("""\
+        FROM koji/image-build
+        RUN dnf install -y python-django
+        """)
+    workflow = mock_workflow(tmpdir, dockerfile)
+    mock_koji_session(scratch=scratch)
+    mock_image_build_file(str(tmpdir))
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': PLUGIN_ADD_FILESYSTEM_KEY,
+            'args': {
+                'koji_hub': KOJI_HUB,
+            }
         }]
     )
 
     results = runner.run()
-    plugin_result = results[AddFilesystemPlugin.key]
+    plugin_result = results[PLUGIN_ADD_FILESYSTEM_KEY]
     assert 'base-image-id' in plugin_result
     assert plugin_result['base-image-id'] == IMPORTED_IMAGE_ID
     assert 'filesystem-koji-task-id' in plugin_result
@@ -309,8 +356,8 @@ def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_err
         docker_tasker,
         workflow,
         [{
-            'name': AddFilesystemPlugin.key,
-            'args': {'koji_hub': KOJI_HUB}
+            'name': PLUGIN_ADD_FILESYSTEM_KEY,
+            'args': {'koji_hub': KOJI_HUB, 'architectures': ['x86_64']}
         }]
     )
 
@@ -335,8 +382,10 @@ def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_err
             assert msg in [x.message for x in caplog.records()]
 
 
+# with a task_id is the new standard, None is legacy-mode support
+@pytest.mark.parametrize('task_id', [FILESYSTEM_TASK_ID, None])
 @responses.activate
-def test_image_build_defaults(tmpdir):
+def test_image_build_defaults(tmpdir, task_id):
     repos = [
         'http://install-tree.com/fedora23.repo',
         'http://repo.com/fedora/os.repo',
@@ -354,7 +403,7 @@ def test_image_build_defaults(tmpdir):
                     [fedora-os2]
                     baseurl = http://repo.com/fedora/$basearch/os2
                     """))
-    plugin = create_plugin_instance(tmpdir, {'repos': repos})
+    plugin = create_plugin_instance(tmpdir, {'repos': repos, 'from_task_id': task_id})
     image_build_conf = dedent("""\
         [image-build]
         version = 1.0
@@ -391,8 +440,13 @@ def test_image_build_defaults(tmpdir):
     }
 
 
+@pytest.mark.parametrize(('architectures', 'architecture'), [
+    (None, None),
+    (['x86_64', 'aarch64', 'ppc64le'], None),
+    (None, 'x86_64'),
+])
 @responses.activate
-def test_image_build_overwrites(tmpdir):
+def test_image_build_overwrites(tmpdir, architectures, architecture):
     repos = [
         'http://default-install-tree.com/fedora23.repo',
         'http://default-repo.com/fedora/os.repo',
@@ -407,7 +461,11 @@ def test_image_build_overwrites(tmpdir):
                     [fedora-os]
                     baseurl = http://default-repo.com/fedora/$basearch/os.repo
                     """))
-    plugin = create_plugin_instance(tmpdir, {'repos': repos})
+    plugin = create_plugin_instance(tmpdir, {
+        'repos': repos,
+        'architectures': architectures,
+        'architecture': architecture
+    })
     image_build_conf = dedent("""\
         [image-build]
         name = my-name
@@ -432,10 +490,16 @@ def test_image_build_overwrites(tmpdir):
     file_name = mock_image_build_file(str(tmpdir), contents=image_build_conf)
     image_name, config, opts = plugin.parse_image_build_config(file_name)
     assert image_name == 'my-name'
+    if architectures:
+        config_arch = architectures
+    elif architecture:
+        config_arch = [architecture]
+    else:
+        config_arch = ['i386', 'i486']
     assert config == [
         'my-name',
         '1.0',
-        ['i386', 'i486'],
+        config_arch,
         'guest-fedora-23-docker',
         'http://install-tree.com/$arch/fedora23/',
     ]
@@ -461,15 +525,19 @@ def test_build_filesystem_missing_conf(tmpdir):
     assert 'Image build configuration file not found' in str(exc)
 
 
-@pytest.mark.parametrize('pattern', [
-    'fedora-23-spam-.tar',
-    'fedora-23-spam-.tar.gz',
-    'fedora-23-spam-.tar.bz2',
-    'fedora-23-spam-.tar.xz',
+@pytest.mark.parametrize(('prefix', 'architecture', 'suffix'), [
+    ('fedora-23-spam-', None, '.tar'),
+    ('fedora-23-spam-', 'x86_64', '.tar.gz'),
+    ('fedora-23-spam-', 'aarch64', '.tar.bz2'),
+    ('fedora-23-spam-', None, '.tar.xz'),
 ])
-def test_build_filesystem_from_task_id(tmpdir, pattern):
+def test_build_filesystem_from_task_id(tmpdir, prefix, architecture, suffix):
     task_id = 987654321
-    plugin = create_plugin_instance(tmpdir, {'from_task_id': task_id})
+    pattern = '{}{}{}'.format(prefix, architecture, suffix)
+    plugin = create_plugin_instance(tmpdir, {
+        'from_task_id': task_id,
+        'architecture': architecture,
+    })
     plugin.session = flexmock()
     file_name = mock_image_build_file(str(tmpdir))
     task_id, filesystem_regex = plugin.build_filesystem('image-build.conf')
@@ -477,3 +545,49 @@ def test_build_filesystem_from_task_id(tmpdir, pattern):
     match = filesystem_regex.match(pattern)
     assert match is not None
     assert match.group(0) == pattern
+
+
+@pytest.mark.parametrize(('architecture', 'architectures', 'download_filesystem'), [
+    ('x86_64', None, True),
+    (None, ['x86_64'], False),
+    ('x86_64', ['x86_64', 'aarch64'], False),
+    (None, None, True),
+])
+def test_image_download(tmpdir, docker_tasker, architecture, architectures, download_filesystem):
+    if MOCK:
+        mock_docker()
+
+    dockerfile = dedent("""\
+        FROM koji/image-build
+        RUN dnf install -y python-django
+        """)
+
+    workflow = mock_workflow(tmpdir, dockerfile)
+    mock_koji_session(download_filesystem=download_filesystem)
+    mock_image_build_file(str(tmpdir))
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': PLUGIN_ADD_FILESYSTEM_KEY,
+            'args': {
+                'koji_hub': KOJI_HUB,
+                'architecture': architecture,
+                'architectures': architectures,
+            }
+        }]
+    )
+
+    results = runner.run()
+    plugin_result = results[PLUGIN_ADD_FILESYSTEM_KEY]
+
+    assert 'base-image-id' in plugin_result
+    assert 'filesystem-koji-task-id' in plugin_result
+
+    if download_filesystem:
+        assert plugin_result['base-image-id'] == IMPORTED_IMAGE_ID
+        assert plugin_result['filesystem-koji-task-id'] == FILESYSTEM_TASK_ID
+    else:
+        assert plugin_result['base-image-id'] is None
+        assert plugin_result['filesystem-koji-task-id'] is None

@@ -16,6 +16,7 @@ from atomic_reactor.plugins import pre_reactor_config
 from atomic_reactor.plugins.build_orchestrate_build import OrchestrateBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import ReactorConfig
 from atomic_reactor.util import ImageName, df_parser
+from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY
 from dockerfile_parse import DockerfileParser
 from flexmock import flexmock
 from multiprocessing.pool import AsyncResult
@@ -574,3 +575,41 @@ def test_orchestrate_build_failed_create(tmpdir, fail_at):
     annotations = build_result.annotations
     assert set(annotations['worker-builds'].keys()) == annotation_keys
     assert fail_reason in json.loads(build_result.fail_reason)['ppc64le']['general']
+
+
+@pytest.mark.parametrize(('task_id', 'error'), [
+    ('1234567', None),
+    ('bacon', 'ValueError'),
+    (None, 'TypeError'),
+])
+def test_orchestrate_build_get_fs_task_id(tmpdir, task_id, error):
+    workflow = mock_workflow(tmpdir)
+    mock_osbs()
+
+    mock_reactor_config(tmpdir)
+
+    workflow.prebuild_results[PLUGIN_ADD_FILESYSTEM_KEY] = {
+        'filesystem-koji-task-id': task_id,
+    }
+    runner = BuildStepPluginsRunner(
+        workflow.builder.tasker,
+        workflow,
+        [{
+            'name': OrchestrateBuildPlugin.key,
+            'args': {
+                'platforms': ['x86_64'],
+                'build_kwargs': make_worker_build_kwargs(),
+                'osbs_client_config': str(tmpdir),
+            }
+        }]
+    )
+
+    if error is not None:
+        with pytest.raises(PluginFailedException) as exc:
+            runner.run()
+        workflow.build_result.is_failed()
+        assert error in str(exc)
+
+    else:
+        build_result = runner.run()
+        assert not build_result.is_failed()
