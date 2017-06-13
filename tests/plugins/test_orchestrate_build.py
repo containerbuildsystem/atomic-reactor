@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Copyright (c) 2017 Red Hat, Inc
 All rights reserved.
@@ -136,7 +137,7 @@ def mock_osbs(current_builds=2, worker_builds=1):
 
     (flexmock(OSBS)
         .should_receive('get_build_logs')
-        .and_yield('line-%d' % line for line in range(10)))
+        .and_yield('Lińe-%d' % line for line in range(10)))
 
     def mock_wait_for_build_to_finish(build_name):
         return make_build_response(build_name, 'Complete')
