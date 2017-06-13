@@ -41,6 +41,17 @@ DF_CONTENT = """\
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
+DF_CONTENT_WITH_LABELS = '''\
+FROM fedora
+RUN yum install -y python-django
+CMD blabla
+LABEL "build-date" = "docker value"
+LABEL "architecture" = "docker value"
+LABEL "vcs-type" = "docker value"
+LABEL "vcs-url" = "docker value"
+LABEL "vcs-ref" = "docker value"
+LABEL "com.redhat.build-host" = "docker value"
+LABEL "Build_Host" = "docker value"'''
 DF_CONTENT_SINGLE_LINE = """\
 FROM fedora"""
 DF_CONTENT_LABEL = '''\
@@ -54,6 +65,14 @@ LABEL "Authoritative_Registry"="authoritative-source-url_value"
 LABEL "BZComponent"="com.redhat.component_value"
 LABEL "Build_Host"="com.redhat.build-host_value"
 LABEL "Version"="version_value"'''
+LABELS_CONF_WITH_LABELS = {INSPECT_CONFIG: {"Labels": {
+                                                "build-date": "base value",
+                                                "architecture": "base value",
+                                                "vcs-type": "base value",
+                                                "vcs-url": "base value",
+                                                "vcs-ref": "base value",
+                                                "com.redhat.build-host": "base value",
+                                                "Build_Host": "base value"}}}
 LABELS_CONF_BASE = {INSPECT_CONFIG: {"Labels": {"label1": "base value"}}}
 LABELS_CONF_BASE_NONE = {INSPECT_CONFIG: {"Labels": None}}
 LABELS_CONF = OrderedDict({'label1': 'value 1', 'label2': 'long value'})
@@ -558,3 +577,51 @@ def test_url_label(tmpdir, docker_tasker, caplog, url_format, info_url):
             runner.run()
 
     assert AddLabelsPlugin.key is not None
+
+
+@pytest.mark.parametrize('auto_label', [  # noqa
+    'build-date',
+    'architecture',
+    'vcs-type',
+    'vcs-url',
+    'vcs-ref',
+    'com.redhat.build-host',
+    'Build_Host',
+])
+@pytest.mark.parametrize('labels_docker', [
+    DF_CONTENT,
+    DF_CONTENT_WITH_LABELS,
+])
+@pytest.mark.parametrize('labels_base', [
+    LABELS_CONF_BASE_NONE,
+    LABELS_CONF_WITH_LABELS,
+])
+def test_add_labels_plugin_explicit(tmpdir, docker_tasker, auto_label, labels_docker, labels_base):
+    df = df_parser(str(tmpdir))
+    df.content = labels_docker
+
+    if MOCK:
+        mock_docker()
+
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    setattr(workflow, 'builder', X)
+    flexmock(workflow, source=MockSource())
+    flexmock(workflow, base_image_inspect=labels_base)
+    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+
+    prov_labels = {}
+    prov_labels[auto_label] = 'explicit_value'
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': AddLabelsPlugin.key,
+            'args': {'labels': prov_labels, "dont_overwrite": [], "auto_labels": [auto_label],
+                     'aliases': {'Build_Host': 'com.redhat.build-host'}}
+        }]
+    )
+
+    runner.run()
+
+    assert df.labels[auto_label] == 'explicit_value'
