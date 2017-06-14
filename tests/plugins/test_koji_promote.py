@@ -179,7 +179,8 @@ def mock_environment(tmpdir, session=None, name=None,
                      is_rebuild=True, docker_registry=True,
                      pulp_registries=0, blocksize=None,
                      task_states=None, additional_tags=None,
-                     has_config=None):
+                     has_config=None,
+                     logs_return_bytes=True):
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -223,10 +224,14 @@ def mock_environment(tmpdir, session=None, name=None,
     flexmock(subprocess, Popen=fake_Popen)
     flexmock(koji, ClientSession=lambda hub, opts: session)
     flexmock(GitSource)
+    if logs_return_bytes:
+        logs = b'build logs - \xe2\x80\x98 \xe2\x80\x97 \xe2\x80\x99'
+    else:
+        logs = 'build logs - \u2018 \u2017 \u2019'
     (flexmock(OSBS)
         .should_receive('get_build_logs')
         .with_args(BUILD_ID)
-        .and_return('build logs - \u2018 \u2017 \u2019'))
+        .and_return(logs))
     (flexmock(OSBS)
         .should_receive('get_pod_for_build')
         .with_args(BUILD_ID)
@@ -1268,3 +1273,16 @@ class TestKojiPromote(object):
             assert image['help'] is None
         elif expect_result in ['skip', 'unknown_status']:
             assert 'help' not in image.keys()
+
+    @pytest.mark.parametrize('logs_return_bytes', [
+        True,
+        False,
+    ])
+    def test_koji_promote_logs(self, tmpdir, os_env, logs_return_bytes):
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='name',
+                                            version='1.0',
+                                            release='1',
+                                            logs_return_bytes=logs_return_bytes)
+        runner = create_runner(tasker, workflow)
+        runner.run()
