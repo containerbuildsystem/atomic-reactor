@@ -122,7 +122,7 @@ def mock_reactor_config(tmpdir, clusters=None):
                     """.format(name=cluster['name'])))
 
 
-def mock_osbs(current_builds=2, worker_builds=1):
+def mock_osbs(current_builds=2, worker_builds=1, logs_return_bytes=False):
     (flexmock(OSBS)
         .should_receive('list_builds')
         .and_return(range(current_builds)))
@@ -134,9 +134,14 @@ def mock_osbs(current_builds=2, worker_builds=1):
         .should_receive('create_worker_build')
         .replace_with(mock_create_worker_build))
 
+    if logs_return_bytes:
+        log_format_string = b'line \xe2\x80\x98 - %d'
+    else:
+        log_format_string = 'line \u2018 - %d'
+
     (flexmock(OSBS)
         .should_receive('get_build_logs')
-        .and_yield('line-%d' % line for line in range(10)))
+        .and_yield(log_format_string % line for line in range(10)))
 
     def mock_wait_for_build_to_finish(build_name):
         return make_build_response(build_name, 'Complete')
@@ -181,9 +186,13 @@ def make_worker_build_kwargs(**overrides):
     'fedora:latest',
     None
 ])
-def test_orchestrate_build(tmpdir, config_kwargs, worker_build_image):
+@pytest.mark.parametrize('logs_return_bytes', [
+    True,
+    False
+])
+def test_orchestrate_build(tmpdir, config_kwargs, worker_build_image, logs_return_bytes):
     workflow = mock_workflow(tmpdir)
-    mock_osbs()
+    mock_osbs(logs_return_bytes=logs_return_bytes)
     mock_reactor_config(tmpdir)
     plugin_args = {
         'platforms': ['x86_64'],
