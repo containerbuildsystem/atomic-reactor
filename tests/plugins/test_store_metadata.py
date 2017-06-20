@@ -19,7 +19,8 @@ from flexmock import flexmock
 from osbs.api import OSBS
 import osbs.conf
 from osbs.exceptions import OsbsResponseException
-from atomic_reactor.constants import PLUGIN_KOJI_PROMOTE_PLUGIN_KEY
+from atomic_reactor.constants import (PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
+                                      PLUGIN_KOJI_UPLOAD_PLUGIN_KEY)
 from atomic_reactor.build import BuildResult
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
@@ -115,8 +116,9 @@ def prepare(pulp_registries=None, docker_registries=None):
     ('bacon', 'bacon'),
     (123, '123'),
 ))
+@pytest.mark.parametrize(('koji'), (True, False))
 def test_metadata_plugin(tmpdir, br_annotations, expected_br_annotations,
-                         br_labels, expected_br_labels):
+                         br_labels, expected_br_labels, koji):
     initial_timestamp = datetime.now()
     workflow = prepare()
     df_content = """
@@ -141,13 +143,21 @@ CMD blabla"""
             labels={'br_labels': br_labels} if br_labels else None,
         )
 
+    timestamp = (initial_timestamp + timedelta(seconds=3)).isoformat()
     workflow.plugins_timestamps = {
-        PostBuildRPMqaPlugin.key: (initial_timestamp + timedelta(seconds=3)).isoformat(),
+        PostBuildRPMqaPlugin.key: timestamp,
     }
     workflow.plugins_durations = {
         PostBuildRPMqaPlugin.key: 3.03,
     }
     workflow.plugins_errors = {}
+
+    if koji:
+        cm_annotations = {'metadata_fragment_key': 'metadata.json',
+                          'metadata_fragment': 'configmap/build-1-md'}
+        workflow.postbuild_results[PLUGIN_KOJI_UPLOAD_PLUGIN_KEY] = cm_annotations
+        workflow.plugins_timestamps[PLUGIN_KOJI_UPLOAD_PLUGIN_KEY] = timestamp
+        workflow.plugins_durations[PLUGIN_KOJI_UPLOAD_PLUGIN_KEY] = 3.03
 
     runner = ExitPluginsRunner(
         None,
@@ -181,6 +191,15 @@ CMD blabla"""
     assert is_string_type(annotations['base-image-name'])
     assert "image-id" in annotations
     assert is_string_type(annotations['image-id'])
+
+    if koji:
+        assert "metadata_fragment" in annotations
+        assert is_string_type(annotations['metadata_fragment'])
+        assert "metadata_fragment_key" in annotations
+        assert is_string_type(annotations['metadata_fragment_key'])
+    else:
+        assert "metadata_fragment" not in annotations
+        assert "metadata_fragment_key" not in annotations
 
     assert "digests" in annotations
     assert is_string_type(annotations['digests'])
@@ -233,15 +252,20 @@ CMD blabla"""
     workflow.prebuild_results = {}
     workflow.postbuild_results = {
         PostBuildRPMqaPlugin.key: RuntimeError(),
+        PLUGIN_KOJI_UPLOAD_PLUGIN_KEY: {'metadata_fragment_key': 'metadata.json',
+                                        'metadata_fragment': 'configmap/build-1-md'}
     }
     workflow.plugins_timestamps = {
         PostBuildRPMqaPlugin.key: (initial_timestamp + timedelta(seconds=3)).isoformat(),
+        PLUGIN_KOJI_UPLOAD_PLUGIN_KEY: (initial_timestamp + timedelta(seconds=3)).isoformat(),
     }
     workflow.plugins_durations = {
         PostBuildRPMqaPlugin.key: 3.03,
+        PLUGIN_KOJI_UPLOAD_PLUGIN_KEY: 3.03,
     }
     workflow.plugins_errors = {
-        PostBuildRPMqaPlugin.key: 'foo'
+        PostBuildRPMqaPlugin.key: 'foo',
+        PLUGIN_KOJI_UPLOAD_PLUGIN_KEY: 'bar',
     }
 
     runner = ExitPluginsRunner(
@@ -265,6 +289,8 @@ CMD blabla"""
     assert "base-image-id" in annotations
     assert "base-image-name" in annotations
     assert "image-id" in annotations
+    assert "metadata_fragment" in annotations
+    assert "metadata_fragment_key" in annotations
 
     # On rpmqa failure, rpm-packages should be empty
     assert len(annotations["rpm-packages"]) == 0
