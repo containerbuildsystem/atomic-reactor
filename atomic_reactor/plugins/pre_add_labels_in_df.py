@@ -271,18 +271,21 @@ class AddLabelsPlugin(PreBuildPlugin):
         info_url = MyFormatter().vformat(self.info_url_format, [], all_labels)
         self.labels['url'] = info_url
 
+    def _get_base_image_labels(self):
+        labels = {}
+
+        try:
+            labels = self.workflow.base_image_inspect[INSPECT_CONFIG]['Labels'] or {}
+        except (KeyError):
+            self.log.debug("base image was not inspected")
+
+        return labels
+
     def run(self):
         """
         run the plugin
         """
-        try:
-            config = self.workflow.base_image_inspect[INSPECT_CONFIG]
-        except (AttributeError, TypeError):
-            message = "base image was not inspected"
-            self.log.error(message)
-            raise RuntimeError(message)
-        else:
-            base_image_labels = config["Labels"] or {}
+        base_image_labels = self._get_base_image_labels()
 
         dockerfile = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
 
