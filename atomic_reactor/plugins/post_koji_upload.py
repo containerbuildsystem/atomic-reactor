@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2017 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -9,7 +9,6 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 from collections import namedtuple
-import json
 import os
 import random
 from string import ascii_letters
@@ -19,20 +18,12 @@ import time
 import copy
 
 from atomic_reactor import __version__ as atomic_reactor_version
-from atomic_reactor import start_time as atomic_reactor_start_time
-from atomic_reactor.plugin import ExitPlugin
-from atomic_reactor.source import GitSource
+from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
-from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
-from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
-from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
-from atomic_reactor.constants import (PROG, PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
-                                      PLUGIN_KOJI_TAG_BUILD_KEY)
+from atomic_reactor.constants import PROG, PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
-                                 get_build_json, get_preferred_label,
-                                 get_docker_architecture, df_parser,
-                                 are_plugins_in_order)
-from atomic_reactor.koji_util import create_koji_session, tag_koji_build
+                                 get_build_json, get_docker_architecture)
+from atomic_reactor.koji_util import create_koji_session
 from osbs.conf import Configuration
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
@@ -47,7 +38,7 @@ class KojiUploadLogger(object):
         self.notable_percent = notable_percent
         self.last_percent_done = 0
 
-    def callback(self, offset, totalsize, size, t1, t2): # pylint: disable=W0613
+    def callback(self, offset, totalsize, size, t1, t2):  # pylint: disable=W0613
         if offset == 0:
             self.logger.debug("upload size: %.1fMiB", totalsize / 1024.0 / 1024)
 
@@ -62,14 +53,17 @@ class KojiUploadLogger(object):
                               percent_done, size / t1 / 1024 / 1024)
 
 
-class KojiPromotePlugin(ExitPlugin):
+class KojiUploadPlugin(PostBuildPlugin):
     """
-    Promote this build to Koji
+    Upload this build to Koji
 
-    Submits a successful build to Koji using the Content Generator API,
-    https://fedoraproject.org/wiki/Koji/ContentGenerators
+    Note: only the image archive is uploaded to Koji at this stage.
+    Metadata about this image is created and stored in a ConfigMap in
+    OpenShift, ready for the orchestrator build to collect and use to
+    actually create the Koji Build together with the uploaded image
+    archive(s).
 
-    Authentication is with Kerberos unless the koji_ssl_certs
+    Authentication is with Kerberos unless the koji_ssl_certs_dir
     configuration parameter is given, in which case it should be a
     path at which 'cert', 'ca', and 'serverca' are the certificates
     for SSL authentication.
@@ -79,24 +73,16 @@ class KojiPromotePlugin(ExitPlugin):
     koji_principal are specified. The koji_keytab parameter is a
     keytab name like 'type:name', and so can be used to specify a key
     in a Kubernetes secret by specifying 'FILE:/path/to/key'.
-
-    If metadata_only is set, the 'docker save' image will not be
-    uploaded, only the logs. The import will be marked as
-    metadata-only.
-
-    Runs as an exit plugin in order to capture logs from all other
-    plugins.
     """
 
-    key = PLUGIN_KOJI_PROMOTE_PLUGIN_KEY
+    key = PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, kojihub, url,
+    def __init__(self, tasker, workflow, kojihub, url, build_json_dir,
                  verify_ssl=True, use_auth=True,
-                 koji_ssl_certs=None, koji_proxy_user=None,
+                 koji_ssl_certs_dir=None, koji_proxy_user=None,
                  koji_principal=None, koji_keytab=None,
-                 metadata_only=False, blocksize=None,
-                 target=None, poll_interval=5):
+                 blocksize=None):
         """
         constructor
 
@@ -106,32 +92,29 @@ class KojiPromotePlugin(ExitPlugin):
         :param url: string, URL for OSv3 instance
         :param verify_ssl: bool, verify OSv3 SSL certificate?
         :param use_auth: bool, initiate authentication with OSv3?
-        :param koji_ssl_certs: str, path to 'cert', 'ca', 'serverca'
+        :param koji_ssl_certs_dir: str, path to 'cert', 'ca', 'serverca'
         :param koji_proxy_user: str, user to log in as (requires hub config)
         :param koji_principal: str, Kerberos principal (must specify keytab)
         :param koji_keytab: str, keytab name (must specify principal)
-        :param metadata_only: bool, whether to omit the 'docker save' image
         :param blocksize: int, blocksize to use for uploading files
-        :param target: str, koji target
-        :param poll_interval: int, seconds between Koji task status requests
+        :param build_json_dir: str, path to directory with input json
         """
-        super(KojiPromotePlugin, self).__init__(tasker, workflow)
+        super(KojiUploadPlugin, self).__init__(tasker, workflow)
 
         self.kojihub = kojihub
-        self.koji_ssl_certs = koji_ssl_certs
+        self.koji_ssl_certs_dir = koji_ssl_certs_dir
         self.koji_proxy_user = koji_proxy_user
 
         self.koji_principal = koji_principal
         self.koji_keytab = koji_keytab
 
-        self.metadata_only = metadata_only
         self.blocksize = blocksize
-        self.target = target
-        self.poll_interval = poll_interval
+        self.build_json_dir = build_json_dir
 
         self.namespace = get_build_json().get('metadata', {}).get('namespace', None)
         osbs_conf = Configuration(conf_file=None, openshift_uri=url,
                                   use_auth=use_auth, verify_ssl=verify_ssl,
+                                  build_json_dir=self.build_json_dir,
                                   namespace=self.namespace)
         self.osbs = OSBS(osbs_conf, osbs_conf)
         self.build_id = None
@@ -251,9 +234,6 @@ class KojiPromotePlugin(ExitPlugin):
                     'checksum': checksums['md5sum'],
                     'checksum_type': 'md5'}
 
-        if self.metadata_only:
-            metadata['metadata_only'] = True
-
         return metadata
 
     def get_builder_image_id(self):
@@ -345,7 +325,11 @@ class KojiPromotePlugin(ExitPlugin):
             logfile = NamedTemporaryFile(prefix=self.build_id,
                                          suffix=".log",
                                          mode='wb')
-            logfile.write(logs.encode('UTF-8'))
+            try:
+                logfile.write(logs)
+            except (TypeError, UnicodeEncodeError):
+                # Older osbs-client versions returned Unicode objects
+                logfile.write(logs.encode('utf-8'))
             logfile.flush()
             metadata = self.get_output_metadata(logfile.name,
                                                 "openshift-final.log")
@@ -354,7 +338,7 @@ class KojiPromotePlugin(ExitPlugin):
         docker_logs = NamedTemporaryFile(prefix="docker-%s" % self.build_id,
                                          suffix=".log",
                                          mode='wb')
-        docker_logs.write("\n".join(self.workflow.build_result.logs).encode('UTF-8'))
+        docker_logs.write("\n".join(self.workflow.build_result.logs).encode('utf-8'))
         docker_logs.flush()
         output.append(Output(file=docker_logs,
                              metadata=self.get_output_metadata(docker_logs.name,
@@ -390,9 +374,6 @@ class KojiPromotePlugin(ExitPlugin):
         This is the Koji Content Generator metadata, along with the
         'docker save' output to upload.
 
-        For metadata-only builds, an empty file is used instead of the
-        output of 'docker save'.
-
         :param arch: str, architecture for this output
         :return: tuple, (metadata dict, Output instance)
 
@@ -403,12 +384,8 @@ class KojiPromotePlugin(ExitPlugin):
         ext = saved_image.split('.', 1)[1]
         name_fmt = 'docker-image-{id}.{arch}.{ext}'
         image_name = name_fmt.format(id=image_id, arch=arch, ext=ext)
-        if self.metadata_only:
-            metadata = self.get_output_metadata(os.path.devnull, image_name)
-            output = Output(file=None, metadata=metadata)
-        else:
-            metadata = self.get_output_metadata(saved_image, image_name)
-            output = Output(file=open(saved_image), metadata=metadata)
+        metadata = self.get_output_metadata(saved_image, image_name)
+        output = Output(file=open(saved_image), metadata=metadata)
 
         return metadata, output
 
@@ -471,12 +448,13 @@ class KojiPromotePlugin(ExitPlugin):
             metadata.update({'buildroot_id': buildroot_id})
             return Output(file=logfile, metadata=metadata)
 
-        def add_log_type(output):
+        def add_log_type(output, arch):
             logfile, metadata = output
-            metadata.update({'type': 'log', 'arch': 'noarch'})
+            metadata.update({'type': 'log', 'arch': arch})
             return Output(file=logfile, metadata=metadata)
 
-        output_files = [add_log_type(add_buildroot_id(metadata))
+        arch = os.uname()[4]
+        output_files = [add_log_type(add_buildroot_id(metadata), arch)
                         for metadata in self.get_logs()]
 
         # Parent of squashed built image is base image
@@ -496,7 +474,6 @@ class KojiPromotePlugin(ExitPlugin):
 
         digests = self.get_digests()
         repositories = self.get_repositories(digests)
-        arch = os.uname()[4]
         tags = set(image.tag for image in self.workflow.tag_conf.primary_images)
         metadata, output = self.get_image_output(arch)
         metadata.update({
@@ -526,68 +503,6 @@ class KojiPromotePlugin(ExitPlugin):
 
         return output_files
 
-    def get_build(self, metadata):
-        start_time = int(atomic_reactor_start_time)
-
-        labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels
-
-        component = get_preferred_label(labels, 'com.redhat.component')
-        version = get_preferred_label(labels, 'version')
-        release = get_preferred_label(labels, 'release')
-
-        source = self.workflow.source
-        if not isinstance(source, GitSource):
-            raise RuntimeError('git source required')
-
-        extra = {'image': {'autorebuild': is_rebuild(self.workflow)}}
-        koji_task_id = metadata.get('labels', {}).get('koji-task-id')
-        if koji_task_id is not None:
-            self.log.info("build configuration created by Koji Task ID %s",
-                          koji_task_id)
-            try:
-                extra['container_koji_task_id'] = int(koji_task_id)
-            except ValueError:
-                self.log.error("invalid task ID %r", koji_task_id, exc_info=1)
-
-        fs_result = self.workflow.prebuild_results.get(AddFilesystemPlugin.key)
-        if fs_result is not None:
-            try:
-                fs_task_id = fs_result['filesystem-koji-task-id']
-            except KeyError:
-                self.log.error("%s: expected filesystem-koji-task-id in result",
-                               AddFilesystemPlugin.key)
-            else:
-                try:
-                    task_id = int(fs_task_id)
-                except ValueError:
-                    self.log.error("invalid task ID %r", fs_task_id, exc_info=1)
-                else:
-                    extra['filesystem_koji_task_id'] = task_id
-
-        help_result = self.workflow.prebuild_results.get(AddHelpPlugin.key)
-        if isinstance(help_result, dict) and 'help_file' in help_result and 'status' in help_result:
-            if help_result['status'] == AddHelpPlugin.NO_HELP_FILE_FOUND:
-                extra['image']['help'] = None
-            elif help_result['status'] == AddHelpPlugin.HELP_GENERATED:
-                extra['image']['help'] = help_result['help_file']
-            else:
-                self.log.error("Unknown result from add_help plugin: %s", help_result)
-
-        build = {
-            'name': component,
-            'version': version,
-            'release': release,
-            'source': "{0}#{1}".format(source.uri, source.commit_id),
-            'start_time': start_time,
-            'end_time': int(time.time()),
-            'extra': extra,
-        }
-
-        if self.metadata_only:
-            build['metadata_only'] = True
-
-        return build
-
     def get_metadata(self):
         """
         Build the metadata needed for importing the build
@@ -616,13 +531,11 @@ class KojiPromotePlugin(ExitPlugin):
 
         metadata_version = 0
 
-        build = self.get_build(metadata)
         buildroot = self.get_buildroot(build_id=self.build_id)
         output_files = self.get_output(buildroot['id'])
 
         koji_metadata = {
             'metadata_version': metadata_version,
-            'build': build,
             'buildroots': [buildroot],
             'output': [output.metadata for output in output_files],
         }
@@ -658,7 +571,7 @@ class KojiPromotePlugin(ExitPlugin):
 
         :return: str, path name expected to be unique
         """
-        dir_prefix = 'koji-promote'
+        dir_prefix = 'koji-upload'
         random_chars = ''.join([random.choice(ascii_letters)
                                 for _ in range(8)])
         unique_fragment = '%r.%s' % (time.time(), random_chars)
@@ -674,7 +587,7 @@ class KojiPromotePlugin(ExitPlugin):
         # krbV python library throws an error if these are unicode
         auth_info = {
             "proxyuser": self.koji_proxy_user,
-            "ssl_certs_dir": self.koji_ssl_certs,
+            "ssl_certs_dir": self.koji_ssl_certs_dir,
             "krb_principal": str(self.koji_principal),
             "krb_keytab": str(self.koji_keytab)
         }
@@ -708,24 +621,19 @@ class KojiPromotePlugin(ExitPlugin):
                 if output.file:
                     output.file.close()
 
+        md_fragment = "{}-md".format(get_build_json()['metadata']['name'])
+        md_fragment_key = 'metadata.json'
+        cm_data = {md_fragment_key: koji_metadata}
+        annotations = {
+            "metadata_fragment": "configmap/" + md_fragment,
+            "metadata_fragment_key": md_fragment_key
+        }
+
         try:
-            build_info = session.CGImport(koji_metadata, server_dir)
-        except Exception:
+            self.osbs.create_config_map(md_fragment, cm_data)
+        except OsbsException:
             self.log.debug("metadata: %r", koji_metadata)
+            self.log.debug("annotations: %r", annotations)
             raise
 
-        # Older versions of CGImport do not return a value.
-        build_id = build_info.get("id") if build_info else None
-
-        self.log.debug("Build information: %s",
-                       json.dumps(build_info, sort_keys=True, indent=4))
-
-        # If configured, koji_tag_build plugin will perform build tagging
-        tag_later = are_plugins_in_order(self.workflow.exit_plugins_conf,
-                                         PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
-                                         PLUGIN_KOJI_TAG_BUILD_KEY)
-        if not tag_later and build_id is not None and self.target is not None:
-            tag_koji_build(session, build_id, self.target,
-                           poll_interval=self.poll_interval)
-
-        return build_id
+        return annotations
