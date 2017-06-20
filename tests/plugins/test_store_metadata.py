@@ -15,26 +15,11 @@ from datetime import datetime, timedelta
 from copy import deepcopy
 from textwrap import dedent
 
-try:
-    import koji as koji
-except ImportError:
-    import inspect
-    import os
-    import sys
-
-    # Find our mocked koji module
-    import tests.koji as koji
-    mock_koji_path = os.path.dirname(inspect.getfile(koji.ClientSession))
-    if mock_koji_path not in sys.path:
-        sys.path.append(os.path.dirname(mock_koji_path))
-finally:
-    del koji
-    from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
-
 from flexmock import flexmock
 from osbs.api import OSBS
 import osbs.conf
 from osbs.exceptions import OsbsResponseException
+from atomic_reactor.constants import PLUGIN_KOJI_PROMOTE_PLUGIN_KEY
 from atomic_reactor.build import BuildResult
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
@@ -308,7 +293,7 @@ CMD blabla"""
     workflow.builder.df_dir = str(tmpdir)
 
     workflow.exit_results = {
-        KojiPromotePlugin.key: koji_build_id,
+        PLUGIN_KOJI_PROMOTE_PLUGIN_KEY: koji_build_id,
     }
 
     runner = ExitPluginsRunner(
@@ -392,7 +377,7 @@ def test_store_metadata_fail_update_labels(tmpdir, caplog):
     workflow = prepare()
 
     workflow.exit_results = {
-        KojiPromotePlugin.key: 1234,
+        PLUGIN_KOJI_PROMOTE_PLUGIN_KEY: 1234,
     }
 
     runner = ExitPluginsRunner(
