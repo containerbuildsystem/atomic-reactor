@@ -14,8 +14,8 @@ from osbs.api import OSBS
 from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException
 
+from atomic_reactor.constants import PLUGIN_KOJI_PROMOTE_PLUGIN_KEY
 from atomic_reactor.plugin import ExitPlugin
-from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 from atomic_reactor.util import get_build_json
 
 
@@ -120,7 +120,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
     def make_labels(self):
         labels = {}
 
-        koji_build_id = self.get_exit_result(KojiPromotePlugin.key)
+        koji_build_id = self.get_exit_result(PLUGIN_KOJI_PROMOTE_PLUGIN_KEY)
         if koji_build_id:
             labels["koji-build-id"] = str(koji_build_id)
 
