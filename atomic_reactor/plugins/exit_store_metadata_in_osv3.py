@@ -14,7 +14,8 @@ from osbs.api import OSBS
 from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException
 
-from atomic_reactor.constants import PLUGIN_KOJI_PROMOTE_PLUGIN_KEY
+from atomic_reactor.constants import (PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
+                                      PLUGIN_KOJI_UPLOAD_PLUGIN_KEY)
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import get_build_json
 
@@ -44,11 +45,18 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         return result
 
-    def get_pre_result(self, key):
-        return self.get_result(self.workflow.prebuild_results.get(key, ''))
+    def get_post_result(self, key):
+        return self.get_result(self.workflow.postbuild_results.get(key, ''))
 
     def get_exit_result(self, key):
         return self.get_result(self.workflow.exit_results.get(key, ''))
+
+    def get_config_map(self):
+        annotations = self.get_post_result(PLUGIN_KOJI_UPLOAD_PLUGIN_KEY)
+        if not annotations:
+            return {}
+
+        return annotations
 
     def get_digests(self):
         """
@@ -198,6 +206,8 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
                 "sha256sum": tar_sha256sum,
                 "filename": os.path.basename(tar_path),
             })
+
+        annotations.update(self.get_config_map())
 
         self.apply_build_result_annotations(annotations)
 
