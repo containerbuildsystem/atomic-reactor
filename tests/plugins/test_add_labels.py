@@ -122,6 +122,7 @@ LABEL "label1"="df value"
 
 @pytest.mark.parametrize('df_content, labels_conf_base, labels_conf, dont_overwrite, aliases, expected_output', [
     (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF, [], {}, EXPECTED_OUTPUT),
+    (DF_CONTENT, LABELS_BLANK, LABELS_CONF, [], {}, EXPECTED_OUTPUT),
     (DF_CONTENT, LABELS_CONF_BASE, json.dumps(LABELS_CONF), [], {}, EXPECTED_OUTPUT),
     (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF_WRONG, [], {}, RuntimeError()),
     (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF, ["label1", ], {}, EXPECTED_OUTPUT2),
