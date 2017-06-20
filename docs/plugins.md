@@ -189,6 +189,9 @@ These are run after buildstep plugin has successfully finished.
  * **import_image**
    * Status: not yet enabled (chain rebuilds)
    * OpenShift is asked to import image tags from Crane into the ImageStream object it maintains representing the image we just built. This step is what triggers rebuilds of dependent images.
+ * **koji_upload**
+   * Status: not yet enabled
+   * The 'docker save' output and build logs are uploaded to Koji. The metadata is returned to be used by the store_metadata_osv3 plugin.  That plugin will use a ConfigMap object to store it for the orchestrator to retrieve it.  It will replace koji_promote when enabled.
 
 ### Exit plugins
 

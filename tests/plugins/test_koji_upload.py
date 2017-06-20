@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2017 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -28,17 +28,13 @@ except ImportError:
     import koji
 
 from atomic_reactor.core import DockerTasker
-from atomic_reactor.plugins.exit_koji_promote import (KojiUploadLogger,
-                                                      KojiPromotePlugin)
-from atomic_reactor.plugins.exit_koji_tag_build import KojiTagBuildPlugin
+from atomic_reactor.plugins.post_koji_upload import (KojiUploadLogger,
+                                                     KojiUploadPlugin)
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
-from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
-from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
-from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
-from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
 from atomic_reactor.util import ImageName, ManifestDigest
-from atomic_reactor.source import GitSource, PathSource
+from atomic_reactor.source import GitSource
 from atomic_reactor.build import BuildResult
 from tests.constants import SOURCE, MOCK
 
@@ -54,8 +50,54 @@ NAMESPACE = 'mynamespace'
 BUILD_ID = 'build-1'
 
 
+def noop(*args, **kwargs): return None
+
+
+# temp workaround until this API is added to osbs-client
+OSBS.create_config_map = noop
+OSBS.get_config_map = noop
+
+
 class X(object):
     pass
+
+
+class MockedOSBS(OSBS):
+    def __init__(self, logs_return_bytes=True):
+        self.configmap = {}
+
+        if logs_return_bytes:
+            logs = b'build logs - \xe2\x80\x98 \xe2\x80\x97 \xe2\x80\x99'
+        else:
+            logs = 'build logs - \u2018 \u2017 \u2019'
+
+        (flexmock(OSBS)
+            .should_receive('get_build_logs')
+            .with_args(BUILD_ID)
+            .and_return(logs))
+        (flexmock(OSBS)
+            .should_receive('get_pod_for_build')
+            .with_args(BUILD_ID)
+            .and_return(MockedPodResponse()))
+        (flexmock(OSBS)
+            .should_receive('create_config_map')
+            .with_args(BUILD_ID+'-md', dict)
+            .replace_with(self.create_config_map))
+        (flexmock(OSBS)
+            .should_receive('get_config_map')
+            .with_args(BUILD_ID+'-md')
+            .replace_with(self.get_config_map))
+
+    def create_config_map(self, name, data):
+        assert isinstance(data, dict)
+        assert is_string_type(name)
+
+        self.configmap[name] = data
+
+    def get_config_map(self, name):
+        assert name in self.configmap
+
+        return self.configmap[name]
 
 
 class MockedPodResponse(object):
@@ -176,10 +218,9 @@ def is_string_type(obj):
 def mock_environment(tmpdir, session=None, name=None,
                      component=None, version=None, release=None,
                      source=None, build_process_failed=False,
-                     is_rebuild=True, docker_registry=True,
-                     pulp_registries=0, blocksize=None,
-                     task_states=None, additional_tags=None,
-                     has_config=None):
+                     docker_registry=True, pulp_registries=0,
+                     blocksize=None, task_states=None,
+                     additional_tags=None, has_config=None):
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -223,14 +264,6 @@ def mock_environment(tmpdir, session=None, name=None,
     flexmock(subprocess, Popen=fake_Popen)
     flexmock(koji, ClientSession=lambda hub, opts: session)
     flexmock(GitSource)
-    (flexmock(OSBS)
-        .should_receive('get_build_logs')
-        .with_args(BUILD_ID)
-        .and_return('build logs - \u2018 \u2017 \u2019'))
-    (flexmock(OSBS)
-        .should_receive('get_pod_for_build')
-        .with_args(BUILD_ID)
-        .and_return(MockedPodResponse()))
     setattr(workflow, 'source', source)
     setattr(workflow.source, 'lg', X())
     setattr(workflow.source.lg, 'commit_id', '123456')
@@ -267,7 +300,6 @@ def mock_environment(tmpdir, session=None, name=None,
         workflow.build_result = BuildResult(logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
                                             image_id="id1234")
     workflow.prebuild_plugins_conf = {}
-    workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_rebuild
     workflow.postbuild_results[PostBuildRPMqaPlugin.key] = [
         "name1;1.0;1;x86_64;0;2000;" + FAKE_SIGMD5.decode() + ";23000;"
         "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abc;(none)",
@@ -291,23 +323,20 @@ def os_env(monkeypatch):
 
 
 def create_runner(tasker, workflow, ssl_certs=False, principal=None,
-                  keytab=None, metadata_only=False, blocksize=None,
-                  target=None, tag_later=False):
+                  keytab=None, blocksize=None, target=None):
     args = {
         'kojihub': '',
         'url': '/',
+        'build_json_dir': '',
     }
     if ssl_certs:
-        args['koji_ssl_certs'] = '/'
+        args['koji_ssl_certs_dir'] = '/'
 
     if principal:
         args['koji_principal'] = principal
 
     if keytab:
         args['koji_keytab'] = keytab
-
-    if metadata_only:
-        args['metadata_only'] = True
 
     if blocksize:
         args['blocksize'] = blocksize
@@ -317,18 +346,30 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
         args['poll_interval'] = 0
 
     plugins_conf = [
-        {'name': KojiPromotePlugin.key, 'args': args},
+        {'name': KojiUploadPlugin.key, 'args': args},
     ]
 
-    if target and tag_later:
-        plugins_conf.append({'name': KojiTagBuildPlugin.key,
-                             'args': {
-                                 'kojihub': '',
-                                 'target': target,
-                                 'poll_interval': 0.01}})
-    workflow.exit_plugins_conf = plugins_conf
-    runner = ExitPluginsRunner(tasker, workflow, plugins_conf)
+    workflow.postbuild_plugins_conf = plugins_conf
+    runner = PostBuildPluginsRunner(tasker, workflow, plugins_conf)
     return runner
+
+
+def get_metadata(workflow, osbs):
+    cm_annotations = workflow.postbuild_results[KojiUploadPlugin.key]
+
+    if not cm_annotations:
+        return {}
+
+    assert "metadata_fragment" in cm_annotations
+    assert "metadata_fragment_key" in cm_annotations
+
+    cmlen = len("configmap/")
+    cm_key = cm_annotations["metadata_fragment"][cmlen:]
+
+    cm_frag_key = cm_annotations["metadata_fragment_key"]
+    cm_data = osbs.get_config_map(cm_key)
+
+    return cm_data[cm_frag_key]
 
 
 class TestKojiUploadLogger(object):
@@ -366,9 +407,10 @@ class TestKojiUploadLogger(object):
             upload_logger.callback(offset, totalsize, step, 1.0, 1.0)
 
 
-class TestKojiPromote(object):
-    def test_koji_promote_failed_build(self, tmpdir, os_env):
+class TestKojiUpload(object):
+    def test_koji_upload_failed_build(self, tmpdir, os_env):
         session = MockedClientSession('')
+        osbs = MockedOSBS()
         tasker, workflow = mock_environment(tmpdir,
                                             session=session,
                                             build_process_failed=True,
@@ -378,16 +420,17 @@ class TestKojiPromote(object):
         runner = create_runner(tasker, workflow)
         runner.run()
 
-        # Must not have promoted this build
-        assert not hasattr(session, 'metadata')
+        # Must not have uploaded this build
+        metadata = get_metadata(workflow, osbs)
+        assert not metadata
 
-    def test_koji_promote_no_tagconf(self, tmpdir, os_env):
+    def test_koji_upload_no_tagconf(self, tmpdir, os_env):
         tasker, workflow = mock_environment(tmpdir)
         runner = create_runner(tasker, workflow)
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_promote_no_build_env(self, tmpdir, monkeypatch, os_env):
+    def test_koji_upload_no_build_env(self, tmpdir, monkeypatch, os_env):
         tasker, workflow = mock_environment(tmpdir,
                                             name='ns/name',
                                             version='1.0',
@@ -399,9 +442,9 @@ class TestKojiPromote(object):
 
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
-        assert "plugin 'koji_promote' raised an exception: KeyError" in str(exc)
+        assert "plugin 'koji_upload' raised an exception: KeyError" in str(exc)
 
-    def test_koji_promote_no_build_metadata(self, tmpdir, monkeypatch, os_env):
+    def test_koji_upload_no_build_metadata(self, tmpdir, monkeypatch, os_env):
         tasker, workflow = mock_environment(tmpdir,
                                             name='ns/name',
                                             version='1.0',
@@ -412,63 +455,6 @@ class TestKojiPromote(object):
         monkeypatch.setenv("BUILD", json.dumps({}))
         with pytest.raises(PluginFailedException):
             runner.run()
-
-    def test_koji_promote_wrong_source_type(self, tmpdir, os_env):
-        source = PathSource('path', 'file:///dev/null')
-        tasker, workflow = mock_environment(tmpdir,
-                                            name='ns/name',
-                                            version='1.0',
-                                            release='1',
-                                            source=source)
-        runner = create_runner(tasker, workflow)
-        with pytest.raises(PluginFailedException) as exc:
-            runner.run()
-        assert "plugin 'koji_promote' raised an exception: RuntimeError" in str(exc)
-
-    @pytest.mark.parametrize(('koji_task_id', 'expect_success'), [
-        (12345, True),
-        ('x', False),
-    ])
-    def test_koji_promote_log_task_id(self, tmpdir, monkeypatch, os_env,
-                                      caplog, koji_task_id, expect_success):
-        session = MockedClientSession('')
-        tasker, workflow = mock_environment(tmpdir,
-                                            session=session,
-                                            name='ns/name',
-                                            version='1.0',
-                                            release='1')
-        runner = create_runner(tasker, workflow)
-
-        monkeypatch.setenv("BUILD", json.dumps({
-            'metadata': {
-                'creationTimestamp': '2015-07-27T09:24:00Z',
-                'namespace': NAMESPACE,
-                'name': BUILD_ID,
-                'labels': {
-                    'koji-task-id': str(koji_task_id),
-                },
-            }
-        }))
-
-        runner.run()
-        metadata = session.metadata
-        assert 'build' in metadata
-        build = metadata['build']
-        assert isinstance(build, dict)
-        assert 'extra' in build
-        extra = build['extra']
-        assert isinstance(extra, dict)
-
-        if expect_success:
-            assert "Koji Task ID {}".format(koji_task_id) in caplog.text()
-
-            assert 'container_koji_task_id' in extra
-            extra_koji_task_id = extra['container_koji_task_id']
-            assert isinstance(extra_koji_task_id, int)
-            assert extra_koji_task_id == koji_task_id
-        else:
-            assert "invalid task ID" in caplog.text()
-            assert 'container_koji_task_id' not in extra
 
     @pytest.mark.parametrize('params', [
         {
@@ -495,7 +481,7 @@ class TestKojiPromote(object):
             'keytab': 'FILE:/var/run/secrets/mysecret',
         },
     ])
-    def test_koji_promote_krb_args(self, tmpdir, params, os_env):
+    def test_koji_upload_krb_args(self, tmpdir, params, os_env):
         session = MockedClientSession('')
         expectation = flexmock(session).should_receive('krb_login').and_return(True)
         name = 'name'
@@ -518,7 +504,7 @@ class TestKojiPromote(object):
             expectation.once()
             runner.run()
 
-    def test_koji_promote_krb_fail(self, tmpdir, os_env):
+    def test_koji_upload_krb_fail(self, tmpdir, os_env):
         session = MockedClientSession('')
         (flexmock(session)
             .should_receive('krb_login')
@@ -533,7 +519,7 @@ class TestKojiPromote(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_promote_ssl_fail(self, tmpdir, os_env):
+    def test_koji_upload_ssl_fail(self, tmpdir, os_env):
         session = MockedClientSession('')
         (flexmock(session)
             .should_receive('ssl_login')
@@ -552,7 +538,7 @@ class TestKojiPromote(object):
         'get_build_logs',
         'get_pod_for_build',
     ])
-    def test_koji_promote_osbs_fail(self, tmpdir, os_env, fail_method):
+    def test_koji_upload_osbs_fail(self, tmpdir, os_env, fail_method):
         tasker, workflow = mock_environment(tmpdir,
                                             name='name',
                                             version='1.0',
@@ -675,20 +661,15 @@ class TestKojiPromote(object):
         assert is_string_type(osbs['build_id'])
         assert is_string_type(osbs['builder_image_id'])
 
-    def validate_output(self, output, metadata_only, has_config,
+    def validate_output(self, output, has_config,
                         expect_digest):
-        if metadata_only:
-            mdonly = set()
-        else:
-            mdonly = set(['metadata_only'])
-
         assert isinstance(output, dict)
         assert 'buildroot_id' in output
         assert 'filename' in output
         assert output['filename']
         assert is_string_type(output['filename'])
         assert 'filesize' in output
-        assert int(output['filesize']) > 0 or metadata_only
+        assert int(output['filesize']) > 0
         assert 'arch' in output
         assert output['arch']
         assert is_string_type(output['arch'])
@@ -708,9 +689,8 @@ class TestKojiPromote(object):
                 'checksum',
                 'checksum_type',
                 'type',
-                'metadata_only',  # only when True
-            ]) - mdonly
-            assert output['arch'] == 'noarch'
+            ])
+            assert output['arch'] == 'x86_64'
         else:
             assert set(output.keys()) == set([
                 'buildroot_id',
@@ -722,8 +702,7 @@ class TestKojiPromote(object):
                 'type',
                 'components',
                 'extra',
-                'metadata_only',  # only when True
-            ]) - mdonly
+            ])
             assert output['type'] == 'docker-image'
             assert is_string_type(output['arch'])
             assert output['arch'] != 'noarch'
@@ -797,11 +776,11 @@ class TestKojiPromote(object):
                 assert 'container_config' not in [x.lower() for x in config.keys()]
                 assert all(is_string_type(entry) for entry in config)
 
-    def test_koji_promote_import_fail(self, tmpdir, os_env, caplog):
+    def test_koji_upload_import_fail(self, tmpdir, os_env, caplog):
         session = MockedClientSession('')
-        (flexmock(session)
-            .should_receive('CGImport')
-            .and_raise(RuntimeError))
+        (flexmock(OSBS)
+            .should_receive('create_config_map')
+            .and_raise(OsbsException))
         name = 'ns/name'
         version = '1.0'
         release = '1'
@@ -817,92 +796,12 @@ class TestKojiPromote(object):
 
         assert 'metadata:' in caplog.text()
 
-    @pytest.mark.parametrize('task_states', [
-        ['FREE', 'ASSIGNED', 'FAILED'],
-        ['CANCELED'],
-        [None],
-    ])
-    def test_koji_promote_tag_fail(self, tmpdir, task_states, os_env):
-        session = MockedClientSession('', task_states=task_states)
-        name = 'ns/name'
-        version = '1.0'
-        release = '1'
-        target = 'images-docker-candidate'
-        tasker, workflow = mock_environment(tmpdir,
-                                            name=name,
-                                            version=version,
-                                            release=release,
-                                            session=session)
-        runner = create_runner(tasker, workflow, target=target)
-        with pytest.raises(PluginFailedException):
-            runner.run()
-
-    @pytest.mark.parametrize(('task_id', 'expect_success'), [
-        (1234, True),
-        ('x', False),
-    ])
-    def test_koji_promote_filesystem_koji_task_id(self, tmpdir, os_env, caplog,
-                                                  task_id, expect_success):
-        session = MockedClientSession('')
-        tasker, workflow = mock_environment(tmpdir,
-                                            name='ns/name',
-                                            version='1.0',
-                                            release='1',
-                                            session=session)
-        workflow.prebuild_results[AddFilesystemPlugin.key] = {
-            'base-image-id': 'abcd',
-            'filesystem-koji-task-id': task_id,
-        }
-        runner = create_runner(tasker, workflow)
-        runner.run()
-
-        data = session.metadata
-        assert 'build' in data
-        build = data['build']
-        assert isinstance(build, dict)
-        assert 'extra' in build
-        extra = build['extra']
-        assert isinstance(extra, dict)
-
-        if expect_success:
-            assert 'filesystem_koji_task_id' in extra
-            filesystem_koji_task_id = extra['filesystem_koji_task_id']
-            assert isinstance(filesystem_koji_task_id, int)
-            assert filesystem_koji_task_id == task_id
-        else:
-            assert 'invalid task ID' in caplog.text()
-            assert 'filesystem_koji_task_id' not in extra
-
-    def test_koji_promote_filesystem_koji_task_id_missing(self, tmpdir, os_env,
-                                                          caplog):
-        session = MockedClientSession('')
-        tasker, workflow = mock_environment(tmpdir,
-                                            name='ns/name',
-                                            version='1.0',
-                                            release='1',
-                                            session=session)
-        task_id = 1234
-        workflow.prebuild_results[AddFilesystemPlugin.key] = {
-            'base-image-id': 'abcd',
-        }
-        runner = create_runner(tasker, workflow)
-        runner.run()
-
-        data = session.metadata
-        assert 'build' in data
-        build = data['build']
-        assert isinstance(build, dict)
-        assert 'extra' in build
-        extra = build['extra']
-        assert isinstance(extra, dict)
-        assert 'filesystem_koji_task_id' not in extra
-        assert AddFilesystemPlugin.key in caplog.text()
-
     @pytest.mark.parametrize('additional_tags', [
         None,
         ['3.2'],
     ])
-    def test_koji_promote_image_tags(self, tmpdir, os_env, additional_tags):
+    def test_koji_upload_image_tags(self, tmpdir, os_env, additional_tags):
+        osbs = MockedOSBS()
         session = MockedClientSession('')
         version = '3.2.1'
         release = '4'
@@ -915,7 +814,7 @@ class TestKojiPromote(object):
         runner = create_runner(tasker, workflow)
         runner.run()
 
-        data = session.metadata
+        data = get_metadata(workflow, osbs)
 
         # Find the docker output section
         outputs = data['output']
@@ -941,57 +840,39 @@ class TestKojiPromote(object):
     @pytest.mark.parametrize(('apis',
                               'docker_registry',
                               'pulp_registries',
-                              'metadata_only',
                               'blocksize',
                               'target'), [
         ('v1-only',
          False,
          1,
-         False,
          None,
          'images-docker-candidate'),
 
         ('v1+v2',
          True,
          2,
-         False,
          10485760,
          None),
 
         ('v2-only',
          True,
          1,
-         True,
          None,
          None),
 
         ('v1+v2',
          True,
          0,
-         False,
          10485760,
          None),
 
     ])
-    @pytest.mark.parametrize(('has_config', 'is_autorebuild'), [
-        (True,
-         True),
-        (False,
-         False),
-    ])
-    @pytest.mark.parametrize('tag_later', (True, False))
-    def test_koji_promote_success(self, tmpdir, apis, docker_registry,
-                                  pulp_registries, metadata_only, blocksize,
-                                  target, os_env, has_config, is_autorebuild,
-                                  tag_later):
+    @pytest.mark.parametrize('has_config', (True, False))
+    def test_koji_upload_success(self, tmpdir, apis, docker_registry,
+                                 pulp_registries, blocksize, target,
+                                 os_env, has_config):
+        osbs = MockedOSBS()
         session = MockedClientSession('')
-        # When target is provided koji build will always be tagged,
-        # either by koji_promote or koji_tag_build.
-        (flexmock(session)
-            .should_call('tagBuild')
-            .with_args('images-candidate', '123')
-            .times(1 if target else 0))
-
         component = 'component'
         name = 'ns/name'
         version = '1.0'
@@ -1011,36 +892,18 @@ class TestKojiPromote(object):
                                             pulp_registries=pulp_registries,
                                             blocksize=blocksize,
                                             has_config=has_config)
-        workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_autorebuild
-        runner = create_runner(tasker, workflow, metadata_only=metadata_only,
-                               blocksize=blocksize, target=target,
-                               tag_later=tag_later)
-        result = runner.run()
+        runner = create_runner(tasker, workflow, blocksize=blocksize, target=target)
+        runner.run()
 
-        # Look at koji_tag_build result for determining which plugin
-        # performing koji build taggging
-        if tag_later and target:
-            assert result[KojiTagBuildPlugin.key] == 'images-candidate'
-        else:
-            assert result.get(KojiTagBuildPlugin.key) is None
-
-        data = session.metadata
-        if metadata_only:
-            mdonly = set()
-        else:
-            mdonly = set(['metadata_only'])
+        data = get_metadata(workflow, osbs)
 
         assert set(data.keys()) == set([
             'metadata_version',
-            'build',
             'buildroots',
             'output',
         ])
 
         assert data['metadata_version'] in ['0', 0]
-
-        build = data['build']
-        assert isinstance(build, dict)
 
         buildroots = data['buildroots']
         assert isinstance(buildroots, list)
@@ -1048,39 +911,6 @@ class TestKojiPromote(object):
 
         output_files = data['output']
         assert isinstance(output_files, list)
-
-        assert set(build.keys()) == set([
-            'name',
-            'version',
-            'release',
-            'source',
-            'start_time',
-            'end_time',
-            'extra',          # optional but always supplied
-            'metadata_only',  # only when True
-        ]) - mdonly
-
-        assert build['name'] == component
-        assert build['version'] == version
-        assert build['release'] == release
-        assert build['source'] == 'git://hostname/path#123456'
-        start_time = build['start_time']
-        assert isinstance(start_time, int) and start_time
-        end_time = build['end_time']
-        assert isinstance(end_time, int) and end_time
-        if metadata_only:
-            assert isinstance(build['metadata_only'], bool)
-            assert build['metadata_only']
-
-        extra = build['extra']
-        assert isinstance(extra, dict)
-        assert 'image' in extra
-        image = extra['image']
-        assert isinstance(image, dict)
-        assert 'autorebuild' in image
-        autorebuild = image['autorebuild']
-        assert isinstance(autorebuild, bool)
-        assert autorebuild == is_autorebuild
 
         for buildroot in buildroots:
             self.validate_buildroot(buildroot)
@@ -1090,7 +920,7 @@ class TestKojiPromote(object):
                         if b['id'] == buildroot['id']]) == 1
 
         for output in output_files:
-            self.validate_output(output, metadata_only, has_config,
+            self.validate_output(output, has_config,
                                  expect_digest=docker_registry)
             buildroot_id = output['buildroot_id']
 
@@ -1098,19 +928,11 @@ class TestKojiPromote(object):
             assert len([buildroot for buildroot in buildroots
                         if buildroot['id'] == buildroot_id]) == 1
 
-            if metadata_only:
-                assert isinstance(output['metadata_only'], bool)
-                assert output['metadata_only']
-
         files = session.uploaded_files
 
         # There should be a file in the list for each output
-        # except for metadata-only imports, in which case there
-        # will be no upload for the image itself
         assert isinstance(files, list)
         expected_uploads = len(output_files)
-        if metadata_only:
-            expected_uploads -= 1
 
         assert len(files) == expected_uploads
 
@@ -1118,20 +940,14 @@ class TestKojiPromote(object):
         if blocksize is not None:
             assert blocksize == session.blocksize
 
-        build_id = runner.plugins_results[KojiPromotePlugin.key]
-        assert build_id == "123"
-
-        if target is not None:
-            assert session.build_tags[build_id] == session.DEST_TAG
-            assert session.tag_task_state == 'CLOSED'
-
     @pytest.mark.parametrize(('primary', 'unique', 'invalid'), [
         (True, True, False),
         (True, False, False),
         (False, True, False),
         (False, False, True),
     ])
-    def test_koji_promote_pullspec(self, tmpdir, os_env, primary, unique, invalid):
+    def test_koji_upload_pullspec(self, tmpdir, os_env, primary, unique, invalid):
+        osbs = MockedOSBS()
         session = MockedClientSession('')
         name = 'ns/name'
         version = '1.0'
@@ -1157,9 +973,10 @@ class TestKojiPromote(object):
 
         runner.run()
 
+        metadata = get_metadata(workflow, osbs)
         docker_outputs = [
             output
-            for output in session.metadata['output']
+            for output in metadata['output']
             if output['type'] == 'docker-image'
         ]
         assert len(docker_outputs) == 1
@@ -1179,92 +996,15 @@ class TestKojiPromote(object):
         else:
             assert pullspec.endswith('-timestamp')
 
-    def test_koji_promote_without_build_info(self, tmpdir, os_env):
-
-        class LegacyCGImport(MockedClientSession):
-
-            def CGImport(self, *args, **kwargs):
-                super(LegacyCGImport, self).CGImport(*args, **kwargs)
-                return
-
-        session = LegacyCGImport('')
-        name = 'ns/name'
-        version = '1.0'
-        release = '1'
-        tasker, workflow = mock_environment(tmpdir,
-                                            session=session,
-                                            name=name,
-                                            version=version,
-                                            release=release)
-        runner = create_runner(tasker, workflow)
-        runner.run()
-
-        assert runner.plugins_results[KojiPromotePlugin.key] is None
-
-    @pytest.mark.parametrize('expect_result', [
-        'empty_config',
-        'no_help_file',
-        'skip',
-        'pass',
-        'unknown_status'
+    @pytest.mark.parametrize('logs_return_bytes', [
+        True,
+        False,
     ])
-    def test_koji_promote_add_help(self, tmpdir, os_env, expect_result):
-        session = MockedClientSession('')
+    def test_koji_upload_logs(self, tmpdir, os_env, logs_return_bytes):
+        MockedOSBS(logs_return_bytes=logs_return_bytes)
         tasker, workflow = mock_environment(tmpdir,
-                                            name='ns/name',
+                                            name='name',
                                             version='1.0',
-                                            release='1',
-                                            session=session)
-
-        if expect_result == 'pass':
-            workflow.prebuild_results[AddHelpPlugin.key] = {
-                'help_file': 'foo.md',
-                'status': AddHelpPlugin.HELP_GENERATED
-            }
-
-        elif expect_result == 'empty_config':
-            workflow.prebuild_results[AddHelpPlugin.key] = {
-                'help_file': 'help.md',
-                'status': AddHelpPlugin.HELP_GENERATED
-            }
-
-        elif expect_result == 'no_help_file':
-            workflow.prebuild_results[AddHelpPlugin.key] = {
-                'help_file': 'foo.md',
-                'status': AddHelpPlugin.NO_HELP_FILE_FOUND
-            }
-
-        elif expect_result == 'unknown_status':
-            workflow.prebuild_results[AddHelpPlugin.key] = {
-                'help_file': 'foo.md',
-                'status': 99999
-            }
-
-        elif expect_result == 'skip':
-            workflow.prebuild_results[AddHelpPlugin.key] = None
-
+                                            release='1')
         runner = create_runner(tasker, workflow)
         runner.run()
-
-        data = session.metadata
-        assert 'build' in data
-        build = data['build']
-        assert isinstance(build, dict)
-        assert 'extra' in build
-        extra = build['extra']
-        assert isinstance(extra, dict)
-        assert 'image' in extra
-        image = extra['image']
-        assert isinstance(image, dict)
-
-        if expect_result == 'pass':
-            assert 'help' in image.keys()
-            assert image['help'] == 'foo.md'
-        elif expect_result == 'empty_config':
-            assert 'help' in image.keys()
-            assert image['help'] == 'help.md'
-        elif expect_result == 'no_help_file':
-            assert 'help' in image.keys()
-            assert image['help'] is None
-        elif expect_result in ['skip', 'unknown_status']:
-            assert 'help' not in image.keys()
