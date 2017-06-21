@@ -41,7 +41,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
     Submits an image build task to Koji based on image build
     configuration file to create the filesystem to be used in
     creating the base image:
-    https://fedoraproject.org/wiki/Koji/BuildingImages#Building_Disk_Images
+    https://docs.pagure.org/koji/image_build/
 
     Once image build task is complete the tarball is downloaded and
     it's imported into docker. This creates a new image. The existing
@@ -81,7 +81,8 @@ class AddFilesystemPlugin(PreBuildPlugin):
                  koji_krb_principal=None, koji_krb_keytab=None,
                  from_task_id=None, poll_interval=5,
                  blocksize=DEFAULT_DOWNLOAD_BLOCK_SIZE,
-                 repos=None):
+                 repos=None, architectures=None,
+                 architecture=None):
         """
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
@@ -98,6 +99,8 @@ class AddFilesystemPlugin(PreBuildPlugin):
                       base filesystem creation. First value will also
                       be used as install_tree. Only baseurl value is used
                       from each repo file.
+        :param architectures: str, list of arches to build on (orchestrator)
+        :param architecture: str, arch to build on (worker)
         """
         # call parent constructor
         super(AddFilesystemPlugin, self).__init__(tasker, workflow)
@@ -112,6 +115,13 @@ class AddFilesystemPlugin(PreBuildPlugin):
         self.poll_interval = poll_interval
         self.blocksize = blocksize
         self.repos = repos or []
+        if architectures:
+            self.architectures = architectures
+            self.is_orchestrator = True
+        else:
+            self.architectures = None
+            self.is_orchestrator = False
+        self.architecture = architecture
         self.scratch = util.is_scratch_build()
 
     def is_image_build_type(self, base_image):
@@ -163,6 +173,12 @@ class AddFilesystemPlugin(PreBuildPlugin):
         config.readfp(self.get_default_image_build_conf())
         config.read(config_file_name)
 
+        if self.architectures:
+            config.set('image-build', 'arches', ','.join(self.architectures))
+        elif self.architecture:
+            config.set('image-build', 'arches', self.architecture)
+        # else just use what was provided by the user in image-build.conf
+
         config_str = StringIO()
         config.write(config_str)
         self.log.debug('Image Build Config: \n%s', config_str.getvalue())
@@ -204,6 +220,17 @@ class AddFilesystemPlugin(PreBuildPlugin):
 
         return image_name, args, {'opts': opts}
 
+    def get_filesystem_regex(self, image_name):
+        prefix = image_name
+        if self.architecture:
+            prefix = '{}.*{}'.format(prefix, self.architecture)
+
+        pattern = ('{}.*(\.tar|\.tar\.gz|\.tar\.bz2|\.tar\.xz)$'
+                   .format(prefix))
+        filesystem_regex = re.compile(pattern, re.IGNORECASE)
+
+        return filesystem_regex
+
     def build_filesystem(self, image_build_conf):
         # Image build conf file should be in the same folder as Dockerfile
         df_path, df_dir = self.workflow.source.get_dockerfile_path()
@@ -217,9 +244,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         if self.scratch:
             kwargs['opts']['scratch'] = True
 
-        pattern = ('{}.*(\.tar|\.tar\.gz|\.tar\.bz2|\.tar\.xz)$'
-                   .format(image_name))
-        filesystem_regex = re.compile(pattern, re.IGNORECASE)
+        filesystem_regex = self.get_filesystem_regex(image_name)
         if self.from_task_id:
             task_id = self.from_task_id
         else:
@@ -264,18 +289,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         result = json.loads(result)
         return result['status']
 
-    def run(self):
-        base_image = self.workflow.builder.base_image
-        if base_image.namespace != 'koji' or base_image.repo != 'image-build':
-            self.log.info('Base image not supported: %s', base_image)
-            return
-
-        image_build_conf = base_image.tag
-        if not image_build_conf or image_build_conf == 'latest':
-            image_build_conf = 'image-build.conf'
-
-        self.session = create_koji_session(self.koji_hub, self.koji_auth_info)
-
+    def run_image_task(self, image_build_conf):
         task_id, filesystem_regex = self.build_filesystem(image_build_conf)
 
         try:
@@ -298,11 +312,34 @@ class AddFilesystemPlugin(PreBuildPlugin):
             raise RuntimeError('image task, {}, failed: {}'
                                .format(task_id, task_result))
 
+        return task_id, filesystem_regex
+
+    def stream_filesystem(self, task_id, filesystem_regex):
         filesystem = self.download_filesystem(task_id, filesystem_regex)
 
         new_base_image = self.import_base_image(filesystem)
         self.workflow.builder.set_base_image(new_base_image)
         defer_removal(self.workflow, new_base_image)
+
+        return new_base_image
+
+    def run(self):
+        base_image = self.workflow.builder.base_image
+        if base_image.namespace != 'koji' or base_image.repo != 'image-build':
+            self.log.info('Base image not supported: %s', base_image)
+            return
+
+        image_build_conf = base_image.tag
+        if not image_build_conf or image_build_conf == 'latest':
+            image_build_conf = 'image-build.conf'
+
+        self.session = create_koji_session(self.koji_hub, self.koji_auth_info)
+
+        task_id, filesystem_regex = self.run_image_task(image_build_conf)
+
+        new_base_image = None
+        if not self.is_orchestrator:
+            new_base_image = self.stream_filesystem(task_id, filesystem_regex)
 
         return {
             'base-image-id': new_base_image,

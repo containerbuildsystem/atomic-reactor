@@ -17,6 +17,7 @@ import os
 from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import BuildStepPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_config
+from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.util import get_preferred_label, df_parser
 from osbs.api import OSBS
 from osbs.conf import Configuration
@@ -238,8 +239,25 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
     def do_worker_build(self, release, cluster_info):
         build = None
+        task_id = None
+        fs_result = self.workflow.prebuild_results.get(AddFilesystemPlugin.key)
+        if fs_result is not None:
+            try:
+                fs_task_id = fs_result['filesystem-koji-task-id']
+            except KeyError:
+                self.log.error("%s: expected filesystem-koji-task-id in result",
+                               AddFilesystemPlugin.key)
+            else:
+                try:
+                    task_id = int(fs_task_id)
+                except ValueError:
+                    self.log.error("invalid taskID %r", fs_task_id, exc_info=1)
+
         try:
             kwargs = self.get_worker_build_kwargs(release, cluster_info.platform)
+            self.log.debug("%s: setting filesystem_koji_task_id to %d",
+                           AddFilesystemPlugin.key, task_id)
+            kwargs['filesystem_koji_task_id'] = task_id
             build = cluster_info.osbs.create_worker_build(**kwargs)
         except Exception:
             self.log.exception('%s - failed to create worker build',
