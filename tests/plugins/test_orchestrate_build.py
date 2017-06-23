@@ -646,3 +646,47 @@ def test_orchestrate_build_get_fs_task_id(tmpdir, task_id, error):
     else:
         build_result = runner.run()
         assert not build_result.is_failed()
+
+
+@pytest.mark.parametrize('fail_at', ('all', 'first'))
+def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
+    workflow = mock_workflow(tmpdir)
+    mock_osbs()  # Current builds is a constant 2
+
+    mock_reactor_config(tmpdir, {
+        'x86_64': [
+            {'name': 'spam', 'max_concurrent_builds': 5},
+            {'name': 'eggs', 'max_concurrent_builds': 5}
+        ],
+    })
+
+    flexmock_chain = flexmock(OSBS).should_receive('list_builds').and_raise(OsbsException("foo"))
+
+    if fail_at == 'all':
+        flexmock_chain.and_raise(OsbsException("foo"))
+
+    if fail_at == 'first':
+        flexmock_chain.and_return(['a', 'b'])
+
+    runner = BuildStepPluginsRunner(
+        workflow.builder.tasker,
+        workflow,
+        [{
+            'name': OrchestrateBuildPlugin.key,
+            'args': {
+                'platforms': ['x86_64'],
+                'build_kwargs': make_worker_build_kwargs(),
+                'osbs_client_config': str(tmpdir),
+            }
+        }]
+    )
+    if fail_at != 'all':
+        build_result = runner.run()
+        assert not build_result.is_failed()
+
+        annotations = build_result.annotations
+        assert annotations['worker-builds']['x86_64']['build']['cluster-url'] == 'https://eggs.com/'
+    else:
+        with pytest.raises(PluginFailedException) as exc:
+            build_result = runner.run()
+        assert 'All clusters for platform x86_64 are unreachable' in str(exc)

@@ -25,6 +25,7 @@ from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY
 from osbs.api import OSBS
 from osbs.conf import Configuration
 from osbs.constants import BUILD_FINISHED_STATES
+from osbs.exceptions import OsbsException
 
 
 ClusterInfo = namedtuple('ClusterInfo', ('cluster', 'platform', 'osbs', 'load'))
@@ -141,6 +142,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     """
 
     EXCLUDE_FILENAME = 'exclude-platform'
+    UNREACHABLE_CLUSTER_LOAD = object()
 
     key = 'orchestrate_build'
 
@@ -201,7 +203,13 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         conf = Configuration(**kwargs)
         osbs = OSBS(conf, conf)
-        current_builds = self.get_current_builds(osbs)
+        try:
+            current_builds = self.get_current_builds(osbs)
+        except OsbsException:
+            self.log.exception("Error occurred while listing builds on %s",
+                               cluster.name)
+            return ClusterInfo(cluster, platform, osbs, self.UNREACHABLE_CLUSTER_LOAD)
+
         load = current_builds / cluster.max_concurrent_builds
         self.log.debug('enabled cluster %s for platform %s has load %s and active builds %s/%s',
                        cluster.name, platform, load, current_builds, cluster.max_concurrent_builds)
@@ -216,7 +224,14 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             raise RuntimeError('No clusters found for platform {}!'
                                .format(platform))
 
-        selected = min(clusters, key=lambda c: c.load)
+        reachable_clusters = [cluster for cluster in clusters
+                              if cluster.load != self.UNREACHABLE_CLUSTER_LOAD]
+
+        if not reachable_clusters:
+            raise RuntimeError('All clusters for platform {} are unreachable!'
+                               .format(platform))
+
+        selected = min(reachable_clusters, key=lambda c: c.load)
         self.log.info('platform %s will use cluster %s',
                       platform, selected.cluster.name)
         return selected
