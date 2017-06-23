@@ -81,5 +81,4 @@ class CancelBuildsOnAutoRebuild(PreBuildPlugin):
                         osbs.cancel_build(build.get_build_name())
 
             except OsbsResponseException as ex:
-                log.exception("failed to cancel build %s", build.get_build_name())
-
+                self.log.exception("failed to cancel build %s", build.get_build_name())
