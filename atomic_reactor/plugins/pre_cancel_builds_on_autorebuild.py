@@ -65,7 +65,7 @@ class CancelBuildsOnAutoRebuild(PreBuildPlugin):
 
             try:
                 builds = osbs.list_builds(
-                    field_separator={"buildconfig": buildconfig}
+                    field_selector={"buildconfig": buildconfig}
                 )
 
                 for build in builds:
@@ -77,13 +77,9 @@ class CancelBuildsOnAutoRebuild(PreBuildPlugin):
                         osbs.cancel_build(build.get_build_name())
 
             except OsbsResponseException as ex:
-                if ex.status_code == 409:
-                    # Someone else was modifying the build
-                    # configuration at the same time. Try again.
-                    self.log.debug("got status %d, retrying", ex.status_code)
-                    osbs.set_labels_on_build_config(buildconfig, labels)
-                else:
-                    raise
+                # FIXME - I'm not sure what a good 'graceful' handling of this
+                # would be.
+                raise
         else:
             self.log.info(
                 'this is not an autorebuild, %s is doing nothing' % self.key
