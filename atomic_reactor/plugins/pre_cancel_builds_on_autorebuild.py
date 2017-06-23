@@ -47,7 +47,11 @@ class CancelBuildsOnAutoRebuild(PreBuildPlugin):
         buildconfig = labels["buildconfig"]
 
         self.log.info("This is a rebuild? %s", buildconfig)
-        if is_rebuild(self.workflow):
+        if not is_rebuild(self.workflow):
+            self.log.info(
+                'this is not an autorebuild, %s is doing nothing' % self.key
+            )
+        else:
             self.log.info(
                 'this is an autorebuild, determining if any previous builds need to be cancelled'
             )
@@ -77,10 +81,5 @@ class CancelBuildsOnAutoRebuild(PreBuildPlugin):
                         osbs.cancel_build(build.get_build_name())
 
             except OsbsResponseException as ex:
-                # FIXME - I'm not sure what a good 'graceful' handling of this
-                # would be.
-                raise
-        else:
-            self.log.info(
-                'this is not an autorebuild, %s is doing nothing' % self.key
-            )
+                log.exception("failed to cancel build %s", build.get_build_name())
+
