@@ -27,6 +27,14 @@ from osbs.constants import BUILD_FINISHED_STATES
 ClusterInfo = namedtuple('ClusterInfo', ('cluster', 'platform', 'osbs', 'load'))
 
 
+def get_worker_build_info(workflow, platform):
+    """
+    Obtain worker build information for a given platform
+    """
+    workspace = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
+    return workspace[platform]
+
+
 class WorkerBuildInfo(object):
 
     def __init__(self, build, cluster_info):
@@ -336,6 +344,10 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             for build_info in self.worker_builds
             if not build_info.build or not build_info.build.is_succeeded()
         }
+
+        workspace = {build_info.platform: build_info
+                     for build_info in self.worker_builds}
+        self.workflow.plugin_workspace[self.key] = workspace
 
         if fail_reasons:
             return BuildResult(fail_reason=json.dumps(fail_reasons),
