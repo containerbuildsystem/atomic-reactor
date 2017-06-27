@@ -53,7 +53,7 @@ class WorkerBuildInfo(object):
 
     def get_annotations(self):
         build_annotations = self.build.get_annotations() or {}
-        return {
+        annotations = {
             'build': {
                 'cluster-url': self.osbs.os_conf.get_openshift_base_uri(),
                 'namespace': self.osbs.os_conf.get_namespace(),
@@ -64,6 +64,13 @@ class WorkerBuildInfo(object):
             'plugins-metadata': json.loads(
                 build_annotations.get('plugins-metadata', '{}')),
         }
+
+        if 'metadata_fragment' in build_annotations and \
+           'metadata_fragment_key' in build_annotations:
+            annotations['metadata_fragment'] = build_annotations['metadata_fragment']
+            annotations['metadata_fragment_key'] = build_annotations['metadata_fragment_key']
+
+        return annotations
 
     def get_fail_reason(self):
         if not self.build:
