@@ -246,9 +246,18 @@ def test_orchestrate_build(tmpdir, config_kwargs, worker_build_image, logs_retur
     assert (build_result.labels == {})
 
 
-def test_orchestrate_build_annotations_and_labels(tmpdir):
+@pytest.mark.parametrize('metadata_fragment', [
+    True,
+    False
+])
+def test_orchestrate_build_annotations_and_labels(tmpdir, metadata_fragment):
     workflow = mock_workflow(tmpdir)
     mock_osbs()
+
+    md = {
+        'metadata_fragment': 'configmap/spam-md',
+        'metadata_fragment_key': 'metadata.json'
+    }
 
     def mock_wait_for_build_to_finish(build_name):
         annotations = {
@@ -265,6 +274,9 @@ def test_orchestrate_build_annotations_and_labels(tmpdir):
                 },
             ]),
         }
+        if metadata_fragment:
+            annotations.update(md)
+
         labels = {'koji-build-id': 'koji-build-id'}
         return make_build_response(build_name, 'Complete', annotations, labels)
     (flexmock(OSBS)
@@ -287,7 +299,7 @@ def test_orchestrate_build_annotations_and_labels(tmpdir):
     build_result = runner.run()
     assert not build_result.is_failed()
 
-    assert (build_result.annotations == {
+    expected = {
         'worker-builds': {
             'x86_64': {
                 'build': {
@@ -332,7 +344,12 @@ def test_orchestrate_build_annotations_and_labels(tmpdir):
                 'worker-build-x86_64-primary',
             ],
         },
-    })
+    }
+    if metadata_fragment:
+        expected['worker-builds']['x86_64'].update(md)
+        expected['worker-builds']['ppc64le'].update(md)
+
+    assert (build_result.annotations == expected)
 
     assert (build_result.labels == {'koji-build-id': 'koji-build-id'})
 
