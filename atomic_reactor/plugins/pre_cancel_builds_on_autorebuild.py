@@ -21,7 +21,6 @@ class CancelBuildsOnAutoRebuild(PreBuildPlugin):
     """
     key = 'cancel_builds_on_autorebuild'
 
-    # FIXME - Unsure if this should be allowed to fail
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, url, verify_ssl=True, use_auth=True):
@@ -58,7 +57,6 @@ class CancelBuildsOnAutoRebuild(PreBuildPlugin):
 
             osbs_conf = Configuration(
                 conf_file=None,
-                openshift_uri=self.url,
                 openshift_url=self.url,
                 use_auth=self.use_auth,
                 verify_ssl=self.verify_ssl,
@@ -69,7 +67,7 @@ class CancelBuildsOnAutoRebuild(PreBuildPlugin):
 
             try:
                 builds = osbs.list_builds(
-                    field_selector={"buildconfig": buildconfig}
+                    field_selector="buildconfig={}".format(buildconfig)
                 )
 
                 for build in builds:
@@ -82,3 +80,4 @@ class CancelBuildsOnAutoRebuild(PreBuildPlugin):
 
             except OsbsResponseException as ex:
                 self.log.exception("failed to cancel build %s", build.get_build_name())
+                raise ex
