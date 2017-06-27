@@ -13,7 +13,8 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import BuildCanceledException, PluginFailedException
 from atomic_reactor.plugin import BuildStepPluginsRunner
 from atomic_reactor.plugins import pre_reactor_config
-from atomic_reactor.plugins.build_orchestrate_build import OrchestrateBuildPlugin
+from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
+                                                            get_worker_build_info)
 from atomic_reactor.plugins.pre_reactor_config import ReactorConfig
 from atomic_reactor.util import ImageName, df_parser
 from dockerfile_parse import DockerfileParser
@@ -245,6 +246,9 @@ def test_orchestrate_build(tmpdir, config_kwargs, worker_build_image, logs_retur
 
     assert (build_result.labels == {})
 
+    build_info = get_worker_build_info(workflow, 'x86_64')
+    assert build_info.osbs
+
 
 def test_orchestrate_build_annotations_and_labels(tmpdir):
     workflow = mock_workflow(tmpdir)
@@ -335,6 +339,9 @@ def test_orchestrate_build_annotations_and_labels(tmpdir):
     })
 
     assert (build_result.labels == {'koji-build-id': 'koji-build-id'})
+
+    build_info = get_worker_build_info(workflow, 'x86_64')
+    assert build_info.osbs
 
 
 def test_orchestrate_build_cancelation(tmpdir):
