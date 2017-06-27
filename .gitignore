@@ -2,3 +2,7 @@
 *.swp
 dist/
 *.egg-info/
+build/
+
+# Unit test / coverage reports
+.cache
