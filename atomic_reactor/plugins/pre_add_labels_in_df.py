@@ -64,6 +64,7 @@ import string
 class AddLabelsPlugin(PreBuildPlugin):
     key = "add_labels_in_dockerfile"
     is_allowed_to_fail = False
+    rewrite_whitelist = ['release', 'version']
 
     def __init__(self, tasker, workflow, labels,
                  dont_overwrite=("Architecture", "architecture"),
@@ -322,7 +323,9 @@ class AddLabelsPlugin(PreBuildPlugin):
             except KeyError:
                 self.log.info("label %r not present in base image", key)
             else:
-                if base_image_value == value:
+                # Some labels (self.rewrite_whitelist) should always be set in the dockerfile
+                # even if it was already set in base image and the values match
+                if base_image_value == value and key not in self.rewrite_whitelist:
                     self.log.info("label %r is already set to %r", key, value)
                     continue
                 else:
