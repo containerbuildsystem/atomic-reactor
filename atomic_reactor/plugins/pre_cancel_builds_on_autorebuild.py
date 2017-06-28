@@ -82,7 +82,9 @@ class CancelBuildsOnAutoRebuild(PreBuildPlugin):
 
                 builds = osbs.list_builds(field_selector=field_selector)
             except OsbsResponseException as ex:
-                self.log.exception("failed to cancel build, unable to obtain list of builds from OSBS")
+                self.log.exception(
+                    "failed to cancel build, unable to obtain list of builds from OSBS"
+                )
                 raise ex
 
             last_ex = None
