@@ -57,6 +57,7 @@ from atomic_reactor.util import get_docker_architecture, df_parser
 from osbs.utils import Labels
 import json
 import datetime
+import re
 import string
 
 
@@ -275,18 +276,21 @@ class AddLabelsPlugin(PreBuildPlugin):
         """
         run the plugin
         """
-        try:
-            config = self.workflow.base_image_inspect[INSPECT_CONFIG]
-        except (AttributeError, TypeError):
-            message = "base image was not inspected"
-            self.log.error(message)
-            raise RuntimeError(message)
-        else:
-            base_image_labels = config["Labels"] or {}
-
         dockerfile = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
 
         lines = dockerfile.lines
+
+        if re.match('^koji/image-build(:.*)?$', dockerfile.baseimage):
+            base_image_labels = {}
+        else:
+            try:
+                config = self.workflow.base_image_inspect[INSPECT_CONFIG]
+            except KeyError:
+                message = "base image was not inspected"
+                self.log.error(message)
+                raise RuntimeError(message)
+            else:
+                base_image_labels = config["Labels"] or {}
 
         # changing dockerfile.labels writes out modified Dockerfile - err on
         # the safe side and make a copy
