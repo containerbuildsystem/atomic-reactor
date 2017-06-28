@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from osbs.api import OSBS
 from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException
+from osbs.constants import BUILD_FINISHED_STATES
 from atomic_reactor.util import get_build_json
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
@@ -48,7 +49,8 @@ class CancelBuildsOnAutoRebuild(PreBuildPlugin):
         self.log.info("This is a rebuild? %s", buildconfig)
         if not is_rebuild(self.workflow):
             self.log.info(
-                'this is not an autorebuild, %s is doing nothing' % self.key
+                'this is not an autorebuild, %s is doing nothing',
+                self.key
             )
         else:
             self.log.info(
@@ -72,7 +74,7 @@ class CancelBuildsOnAutoRebuild(PreBuildPlugin):
                         "status!={status}".format(
                             status=status.capitalize()
                         )
-                     for status in BUILD_FINISHED_STATES
+                        for status in BUILD_FINISHED_STATES
                     ]
                 )
                 # Filter out builds that are not using this buildconfig

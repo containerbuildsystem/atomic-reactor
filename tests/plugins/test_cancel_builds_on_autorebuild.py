@@ -37,6 +37,12 @@ class TestCancelBuildsOnAutoRebuild(object):
 
     test_build_name = "testbuild-1"
 
+    test_build_list = [
+        "testbuild-1",
+        "testbuild-2",
+        "testbuild-3"
+    ]
+
     def assert_message_logged(self, msg, cplog):
         assert any([msg in l.getMessage() for l in cplog.records()])
 
@@ -81,11 +87,6 @@ class TestCancelBuildsOnAutoRebuild(object):
             }
         }
 
-        build = flexmock(
-            get_build_name=lambda: self.test_build_name,
-            is_running=lambda: False
-        )
-
         monkeypatch.setenv("BUILD", json.dumps(build_json))
         runner.run()
         self.assert_message_logged(
@@ -108,18 +109,62 @@ class TestCancelBuildsOnAutoRebuild(object):
             }
         }))
 
-        build = flexmock(
-            get_build_name=lambda: self.test_build_name,
-            is_running=lambda: True,
-            build_id=self.test_build_name
+        atomic_reactor.plugins.pre_check_and_set_rebuild = flexmock(
+            is_rebuild=lambda x: True
         )
+
+        flexmock(OSBS)
+        OSBS.should_receive("list_builds").and_return(
+            [
+                flexmock(
+                    get_build_name=lambda: build,
+                    is_running=lambda: True,
+                    build_id=build,
+                )
+                for build in self.test_build_list
+            ]
+        )
+
+        for build in self.test_build_list:
+            OSBS.should_receive("cancel_build").with_args(build)
+
+        runner.run()
+        pprint.pprint(caplog.records(), indent=2)
+        for build in self.test_build_list:
+            self.assert_message_logged(
+                "cancelling build %s in favor of autorebuild" % build,
+                caplog
+            )
+
+    def test_with_list_of_rebuilds(self, monkeypatch, caplog):
+        key = 'rebuild'
+        value = 'true'
+        workflow, runner = self.prepare()
+        workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = True
+
+        monkeypatch.setenv("BUILD", json.dumps({
+            "metadata": {
+                "labels": {
+                    "buildconfig": "buildconfig1",
+                    key: value,
+                }
+            }
+        }))
 
         atomic_reactor.plugins.pre_check_and_set_rebuild = flexmock(
             is_rebuild=lambda x: True
         )
 
         flexmock(OSBS)
-        OSBS.should_receive("list_builds").and_return([build])
+        OSBS.should_receive("list_builds").and_return(
+            [
+                flexmock(
+                    get_build_name=lambda: self.test_build_name,
+                    is_running=lambda: True,
+                    build_id=self.test_build_name
+                )
+            ]
+        )
         OSBS.should_receive("cancel_build").with_args(self.test_build_name)
 
         runner.run()
