@@ -17,6 +17,7 @@ from atomic_reactor.source import VcsInfo
 from atomic_reactor.constants import INSPECT_CONFIG
 import re
 import json
+import logging
 import pytest
 from flexmock import flexmock
 from tests.constants import MOCK_SOURCE, DOCKERFILE_GIT, DOCKERFILE_SHA1, MOCK
@@ -625,3 +626,48 @@ def test_add_labels_plugin_explicit(tmpdir, docker_tasker, auto_label, labels_do
     runner.run()
 
     assert df.labels[auto_label] == 'explicit_value'
+
+
+@pytest.mark.parametrize('parent,should_fail', [  # noqa
+    ('koji/image-build', False),
+    ('fedora', True),
+])
+def test_add_labels_base_image(tmpdir, docker_tasker, parent, should_fail,
+                               caplog):
+    df = df_parser(str(tmpdir))
+    df.content = "FROM {}\n".format(parent)
+
+    if MOCK:
+        mock_docker()
+
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    setattr(workflow, 'builder', X)
+    flexmock(workflow, source=MockSource())
+    setattr(workflow.builder, 'tasker', docker_tasker)
+    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+
+    # When a 'release' label is provided by parameter and used to
+    # configure the plugin, it should be set in the Dockerfile even
+    # when processing base images.
+    prov_labels = {'release': '5'}
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': AddLabelsPlugin.key,
+            'args': {'labels': prov_labels, "dont_overwrite": [],
+                     'aliases': {'Build_Host': 'com.redhat.build-host'}}
+        }]
+    )
+
+    if should_fail:
+        with caplog.atLevel(logging.ERROR):
+            with pytest.raises(PluginFailedException):
+                runner.run()
+
+        msg = "base image was not inspected"
+        assert msg in [x.message for x in caplog.records()]
+    else:
+        runner.run()
+        assert df.labels['release'] == '5'
