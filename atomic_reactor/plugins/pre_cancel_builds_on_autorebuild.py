@@ -66,18 +66,35 @@ class CancelBuildsOnAutoRebuild(PreBuildPlugin):
             osbs = OSBS(osbs_conf, osbs_conf)
 
             try:
-                builds = osbs.list_builds(
-                    field_selector="buildconfig={}".format(buildconfig)
+                # Filter out builds that are not currently running
+                field_selector = ",".join(
+                    [
+                        "status!={status}".format(
+                            status=status.capitalize()
+                        )
+                     for status in BUILD_FINISHED_STATES
+                    ]
                 )
+                # Filter out builds that are not using this buildconfig
+                field_selector += ",buildconfig={}".format(buildconfig)
 
-                for build in builds:
+                builds = osbs.list_builds(field_selector=field_selector)
+            except OsbsResponseException as ex:
+                self.log.exception("failed to cancel build, unable to obtain list of builds from OSBS")
+                raise ex
+
+            last_ex = None
+            for build in builds:
+                try:
                     if build.is_running():
                         self.log.info(
                             "cancelling build %s in favor of autorebuild",
                             build.build_id
                         )
                         osbs.cancel_build(build.get_build_name())
+                except OsbsResponseException as ex:
+                    self.log.exception("failed to cancel build %s", build.get_build_name())
+                    last_ex = ex
 
-            except OsbsResponseException as ex:
-                self.log.exception("failed to cancel build %s", build.get_build_name())
-                raise ex
+            if last_ex is not None:
+                raise last_ex
