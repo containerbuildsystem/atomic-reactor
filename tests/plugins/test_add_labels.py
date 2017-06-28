@@ -75,10 +75,12 @@ LABELS_CONF_WITH_LABELS = {INSPECT_CONFIG: {"Labels": {
                                                 "com.redhat.build-host": "base value",
                                                 "Build_Host": "base value"}}}
 LABELS_CONF_BASE = {INSPECT_CONFIG: {"Labels": {"label1": "base value"}}}
+LABELS_CONF_BASE_EXPLICIT = {INSPECT_CONFIG: {"Labels": {"version": "x", "release": "1"}}}
 LABELS_CONF_BASE_NONE = {INSPECT_CONFIG: {"Labels": None}}
 LABELS_CONF = OrderedDict({'label1': 'value 1', 'label2': 'long value'})
 LABELS_CONF_ONE = {'label2': 'long value'}
 LABELS_CONF_WRONG = [('label1', 'value1'), ('label2', 'value2')]
+LABELS_CONF_EXPLICIT = {"version": "x", "release": "1"}
 LABELS_BLANK = {}
 # Can't be sure of the order of the labels, expect either
 EXPECTED_OUTPUT = ["""FROM fedora
@@ -118,8 +120,18 @@ LABEL "label2"="df value"
 """, r"""FROM fedora
 LABEL "label2"="df value"
 LABEL "label1"="df value"
-""",
-]
+"""]
+# Label order seems to be set randomly, so both possible options are added
+EXPECTED_OUTPUT9 = [r"""FROM fedora
+RUN yum install -y python-django
+CMD blabla
+LABEL "release"="1" "version"="x"
+""", r"""FROM fedora
+RUN yum install -y python-django
+CMD blabla
+LABEL "version"="x" "release"="1"
+"""]
+
 
 @pytest.mark.parametrize('df_content, labels_conf_base, labels_conf, dont_overwrite, aliases, expected_output', [
     (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF, [], {}, EXPECTED_OUTPUT),
@@ -135,6 +147,7 @@ LABEL "label1"="df value"
     (DF_CONTENT_LABEL, LABELS_CONF_BASE, LABELS_BLANK, [], {"label2": "labelnew", "x": "y"}, EXPECTED_OUTPUT7),
     (DF_CONTENT_LABEL, LABELS_CONF_BASE_NONE, LABELS_BLANK, [], {"label2": "labelnew"}, EXPECTED_OUTPUT7),
     (DF_CONTENT_LABEL, LABELS_CONF_BASE, LABELS_BLANK, [], {"label2": "label1"}, EXPECTED_OUTPUT8),
+    (DF_CONTENT, LABELS_CONF_BASE_EXPLICIT, LABELS_CONF_EXPLICIT, [], {}, EXPECTED_OUTPUT9),
 ])
 def test_add_labels_plugin(tmpdir, docker_tasker,
                            df_content, labels_conf_base, labels_conf, dont_overwrite, aliases,
