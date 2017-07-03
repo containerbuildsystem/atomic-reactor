@@ -121,7 +121,7 @@ class TestSendMailPlugin(object):
             p.run()
         assert str(e.value) == 'Unknown state(s) "unknown_state" for sendmail plugin'
 
-    @pytest.mark.parametrize('rebuild, success, auto_canceled, manual_canceled, send_on, expected', [
+    @pytest.mark.parametrize('rebuild, success, auto_canceled, manual_canceled, send_on, expected', [  # noqa
         # make sure that right combinations only succeed for the specific state
         (False, True, False, False, [MS], True),
         (False, True, False, True, [MS], True),
@@ -262,7 +262,7 @@ class TestSendMailPlugin(object):
         assert body == '\n'.join(exp_body)
 
     @pytest.mark.parametrize(
-        'has_koji_config, has_addit_address, to_koji_submitter, to_koji_pkgowner, expected_receivers', [
+        'has_koji_config, has_addit_address, to_koji_submitter, to_koji_pkgowner, expected_receivers', [  # noqa
             (True, True, True, True,
                 [MOCK_ADDITIONAL_EMAIL, MOCK_KOJI_OWNER_EMAIL, MOCK_KOJI_SUBMITTER_EMAIL]),
             (True, False, True, True, [MOCK_KOJI_OWNER_EMAIL, MOCK_KOJI_SUBMITTER_EMAIL]),

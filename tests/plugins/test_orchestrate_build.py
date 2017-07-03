@@ -19,7 +19,6 @@ from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlug
 from atomic_reactor.plugins.pre_reactor_config import ReactorConfig
 from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY
-from dockerfile_parse import DockerfileParser
 from flexmock import flexmock
 from multiprocessing.pool import AsyncResult
 from osbs.api import OSBS
@@ -76,8 +75,8 @@ def mock_workflow(tmpdir):
     workflow = DockerBuildWorkflow(MOCK_SOURCE, TEST_IMAGE)
     builder = MockInsideBuilder()
     source = MockSource(tmpdir)
-    setattr(builder, 'source', MockSource(tmpdir))
-    setattr(workflow, 'source', MockSource(tmpdir))
+    setattr(builder, 'source', source)
+    setattr(workflow, 'source', source)
     setattr(workflow, 'builder', builder)
 
     df_path = os.path.join(str(tmpdir), 'Dockerfile')
@@ -427,7 +426,7 @@ def test_orchestrate_build_cancelation(tmpdir):
         .and_return(None))
 
     with pytest.raises(PluginFailedException) as exc:
-        build_result = runner.run()
+        runner.run()
     assert 'BuildCanceledException' in str(exc)
 
 

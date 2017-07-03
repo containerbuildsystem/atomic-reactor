@@ -47,7 +47,7 @@ mock_logs = b'uid=0(root) gid=0(root) groups=10(wheel)'
 mock_build_logs = \
     [b'{"stream":"Step 0 : FROM fedora:latest\\n"}\r\n',
      b'{"status":"Pulling from fedora","id":"latest"}\r\n',
-     b'{"status":"Digest: sha256:c63476a082b960f6264e59ef0ff93a9169eac8daf59e24805e0382afdcc9082f"}\r\n',
+     b'{"status":"Digest: sha256:c63476a082b960f6264e59ef0ff93a9169eac8daf59e24805e0382afdcc9082f"}\r\n',  # noqa
      b'{"status":"Status: Image is up to date for fedora:latest"}\r\n',
      b'{"stream":"Step 1 : RUN uname -a \\u0026\\u0026 env\\n"}\r\n',
      b'{"stream":" ---\\u003e Running in 3600c91d1c40\\n"}\r\n',
@@ -56,27 +56,27 @@ mock_build_logs = \
 
 mock_build_logs_failed = mock_build_logs + \
     [b'{"errorDetail":{"code":2,"message":"The command \\u0026{[/bin/sh -c ls -lha /a/b/c]} returned a non-zero code: 2"},\
-        "error":"The command \\u0026{[/bin/sh -c ls -lha /a/b/c]} returned a non-zero code: 2"}\r\n']
+        "error":"The command \\u0026{[/bin/sh -c ls -lha /a/b/c]} returned a non-zero code: 2"}\r\n']  # noqa
 
 mock_pull_logs = \
     [b'{"stream":"Trying to pull repository localhost:5000/busybox ..."}\r\n',
-     b'{"status":"Pulling image (latest) from localhost:5000/busybox","progressDetail":{},"id":"8c2e06607696"}',
+     b'{"status":"Pulling image (latest) from localhost:5000/busybox","progressDetail":{},"id":"8c2e06607696"}',  # noqa
      b'{"status":"Download complete","progressDetail":{},"id":"8c2e06607696"}',
      b'{"status":"Status: Image is up to date for localhost:5000/busybox:latest"}\r\n']
 
 mock_pull_logs_failed = \
-    [b'{"errorDetail":{"message":"Error: image ***:latest not found"},"error":"Error: image ***:latest not found"}']
+    [b'{"errorDetail":{"message":"Error: image ***:latest not found"},"error":"Error: image ***:latest not found"}']  # noqa
 
 mock_push_logs = \
     [b'{"status":"The push refers to a repository [localhost:5000/busybox] (len: 1)"}\r\n',
      b'{"status":"Image already exists","progressDetail":{},"id":"17583c7dd0da"}\r\n',
      b'{"status":"Image already exists","progressDetail":{},"id":"d1592a710ac3"}\r\n'
-     b'{"status":"latest: digest: sha256:afe8a267153784d570bfea7d22699c612a61f984e2b9a93135660bb85a3113cf size: 2735"}\r\n']
+     b'{"status":"latest: digest: sha256:afe8a267153784d570bfea7d22699c612a61f984e2b9a93135660bb85a3113cf size: 2735"}\r\n']  # noqa
 
 mock_push_logs_failed = \
     [b'{"status":"The push refers to a repository [localhost:5000/busybox] (len: 1)"}\r\n',
      b'{"status":"Sending image list"}\r\n',
-     b'{"errorDetail":{"message":"Put http://localhost:5000/v1/repositories/busybox/: dial tcp [::1]:5000: getsockopt: connection refused"},"error":"Put http://localhost:5000/v1/repositories/busybox/: dial tcp [::1]:5000: getsockopt: connection refused"}\r\n']
+     b'{"errorDetail":{"message":"Put http://localhost:5000/v1/repositories/busybox/: dial tcp [::1]:5000: getsockopt: connection refused"},"error":"Put http://localhost:5000/v1/repositories/busybox/: dial tcp [::1]:5000: getsockopt: connection refused"}\r\n']  # noqa
 
 mock_info = {
     'BridgeNfIp6tables': True,
@@ -112,27 +112,27 @@ mock_info = {
     'OomKillDisable': True,
     'OperatingSystem': 'Fedora 24 (Rawhide) (containerized)',
     'RegistryConfig': {'IndexConfigs': {'127.0.0.1:5000': {'Mirrors': [],
-        'Name': '127.0.0.1:5000',
-        'Official': False,
-        'Secure': False},
-        '172.17.0.1:5000': {'Mirrors': [],
-            'Name': '172.17.0.1:5000',
-            'Official': False,
-            'Secure': False},
-        '172.17.0.2:5000': {'Mirrors': [],
-            'Name': '172.17.0.2:5000',
-            'Official': False,
-            'Secure': False},
-        '172.17.0.3:5000': {'Mirrors': [],
-            'Name': '172.17.0.3:5000',
-            'Official': False,
-            'Secure': False},
-        'docker.io': {'Mirrors': None,
-            'Name': 'docker.io',
-            'Official': True,
-            'Secure': True}},
-        'InsecureRegistryCIDRs': ['127.0.0.0/8'],
-        'Mirrors': None},
+                                                           'Name': '127.0.0.1:5000',
+                                                           'Official': False,
+                                                           'Secure': False},
+                                        '172.17.0.1:5000': {'Mirrors': [],
+                                                            'Name': '172.17.0.1:5000',
+                                                            'Official': False,
+                                                            'Secure': False},
+                                        '172.17.0.2:5000': {'Mirrors': [],
+                                                            'Name': '172.17.0.2:5000',
+                                                            'Official': False,
+                                                            'Secure': False},
+                                        '172.17.0.3:5000': {'Mirrors': [],
+                                                            'Name': '172.17.0.3:5000',
+                                                            'Official': False,
+                                                            'Secure': False},
+                                        'docker.io': {'Mirrors': None,
+                                                      'Name': 'docker.io',
+                                                      'Official': True,
+                                                      'Secure': True}
+                                        },
+                       'InsecureRegistryCIDRs': ['127.0.0.0/8'], 'Mirrors': None},
     'SwapLimit': True,
     'SystemTime': '2015-09-15T16:38:50.585211559+02:00'
 }
@@ -203,9 +203,11 @@ def _find_image(img, ignore_registry=False):
 
     return None
 
+
 def _docker_exception(code=404, content='not found'):
     response = flexmock(content=content, status_code=code)
     return docker.errors.APIError(code, response)
+
 
 def _mock_pull(repo, tag='latest', **kwargs):
     im = ImageName.parse(repo)
@@ -220,6 +222,7 @@ def _mock_pull(repo, tag='latest', **kwargs):
 
     return iter(mock_pull_logs)
 
+
 def _mock_remove_image(img, **kwargs):
     i = _find_image(img)
     if i is not None:
@@ -228,6 +231,7 @@ def _mock_remove_image(img, **kwargs):
 
     raise _docker_exception()
 
+
 def _mock_inspect(img, **kwargs):
     # real 'docker inspect busybox' returns info even there's only localhost:5000/busybox
     i = _find_image(img, ignore_registry=True)
@@ -235,6 +239,7 @@ def _mock_inspect(img, **kwargs):
         return i
 
     raise _docker_exception()
+
 
 def _mock_tag(src_img, dest_repo, dest_tag='latest', **kwargs):
     i = _find_image(src_img)
@@ -250,9 +255,11 @@ def _mock_tag(src_img, dest_repo, dest_tag='latest', **kwargs):
 
     return True
 
+
 def _mock_generator_raises():
     raise RuntimeError("build generator failure")
     yield {}
+
 
 def mock_docker(build_should_fail=False,
                 inspect_should_fail=False,
@@ -292,7 +299,8 @@ def mock_docker(build_should_fail=False,
     flexmock(docker.Client, images=lambda **kwargs: [mock_image])
     flexmock(docker.Client, inspect_image=lambda im_id: inspect_image_result)
     flexmock(docker.Client, inspect_container=lambda im_id: mock_inspect_container)
-    flexmock(docker.Client, logs=lambda cid, **kwargs: iter([mock_logs]) if kwargs.get('stream') else mock_logs)
+    flexmock(docker.Client, logs=lambda cid, **kwargs: iter([mock_logs]) if kwargs.get('stream')
+             else mock_logs)
     flexmock(docker.Client, pull=lambda img, **kwargs: iter(mock_pull_logs))
     flexmock(docker.Client, push=lambda iid, **kwargs: iter(push_result))
     flexmock(docker.Client, remove_container=lambda cid, **kwargs: None)
@@ -304,16 +312,22 @@ def mock_docker(build_should_fail=False,
     flexmock(docker.Client, info=lambda **kwargs: mock_info)
     flexmock(docker.Client, import_image_from_data=lambda url: mock_import_image)
     flexmock(docker.Client, import_image_from_stream=lambda url: mock_import_image)
+
     class GetImageResult(object):
         data = b''
+
         def __init__(self):
             self.fp = open(__file__, 'rb')
+
         def __getattr__(self, attr):
             return getattr(self, self.fp, attr)
+
         def __enter__(self):
             return self.fp
+
         def __exit__(self, tp, val, tb):
             self.fp.close()
+
     flexmock(docker.Client, get_image=lambda img, **kwargs: GetImageResult())
     flexmock(os.path, exists=lambda p: True if p == DOCKER_SOCKET_PATH else old_ope(p))
 
@@ -331,9 +345,11 @@ def mock_docker(build_should_fail=False,
     for method, args in should_raise_error.items():
         response = flexmock(content="abc", status_code=123)
         if args:
-            flexmock(docker.Client).should_receive(method).with_args(*args).and_raise(docker.errors.APIError, "xyz", response)
+            flexmock(docker.Client).should_receive(method).with_args(*args).and_raise(
+                docker.errors.APIError, "xyz", response)
         else:
-            flexmock(docker.Client).should_receive(method).and_raise(docker.errors.APIError, "xyz", response)
+            flexmock(docker.Client).should_receive(method).and_raise(docker.errors.APIError, "xyz",
+                                                                     response)
 
     if remember_images:
         global mock_images

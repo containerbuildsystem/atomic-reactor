@@ -15,8 +15,6 @@ from atomic_reactor.plugins.input_osv3 import OSv3InputPlugin
 import pytest
 from flexmock import flexmock
 
-from tests.constants import LOCALHOST_REGISTRY
-
 
 def test_doesnt_fail_if_no_plugins():
     mock_env = {
@@ -71,6 +69,7 @@ def test_plugins_variable(plugins_variable):
 
     plugin = OSv3InputPlugin()
     assert plugin.run()['postbuild_plugins'] is not None
+
 
 def test_remove_dockerfile_content():
     plugins_json = {

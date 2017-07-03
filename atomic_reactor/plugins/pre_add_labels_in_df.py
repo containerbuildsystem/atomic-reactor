@@ -297,7 +297,8 @@ class AddLabelsPlugin(PreBuildPlugin):
         # the safe side and make a copy
         self.add_aliases(base_image_labels.copy(), dockerfile.labels.copy(), self.labels.copy())
         if self.info_url_format:
-            self.add_info_url(base_image_labels.copy(), dockerfile.labels.copy(), self.labels.copy())
+            self.add_info_url(base_image_labels.copy(), dockerfile.labels.copy(),
+                              self.labels.copy())
 
         # correct syntax is:
         #   LABEL "key"="value" "key2"="value2"

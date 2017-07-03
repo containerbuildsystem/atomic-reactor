@@ -27,6 +27,7 @@ CHECKSUM_TYPES = {
 
 TASK_STATES.update({value: name for name, value in TASK_STATES.items()})
 
+
 class ClientSession(object):
     def __init__(self, hub, opts=None):
         raise ImportError("No module named koji")

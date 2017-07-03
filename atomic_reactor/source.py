@@ -75,7 +75,7 @@ class Source(object):
 class GitSource(Source):
     def __init__(self, provider, uri, dockerfile_path=None, provider_params=None, tmpdir=None):
         super(GitSource, self).__init__(provider, uri, dockerfile_path,
-                provider_params, tmpdir)
+                                        provider_params, tmpdir)
         self.git_commit = self.provider_params.get('git_commit', None)
         self.lg = util.LazyGit(self.uri, self.git_commit, self.source_path)
 
@@ -97,7 +97,7 @@ class GitSource(Source):
 class PathSource(Source):
     def __init__(self, provider, uri, dockerfile_path=None, provider_params=None, tmpdir=None):
         super(PathSource, self).__init__(provider, uri, dockerfile_path,
-                provider_params, tmpdir)
+                                         provider_params, tmpdir)
         # make sure we have canonical URI representation even if we got path without "file://"
         if not self.uri.startswith('file://'):
             self.uri = 'file://' + self.uri

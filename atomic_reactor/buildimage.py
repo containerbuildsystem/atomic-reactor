@@ -77,7 +77,8 @@ class BuildImageBuilder(object):
             shutil.copy(reactor_tarball, reactor_tb_path)
 
             image_name = ImageName.parse(image)
-            logs_gen = self.tasker.build_image_from_path(df_tmpdir, image_name, stream=True, use_cache=use_cache)
+            logs_gen = self.tasker.build_image_from_path(df_tmpdir, image_name, stream=True,
+                                                         use_cache=use_cache)
             wait_for_command(logs_gen)
         finally:
             shutil.rmtree(tmpdir)
@@ -89,13 +90,16 @@ class BuildImageBuilder(object):
         """
         if self.reactor_tarball_path:
             if not os.path.isfile(self.reactor_tarball_path):
-                logger.error("atomic-reactor sdist tarball does not exist: '%s'", self.reactor_tarball_path)
+                logger.error("atomic-reactor sdist tarball does not exist: '%s'",
+                             self.reactor_tarball_path)
                 raise RuntimeError("File does not exist: '%s'" % self.reactor_tarball_path)
             return self.reactor_tarball_path
         elif self.reactor_local_path:
             if not os.path.isdir(self.reactor_local_path):
-                logger.error("local atomic-reactor git clone does not exist: '%s'", self.reactor_local_path)
-                raise RuntimeError("Local atomic-reactor git repo does not exist: '%s'" % self.reactor_local_path)
+                logger.error("local atomic-reactor git clone does not exist: '%s'",
+                             self.reactor_local_path)
+                raise RuntimeError("Local atomic-reactor git repo does not exist: '%s'" %
+                                   self.reactor_local_path)
             local_reactor_git_path = self.reactor_local_path
         else:
             if self.use_official_reactor_git:

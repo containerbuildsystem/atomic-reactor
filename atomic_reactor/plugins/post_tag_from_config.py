@@ -63,7 +63,7 @@ class TagFromConfigPlugin(PostBuildPlugin):
                     tags.append(tag)
                 else:
                     self.log.warning("tag '%s' does not match '%s'"
-                        "or includes dashes, ignoring", tag, TAG_NAME_REGEX)
+                                     "or includes dashes, ignoring", tag, TAG_NAME_REGEX)
 
         return tags
 
@@ -76,7 +76,7 @@ class TagFromConfigPlugin(PostBuildPlugin):
             labels = self.workflow.built_image_inspect[INSPECT_CONFIG]['Labels']
             name_label = str(get_preferred_label_key(labels, "name"))
             name = labels[name_label]
-        except KeyError as e:
+        except KeyError:
             self.log.error('Unable to determine "name" from "Labels"')
             raise
 

@@ -23,11 +23,12 @@ import os.path
 from collections import namedtuple
 import requests
 from flexmock import flexmock
-from tests.fixtures import docker_tasker
+from tests.fixtures import docker_tasker  # noqa
 from tests.constants import SOURCE, MOCK
 from tests.util import requires_internet
 if MOCK:
     from tests.docker_mock import mock_docker
+
 
 class X(object):
     pass
@@ -58,6 +59,7 @@ def prepare(df_path, inherited_user=''):
     (flexmock(requests, get=lambda *_: requests.Response()))
     return tasker, workflow
 
+
 @requires_internet
 def test_yuminject_plugin_notwrapped(tmpdir):
     df_content = """\
@@ -71,12 +73,11 @@ CMD blabla"""
 
     metalink = 'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
 
-    workflow.files[os.path.join(YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME)] = render_yum_repo(OrderedDict(
-        (('name', 'my-repo'),
-         ('metalink', metalink),
-         ('enabled', 1),
-         ('gpgcheck', 0)),
-    ))
+    workflow.files[os.path.join(YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME)] = \
+        render_yum_repo(OrderedDict((('name', 'my-repo'),
+                                    ('metalink', metalink),
+                                    ('enabled', 1),
+                                    ('gpgcheck', 0)), ))
 
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': InjectYumRepoPlugin.key,
@@ -96,7 +97,7 @@ RUN rm -f '/etc/yum.repos.d/atomic-reactor-injected.repo'
     assert expected_output == df.content
 
 
-@requires_internet
+@requires_internet  # noqa
 def test_yuminject_plugin_wrapped(tmpdir, docker_tasker):
     df_content = """\
 FROM fedora
@@ -111,12 +112,11 @@ CMD blabla"""
 
     metalink = 'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
 
-    workflow.files[os.path.join(YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME)] = render_yum_repo(OrderedDict(
-        (('name', 'my-repo'),
-         ('metalink', metalink),
-         ('enabled', '1'),
-         ('gpgcheck', '0')),
-    ))
+    workflow.files[os.path.join(YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME)] = \
+        render_yum_repo(OrderedDict((('name', 'my-repo'),
+                                     ('metalink', metalink),
+                                     ('enabled', '1'),
+                                     ('gpgcheck', '0')), ))
 
     setattr(workflow.builder, 'image_id', "asd123")
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
@@ -135,11 +135,11 @@ CMD blabla"""
 
     expected_output = """FROM fedora
 RUN printf "[my-repo]\nname=my-repo\nmetalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-\\$releasever&arch=\\$basearch\nenabled=1\ngpgcheck=0\n" >/etc/yum.repos.d/atomic-reactor-injected.repo && yum install -y python-django && yum clean all && rm -f /etc/yum.repos.d/atomic-reactor-injected.repo
-CMD blabla"""
+CMD blabla"""  # noqa
     assert df.content == expected_output
 
 
-def test_yuminject_multiline_wrapped(tmpdir, docker_tasker):
+def test_yuminject_multiline_wrapped(tmpdir, docker_tasker):  # noqa
     df_content = """\
 FROM fedora
 RUN yum install -y httpd \
@@ -153,12 +153,11 @@ CMD blabla"""
 
     metalink = 'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
 
-    workflow.files[os.path.join(YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME)] = render_yum_repo(OrderedDict(
-        (('name', 'my-repo'),
-        ('metalink', metalink),
-        ('enabled', '1'),
-        ('gpgcheck', '0')),
-    ))
+    workflow.files[os.path.join(YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME)] = \
+        render_yum_repo(OrderedDict((('name', 'my-repo'),
+                                     ('metalink', metalink),
+                                     ('enabled', '1'),
+                                     ('gpgcheck', '0')), ))
     setattr(workflow.builder, 'image_id', "asd123")
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'df_dir', str(tmpdir))
@@ -175,7 +174,7 @@ CMD blabla"""
 
     expected_output = """FROM fedora
 RUN printf "[my-repo]\nname=my-repo\nmetalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-\\$releasever&arch=\\$basearch\nenabled=1\ngpgcheck=0\n" >/etc/yum.repos.d/atomic-reactor-injected.repo && yum install -y httpd                    uwsgi && yum clean all && rm -f /etc/yum.repos.d/atomic-reactor-injected.repo
-CMD blabla"""
+CMD blabla"""  # noqa
     assert df.content == expected_output
 
 
@@ -190,14 +189,13 @@ CMD blabla"""
 
     tasker, workflow = prepare(df.dockerfile_path)
 
-    metalink = r'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
+    metalink = r'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'  # noqa
 
-    workflow.files[os.path.join(YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME)] = render_yum_repo(OrderedDict(
-        (('name', 'my-repo'),
-         ('metalink', metalink),
-         ('enabled', "1"),
-         ('gpgcheck', "0")),
-    ))
+    workflow.files[os.path.join(YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME)] = \
+        render_yum_repo(OrderedDict((('name', 'my-repo'),
+                                    ('metalink', metalink),
+                                    ('enabled', 1),
+                                    ('gpgcheck', 0)), ))
     runner = PreBuildPluginsRunner(tasker, workflow,
                                    [{'name': InjectYumRepoPlugin.key, 'args': {
                                        "wrap_commands": False
@@ -214,7 +212,7 @@ RUN rm -f '/etc/yum.repos.d/atomic-reactor-injected.repo'
     assert df.content == expected_output
 
 
-def test_yuminject_multiline_wrapped_with_chown(tmpdir, docker_tasker):
+def test_yuminject_multiline_wrapped_with_chown(tmpdir, docker_tasker):  # noqa
     df_content = """\
 FROM fedora
 RUN yum install -y --setopt=tsflags=nodocs bind-utils gettext iproute v8314 mongodb24-mongodb mongodb24 && \
@@ -222,21 +220,20 @@ RUN yum install -y --setopt=tsflags=nodocs bind-utils gettext iproute v8314 mong
     mkdir -p /var/lib/mongodb/data && chown -R mongodb:mongodb /var/lib/mongodb/ && \
     test "$(id mongodb)" = "uid=184(mongodb) gid=998(mongodb) groups=998(mongodb)" && \
     chmod o+w -R /var/lib/mongodb && chmod o+w -R /opt/rh/mongodb24/root/var/lib/mongodb
-CMD blabla"""
+CMD blabla"""  # noqa
     df = df_parser(str(tmpdir))
     df.content = df_content
 
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     setattr(workflow, 'builder', X())
 
-    metalink = r'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
+    metalink = r'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'  # noqa
 
-    workflow.files[os.path.join(YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME)] = render_yum_repo(OrderedDict(
-        (('name', 'my-repo'),
-         ('metalink', metalink),
-         ('enabled', 1),
-         ('gpgcheck', 0)),
-    ))
+    workflow.files[os.path.join(YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME)] = \
+        render_yum_repo(OrderedDict((('name', 'my-repo'),
+                                     ('metalink', metalink),
+                                     ('enabled', 1),
+                                     ('gpgcheck', 0)), ))
     setattr(workflow.builder, 'image_id', "asd123")
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'df_dir', str(tmpdir))
@@ -261,7 +258,7 @@ yum clean all &&     mkdir -p /var/lib/mongodb/data && chown -R mongodb:mongodb 
 test "$(id mongodb)" = "uid=184(mongodb) gid=998(mongodb) groups=998(mongodb)" &&     \
 chmod o+w -R /var/lib/mongodb && chmod o+w -R /opt/rh/mongodb24/root/var/lib/mongodb && \
 yum clean all && rm -f /etc/yum.repos.d/atomic-reactor-injected.repo
-CMD blabla"""
+CMD blabla"""  # noqa
     assert df.content == expected_output
 
 
@@ -370,8 +367,7 @@ DOCKERFILES = {
 def test_no_repourls(tmpdir):
     for df_content in DOCKERFILES.values():
         df = df_parser(str(tmpdir))
-        df.lines = df_content.lines_before_add + \
-                   df_content.lines_before_remove
+        df.lines = df_content.lines_before_add + df_content.lines_before_remove
 
         tasker, workflow = prepare(df.dockerfile_path,
                                    df_content.inherited_user)
@@ -382,8 +378,7 @@ def test_no_repourls(tmpdir):
         assert InjectYumRepoPlugin.key is not None
 
         # Should be unchanged.
-        assert df.lines == df_content.lines_before_add + \
-                           df_content.lines_before_remove
+        assert df.lines == df_content.lines_before_add + df_content.lines_before_remove
 
 
 def remove_lines_match(actual, expected, repos):
@@ -395,17 +390,18 @@ def remove_lines_match(actual, expected, repos):
             if not aline.startswith("RUN rm -f "):
                 assert aline == eline
 
-            assert set(aline.rstrip()[10:].split(' ')) == set(["'/etc/yum.repos.d/%s'" % repo for repo in repos])
+            assert set(aline.rstrip()[10:].split(' ')) == \
+                set(["'/etc/yum.repos.d/%s'" % repo for repo in repos])
         else:
             assert aline == eline
 
     return True
 
+
 def test_single_repourl(tmpdir):
     for df_content in DOCKERFILES.values():
         df = df_parser(str(tmpdir))
-        df.lines = df_content.lines_before_add + \
-                   df_content.lines_before_remove
+        df.lines = df_content.lines_before_add + df_content.lines_before_remove
         tasker, workflow = prepare(df.dockerfile_path,
                                    df_content.inherited_user)
         filename = 'test.repo'
@@ -437,7 +433,7 @@ def test_single_repourl(tmpdir):
         # Should see a single add line.
         after_add = before_add + 1
         assert (newdf[before_add:after_add] ==
-                    ["ADD %s* '/etc/yum.repos.d/'\n" % RELATIVE_REPOS_PATH])
+                ["ADD %s* '/etc/yum.repos.d/'\n" % RELATIVE_REPOS_PATH])
 
         # Lines from there up to the remove line should be unchanged.
         before_remove = after_add + len(df_content.lines_before_remove)
@@ -453,8 +449,7 @@ def test_single_repourl(tmpdir):
 def test_multiple_repourls(tmpdir):
     for df_content in DOCKERFILES.values():
         df = df_parser(str(tmpdir))
-        df.lines = df_content.lines_before_add + \
-                   df_content.lines_before_remove
+        df.lines = df_content.lines_before_add + df_content.lines_before_remove
         tasker, workflow = prepare(df.dockerfile_path,
                                    df_content.inherited_user)
         filename1 = 'myrepo.repo'
@@ -486,12 +481,12 @@ def test_multiple_repourls(tmpdir):
         # Should see a single add line.
         after_add = before_add + 1
         assert (newdf[before_add:after_add] ==
-                    ["ADD %s* '/etc/yum.repos.d/'\n" % RELATIVE_REPOS_PATH])
+                ["ADD %s* '/etc/yum.repos.d/'\n" % RELATIVE_REPOS_PATH])
 
         # Lines from there up to the remove line should be unchanged.
         before_remove = after_add + len(df_content.lines_before_remove)
         assert (newdf[after_add:before_remove] ==
-                    df_content.lines_before_remove)
+                df_content.lines_before_remove)
 
         # For the 'rm' line, they could be in either order
         remove = newdf[before_remove:]

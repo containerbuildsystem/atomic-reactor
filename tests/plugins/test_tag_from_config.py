@@ -18,7 +18,7 @@ from atomic_reactor.plugins.post_tag_from_config import TagFromConfigPlugin
 from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.constants import INSPECT_CONFIG
 from tests.constants import (MOCK_SOURCE, MOCK)
-from tests.fixtures import docker_tasker
+from tests.fixtures import docker_tasker  # noqa
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -64,7 +64,7 @@ def mock_workflow(tmpdir):
     return workflow
 
 
-@pytest.mark.parametrize(('tags', 'name', 'expected'), [
+@pytest.mark.parametrize(('tags', 'name', 'expected'), [  # noqa
     ([], 'fedora', []),
     (['spam'], 'fedora', ['fedora:spam']),
     (['spam', 'bacon'], 'foo', ['foo:spam', 'foo:bacon']),
@@ -97,7 +97,7 @@ def test_tag_from_config_plugin_generated(tmpdir, docker_tasker, tags, name,
     assert plugin_result == expected
 
 
-@pytest.mark.parametrize(('inspect', 'error'), [
+@pytest.mark.parametrize(('inspect', 'error'), [  # noqa
     ({'Labels': {}}, "KeyError('name'"),
     ({}, "KeyError('Labels'"),
     (None, "RuntimeError('There is no inspect data"),

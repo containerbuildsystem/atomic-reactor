@@ -19,6 +19,7 @@ except ImportError:
 from atomic_reactor.plugin import ExitPlugin, PluginFailedException
 from atomic_reactor.util import Dockercfg
 
+
 class DeleteFromRegistryPlugin(ExitPlugin):
     """
     Delete previously pushed v2 images from a registry.
@@ -31,8 +32,8 @@ class DeleteFromRegistryPlugin(ExitPlugin):
         """
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param registries: dict, keys are docker registries, values are dicts containing per-registry
-                           parameters.
+        :param registries: dict, keys are docker registries, values are dicts containing
+                           per-registry parameters.
                            Params:
                             * "secret" optional string - path to the secret, which stores
                               login and password for remote registry

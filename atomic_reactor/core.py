@@ -91,7 +91,8 @@ class BuildContainerFactory(object):
 
     def _obtain_source_from_path_if_needed(self, local_path, container_path=CONTAINER_SHARE_PATH):
         # TODO: maybe we should do this for any provider? If we expand to various providers
-        #  like mercurial, then we don't want to force the container to have mercurial installed, etc.
+        # like mercurial, then we don't want to force the container to have mercurial
+        # installed, etc.
         build_json_path = os.path.join(local_path, BUILD_JSON)
         with open(build_json_path, 'r') as fp:
             build_json = json.load(fp)
@@ -101,8 +102,8 @@ class BuildContainerFactory(object):
             source.get()
             logger.debug('verifying that %s exists: %s', local_path, os.path.exists(local_path))
             # now modify the build json
-            build_json['source']['uri'] =\
-                    'file://' + os.path.join(container_path, CONTAINER_SHARE_SOURCE_SUBDIR)
+            build_json['source']['uri'] = 'file://' + os.path.join(container_path,
+                                                                   CONTAINER_SHARE_SOURCE_SUBDIR)
             with open(build_json_path, 'w') as fp:
                 json.dump(build_json, fp)
         # else we do nothing
@@ -127,8 +128,8 @@ class BuildContainerFactory(object):
         :param build_image: str, name of image where build is performed
         :param json_args_path: str, this dir is mounted inside build container and used
                                as a way to transport data between host and buildroot; there
-                               has to be a file inside this dir with name atomic_reactor.BUILD_JSON which
-                               is used to feed build
+                               has to be a file inside this dir with name
+                               atomic_reactor.BUILD_JSON which is used to feed build
         :return: str, container id
         """
         logger.info("building image '%s' in container using docker from host", build_image)
@@ -137,7 +138,8 @@ class BuildContainerFactory(object):
         self._obtain_source_from_path_if_needed(json_args_path, CONTAINER_SHARE_PATH)
 
         if not os.path.exists(DOCKER_SOCKET_PATH):
-            logger.error("looks like docker is not running because there is no socket at: %s", DOCKER_SOCKET_PATH)
+            logger.error("looks like docker is not running because there is no socket at: %s",
+                         DOCKER_SOCKET_PATH)
             raise RuntimeError("docker socket not found: %s" % DOCKER_SOCKET_PATH)
 
         volume_bindings = {
@@ -157,15 +159,14 @@ class BuildContainerFactory(object):
             volume_bindings[json_args_path]['rw'] = True
 
         logger.debug('build json mounted in container: %s',
-                open(os.path.join(json_args_path, BUILD_JSON)).read())
+                     open(os.path.join(json_args_path, BUILD_JSON)).read())
         container_id = self.tasker.run(
             ImageName.parse(build_image),
             create_kwargs={'volumes': [DOCKER_SOCKET_PATH, json_args_path],
                            'host_config': create_host_config(
                                binds=volume_bindings,
-                               privileged=True
-                           )
-            }
+                               privileged=True)
+                           }
         )
 
         return container_id
@@ -179,8 +180,8 @@ class BuildContainerFactory(object):
         :param build_image: str, name of image where build is performed
         :param json_args_path: str, this dir is mounted inside build container and used
                                as a way to transport data between host and buildroot; there
-                               has to be a file inside this dir with name atomic_reactor.BUILD_JSON which
-                               is used to feed build
+                               has to be a file inside this dir with name
+                               atomic_reactor.BUILD_JSON which is used to feed build
         :return: dict, keys container_id and stream
         """
         logger.info("building image '%s' inside privileged container", build_image)
@@ -200,15 +201,14 @@ class BuildContainerFactory(object):
             volume_bindings[json_args_path]['rw'] = True
 
         logger.debug('build json mounted in container: %s',
-                open(os.path.join(json_args_path, BUILD_JSON)).read())
+                     open(os.path.join(json_args_path, BUILD_JSON)).read())
         container_id = self.tasker.run(
             ImageName.parse(build_image),
             create_kwargs={'volumes': [json_args_path],
                            'host_config': create_host_config(
                                binds=volume_bindings,
-                               privileged=True
-                           )
-            }
+                               privileged=True)
+                           }
         )
 
         return container_id
@@ -251,15 +251,18 @@ class DockerTasker(LastLogger):
         """
         logger.info("building image '%s' from path '%s'", image, path)
         try:
-            response = self.d.build(path=path, tag=image.to_str(), stream=stream, nocache=not use_cache,
+            response = self.d.build(path=path, tag=image.to_str(), stream=stream,
+                                    nocache=not use_cache,
                                     rm=remove_im, forcerm=True, pull=False)  # returns generator
         except TypeError:
             # because changing api is fun
-            response = self.d.build(path=path, tag=image.to_str(), stream=stream, nocache=not use_cache,
+            response = self.d.build(path=path, tag=image.to_str(), stream=stream,
+                                    nocache=not use_cache,
                                     rm=remove_im, forcerm=True,)  # returns generator
         return response
 
-    def build_image_from_git(self, url, image, git_path=None, git_commit=None, copy_dockerfile_to=None,
+    def build_image_from_git(self, url, image, git_path=None, git_commit=None,
+                             copy_dockerfile_to=None,
                              stream=False, use_cache=False):
         """
         build image from provided url and tag it
@@ -276,7 +279,7 @@ class DockerTasker(LastLogger):
         :return: generator
         """
         logger.info("building image '%s' from git repo '%s' specified as URL '%s'",
-                image, git_path, url)
+                    image, git_path, url)
         logger.info("will copy Dockerfile to '%s'", copy_dockerfile_to)
         temp_dir = tempfile.mkdtemp()
         response = None
@@ -285,7 +288,8 @@ class DockerTasker(LastLogger):
             df_path, df_dir = figure_out_dockerfile(temp_dir, git_path)
             if copy_dockerfile_to:  # TODO: pre build plugin
                 shutil.copyfile(df_path, copy_dockerfile_to)
-            response = self.build_image_from_path(df_dir, image, stream=stream, use_cache=use_cache)
+            response = self.build_image_from_path(df_dir, image, stream=stream,
+                                                  use_cache=use_cache)
         finally:
             try:
                 shutil.rmtree(temp_dir)
@@ -413,7 +417,8 @@ class DockerTasker(LastLogger):
         logger.info("pulling image '%s' from registry", image)
         logger.debug("image = '%s', insecure = '%s'", image, insecure)
         try:
-            logs_gen = self.d.pull(image.to_str(tag=False), tag=image.tag, insecure_registry=insecure, stream=True)
+            logs_gen = self.d.pull(image.to_str(tag=False), tag=image.tag,
+                                   insecure_registry=insecure, stream=True)
         except TypeError:
             # because changing api is fun
             logs_gen = self.d.pull(image.to_str(tag=False), tag=image.tag, stream=True)
@@ -444,7 +449,7 @@ class DockerTasker(LastLogger):
             if not response:
                 logger.error("failed to tag image")
                 raise RuntimeError("Failed to tag image '%s': target_image = '%s'" %
-                        image.to_str(), target_image)
+                                   image.to_str(), target_image)
         else:
             logger.debug('image already tagged correctly, nothing to do')
         return target_image.to_str()  # this will be the proper name, not just repo/img
@@ -470,8 +475,8 @@ class DockerTasker(LastLogger):
             logger.info("login succeeded")
         else:
             if not(isinstance(response, dict) and 'password' in response.keys()):
-                # for some reason docker-py returns the contents of the dockercfg - we shouldn't be
-                # displaying that
+                # for some reason docker-py returns the contents of the dockercfg - we shouldn't
+                # be displaying that
                 logger.debug("response: %r", response)
 
     def push_image(self, image, insecure=False):
@@ -485,8 +490,10 @@ class DockerTasker(LastLogger):
         logger.info("pushing image '%s'", image)
         logger.debug("image: '%s', insecure: '%s'", image, insecure)
         try:
-            # push returns string composed of newline separated jsons; exactly what 'docker push' outputs
-            logs = self.d.push(image.to_str(tag=False), tag=image.tag, insecure_registry=insecure, stream=True)
+            # push returns string composed of newline separated jsons; exactly what 'docker push'
+            # outputs
+            logs = self.d.push(image.to_str(tag=False), tag=image.tag, insecure_registry=insecure,
+                               stream=True)
         except TypeError:
             # because changing api is fun
             logs = self.d.push(image.to_str(tag=False), tag=image.tag, stream=True)
@@ -498,7 +505,8 @@ class DockerTasker(LastLogger):
             raise RuntimeError("Failed to push image %s: %s" % (image, detail))
         return command_result.parsed_logs
 
-    def tag_and_push_image(self, image, target_image, insecure=False, force=False, dockercfg=None):
+    def tag_and_push_image(self, image, target_image, insecure=False, force=False,
+                           dockercfg=None):
         """
         tag provided image and push it to registry
 

@@ -352,7 +352,8 @@ class DockerBuildWorkflow(object):
             signal.signal(signal.SIGTERM, self.throw_canceled_build_exception)
             # time to run pre-build plugins, so they can access cloned repo
             logger.info("running pre-build plugins")
-            prebuild_runner = PreBuildPluginsRunner(self.builder.tasker, self, self.prebuild_plugins_conf,
+            prebuild_runner = PreBuildPluginsRunner(self.builder.tasker, self,
+                                                    self.prebuild_plugins_conf,
                                                     plugin_files=self.plugin_files)
             try:
                 prebuild_runner.run()
@@ -384,7 +385,8 @@ class DockerBuildWorkflow(object):
                 self.built_image_inspect = self.builder.inspect_built_image()
 
             # run prepublish plugins
-            prepublish_runner = PrePublishPluginsRunner(self.builder.tasker, self, self.prepublish_plugins_conf,
+            prepublish_runner = PrePublishPluginsRunner(self.builder.tasker, self,
+                                                        self.prepublish_plugins_conf,
                                                         plugin_files=self.plugin_files)
             try:
                 prepublish_runner.run()
@@ -392,7 +394,8 @@ class DockerBuildWorkflow(object):
                 logger.error("one or more prepublish plugins failed: %s", ex)
                 raise
 
-            postbuild_runner = PostBuildPluginsRunner(self.builder.tasker, self, self.postbuild_plugins_conf,
+            postbuild_runner = PostBuildPluginsRunner(self.builder.tasker, self,
+                                                      self.postbuild_plugins_conf,
                                                       plugin_files=self.plugin_files)
             try:
                 postbuild_runner.run()

@@ -27,7 +27,8 @@ The test module has to satisfy two conditions:
     1. first value is results
     2. second value is bool, whether test suite passed
 
-third optional argument of run function is logger (if not specified, all logs are 'print'ed to stdout)
+third optional argument of run function is logger (if not specified, all logs are 'print'ed to
+stdout)
 """
 
 import os
@@ -45,7 +46,7 @@ class ImageTestPlugin(PrePublishPlugin):
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, git_uri, git_commit, image_id, tests_git_path="tests.py",
-                 tests = None, results_dir="results", **kwargs):
+                 tests=None, results_dir="results", **kwargs):
         """
         constructor
 
@@ -53,8 +54,10 @@ class ImageTestPlugin(PrePublishPlugin):
         :param workflow: DockerBuildWorkflow instance
         :param git_uri: str, URI to git repo (URL, path -- this is passed to 'git clone')
         :param image_id: str, ID of image to process
-        :param tests_git_path: str, relative path within git repo to file with tests (default=tests.py)
-        :param config_file: str, relative path within git to config file for tests (default=config.json)
+        :param tests_git_path: str, relative path within git repo to file with tests
+                               (default=tests.py)
+        :param config_file: str, relative path within git to config file for tests
+                            (default=config.json)
         :param kwargs: dict, additional arguments for tests
         """
         # call parent constructor
@@ -86,7 +89,7 @@ class ImageTestPlugin(PrePublishPlugin):
             tests_module = imp.load_source(module_name, tests_file)
 
             results, passed = tests_module.run(image_id=self.image_id, tests=self.tests,
-                                               git_repo_path = tmpdir, logger=self.log,
+                                               git_repo_path=tmpdir, logger=self.log,
                                                results_dir=self.results_dir, **self.kwargs)
 
         shutil.rmtree(tmpdir)

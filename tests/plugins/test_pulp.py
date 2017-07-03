@@ -56,7 +56,7 @@ def prepare(check_repo_retval=0, existing_layers=[],
 
     # Mock dockpulp and docker
     dockpulp.Pulp = flexmock(dockpulp.Pulp)
-    dockpulp.Pulp.registry='registry.example.com'
+    dockpulp.Pulp.registry = 'registry.example.com'
     (flexmock(dockpulp.imgutils).should_receive('get_metadata')
      .with_args(object)
      .and_return([{'id': 'foo'}]))
@@ -170,7 +170,7 @@ def test_pulp_source_secret(tmpdir, check_repo_retval, should_raise, monkeypatch
         }}])
 
     if should_raise:
-        with pytest.raises(Exception) as exc:
+        with pytest.raises(Exception):
             runner.run()
 
         return
@@ -205,6 +205,7 @@ def test_pulp_service_account_secret(tmpdir, monkeypatch):
     assert "registry.example.com/image-name1:latest" in images
     assert "registry.example.com/prefix/image-name2:latest" in images
     assert "registry.example.com/image-name3:asd" in images
+
 
 @pytest.mark.skipif(dockpulp is None,
                     reason='dockpulp module not available')

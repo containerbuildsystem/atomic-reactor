@@ -46,7 +46,8 @@ class PrePublishSquashPlugin(PrePublishPlugin):
     be registered. The `from_layer` argument specifies from which layer we want
     to squash.
 
-    Of course it's possible to override it at runtime, like this: `--substitute prepublish_plugins.squash.tag=image:squashed
+    Of course it's possible to override it at runtime, like this: `--substitute
+    prepublish_plugins.squash.tag=image:squashed
       --substitute prepublish_plugins.squash.from_layer=asdasd2332`.
     """
 

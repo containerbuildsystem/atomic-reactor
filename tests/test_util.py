@@ -195,8 +195,8 @@ def test_process_substitutions(dct, subst, expected):
 
 @pytest.mark.parametrize('content, algorithms, expected', [
     (b'abc', ['md5', 'sha256'],
-                 {'md5sum': '900150983cd24fb0d6963f7d28e17f72',
-                  'sha256sum': 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'}),
+     {'md5sum': '900150983cd24fb0d6963f7d28e17f72',
+      'sha256sum': 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'}),
     (b'abc', ['md5'], {'md5sum': '900150983cd24fb0d6963f7d28e17f72'}),
     (b'abc', [], {})
 ])
@@ -232,6 +232,7 @@ def test_print_versions_of_tools():
 def test_preferred_labels(labels, name, expected):
     result = get_preferred_label_key(labels, name)
     assert result == expected
+
 
 @pytest.mark.parametrize('size_input,expected', [
     (0, "0.00 B"),
@@ -443,6 +444,7 @@ def test_is_scratch_build(build_json, scratch):
     else:
         assert is_scratch_build() == scratch
 
+
 def test_df_parser(tmpdir):
     tmpdir_path = str(tmpdir.realpath())
     df = df_parser(tmpdir_path)
@@ -457,6 +459,7 @@ def test_df_parser(tmpdir):
     assert len(df.labels) == 1
     assert df.labels.get('label') == 'foobar barfoo'
 
+
 def test_df_parser_parent_env_arg(tmpdir):
     p_env = {
         "test_env": "first"
@@ -469,6 +472,7 @@ def test_df_parser_parent_env_arg(tmpdir):
     df = df_parser(str(tmpdir), parent_env=p_env)
     df.content = df_content
     assert df.labels.get('label') == 'foobar first'
+
 
 @pytest.mark.parametrize('env_arg', [
     {"test_env": "first"},

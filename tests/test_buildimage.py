@@ -11,8 +11,6 @@ from __future__ import unicode_literals
 from glob import glob
 import os
 
-import pytest
-
 from atomic_reactor.buildimage import BuildImageBuilder
 from atomic_reactor.core import DockerTasker
 

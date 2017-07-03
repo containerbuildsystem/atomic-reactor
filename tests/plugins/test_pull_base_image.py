@@ -20,25 +20,31 @@ from tests.constants import MOCK, MOCK_SOURCE, LOCALHOST_REGISTRY
 if MOCK:
     from tests.docker_mock import mock_docker
 
+
 class MockSource(object):
     dockerfile_path = None
     path = None
+
 
 class MockBuilder(object):
     image_id = "xxx"
     source = MockSource()
     base_image = None
 
+
 BASE_IMAGE = "busybox:latest"
 BASE_IMAGE_W_LIBRARY = "library/" + BASE_IMAGE
 BASE_IMAGE_W_REGISTRY = LOCALHOST_REGISTRY + "/" + BASE_IMAGE
 BASE_IMAGE_W_LIB_REG = LOCALHOST_REGISTRY + "/" + BASE_IMAGE_W_LIBRARY
+
+
 @pytest.mark.parametrize(('parent_registry',
-                          'df_base',     # the base image is always expected
-                          'expected',    # additional expected images
-                          'not_expected' # additional images not expected
-), [
-    #expected_w_reg,expected_w_lib_reg,expected_wo_reg', [
+                          'df_base',      # the base image is always expected
+                          'expected',     # additional expected images
+                          'not_expected'  # additional images not expected
+                          ),
+[  # noqa
+    # expected_w_reg,expected_w_lib_reg,expected_wo_reg', [
     (LOCALHOST_REGISTRY, BASE_IMAGE,
      # expected:
      [BASE_IMAGE_W_REGISTRY],

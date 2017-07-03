@@ -15,9 +15,8 @@ from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.util import ImageName, df_parser
 from tests.constants import MOCK_SOURCE
-from tests.fixtures import docker_tasker
+from tests.fixtures import docker_tasker  # noqa
 
-import atomic_reactor
 from textwrap import dedent
 from flexmock import flexmock
 
@@ -56,7 +55,7 @@ def generate_a_file(destpath, contents):
         f.write(dedent(contents))
 
 
-@pytest.mark.parametrize('filename', ['help.md', 'other_file.md'])
+@pytest.mark.parametrize('filename', ['help.md', 'other_file.md'])  # noqa
 def test_add_help_plugin(tmpdir, docker_tasker, filename):
     df_content = dedent("""
         FROM fedora
@@ -82,9 +81,9 @@ def test_add_help_plugin(tmpdir, docker_tasker, filename):
         return MockedPopen()
 
     (flexmock(subprocess)
-         .should_receive("Popen")
-         .once()
-         .replace_with(check_popen))
+     .should_receive("Popen")
+     .once()
+     .replace_with(check_popen))
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -96,14 +95,14 @@ def test_add_help_plugin(tmpdir, docker_tasker, filename):
     )
     runner.run()
 
-    assert  df.content == dedent("""
+    assert df.content == dedent("""
         FROM fedora
         RUN yum install -y python-django
         ADD %s /%s
         CMD blabla""" % (AddHelpPlugin.man_filename, AddHelpPlugin.man_filename))
 
 
-@pytest.mark.parametrize('filename', ['help.md', 'other_file.md'])
+@pytest.mark.parametrize('filename', ['help.md', 'other_file.md'])  # noqa
 def test_add_help_no_help_file(request, tmpdir, docker_tasker, filename):
     df_content = "FROM fedora"
     df = df_parser(str(tmpdir))
@@ -130,7 +129,7 @@ def test_add_help_no_help_file(request, tmpdir, docker_tasker, filename):
     }}
 
 
-@pytest.mark.parametrize('filename', ['help.md', 'other_file.md'])
+@pytest.mark.parametrize('filename', ['help.md', 'other_file.md'])  # noqa
 @pytest.mark.parametrize('go_md2man_result', [
     'binary_missing', 'input_missing', 'other_os_error',
     'result_missing', 'fail', 'pass'])
@@ -172,27 +171,26 @@ def test_add_help_md2man_error(request, tmpdir, docker_tasker, filename,
         check_popen_pass(*args, **kwargs)
         raise subprocess.CalledProcessError(returncode=1, cmd=args[0])
 
-
     if go_md2man_result == 'binary_missing':
         (flexmock(subprocess)
-             .should_receive("Popen")
-             .once()
-             .replace_with(check_popen_binary_missing))
+         .should_receive("Popen")
+         .once()
+         .replace_with(check_popen_binary_missing))
     elif go_md2man_result == 'other_os_error':
         (flexmock(subprocess)
-             .should_receive("Popen")
-             .once()
-             .replace_with(check_popen_other_os_error))
+         .should_receive("Popen")
+         .once()
+         .replace_with(check_popen_other_os_error))
     elif go_md2man_result == 'fail':
         (flexmock(subprocess)
-             .should_receive("Popen")
-             .once()
-             .replace_with(check_popen_fail))
+         .should_receive("Popen")
+         .once()
+         .replace_with(check_popen_fail))
     elif go_md2man_result in ['pass', 'result_missing']:
         (flexmock(subprocess)
-             .should_receive("Popen")
-             .once()
-             .replace_with(check_popen_pass))
+         .should_receive("Popen")
+         .once()
+         .replace_with(check_popen_pass))
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -214,7 +212,6 @@ def test_add_help_md2man_error(request, tmpdir, docker_tasker, filename,
     elif go_md2man_result == 'other_os_error':
         assert list(result.keys()) == ['add_help']
         assert isinstance(result['add_help'], OSError)
-
 
     elif go_md2man_result == 'result_missing':
         assert list(result.keys()) == ['add_help']

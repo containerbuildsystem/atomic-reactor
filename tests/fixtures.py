@@ -13,11 +13,12 @@ import pytest
 import requests
 import requests.exceptions
 from tests.constants import LOCALHOST_REGISTRY_HTTP, DOCKER0_REGISTRY_HTTP, MOCK
-if MOCK:
-    from tests.docker_mock import mock_docker
 
 from atomic_reactor.util import ImageName
 from atomic_reactor.core import DockerTasker
+
+if MOCK:
+    from tests.docker_mock import mock_docker
 
 
 def get_uuid():

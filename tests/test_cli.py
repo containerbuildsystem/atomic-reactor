@@ -18,7 +18,7 @@ from atomic_reactor.buildimage import BuildImageBuilder
 from atomic_reactor.core import DockerTasker
 import atomic_reactor.cli.main
 
-from tests.fixtures import is_registry_running, temp_image_name, get_uuid
+from tests.fixtures import is_registry_running, temp_image_name, get_uuid  # noqa
 from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, DOCKERFILE_OK_PATH, FILES, MOCK
 
 if MOCK:
@@ -41,6 +41,7 @@ with_all_sources = pytest.mark.parametrize('source_provider, uri', [
 ])
 
 # TEST-SUITE SETUP
+
 
 def setup_module(module):
     global PRIV_BUILD_IMAGE, DH_BUILD_IMAGE
@@ -75,9 +76,9 @@ class TestCLISuite(object):
         atomic_reactor.cli.main.run()
         sys.argv = saved_args
 
-    @with_all_sources
+    @with_all_sources  # noqa
     def test_simple_privileged_build(self, is_registry_running, temp_image_name,
-            source_provider, uri):
+                                     source_provider, uri):
         if MOCK:
             mock_docker()
 
@@ -102,7 +103,7 @@ class TestCLISuite(object):
 
         assert excinfo.value.code == 0
 
-    @with_all_sources
+    @with_all_sources  # noqa
     def test_simple_dh_build(self, is_registry_running, temp_image_name, source_provider, uri):
         if MOCK:
             mock_docker()
@@ -128,7 +129,7 @@ class TestCLISuite(object):
         assert excinfo.value.code == 0
         dt.remove_image(temp_image, noprune=True)
 
-    def test_building_from_json_source_provider(self, is_registry_running, temp_image_name):
+    def test_building_from_json_source_provider(self, is_registry_running, temp_image_name):  # noqa
         if MOCK:
             mock_docker()
 
@@ -154,7 +155,7 @@ class TestCLISuite(object):
         assert excinfo.value.code == 0
         dt.remove_image(temp_image, noprune=True)
 
-    def test_create_build_image(self, temp_image_name):
+    def test_create_build_image(self, temp_image_name):  # noqa
         if MOCK:
             mock_docker()
 

@@ -118,7 +118,7 @@ class TestCheckRebuild(object):
         build_json["metadata"].update(namespace_dict)
         monkeypatch.setenv("BUILD", json.dumps(build_json))
         runner.run()
-        assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] == False
+        assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] is False
         assert not is_rebuild(workflow)
 
     def test_check_is_rebuild(self, monkeypatch):
@@ -135,7 +135,7 @@ class TestCheckRebuild(object):
             }
         }))
         runner.run()
-        assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] == True
+        assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] is True
         assert is_rebuild(workflow)
 
     def test_409_response(self, monkeypatch):

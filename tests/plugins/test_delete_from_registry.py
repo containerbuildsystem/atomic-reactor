@@ -30,8 +30,10 @@ if MOCK:
 DIGEST1 = 'sha256:28b64a8b29fd2723703bb17acf907cd66898440270e536992b937899a4647414'
 DIGEST2 = 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
 
+
 class Y(object):
     pass
+
 
 class X(object):
     image_id = INPUT_IMAGE
@@ -39,6 +41,7 @@ class X(object):
     source.dockerfile_path = None
     source.path = None
     base_image = ImageName(repo="qwe", tag="asd")
+
 
 @pytest.mark.parametrize("saved_digests", [
     {},
@@ -75,7 +78,7 @@ def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir):
                 }
                 dockerconfig.write(json.dumps(dockerconfig_contents))
                 dockerconfig.flush()
-                args_registries[reg] = { 'secret': temp_dir }
+                args_registries[reg] = {'secret': temp_dir}
         else:
             args_registries[reg] = {}
 

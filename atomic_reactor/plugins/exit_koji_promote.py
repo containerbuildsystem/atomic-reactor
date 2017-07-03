@@ -47,7 +47,7 @@ class KojiUploadLogger(object):
         self.notable_percent = notable_percent
         self.last_percent_done = 0
 
-    def callback(self, offset, totalsize, size, t1, t2): # pylint: disable=W0613
+    def callback(self, offset, totalsize, size, t1, t2):  # pylint: disable=W0613
         if offset == 0:
             self.logger.debug("upload size: %.1fMiB", totalsize / 1024.0 / 1024)
 

@@ -10,7 +10,6 @@ from __future__ import print_function, unicode_literals
 
 import os
 import json
-import time
 from datetime import datetime, timedelta
 from copy import deepcopy
 from textwrap import dedent
@@ -48,6 +47,7 @@ class X(object):
     base_image = ImageName(repo="qwe", tag="asd")
     # image = ImageName.parse("test-image:unique_tag_123")
 
+
 def prepare(pulp_registries=None, docker_registries=None):
     if pulp_registries is None:
         pulp_registries = (
@@ -59,6 +59,7 @@ def prepare(pulp_registries=None, docker_registries=None):
 
     def set_annotations_on_build(build_id, annotations):
         pass
+
     def update_labels_on_build(build_id, labels):
         pass
     new_environ = deepcopy(os.environ)
@@ -209,7 +210,7 @@ CMD blabla"""
         "repository": TEST_IMAGE,
         "tag": 'latest',
         "digest": DIGEST1,
-    },{
+    }, {
         "registry": LOCALHOST_REGISTRY,
         "repository": "namespace/image",
         "tag": 'asd123',
@@ -304,6 +305,7 @@ CMD blabla"""
     assert "all_rpm_packages" in plugins_metadata["errors"]
     assert "all_rpm_packages" in plugins_metadata["durations"]
 
+
 def test_labels_metadata_plugin(tmpdir):
 
     koji_build_id = 1234
@@ -338,6 +340,7 @@ CMD blabla"""
     assert "koji-build-id" in labels
     assert is_string_type(labels["koji-build-id"])
     assert int(labels["koji-build-id"]) == koji_build_id
+
 
 def test_missing_koji_build_id(tmpdir):
     workflow = prepare()
@@ -395,7 +398,7 @@ CMD blabla"""
         .should_receive('set_annotations_on_build')
         .and_raise(OsbsResponseException('/', 'failed', 0)))
     with pytest.raises(PluginFailedException):
-        output = runner.run()
+        runner.run()
     assert 'annotations:' in caplog.text()
 
 
@@ -420,16 +423,16 @@ def test_store_metadata_fail_update_labels(tmpdir, caplog):
         .should_receive('update_labels_on_build')
         .and_raise(OsbsResponseException('/', 'failed', 0)))
     with pytest.raises(PluginFailedException):
-        output = runner.run()
+        runner.run()
     assert 'labels:' in caplog.text()
 
 
 @pytest.mark.parametrize(('pulp_registries', 'docker_registries', 'prefixes'), [
     [[], [], []],
     [
-        [['spam', 'spam:8888'],],
+        [['spam', 'spam:8888'], ],
         [],
-        ['spam:8888',],
+        ['spam:8888', ],
     ],
     [
         [['spam', 'spam:8888'], ['maps', 'maps:9999']],
@@ -439,7 +442,7 @@ def test_store_metadata_fail_update_labels(tmpdir, caplog):
     [
         [],
         ['spam:8888'],
-        ['spam:8888',]
+        ['spam:8888', ]
     ],
     [
         [],
@@ -447,9 +450,9 @@ def test_store_metadata_fail_update_labels(tmpdir, caplog):
         ['spam:8888', 'maps:9999']
     ],
     [
-        [['spam', 'spam:8888'],],
+        [['spam', 'spam:8888'], ],
         ['bacon:8888'],
-        ['spam:8888',]
+        ['spam:8888', ]
     ],
 ])
 def test_filter_repositories(tmpdir, pulp_registries, docker_registries,

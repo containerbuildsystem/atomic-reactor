@@ -20,6 +20,7 @@ __all__ = (
     'build_image_here',
 )
 
+
 def _prepare_build_json(image, source, parent_registry, target_registries,
                         parent_registry_insecure, target_registries_insecure,
                         dont_pull_base_image, **kwargs):
@@ -52,10 +53,11 @@ def _prepare_build_json(image, source, parent_registry, target_registries,
     return build_json
 
 
-def build_image_in_privileged_container(build_image, source, image,
-        parent_registry=None, target_registries=None, push_buildroot_to=None,
-        parent_registry_insecure=False, target_registries_insecure=False,
-        dont_pull_base_image=False, **kwargs):
+def build_image_in_privileged_container(build_image, source, image, parent_registry=None,
+                                        target_registries=None, push_buildroot_to=None,
+                                        parent_registry_insecure=False,
+                                        target_registries_insecure=False,
+                                        dont_pull_base_image=False, **kwargs):
     """
     build image from provided dockerfile (specified by `source`) in privileged container by
     running another docker instance inside the container
@@ -64,7 +66,8 @@ def build_image_in_privileged_container(build_image, source, image,
     :param source: dict, where/how to get source code to put in image
     :param image: str, tag for built image ([registry/]image_name[:tag])
     :param parent_registry: str, registry to pull base image from
-    :param target_registries: list of str, list of registries to push image to (might change in future)
+    :param target_registries: list of str, list of registries to push image to (might change in
+                              future)
     :param push_buildroot_to: str, repository where buildroot should be pushed
     :param parent_registry_insecure: bool, allow connecting to parent registry over plain http
     :param target_registries_insecure: bool, allow connecting to target registries over plain http
@@ -83,10 +86,11 @@ def build_image_in_privileged_container(build_image, source, image,
     return build_response
 
 
-def build_image_using_hosts_docker(build_image, source, image,
-        parent_registry=None, target_registries=None, push_buildroot_to=None,
-        parent_registry_insecure=False, target_registries_insecure=False,
-        dont_pull_base_image=False, **kwargs):
+def build_image_using_hosts_docker(build_image, source, image, parent_registry=None,
+                                   target_registries=None, push_buildroot_to=None,
+                                   parent_registry_insecure=False,
+                                   target_registries_insecure=False, dont_pull_base_image=False,
+                                   **kwargs):
     """
     build image from provided dockerfile (specified by `source`) in privileged container
     using docker from host
@@ -95,7 +99,8 @@ def build_image_using_hosts_docker(build_image, source, image,
     :param source: dict, where/how to get source code to put in image
     :param image: str, tag for built image ([registry/]image_name[:tag])
     :param parent_registry: str, registry to pull base image from
-    :param target_registries: list of str, list of registries to push image to (might change in future)
+    :param target_registries: list of str, list of registries to push image to (might change in
+                              future)
     :param push_buildroot_to: str, repository where buildroot should be pushed
     :param parent_registry_insecure: bool, allow connecting to parent registry over plain http
     :param target_registries_insecure: bool, allow connecting to target registries over plain http
@@ -115,15 +120,16 @@ def build_image_using_hosts_docker(build_image, source, image,
 
 
 def build_image_here(source, image,
-        parent_registry=None, target_registries=None, parent_registry_insecure=False,
-        target_registries_insecure=False, dont_pull_base_image=False, **kwargs):
+                     parent_registry=None, target_registries=None, parent_registry_insecure=False,
+                     target_registries_insecure=False, dont_pull_base_image=False, **kwargs):
     """
     build image from provided dockerfile (specified by `source`) in current environment
 
     :param source: dict, where/how to get source code to put in image
     :param image: str, tag for built image ([registry/]image_name[:tag])
     :param parent_registry: str, registry to pull base image from
-    :param target_registries: list of str, list of registries to push image to (might change in future)
+    :param target_registries: list of str, list of registries to push image to (might change in
+                              future)
     :param parent_registry_insecure: bool, allow connecting to parent registry over plain http
     :param target_registries_insecure: bool, allow connecting to target registries over plain http
     :param dont_pull_base_image: bool, don't pull or update base image specified in dockerfile

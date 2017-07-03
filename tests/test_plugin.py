@@ -23,19 +23,17 @@ from atomic_reactor.plugin import (BuildPluginsRunner, PreBuildPluginsRunner,
                                    ExitPluginsRunner, BuildStepPluginsRunner,
                                    PluginsRunner, InappropriateBuildStepError,
                                    BuildStepPlugin, PreBuildPlugin)
-from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
-from atomic_reactor.plugins.build_docker_api import DockerApiPlugin
-from atomic_reactor.util import ImageName, df_parser
+from atomic_reactor.util import ImageName
 
-from tests.fixtures import docker_tasker
+from tests.fixtures import docker_tasker  # noqa
 from tests.constants import DOCKERFILE_GIT, MOCK
 if MOCK:
     from tests.docker_mock import mock_docker
 
 TEST_IMAGE = "fedora:latest"
 SOURCE = {"provider": "git", "uri": DOCKERFILE_GIT}
-DUMMY_BUILD_RESULT  = BuildResult(image_id="image_id")
+DUMMY_BUILD_RESULT = BuildResult(image_id="image_id")
 
 
 class MyBsPlugin1(BuildStepPlugin):
@@ -57,6 +55,7 @@ class MyPreBuildPlugin(PreBuildPlugin):
 
     def run(self):
         raise InappropriateBuildStepError
+
 
 def mock_workflow(tmpdir):
     if MOCK:
@@ -81,7 +80,8 @@ def mock_workflow(tmpdir):
 
     return workflow
 
-@pytest.mark.parametrize('runner_type', [
+
+@pytest.mark.parametrize('runner_type', [  # noqa
     PreBuildPluginsRunner,
     PrePublishPluginsRunner,
     PostBuildPluginsRunner,
@@ -101,7 +101,7 @@ class X(object):
     pass
 
 
-def test_prebuild_plugin_failure(docker_tasker):
+def test_prebuild_plugin_failure(docker_tasker):  # noqa
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     setattr(workflow, 'builder', X())
     setattr(workflow.builder, 'image_id', "asd123")
@@ -113,11 +113,11 @@ def test_prebuild_plugin_failure(docker_tasker):
                                    [{"name": AddYumRepoByUrlPlugin.key,
                                      "args": {'repourls': True}}])
     with pytest.raises(PluginFailedException):
-        results = runner.run()
+        runner.run()
     assert workflow.build_process_failed is True
 
 
-@pytest.mark.parametrize('runner_type', [
+@pytest.mark.parametrize('runner_type', [  # noqa
     PreBuildPluginsRunner,
     PrePublishPluginsRunner,
     PostBuildPluginsRunner,
@@ -142,15 +142,15 @@ def test_required_plugin_failure(tmpdir, docker_tasker, runner_type, required):
 
     if required or runner_type == BuildStepPluginsRunner:
         with pytest.raises(PluginFailedException):
-            results = runner.run()
+            runner.run()
     else:
-        results = runner.run()
+        runner.run()
     if runner_type == BuildStepPluginsRunner:
         assert workflow.plugin_failed is True
     else:
         assert workflow.plugin_failed is required
 
-@pytest.mark.parametrize('success1', [True, False])
+@pytest.mark.parametrize('success1', [True, False])  # noqa
 @pytest.mark.parametrize('success2', [True, False])
 def test_buildstep_phase_build_plugin(caplog, tmpdir, docker_tasker, success1, success2):
     """
@@ -162,10 +162,10 @@ def test_buildstep_phase_build_plugin(caplog, tmpdir, docker_tasker, success1, s
     workflow = mock_workflow(tmpdir)
     flexmock(PluginsRunner, load_plugins=lambda x: {
                                         MyBsPlugin1.key: MyBsPlugin1,
-                                        MyBsPlugin2.key: MyBsPlugin2,})
+                                        MyBsPlugin2.key: MyBsPlugin2, })
     runner = BuildStepPluginsRunner(docker_tasker, workflow,
-                                   [{"name": MyBsPlugin1.key},
-                                    {"name": MyBsPlugin2.key}])
+                                    [{"name": MyBsPlugin1.key},
+                                     {"name": MyBsPlugin2.key}])
 
     will_fail = False
     if success1:
@@ -176,7 +176,8 @@ def test_buildstep_phase_build_plugin(caplog, tmpdir, docker_tasker, success1, s
         if success2:
             flexmock(MyBsPlugin2).should_call('run').once()
         else:
-            flexmock(MyBsPlugin2).should_receive('run').and_raise(InappropriateBuildStepError).once()
+            flexmock(MyBsPlugin2).should_receive('run').and_raise(InappropriateBuildStepError
+                                                                  ).once()
             will_fail = True
 
     if will_fail:
@@ -187,7 +188,8 @@ def test_buildstep_phase_build_plugin(caplog, tmpdir, docker_tasker, success1, s
         expected_log_message = "stopping further execution of plugins after first successful plugin"
         assert expected_log_message in [l.getMessage() for l in caplog.records()]
 
-@pytest.mark.parametrize('success1', [True, False])
+
+@pytest.mark.parametrize('success1', [True, False])  # noqa
 def test_buildstep_phase_build_plugin_failing_exception(tmpdir, caplog, docker_tasker, success1):
     """
     plugin runner should stop after first successful plugin
@@ -197,10 +199,10 @@ def test_buildstep_phase_build_plugin_failing_exception(tmpdir, caplog, docker_t
     workflow = mock_workflow(tmpdir)
     flexmock(PluginsRunner, load_plugins=lambda x: {
                                         MyBsPlugin1.key: MyBsPlugin1,
-                                        MyBsPlugin2.key: MyBsPlugin2,})
+                                        MyBsPlugin2.key: MyBsPlugin2, })
     runner = BuildStepPluginsRunner(docker_tasker, workflow,
-                                   [{"name": MyBsPlugin1.key},
-                                    {"name": MyBsPlugin2.key}])
+                                    [{"name": MyBsPlugin1.key},
+                                     {"name": MyBsPlugin2.key}])
 
     will_fail = False
     if success1:
@@ -220,7 +222,7 @@ def test_buildstep_phase_build_plugin_failing_exception(tmpdir, caplog, docker_t
         assert expected_log_message in [l.getMessage() for l in caplog.records()]
 
 
-def test_non_buildstep_phase_raises_InappropriateBuildStepError(caplog, tmpdir, docker_tasker):
+def test_non_buildstep_phase_raises_InappropriateBuildStepError(caplog, tmpdir, docker_tasker):  # noqa
     """
     tests that exception is raised if no buildstep_phase
     but raises InappropriateBuildStepError
@@ -236,7 +238,7 @@ def test_non_buildstep_phase_raises_InappropriateBuildStepError(caplog, tmpdir, 
         runner.run()
 
 
-def test_no_appropriate_buildstep_build_plugin(caplog, tmpdir, docker_tasker):
+def test_no_appropriate_buildstep_build_plugin(caplog, tmpdir, docker_tasker):  # noqa
     """
     test that build fails if there isn't any
     appropriate buildstep plugin (doesn't exist)
@@ -244,13 +246,14 @@ def test_no_appropriate_buildstep_build_plugin(caplog, tmpdir, docker_tasker):
     workflow = mock_workflow(tmpdir)
     flexmock(PluginsRunner, load_plugins=lambda x: {})
     runner = BuildStepPluginsRunner(docker_tasker, workflow,
-                                   [{"name": MyBsPlugin1.key},
-                                    {"name": MyBsPlugin2.key}])
+                                    [{"name": MyBsPlugin1.key},
+                                     {"name": MyBsPlugin2.key}])
 
     with pytest.raises(Exception):
         runner.run()
 
-def test_fallback_to_docker_build(docker_tasker):
+
+def test_fallback_to_docker_build(docker_tasker):  # noqa
     """
     test fallback to docker build
     if no build_step specified or
@@ -336,11 +339,9 @@ class TestInputPluginsRunner(object):
                                       "args": {
                                           "path": build_json_path,
                                           "substitutions": {
-                                              "image": changed_image_name
-        }}}])
+                                              "image": changed_image_name}}}])
         results = runner.run()
         assert results['path']['image'] == changed_image_name
-
 
     def test_substitution_on_plugins(self, tmpdir):
         tmpdir_path = str(tmpdir)
@@ -372,7 +373,8 @@ class TestInputPluginsRunner(object):
 
     def test_autoinput_more_autousable(self):
         # mock env vars checked by both env and osv3 input plugins
-        flexmock(os, environ={'BUILD': 'a', 'SOURCE_URI': 'b', 'OUTPUT_IMAGE': 'c', 'BUILD_JSON': 'd'})
+        flexmock(os, environ={'BUILD': 'a', 'SOURCE_URI': 'b', 'OUTPUT_IMAGE': 'c',
+                              'BUILD_JSON': 'd'})
         runner = InputPluginsRunner([{'name': 'auto', 'args': {}}])
         with pytest.raises(PluginFailedException) as e:
             runner.run()

@@ -64,6 +64,7 @@ class ReactorConfigKeys(object):
     VERSION_KEY = 'version'
     CLUSTERS_KEY = 'clusters'
 
+
 class ReactorConfig(object):
     """
     Class to parse the atomic-reactor configuration file

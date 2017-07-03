@@ -65,6 +65,7 @@ warnings.filterwarnings("module")
 
 PulpRepo = namedtuple('PulpRepo', ['registry_id', 'tags'])
 
+
 class PulpUploader(object):
     CER = 'pulp.cer'
     KEY = 'pulp.key'
@@ -251,7 +252,7 @@ class PulpUploader(object):
         # Return the set of qualified repo names for this image
         return [ImageName(registry=pulp_registry, repo=repodata.registry_id, tag=tag)
                 for dummy_repo, repodata in pulp_repos.items()
-                for tag in repodata.tags]
+                for tag in repodata.tags]  # noqa
 
 
 class PulpPushPlugin(PostBuildPlugin):
@@ -266,7 +267,8 @@ class PulpPushPlugin(PostBuildPlugin):
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param pulp_registry_name: str, name of pulp registry to use, specified in /etc/dockpulp.conf
+        :param pulp_registry_name: str, name of pulp registry to use, specified in /etc/
+                                   dockpulp.conf
         :param load_squashed_image: obsolete name for load_exported_image, please don't use
         :param load_exported_image: bool, use exported tar instead of image from Docker
         :param image_names: list of additional image names

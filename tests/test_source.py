@@ -2,11 +2,11 @@ import os
 
 import pytest
 
-from atomic_reactor.source import (Source, GitSource, PathSource, get_source_instance_for,
-                         validate_source_dict_schema)
+from atomic_reactor.source import (Source, GitSource, PathSource, get_source_instance_for)
 
 from tests.constants import DOCKERFILE_GIT
 from tests.util import requires_internet
+
 
 class TestSource(object):
     def test_creates_tmpdir_if_not_passed(self):

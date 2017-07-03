@@ -12,7 +12,6 @@ from collections import namedtuple
 import os
 import subprocess
 from tempfile import NamedTemporaryFile
-import time
 import copy
 
 from atomic_reactor import __version__ as atomic_reactor_version

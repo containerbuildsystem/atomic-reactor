@@ -18,12 +18,10 @@ from atomic_reactor.build import InsideBuilder, BuildResult
 from atomic_reactor.util import ImageName
 from atomic_reactor.plugin import (PreBuildPlugin, PrePublishPlugin, PostBuildPlugin, ExitPlugin,
                                    AutoRebuildCanceledException, PluginFailedException,
-                                   BuildCanceledException, BuildStepPlugin,
-                                   InappropriateBuildStepError)
+                                   BuildStepPlugin, InappropriateBuildStepError)
 import atomic_reactor.plugin
 from atomic_reactor.plugins.build_docker_api import DockerApiPlugin
 import atomic_reactor.inner
-import logging
 from flexmock import flexmock
 import pytest
 from tests.constants import MOCK_SOURCE, SOURCE
@@ -31,9 +29,6 @@ from tests.docker_mock import mock_docker
 from tests.util import requires_internet, is_string_type
 import inspect
 import signal
-import threading
-
-from time import sleep
 
 from atomic_reactor.inner import BuildResults, BuildResultsEncoder, BuildResultsJSONDecoder
 from atomic_reactor.inner import DockerBuildWorkflow
@@ -196,7 +191,7 @@ class WatchedBuildStep(object):
 
     def __init__(self, tasker, workflow, watcher, *args, **kwargs):
         super(WatchedBuildStep, self).__init__(tasker, workflow,
-                                           *args, **kwargs)
+                                               *args, **kwargs)
         self.watcher = watcher
 
     def run(self):
@@ -394,7 +389,6 @@ def test_workflow_base_images():
         assert workflow.base_image_inspect
 
 
-
 class FakeLogger(object):
     def __init__(self):
         self.debugs = []
@@ -512,11 +506,11 @@ class Exit(ExitPlugin):
                               'args': {
                                   'watcher': Watcher(),
                               }
-                             }],
+                              }],
       },
      True,  # is fatal
      True,  # logs error
-    ),
+     ),
 
     # No 'name' key, buildstep
     ({
@@ -525,11 +519,11 @@ class Exit(ExitPlugin):
                                'args': {
                                    'watcher': Watcher(),
                                }
-                              }],
+                               }],
       },
      True,  # is fatal
      True,  # logs error
-    ),
+     ),
 
     # No 'name' key, postbuild
     ({
@@ -538,11 +532,11 @@ class Exit(ExitPlugin):
                                'args': {
                                    'watcher': Watcher(),
                                }
-                              }],
+                               }],
       },
      True,  # is fatal
      True,  # logs error
-    ),
+     ),
 
     # No 'name' key, prepub
     ({
@@ -551,10 +545,10 @@ class Exit(ExitPlugin):
                                 'args': {
                                     'watcher': Watcher(),
                                 },
-                               }]},
+                                }]},
      True,  # is fatal
      True,  # logs error
-    ),
+     ),
 
 
     # No 'name' key, exit
@@ -564,11 +558,11 @@ class Exit(ExitPlugin):
                           'args': {
                               'watcher': Watcher(),
                           }
-                         }]
+                          }]
       },
      False,  # not fatal
      True,   # logs error
-    ),
+     ),
 
     # No 'args' key, prebuild
     ({'prebuild_plugins': [{'name': 'pre'},
@@ -576,10 +570,10 @@ class Exit(ExitPlugin):
                             'args': {
                                 'watcher': Watcher(),
                             }
-                           }]},
+                            }]},
      False,  # not fatal
      False,  # no error logged
-    ),
+     ),
 
     # No 'args' key, buildstep
     ({'buildstep_plugins': [{'name': 'buildstep'},
@@ -587,10 +581,10 @@ class Exit(ExitPlugin):
                              'args': {
                                  'watcher': Watcher(),
                              }
-                            }]},
+                             }]},
      False,  # not fatal
      False,  # no error logged
-    ),
+     ),
 
     # No 'args' key, postbuild
     ({'postbuild_plugins': [{'name': 'post'},
@@ -598,10 +592,10 @@ class Exit(ExitPlugin):
                              'args': {
                                  'watcher': Watcher(),
                              }
-                            }]},
+                             }]},
      False,  # not fatal,
      False,  # no error logged
-    ),
+     ),
 
     # No 'args' key, prepub
     ({'prepublish_plugins': [{'name': 'prepub'},
@@ -609,10 +603,10 @@ class Exit(ExitPlugin):
                               'args': {
                                   'watcher': Watcher(),
                               }
-                            }]},
+                              }]},
      False,  # not fatal,
      False,  # no error logged
-    ),
+     ),
 
     # No 'args' key, exit
     ({'exit_plugins': [{'name': 'exit'},
@@ -620,10 +614,10 @@ class Exit(ExitPlugin):
                         'args': {
                             'watcher': Watcher(),
                         }
-                       }]},
+                        }]},
      False,  # not fatal
      False,  # no error logged
-    ),
+     ),
 
     # No such plugin, prebuild
     ({'prebuild_plugins': [{'name': 'no plugin',
@@ -632,10 +626,10 @@ class Exit(ExitPlugin):
                             'args': {
                                 'watcher': Watcher(),
                             }
-                           }]},
+                            }]},
      True,  # is fatal
      True,  # logs error
-    ),
+     ),
 
     # No such plugin, buildstep
     ({'buildstep_plugins': [{'name': 'no plugin',
@@ -644,10 +638,10 @@ class Exit(ExitPlugin):
                              'args': {
                                  'watcher': Watcher(),
                              }
-                            }]},
+                             }]},
      False,  # is fatal
      False,  # logs error
-    ),
+     ),
 
     # No such plugin, postbuild
     ({'postbuild_plugins': [{'name': 'no plugin',
@@ -656,10 +650,10 @@ class Exit(ExitPlugin):
                              'args': {
                                  'watcher': Watcher(),
                              }
-                            }]},
+                             }]},
      True,  # is fatal
      True,  # logs error
-    ),
+     ),
 
     # No such plugin, prepub
     ({'prepublish_plugins': [{'name': 'no plugin',
@@ -668,10 +662,10 @@ class Exit(ExitPlugin):
                               'args': {
                                   'watcher': Watcher(),
                               }
-                             }]},
+                              }]},
      True,  # is fatal
      True,  # logs error
-    ),
+     ),
 
     # No such plugin, exit
     ({'exit_plugins': [{'name': 'no plugin',
@@ -680,10 +674,10 @@ class Exit(ExitPlugin):
                         'args': {
                             'watcher': Watcher(),
                         }
-                       }]},
+                        }]},
      False,  # not fatal
      True,   # logs error
-    ),
+     ),
 
     # No such plugin, prebuild, not required
     ({'prebuild_plugins': [{'name': 'no plugin',
@@ -693,10 +687,10 @@ class Exit(ExitPlugin):
                             'args': {
                                 'watcher': Watcher(),
                             }
-                           }]},
+                            }]},
      False,  # not fatal
      False,  # does not log error
-    ),
+     ),
 
     # No such plugin, buildstep, not required
     ({'buildstep_plugins': [{'name': 'no plugin',
@@ -706,10 +700,10 @@ class Exit(ExitPlugin):
                              'args': {
                                  'watcher': Watcher(),
                              }
-                            }]},
+                             }]},
      False,  # not fatal
      False,  # does not log error
-    ),
+     ),
 
     # No such plugin, postbuild, not required
     ({'postbuild_plugins': [{'name': 'no plugin',
@@ -719,10 +713,10 @@ class Exit(ExitPlugin):
                              'args': {
                                  'watcher': Watcher(),
                              }
-                            }]},
+                             }]},
      False,  # not fatal
      False,  # does not log error
-    ),
+     ),
 
     # No such plugin, prepub, not required
     ({'prepublish_plugins': [{'name': 'no plugin',
@@ -732,10 +726,10 @@ class Exit(ExitPlugin):
                               'args': {
                                   'watcher': Watcher(),
                               }
-                             }]},
+                              }]},
      False,  # not fatal
      False,  # does not log error
-    ),
+     ),
 
     # No such plugin, exit, not required
     ({'exit_plugins': [{'name': 'no plugin',
@@ -745,10 +739,10 @@ class Exit(ExitPlugin):
                         'args': {
                             'watcher': Watcher(),
                         }
-                       }]},
+                        }]},
      False,  # not fatal
      False,  # does not log error
-    ),
+     ),
 ])
 def test_plugin_errors(request, plugins, should_fail, should_log):
     """
@@ -843,7 +837,7 @@ def test_autorebuild_stop_prevents_build():
     assert not watch_prepub.was_called()
     assert not watch_post.was_called()
     assert watch_exit.was_called()
-    assert workflow.autorebuild_canceled == True
+    assert workflow.autorebuild_canceled is True
     assert not workflow.build_canceled
 
 
@@ -1279,7 +1273,7 @@ def test_show_version(request, has_version):
         'prepublish_plugins': [],
         'postbuild_plugins': [],
         'exit_plugins': [],
-        'plugin_files' : [this_file],
+        'plugin_files': [this_file],
     }
     if has_version:
         params['client_version'] = VERSION

@@ -56,8 +56,10 @@ class AddDockerfilePlugin(PreBuildPlugin):
         :param nvr: name-version-release, will be appended to Dockerfile-.
                     If not specified, try to get it from Name, Version, Release labels.
         :param destdir: directory in the image to put Dockerfile-N-V-R into
-        :param use_final_dockerfile: bool, when set to True, uses final version of processed dockerfile,
-                                     when set to False, uses Dockerfile from time when this plugin was executed
+        :param use_final_dockerfile: bool, when set to True, uses final version of processed
+                                     dockerfile,
+                                     when set to False, uses Dockerfile from time when this plugin
+                                     was executed
         """
         # call parent constructor
         super(AddDockerfilePlugin, self).__init__(tasker, workflow)
@@ -70,7 +72,8 @@ class AddDockerfilePlugin(PreBuildPlugin):
             version = get_preferred_label(labels, 'version')
             release = get_preferred_label(labels, 'release')
             if name is None or version is None or release is None:
-                raise ValueError("You have to specify either nvr arg or name/version/release labels.")
+                raise ValueError("You have to specify either nvr arg or name/version/release "
+                                 "labels.")
             nvr = "{0}-{1}-{2}".format(name, version, release)
             nvr = nvr.replace("/", "-")
         self.df_name = '{0}-{1}'.format(DOCKERFILE_FILENAME, nvr)

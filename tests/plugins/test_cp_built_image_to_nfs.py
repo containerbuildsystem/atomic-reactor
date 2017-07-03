@@ -20,7 +20,8 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.plugins.post_cp_built_image_to_nfs import CopyBuiltImageToNFSPlugin
 from tests.constants import INPUT_IMAGE
-from tests.fixtures import docker_tasker
+from tests.fixtures import docker_tasker  # noqa
+
 
 class Y(object):
     pass
@@ -37,7 +38,7 @@ class X(object):
 NFS_SERVER_PATH = "server:path"
 
 
-@pytest.mark.parametrize('dest_dir', [None, "test_directory"])
+@pytest.mark.parametrize('dest_dir', [None, "test_directory"])  # noqa
 def test_cp_built_image_to_nfs(tmpdir, docker_tasker, dest_dir):
     mountpoint = tmpdir.join("mountpoint")
 
@@ -53,7 +54,7 @@ def test_cp_built_image_to_nfs(tmpdir, docker_tasker, dest_dir):
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, "test-image")
     workflow.builder = X()
     workflow.exported_image_sequence.append({"path": os.path.join(str(tmpdir),
-                                                             EXPORTED_SQUASHED_IMAGE_NAME)})
+                                                                  EXPORTED_SQUASHED_IMAGE_NAME)})
     open(workflow.exported_image_sequence[-1].get("path"), 'a').close()
 
     runner = PostBuildPluginsRunner(

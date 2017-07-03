@@ -14,7 +14,7 @@ from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_assert_labels import AssertLabelsPlugin
 from atomic_reactor.util import ImageName, df_parser
 from tests.constants import MOCK_SOURCE
-from tests.fixtures import docker_tasker
+from tests.fixtures import docker_tasker  # noqa
 
 
 class Y(object):
@@ -28,13 +28,14 @@ class X(object):
     source.path = None
     base_image = ImageName(repo="qwe", tag="asd")
 
+
 DF_CONTENT = """
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
 DF_CONTENT_LABELS = DF_CONTENT+'\nLABEL "name"="rainbow" "version"="123" "release"="1"'
 
-@pytest.mark.parametrize('df_content, req_labels, expected', [
+@pytest.mark.parametrize('df_content, req_labels, expected', [  # noqa
     (DF_CONTENT, None, PluginFailedException()),
     (DF_CONTENT_LABELS, None, None),
     (DF_CONTENT_LABELS, ['xyz'], PluginFailedException())

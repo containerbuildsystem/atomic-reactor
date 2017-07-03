@@ -165,7 +165,8 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         """
         logger.info("inspecting built image '%s'", self.image_id)
         self.ensure_is_built()
-        inspect_data = self.tasker.inspect_image(self.image_id)  # dict with lots of data, see man docker-inspect
+        # dict with lots of data, see man docker-inspect
+        inspect_data = self.tasker.inspect_image(self.image_id)
         return inspect_data
 
     def get_base_image_info(self):
@@ -183,8 +184,10 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
             logger.error("image '%s' not found", self.base_image)
             raise RuntimeError("image '%s' not found", self.base_image)
         else:
-            logger.error("multiple (%d) images found for image '%s'", items_count, self.base_image)
-            raise RuntimeError("multiple (%d) images found for image '%s'" % (items_count, self.base_image))
+            logger.error("multiple (%d) images found for image '%s'", items_count,
+                         self.base_image)
+            raise RuntimeError("multiple (%d) images found for image '%s'" % (items_count,
+                                                                              self.base_image))
 
     def get_built_image_info(self):
         """
@@ -202,4 +205,5 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
             raise RuntimeError("image '%s' not found" % self.image)
         else:
             logger.error("multiple (%d) images found for image '%s'", items_count, self.image)
-            raise RuntimeError("multiple (%d) images found for image '%s'" % (items_count, self.image))
+            raise RuntimeError("multiple (%d) images found for image '%s'" % (items_count,
+                                                                              self.image))

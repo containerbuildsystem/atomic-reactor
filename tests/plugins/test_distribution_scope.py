@@ -7,7 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from atomic_reactor.constants import INSPECT_CONFIG
-from atomic_reactor.plugin import PreBuildPluginsRunner
+from atomic_reactor.plugin import PreBuildPluginsRunner  # noqa
 from atomic_reactor.plugins.pre_distribution_scope import (DistributionScopePlugin,
                                                            DisallowedDistributionScope)
 from flexmock import flexmock
@@ -17,10 +17,6 @@ import pytest
 
 
 class TestDistributionScope(object):
-    def create_dockerfile(self, tmpdir, current_scope):
-
-        return filename
-
     def instantiate_plugin(self, tmpdir, parent_labels, current_scope):
         workflow = flexmock()
         setattr(workflow, 'builder', flexmock())

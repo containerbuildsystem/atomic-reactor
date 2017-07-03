@@ -7,15 +7,13 @@ of the BSD license. See the LICENSE file for details.
 """
 from __future__ import unicode_literals
 
-import os
 import pytest
 
 from atomic_reactor.build import InsideBuilder, BuildResult
-from atomic_reactor.core import DockerTasker
+from atomic_reactor.core import DockerTasker  # noqa
 from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.util import ImageName
-from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, DOCKERFILE_OK_PATH,\
-        DOCKERFILE_ERROR_BUILD_PATH, MOCK, SOURCE, DOCKERFILE_FILENAME
+from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_OK_PATH, MOCK, SOURCE
 from tests.util import requires_internet
 from flexmock import flexmock
 
@@ -113,11 +111,11 @@ def test_ensure_built(tmpdir, source_params, is_built):
     b.is_built = is_built
 
     if is_built:
-        assert b.ensure_is_built() == None
+        assert b.ensure_is_built() is None
         with pytest.raises(Exception):
             b.ensure_not_built()
     else:
-        assert b.ensure_not_built() == None
+        assert b.ensure_not_built() is None
         with pytest.raises(Exception):
             b.ensure_is_built()
 

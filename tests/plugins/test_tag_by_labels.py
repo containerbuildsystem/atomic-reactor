@@ -11,16 +11,14 @@ from __future__ import print_function, unicode_literals
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner
-from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
 from atomic_reactor.plugins.post_tag_by_labels import TagByLabelsPlugin
 from atomic_reactor.util import ImageName
 from atomic_reactor.constants import INSPECT_CONFIG
 from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE, MOCK
+import pytest
 
 if MOCK:
     from tests.docker_mock import mock_docker
-
-import pytest
 
 
 class Y(object):

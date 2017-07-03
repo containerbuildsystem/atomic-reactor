@@ -28,6 +28,7 @@ class MockDockerTasker(object):
     def build_image_from_path(self):
         return True
 
+
 class X(object):
     pass
 
@@ -65,6 +66,7 @@ class MockInsideBuilder(object):
     def ensure_not_built(self):
         pass
 
+
 @pytest.mark.parametrize('is_failed', [
     True,
     False,
@@ -88,7 +90,7 @@ def test_build(is_failed):
             workflow.build_docker_image()
     else:
         workflow.build_docker_image()
-   
+
     assert isinstance(workflow.buildstep_result['docker_api'], BuildResult)
     assert workflow.build_result == workflow.buildstep_result['docker_api']
     assert workflow.build_result.is_failed() == is_failed

@@ -71,6 +71,7 @@ class TestGarbageCollectionPlugin(object):
             }]
         )
         removed_images = []
+
         def spy_remove_image(image_id, force=None):
             removed_images.append(image_id)
 
@@ -78,7 +79,7 @@ class TestGarbageCollectionPlugin(object):
         for image in deferred:
             defer_removal(workflow, image)
 
-        output = runner.run()
+        runner.run()
         image_set = set(removed_images)
         assert len(image_set) == len(removed_images)
         assert image_set == expected

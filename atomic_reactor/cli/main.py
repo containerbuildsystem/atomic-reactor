@@ -14,7 +14,8 @@ import sys
 import pkg_resources
 
 from atomic_reactor import set_logging
-from atomic_reactor.api import build_image_here, build_image_in_privileged_container, build_image_using_hosts_docker
+from atomic_reactor.api import (build_image_here, build_image_in_privileged_container,
+                                build_image_using_hosts_docker)
 from atomic_reactor.constants import CONTAINER_BUILD_JSON_PATH, DESCRIPTION, PROG
 from atomic_reactor.buildimage import BuildImageBuilder
 from atomic_reactor.inner import build_inside, BuildResults
@@ -70,7 +71,8 @@ def construct_kwargs(**kwargs):
 
     # extend this when adding more args that should be passed to build_* functions
     recognized_kwargs = ['image', 'parent_registry', 'parent_registry_insecure',
-                         'target_registries', 'target_registries_insecure', 'dont_pull_base_image']
+                         'target_registries', 'target_registries_insecure',
+                         'dont_pull_base_image']
     is_recognized_kwarg = lambda x: x in recognized_kwargs or x.startswith('source__')
 
     for k, v in kwargs.items():
@@ -86,7 +88,8 @@ def construct_kwargs(**kwargs):
 
 
 def cli_inside_build(args):
-    build_inside(input_method=args.input, input_args=args.input_arg, substitutions=args.substitute)
+    build_inside(input_method=args.input, input_args=args.input_arg,
+                 substitutions=args.substitute)
 
 
 class CLI(object):
@@ -126,6 +129,7 @@ class CLI(object):
                         'inside a build container using new instance of docker, '
                         'or within current environment.'
         )
+
         def cli_build_with_source(args):
             if args.source__provider is None:
                 self.build_parser.print_help()
@@ -139,24 +143,29 @@ class CLI(object):
 
         self.bi_parser = subparsers.add_parser('create-build-image',
                                                usage="%s [OPTIONS] create-build-image" % PROG,
-                                               description='Create build image; Atomic Reactor installs itself inside and '
-                                                           'is capable of building images within this image.')
+                                               description='Create build image; Atomic Reactor '
+                                               'installs itself inside and is capable of '
+                                               'building images within this image.')
         self.bi_parser.set_defaults(func=cli_create_build_image)
         reactor_source = self.bi_parser.add_mutually_exclusive_group()
         reactor_source.add_argument("--reactor-latest", action='store_true',
-                                 help="put latest Atomic Reactor inside (from public git)")
+                                    help="put latest Atomic Reactor inside (from public git)")
         reactor_source.add_argument("--reactor-remote-git", action='store',
-                                 help="URL to git repo with Atomic Reactor (has to contain setup.py)")
+                                    help="URL to git repo with Atomic Reactor (has to contain "
+                                    "setup.py)")
         reactor_source.add_argument("--reactor-local-path", action='store',
-                                 help="path to directory with Atomic Reactor (has to contain setup.py)")
+                                    help="path to directory with Atomic Reactor (has to contain "
+                                    "setup.py)")
         reactor_source.add_argument("--reactor-tarball-path", action='store',
-                                 help="path to distribution tarball with Atomic Reactor")
-        self.bi_parser.add_argument("dockerfile_dir_path", action="store", metavar="DOCKERFILE_DIR_PATH",
+                                    help="path to distribution tarball with Atomic Reactor")
+        self.bi_parser.add_argument("dockerfile_dir_path", action="store",
+                                    metavar="DOCKERFILE_DIR_PATH",
                                     help="path to directory with Dockerfile")
         self.bi_parser.add_argument("image", action='store', metavar="IMAGE",
                                     help="name under the image will be accessible")
         self.bi_parser.add_argument("--use-cache", action='store_true', default=False,
-                                    help="use cache to build image (may be faster, but not up to date)")
+                                    help="use cache to build image (may be faster, but not up "
+                                    "to date)")
 
         # inside build
         self.ib_parser = subparsers.add_parser(
@@ -164,15 +173,18 @@ class CLI(object):
             usage="%s [OPTIONS] inside-build" % PROG,
             description="We do expect we are inside container, therefore we'll read "
                         "build configuration from json at '%s'" % CONTAINER_BUILD_JSON_PATH +
-                        "and when the build is done, "
-                        "results are written in that dir so Atomic Reactor from host may read those.")
+                        "and when the build is done, results are written in that dir so Atomic "
+                        "Reactor from host may read those.")
         self.ib_parser.add_argument("--input", action='store', default="auto",
-                                    help="input plugin name (determined automatically unless given)")
+                                    help="input plugin name (determined automatically unless "
+                                    "given)")
         self.ib_parser.add_argument("--input-arg", action='append',
-                                    help="argument for input plugin (in form of 'key=value'), see input plugins "
-                                         " to know what arguments they accept (can be specified multiple times)")
+                                    help="argument for input plugin (in form of 'key=value'), "
+                                    "see input plugins to know what arguments they accept (can "
+                                    "be specified multiple times)")
         self.ib_parser.add_argument("--dont-pull-base-image", action='store_true',
-                                    help="don't pull or update base image specified in dockerfile")
+                                    help="don't pull or update base image specified in "
+                                    "dockerfile")
         self.ib_parser.add_argument("--substitute", action='append',
                                     help="substitute values in build json (key=value, or "
                                          "plugin_type.plugin_name.key=value)")
@@ -246,9 +258,9 @@ class CLI(object):
                 "--method", action='store', required=True,
                 choices=["hostdocker", "privileged", "here"],
                 help="choose method for building image: "
-                     "'hostdocker' mounts socket inside privileged container to use docker from host, "
-                     "'privileged' runs separate docker instance inside privileged container "
-                     "and 'here' executes build in current environment")
+                     "'hostdocker' mounts socket inside privileged container to use docker from "
+                     "host, 'privileged' runs separate docker instance inside privileged "
+                     "container and 'here' executes build in current environment")
 
         # add sourcetype-specific arguments now
         self.source_types_parsers['git'].add_argument(

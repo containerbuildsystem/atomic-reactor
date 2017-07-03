@@ -113,6 +113,7 @@ class ImageName(object):
             repo=self.repo,
             tag=self.tag)
 
+
 def figure_out_dockerfile(absolute_path, local_path=None):
     """
     try to figure out dockerfile from provided path and optionally from relative local path
@@ -547,10 +548,10 @@ def get_preferred_label_key(labels, name):
     This function returns the best label corresponding to "name" that is present in the "labels"
     dictionary.
 
-    Returns unchanged name if we don't have it in the preference table. If name is in the table but
-    none of the variants are in the labels dict, returns the most-preferred label - the assumption
-    is that we're gonna raise an error later and the error message should contain the preferred
-    variant.
+    Returns unchanged name if we don't have it in the preference table. If name is in the table
+    but none of the variants are in the labels dict, returns the most-preferred label - the
+    assumption is that we're gonna raise an error later and the error message should contain
+    the preferred variant.
     """
     label_chain = get_all_label_keys(name)
     for lbl in label_chain:
@@ -586,7 +587,7 @@ def is_scratch_build():
 # copypasted and slightly modified from
 # http://stackoverflow.com/questions/1094841/reusable-library-to-get-human-readable-version-of-file-size/1094933#1094933
 def human_size(num, suffix='B'):
-    for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+    for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
         if abs(num) < 1024.0:
             return "%3.2f %s%s" % (num, unit, suffix)
         num /= 1024.0
@@ -763,6 +764,7 @@ def get_config_from_registry(image, registry, digest, insecure=False,
 
     return blob_config
 
+
 def df_parser(df_path, workflow=None, cache_content=False, env_replace=True, parent_env=None):
     """
     Wrapper for dockerfile_parse's DockerfileParser that takes into account
@@ -819,7 +821,8 @@ def df_parser(df_path, workflow=None, cache_content=False, env_replace=True, par
             parent_env=p_env
         )
     except TypeError:
-        logger.debug("Old version of dockerfile-parse detected, unable to set inherited parent ENVs")
+        logger.debug("Old version of dockerfile-parse detected, unable to set inherited parent "
+                     "ENVs")
         dfparser = DockerfileParser(
             df_path,
             cache_content=cache_content,

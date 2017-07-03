@@ -8,14 +8,15 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import print_function, unicode_literals
 
-from tests.fixtures import temp_image_name
+from tests.fixtures import temp_image_name  # noqa
 
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.util import ImageName, clone_git_repo
 from tests.constants import LOCALHOST_REGISTRY, INPUT_IMAGE, DOCKERFILE_GIT, MOCK, COMMAND
 from tests.util import requires_internet
 
-import docker, docker.errors
+import docker
+import docker.errors
 
 from flexmock import flexmock
 import pytest
@@ -26,6 +27,7 @@ if MOCK:
 input_image_name = ImageName.parse(INPUT_IMAGE)
 
 # TEST-SUITE SETUP
+
 
 def setup_module(module):
     if MOCK:
@@ -119,7 +121,7 @@ def test_remove_container():
         t.remove_container(container_id)
 
 
-def test_remove_image(temp_image_name):
+def test_remove_image(temp_image_name):  # noqa
     if MOCK:
         mock_docker(inspect_should_fail=True)
 
@@ -134,7 +136,7 @@ def test_remove_image(temp_image_name):
     assert not t.image_exists(temp_image_name)
 
 
-def test_commit_container(temp_image_name):
+def test_commit_container(temp_image_name):  # noqa
     if MOCK:
         mock_docker()
 
@@ -158,7 +160,7 @@ def test_inspect_image():
     assert isinstance(inspect_data, dict)
 
 
-def test_tag_image(temp_image_name):
+def test_tag_image(temp_image_name):  # noqa
     if MOCK:
         mock_docker()
 
@@ -173,7 +175,7 @@ def test_tag_image(temp_image_name):
         t.remove_image(temp_image_name)
 
 
-def test_tag_image_same_name(temp_image_name):
+def test_tag_image_same_name(temp_image_name):  # noqa
     if MOCK:
         mock_docker()
 
@@ -181,10 +183,10 @@ def test_tag_image_same_name(temp_image_name):
     temp_image_name.registry = "somewhere.example.com"
     temp_image_name.tag = "1"
     flexmock(t.d).should_receive('tag').never()
-    img = t.tag_image(temp_image_name, temp_image_name.copy())
+    t.tag_image(temp_image_name, temp_image_name.copy())
 
 
-@pytest.mark.parametrize(('should_fail',), [
+@pytest.mark.parametrize(('should_fail',), [  # noqa
     (True, ),
     (False, ),
 ])
@@ -207,7 +209,7 @@ def test_push_image(temp_image_name, should_fail):
     t.remove_image(temp_image_name)
 
 
-def test_tag_and_push(temp_image_name):
+def test_tag_and_push(temp_image_name):  # noqa
     if MOCK:
         mock_docker()
 
@@ -263,7 +265,7 @@ def test_get_image_info_by_name_tag_in_name():
     assert len(response) == 1
 
 
-def test_get_image_info_by_name_tag_in_name_nonexisten(temp_image_name):
+def test_get_image_info_by_name_tag_in_name_nonexisten(temp_image_name):  # noqa
     if MOCK:
         mock_docker()
 
@@ -272,7 +274,7 @@ def test_get_image_info_by_name_tag_in_name_nonexisten(temp_image_name):
     assert len(response) == 0
 
 
-@requires_internet
+@requires_internet  # noqa
 def test_build_image_from_path(tmpdir, temp_image_name):
     if MOCK:
         mock_docker()
@@ -289,7 +291,7 @@ def test_build_image_from_path(tmpdir, temp_image_name):
     t.remove_image(temp_image_name)
 
 
-@requires_internet
+@requires_internet  # noqa
 def test_build_image_from_git(temp_image_name):
     if MOCK:
         mock_docker()
@@ -333,4 +335,4 @@ def test_timeout(timeout, expected_timeout):
     if timeout is not None:
         kwargs['timeout'] = timeout
 
-    t = DockerTasker(**kwargs)
+    DockerTasker(**kwargs)

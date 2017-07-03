@@ -48,6 +48,7 @@ if MOCK:
 KOJI_HUB = 'https://koji-hub.com'
 FILESYSTEM_TASK_ID = 1234567
 
+
 class MockSource(object):
     def __init__(self, tmpdir):
         tmpdir = str(tmpdir)
@@ -115,12 +116,6 @@ def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
         session.should_receive('downloadTaskOutput').and_return('tarball-contents')
     else:
         session.should_receive('downloadTaskOutput').never()
-    koji_auth_info = {
-        'proxyuser': koji_proxyuser,
-        'ssl_certs_dir': koji_ssl_certs_dir,
-        'krb_principal': koji_krb_principal,
-        'krb_keytab': koji_krb_keytab,
-    }
     session.should_receive('krb_login').and_return(True)
 
     if throws_build_cancelled:
@@ -341,6 +336,7 @@ def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_err
         """)
 
     task_result = 'task-result'
+
     def _mockGetTaskResult(task_id):
         if raise_error:
             raise RuntimeError(task_result)
@@ -362,14 +358,14 @@ def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_err
     )
 
     with caplog.atLevel(logging.INFO), pytest.raises(PluginFailedException) as exc:
-        results = runner.run()
+        runner.run()
 
     assert task_result in str(exc)
     # Also ensure getTaskResult exception message is wrapped properly
     assert 'image task,' in str(exc)
 
     if build_cancel:
-        msg =  "Build was canceled, canceling task %s" % FILESYSTEM_TASK_ID
+        msg = "Build was canceled, canceling task %s" % FILESYSTEM_TASK_ID
         assert msg in [x.message for x in caplog.records()]
 
         if error_during_cancel:
@@ -396,7 +392,7 @@ def test_image_build_defaults(tmpdir, task_id):
                     baseurl = http://install-tree.com/$basearch/fedora23
                     """))
     responses.add(responses.GET, 'http://repo.com/fedora/os.repo',
-                 body=dedent("""\
+                  body=dedent("""\
                     [fedora-os]
                     baseurl = http://repo.com/fedora/$basearch/os
 
@@ -457,7 +453,7 @@ def test_image_build_overwrites(tmpdir, architectures, architecture):
                     baseurl = http://default-install-tree.com/$basearch/fedora23
                     """))
     responses.add(responses.GET, 'http://default-repo.com/fedora/os.repo',
-                 body=dedent("""\
+                  body=dedent("""\
                     [fedora-os]
                     baseurl = http://default-repo.com/fedora/$basearch/os.repo
                     """))
@@ -539,7 +535,7 @@ def test_build_filesystem_from_task_id(tmpdir, prefix, architecture, suffix):
         'architecture': architecture,
     })
     plugin.session = flexmock()
-    file_name = mock_image_build_file(str(tmpdir))
+    mock_image_build_file(str(tmpdir))
     task_id, filesystem_regex = plugin.build_filesystem('image-build.conf')
     assert task_id == task_id
     match = filesystem_regex.match(pattern)

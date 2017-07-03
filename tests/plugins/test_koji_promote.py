@@ -886,7 +886,6 @@ class TestKojiPromote(object):
                                             version='1.0',
                                             release='1',
                                             session=session)
-        task_id = 1234
         workflow.prebuild_results[AddFilesystemPlugin.key] = {
             'base-image-id': 'abcd',
         }

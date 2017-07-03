@@ -97,7 +97,6 @@ class TestPostPulpSync(object):
                               expected_prefix):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
-        pulp_repoid = 'prod-myrepository'
         prefixed_pulp_repoid = '{}prod-myrepository'.format(expected_prefix)
         env = 'pulp'
         kwargs = {}
@@ -150,7 +149,6 @@ class TestPostPulpSync(object):
     def test_auth_none(self):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
-        pulp_repoid = 'prod-myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
         env = 'pulp'
 
@@ -205,7 +203,6 @@ class TestPostPulpSync(object):
 
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
-        pulp_repoid = 'prod-myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
         env = 'pulp'
         plugin = PulpSyncPlugin(tasker=None,
@@ -294,7 +291,6 @@ class TestPostPulpSync(object):
     def test_dockercfg_registry_not_present(self, tmpdir):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
-        pulp_repoid = 'prod-myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
         env = 'pulp'
 
@@ -341,7 +337,6 @@ class TestPostPulpSync(object):
     def test_dockercfg(self, tmpdir, scheme):
         docker_registry = '{}://registry.example.com'.format(scheme)
         docker_repository = 'prod/myrepository'
-        pulp_repoid = 'prod-myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
         user = 'user'
         pw = 'pass'
@@ -396,7 +391,6 @@ class TestPostPulpSync(object):
     def test_insecure_registry(self, insecure_registry, ssl_validation):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
-        pulp_repoid = 'prod-myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
         env = 'pulp'
         plugin = PulpSyncPlugin(tasker=None,
@@ -480,7 +474,6 @@ class TestPostPulpSync(object):
     def test_store_registry(self, already_exists):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
-        pulp_repoid = 'prod-myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
         env = 'pulp'
         workflow = self.workflow([docker_repository])
@@ -561,7 +554,6 @@ class TestPostPulpSync(object):
     def test_create_missing_repo(self):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
-        pulp_repoid = 'prod-myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
         env = 'pulp'
         plugin = PulpSyncPlugin(tasker=None,
@@ -605,7 +597,6 @@ class TestPostPulpSync(object):
     def test_print_availability_info(self, has_pulp_push, caplog):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
-        pulp_repoid = 'prod-myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
         env = 'pulp'
 

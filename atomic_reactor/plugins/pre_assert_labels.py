@@ -15,6 +15,7 @@ from __future__ import unicode_literals
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
 
+
 class AssertLabelsPlugin(PreBuildPlugin):
     key = "assert_labels"
     is_allowed_to_fail = False  # We really want to stop the process

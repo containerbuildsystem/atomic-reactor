@@ -126,8 +126,8 @@ class PluginsRunner(object):
         # imp.findmodule('atomic_reactor') doesn't work
         plugins_dir = os.path.join(os.path.dirname(__file__), 'plugins')
         logger.debug("loading plugins from dir '%s'", plugins_dir)
-        files = [os.path.join(plugins_dir, f) \
-                 for f in os.listdir(plugins_dir) \
+        files = [os.path.join(plugins_dir, f)
+                 for f in os.listdir(plugins_dir)
                  if f.endswith(".py")]
         if self.plugin_files:
             logger.debug("loading additional plugins from files '%s'", self.plugin_files)
@@ -145,11 +145,13 @@ class PluginsRunner(object):
             for name in dir(f_module):
                 binding = getattr(f_module, name, None)
                 try:
-                    # if you try to compare binding and PostBuildPlugin, python won't match them if you call
-                    # this script directly b/c:
-                    # ! <class 'plugins.plugin_rpmqa.PostBuildRPMqaPlugin'> <= <class '__main__.PostBuildPlugin'>
+                    # if you try to compare binding and PostBuildPlugin, python won't match them
+                    # if you call this script directly b/c:
+                    # ! <class 'plugins.plugin_rpmqa.PostBuildRPMqaPlugin'> <= <class
+                    # '__main__.PostBuildPlugin'>
                     # but
-                    # <class 'plugins.plugin_rpmqa.PostBuildRPMqaPlugin'> <= <class 'atomic_reactor.plugin.PostBuildPlugin'>
+                    # <class 'plugins.plugin_rpmqa.PostBuildRPMqaPlugin'> <= <class
+                    # 'atomic_reactor.plugin.PostBuildPlugin'>
                     is_sub = issubclass(binding, plugin_class)
                 except TypeError:
                     is_sub = False
@@ -210,7 +212,7 @@ class PluginsRunner(object):
             except KeyError:
                 if plugin_request.get('required', True):
                     msg = ("no such plugin: '%s', did you set "
-                           "the correct plugin type?") %  plugin_name
+                           "the correct plugin type?") % plugin_name
                     exc = None if keep_going else PluginFailedException(msg)
                     self.on_plugin_failed(plugin_name, exc)
                     logger.error(msg)
@@ -301,7 +303,8 @@ class PluginsRunner(object):
         if len(failed_msgs) == 1:
             raise PluginFailedException(failed_msgs[0])
         elif len(failed_msgs) > 1:
-            raise PluginFailedException("Multiple plugins raised an exception: " + str(failed_msgs))
+            raise PluginFailedException("Multiple plugins raised an exception: " +
+                                        str(failed_msgs))
 
         if not plugin_successful and buildstep_phase and not plugin_response:
             self.on_plugin_failed("BuildStepPlugin", "No appropriate build step")
@@ -397,7 +400,8 @@ class PreBuildPluginsRunner(BuildPluginsRunner):
     def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
         logger.info("initializing runner of pre-build plugins")
         self.plugins_results = workflow.prebuild_results
-        super(PreBuildPluginsRunner, self).__init__(dt, workflow, 'PreBuildPlugin', plugins_conf, *args, **kwargs)
+        super(PreBuildPluginsRunner, self).__init__(dt, workflow, 'PreBuildPlugin', plugins_conf,
+                                                    *args, **kwargs)
 
 
 class BuildStepPlugin(BuildPlugin):
@@ -446,7 +450,8 @@ class PrePublishPluginsRunner(BuildPluginsRunner):
     def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
         logger.info("initializing runner of pre-publish plugins")
         self.plugins_results = workflow.prepub_results
-        super(PrePublishPluginsRunner, self).__init__(dt, workflow, 'PrePublishPlugin', plugins_conf, *args, **kwargs)
+        super(PrePublishPluginsRunner, self).__init__(dt, workflow, 'PrePublishPlugin',
+                                                      plugins_conf, *args, **kwargs)
 
 
 class PostBuildPlugin(BuildPlugin):
@@ -458,10 +463,12 @@ class PostBuildPluginsRunner(BuildPluginsRunner):
     def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
         logger.info("initializing runner of post-build plugins")
         self.plugins_results = workflow.postbuild_results
-        super(PostBuildPluginsRunner, self).__init__(dt, workflow, 'PostBuildPlugin', plugins_conf, *args, **kwargs)
+        super(PostBuildPluginsRunner, self).__init__(dt, workflow, 'PostBuildPlugin',
+                                                     plugins_conf, *args, **kwargs)
 
     def create_instance_from_plugin(self, plugin_class, plugin_conf):
-        instance = super(PostBuildPluginsRunner, self).create_instance_from_plugin(plugin_class, plugin_conf)
+        instance = super(PostBuildPluginsRunner, self).create_instance_from_plugin(plugin_class,
+                                                                                   plugin_conf)
         if isinstance(instance, ExitPlugin):
             logger.error("running exit plugin '%s' as post-build plugin", plugin_class.key)
 

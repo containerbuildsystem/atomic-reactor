@@ -13,6 +13,7 @@ from __future__ import unicode_literals
 
 from atomic_reactor.plugin import PreBuildPlugin
 
+
 class PullBaseImagePlugin(PreBuildPlugin):
     key = "pull_base_image"
     is_allowed_to_fail = False

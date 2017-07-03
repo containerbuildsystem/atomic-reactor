@@ -11,7 +11,7 @@ from __future__ import unicode_literals
 import pytest
 import os
 
-from atomic_reactor.core import DockerTasker
+from atomic_reactor.core import DockerTasker  # noqa
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins import pre_pyrpkg_fetch_artefacts
@@ -19,9 +19,9 @@ from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefa
 from atomic_reactor.util import ImageName
 from flexmock import flexmock
 from tests.constants import INPUT_IMAGE, MOCK, MOCK_SOURCE
-from tests.fixtures import docker_tasker
+from tests.fixtures import docker_tasker  # noqa
 if MOCK:
-    from tests.docker_mock import mock_docker
+    from tests.docker_mock import mock_docker  # noqa
 
 
 class Y(object):
@@ -35,7 +35,7 @@ class X(object):
     base_image = ImageName.parse('asd')
 
 
-def test_distgit_fetch_artefacts_plugin(tmpdir, docker_tasker):
+def test_distgit_fetch_artefacts_plugin(tmpdir, docker_tasker):  # noqa
     command = 'fedpkg sources'
     expected_command = ['fedpkg', 'sources']
 
@@ -68,7 +68,7 @@ def test_distgit_fetch_artefacts_plugin(tmpdir, docker_tasker):
     assert os.getcwd() == initial_dir
 
 
-def test_distgit_fetch_artefacts_failure(tmpdir, docker_tasker):
+def test_distgit_fetch_artefacts_failure(tmpdir, docker_tasker):  # noqa
     command = 'fedpkg sources'
     expected_command = ['fedpkg', 'sources']
 
@@ -93,7 +93,7 @@ def test_distgit_fetch_artefacts_failure(tmpdir, docker_tasker):
             'args': {'command': command}
         }]
     )
-    with pytest.raises(PluginFailedException) as exc:
+    with pytest.raises(PluginFailedException):
         runner.run()
 
     assert os.getcwd() == initial_dir

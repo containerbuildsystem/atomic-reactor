@@ -69,7 +69,9 @@ class WorkerBuildInfo(object):
     def watch_logs(self, logger):
         for line in self.osbs.get_build_logs(self.name, follow=True):
             # TODO: This is a little clunky:
-            # 2017-02-24 14:22:51,472 - atomic_reactor.plugins.orchestrate_build - INFO - x86_64 - 2017-02-24 14:22:51,314 - atomic_reactor.plugin - INFO - <worker build log message>
+            # 2017-02-24 14:22:51,472 - atomic_reactor.plugins.orchestrate_build - INFO -
+            # x86_64 - 2017-02-24 14:22:51,314 - atomic_reactor.plugin - INFO -
+            # <worker build log message>
             logger.info('%s - %s', self.platform, line)
 
     def get_annotations(self):

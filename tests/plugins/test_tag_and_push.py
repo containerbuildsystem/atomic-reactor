@@ -15,7 +15,7 @@ from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
 from atomic_reactor.util import ImageName, ManifestDigest
 from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE, MOCK, DOCKER0_REGISTRY
-import atomic_reactor.util
+import atomic_reactor.util  # noqa
 
 import json
 import os.path
@@ -35,17 +35,17 @@ PUSH_LOGS_1_10 = [
     b'{"status":"The push refers to a repository [localhost:5000/busybox]"}',
     b'{"status":"Preparing","progressDetail":{},"id":"5f70bf18a086"}',
     b'{"status":"Preparing","progressDetail":{},"id":"9508eff2c687"}',
-    b'{"status":"Pushing","progressDetail":{"current":721920,"total":1113436},"progress":"[================================\\u003e                  ] 721.9 kB/1.113 MB","id":"9508eff2c687"}',
-    b'{"status":"Pushing","progressDetail":{"current":1024},"progress":"1.024 kB","id":"5f70bf18a086"}',
-    b'{"status":"Pushing","progressDetail":{"current":820224,"total":1113436},"progress":"[====================================\\u003e              ] 820.2 kB/1.113 MB","id":"9508eff2c687"}',
+    b'{"status":"Pushing","progressDetail":{"current":721920,"total":1113436},"progress":"[================================\\u003e                  ] 721.9 kB/1.113 MB","id":"9508eff2c687"}',  # noqa
+    b'{"status":"Pushing","progressDetail":{"current":1024},"progress":"1.024 kB","id":"5f70bf18a086"}',  # noqa
+    b'{"status":"Pushing","progressDetail":{"current":820224,"total":1113436},"progress":"[====================================\\u003e              ] 820.2 kB/1.113 MB","id":"9508eff2c687"}',  # noqa
     b'{"status":"Pushed","progressDetail":{},"id":"5f70bf18a086"}',
     b'{"status":"Pushed","progressDetail":{},"id":"5f70bf18a086"}',
-    b'{"status":"Pushing","progressDetail":{"current":1300992,"total":1113436},"progress":"[==================================================\\u003e] 1.301 MB","id":"9508eff2c687"}',
-    b'{"status":"Pushing","progressDetail":{"current":1310720,"total":1113436},"progress":"[==================================================\\u003e] 1.311 MB","id":"9508eff2c687"}',
+    b'{"status":"Pushing","progressDetail":{"current":1300992,"total":1113436},"progress":"[==================================================\\u003e] 1.301 MB","id":"9508eff2c687"}',  # noqa
+    b'{"status":"Pushing","progressDetail":{"current":1310720,"total":1113436},"progress":"[==================================================\\u003e] 1.311 MB","id":"9508eff2c687"}',  # noqa
     b'{"status":"Pushed","progressDetail":{},"id":"9508eff2c687"}',
     b'{"status":"Pushed","progressDetail":{},"id":"9508eff2c687"}',
     b'{"status":"latest: digest: ' + DIGEST_LOG.encode('utf-8') + b' size: 1920"}',
-    b'{"progressDetail":{},"aux":{"Tag":"latest","Digest":"' + DIGEST_LOG.encode('utf-8') + b'","Size":1920}}' ]
+    b'{"progressDetail":{},"aux":{"Tag":"latest","Digest":"' + DIGEST_LOG.encode('utf-8') + b'","Size":1920}}' ]  # noqa
 
 PUSH_LOGS_1_10_NOT_IN_STATUS = list(PUSH_LOGS_1_10)
 del PUSH_LOGS_1_10_NOT_IN_STATUS[-2]
@@ -53,14 +53,14 @@ del PUSH_LOGS_1_10_NOT_IN_STATUS[-2]
 PUSH_LOGS_1_9 = [
     b'{"status":"The push refers to a repository [172.17.42.1:5000/ns/test-image2] (len: 1)"}',
     b'{"status":"Buffering to Disk","progressDetail":{},"id":"83bca0dcfd1b"}',
-    b'{"status":"Pushing","progressDetail":{"current":1,"total":32},"progress":"[=\\u003e                                                 ]      1 B/32 B","id":"83bca0dcfd1b"}',
-    b'{"status":"Pushing","progressDetail":{"current":66813953,"total":66944370},"progress":"[=================================================\\u003e ] 66.81 MB/66.94 MB","id":"ded7cd95e059"}',
-    b'{"status":"Pushing","progressDetail":{"current":66944370,"total":66944370},"progress":"[==================================================\\u003e] 66.94 MB/66.94 MB","id":"ded7cd95e059"}',
+    b'{"status":"Pushing","progressDetail":{"current":1,"total":32},"progress":"[=\\u003e                                                 ]      1 B/32 B","id":"83bca0dcfd1b"}',  # noqa
+    b'{"status":"Pushing","progressDetail":{"current":66813953,"total":66944370},"progress":"[=================================================\\u003e ] 66.81 MB/66.94 MB","id":"ded7cd95e059"}',  # noqa
+    b'{"status":"Pushing","progressDetail":{"current":66944370,"total":66944370},"progress":"[==================================================\\u003e] 66.94 MB/66.94 MB","id":"ded7cd95e059"}',  # noqa
     b'{"status":"Image successfully pushed","progressDetail":{},"id":"ded7cd95e059"}',
     b'{"status":"Image already exists","progressDetail":{},"id":"48ecf305d2cf"}',
     b'{"status":"Digest: ' + DIGEST_LOG.encode('utf-8') + b'"}']
 
-PUSH_LOGS_1_X = [ # don't remember which version does this
+PUSH_LOGS_1_X = [  # don't remember which version does this
     b'{"status":"The push refers to a repository [172.17.42.1:5000/ns/test-image2]"}',
     b'{"status":"13cde7f2a483: Pushed "}',
     b'{"status":"7.1-23: digest: ' + DIGEST_LOG.encode('utf-8') + b' size: 1539"}']
@@ -81,6 +81,7 @@ class X(object):
     source.dockerfile_path = None
     source.path = None
     base_image = ImageName(repo="qwe", tag="asd")
+
 
 @pytest.mark.parametrize("use_secret", [
     True,
@@ -194,8 +195,7 @@ def test_tag_and_push_plugin(
               headers={
                 'Content-Type': 'application/vnd.docker.distribution.manifest.v1+json',
                 'Docker-Content-Digest': DIGEST_V1
-              }
-    ))
+              }))
 
     config_response_config_v2 = requests.Response()
     (flexmock(config_response_config_v2,
@@ -204,8 +204,7 @@ def test_tag_and_push_plugin(
               headers={
                 'Content-Type': 'application/vnd.docker.distribution.manifest.v2+json',
                 'Docker-Content-Digest': DIGEST_V2
-              }
-    ))
+              }))
 
     blob_config = requests.Response()
     (flexmock(blob_config, raise_for_status=lambda: None, json=response_json))
@@ -226,8 +225,7 @@ def test_tag_and_push_plugin(
 
     (flexmock(requests)
         .should_receive('get')
-        .replace_with(custom_get)
-    )
+        .replace_with(custom_get))
 
     runner = PostBuildPluginsRunner(
         tasker,
@@ -258,8 +256,10 @@ def test_tag_and_push_plugin(
             # we only test this when mocking docker because we don't expect
             # running actual docker against v2 registry
             expected_digest = ManifestDigest(v1=DIGEST_V1, v2=DIGEST_V2)
-            assert workflow.push_conf.docker_registries[0].digests[image_name].v1 == expected_digest.v1
-            assert workflow.push_conf.docker_registries[0].digests[image_name].v2 == expected_digest.v2
+            assert workflow.push_conf.docker_registries[0].digests[image_name].v1 == \
+                expected_digest.v1
+            assert workflow.push_conf.docker_registries[0].digests[image_name].v2 == \
+                expected_digest.v2
 
             if has_config:
                 assert isinstance(workflow.push_conf.docker_registries[0].config, dict)

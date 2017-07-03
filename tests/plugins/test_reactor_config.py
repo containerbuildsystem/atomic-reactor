@@ -52,7 +52,7 @@ class TestReactorConfigPlugin(object):
         plugin = ReactorConfigPlugin(tasker, workflow,
                                      config_path=str(tmpdir),
                                      basename=filename)
-        assert plugin.run() == None
+        assert plugin.run() is None
 
     def test_filename_not_found(self):
         tasker, workflow = self.prepare()
@@ -267,7 +267,7 @@ class TestReactorConfigPlugin(object):
             fp.write(dedent(config))
         tasker, workflow = self.prepare()
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
-        assert plugin.run() == None
+        assert plugin.run() is None
 
         conf = get_config(workflow)
         enabled = conf.get_enabled_clusters_for_platform('platform')

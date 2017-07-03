@@ -30,8 +30,8 @@ class TagAndPushPlugin(PostBuildPlugin):
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param registries: dict, keys are docker registries, values are dicts containing per-registry
-                           parameters.
+        :param registries: dict, keys are docker registries, values are dicts containing
+                           per-registry parameters.
                            Params:
                             * "insecure" optional boolean - controls whether pushes are allowed over
                               plain HTTP.
@@ -65,9 +65,9 @@ class TagAndPushPlugin(PostBuildPlugin):
 
                 registry_image = image.copy()
                 registry_image.registry = registry
-                logs = self.tasker.tag_and_push_image(self.workflow.builder.image_id,
-                                                      registry_image, insecure=insecure,
-                                                      force=True, dockercfg=docker_push_secret)
+                self.tasker.tag_and_push_image(self.workflow.builder.image_id,
+                                               registry_image, insecure=insecure,
+                                               force=True, dockercfg=docker_push_secret)
 
                 pushed_images.append(registry_image)
                 defer_removal(self.workflow, registry_image)
