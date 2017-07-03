@@ -105,7 +105,7 @@ class MockedPathInfo(object):
         self.topdir = topdir
 
     def work(self):
-        return "https://koji/work/"
+        return "{}/work".format(self.topdir)
 
     def taskrelpath(self, task_id):
         assert task_id == MOCK_KOJI_TASK_ID
@@ -205,7 +205,12 @@ class TestSendMailPlugin(object):
         }))
 
         session = MockedClientSession('', has_kerberos=True)
-        pathinfo = MockedPathInfo()
+        pathinfo = MockedPathInfo('https://koji')
+        if not has_koji_logs:
+            (flexmock(pathinfo)
+                .should_receive('work')
+                .and_raise(RuntimeError, "xyz"))
+
         flexmock(koji, ClientSession=lambda hub, opts: session, PathInfo=pathinfo)
         kwargs = {
             'url': 'https://something.com',
@@ -214,18 +219,14 @@ class TestSendMailPlugin(object):
             'to_koji_submitter': to_koji_submitter,
             'to_koji_pkgowner': False,
             'koji_hub': '',
+            'koji_root': 'https://koji/',
             'koji_proxyuser': None,
             'koji_ssl_certs_dir': '/certs',
             'koji_krb_principal': None,
             'koji_krb_keytab': None
         }
-
-        if not has_koji_logs:
-            (flexmock(pathinfo)
-                .should_receive('work')
-                .and_raise(RuntimeError, "xyz"))
-
         p = SendMailPlugin(None, WF(), **kwargs)
+        assert p.koji_root == 'https://koji'
         subject, body = p._render_mail(autorebuild, False, auto_cancel, manual_cancel)
         # Submitter is updated in _get_receivers_list
         try:
