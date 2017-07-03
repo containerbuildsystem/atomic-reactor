@@ -102,7 +102,8 @@ class SendMailPlugin(ExitPlugin):
         self.error_addresses = list(error_addresses)
         self.email_domain = email_domain
         self.koji_hub = koji_hub
-        self.koji_root = koji_root
+        # Make sure koji_root doesn't end with a slash for a prettier link
+        self.koji_root = koji_root[:-1] if koji_root and koji_root[-1] == '/' else koji_root
         self.koji_auth_info = {
             'proxyuser': koji_proxyuser,
             'ssl_certs_dir': koji_ssl_certs_dir,
@@ -243,7 +244,7 @@ class SendMailPlugin(ExitPlugin):
             # We're importing this here in order to trap ImportError
             from koji import PathInfo
             pathinfo = PathInfo(topdir=self.koji_root)
-            url = urljoin(pathinfo.work(), pathinfo.taskrelpath(self.koji_task_id))
+            url = '/'.join([pathinfo.work(), pathinfo.taskrelpath(self.koji_task_id)])
         except Exception:
             self.log.exception("Failed to fetch logs from koji")
             if self.url and self.workflow.openshift_build_selflink:
