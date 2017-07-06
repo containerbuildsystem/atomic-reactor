@@ -14,7 +14,9 @@ from osbs.api import OSBS
 from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException
 
-from atomic_reactor.constants import (PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
+from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
+from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
+                                      PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY)
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import get_build_json
@@ -128,7 +130,9 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
     def make_labels(self):
         labels = {}
 
-        koji_build_id = self.get_exit_result(PLUGIN_KOJI_PROMOTE_PLUGIN_KEY)
+        koji_build_id = self.get_exit_result(PLUGIN_KOJI_IMPORT_PLUGIN_KEY)
+        if not koji_build_id:
+            koji_build_id = self.get_exit_result(PLUGIN_KOJI_PROMOTE_PLUGIN_KEY)
         if koji_build_id:
             labels["koji-build-id"] = str(koji_build_id)
 
@@ -190,6 +194,15 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             "digests": json.dumps(self.get_pullspecs(self.get_digests())),
             "plugins-metadata": json.dumps(self.get_plugin_metadata())
         }
+
+        help_result = self.workflow.prebuild_results.get(AddHelpPlugin.key)
+        if isinstance(help_result, dict) and 'help_file' in help_result and 'status' in help_result:
+            if help_result['status'] == AddHelpPlugin.NO_HELP_FILE_FOUND:
+                annotations['help_file'] = json.dumps(None)
+            elif help_result['status'] == AddHelpPlugin.HELP_GENERATED:
+                annotations['help_file'] = json.dumps(help_result['help_file'])
+            else:
+                self.log.error("Unknown result from add_help plugin: %s", help_result)
 
         tar_path = tar_size = tar_md5sum = tar_sha256sum = None
         if len(self.workflow.exported_image_sequence) > 0:
