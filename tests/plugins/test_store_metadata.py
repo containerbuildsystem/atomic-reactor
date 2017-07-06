@@ -18,11 +18,13 @@ from flexmock import flexmock
 from osbs.api import OSBS
 import osbs.conf
 from osbs.exceptions import OsbsResponseException
-from atomic_reactor.constants import (PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
+from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
+                                      PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY)
 from atomic_reactor.build import BuildResult
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
+from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
@@ -118,8 +120,20 @@ def prepare(pulp_registries=None, docker_registries=None):
     (123, '123'),
 ))
 @pytest.mark.parametrize(('koji'), (True, False))
+@pytest.mark.parametrize(('help_results', 'expected_help_results'), (
+    ({}, False),
+    ({
+        'help_file': None,
+        'status': AddHelpPlugin.NO_HELP_FILE_FOUND,
+    }, None),
+    ({
+        'help_file': 'help.md',
+        'status': AddHelpPlugin.HELP_GENERATED,
+    }, 'help.md'),
+))
 def test_metadata_plugin(tmpdir, br_annotations, expected_br_annotations,
-                         br_labels, expected_br_labels, koji):
+                         br_labels, expected_br_labels, koji,
+                         help_results, expected_help_results):
     initial_timestamp = datetime.now()
     workflow = prepare()
     df_content = """
@@ -132,7 +146,9 @@ CMD blabla"""
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
 
-    workflow.prebuild_results = {}
+    workflow.prebuild_results = {
+        AddHelpPlugin.key: help_results
+    }
     workflow.postbuild_results = {
         PostBuildRPMqaPlugin.key: "rpm1\nrpm2",
     }
@@ -236,6 +252,11 @@ CMD blabla"""
     else:
         assert 'br_labels' not in labels
 
+    if expected_help_results is False:
+        assert 'help_file' not in annotations
+    else:
+        assert json.loads(annotations['help_file']) == expected_help_results
+
 
 def test_metadata_plugin_rpmqa_failure(tmpdir):
     initial_timestamp = datetime.now()
@@ -306,7 +327,9 @@ CMD blabla"""
     assert "all_rpm_packages" in plugins_metadata["durations"]
 
 
-def test_labels_metadata_plugin(tmpdir):
+@pytest.mark.parametrize('koji_plugin', (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
+                                         PLUGIN_KOJI_PROMOTE_PLUGIN_KEY))
+def test_labels_metadata_plugin(tmpdir, koji_plugin):
 
     koji_build_id = 1234
     workflow = prepare()
@@ -321,7 +344,7 @@ CMD blabla"""
     workflow.builder.df_dir = str(tmpdir)
 
     workflow.exit_results = {
-        PLUGIN_KOJI_PROMOTE_PLUGIN_KEY: koji_build_id,
+        koji_plugin: koji_build_id,
     }
 
     runner = ExitPluginsRunner(
@@ -402,11 +425,13 @@ CMD blabla"""
     assert 'annotations:' in caplog.text()
 
 
-def test_store_metadata_fail_update_labels(tmpdir, caplog):
+@pytest.mark.parametrize('koji_plugin', (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
+                                         PLUGIN_KOJI_PROMOTE_PLUGIN_KEY))
+def test_store_metadata_fail_update_labels(tmpdir, caplog, koji_plugin):
     workflow = prepare()
 
     workflow.exit_results = {
-        PLUGIN_KOJI_PROMOTE_PLUGIN_KEY: 1234,
+        koji_plugin: 1234,
     }
 
     runner = ExitPluginsRunner(
