@@ -15,7 +15,7 @@ from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException
 
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.util import get_build_json
+from atomic_reactor.util import get_build_json, ImageName
 
 
 class ImportImagePlugin(PostBuildPlugin):
@@ -77,9 +77,9 @@ class ImportImagePlugin(PostBuildPlugin):
                                   build_json_dir=self.build_json_dir,
                                   namespace=metadata.get('namespace', None))
         osbs = OSBS(osbs_conf, osbs_conf)
-
+        imagestream = None
         try:
-            osbs.get_image_stream(self.imagestream)
+            imagestream = osbs.get_image_stream(self.imagestream)
         except OsbsResponseException:
             if self.insecure_registry is not None:
                 kwargs['insecure_registry'] = self.insecure_registry
@@ -87,20 +87,41 @@ class ImportImagePlugin(PostBuildPlugin):
             self.log.info("Creating ImageStream %s for %s", self.imagestream,
                           self.docker_image_repo)
 
-            # Tags are imported automatically on creation
-            osbs.create_image_stream(self.imagestream, self.docker_image_repo,
-                                     **kwargs)
-        else:
-            self.log.info("Importing new tags for %s", self.imagestream)
+            imagestream = osbs.create_image_stream(self.imagestream,
+                                                   self.docker_image_repo,
+                                                   **kwargs)
+        self.log.info("Importing new tags for %s", self.imagestream)
 
-            attempts = 0
-            while not osbs.import_image(self.imagestream):
-                attempts += 1
+        primaries = None
+        try:
+            primaries = self.workflow.build_result.annotations['repositories']['primary']
+        except (TypeError, KeyError):
+            self.log.exception('Unable to read primary repositories annotations')
 
-                if attempts >= self.import_attempts:
-                    msg = "Failed to import new tags for %s"
-                    raise RuntimeError(msg % self.imagestream)
+        if not primaries:
+            raise RuntimeError('Could not find primary images in workflow')
 
-                self.log.info("no new tags, will retry after %d seconds (%d/%d)",
-                              self.retry_delay, attempts, self.import_attempts)
-                sleep(self.retry_delay)
+        failures = False
+        for s in primaries:
+            tag_image_name = ImageName.parse(s)
+            tag = tag_image_name.tag
+            try:
+                osbs.ensure_image_stream_tag(imagestream.json(), tag)
+                self.log.info("Imported ImageStreamTag: (%s)", tag)
+            except OsbsResponseException:
+                failures = True
+                self.log.info("Could not import ImageStreamTag: (%s)", tag)
+        if failures:
+            raise RuntimeError("Failed to import ImageStreamTag(s). Check logs")
+
+        attempts = 0
+        while not osbs.import_image(self.imagestream):
+            attempts += 1
+
+            if attempts >= self.import_attempts:
+                msg = "Failed to import new tags for %s"
+                raise RuntimeError(msg % self.imagestream)
+
+            self.log.info("no new tags, will retry after %d seconds (%d/%d)",
+                          self.retry_delay, attempts, self.import_attempts)
+            sleep(self.retry_delay)
