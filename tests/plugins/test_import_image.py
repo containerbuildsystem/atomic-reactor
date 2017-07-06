@@ -15,6 +15,7 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.util import ImageName
 from atomic_reactor.plugins.post_import_image import ImportImagePlugin
+from atomic_reactor.build import BuildResult
 
 import osbs.conf
 from osbs.api import OSBS
@@ -37,7 +38,16 @@ class X(object):
     base_image = ImageName(repo="qwe", tag="asd")
 
 
-def prepare(insecure_registry=None, retry_delay=0, import_attempts=3, namespace=None):
+class ImageStreamResponse:
+    '''
+    Mocks a get_image_stream response
+    '''
+    def __init__(self):
+        self.json = lambda: {'hello': 'howdy'}
+
+
+def prepare(insecure_registry=None, retry_delay=0, import_attempts=3,
+            namespace=None):
     """
     Boiler-plate test set-up
     """
@@ -50,6 +60,13 @@ def prepare(insecure_registry=None, retry_delay=0, import_attempts=3, namespace=
     setattr(workflow.builder, 'source', X())
     setattr(workflow.builder.source, 'dockerfile_path', None)
     setattr(workflow.builder.source, 'path', None)
+
+    a = {
+        'repositories': {
+            'primary': ['one', 'two', 'three', 'four', 'five', 'six']}}
+    build_result = BuildResult(annotations=a, image_id='foo')
+    setattr(workflow, 'build_result', build_result)
+
     fake_conf = osbs.conf.Configuration(conf_file=None, openshift_uri='/')
 
     expectation = flexmock(osbs.conf).should_receive('Configuration').and_return(fake_conf)
@@ -126,11 +143,56 @@ def test_create_image(insecure_registry, namespace, monkeypatch):
     (flexmock(OSBS)
      .should_receive('create_image_stream')
      .once()
-     .with_args(TEST_IMAGESTREAM, TEST_REPO, **kwargs))
+     .with_args(TEST_IMAGESTREAM, TEST_REPO, **kwargs)
+     .and_return(ImageStreamResponse()))
+    (flexmock(OSBS)
+     .should_receive('ensure_image_stream_tag')
+     .times(6))
     (flexmock(OSBS)
      .should_receive('import_image')
-     .never())
+     .once()
+     .and_return(True))
     runner.run()
+
+
+@pytest.mark.parametrize(('osbs_error'), [True, False])
+def test_ensure_primary(monkeypatch, osbs_error):
+    """
+    Test that primary image tags are ensured
+    """
+
+    runner = prepare()
+
+    monkeypatch.setenv("BUILD", json.dumps({
+        "metadata": {}
+    }))
+
+    (flexmock(OSBS)
+     .should_receive('get_image_stream')
+     .once()
+     .with_args(TEST_IMAGESTREAM)
+     .and_return(ImageStreamResponse()))
+
+    if osbs_error:
+        (flexmock(OSBS)
+         .should_receive('ensure_image_stream_tag')
+         .times(6)
+         .and_raise(OsbsResponseException('None', 500)))
+        (flexmock(OSBS)
+         .should_receive('import_image')
+         .never())
+        with pytest.raises(PluginFailedException):
+            runner.run()
+    else:
+        (flexmock(OSBS)
+         .should_receive('ensure_image_stream_tag')
+         .times(6))
+        (flexmock(OSBS)
+         .should_receive('import_image')
+         .once()
+         .with_args(TEST_IMAGESTREAM)
+         .and_return(True))
+        runner.run()
 
 
 @pytest.mark.parametrize(('namespace'), [
@@ -151,10 +213,14 @@ def test_import_image(namespace, monkeypatch):
     (flexmock(OSBS)
      .should_receive('get_image_stream')
      .once()
-     .with_args(TEST_IMAGESTREAM))
+     .with_args(TEST_IMAGESTREAM)
+     .and_return(ImageStreamResponse()))
     (flexmock(OSBS)
      .should_receive('create_image_stream')
      .never())
+    (flexmock(OSBS)
+     .should_receive('ensure_image_stream_tag')
+     .times(6))
     (flexmock(OSBS)
      .should_receive('import_image')
      .once()
@@ -181,10 +247,14 @@ def test_import_image_retry(retry_delay, results, monkeypatch):
     (flexmock(OSBS)
      .should_receive('get_image_stream')
      .once()
-     .with_args(TEST_IMAGESTREAM))
+     .with_args(TEST_IMAGESTREAM)
+     .and_return(ImageStreamResponse()))
     (flexmock(OSBS)
      .should_receive('create_image_stream')
      .never())
+    (flexmock(OSBS)
+     .should_receive('ensure_image_stream_tag')
+     .times(6))
     (flexmock(OSBS)
      .should_receive('import_image')
      .with_args(TEST_IMAGESTREAM)
