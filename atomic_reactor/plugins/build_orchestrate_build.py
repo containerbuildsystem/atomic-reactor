@@ -13,6 +13,9 @@ from multiprocessing.pool import ThreadPool
 
 import json
 import os
+import random
+from string import ascii_letters
+import time
 
 from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import BuildStepPlugin
@@ -25,6 +28,8 @@ from osbs.constants import BUILD_FINISHED_STATES
 
 
 ClusterInfo = namedtuple('ClusterInfo', ('cluster', 'platform', 'osbs', 'load'))
+WORKSPACE_KEY_BUILD_INFO = 'build_info'
+WORKSPACE_KEY_UPLOAD_DIR = 'koji_upload_dir'
 
 
 def get_worker_build_info(workflow, platform):
@@ -32,7 +37,15 @@ def get_worker_build_info(workflow, platform):
     Obtain worker build information for a given platform
     """
     workspace = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
-    return workspace[platform]
+    return workspace[WORKSPACE_KEY_BUILD_INFO][platform]
+
+
+def get_koji_upload_dir(workflow):
+    """
+    Obtain koji_upload_dir value used for worker builds
+    """
+    workspace = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
+    return workspace[WORKSPACE_KEY_UPLOAD_DIR]
 
 
 class WorkerBuildInfo(object):
@@ -210,13 +223,28 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels
         return get_preferred_label(labels, 'release')
 
-    def get_worker_build_kwargs(self, release, platform, task_id):
+    @staticmethod
+    def get_koji_upload_dir():
+        """
+        Create a path name for uploading files to
+
+        :return: str, path name expected to be unique
+        """
+        dir_prefix = 'koji-upload'
+        random_chars = ''.join([random.choice(ascii_letters)
+                                for _ in range(8)])
+        unique_fragment = '%r.%s' % (time.time(), random_chars)
+        return os.path.join(dir_prefix, unique_fragment)
+
+    def get_worker_build_kwargs(self, release, platform, koji_upload_dir,
+                                task_id):
         build_kwargs = deepcopy(self.build_kwargs)
 
         build_kwargs.pop('architecture', None)
 
         build_kwargs['release'] = release
         build_kwargs['platform'] = platform
+        build_kwargs['koji_upload_dir'] = koji_upload_dir
         if task_id:
             build_kwargs['filesystem_koji_task_id'] = task_id
 
@@ -277,11 +305,12 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         return task_id
 
-    def do_worker_build(self, release, cluster_info, task_id):
+    def do_worker_build(self, release, cluster_info, koji_upload_dir, task_id):
         build = None
 
         try:
-            kwargs = self.get_worker_build_kwargs(release, cluster_info.platform, task_id)
+            kwargs = self.get_worker_build_kwargs(release, cluster_info.platform,
+                                                  koji_upload_dir, task_id)
             build = cluster_info.osbs.create_worker_build(**kwargs)
         except Exception:
             self.log.exception('%s - failed to create worker build',
@@ -304,11 +333,13 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     def run(self):
         release = self.get_release()
         platforms = self.get_platforms()
+        koji_upload_dir = self.get_koji_upload_dir()
         task_id = self.get_fs_task_id()
 
         thread_pool = ThreadPool(len(platforms))
         result = thread_pool.map_async(
-            lambda cluster_info: self.do_worker_build(release, cluster_info, task_id),
+            lambda cluster_info: self.do_worker_build(release, cluster_info,
+                                                      koji_upload_dir, task_id),
             [self.choose_cluster(platform) for platform in platforms]
         )
 
@@ -345,9 +376,11 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             if not build_info.build or not build_info.build.is_succeeded()
         }
 
-        workspace = {build_info.platform: build_info
-                     for build_info in self.worker_builds}
-        self.workflow.plugin_workspace[self.key] = workspace
+        self.workflow.plugin_workspace[self.key] = {
+            WORKSPACE_KEY_UPLOAD_DIR: koji_upload_dir,
+            WORKSPACE_KEY_BUILD_INFO: {build_info.platform: build_info
+                                       for build_info in self.worker_builds},
+        }
 
         if fail_reasons:
             return BuildResult(fail_reason=json.dumps(fail_reasons),

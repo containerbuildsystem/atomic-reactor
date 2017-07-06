@@ -14,7 +14,8 @@ from atomic_reactor.plugin import BuildCanceledException, PluginFailedException
 from atomic_reactor.plugin import BuildStepPluginsRunner
 from atomic_reactor.plugins import pre_reactor_config
 from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
-                                                            get_worker_build_info)
+                                                            get_worker_build_info,
+                                                            get_koji_upload_dir)
 from atomic_reactor.plugins.pre_reactor_config import ReactorConfig
 from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY
@@ -129,7 +130,13 @@ def mock_osbs(current_builds=2, worker_builds=1, logs_return_bytes=False):
         .should_receive('list_builds')
         .and_return(range(current_builds)))
 
+    koji_upload_dirs = set()
+
     def mock_create_worker_build(**kwargs):
+        # koji_upload_dir parameter must be identical for all workers
+        koji_upload_dirs.add(kwargs.get('koji_upload_dir'))
+        assert len(koji_upload_dirs) == 1
+
         return make_build_response('worker-build-{}'.format(kwargs['platform']),
                                    'Running')
     (flexmock(OSBS)
@@ -360,6 +367,9 @@ def test_orchestrate_build_annotations_and_labels(tmpdir, metadata_fragment):
 
     build_info = get_worker_build_info(workflow, 'x86_64')
     assert build_info.osbs
+
+    koji_upload_dir = get_koji_upload_dir(workflow)
+    assert koji_upload_dir
 
 
 def test_orchestrate_build_cancelation(tmpdir):

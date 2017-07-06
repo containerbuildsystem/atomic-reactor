@@ -48,6 +48,7 @@ from six import string_types
 
 NAMESPACE = 'mynamespace'
 BUILD_ID = 'build-1'
+KOJI_UPLOAD_DIR = 'upload'
 
 
 def noop(*args, **kwargs): return None
@@ -131,6 +132,7 @@ class MockedClientSession(object):
                       blocksize=1048576, overwrite=True):
         self.uploaded_files.append(path)
         self.blocksize = blocksize
+        assert path.split(os.path.sep, 1)[0] == KOJI_UPLOAD_DIR
 
     def CGImport(self, metadata, server_dir):
         self.metadata = metadata
@@ -328,6 +330,7 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
         'kojihub': '',
         'url': '/',
         'build_json_dir': '',
+        'koji_upload_dir': KOJI_UPLOAD_DIR,
     }
     if ssl_certs:
         args['koji_ssl_certs_dir'] = '/'

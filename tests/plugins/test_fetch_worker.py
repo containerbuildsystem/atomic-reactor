@@ -131,8 +131,11 @@ def test_fetch_worker_plugin(tmpdir, fragment_key):
     worker_ppc64le = WorkerBuildInfo(build, cluster_info)
 
     workspace = {
-        'x86_64': worker_x86_64,
-        'ppc64le': worker_ppc64le,
+        'build_info': {
+            'x86_64': worker_x86_64,
+            'ppc64le': worker_ppc64le,
+        },
+        'koji_upload_dir': 'foo',
     }
 
     workflow.build_result = BuildResult(annotations=annotations, image_id="id1234")

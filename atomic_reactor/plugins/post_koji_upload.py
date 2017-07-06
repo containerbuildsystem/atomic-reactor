@@ -10,8 +10,6 @@ from __future__ import unicode_literals
 
 from collections import namedtuple
 import os
-import random
-from string import ascii_letters
 import subprocess
 from tempfile import NamedTemporaryFile
 import time
@@ -79,7 +77,7 @@ class KojiUploadPlugin(PostBuildPlugin):
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, kojihub, url, build_json_dir,
-                 verify_ssl=True, use_auth=True,
+                 koji_upload_dir, verify_ssl=True, use_auth=True,
                  koji_ssl_certs_dir=None, koji_proxy_user=None,
                  koji_principal=None, koji_keytab=None,
                  blocksize=None):
@@ -90,6 +88,8 @@ class KojiUploadPlugin(PostBuildPlugin):
         :param workflow: DockerBuildWorkflow instance
         :param kojihub: string, koji hub (xmlrpc)
         :param url: string, URL for OSv3 instance
+        :param build_json_dir: str, path to directory with input json
+        :param koji_upload_dir: str, path to use when uploading to hub
         :param verify_ssl: bool, verify OSv3 SSL certificate?
         :param use_auth: bool, initiate authentication with OSv3?
         :param koji_ssl_certs_dir: str, path to 'cert', 'ca', 'serverca'
@@ -97,7 +97,6 @@ class KojiUploadPlugin(PostBuildPlugin):
         :param koji_principal: str, Kerberos principal (must specify keytab)
         :param koji_keytab: str, keytab name (must specify principal)
         :param blocksize: int, blocksize to use for uploading files
-        :param build_json_dir: str, path to directory with input json
         """
         super(KojiUploadPlugin, self).__init__(tasker, workflow)
 
@@ -110,6 +109,7 @@ class KojiUploadPlugin(PostBuildPlugin):
 
         self.blocksize = blocksize
         self.build_json_dir = build_json_dir
+        self.koji_upload_dir = koji_upload_dir
 
         self.namespace = get_build_json().get('metadata', {}).get('namespace', None)
         osbs_conf = Configuration(conf_file=None, openshift_uri=url,
@@ -564,19 +564,6 @@ class KojiUploadPlugin(PostBuildPlugin):
         self.log.debug("uploaded %r", path)
         return path
 
-    @staticmethod
-    def get_upload_server_dir():
-        """
-        Create a path name for uploading files to
-
-        :return: str, path name expected to be unique
-        """
-        dir_prefix = 'koji-upload'
-        random_chars = ''.join([random.choice(ascii_letters)
-                                for _ in range(8)])
-        unique_fragment = '%r.%s' % (time.time(), random_chars)
-        return os.path.join(dir_prefix, unique_fragment)
-
     def login(self):
         """
         Log in to koji
@@ -612,10 +599,9 @@ class KojiUploadPlugin(PostBuildPlugin):
 
         try:
             session = self.login()
-            server_dir = self.get_upload_server_dir()
             for output in output_files:
                 if output.file:
-                    self.upload_file(session, output, server_dir)
+                    self.upload_file(session, output, self.koji_upload_dir)
         finally:
             for output in output_files:
                 if output.file:
