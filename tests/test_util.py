@@ -13,6 +13,7 @@ import os
 import tempfile
 import pytest
 import responses
+from requests.exceptions import ConnectionError
 import six
 
 from tempfile import mkdtemp
@@ -270,19 +271,19 @@ def test_human_size(size_input, expected):
     ('user1', None),
     None,
 ])
-@pytest.mark.parametrize('image,registry,url', [
+@pytest.mark.parametrize('image,registry,path', [
     ('not-used.com/spam:latest', 'localhost.com',
-     'https://localhost.com/v2/spam/manifests/latest'),
+     '/v2/spam/manifests/latest'),
 
     ('not-used.com/food/spam:latest', 'http://localhost.com',
-     'http://localhost.com/v2/food/spam/manifests/latest'),
+     '/v2/food/spam/manifests/latest'),
 
     ('not-used.com/spam', 'https://localhost.com',
-     'https://localhost.com/v2/spam/manifests/latest'),
+     '/v2/spam/manifests/latest'),
 ])
 @responses.activate
 def test_get_manifest_digests(tmpdir, image, registry, insecure, creds,
-                              versions, url):
+                              versions, path):
     kwargs = {}
 
     image = ImageName.parse(image)
@@ -326,6 +327,17 @@ def test_get_manifest_digests(tmpdir, image, registry, insecure, creds,
         }
         return (200, headers, '')
 
+    if registry.startswith('http'):
+        url = registry + path
+    else:
+        # In the insecure case, we should try the https URL, and when that produces
+        # an error, fall back to http
+        if insecure:
+            https_url = 'https://' + registry + path
+            responses.add(responses.GET, https_url, body=ConnectionError())
+            url = 'http://' + registry + path
+        else:
+            url = 'https://' + registry + path
     responses.add_callback(responses.GET, url, callback=request_callback)
 
     expected_versions = versions
@@ -400,6 +412,23 @@ def test_get_manifest_digests_missing(tmpdir, v1_digest, v2_digest):
         assert actual_digests.v2 == 'v2-digest'
     else:
         assert actual_digests.v2 is None
+
+
+
+@responses.activate
+def test_get_manifest_digests_connection_error(tmpdir):
+    # Test that our code to handle falling back from https to http
+    # doesn't do anything unexpected when a connection can't be
+    # made at all.
+    kwargs = {}
+    kwargs['image'] = ImageName.parse('example.com/spam:latest')
+    kwargs['registry'] = 'https://example.com'
+
+    url = 'https://example.com/v2/spam/manifests/latest'
+    responses.add(responses.GET, url, body=ConnectionError())
+
+    with pytest.raises(ConnectionError):
+        get_manifest_digests(**kwargs)
 
 
 @pytest.mark.parametrize('v1,v2,default', [
