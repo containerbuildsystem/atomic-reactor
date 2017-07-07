@@ -33,6 +33,7 @@ import json
 import os
 import pytest
 import time
+import yaml
 
 
 class MockSource(object):
@@ -490,7 +491,21 @@ def test_orchestrate_build_choose_clusters(tmpdir, clusters_x86_64,
         assert plat_annotations['build']['cluster-url'] == 'https://chosen_{}.com/'.format(platform)
 
 
-def test_orchestrate_build_exclude_platforms(tmpdir):
+@pytest.mark.parametrize(('platforms', 'platform_exclude', 'platform_only', 'result'), [
+    (['x86_64', 'powerpc64le'], '', 'powerpc64le', ['powerpc64le']),
+    (['x86_64', 'spam', 'bacon', 'toast', 'powerpc64le'], ['spam', 'bacon', 'eggs', 'toast'], '',
+     ['x86_64', 'powerpc64le']),
+    (['powerpc64le', 'spam', 'bacon', 'toast'], ['spam', 'bacon', 'eggs', 'toast'], 'powerpc64le',
+     ['powerpc64le']),
+    (['x86_64', 'bacon', 'toast'], 'toast', ['x86_64', 'powerpc64le'], ['x86_64']),
+    (['x86_64', 'toast'], 'toast', 'x86_64', ['x86_64']),
+    (['x86_64', 'spam', 'bacon', 'toast'], ['spam', 'bacon', 'eggs', 'toast'], ['x86_64',
+                                                                                'powerpc64le'],
+     ['x86_64']),
+    (['x86_64', 'powerpc64le'], '', '', ['x86_64', 'powerpc64le'])
+])
+def test_orchestrate_build_exclude_platforms(tmpdir, platforms, platform_exclude, platform_only,
+                                             result):
     workflow = mock_workflow(tmpdir)
     mock_osbs()
 
@@ -498,6 +513,12 @@ def test_orchestrate_build_exclude_platforms(tmpdir):
         'x86_64': [
             {
                 'name': 'worker01',
+                'max_concurrent_builds': 3
+            }
+        ],
+        'powerpc64le': [
+            {
+                'name': 'worker02',
                 'max_concurrent_builds': 3
             }
         ]
@@ -510,13 +531,18 @@ def test_orchestrate_build_exclude_platforms(tmpdir):
 
     mock_reactor_config(tmpdir, reactor_config)
 
-    with open(os.path.join(str(tmpdir), 'exclude-platform'), 'w') as f:
-        f.write(dedent("""\
-            spam
+    platforms_dict = {}
+    if platform_exclude != '':
+        platforms_dict['platforms'] = {}
+        platforms_dict['platforms']['not'] = platform_exclude
+    if platform_only != '':
+        if 'platforms' not in platforms_dict:
+            platforms_dict['platforms'] = {}
+        platforms_dict['platforms']['only'] = platform_only
 
-            bacon
-            eggs
-            """))
+    with open(os.path.join(str(tmpdir), 'container.yaml'), 'w') as f:
+        f.write(yaml.safe_dump(platforms_dict))
+        f.flush()
 
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
@@ -525,9 +551,9 @@ def test_orchestrate_build_exclude_platforms(tmpdir):
             'name': OrchestrateBuildPlugin.key,
             'args': {
                 # Explicitly leaving off 'eggs' platform to
-                # ensure no errors occur when unknow platform
-                # is provided in exclude-platform file.
-                'platforms': ['x86_64', 'spam', 'bacon'],
+                # ensure no errors occur when unknown platform
+                # is provided in container.yaml file.
+                'platforms': platforms,
                 'build_kwargs': make_worker_build_kwargs(),
                 'osbs_client_config': str(tmpdir),
             }
@@ -538,7 +564,7 @@ def test_orchestrate_build_exclude_platforms(tmpdir):
     assert not build_result.is_failed()
 
     annotations = build_result.annotations
-    assert set(annotations['worker-builds'].keys()) == set(['x86_64'])
+    assert set(annotations['worker-builds'].keys()) == set(result)
 
 
 def test_orchestrate_build_unknown_platform(tmpdir):
@@ -709,6 +735,7 @@ def test_orchestrate_build_failed_waiting(tmpdir,
         assert 'pod' not in fail_reason
     else:
         assert fail_reason['pod'] == expected
+
 
 @pytest.mark.parametrize(('task_id', 'error'), [
     ('1234567', None),
