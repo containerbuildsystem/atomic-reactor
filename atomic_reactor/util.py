@@ -15,6 +15,7 @@ import os
 import re
 from pipes import quote
 import requests
+from requests.exceptions import ConnectionError, SSLError
 import shutil
 import subprocess
 import tempfile
@@ -667,22 +668,39 @@ def query_registry(image, registry, digest=None, insecure=False, dockercfg_path=
         if username and password:
             auth = requests.auth.HTTPBasicAuth(username, password)
 
+    # In the insecure case, if the registry is just a hostname:port, we don't
+    # know whether to talk HTTPS or HTTP to it, so try both ways
     if not re.match('http(s)?://', registry):
-        registry = 'https://{}'.format(registry)
+        if insecure:
+            registries = ('https://{}'.format(registry), 'http://{}'.format(registry))
+        else:
+            registries = ('https://{}'.format(registry),)
+    else:
+        registries = (registry,)
 
     context = '/'.join([x for x in [image.namespace, image.repo] if x])
     reference = digest or image.tag or 'latest'
     object_type = 'manifests'
     if is_blob:
         object_type = 'blobs'
-    url = '{}/v2/{}/{}/{}'.format(registry, context, object_type, reference)
-    logger.debug("url: {}".format(url))
 
     headers = {'Accept': (get_manifest_media_type(version))}
     kwargs = {'verify': not insecure, 'headers': headers, 'auth': auth}
 
-    response = requests.get(url, **kwargs)
-    response.raise_for_status()
+    for idx, r in enumerate(registries):
+        url = '{}/v2/{}/{}/{}'.format(r, context, object_type, reference)
+        logger.debug("url: {}".format(url))
+
+        try:
+            response = requests.get(url, **kwargs)
+            response.raise_for_status()
+            break
+        except (ConnectionError, SSLError):
+            # If there are no more registry URLs to try, let the exception
+            # propagate, otherwise we'll try again
+            if idx == len(registries) - 1:
+                raise
+
     return response
 
 
