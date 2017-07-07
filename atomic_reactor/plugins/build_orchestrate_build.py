@@ -11,6 +11,7 @@ from collections import namedtuple
 from copy import deepcopy
 from multiprocessing.pool import ThreadPool
 
+import yaml
 import json
 import os
 import random
@@ -26,7 +27,6 @@ from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from osbs.conf import Configuration
 from osbs.constants import BUILD_FINISHED_STATES
-from osbs.exceptions import OsbsException
 
 
 ClusterInfo = namedtuple('ClusterInfo', ('cluster', 'platform', 'osbs', 'load'))
@@ -153,7 +153,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     build_image from kwargs
     """
 
-    EXCLUDE_FILENAME = 'exclude-platform'
+    CONTAINER_FILENAME = 'container.yaml'
     UNREACHABLE_CLUSTER_LOAD = object()
 
     key = 'orchestrate_build'
@@ -185,22 +185,25 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         self.worker_builds = []
 
-    def get_excluded_platforms(self):
-        df_dir = self.workflow.source.get_dockerfile_path()[1]
-        exclude_platforms = set()
-        exclude_path = os.path.join(df_dir, self.EXCLUDE_FILENAME)
-        if os.path.exists(exclude_path):
-            with open(exclude_path) as f:
-                for platform in f:
-                    platform = platform.strip()
-                    if not platform:
-                        continue
-                    exclude_platforms.add(platform)
-
-        return exclude_platforms
+    def make_list(self, value):
+        if not isinstance(value, list):
+            value = [value]
+        return value
 
     def get_platforms(self):
-        return self.platforms - self.get_excluded_platforms()
+        df_dir = self.workflow.source.get_dockerfile_path()[1]
+        excluded_platforms = set()
+        container_path = os.path.join(df_dir, self.CONTAINER_FILENAME)
+        if os.path.exists(container_path):
+            with open(container_path) as f:
+                data = yaml.load(f)
+                if data is None or 'platforms' not in data or data['platforms'] is None:
+                    return self.platforms
+                excluded_platforms = set(self.make_list(data['platforms'].get('not', [])))
+                only_platforms = set(self.make_list(data['platforms'].get('only', [])))
+                if only_platforms:
+                    self.platforms = self.platforms & only_platforms
+        return self.platforms - excluded_platforms
 
     def get_current_builds(self, osbs):
         field_selector = ','.join(['status!={status}'.format(status=status.capitalize())
