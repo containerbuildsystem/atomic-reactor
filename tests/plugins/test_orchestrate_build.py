@@ -198,7 +198,7 @@ def make_worker_build_kwargs(**overrides):
     True,
     False
 ])
-def test_orchestrate_build(tmpdir, config_kwargs, worker_build_image, logs_return_bytes):
+def test_orchestrate_build(tmpdir, caplog, config_kwargs, worker_build_image, logs_return_bytes):
     workflow = mock_workflow(tmpdir)
     mock_osbs(logs_return_bytes=logs_return_bytes)
     mock_reactor_config(tmpdir)
@@ -255,6 +255,16 @@ def test_orchestrate_build(tmpdir, config_kwargs, worker_build_image, logs_retur
 
     build_info = get_worker_build_info(workflow, 'x86_64')
     assert build_info.osbs
+
+    for record in caplog.records():
+        if not record.name.startswith("atomic_reactor"):
+            continue
+
+        assert hasattr(record, 'arch')
+        if record.funcName == 'watch_logs':
+            assert record.arch == 'x86_64'
+        else:
+            assert record.arch == '-'
 
 
 @pytest.mark.parametrize('metadata_fragment', [

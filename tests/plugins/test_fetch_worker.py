@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function, unicode_literals
 
 import os
+import logging
 
 from flexmock import flexmock
 
@@ -115,6 +116,7 @@ def test_fetch_worker_plugin(tmpdir, fragment_key):
         'spam': 'bacon',
     }
     metadata = {'metadata.json': koji_metadata}
+    log = logging.getLogger("atomic_reactor.plugins." + OrchestrateBuildPlugin.key)
 
     build = None
     cluster = None
@@ -123,12 +125,12 @@ def test_fetch_worker_plugin(tmpdir, fragment_key):
     name = 'build-1-x86_64-md'
     osbs = MockOSBS({name: metadata})
     cluster_info = ClusterInfo(cluster, 'x86_64', osbs, load)
-    worker_x86_64 = WorkerBuildInfo(build, cluster_info)
+    worker_x86_64 = WorkerBuildInfo(build, cluster_info, log)
 
     name = 'build-1-ppc64le-md'
     osbs = MockOSBS({name: metadata})
     cluster_info = ClusterInfo(cluster, "ppc64le", osbs, load)
-    worker_ppc64le = WorkerBuildInfo(build, cluster_info)
+    worker_ppc64le = WorkerBuildInfo(build, cluster_info, log)
 
     workspace = {
         'build_info': {

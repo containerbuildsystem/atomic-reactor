@@ -16,6 +16,7 @@ import os
 import random
 from string import ascii_letters
 import time
+import logging
 
 from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import BuildStepPlugin
@@ -50,11 +51,12 @@ def get_koji_upload_dir(workflow):
 
 class WorkerBuildInfo(object):
 
-    def __init__(self, build, cluster_info):
+    def __init__(self, build, cluster_info, logger):
         self.build = build
         self.cluster = cluster_info.cluster
         self.osbs = cluster_info.osbs
         self.platform = cluster_info.platform
+        self.log = logging.LoggerAdapter(logger, {'arch': self.platform})
 
         self.monitor_exception = None
 
@@ -66,13 +68,9 @@ class WorkerBuildInfo(object):
         self.build = self.osbs.wait_for_build_to_finish(self.name)
         return self.build
 
-    def watch_logs(self, logger):
+    def watch_logs(self):
         for line in self.osbs.get_build_logs(self.name, follow=True):
-            # TODO: This is a little clunky:
-            # 2017-02-24 14:22:51,472 - atomic_reactor.plugins.orchestrate_build - INFO -
-            # x86_64 - 2017-02-24 14:22:51,314 - atomic_reactor.plugin - INFO -
-            # <worker build log message>
-            logger.info('%s - %s', self.platform, line)
+            self.log.info(line)
 
     def get_annotations(self):
         build_annotations = self.build.get_annotations() or {}
@@ -318,14 +316,14 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             self.log.exception('%s - failed to create worker build',
                                cluster_info.platform)
 
-        build_info = WorkerBuildInfo(build=build, cluster_info=cluster_info)
+        build_info = WorkerBuildInfo(build=build, cluster_info=cluster_info, logger=self.log)
         self.worker_builds.append(build_info)
 
         if build_info.build:
             try:
                 self.log.info('%s - created build %s', cluster_info.platform,
                               build_info.name)
-                build_info.watch_logs(self.log)
+                build_info.watch_logs()
                 build_info.wait_to_finish()
             except Exception as e:
                 build_info.monitor_exception = e
