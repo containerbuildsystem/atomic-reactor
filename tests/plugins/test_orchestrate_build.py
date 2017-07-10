@@ -557,35 +557,19 @@ def test_orchestrate_build_unknown_platform(tmpdir):
     assert "'No clusters found for platform spam!'" in str(exc)
 
 
-@pytest.mark.parametrize('fail_at', ('create', 'wait_to_finish'))
-def test_orchestrate_build_failed_create(tmpdir, fail_at):
+def test_orchestrate_build_failed_create(tmpdir):
     workflow = mock_workflow(tmpdir)
     mock_osbs()
 
-    if fail_at == 'create':
-        def mock_create_worker_build(**kwargs):
-            if kwargs['platform'] == 'ppc64le':
-                raise OsbsException('it happens')
-            return make_build_response('worker-build-1', 'Running')
-        (flexmock(OSBS)
-            .should_receive('create_worker_build')
-            .replace_with(mock_create_worker_build))
-        fail_reason = 'build not started'
-        annotation_keys = set(['x86_64'])
-
-    elif fail_at == 'wait_to_finish':
-        def mock_wait_for_build_to_finish(build_name):
-            if build_name == 'worker-build-ppc64le':
-                raise OsbsException('it happens')
-            return make_build_response(build_name, 'Complete')
-        (flexmock(OSBS)
-            .should_receive('wait_for_build_to_finish')
-            .replace_with(mock_wait_for_build_to_finish))
-        fail_reason = "'it happens'"
-        annotation_keys = set(['x86_64', 'ppc64le'])
-
-    else:
-        raise ValueError('Invalid value for fail_at: {}'.format(fail_at))
+    def mock_create_worker_build(**kwargs):
+        if kwargs['platform'] == 'ppc64le':
+            raise OsbsException('it happens')
+        return make_build_response('worker-build-1', 'Running')
+    (flexmock(OSBS)
+     .should_receive('create_worker_build')
+     .replace_with(mock_create_worker_build))
+    fail_reason = 'build not started'
+    annotation_keys = set(['x86_64'])
 
     mock_reactor_config(tmpdir)
 
@@ -609,6 +593,86 @@ def test_orchestrate_build_failed_create(tmpdir, fail_at):
     assert set(annotations['worker-builds'].keys()) == annotation_keys
     assert fail_reason in json.loads(build_result.fail_reason)['ppc64le']['general']
 
+
+@pytest.mark.parametrize('pod_available,pod_failure_reason,expected', [
+    # get_pod_for_build() returns error
+    (False,
+     None,
+     KeyError),
+
+    # get_failure_reason() not available in PodResponse
+    (True,
+     AttributeError("'module' object has no attribute 'get_failure_reason'"),
+     KeyError),
+
+    # get_failure_reason() result used
+    (True,
+     {
+         'reason': 'reason message',
+         'exitCode': 23,
+         'containerID': 'abc123',
+     },
+     {
+         'reason': 'reason message',
+         'exitCode': 23,
+         'containerID': 'abc123',
+     })
+])
+def test_orchestrate_build_failed_waiting(tmpdir, pod_available,
+                                          pod_failure_reason, expected):
+    workflow = mock_workflow(tmpdir)
+    mock_osbs()
+
+    class MockPodResponse(object):
+        def __init__(self, pod_failure_reason):
+            self.pod_failure_reason = pod_failure_reason
+
+        def get_failure_reason(self):
+            if isinstance(self.pod_failure_reason, Exception):
+                raise self.pod_failure_reason
+
+            return self.pod_failure_reason
+
+    def mock_wait_for_build_to_finish(build_name):
+        if build_name == 'worker-build-ppc64le':
+            raise OsbsException('it happens')
+        return make_build_response(build_name, 'Failed')
+    (flexmock(OSBS)
+     .should_receive('wait_for_build_to_finish')
+     .replace_with(mock_wait_for_build_to_finish))
+
+    expectation = flexmock(OSBS).should_receive('get_pod_for_build')
+    if pod_available:
+        expectation.and_return(MockPodResponse(pod_failure_reason))
+    else:
+        expectation.and_raise(OsbsException())
+
+    mock_reactor_config(tmpdir)
+
+    runner = BuildStepPluginsRunner(
+        workflow.builder.tasker,
+        workflow,
+        [{
+            'name': OrchestrateBuildPlugin.key,
+            'args': {
+                'platforms': ['x86_64', 'ppc64le'],
+                'build_kwargs': make_worker_build_kwargs(),
+                'osbs_client_config': str(tmpdir),
+            }
+        }]
+    )
+
+    build_result = runner.run()
+    assert build_result.is_failed()
+
+    annotations = build_result.annotations
+    assert set(annotations['worker-builds'].keys()) == {'x86_64', 'ppc64le'}
+    fail_reason = json.loads(build_result.fail_reason)['ppc64le']
+
+    if expected is KeyError:
+        assert 'pod' not in fail_reason
+    else:
+        assert fail_reason['pod'] == expected
 
 @pytest.mark.parametrize(('task_id', 'error'), [
     ('1234567', None),
