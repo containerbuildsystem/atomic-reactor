@@ -23,6 +23,7 @@ from atomic_reactor.plugins.pre_reactor_config import get_config
 from atomic_reactor.util import get_preferred_label, df_parser
 from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY
 from osbs.api import OSBS
+from osbs.exceptions import OsbsException
 from osbs.conf import Configuration
 from osbs.constants import BUILD_FINISHED_STATES
 
@@ -100,10 +101,21 @@ class WorkerBuildInfo(object):
             return {'general': 'build not started'}
         build_annotations = self.build.get_annotations() or {}
         metadata = json.loads(build_annotations.get('plugins-metadata', '{}'))
-        fail_reason = metadata.get('errors', {})
-
+        fail_reason = {}
         if self.monitor_exception:
             fail_reason['general'] = repr(self.monitor_exception)
+
+        try:
+            fail_reason.update(metadata['errors'])
+        except KeyError:
+            try:
+                build_name = self.build.get_build_name()
+                pod = self.osbs.get_pod_for_build(build_name)
+                fail_reason['pod'] = pod.get_failure_reason()
+            except (OsbsException, AttributeError):
+                # Catch AttributeError here because osbs-client < 0.41
+                # doesn't have this method
+                pass
 
         return fail_reason
 
