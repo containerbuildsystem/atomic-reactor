@@ -594,16 +594,18 @@ def test_orchestrate_build_failed_create(tmpdir):
     assert fail_reason in json.loads(build_result.fail_reason)['ppc64le']['general']
 
 
-@pytest.mark.parametrize('pod_available,pod_failure_reason,expected', [
+@pytest.mark.parametrize('pod_available,pod_failure_reason,expected,cancel_fails', [
     # get_pod_for_build() returns error
     (False,
      None,
-     KeyError),
+     KeyError,
+     False),
 
     # get_failure_reason() not available in PodResponse
     (True,
      AttributeError("'module' object has no attribute 'get_failure_reason'"),
-     KeyError),
+     KeyError,
+     False),
 
     # get_failure_reason() result used
     (True,
@@ -616,10 +618,28 @@ def test_orchestrate_build_failed_create(tmpdir):
          'reason': 'reason message',
          'exitCode': 23,
          'containerID': 'abc123',
-     })
+     },
+     False),
+
+    # cancel_build() fails (and failure is ignored)
+    (True,
+     {
+         'reason': 'reason message',
+         'exitCode': 23,
+         'containerID': 'abc123',
+     },
+     {
+         'reason': 'reason message',
+         'exitCode': 23,
+         'containerID': 'abc123',
+     },
+     True)
 ])
-def test_orchestrate_build_failed_waiting(tmpdir, pod_available,
-                                          pod_failure_reason, expected):
+def test_orchestrate_build_failed_waiting(tmpdir,
+                                          pod_available,
+                                          pod_failure_reason,
+                                          cancel_fails,
+                                          expected):
     workflow = mock_workflow(tmpdir)
     mock_osbs()
 
@@ -640,6 +660,12 @@ def test_orchestrate_build_failed_waiting(tmpdir, pod_available,
     (flexmock(OSBS)
      .should_receive('wait_for_build_to_finish')
      .replace_with(mock_wait_for_build_to_finish))
+
+    cancel_build_expectation = flexmock(OSBS).should_receive('cancel_build')
+    if cancel_fails:
+        cancel_build_expectation.and_raise(OsbsException)
+
+    cancel_build_expectation.once()
 
     expectation = flexmock(OSBS).should_receive('get_pod_for_build')
     if pod_available:

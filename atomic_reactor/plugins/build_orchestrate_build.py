@@ -359,6 +359,13 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
                 self.log.exception('%s - failed to monitor worker build',
                                    cluster_info.platform)
 
+                # Attempt to cancel it rather than leave it running
+                # unmonitored.
+                try:
+                    build_info.cancel_build()
+                except OsbsException:
+                    pass
+
     def run(self):
         release = self.get_release()
         platforms = self.get_platforms()
