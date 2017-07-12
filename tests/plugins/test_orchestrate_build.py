@@ -748,7 +748,7 @@ def test_orchestrate_build_get_fs_task_id(tmpdir, task_id, error):
         assert not build_result.is_failed()
 
 
-@pytest.mark.parametrize('fail_at', ('all', 'first'))
+@pytest.mark.parametrize('fail_at', ('all', 'first', 'build_canceled'))
 def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
     workflow = mock_workflow(tmpdir)
     mock_osbs()  # Current builds is a constant 2
@@ -768,6 +768,9 @@ def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
     if fail_at == 'first':
         flexmock_chain.and_return(['a', 'b'])
 
+    if fail_at == 'build_canceled':
+        flexmock_chain.and_raise(OsbsException(cause=BuildCanceledException()))
+
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
         workflow,
@@ -780,7 +783,7 @@ def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
             }
         }]
     )
-    if fail_at != 'all':
+    if fail_at == 'first':
         build_result = runner.run()
         assert not build_result.is_failed()
 
@@ -789,4 +792,7 @@ def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
     else:
         with pytest.raises(PluginFailedException) as exc:
             build_result = runner.run()
-        assert 'All clusters for platform x86_64 are unreachable' in str(exc)
+        if fail_at == 'all':
+            assert 'All clusters for platform x86_64 are unreachable' in str(exc)
+        elif fail_at == 'build_canceled':
+            assert 'BuildCanceledException()' in str(exc)
