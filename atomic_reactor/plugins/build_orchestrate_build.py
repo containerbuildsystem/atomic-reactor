@@ -19,7 +19,7 @@ import time
 import logging
 
 from atomic_reactor.build import BuildResult
-from atomic_reactor.plugin import BuildStepPlugin
+from atomic_reactor.plugin import BuildStepPlugin, BuildCanceledException
 from atomic_reactor.plugins.pre_reactor_config import get_config
 from atomic_reactor.util import get_preferred_label, df_parser
 from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY
@@ -27,7 +27,6 @@ from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from osbs.conf import Configuration
 from osbs.constants import BUILD_FINISHED_STATES
-from osbs.exceptions import OsbsException
 
 
 ClusterInfo = namedtuple('ClusterInfo', ('cluster', 'platform', 'osbs', 'load'))
@@ -215,7 +214,11 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         osbs = OSBS(conf, conf)
         try:
             current_builds = self.get_current_builds(osbs)
-        except OsbsException:
+        except OsbsException as e:
+            # If the build is canceled reraise the error
+            if isinstance(e.cause, BuildCanceledException):
+                raise e
+
             self.log.exception("Error occurred while listing builds on %s",
                                cluster.name)
             return ClusterInfo(cluster, platform, osbs, self.UNREACHABLE_CLUSTER_LOAD)
