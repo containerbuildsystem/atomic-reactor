@@ -135,30 +135,34 @@ LABEL "version"="x" "release"="1"
 """]
 
 
-@pytest.mark.parametrize('df_content, labels_conf_base, labels_conf, dont_overwrite, aliases, expected_output', [  # noqa
-    (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF, [], {}, EXPECTED_OUTPUT),
-    (DF_CONTENT, LABELS_CONF_BASE, json.dumps(LABELS_CONF), [], {}, EXPECTED_OUTPUT),
-    (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF_WRONG, [], {}, RuntimeError()),
-    (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF, ["label1", ], {}, EXPECTED_OUTPUT2),
-    (DF_CONTENT, LABELS_CONF_BASE, LABELS_BLANK, ["label1", ], {}, EXPECTED_OUTPUT3),
-    (DF_CONTENT_SINGLE_LINE, LABELS_CONF_BASE, LABELS_CONF, ["label1", ], {}, EXPECTED_OUTPUT4),
-    (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF, [], {"not": "present"}, EXPECTED_OUTPUT),
-    (DF_CONTENT_SINGLE_LINE, LABELS_CONF_BASE, LABELS_BLANK, [], {"label1": "labelnew"},
+@pytest.mark.parametrize('df_content, labels_conf_base, labels_conf, eq_conf, dont_overwrite,'  # noqa
+                         'aliases, expected_output', [  # noqa
+    (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF, [], [], {}, EXPECTED_OUTPUT),
+    (DF_CONTENT, LABELS_CONF_BASE, json.dumps(LABELS_CONF), [], [], {}, EXPECTED_OUTPUT),
+    (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF_WRONG, [], [], {}, RuntimeError()),
+    (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF, {'key': 'val'}, [], {}, RuntimeError()),
+    (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF, [], ["label1", ], {}, EXPECTED_OUTPUT2),
+    (DF_CONTENT, LABELS_CONF_BASE, LABELS_BLANK, [], ["label1", ], {}, EXPECTED_OUTPUT3),
+    (DF_CONTENT_SINGLE_LINE, LABELS_CONF_BASE, LABELS_CONF, [], ["label1", ], {},
+     EXPECTED_OUTPUT4),
+    (DF_CONTENT, LABELS_CONF_BASE, LABELS_CONF, [], [], {"not": "present"}, EXPECTED_OUTPUT),
+    (DF_CONTENT_SINGLE_LINE, LABELS_CONF_BASE, LABELS_BLANK, [], [], {"label1": "labelnew"},
      EXPECTED_OUTPUT5),
-    (DF_CONTENT_SINGLE_LINE, LABELS_CONF_BASE, LABELS_CONF_ONE, [], {"label2": "labelnew"},
+    (DF_CONTENT_SINGLE_LINE, LABELS_CONF_BASE, LABELS_CONF_ONE, [], [], {"label2": "labelnew"},
      EXPECTED_OUTPUT6),
-    (DF_CONTENT_LABEL, LABELS_CONF_BASE, LABELS_BLANK, [], {"label2": "labelnew"},
+    (DF_CONTENT_LABEL, LABELS_CONF_BASE, LABELS_BLANK, [], [], {"label2": "labelnew"},
      EXPECTED_OUTPUT7),
-    (DF_CONTENT_LABEL, LABELS_CONF_BASE, LABELS_BLANK, [], {"label2": "labelnew", "x": "y"},
+    (DF_CONTENT_LABEL, LABELS_CONF_BASE, LABELS_BLANK, [], [], {"label2": "labelnew", "x": "y"},
      EXPECTED_OUTPUT7),
-    (DF_CONTENT_LABEL, LABELS_CONF_BASE_NONE, LABELS_BLANK, [], {"label2": "labelnew"},
+    (DF_CONTENT_LABEL, LABELS_CONF_BASE_NONE, LABELS_BLANK, [], [], {"label2": "labelnew"},
      EXPECTED_OUTPUT7),
-    (DF_CONTENT_LABEL, LABELS_CONF_BASE, LABELS_BLANK, [], {"label2": "label1"}, EXPECTED_OUTPUT8),
-    (DF_CONTENT, LABELS_CONF_BASE_EXPLICIT, LABELS_CONF_EXPLICIT, [], {}, EXPECTED_OUTPUT9),
+    (DF_CONTENT_LABEL, LABELS_CONF_BASE, LABELS_BLANK, [], [], {"label2": "label1"},
+     EXPECTED_OUTPUT8),
+    (DF_CONTENT, LABELS_CONF_BASE_EXPLICIT, LABELS_CONF_EXPLICIT, [], [], {}, EXPECTED_OUTPUT9),
 ])
 def test_add_labels_plugin(tmpdir, docker_tasker,
-                           df_content, labels_conf_base, labels_conf, dont_overwrite, aliases,
-                           expected_output, caplog):
+                           df_content, labels_conf_base, labels_conf, eq_conf,
+                           dont_overwrite, aliases, expected_output, caplog):
     df = df_parser(str(tmpdir))
     df.content = df_content
 
@@ -180,6 +184,7 @@ def test_add_labels_plugin(tmpdir, docker_tasker,
                 'dont_overwrite': dont_overwrite,
                 'auto_labels': [],
                 'aliases': aliases,
+                'equal_labels': eq_conf,
             }
         }]
     )
@@ -195,6 +200,7 @@ def test_add_labels_plugin(tmpdir, docker_tasker,
         assert AddLabelsPlugin.key is not None
         assert df.content in expected_output
 
+
 @pytest.mark.parametrize('auto_label, value_re_part', [  # noqa
     ('build-date', r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?'),
     ('architecture', 'x86_64'),
@@ -202,7 +208,7 @@ def test_add_labels_plugin(tmpdir, docker_tasker,
     ('vcs-url', DOCKERFILE_GIT),
     ('vcs-ref', DOCKERFILE_SHA1),
     ('com.redhat.build-host', 'the-build-host'),
-    ('Build_Host', 'the-build-host'),
+    ('wrong_label', None)
 ])
 def test_add_labels_plugin_generated(tmpdir, docker_tasker, auto_label, value_re_part):
     df = df_parser(str(tmpdir))
@@ -228,69 +234,69 @@ def test_add_labels_plugin_generated(tmpdir, docker_tasker, auto_label, value_re
     )
 
     runner.run()
-    assert re.match(value_re_part, df.labels[auto_label])
+    if value_re_part:
+        assert re.match(value_re_part, df.labels[auto_label])
 
 
 @pytest.mark.parametrize('df_old_as_plugin_arg', [True, False])  # noqa
 @pytest.mark.parametrize('df_new_as_plugin_arg', [True, False])
-@pytest.mark.parametrize('base_old, base_new, df_old, df_new, expected_old, expected_new, expected_log', [  # noqa
-    (None,  None,  None,  None,  None,  None, None                             ),  # noqa
-    (None,  None,  None,  'A',   None,  'A',  None                             ),  # noqa
-    (None,  None,  'A',   None,  'A',   'A',  'as an alias for label'          ),  # noqa
-    (None,  None,  'A',   'A',   'A',   'A',  'already exists'                 ),  # noqa
-    (None,  None,  'A',   'B',   'A',   'B',  'should probably have same value'),  # noqa
-    (None,  'A',   None,  None,  None,  'A',  None                             ),  # noqa
-    (None,  'A',   None,  'A',   None,  'A',  None                             ),  # noqa
-    (None,  'A',   None,  'B',   None,  'B',  None                             ),  # noqa
-    (None,  'A',   'A',   None,  'A',   'A',  'as an alias for label'          ),  # noqa
-    (None,  'A',   'B',   None,  'B',   'B',  'as an alias for label'          ),  # noqa
-    (None,  'A',   'A',   'A',   'A',   'A',  'already exists'                 ),  # noqa
-    (None,  'A',   'A',   'B',   'A',   'B',  'should probably have same value'),  # noqa
-    (None,  'A',   'B',   'A',   'B',   'A',  'should probably have same value'),  # noqa
-    (None,  'A',   'B',   'B',   'B',   'B',  'already exists'                 ),  # noqa
-    (None,  'A',   'B',   'C',   'B',   'C',  'should probably have same value'),  # noqa
-    ('A',   None,  None,  None,  'A',   'A',  'as an alias for label'          ),  # noqa
-    ('A',   None,  None,  'A',   'A',   'A',  'already exists'                 ),  # noqa
-    ('A',   None,  None,  'B',   'B',   'B',  'as an alias for label'          ),  # noqa
-    ('A',   None,  'A',   None,  'A',   'A',  'as an alias for label'          ),  # noqa
-    ('A',   None,  'B',   None,  'B',   'B',  'as an alias for label'          ),  # noqa
-    ('A',   None,  'A',   'A',   'A',   'A',  'already exists'                 ),  # noqa
-    ('A',   None,  'A',   'B',   'A',   'B',  'should probably have same value'),  # noqa
-    ('A',   None,  'B',   'A',   'B',   'A',  'should probably have same value'),  # noqa
-    ('A',   None,  'B',   'B',   'B',   'B',  'already exists'                 ),  # noqa
-    ('A',   None,  'B',   'C',   'B',   'C',  'should probably have same value'),  # noqa
-    ('A',   'A',   None,  None,  'A',   'A',  'as an alias for label'          ),  # noqa
-    ('A',   'A',   None,  'A',   'A',   'A',  'already exists'                 ),  # noqa
-    ('A',   'A',   None,  'B',   'B',   'B',  'as an alias for label'          ),  # noqa
-    ('A',   'A',   'A',   None,  'A',   'A',  'as an alias for label'          ),  # noqa
-    ('A',   'A',   'B',   None,  'B',   'B',  'as an alias for label'          ),  # noqa
-    ('A',   'A',   'A',   'A',   'A',   'A',  'already exists'                 ),  # noqa
-    ('A',   'A',   'A',   'B',   'A',   'B',  'should probably have same value'),  # noqa
-    ('A',   'A',   'B',   'A',   'B',   'A',  'should probably have same value'),  # noqa
-    ('A',   'A',   'B',   'B',   'B',   'B',  'already exists'                 ),  # noqa
-    ('A',   'A',   'B',   'C',   'B',   'C',  'should probably have same value'),  # noqa
-    ('A',   'B',   None,  None,  'B',   'B',  'as an alias for label'          ),  # noqa really?
-    ('A',   'B',   None,  'A',   'A',   'A',  'already exists'                 ),  # noqa
-    ('A',   'B',   None,  'B',   'B',   'B',  'as an alias for label'          ),  # noqa
-    ('A',   'B',   None,  'C',   'C',   'C',  'as an alias for label'          ),  # noqa
-    ('A',   'B',   'A',   None,  'A',   'A',  'as an alias for label'          ),  # noqa
-    ('A',   'B',   'B',   None,  'B',   'B',  'as an alias for label'          ),  # noqa
-    ('A',   'B',   'C',   None,  'C',   'C',  'as an alias for label'          ),  # noqa
-    ('A',   'B',   'A',   'A',   'A',   'A',  'already exists'                 ),  # noqa
-    ('A',   'B',   'A',   'B',   'A',   'B',  'should probably have same value'),  # noqa
-    ('A',   'B',   'A',   'C',   'A',   'C',  'should probably have same value'),  # noqa
-    ('A',   'B',   'B',   'A',   'B',   'A',  'should probably have same value'),  # noqa
-    ('A',   'B',   'B',   'B',   'B',   'B',  'already exists'                 ),  # noqa
-    ('A',   'B',   'B',   'C',   'B',   'C',  'should probably have same value'),  # noqa
-    ('A',   'B',   'C',   'A',   'C',   'A',  'should probably have same value'),  # noqa
-    ('A',   'B',   'C',   'B',   'C',   'B',  'should probably have same value'),  # noqa
-    ('A',   'B',   'C',   'C',   'C',   'C',  'already exists'                 ),  # noqa
-    ('A',   'B',   'C',   'D',   'C',   'D',  'should probably have same value'),  # noqa
+@pytest.mark.parametrize('base_old, base_new, df_old, df_new, exp_old, exp_new, exp_log', [
+    (None,  None,  None,  None,  None,  None,  None),
+    (None,  None,  None,  'A',   None,  'A',   None),
+    (None,  None,  'A',   None,  'A',   'A',   'as an alias for label'),
+    (None,  None,  'A',   'A',   'A',   'A',   'already exists'),
+    (None,  None,  'A',   'B',   'B',   'B',   'as an alias for label'),
+    (None,  'A',   None,  None,  None,  'A',   None),
+    (None,  'A',   None,  'A',   None,  'A',   None),
+    (None,  'A',   None,  'B',   None,  'B',   None),
+    (None,  'A',   'A',   None,  'A',   'A',   'already exists'),
+    (None,  'A',   'B',   None,  'B',   'B',   'as an alias for label'),
+    (None,  'A',   'A',   'A',   'A',   'A',   'already exists'),
+    (None,  'A',   'A',   'B',   'B',   'B',   'as an alias for label'),
+    (None,  'A',   'B',   'A',   'A',   'A',   'as an alias for label'),
+    (None,  'A',   'B',   'B',   'B',   'B',   'already exists'),
+    (None,  'A',   'B',   'C',   'C',   'C',   'as an alias for label'),
+    ('A',   None,  None,  None,  'A',   'A',   'as an alias for label'),
+    ('A',   None,  None,  'A',   'A',   'A',   'already exists'),
+    ('A',   None,  None,  'B',   'B',   'B',   'as an alias for label'),
+    ('A',   None,  'A',   None,  'A',   'A',   'as an alias for label'),
+    ('A',   None,  'B',   None,  'B',   'B',   'as an alias for label'),
+    ('A',   None,  'A',   'A',   'A',   'A',   'already exists'),
+    ('A',   None,  'A',   'B',   'B',   'B',   'as an alias for label'),
+    ('A',   None,  'B',   'A',   'A',   'A',   'as an alias for label'),
+    ('A',   None,  'B',   'B',   'B',   'B',   'already exists'),
+    ('A',   None,  'B',   'C',   'C',   'C',   'as an alias for label'),
+    ('A',   'A',   None,  None,  'A',   'A',   'already exists'),
+    ('A',   'A',   None,  'A',   'A',   'A',   'already exists'),
+    ('A',   'A',   None,  'B',   'B',   'B',   'as an alias for label'),
+    ('A',   'A',   'A',   None,  'A',   'A',   'already exists'),
+    ('A',   'A',   'B',   None,  'B',   'B',   'as an alias for label'),
+    ('A',   'A',   'A',   'A',   'A',   'A',   'already exists'),
+    ('A',   'A',   'A',   'B',   'B',   'B',   'as an alias for label'),
+    ('A',   'A',   'B',   'A',   'A',   'A',   'as an alias for label'),
+    ('A',   'A',   'B',   'B',   'B',   'B',   'already exists'),
+    ('A',   'A',   'B',   'C',   'C',   'C',   'as an alias for label'),
+    ('A',   'B',   None,  None,  'B',   'B',   'as an alias for label'),
+    ('A',   'B',   None,  'A',   'A',   'A',   'already exists'),
+    ('A',   'B',   None,  'B',   'B',   'B',   'as an alias for label'),
+    ('A',   'B',   None,  'C',   'C',   'C',   'as an alias for label'),
+    ('A',   'B',   'A',   None,  'A',   'A',   'as an alias for label'),
+    ('A',   'B',   'B',   None,  'B',   'B',   'already exists'),
+    ('A',   'B',   'C',   None,  'C',   'C',   'as an alias for label'),
+    ('A',   'B',   'A',   'A',   'A',   'A',   'already exists'),
+    ('A',   'B',   'A',   'B',   'B',   'B',   'as an alias for label'),
+    ('A',   'B',   'A',   'C',   'C',   'C',   'as an alias for label'),
+    ('A',   'B',   'B',   'A',   'A',   'A',   'as an alias for label'),
+    ('A',   'B',   'B',   'B',   'B',   'B',   'already exists'),
+    ('A',   'B',   'B',   'C',   'C',   'C',   'as an alias for label'),
+    ('A',   'B',   'C',   'A',   'A',   'A',   'as an alias for label'),
+    ('A',   'B',   'C',   'B',   'B',   'B',   'as an alias for label'),
+    ('A',   'B',   'C',   'C',   'C',   'C',   'already exists'),
+    ('A',   'B',   'C',   'D',   'D',   'D',   'as an alias for label'),
 ])
 def test_add_labels_aliases(tmpdir, docker_tasker, caplog,
                             df_old_as_plugin_arg, df_new_as_plugin_arg,
-                            base_old, base_new, df_old, df_new, expected_old, expected_new,
-                            expected_log):
+                            base_old, base_new, df_old, df_new, exp_old, exp_new, exp_log):
     if MOCK:
         mock_docker()
 
@@ -341,11 +347,12 @@ def test_add_labels_aliases(tmpdir, docker_tasker, caplog,
         base_labels[INSPECT_CONFIG]["Labels"].get("label_old")
     result_new = df.labels.get("label_new") or \
         base_labels[INSPECT_CONFIG]["Labels"].get("label_new")
-    assert result_old == expected_old
-    assert result_new == expected_new
+    assert result_old == exp_old
+    assert result_new == exp_new
 
-    if expected_log:
-        assert expected_log in caplog.text()
+    if exp_log:
+        assert exp_log in caplog.text()
+
 
 @pytest.mark.parametrize('base_fst, base_snd, df_fst, df_snd, expected, expected_log', [  # noqa
     (None,  None,  None,  None,  None,  None),
@@ -425,6 +432,7 @@ def test_add_labels_equal_aliases(tmpdir, docker_tasker, caplog,
 
         if expected_log:
             assert expected_log in caplog.text()
+
 
 @pytest.mark.parametrize('base_fst, base_snd, base_trd, df_fst, df_snd, df_trd, expected, expected_log', [  # noqa
     (None,  None,  None,  None,  None,  None,  None,  None),
@@ -620,7 +628,6 @@ def test_url_label(tmpdir, docker_tasker, caplog, url_format, info_url):
     'vcs-url',
     'vcs-ref',
     'com.redhat.build-host',
-    'Build_Host',
 ])
 @pytest.mark.parametrize('labels_docker', [
     DF_CONTENT,
@@ -704,3 +711,75 @@ def test_add_labels_base_image(tmpdir, docker_tasker, parent, should_fail,
     else:
         runner.run()
         assert df.labels['release'] == '5'
+
+
+@pytest.mark.parametrize('base_new, df_new, plugin_new, expected_in_df, expected_log', [  # noqa
+    (None,  None,  None,  None,  None),
+    (None,  'A',   'A',   'A',   None),
+    (None,  'B',   'A',   'A',   'setting label'),
+    (None,  'A',   'B',   'B',   None),
+    (None,  None,  'A',   'A',   'setting label'),
+    (None,  'A',   None,  'A',   None),
+    ('A',   None,  'A',   'A',   'setting label'),
+    ('B',   None,  'A',   'A',   'setting label'),
+    ('A',   None,  'B',   'B',   'setting label'),
+    ('A',   'A',   None,  'A',   None),
+    ('A',   'B',   None,  'B',   None),
+    ('B',   'A',   None,  'A',   None),
+    ('A',   'A',   'A',   'A',   None),
+    ('A',   'B',   'A',   'A',   'setting label'),
+    ('B',   'A',   'A',   'A',   None),
+    ('A',   'A',   'B',   'B',   'setting label'),
+    ('A',   'B',   'B',   'B',   None),
+    ('B',   'B',   'A',   'A',   'setting label'),
+    ('B',   'A',   'B',   'B',   'setting label'),
+    ('A',   'B',   'C',   'C',   'setting label'),
+])
+def test_release_label(tmpdir, docker_tasker, caplog,
+                       base_new, df_new, plugin_new,
+                       expected_in_df, expected_log):
+    if MOCK:
+        mock_docker()
+
+    df_content = "FROM fedora\n"
+    plugin_labels = {}
+
+    if df_new:
+        df_content += 'LABEL release="{0}"\n'.format(df_new)
+
+    if plugin_new:
+        plugin_labels["release"] = plugin_new
+
+    base_labels = {INSPECT_CONFIG: {"Labels": {}}}
+    if base_new:
+        base_labels[INSPECT_CONFIG]["Labels"]["release"] = base_new
+
+    df = df_parser(str(tmpdir))
+    df.content = df_content
+
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    setattr(workflow, 'builder', X)
+    flexmock(workflow, base_image_inspect=base_labels)
+    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': AddLabelsPlugin.key,
+            'args': {
+                'labels': plugin_labels,
+                'dont_overwrite': [],
+                'auto_labels': [],
+                'aliases': {}
+            }
+        }]
+    )
+
+    runner.run()
+    assert AddLabelsPlugin.key is not None
+    result_new = df.labels.get("release")
+    assert result_new == expected_in_df
+
+    if expected_log:
+        assert expected_log in caplog.text()

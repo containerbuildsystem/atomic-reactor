@@ -64,10 +64,8 @@ import string
 class AddLabelsPlugin(PreBuildPlugin):
     key = "add_labels_in_dockerfile"
     is_allowed_to_fail = False
-    rewrite_whitelist = ['release', 'version']
 
-    def __init__(self, tasker, workflow, labels,
-                 dont_overwrite=("Architecture", "architecture"),
+    def __init__(self, tasker, workflow, labels, dont_overwrite=None,
                  auto_labels=("build-date",
                               "architecture",
                               "vcs-type",
@@ -86,6 +84,8 @@ class AddLabelsPlugin(PreBuildPlugin):
         :param dont_overwrite: iterable, list of label keys which should not be overwritten
                                if they are present in parent image
         :param auto_labels: iterable, list of labels to be determined automatically, if supported
+                            it should contain only new label names and not old label names,
+                            as they will be managed automatically
         :param aliases: dict, maps old label names to new label names - for each old name found in
                         base image, dockerfile, or labels argument, a label with the new name is
                         added (with the same value)
@@ -101,18 +101,20 @@ class AddLabelsPlugin(PreBuildPlugin):
         if not isinstance(labels, dict):
             raise RuntimeError("labels have to be dict")
         self.labels = labels
-        self.dont_overwrite = dont_overwrite
+        self.dont_overwrite = dont_overwrite or ()
         self.dont_overwrite_if_in_dockerfile = dont_overwrite_if_in_dockerfile
         self.aliases = aliases or Labels.get_new_names_by_old()
+        self.auto_labels = auto_labels or ()
         self.info_url_format = info_url_format
         self.equal_labels = equal_labels or []
         if not isinstance(self.equal_labels, list):
             raise RuntimeError("equal_labels have to be list")
 
-        self.generate_auto_labels(auto_labels)
-
-    def generate_auto_labels(self, auto_labels):
+    def generate_auto_labels(self, base_labels, df_labels, plugin_labels):
         generated = {}
+        all_labels = base_labels.copy()
+        all_labels.update(df_labels)
+        all_labels.update(plugin_labels)
 
         # build date
         dt = datetime.datetime.fromtimestamp(atomic_reactor_start_time)
@@ -132,65 +134,60 @@ class AddLabelsPlugin(PreBuildPlugin):
             generated['vcs-url'] = vcs.vcs_url
             generated['vcs-ref'] = vcs.vcs_ref
 
-        for old, new in self.aliases.items():
-            self.log.info("old=%r new=%r", old, new)
-            if new in generated and old not in generated:
-                self.log.info("adding %r for compatibility", old)
-                generated[old] = generated[new]
-
-        for lbl in auto_labels:
-            if lbl in self.labels:
-                self.log.info("label %r is set explicitly, not using generated value", lbl)
-                continue
-
-            if lbl in generated:
-                self.labels[lbl] = generated[lbl]
-            else:
+        for lbl in self.auto_labels:
+            if lbl not in generated:
                 self.log.warning("requested automatic label %r is not available", lbl)
+
+            elif lbl in plugin_labels:
+                self.log.info("label %r is set explicitly, not using generated value", lbl)
+
+            else:
+                self.labels[lbl] = generated[lbl]
+                self.log.info("automatic label %r is generated to %r", lbl, generated[lbl])
 
     def add_aliases(self, base_labels, df_labels, plugin_labels):
         all_labels = base_labels.copy()
         all_labels.update(df_labels)
         all_labels.update(plugin_labels)
-
         new_labels = df_labels.copy()
         new_labels.update(plugin_labels)
 
         applied_alias = False
         not_applied = []
 
-        def add_as_an_alias(new, old, is_old_inherited):
-            self.log.warning("adding label %r as an alias for label %r", new, old)
-            if is_old_inherited and new in all_labels:
-                self.labels[old] = all_labels[new]
-            else:
-                self.labels[new] = all_labels[old]
+        def add_as_an_alias(set_to, set_from):
+            self.log.warning("adding label %r as an alias for label %r", set_to, set_from)
+            self.labels[set_to] = all_labels[set_from]
+            self.log.info(self.labels)
+            return True
 
         for old, new in self.aliases.items():
             if old not in all_labels:
-                not_applied.append(old)
+                applied_alias = not_applied.append(old)
                 continue
 
-            is_old_inherited = old in base_labels and \
-                old not in df_labels and \
-                old not in plugin_labels
+            # new label doesn't exists but old label does
+            # add new label with value from old label
+            if new not in all_labels:
+                applied_alias = add_as_an_alias(new, old)
+                continue
 
-            if new in new_labels:
-                if all_labels[old] != all_labels[new]:
-                    if is_old_inherited:
-                        # set old label with value from new label if old was in base
-                        add_as_an_alias(new, old, is_old_inherited)
-                        continue
-                    self.log.warning("labels %r=%r and %r=%r should probably have same value",
-                                     old, all_labels[old], new, all_labels[new])
-
+            # new and old label exists, and have same value
+            if all_labels[old] == all_labels[new]:
                 self.log.debug("alias label %r for %r already exists, skipping", new, old)
                 continue
 
-            # new label is in base or doesn't exists and we have somewhere old label
-            add_as_an_alias(new, old, is_old_inherited)
-            applied_alias = True
-            self.log.info(self.labels)
+            # new overwrites old, if new is explicitly specified,
+            # or if old and new are in baseimage
+            if new in new_labels or (new not in new_labels and old not in new_labels):
+                applied_alias = add_as_an_alias(old, new)
+                continue
+
+            # old is explicitly specified so overwriting new (from baseimage)
+            applied_alias = add_as_an_alias(new, old)
+            # this will ensure that once we've added once new label based on
+            # old label, if there are multiple old names, just first will be used
+            all_labels[new] = all_labels[old]
 
         # warn if we applied only some aliases
         if applied_alias and not_applied:
@@ -293,6 +290,8 @@ class AddLabelsPlugin(PreBuildPlugin):
             else:
                 base_image_labels = config["Labels"] or {}
 
+        self.generate_auto_labels(base_image_labels.copy(), dockerfile.labels.copy(),
+                                  self.labels.copy())
         # changing dockerfile.labels writes out modified Dockerfile - err on
         # the safe side and make a copy
         self.add_aliases(base_image_labels.copy(), dockerfile.labels.copy(), self.labels.copy())
@@ -319,29 +318,21 @@ class AddLabelsPlugin(PreBuildPlugin):
 
         labels = []
         for key, value in self.labels.items():
-            try:
-                base_image_value = base_image_labels[key]
-            except KeyError:
-                self.log.info("label %r not present in base image", key)
-            else:
-                # Some labels (self.rewrite_whitelist) should always be set in the dockerfile
-                # even if it was already set in base image and the values match
-                if base_image_value == value and key not in self.rewrite_whitelist:
-                    self.log.info("label %r is already set to %r", key, value)
-                    continue
+
+            if key not in dockerfile.labels or dockerfile.labels[key] != value:
+
+                if key in self.dont_overwrite_if_in_dockerfile and key in dockerfile.labels:
+                    self.log.info("denying overwrite of label %r, using from Dockerfile", key)
+
+                elif (key in base_image_labels and
+                      key in self.dont_overwrite and
+                      key not in dockerfile.labels):
+                    self.log.info("denying overwrite of label %r, using from baseimage", key)
+
                 else:
-                    self.log.info("base image has label %r set to %r", key, base_image_value)
-                    if key in self.dont_overwrite:
-                        self.log.info("denying overwrite of label %r", key)
-                        continue
-
-            if (key in self.dont_overwrite_if_in_dockerfile) and (key in dockerfile.labels):
-                self.log.info("denying overwrite of label %r, using from Dockerfile", key)
-                continue
-
-            label = '"%s"="%s"' % (escape(key), escape(value))
-            self.log.info("setting label %r", label)
-            labels.append(label)
+                    label = '"%s"="%s"' % (escape(key), escape(value))
+                    self.log.info("setting label %r", label)
+                    labels.append(label)
 
         content = ""
         if labels:
