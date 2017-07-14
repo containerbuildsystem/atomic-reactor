@@ -158,8 +158,9 @@ class BuildContainerFactory(object):
             volume_bindings[DOCKER_SOCKET_PATH]['ro'] = True
             volume_bindings[json_args_path]['rw'] = True
 
-        logger.debug('build json mounted in container: %s',
-                     open(os.path.join(json_args_path, BUILD_JSON)).read())
+        with open(os.path.join(json_args_path, BUILD_JSON)) as fp:
+            logger.debug('build json mounted in container: %s', fp.read())
+
         container_id = self.tasker.run(
             ImageName.parse(build_image),
             create_kwargs={'volumes': [DOCKER_SOCKET_PATH, json_args_path],
@@ -200,8 +201,9 @@ class BuildContainerFactory(object):
         else:
             volume_bindings[json_args_path]['rw'] = True
 
-        logger.debug('build json mounted in container: %s',
-                     open(os.path.join(json_args_path, BUILD_JSON)).read())
+        with open(os.path.join(json_args_path, BUILD_JSON)) as fp:
+            logger.debug('build json mounted in container: %s', fp.read())
+
         container_id = self.tasker.run(
             ImageName.parse(build_image),
             create_kwargs={'volumes': [json_args_path],
