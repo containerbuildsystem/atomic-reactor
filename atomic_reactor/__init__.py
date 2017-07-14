@@ -35,8 +35,8 @@ class ArchFormatter(logging.Formatter):
 def set_logging(name="atomic_reactor", level=logging.DEBUG, handler=None):
     # create logger
     logger = logging.getLogger(name)
-    for handler in list(logger.handlers):  # make a copy so it doesn't change
-        logger.removeHandler(handler)
+    for hdlr in list(logger.handlers):  # make a copy so it doesn't change
+        logger.removeHandler(hdlr)
 
     logger.setLevel(level)
 
