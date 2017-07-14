@@ -11,11 +11,15 @@ from __future__ import print_function, unicode_literals
 import logging
 import os
 import sys
+import codecs
+import encodings
 
 import pytest
+import flexmock
 
 from atomic_reactor.buildimage import BuildImageBuilder
 from atomic_reactor.core import DockerTasker
+from atomic_reactor.plugin import InputPluginsRunner
 import atomic_reactor.cli.main
 
 from tests.fixtures import is_registry_running, temp_image_name, get_uuid  # noqa
@@ -173,3 +177,29 @@ class TestCLISuite(object):
             self.exec_cli(command)
         assert excinfo.value.code == 0
         dt.remove_image(temp_image, noprune=True)
+
+    def test_log_encoding(self, caplog, monkeypatch):
+        if MOCK:
+            mock_docker()
+
+        (flexmock(InputPluginsRunner)
+            .should_receive('run')
+            .and_raise(RuntimeError))
+
+        monkeypatch.setenv('LC_ALL', 'en_US.UTF-8')
+        command = [
+            "main.py",
+            "--verbose",
+            "inside-build",
+        ]
+        with caplog.atLevel(logging.INFO):
+            with pytest.raises(RuntimeError):
+                self.exec_cli(command)
+
+        # first message should be 'log encoding: <encoding>'
+        match = caplog.records()[0].message.split(':')
+        if not match:
+            raise RuntimeError
+
+        encoding = codecs.getreader(match[1])
+        assert encoding == encodings.utf_8.StreamReader

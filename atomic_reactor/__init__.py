@@ -9,7 +9,10 @@ of the BSD license. See the LICENSE file for details.
 constants
 """
 
+from locale import nl_langinfo, CODESET
 import logging
+from os import fdopen, dup
+import sys
 import time
 
 from atomic_reactor.version import __version__
@@ -32,6 +35,33 @@ class ArchFormatter(logging.Formatter):
         return super(ArchFormatter, self).format(record)
 
 
+class EncodedStream(object):
+    # The point of this class is to force python to enocde UTF-8
+    # over stderr.  Normal techniques were not working, so we dup
+    # the file handler and force it UTF-8.  :-(
+    # Any attempts to fix should run test_cli.py::TestCLISuite::test_log_encoding
+    # to verify.
+    def __init__(self, fileno, encoding):
+        self.binarystream = fdopen(dup(fileno), 'wb')
+        self.encoding = encoding
+
+    def write(self, text):
+        if not isinstance(text, bytes):
+            self.binarystream.write(text.encode(self.encoding))
+        else:
+            self.binarystream.write(text)
+
+    def __del__(self):
+        try:
+            self.binarystream.close()
+        except AttributeError:
+            pass
+
+
+def get_logging_encoding(name="atomic_reactor"):
+    return logging.getLogger(name).handlers[0].stream.encoding
+
+
 def set_logging(name="atomic_reactor", level=logging.DEBUG, handler=None):
     # create logger
     logger = logging.getLogger(name)
@@ -42,7 +72,9 @@ def set_logging(name="atomic_reactor", level=logging.DEBUG, handler=None):
 
     if not handler:
         # create console handler and set level to debug
-        handler = logging.StreamHandler()
+        log_encoding = nl_langinfo(CODESET)
+        encoded_stream = EncodedStream(sys.stderr.fileno(), log_encoding)
+        handler = logging.StreamHandler(encoded_stream)
         handler.setLevel(logging.DEBUG)
 
         # create formatter

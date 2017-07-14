@@ -12,6 +12,7 @@ import logging
 import os
 import sys
 import pkg_resources
+import locale
 
 from atomic_reactor import set_logging
 from atomic_reactor.api import (build_image_here, build_image_in_privileged_container,
@@ -102,6 +103,8 @@ class CLI(object):
         self.build_parser = None
         self.bi_parser = None
         self.ib_parser = None
+
+        locale.setlocale(locale.LC_ALL, '')
 
     def set_arguments(self):
         try:
