@@ -88,5 +88,8 @@ def set_logging(name="atomic_reactor", level=logging.DEBUG, handler=None):
     # add ch to logger
     logger.addHandler(handler)
 
+    logger = logging.getLogger('osbs')
+    for hdlr in list(logger.handlers):  # make a copy so it doesn't change
+        hdlr.setFormatter(formatter)
 
 set_logging(level=logging.WARNING)  # override this however you want
