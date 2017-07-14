@@ -85,7 +85,7 @@ def test_wait_for_command():
     if MOCK:
         mock_docker()
 
-    d = docker.Client()
+    d = docker.APIClient()
     logs_gen = d.pull(INPUT_IMAGE, stream=True)
     assert wait_for_command(logs_gen) is not None
 

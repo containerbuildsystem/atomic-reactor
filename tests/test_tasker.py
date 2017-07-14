@@ -327,12 +327,45 @@ def test_get_version():
     (60, 60),
 ])
 def test_timeout(timeout, expected_timeout):
-    (flexmock(docker.Client)
+    if not hasattr(docker, 'APIClient'):
+        setattr(docker, 'APIClient', docker.Client)
+
+    expected_kwargs = {
+        'timeout': expected_timeout,
+    }
+    if hasattr(docker, 'AutoVersionClient'):
+        expected_kwargs['version'] = 'auto'
+
+    (flexmock(docker.APIClient)
         .should_receive('__init__')
-        .with_args(version=str, timeout=expected_timeout))
+        .with_args(**expected_kwargs))
 
     kwargs = {}
     if timeout is not None:
         kwargs['timeout'] = timeout
 
     DockerTasker(**kwargs)
+
+
+def test_docker2():
+    class MockClient(object):
+        def __init__(self, **kwargs):
+            pass
+
+        def version(self):
+            return {}
+
+    for client in ['APIClient', 'Client']:
+        if not hasattr(docker, client):
+            setattr(docker, client, MockClient)
+
+    (flexmock(docker)
+        .should_receive('APIClient')
+        .once()
+        .and_raise(AttributeError))
+
+    (flexmock(docker)
+        .should_receive('Client')
+        .once())
+
+    DockerTasker()

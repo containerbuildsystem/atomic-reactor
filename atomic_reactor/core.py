@@ -31,7 +31,6 @@ import requests
 
 import docker
 from docker.errors import APIError
-from docker.utils import create_host_config
 
 from atomic_reactor.constants import CONTAINER_SHARE_PATH, CONTAINER_SHARE_SOURCE_SUBDIR,\
         BUILD_JSON, DOCKER_SOCKET_PATH
@@ -163,11 +162,9 @@ class BuildContainerFactory(object):
 
         container_id = self.tasker.run(
             ImageName.parse(build_image),
-            create_kwargs={'volumes': [DOCKER_SOCKET_PATH, json_args_path],
-                           'host_config': create_host_config(
-                               binds=volume_bindings,
-                               privileged=True)
-                           }
+            create_kwargs={'volumes': [DOCKER_SOCKET_PATH, json_args_path]},
+            volume_bindings=volume_bindings,
+            privileged=True,
         )
 
         return container_id
@@ -206,11 +203,9 @@ class BuildContainerFactory(object):
 
         container_id = self.tasker.run(
             ImageName.parse(build_image),
-            create_kwargs={'volumes': [json_args_path],
-                           'host_config': create_host_config(
-                               binds=volume_bindings,
-                               privileged=True)
-                           }
+            create_kwargs={'volumes': [json_args_path]},
+            volume_bindings=volume_bindings,
+            privileged=True,
         )
 
         return container_id
@@ -226,7 +221,7 @@ class DockerTasker(LastLogger):
         """
         super(DockerTasker, self).__init__(**kwargs)
 
-        client_kwargs = {}
+        client_kwargs = {'timeout': timeout}
         if base_url:
             client_kwargs['base_url'] = base_url
         elif os.environ.get('DOCKER_CONNECTION'):
@@ -235,7 +230,12 @@ class DockerTasker(LastLogger):
         if hasattr(docker, 'AutoVersionClient'):
             client_kwargs['version'] = 'auto'
 
-        self.d = docker.Client(timeout=timeout, **client_kwargs)
+        try:
+            # docker-py 2.x
+            self.d = docker.APIClient(**client_kwargs)
+        except AttributeError:
+            # docker-py 1.x
+            self.d = docker.Client(**client_kwargs)
 
     def build_image_from_path(self, path, image, stream=False, use_cache=False, remove_im=True):
         """
@@ -301,7 +301,8 @@ class DockerTasker(LastLogger):
         logger.info("build finished")
         return response
 
-    def run(self, image, command=None, create_kwargs=None, start_kwargs=None):
+    def run(self, image, command=None, create_kwargs=None, start_kwargs=None,
+            volume_bindings=None, privileged=None):
         """
         create container from provided image and start it
 
@@ -317,6 +318,17 @@ class DockerTasker(LastLogger):
         """
         logger.info("creating container from image '%s' and running it", image)
         create_kwargs = create_kwargs or {}
+
+        if 'host_config' not in create_kwargs:
+            conf = {}
+            if volume_bindings is not None:
+                conf['binds'] = volume_bindings
+
+            if privileged is not None:
+                conf['privileged'] = privileged
+
+            create_kwargs['host_config'] = self.d.create_host_config(**conf)
+
         start_kwargs = start_kwargs or {}
         logger.debug("image = '%s', command = '%s', create_kwargs = '%s', start_kwargs = '%s'",
                      image, command, create_kwargs, start_kwargs)

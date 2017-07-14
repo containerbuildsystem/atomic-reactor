@@ -3,7 +3,7 @@ Requirements: see requirements.txt
 How to run:
 $ py.test -v
 
-By default all docker.Client methods are mocked, so you don't need docker to run these tests.
+By default all docker.APIClient methods are mocked, so you don't need docker to run these tests.
 If you want to run 'integration' tests, i.e. test with running docker instance, you need:
 $ yum install docker docker-registry
 $ systemctl start docker docker-registry

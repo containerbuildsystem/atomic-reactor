@@ -270,7 +270,7 @@ def mock_docker(build_should_fail=False,
                 push_should_fail=False,
                 build_should_fail_generator=False):
     """
-    mock all used docker.Client methods
+    mock all used docker.APIClient methods
 
     :param build_should_fail: True == build() log will contain error
     :param inspect_should_fail: True == inspect_image() will raise docker.errors.NotFound
@@ -291,11 +291,14 @@ def mock_docker(build_should_fail=False,
     else:
         build_result = iter(mock_build_logs)
 
-    flexmock(docker.Client, build=lambda **kwargs: build_result)
-    flexmock(docker.Client, commit=lambda cid, **kwargs: mock_containers[0])
-    flexmock(docker.Client, containers=lambda **kwargs: mock_containers)
-    flexmock(docker.Client, create_container=lambda img, **kwargs: mock_containers[0])
-    flexmock(docker.Client, images=lambda **kwargs: [mock_image])
+    if not hasattr(docker, 'APIClient'):
+        setattr(docker, 'APIClient', docker.Client)
+
+    flexmock(docker.APIClient, build=lambda **kwargs: build_result)
+    flexmock(docker.APIClient, commit=lambda cid, **kwargs: mock_containers[0])
+    flexmock(docker.APIClient, containers=lambda **kwargs: mock_containers)
+    flexmock(docker.APIClient, create_container=lambda img, **kwargs: mock_containers[0])
+    flexmock(docker.APIClient, images=lambda **kwargs: [mock_image])
 
     def mock_inspect_image(image_id):
         if inspect_should_fail:
@@ -303,21 +306,21 @@ def mock_docker(build_should_fail=False,
         else:
             return mock_image
 
-    flexmock(docker.Client, inspect_image=mock_inspect_image)
-    flexmock(docker.Client, inspect_container=lambda im_id: mock_inspect_container)
-    flexmock(docker.Client, logs=lambda cid, **kwargs: iter([mock_logs]) if kwargs.get('stream')
+    flexmock(docker.APIClient, inspect_image=mock_inspect_image)
+    flexmock(docker.APIClient, inspect_container=lambda im_id: mock_inspect_container)
+    flexmock(docker.APIClient, logs=lambda cid, **kwargs: iter([mock_logs]) if kwargs.get('stream')
              else mock_logs)
-    flexmock(docker.Client, pull=lambda img, **kwargs: iter(mock_pull_logs))
-    flexmock(docker.Client, push=lambda iid, **kwargs: iter(push_result))
-    flexmock(docker.Client, remove_container=lambda cid, **kwargs: None)
-    flexmock(docker.Client, remove_image=lambda iid, **kwargs: None)
-    flexmock(docker.Client, start=lambda cid, **kwargs: None)
-    flexmock(docker.Client, tag=lambda img, rep, **kwargs: True)
-    flexmock(docker.Client, wait=lambda cid: 1 if wait_should_fail else 0)
-    flexmock(docker.Client, version=lambda **kwargs: mock_version)
-    flexmock(docker.Client, info=lambda **kwargs: mock_info)
-    flexmock(docker.Client, import_image_from_data=lambda url: mock_import_image)
-    flexmock(docker.Client, import_image_from_stream=lambda url: mock_import_image)
+    flexmock(docker.APIClient, pull=lambda img, **kwargs: iter(mock_pull_logs))
+    flexmock(docker.APIClient, push=lambda iid, **kwargs: iter(push_result))
+    flexmock(docker.APIClient, remove_container=lambda cid, **kwargs: None)
+    flexmock(docker.APIClient, remove_image=lambda iid, **kwargs: None)
+    flexmock(docker.APIClient, start=lambda cid, **kwargs: None)
+    flexmock(docker.APIClient, tag=lambda img, rep, **kwargs: True)
+    flexmock(docker.APIClient, wait=lambda cid: 1 if wait_should_fail else 0)
+    flexmock(docker.APIClient, version=lambda **kwargs: mock_version)
+    flexmock(docker.APIClient, info=lambda **kwargs: mock_info)
+    flexmock(docker.APIClient, import_image_from_data=lambda url: mock_import_image)
+    flexmock(docker.APIClient, import_image_from_stream=lambda url: mock_import_image)
 
     class GetImageResult(object):
         data = b''
@@ -334,7 +337,7 @@ def mock_docker(build_should_fail=False,
         def __exit__(self, tp, val, tb):
             self.fp.close()
 
-    flexmock(docker.Client, get_image=lambda img, **kwargs: GetImageResult())
+    flexmock(docker.APIClient, get_image=lambda img, **kwargs: GetImageResult())
     flexmock(os.path, exists=lambda p: True if p == DOCKER_SOCKET_PATH else old_ope(p))
 
     def remove_volume(volume_name):
@@ -346,24 +349,27 @@ def mock_docker(build_should_fail=False,
             raise docker.errors.APIError("failed to remove volume %s" % volume_name, response)
         return None
 
-    flexmock(docker.Client, remove_volume=lambda iid, **kwargs: remove_volume(iid))
+    flexmock(docker.APIClient, remove_volume=lambda iid, **kwargs: remove_volume(iid))
 
     for method, args in should_raise_error.items():
         response = flexmock(content="abc", status_code=123)
         if args:
-            flexmock(docker.Client).should_receive(method).with_args(*args).and_raise(
-                docker.errors.APIError, "xyz", response)
+            (flexmock(docker.APIClient)
+             .should_receive(method)
+             .with_args(*args).and_raise(docker.errors.APIError, "xyz",
+                                         response))
         else:
-            flexmock(docker.Client).should_receive(method).and_raise(docker.errors.APIError, "xyz",
-                                                                     response)
+            (flexmock(docker.APIClient)
+             .should_receive(method)
+             .and_raise(docker.errors.APIError, "xyz", response))
 
     if remember_images:
         global mock_images
         mock_images = [mock_image]
 
-        flexmock(docker.Client, inspect_image=_mock_inspect)
-        flexmock(docker.Client, pull=_mock_pull)
-        flexmock(docker.Client, remove_image=_mock_remove_image)
-        flexmock(docker.Client, tag=_mock_tag)
+        flexmock(docker.APIClient, inspect_image=_mock_inspect)
+        flexmock(docker.APIClient, pull=_mock_pull)
+        flexmock(docker.APIClient, remove_image=_mock_remove_image)
+        flexmock(docker.APIClient, tag=_mock_tag)
 
-    flexmock(docker.Client, _retrieve_server_version=lambda: '1.20')
+    flexmock(docker.APIClient, _retrieve_server_version=lambda: '1.20')

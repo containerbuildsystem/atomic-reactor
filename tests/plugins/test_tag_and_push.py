@@ -103,7 +103,7 @@ def test_tag_and_push_plugin(
 
     if MOCK:
         mock_docker()
-        flexmock(docker.Client, push=lambda iid, **kwargs: iter(logs),
+        flexmock(docker.APIClient, push=lambda iid, **kwargs: iter(logs),
                  login=lambda username, registry, dockercfg_path: {'Status': 'Login Succeeded'})
 
     tasker = DockerTasker()
