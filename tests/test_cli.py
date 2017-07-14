@@ -197,9 +197,14 @@ class TestCLISuite(object):
                 self.exec_cli(command)
 
         # first message should be 'log encoding: <encoding>'
-        match = caplog.records()[0].message.split(':')
+        match = None
+        for record in caplog.records():
+            if 'log encoding:' in record.message:
+                match = record.message.split(':')[1]
+                break
+
         if not match:
             raise RuntimeError
 
-        encoding = codecs.getreader(match[1])
+        encoding = codecs.getreader(match)
         assert encoding == encodings.utf_8.StreamReader
