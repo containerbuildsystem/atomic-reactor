@@ -46,6 +46,12 @@ After that is also another check via parameter :
 which disallows to overwrite labels in the list if they are in dockerfile
 
 Keys and values are quoted as necessary.
+
+
+Equal labels, are more precisely labels of equal preferences, as they might
+have same values, in case there is more equal labels specified in dockerfile
+with different values, the value from the first in the list will be used
+to set value for the missing ones.
 """
 
 from __future__ import unicode_literals
@@ -193,64 +199,35 @@ class AddLabelsPlugin(PreBuildPlugin):
             self.log.debug("applied only some aliases, following old labels were not found: %s",
                            ", ".join(not_applied))
 
-        def check_if_all_same(labels_to_check, source):
-            """
-            checks if all specified equal labels have same values
-            within same scope (base or new_labels)
-            """
-            if labels_to_check:
-                list_to_check = list(labels_to_check)
-
-                for equal_name in list_to_check[1:]:
-                    if source[list_to_check[0]] != source[equal_name]:
-                        return False
-            return True
-
-        def set_missing_labels(labels_set, all_labels, value_from, not_in=(), not_value=None):
-            labels_to_set = all_labels.difference(labels_set)
-            list_labels_set = list(labels_set)
+        def set_missing_labels(labels_found, all_labels, value_from, not_in=(), not_value=None):
+            labels_to_set = all_labels.difference(set(labels_found))
 
             for set_label in labels_to_set:
-                if set_label in not_in and value_from[list_labels_set[0]] == not_value[set_label]:
+                if set_label in not_in and value_from[labels_found[0]] == not_value[set_label]:
                     self.log.debug("skipping label %r because it is set correctly in base image",
                                    set_label)
                 else:
-                    self.labels[set_label] = value_from[list_labels_set[0]]
+                    self.labels[set_label] = value_from[labels_found[0]]
                     self.log.warning("adding equal label %r with value %r",
-                                     set_label, value_from[list_labels_set[0]])
+                                     set_label, value_from[labels_found[0]])
 
-        fail_build = False
         for equal_list in self.equal_labels:
             all_equal = set(equal_list)
-            found_labels_base = set()
-            found_labels_new = set()
+            found_labels_base = []
+            found_labels_new = []
             for equal_label in equal_list:
                 if equal_label in new_labels:
-                    found_labels_new.add(equal_label)
+                    found_labels_new.append(equal_label)
                 elif equal_label in base_labels:
-                    found_labels_base.add(equal_label)
+                    found_labels_base.append(equal_label)
 
             if found_labels_new:
-                if not check_if_all_same(found_labels_new, new_labels):
-                    self.log.error("labels in dockerfile don't have same values %s", equal_list)
-                    fail_build = True
-                    continue
 
-                if not fail_build:
-                    set_missing_labels(found_labels_new, all_equal, new_labels,
-                                       found_labels_base, base_labels)
+                set_missing_labels(found_labels_new, all_equal, new_labels,
+                                   found_labels_base, base_labels)
 
             elif found_labels_base:
-                if not check_if_all_same(found_labels_base, base_labels):
-                    self.log.error("labels in parent don't have same values %s", equal_list)
-                    fail_build = True
-                    continue
-
-                if not fail_build:
-                    set_missing_labels(found_labels_base, all_equal, base_labels)
-
-        if fail_build:
-            raise RuntimeError("equal labels have different values")
+                set_missing_labels(found_labels_base, all_equal, base_labels)
 
     def add_info_url(self, base_labels, df_labels, plugin_labels):
         all_labels = base_labels.copy()

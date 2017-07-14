@@ -354,45 +354,45 @@ def test_add_labels_aliases(tmpdir, docker_tasker, caplog,
         assert exp_log in caplog.text()
 
 
-@pytest.mark.parametrize('base_fst, base_snd, df_fst, df_snd, expected, expected_log', [  # noqa
-    (None,  None,  None,  None,  None,  None),
-    (None,  None,  None,  'A',   'A',   'adding equal label'),
-    (None,  None,  'A',   None,  'A',   'adding equal label'),
-    ('A',   None,  None,  None,  'A',   'adding equal label'),
-    (None,  'A',   None,  None,  'A',   'adding equal label'),
-    ('A',   'B',   None,  None,  None,  RuntimeError()),
-    (None,  None,  'A',   'B',   None,  RuntimeError()),
-    ('A',   'A',   None,  None,  'A',   None),
-    ('A',   None,  'A',   None,  'A',   'adding equal label'),
-    (None,  'A',   None,  'A',   'A',   'adding equal label'),
-    ('A',   None,  'B',   None,  'B',   'adding equal label'),
-    (None,  'A',   None,  'B',   'B',   'adding equal label'),
-    ('A',   'C',   'B',   None,  'B',   'adding equal label'),
-    ('A',   'C',   None,  'B',   'B',   'adding equal label'),
-    ('A',   'C',   'B',   'B',   'B',   None),
-    (None,  'A',   'B',   'B',   'B',   None),
-    ('A',   None,  'B',   'B',   'B',   None),
-    ('A',   'A',   None,  None,  'A',   None),
-    ('A',   None,  None,  'A',   'A',   'skipping label'),
-    (None,  'A',   'A',   None,  'A',   'skipping label'),
+@pytest.mark.parametrize('base_l, df_l, expected, expected_log', [  # noqa
+    ((None, None), (None, None), (None, None), None),
+    ((None, None), (None, 'A'), ('A', 'A'), 'adding equal label'),
+    ((None, None), ('A', None), ('A', 'A'), 'adding equal label'),
+    (('A',  None), (None, None), ('A', 'A'), 'adding equal label'),
+    ((None, 'A'), (None, None), ('A', 'A'), 'adding equal label'),
+    (('A', 'B'), (None, None), ('A', 'B'), None),
+    ((None, None), ('A', 'B'), ('A', 'B'), None),
+    (('A', 'A'), (None, None), ('A', 'A'), None),
+    (('A', None), ('A', None), ('A', 'A'), 'adding equal label'),
+    ((None, 'A'), (None, 'A'), ('A', 'A'), 'adding equal label'),
+    (('A', None), ('B', None), ('B', 'B'), 'adding equal label'),
+    ((None, 'A'), (None, 'B'), ('B', 'B'), 'adding equal label'),
+    (('A', 'C'), ('B', None), ('B', 'B'), 'adding equal label'),
+    (('A', 'C'), (None, 'B'), ('B', 'B'), 'adding equal label'),
+    (('A', 'C'), ('B', 'B'), ('B', 'B'), None),
+    ((None, 'A'), ('B', 'B'), ('B', 'B'), None),
+    (('A', None), ('B', 'B'), ('B', 'B'), None),
+    (('A', 'A'), (None, None), ('A', 'A'), None),
+    (('A', None), (None, 'A'), ('A', 'A'), 'skipping label'),
+    ((None, 'A'), ('A', None), ('A', 'A'), 'skipping label'),
 ])
 def test_add_labels_equal_aliases(tmpdir, docker_tasker, caplog,
-                                  base_fst, base_snd, df_fst, df_snd, expected, expected_log):
+                                  base_l, df_l, expected, expected_log):
     if MOCK:
         mock_docker()
 
     df_content = "FROM fedora\n"
     plugin_labels = {}
-    if df_fst:
-        df_content += 'LABEL description="{0}"\n'.format(df_fst)
-    if df_snd:
-        df_content += 'LABEL io.k8s.description="{0}"\n'.format(df_snd)
+    if df_l[0]:
+        df_content += 'LABEL description="{0}"\n'.format(df_l[0])
+    if df_l[1]:
+        df_content += 'LABEL io.k8s.description="{0}"\n'.format(df_l[1])
 
     base_labels = {INSPECT_CONFIG: {"Labels": {}}}
-    if base_fst:
-        base_labels[INSPECT_CONFIG]["Labels"]["description"] = base_fst
-    if base_snd:
-        base_labels[INSPECT_CONFIG]["Labels"]["io.k8s.description"] = base_snd
+    if base_l[0]:
+        base_labels[INSPECT_CONFIG]["Labels"]["description"] = base_l[0]
+    if base_l[1]:
+        base_labels[INSPECT_CONFIG]["Labels"]["io.k8s.description"] = base_l[1]
 
     df = df_parser(str(tmpdir))
     df.content = df_content
@@ -417,35 +417,34 @@ def test_add_labels_equal_aliases(tmpdir, docker_tasker, caplog,
         }]
     )
 
-    if isinstance(expected_log, RuntimeError):
-        with pytest.raises(PluginFailedException):
-            runner.run()
-    else:
-        runner.run()
-        assert AddLabelsPlugin.key is not None
-        result_fst = df.labels.get("description") or \
-            base_labels[INSPECT_CONFIG]["Labels"].get("description")
-        result_snd = df.labels.get("io.k8s.description") or \
-            base_labels[INSPECT_CONFIG]["Labels"].get("io.k8s.description")
-        assert result_fst == expected
-        assert result_snd == expected
+    runner.run()
+    assert AddLabelsPlugin.key is not None
+    result_fst = df.labels.get("description") or \
+        base_labels[INSPECT_CONFIG]["Labels"].get("description")
+    result_snd = df.labels.get("io.k8s.description") or \
+        base_labels[INSPECT_CONFIG]["Labels"].get("io.k8s.description")
+    assert result_fst == expected[0]
+    assert result_snd == expected[1]
 
-        if expected_log:
-            assert expected_log in caplog.text()
+    if expected_log:
+        assert expected_log in caplog.text()
 
 
-@pytest.mark.parametrize('base_fst, base_snd, base_trd, df_fst, df_snd, df_trd, expected, expected_log', [  # noqa
-    (None,  None,  None,  None,  None,  None,  None,  None),
-    (None,  None,  None,  None,  None,  'A',   'A',   'adding equal label'),
-    ('A',   'B',   'B',   None,  None,  None,  None,  RuntimeError()),
-    (None,  None,  None,  'A',   'B',   'B',   None,  RuntimeError()),
-    ('A',   'A',   'A',   None,  None,  None,  'A',   None),
-    ('A',   None,  'A',   'A',   None,  'A',   'A',   'adding equal label'),
-    ('A',   None,  None,  None,  'A',   'A',   'A',   'skipping label'),
-    (None,  'A',   'A',   'A',   'A',   None,  'A',   'skipping label'),
+@pytest.mark.parametrize('base_l, df_l, expected, expected_log', [  # noqa
+    ((None, None, None), (None, None, None), (None, None, None), None),
+    ((None, None, None), (None, None, 'A'), ('A', 'A', 'A'), 'adding equal label'),
+    (('A', 'B', 'B'), (None, None, None), ('A', 'B', 'B'), None),
+    ((None, None, None), ('A', 'B', 'B'), ('A', 'B', 'B'), None),
+    (('A', 'A', 'A'), (None, None, None), ('A', 'A', 'A'), None),
+    (('A', None, 'A'), ('A', None, 'A'), ('A', 'A', 'A'), 'adding equal label'),
+    (('A', None, None), (None, 'A', 'A'), ('A', 'A', 'A'), 'skipping label'),
+    ((None, 'A', 'A'), ('A', 'A', None), ('A', 'A', 'A'), 'skipping label'),
+    (('A', 'A', 'A'), ('B', 'C', None), ('B', 'C', 'B'), 'adding equal label'),
+    (('A', 'A', 'A'), (None, 'C', 'D'), ('C', 'C', 'D'), 'adding equal label'),
+    (('A', 'A', 'A'), ('B', None, 'D'), ('B', 'B', 'D'), 'adding equal label'),
 ])
-def test_add_labels_equal_aliases2(tmpdir, docker_tasker, caplog, base_fst, base_snd, base_trd,
-                                   df_fst, df_snd, df_trd, expected, expected_log):
+def test_add_labels_equal_aliases2(tmpdir, docker_tasker, caplog, base_l,
+                                   df_l, expected, expected_log):
     """
     test with 3 equal labels
     """
@@ -454,20 +453,20 @@ def test_add_labels_equal_aliases2(tmpdir, docker_tasker, caplog, base_fst, base
 
     df_content = "FROM fedora\n"
     plugin_labels = {}
-    if df_fst:
-        df_content += 'LABEL description="{0}"\n'.format(df_fst)
-    if df_snd:
-        df_content += 'LABEL io.k8s.description="{0}"\n'.format(df_snd)
-    if df_trd:
-        df_content += 'LABEL description_third="{0}"\n'.format(df_trd)
+    if df_l[0]:
+        df_content += 'LABEL description="{0}"\n'.format(df_l[0])
+    if df_l[1]:
+        df_content += 'LABEL io.k8s.description="{0}"\n'.format(df_l[1])
+    if df_l[2]:
+        df_content += 'LABEL description_third="{0}"\n'.format(df_l[2])
 
     base_labels = {INSPECT_CONFIG: {"Labels": {}}}
-    if base_fst:
-        base_labels[INSPECT_CONFIG]["Labels"]["description"] = base_fst
-    if base_snd:
-        base_labels[INSPECT_CONFIG]["Labels"]["io.k8s.description"] = base_snd
-    if base_trd:
-        base_labels[INSPECT_CONFIG]["Labels"]["description_third"] = base_trd
+    if base_l[0]:
+        base_labels[INSPECT_CONFIG]["Labels"]["description"] = base_l[0]
+    if base_l[1]:
+        base_labels[INSPECT_CONFIG]["Labels"]["io.k8s.description"] = base_l[1]
+    if base_l[2]:
+        base_labels[INSPECT_CONFIG]["Labels"]["description_third"] = base_l[2]
 
     df = df_parser(str(tmpdir))
     df.content = df_content
@@ -504,9 +503,9 @@ def test_add_labels_equal_aliases2(tmpdir, docker_tasker, caplog, base_fst, base
             base_labels[INSPECT_CONFIG]["Labels"].get("io.k8s.description")
         result_trd = df.labels.get("description_third") or \
             base_labels[INSPECT_CONFIG]["Labels"].get("description_third")
-        assert result_fst == expected
-        assert result_snd == expected
-        assert result_trd == expected
+        assert result_fst == expected[0]
+        assert result_snd == expected[1]
+        assert result_trd == expected[2]
 
         if expected_log:
             assert expected_log in caplog.text()
