@@ -30,6 +30,7 @@ from atomic_reactor.plugin import (
 from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.util import ImageName
 from atomic_reactor.build import BuildResult
+from atomic_reactor import get_logging_encoding
 
 
 logger = logging.getLogger(__name__)
@@ -436,6 +437,10 @@ def build_inside(input_method, input_args=None, substitutions=None):
             key, value = arg.split("=", 1)
             processed_keyvals[key] = value
         return processed_keyvals
+
+    main = __name__.split('.', 1)[0]
+    log_encoding = get_logging_encoding(main)
+    logger.info("log encoding: %s", log_encoding)
 
     if not input_method:
         raise RuntimeError("No input method specified!")
