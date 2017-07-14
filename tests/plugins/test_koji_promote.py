@@ -180,7 +180,9 @@ def mock_environment(tmpdir, session=None, name=None,
                      pulp_registries=0, blocksize=None,
                      task_states=None, additional_tags=None,
                      has_config=None,
-                     logs_return_bytes=True):
+                     logs_return_bytes=True,
+                     base_image_repo='Fedora',
+                     base_image_tag='22'):
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -194,7 +196,7 @@ def mock_environment(tmpdir, session=None, name=None,
     setattr(workflow, '_base_image_inspect', {'Id': base_image_id})
     setattr(workflow, 'builder', X())
     setattr(workflow.builder, 'image_id', '123456imageid')
-    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='22'))
+    setattr(workflow.builder, 'base_image', ImageName(repo=base_image_repo, tag=base_image_tag))
     setattr(workflow.builder, 'source', X())
     setattr(workflow.builder, 'built_image_info', {'ParentId': base_image_id})
     setattr(workflow.builder.source, 'dockerfile_path', None)
@@ -841,6 +843,26 @@ class TestKojiPromote(object):
         runner = create_runner(tasker, workflow, target=target)
         with pytest.raises(PluginFailedException):
             runner.run()
+
+    def test_koji_promote_scratch_base(self, tmpdir, os_env):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            session=session,
+                                            base_image_repo='scratch',
+                                            base_image_tag='latest')
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
 
     @pytest.mark.parametrize(('task_id', 'expect_success'), [
         (1234, True),

@@ -39,7 +39,8 @@ BASE_IMAGE_W_LIB_REG = LOCALHOST_REGISTRY + "/" + BASE_IMAGE_W_LIBRARY
 
 
 @pytest.mark.parametrize(('parent_registry',
-                          'df_base',      # the base image is always expected
+                          'df_base',      # the base image is always expected unless
+                                          # it's explicitly listed in 'not_expected'
                           'expected',     # additional expected images
                           'not_expected'  # additional images not expected
                           ),
@@ -101,7 +102,8 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
     workflow.builder.base_image = ImageName.parse(df_base)
 
     expected = set(expected)
-    expected.add(df_base)
+    if df_base not in not_expected:
+        expected.add(df_base)
     all_images = set(expected).union(not_expected)
     for image in all_images:
         assert not tasker.image_exists(image)
@@ -133,3 +135,7 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
 def test_pull_base_wrong_registry():
     with pytest.raises(PluginFailedException):
         test_pull_base_image_plugin('localhost:1234', BASE_IMAGE_W_REGISTRY, [], [])
+
+
+def test_pull_scratch_base():
+    test_pull_base_image_plugin('localhost:5000', 'scratch:latest', [], ['scratch:latest'])
