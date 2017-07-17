@@ -14,7 +14,7 @@ from atomic_reactor.plugin import PreBuildPlugin
 import time
 
 
-DEFAULT_POLL_TIMEOUT = 60 * 60 * 10  # 10 minutes
+DEFAULT_POLL_TIMEOUT = 60 * 10  # 10 minutes
 DEFAULT_POLL_INTERVAL = 10  # 10 seconds
 
 
