@@ -358,13 +358,13 @@ def test_get_manifest_digests(tmpdir, image, registry, insecure, creds,
             get_manifest_digests(**kwargs)
 
 
-@pytest.mark.parametrize('v1_digest,v2_digest', [
-    (True, True),
+@pytest.mark.parametrize('digest_is_v1,can_convert_v2_v1', [
     (True, False),
     (False, True),
+    (False, False),
 ])
 @responses.activate
-def test_get_manifest_digests_missing(tmpdir, v1_digest, v2_digest):
+def test_get_manifest_digests_missing(tmpdir, digest_is_v1, can_convert_v2_v1):
     kwargs = {}
 
     image = ImageName.parse('example.com/spam:latest')
@@ -377,21 +377,30 @@ def test_get_manifest_digests_missing(tmpdir, v1_digest, v2_digest):
     def request_callback(request):
         media_type = request.headers['Accept']
         media_type_prefix = media_type.split('+')[0]
-        # If requested schema version is not available, attempt to
-        # fallback to other version if possible to simulate how
-        # a docker registry behaves
-        if media_type.endswith('v2+json') and v2_digest:
-            digest = 'v2-digest'
-        elif media_type.endswith('v2+json') and v1_digest:
-            digest = 'not-used'
-            media_type_prefix = media_type_prefix.replace('v2', 'v1', 1)
-        elif media_type.endswith('v1+json') and v1_digest:
+
+        assert media_type.endswith('v2+json') or media_type.endswith('v1+json')
+
+        # Attempt to simulate how a docker registry behaves:
+        #  * If the stored digest is v1, return it
+        #  * If the stored digest is v2, and v2 is requested, return it
+        #  * If the stored digest is v2, and v1 is requested, try
+        #    to convert and return v1 or an error.
+        if digest_is_v1:
             digest = 'v1-digest'
-        elif media_type.endswith('v1+json') and v2_digest:
-            digest = 'not-used'
-            media_type_prefix = media_type_prefix.replace('v1', 'v2', 1)
+            media_type_prefix = media_type_prefix.replace('v2', 'v1', 1)
         else:
-            raise ValueError('Unexpected media type {}'.format(media_type))
+            if media_type.endswith('v2+json'):
+                digest = 'v2-digest'
+            else:
+                if not can_convert_v2_v1:
+                    # In some cases it's not possible to do the V2 => V1 conversion. For example,
+                    # if the V2 image doesn't have the legacy history information. This is the
+                    # response that the docker registry gives in that case
+                    headers = {}
+                    return (400, headers,
+                            '{"errors":[{"code":"MANIFEST_INVALID"}]}')
+
+                digest = 'v1-converted-digest'
 
         headers = {
             'Content-Type': '{}+jsonish'.format(media_type_prefix),
@@ -403,16 +412,15 @@ def test_get_manifest_digests_missing(tmpdir, v1_digest, v2_digest):
 
     actual_digests = get_manifest_digests(**kwargs)
 
-    if v1_digest:
+    if digest_is_v1:
         assert actual_digests.v1 == 'v1-digest'
-    else:
-        assert actual_digests.v1 is None
-
-    if v2_digest:
-        assert actual_digests.v2 == 'v2-digest'
-    else:
         assert actual_digests.v2 is None
-
+    else:
+        if can_convert_v2_v1:
+            assert actual_digests.v1 == 'v1-converted-digest'
+        else:
+            assert actual_digests.v1 is None
+        assert actual_digests.v2 == 'v2-digest'
 
 
 @responses.activate
