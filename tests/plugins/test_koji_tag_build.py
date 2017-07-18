@@ -28,6 +28,7 @@ except ImportError:
 
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.exit_koji_tag_build import KojiTagBuildPlugin
+from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow
@@ -90,7 +91,7 @@ class MockedClientSession(object):
 
 
 def mock_environment(tmpdir, session=None, build_process_failed=False,
-                     koji_build_id=None):
+                     koji_build_id=None, use_import=False):
     if session is None:
         session = MockedClientSession('')
 
@@ -113,7 +114,10 @@ def mock_environment(tmpdir, session=None, build_process_failed=False,
         workflow.build_result = BuildResult(image_id="id1234")
 
     if koji_build_id:
-        workflow.exit_results[KojiPromotePlugin.key] = koji_build_id
+        if use_import:
+            workflow.exit_results[KojiImportPlugin.key] = koji_build_id
+        else:
+            workflow.exit_results[KojiPromotePlugin.key] = koji_build_id
 
     return tasker, workflow
 
@@ -246,8 +250,11 @@ class TestKojiPromote(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_tag_build_success(self, tmpdir):
-        tasker, workflow = mock_environment(tmpdir, koji_build_id='98765')
+    @pytest.mark.parametrize('use_import', [
+        (True, False)
+    ])
+    def test_koji_tag_build_success(self, tmpdir, use_import):
+        tasker, workflow = mock_environment(tmpdir, koji_build_id='98765', use_import=use_import)
         runner = create_runner(tasker, workflow)
         result = runner.run()
         assert result[KojiTagBuildPlugin.key] == 'images-candidate'

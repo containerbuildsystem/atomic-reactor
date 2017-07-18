@@ -16,6 +16,7 @@ except ImportError:
 
 from atomic_reactor.plugin import ExitPlugin, PluginFailedException
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
+from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 from atomic_reactor.koji_util import create_koji_session
 from atomic_reactor.util import get_build_json
@@ -123,11 +124,13 @@ class SendMailPlugin(ExitPlugin):
         else:
             self.log.info("Koji task ID: %s", self.koji_task_id)
 
-        try:
+        self.koji_build_id = self.workflow.exit_results.get(KojiImportPlugin.key)
+        if not self.koji_build_id:
             self.koji_build_id = self.workflow.exit_results.get(KojiPromotePlugin.key)
-        except Exception:
-            self.log.exception("Failed to fetch koji build ID")
-            self.koji_build_id = None
+            if not self.koji_build_id:
+                self.log.info("Failed to fetch koji build ID")
+            else:
+                self.log.info("Koji build ID: %s", self.koji_build_id)
         else:
             self.log.info("Koji build ID: %s", self.koji_build_id)
 

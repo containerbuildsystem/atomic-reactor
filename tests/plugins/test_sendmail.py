@@ -26,6 +26,7 @@ except ImportError:
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.plugins.exit_sendmail import SendMailPlugin
+from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 from atomic_reactor import util
 from smtplib import SMTPException
@@ -114,7 +115,10 @@ class MockedPathInfo(object):
 
 class TestSendMailPlugin(object):
     def test_fails_with_unknown_states(self):
-        p = SendMailPlugin(None, None,
+        class WF(object):
+            exit_results = {}
+
+        p = SendMailPlugin(None, WF(),
                            smtp_host='smtp.bar.com', from_address='foo@bar.com',
                            send_on=['unknown_state', MS])
         with pytest.raises(PluginFailedException) as e:
@@ -146,9 +150,17 @@ class TestSendMailPlugin(object):
         (True, False, False, False, [AF, MS], True)
     ])
     def test_should_send(self, rebuild, success, auto_canceled, manual_canceled, send_on, expected):
-        p = SendMailPlugin(None, None,
-                           smtp_host='smtp.bar.com', from_address='foo@bar.com',
-                           send_on=send_on)
+        class WF(object):
+            exit_results = {
+                KojiPromotePlugin.key: MOCK_KOJI_BUILD_ID
+            }
+
+        kwargs = {
+            'smtp_host': 'smtp.bar.com',
+            'from_address': 'foo@bar.com',
+            'send_on': send_on,
+        }
+        p = SendMailPlugin(None, WF(), **kwargs)
         assert p._should_send(rebuild, success, auto_canceled, manual_canceled) == expected
 
     @pytest.mark.parametrize(('autorebuild', 'auto_cancel', 'manual_cancel',
@@ -274,10 +286,13 @@ class TestSendMailPlugin(object):
             (False, True, False, True, [MOCK_ADDITIONAL_EMAIL]),
             (False, True, True, False, [MOCK_ADDITIONAL_EMAIL]),
         ])
+    @pytest.mark.parametrize('use_import', [
+        (True, False)
+    ])
     def test_recepients_from_koji(self, monkeypatch,
                                   has_addit_address,
                                   has_koji_config, to_koji_submitter, to_koji_pkgowner,
-                                  expected_receivers):
+                                  expected_receivers, use_import):
         class TagConf(object):
             unique_images = []
 
@@ -286,9 +301,14 @@ class TestSendMailPlugin(object):
             openshift_build_selflink = '/builds/blablabla'
             build_process_failed = False
             tag_conf = TagConf()
-            exit_results = {
-                KojiPromotePlugin.key: MOCK_KOJI_BUILD_ID
-            }
+            if use_import:
+                exit_results = {
+                    KojiImportPlugin.key: MOCK_KOJI_BUILD_ID,
+                }
+            else:
+                exit_results = {
+                    KojiPromotePlugin.key: MOCK_KOJI_BUILD_ID,
+                }
 
         monkeypatch.setenv("BUILD", json.dumps({
             'metadata': {
@@ -456,7 +476,10 @@ class TestSendMailPlugin(object):
 
     @pytest.mark.parametrize('throws_exception', [False, True])
     def test_send_mail(self, throws_exception):
-        p = SendMailPlugin(None, None, from_address='foo@bar.com', smtp_host='smtp.spam.com')
+        class WF(object):
+            exit_results = {}
+
+        p = SendMailPlugin(None, WF(), from_address='foo@bar.com', smtp_host='smtp.spam.com')
 
         class SMTP(object):
             def sendmail(self, from_addr, to, msg):
@@ -491,6 +514,7 @@ class TestSendMailPlugin(object):
             image = util.ImageName.parse('repo/name')
             build_process_failed = True
             tag_conf = TagConf()
+            exit_results = {}
 
         receivers = ['foo@bar.com', 'x@y.com']
         p = SendMailPlugin(None, WF(),
@@ -515,6 +539,7 @@ class TestSendMailPlugin(object):
             image = util.ImageName.parse('repo/name')
             build_process_failed = True
             tag_conf = TagConf()
+            exit_results = {}
 
         error_addresses = ['error@address.com']
         p = SendMailPlugin(None, WF(),
@@ -536,6 +561,7 @@ class TestSendMailPlugin(object):
             prebuild_results = {CheckAndSetRebuildPlugin.key: True}
             image = util.ImageName.parse('repo/name')
             build_process_failed = True
+            exit_results = {}
 
         p = SendMailPlugin(None, WF(),
                            from_address='foo@bar.com', smtp_host='smtp.spam.com',

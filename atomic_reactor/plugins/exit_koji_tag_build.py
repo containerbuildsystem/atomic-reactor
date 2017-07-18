@@ -11,6 +11,7 @@ from __future__ import unicode_literals
 from atomic_reactor.constants import PLUGIN_KOJI_TAG_BUILD_KEY
 from atomic_reactor.koji_util import create_koji_session, tag_koji_build
 from atomic_reactor.plugin import ExitPlugin
+from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 
 
@@ -76,10 +77,13 @@ class KojiTagBuildPlugin(ExitPlugin):
             self.log.info('Build failed, skipping koji tagging')
             return
 
-        build_id = self.workflow.exit_results.get(KojiPromotePlugin.key)
+        build_id = self.workflow.exit_results.get(KojiImportPlugin.key)
         if not build_id:
-            self.log.info('No koji build from %s', KojiPromotePlugin.key)
-            return
+            build_id = self.workflow.exit_results.get(KojiPromotePlugin.key)
+            if not build_id:
+                self.log.info('No koji build from %s or %s', KojiImportPlugin.key,
+                              KojiPromotePlugin.key)
+                return
 
         session = create_koji_session(self.kojihub, self.koji_auth)
         build_tag = tag_koji_build(session, build_id, self.target,
