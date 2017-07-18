@@ -126,6 +126,9 @@ These are run after 'git clone' is used to fetch the git repository content cont
  * **koji**
    * Status: enabled
    * Based on the Koji build target for this build, a yum repo file is created so that packages can be installed from that target in Koji.
+ * **koji_parent**
+   * Status: enabled
+   * Verified parent image has a corresponding Koji build.
  * **add_yum_repo_by_url**
    * Status: enabled
    * If the developer requested a specific yum repo URL for this build, this plugin fetches the yum repo file from that URL.
@@ -200,6 +203,10 @@ These are run at the end of the build, even for failed builds.
  * **koji_promote**
    * Status: enabled
    * The 'docker save' output, build logs, and metadata are imported into Koji to create a Koji Build object.
+ * **koji_import**
+   * Status: disabled
+   * Aggregates output of **koji_upload** for each worker build to create a Koji Build object.  It will replace
+     **koji_promote** when enabled.
  * **store_metadata_in_osv3**
    * Status: enabled
    * The OpenShift Build object is annotated with information about the build, such as the Koji Build ID, built docker image ID, parent docker image ID, etc.

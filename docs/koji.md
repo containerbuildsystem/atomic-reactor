@@ -8,6 +8,8 @@ The `add_filesystem` pre-build plugin provides special handling for images with 
 
 The `koji` pre-build plugin creates a yum repofile to allow instructions in the Dockerfile to have access to RPMs available from the appropriate Koji tag.
 
+The `koji_parent` pre-build plugin determines the expected NVR (Name-Version-Release) of the Koji build for the parent image. It waits for a given amount if build does not exist yet.
+
 The `fetch_maven_artifacts` pre-build plugin will use configuration files to download external maven artifacts. One of these sources can be a Koji build.
 
 ## Exit plugins
@@ -19,6 +21,13 @@ When importing a build using the Content Generator API, metadata to describe the
 Each build creates a single output archive, in the [Combined Image JSON + Filesystem Changeset format](https://github.com/docker/docker/blob/master/image/spec/v1.2.md#combined-image-json--filesystem-changeset-format).
 
 This plugin will also tag the imported build, if `koji_tag_build` is *not* configured. Otherwise, it assumes `koji_tag_build` will perform build tagging.
+
+The `koji_upload` and `koji_import` plugins work in conjuction as a replacement to `koji_promote`.
+`koji_upload` runs as a post build plugin in the worker build to upload platform specific to koji,
+and capture platform specifc metadata.
+`koji_import` runs as an exit plugin in the orchestrator build to gather the platform specific
+metadata from each worker build and combine into a single build to be imported into Koji via
+[Koji Content Generator API](https://docs.pagure.org/koji/content_generators/).
 
 The `koji_tag_build` exit plugin is used to tag the imported koji build based on a target. [Koji Tags and Targets](https://docs.pagure.org/koji/#tags-and-targets)
 

@@ -278,12 +278,15 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python2_sitelib}/atomic_reactor/schemas
 %exclude %{python2_sitelib}/atomic_reactor/koji_util.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/exit_koji_import.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_sendmail.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/post_import_image.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/post_koji_upload.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_add_filesystem.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_koji_parent.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_fetch_maven_artifacts.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py*
 %exclude %{python2_sitelib}/integration-tests
@@ -299,8 +302,11 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python2_sitelib}/atomic_reactor/plugins/pre_add_filesystem.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
+%{python2_sitelib}/atomic_reactor/plugins/pre_koji_parent.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_fetch_maven_artifacts.py*
+%{python2_sitelib}/atomic_reactor/plugins/post_koji_upload.py*
 %{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
+%{python2_sitelib}/atomic_reactor/plugins/exit_koji_import.py*
 
 
 %files -n python-atomic-reactor-metadata
@@ -330,23 +336,29 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python3_sitelib}/atomic_reactor/__pycache__/*.py*
 %exclude %{python3_sitelib}/atomic_reactor/koji_util.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_koji_promote.py
+%exclude %{python3_sitelib}/atomic_reactor/plugins/exit_koji_import.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_sendmail.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/post_import_image.py
+%exclude %{python3_sitelib}/atomic_reactor/plugins/post_koji_upload.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_add_filesystem.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_bump_release.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_koji.py
+%exclude %{python3_sitelib}/atomic_reactor/plugins/pre_koji_parent.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_fetch_maven_artifacts.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_promote*.py*
+%exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_import*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_sendmail*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_store_metadata_in_osv3*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/post_import_image*.py*
+%exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/post_koji_upload*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_bump_release*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_add_filesystem*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_check_and_set_rebuild*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji*.py*
+%exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji_parent*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_stop_autorebuild_if_disabled*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_fetch_maven_artifacts*.py*
 %exclude %{python3_sitelib}/integration-tests
@@ -367,13 +379,19 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python3_sitelib}/atomic_reactor/plugins/pre_add_filesystem.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_bump_release.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_koji.py
+%{python3_sitelib}/atomic_reactor/plugins/pre_koji_parent.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_fetch_maven_artifacts.py
+%{python3_sitelib}/atomic_reactor/plugins/post_koji_upload.py
 %{python3_sitelib}/atomic_reactor/plugins/exit_koji_promote.py
+%{python3_sitelib}/atomic_reactor/plugins/exit_koji_import.py
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_add_filesystem*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_bump_release*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji*.py*
+%{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji_parent*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_fetch_maven_artifacts.py
+%{python3_sitelib}/atomic_reactor/plugins/__pycache__/post_koji_upload.py
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_promote*.py*
+%{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_import*.py*
 
 
 %files -n python3-atomic-reactor-metadata
