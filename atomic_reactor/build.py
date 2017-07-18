@@ -132,7 +132,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
 
         # arguments for build
         self.source = source
-        self.base_image_id = None
+        self.base_image = None
         self.image_id = None
         self.built_image_info = None
         self.image = ImageName.parse(image)
