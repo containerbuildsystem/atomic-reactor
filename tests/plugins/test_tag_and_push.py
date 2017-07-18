@@ -9,17 +9,20 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function, unicode_literals
 
 import pytest
+from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
-from atomic_reactor.util import ImageName, ManifestDigest
+from atomic_reactor.util import ImageName, ManifestDigest, get_exported_image_metadata
 from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE, MOCK, DOCKER0_REGISTRY
 
 import json
 import os.path
 from tempfile import mkdtemp
 import requests
+import subprocess
+import tarfile
 
 if MOCK:
     import docker
@@ -29,6 +32,7 @@ if MOCK:
 
 DIGEST_V1 = 'sha256:7de72140ec27a911d3f88d60335f08d6530a4af136f7beab47797a196e840afd'
 DIGEST_V2 = 'sha256:85a7e3fb684787b86e64808c5b91d926afda9d6b35a0642a72d7a746452e71c1'
+DIGEST_OCI = 'sha256:bb57e66a2dabcd59a721639b67bafb6d8aa35fbe0939d39a51b087b4504718e0'
 
 DIGEST_LOG = 'sha256:hey-this-should-not-be-used'
 PUSH_LOGS_1_10 = [
@@ -274,13 +278,211 @@ def test_tag_and_push_plugin(
         if MOCK:
             # we only test this when mocking docker because we don't expect
             # running actual docker against v2 registry
-            expected_digest = ManifestDigest(v1=DIGEST_V1, v2=DIGEST_V2)
+            expected_digest = ManifestDigest(v1=DIGEST_V1, v2=DIGEST_V2, oci=None)
             assert workflow.push_conf.docker_registries[0].digests[image_name].v1 == \
                 expected_digest.v1
             assert workflow.push_conf.docker_registries[0].digests[image_name].v2 == \
                 expected_digest.v2
+            assert workflow.push_conf.docker_registries[0].digests[image_name].oci == \
+                expected_digest.oci
 
             if has_config:
                 assert isinstance(workflow.push_conf.docker_registries[0].config, dict)
             else:
                 assert workflow.push_conf.docker_registries[0].config is None
+
+
+@pytest.mark.parametrize("use_secret", [
+    True,
+    False,
+])
+def test_tag_and_push_plugin_oci(
+        tmpdir, monkeypatch, use_secret):
+
+    # For now, we don't want to require having a skopeo and an OCI-supporting
+    # registry in the test environment
+    if MOCK:
+        mock_docker()
+    else:
+        return
+
+    tasker = DockerTasker()
+    workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
+    setattr(workflow, 'builder', X)
+
+    secret_path = None
+    if use_secret:
+        temp_dir = mkdtemp()
+        with open(os.path.join(temp_dir, ".dockercfg"), "w+") as dockerconfig:
+            dockerconfig_contents = {
+                LOCALHOST_REGISTRY: {
+                    "username": "user", "email": "test@example.com", "password": "mypassword"}}
+            dockerconfig.write(json.dumps(dockerconfig_contents))
+            dockerconfig.flush()
+            secret_path = temp_dir
+
+    CONFIG_DIGEST = 'sha256:b79482f7dcab2a326c1e8c7025a4336d900e99f50db8b35a659fda67b5ebb3c2'
+    MEDIA_TYPE = 'application/vnd.oci.image.manifest.v1+json'
+    REF_NAME = "app/org.gnome.eog/x86_64/master"
+
+    manifest_json = {
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "config": {
+            "mediaType": MEDIA_TYPE,
+            "digest": CONFIG_DIGEST,
+            "size": 314
+        },
+        "layers": [
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "digest": "sha256:fd2b341d2ff3751ecdee8d8daacaa650d8a1703360c85d4cfc452d6ec32e147f",
+                "size": 1863477
+            }
+        ],
+        "annotations": {
+            "org.flatpak.commit-metadata.xa.ref": "YXBwL29yZy5nbm9tZS5lb2cveDg2XzY0L21hc3RlcgAAcw==",  # noqa
+            "org.flatpak.body": "Name: org.gnome.eog\nArch: x86_64\nBranch: master\nBuilt with: Flatpak 0.9.7\n",  # noqa
+            "org.flatpak.commit-metadata.xa.metadata": "W0FwcGxpY2F0aW9uXQpuYW1lPW9yZy5nbm9tZS5lb2cKcnVudGltZT1vcmcuZmVkb3JhcHJvamVjdC5QbGF0Zm9ybS94ODZfNjQvMjYKc2RrPW9yZy5mZWRvcmFwcm9qZWN0LlBsYXRmb3JtL3g4Nl82NC8yNgpjb21tYW5kPWVvZwoKW0NvbnRleHRdCnNoYXJlZD1pcGM7CnNvY2tldHM9eDExO3dheWxhbmQ7c2Vzc2lvbi1idXM7CmZpbGVzeXN0ZW1zPXhkZy1ydW4vZGNvbmY7aG9zdDt+Ly5jb25maWcvZGNvbmY6cm87CgpbU2Vzc2lvbiBCdXMgUG9saWN5XQpjYS5kZXNydC5kY29uZj10YWxrCgpbRW52aXJvbm1lbnRdCkRDT05GX1VTRVJfQ09ORklHX0RJUj0uY29uZmlnL2Rjb25mCgAAcw==",  # noqa
+            "org.flatpak.download-size": "1863477",
+            "org.flatpak.commit-metadata.xa.download-size": "AAAAAAAdF/IAdA==",
+            "org.flatpak.commit-metadata.xa.installed-size": "AAAAAABDdgAAdA==",
+            "org.flatpak.subject": "Export org.gnome.eog",
+            "org.flatpak.installed-size": "4421120",
+            "org.flatpak.commit": "d7b8789350660724b20643ebb615df466566b6d04682fa32800d3f10116eec54",  # noqa
+            "org.flatpak.metadata": "[Application]\nname=org.gnome.eog\nruntime=org.fedoraproject.Platform/x86_64/26\nsdk=org.fedoraproject.Platform/x86_64/26\ncommand=eog\n\n[Context]\nshared=ipc;\nsockets=x11;wayland;session-bus;\nfilesystems=xdg-run/dconf;host;~/.config/dconf:ro;\n\n[Session Bus Policy]\nca.desrt.dconf=talk\n\n[Environment]\nDCONF_USER_CONFIG_DIR=.config/dconf\n",  # noqa
+            "org.opencontainers.image.ref.name": REF_NAME,
+            "org.flatpak.timestamp": "1499376525"
+        }
+    }
+
+    config_json = {
+        "created": "2017-07-06T21:28:45Z",
+        "architecture": "arm64",
+        "os": "linux",
+        "config": {
+            "Memory": 0,
+            "MemorySwap": 0,
+            "CpuShares": 0
+        },
+        "rootfs": {
+            "type": "layers",
+            "diff_ids": [
+                "sha256:4c5160fea65110aa1eb8ca022e2693bb868367c2502855887f21c77247199339"
+            ]
+        }
+    }
+
+    # Add a mock OCI image to exported_image_sequence; this forces the tag_and_push
+    # plugin to push with skopeo rather than with 'docker push'
+
+    # Since we are always mocking the push for now, we can get away with a stub image
+    oci_dir = os.path.join(str(tmpdir), 'oci-image')
+    os.mkdir(oci_dir)
+    with open(os.path.join(oci_dir, "index.json"), "w") as f:
+        f.write('"Not a real index.json"')
+    with open(os.path.join(oci_dir, "oci-layout"), "w") as f:
+        f.write('{"imageLayoutVersion": "1.0.0"}')
+    os.mkdir(os.path.join(oci_dir, 'blobs'))
+
+    metadata = get_exported_image_metadata(oci_dir, IMAGE_TYPE_OCI)
+    metadata['ref_name'] = REF_NAME
+    workflow.exported_image_sequence.append(metadata)
+
+    oci_tarpath = os.path.join(str(tmpdir), 'oci-image.tar')
+    with open(oci_tarpath, "wb") as f:
+        with tarfile.TarFile(mode="w", fileobj=f) as tf:
+            for f in os.listdir(oci_dir):
+                tf.add(os.path.join(oci_dir, f), f)
+
+    metadata = get_exported_image_metadata(oci_tarpath, IMAGE_TYPE_OCI_TAR)
+    metadata['ref_name'] = REF_NAME
+    workflow.exported_image_sequence.append(metadata)
+
+    # Mock the subprocess call to skopeo
+
+    def check_check_call(args, **kwargs):
+        assert args[0] == 'skopeo'
+        if use_secret:
+            assert '--dest-creds=user:mypassword' in args
+        assert '--dest-tls-verify=false' in args
+        assert args[-2] == 'oci:' + oci_dir + '::' + REF_NAME
+        assert args[-1] == 'docker://' + LOCALHOST_REGISTRY + '/' + TEST_IMAGE
+
+    (flexmock(subprocess)
+     .should_receive("check_call")
+     .once()
+     .replace_with(check_check_call))
+
+    # Mock out the response from the registry once the OCI image is uploaded
+
+    manifest_latest_url = "https://{}/v2/{}/manifests/latest".format(LOCALHOST_REGISTRY, TEST_IMAGE)
+    manifest_url = "https://{}/v2/{}/manifests/{}".format(
+        LOCALHOST_REGISTRY, TEST_IMAGE, DIGEST_OCI)
+    config_blob_url = "https://{}/v2/{}/blobs/{}".format(
+        LOCALHOST_REGISTRY, TEST_IMAGE, CONFIG_DIGEST)
+
+    manifest_response = requests.Response()
+    (flexmock(manifest_response,
+              raise_for_status=lambda: None,
+              json=manifest_json,
+              headers={
+                'Content-Type': MEDIA_TYPE,
+                'Docker-Content-Digest': DIGEST_OCI
+              }))
+
+    manifest_unacceptable_response = requests.Response()
+    (flexmock(manifest_unacceptable_response,
+              status_code=404,
+              json={
+                  "errors": [{"code": "MANIFEST_UNKNOWN"}]
+              }))
+
+    config_blob_response = requests.Response()
+    (flexmock(config_blob_response, raise_for_status=lambda: None, json=config_json))
+
+    def custom_get(method, url, headers, **kwargs):
+        if url == manifest_latest_url:
+            if headers['Accept'] == MEDIA_TYPE:
+                return manifest_response
+            else:
+                return manifest_unacceptable_response
+
+        if url == manifest_url:
+            return manifest_response
+
+        if url == config_blob_url:
+            return config_blob_response
+
+    mock_get_retry_session()
+
+    (flexmock(requests.Session)
+        .should_receive('request')
+        .replace_with(custom_get))
+
+    runner = PostBuildPluginsRunner(
+        tasker,
+        workflow,
+        [{
+            'name': TagAndPushPlugin.key,
+            'args': {
+                'registries': {
+                    LOCALHOST_REGISTRY: {
+                        'insecure': True,
+                        'secret': secret_path
+                    }
+                }
+            },
+        }]
+    )
+
+    output = runner.run()
+    image = output[TagAndPushPlugin.key][0]
+    tasker.remove_image(image)
+    assert len(workflow.push_conf.docker_registries) > 0
+
+    assert workflow.push_conf.docker_registries[0].digests[TEST_IMAGE].v1 is None
+    assert workflow.push_conf.docker_registries[0].digests[TEST_IMAGE].v2 is None
+    assert workflow.push_conf.docker_registries[0].digests[TEST_IMAGE].oci == DIGEST_OCI
+
+    assert workflow.push_conf.docker_registries[0].config is config_json
