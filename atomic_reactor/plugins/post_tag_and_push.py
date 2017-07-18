@@ -7,10 +7,12 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from copy import deepcopy
+import subprocess
 
+from atomic_reactor.constants import IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
-from atomic_reactor.util import get_manifest_digests, get_config_from_registry
+from atomic_reactor.util import get_manifest_digests, get_config_from_registry, Dockercfg
 
 
 __all__ = ('TagAndPushPlugin', )
@@ -43,14 +45,62 @@ class TagAndPushPlugin(PostBuildPlugin):
 
         self.registries = deepcopy(registries)
 
+    def need_skopeo_push(self):
+        if len(self.workflow.exported_image_sequence) > 0:
+            last_image = self.workflow.exported_image_sequence[-1]
+            if last_image['type'] == IMAGE_TYPE_OCI or last_image['type'] == IMAGE_TYPE_OCI_TAR:
+                return True
+
+        return False
+
+    def push_with_skopeo(self, registry_image, insecure, docker_push_secret):
+        # If the last image has type OCI_TAR, then hunt back and find the
+        # the untarred version, since skopeo only supports OCI's as an
+        # untarred directory
+        index = 1
+        while index <= len(self.workflow.exported_image_sequence):
+            image = self.workflow.exported_image_sequence[-index]
+            if image['type'] != IMAGE_TYPE_OCI_TAR:
+                break
+            index += 1
+        assert image is not None
+
+        cmd = ['skopeo', 'copy']
+        if docker_push_secret is not None:
+            dockercfg = Dockercfg(docker_push_secret)
+            credentials = dockercfg.get_credentials(registry_image.registry)
+            username = credentials['username']
+            password = credentials['password']
+
+            cmd.append('--dest-creds=' + username + ':' + password)
+
+        if insecure:
+            cmd.append('--dest-tls-verify=false')
+
+        if image['type'] == IMAGE_TYPE_OCI:
+            source_img = 'oci:{path}::{ref_name}'.format(**image)
+        elif image['type'] == IMAGE_TYPE_DOCKER_ARCHIVE:
+            source_img = 'docker-archive://{path}'.format(**image)
+        else:
+            raise RuntimeError("Attempt to push unsupported image type %s with skopeo",
+                               image['type'])
+
+        dest_img = 'docker://' + registry_image.to_str()
+
+        cmd += [source_img, dest_img]
+
+        self.log.info("Calling: %s", ' '.join(cmd))
+        subprocess.check_call(cmd)
+
     def run(self):
         pushed_images = []
 
         if not self.workflow.tag_conf.unique_images:
             self.workflow.tag_conf.add_unique_image(self.workflow.image)
 
-        first_v2_digest = None
-        first_registry_image = None
+        config_manifest_digest = None
+        config_manifest_type = None
+        config_registry_image = None
         for registry, registry_conf in self.registries.items():
             insecure = registry_conf.get('insecure', False)
             push_conf_registry = \
@@ -65,28 +115,36 @@ class TagAndPushPlugin(PostBuildPlugin):
 
                 registry_image = image.copy()
                 registry_image.registry = registry
-                self.tasker.tag_and_push_image(self.workflow.builder.image_id,
-                                               registry_image, insecure=insecure,
-                                               force=True, dockercfg=docker_push_secret)
+                if self.need_skopeo_push():
+                    self.push_with_skopeo(registry_image, insecure, docker_push_secret)
+                else:
+                    self.tasker.tag_and_push_image(self.workflow.builder.image_id,
+                                                   registry_image, insecure=insecure,
+                                                   force=True, dockercfg=docker_push_secret)
+                    defer_removal(self.workflow, registry_image)
 
                 pushed_images.append(registry_image)
-                defer_removal(self.workflow, registry_image)
 
                 digests = get_manifest_digests(registry_image, registry,
                                                insecure, docker_push_secret)
                 tag = registry_image.to_str(registry=False)
                 push_conf_registry.digests[tag] = digests
 
-                if not first_v2_digest and digests.v2:
-                    first_v2_digest = digests.v2
-                    first_registry_image = registry_image
+                if not config_manifest_digest and (digests.v2 or digests.oci):
+                    if digests.v2:
+                        config_manifest_digest = digests.v2
+                        config_manifest_type = 'v2'
+                    else:
+                        config_manifest_digest = digests.oci
+                        config_manifest_type = 'oci'
+                    config_registry_image = registry_image
 
-            if first_v2_digest:
+            if config_manifest_digest:
                 push_conf_registry.config = get_config_from_registry(
-                    first_registry_image, registry, first_v2_digest, insecure,
-                    docker_push_secret, 'v2')
+                    config_registry_image, registry, config_manifest_digest, insecure,
+                    docker_push_secret, config_manifest_type)
             else:
-                self.log.info("V2 schema 2 digest is not available")
+                self.log.info("V2 schema 2 or OCI manifest is not available to get config from")
 
         self.log.info("All images were tagged and pushed")
         return pushed_images
