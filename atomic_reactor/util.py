@@ -693,7 +693,6 @@ def query_registry(image, registry, digest=None, insecure=False, dockercfg_path=
 
         try:
             response = requests.get(url, **kwargs)
-            response.raise_for_status()
             break
         except (ConnectionError, SSLError):
             # If there are no more registry URLs to try, let the exception
@@ -725,6 +724,16 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
             image, registry, digest=None,
             insecure=insecure, dockercfg_path=dockercfg_path,
             version=version)
+
+        # If the registry has a v2 manifest that can't be converted into a v1
+        # manifest, the registry fails with status=400, and a error code of
+        # MANIFEST_INVALID.
+        if version == 'v1' and response.status_code == 400:
+            logger.warning('Unable to fetch digest for %s, got error %s',
+                           media_type, response.status_code)
+            continue
+
+        response.raise_for_status()
 
         # Only compare prefix as response may use +prettyjws suffix
         # which is the case for signed manifest
