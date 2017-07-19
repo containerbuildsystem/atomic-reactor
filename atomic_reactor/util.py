@@ -27,8 +27,8 @@ import yaml
 import codecs
 import string
 
-from atomic_reactor.constants import DOCKERFILE_FILENAME, TOOLS_USED, INSPECT_CONFIG,\
-                                     IMAGE_TYPE_OCI,\
+from atomic_reactor.constants import DOCKERFILE_FILENAME, FLATPAK_FILENAME, TOOLS_USED,\
+                                     INSPECT_CONFIG, IMAGE_TYPE_OCI,\
                                      HTTP_MAX_RETRIES, HTTP_BACKOFF_FACTOR,\
                                      HTTP_CLIENT_STATUS_RETRY
 
@@ -125,11 +125,12 @@ class ImageName(object):
             tag=self.tag)
 
 
-def figure_out_dockerfile(absolute_path, local_path=None):
+def figure_out_build_file(absolute_path, local_path=None):
     """
-    try to figure out dockerfile from provided path and optionally from relative local path
-    this is meant to be used with git repo: absolute_path is path to git repo,
-    local_path is path to dockerfile within git repo
+    try to figure out the build file (Dockerfile or flatpak.json) from provided
+    path and optionally from relative local path this is meant to be used with
+    git repo: absolute_path is path to git repo, local_path is path to dockerfile
+    within git repo
 
     :param absolute_path:
     :param local_path:
@@ -138,20 +139,25 @@ def figure_out_dockerfile(absolute_path, local_path=None):
     logger.info("searching for dockerfile in '%s' (local path %s)", absolute_path, local_path)
     logger.debug("abs path = '%s', local path = '%s'", absolute_path, local_path)
     if local_path:
-        if local_path.endswith(DOCKERFILE_FILENAME):
-            git_df_dir = os.path.dirname(local_path)
-            df_dir = os.path.abspath(os.path.join(absolute_path, git_df_dir))
+        if local_path.endswith(DOCKERFILE_FILENAME) or local_path.endswith(FLATPAK_FILENAME):
+            git_build_file_dir = os.path.dirname(local_path)
+            build_file_dir = os.path.abspath(os.path.join(absolute_path, git_build_file_dir))
         else:
-            df_dir = os.path.abspath(os.path.join(absolute_path, local_path))
+            build_file_dir = os.path.abspath(os.path.join(absolute_path, local_path))
     else:
-        df_dir = os.path.abspath(absolute_path)
-    if not os.path.isdir(df_dir):
-        raise IOError("Directory '%s' doesn't exist." % df_dir)
-    df_path = os.path.join(df_dir, DOCKERFILE_FILENAME)
-    if not os.path.isfile(df_path):
-        raise IOError("Dockerfile '%s' doesn't exist." % df_path)
-    logger.debug("Dockerfile found: '%s'", df_path)
-    return df_path, df_dir
+        build_file_dir = os.path.abspath(absolute_path)
+    if not os.path.isdir(build_file_dir):
+        raise IOError("Directory '%s' doesn't exist." % build_file_dir)
+    # Check for flatpak.json first because we do flatpak.json => Dockerfile generation
+    build_file_path = os.path.join(build_file_dir, FLATPAK_FILENAME)
+    if os.path.isfile(build_file_path):
+        logger.debug("flatpak.json found: '%s'", build_file_path)
+        return build_file_path, build_file_dir
+    build_file_path = os.path.join(build_file_dir, DOCKERFILE_FILENAME)
+    if os.path.isfile(build_file_path):
+        logger.debug("Dockerfile found: '%s'", build_file_path)
+        return build_file_path, build_file_dir
+    raise IOError("Dockerfile '%s' doesn't exist." % build_file_path)
 
 
 class CommandResult(object):

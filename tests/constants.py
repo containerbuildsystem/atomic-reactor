@@ -24,6 +24,8 @@ DOCKERFILE_OK_PATH = os.path.join(FILES, 'docker-hello-world')
 DOCKERFILE_ERROR_BUILD_PATH = os.path.join(FILES, 'docker-hello-world-error-build')
 DOCKERFILE_SUBDIR_PATH = os.path.join(FILES, 'df-in-subdir')
 
+FLATPAK_GIT = "git://pkgs.fedoraproject.org/modules/eog.git"
+
 SOURCE = {
     'provider': 'git',
     'uri': DOCKERFILE_GIT,

@@ -37,7 +37,7 @@ from atomic_reactor.constants import CONTAINER_SHARE_PATH, CONTAINER_SHARE_SOURC
         DOCKER_CLIENT_STATUS_RETRY
 from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.util import (
-    ImageName, wait_for_command, clone_git_repo, figure_out_dockerfile, Dockercfg)
+    ImageName, wait_for_command, clone_git_repo, figure_out_build_file, Dockercfg)
 
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
@@ -327,10 +327,10 @@ class DockerTasker(LastLogger):
         response = None
         try:
             clone_git_repo(url, temp_dir, git_commit)
-            df_path, df_dir = figure_out_dockerfile(temp_dir, git_path)
+            build_file_path, build_file_dir = figure_out_build_file(temp_dir, git_path)
             if copy_dockerfile_to:  # TODO: pre build plugin
-                shutil.copyfile(df_path, copy_dockerfile_to)
-            response = self.build_image_from_path(df_dir, image, stream=stream,
+                shutil.copyfile(build_file_path, copy_dockerfile_to)
+            response = self.build_image_from_path(build_file_dir, image, stream=stream,
                                                   use_cache=use_cache)
         finally:
             try:

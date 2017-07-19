@@ -45,7 +45,7 @@ class MockSource(object):
         self.dockerfile_path = os.path.join(tmpdir, 'Dockerfile')
         self.path = tmpdir
 
-    def get_dockerfile_path(self):
+    def get_build_file_path(self):
         return self.dockerfile_path, self.path
 
 

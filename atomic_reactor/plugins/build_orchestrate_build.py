@@ -190,9 +190,9 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         return value
 
     def get_platforms(self):
-        df_dir = self.workflow.source.get_dockerfile_path()[1]
+        build_file_dir = self.workflow.source.get_build_file_path()[1]
         excluded_platforms = set()
-        container_path = os.path.join(df_dir, self.CONTAINER_FILENAME)
+        container_path = os.path.join(build_file_dir, self.CONTAINER_FILENAME)
         if os.path.exists(container_path):
             with open(container_path) as f:
                 data = yaml.load(f)

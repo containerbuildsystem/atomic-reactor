@@ -999,7 +999,7 @@ class ExitUsesSource(ExitWatched):
     key = 'uses_source'
 
     def run(self):
-        assert os.path.exists(self.workflow.source.get_dockerfile_path()[0])
+        assert os.path.exists(self.workflow.source.get_build_file_path()[0])
         WatchedMixIn.run(self)
 
 

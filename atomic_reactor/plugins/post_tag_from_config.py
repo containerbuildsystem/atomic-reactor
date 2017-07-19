@@ -70,8 +70,8 @@ class TagFromConfigPlugin(PostBuildPlugin):
     def get_and_add_tags(self):
         tags = []
 
-        df_dir = self.workflow.source.get_dockerfile_path()[1]
-        tags_filename = os.path.join(df_dir, self.TAGS_FILENAME)
+        build_file_dir = self.workflow.source.get_build_file_path()[1]
+        tags_filename = os.path.join(build_file_dir, self.TAGS_FILENAME)
         if not os.path.exists(tags_filename):
             self.log.debug('"%s" not found. '
                            'No additional tags will be applied.',
