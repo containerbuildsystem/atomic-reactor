@@ -230,8 +230,8 @@ class AddFilesystemPlugin(PreBuildPlugin):
 
     def build_filesystem(self, image_build_conf):
         # Image build conf file should be in the same folder as Dockerfile
-        df_path, df_dir = self.workflow.source.get_dockerfile_path()
-        image_build_conf = os.path.join(df_dir, image_build_conf)
+        build_file_dir = self.workflow.source.get_build_file_path()[1]
+        image_build_conf = os.path.join(build_file_dir, image_build_conf)
         if not os.path.exists(image_build_conf):
             raise RuntimeError('Image build configuration file not found: {}'
                                .format(image_build_conf))

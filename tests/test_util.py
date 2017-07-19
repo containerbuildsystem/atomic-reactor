@@ -25,7 +25,7 @@ from collections import OrderedDict
 import docker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
-                                 LazyGit, figure_out_dockerfile,
+                                 LazyGit, figure_out_build_file,
                                  render_yum_repo, process_substitutions,
                                  get_checksums, print_version_of_tools,
                                  get_version_of_tools, get_preferred_label_key,
@@ -36,7 +36,8 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_manifest_media_type,
                                  get_retrying_requests_session)
 from atomic_reactor import util
-from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1, MOCK_SOURCE
+from tests.constants import (DOCKERFILE_GIT, FLATPAK_GIT,
+                             INPUT_IMAGE, MOCK, DOCKERFILE_SHA1, MOCK_SOURCE)
 from atomic_reactor.constants import INSPECT_CONFIG
 
 from tests.util import requires_internet
@@ -143,10 +144,15 @@ def test_clone_git_repo_by_sha1(tmpdir):
 
 
 @requires_internet
-def test_figure_out_dockerfile(tmpdir):
+@pytest.mark.parametrize('repository,expected_path', [
+    (DOCKERFILE_GIT, "Dockerfile"),
+    (FLATPAK_GIT, "flatpak.json"),
+])
+def test_figure_out_build_file(tmpdir, repository, expected_path):
     tmpdir_path = str(tmpdir.realpath())
-    clone_git_repo(DOCKERFILE_GIT, tmpdir_path)
-    path, dir = figure_out_dockerfile(tmpdir_path)
+    clone_git_repo(repository, tmpdir_path)
+    path, dir = figure_out_build_file(tmpdir_path)
+    assert path == os.path.join(tmpdir_path, expected_path)
     assert os.path.isfile(path)
     assert os.path.isdir(dir)
 

@@ -60,9 +60,9 @@ class Source(object):
         """Run this to get source and save it to `tmpdir` or a newly created tmpdir."""
         raise NotImplementedError('Must override in subclasses!')
 
-    def get_dockerfile_path(self):
-        # TODO: will we need figure_out_dockerfile as a separate method?
-        return util.figure_out_dockerfile(self.path, self.dockerfile_path)
+    def get_build_file_path(self):
+        # TODO: will we need figure_out_build_file as a separate method?
+        return util.figure_out_build_file(self.path, self.dockerfile_path)
 
     def remove_tmpdir(self):
         shutil.rmtree(self.tmpdir)

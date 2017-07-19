@@ -14,6 +14,7 @@ import json
 import logging
 from atomic_reactor.core import DockerTasker, LastLogger
 from atomic_reactor.util import ImageName, print_version_of_tools, df_parser
+from atomic_reactor.constants import DOCKERFILE_FILENAME
 
 logger = logging.getLogger(__name__)
 
@@ -138,8 +139,26 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         self.image = ImageName.parse(image)
 
         # get info about base image from dockerfile
-        self.df_path, self.df_dir = self.source.get_dockerfile_path()
-        self.set_base_image(df_parser(self.df_path).baseimage)
+        build_file_path, build_file_dir = self.source.get_build_file_path()
+
+        self.df_dir = build_file_dir
+        self._df_path = None
+
+        # If the build file isn't a Dockerfile, but say, a flatpak.json then a
+        # plugin needs to create the Dockerfile and set the base image
+        if build_file_path.endswith(DOCKERFILE_FILENAME):
+            self.set_df_path(build_file_path)
+
+    @property
+    def df_path(self):
+        if self._df_path is None:
+            raise RuntimeError("Dockerfile has not yet been generated")
+
+        return self._df_path
+
+    def set_df_path(self, path):
+        self._df_path = path
+        self.set_base_image(df_parser(path).baseimage)
         logger.debug("base image specified in dockerfile = '%s'", self.base_image)
         if not self.base_image.tag:
             self.base_image.tag = 'latest'

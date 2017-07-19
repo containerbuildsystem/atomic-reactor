@@ -105,7 +105,7 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
         }
         self.path_info = koji.PathInfo(topdir=self.koji_info['root'])
         self.allowed_domains = set(domain.lower() for domain in allowed_domains or [])
-        self.workdir = self.workflow.source.get_dockerfile_path()[1]
+        self.workdir = self.workflow.source.get_build_file_path()[1]
         self.session = None
 
     def read_nvr_requests(self):

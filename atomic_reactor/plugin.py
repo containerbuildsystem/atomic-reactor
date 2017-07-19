@@ -349,8 +349,11 @@ class BuildPluginsRunner(PluginsRunner):
             'BUILT_IMAGE_ID': self.workflow.builder.image_id,
             'BUILD_DOCKERFILE_PATH': self.workflow.builder.source.dockerfile_path,
             'BUILD_SOURCE_PATH':  self.workflow.builder.source.path,
-            'BASE_IMAGE': self.workflow.builder.base_image.to_str(),
         }
+
+        if self.workflow.builder.base_image:
+            translation_dict['BASE_IMAGE'] = self.workflow.builder.base_image.to_str()
+
         if isinstance(obj_to_translate, dict):
             # Recurse into dicts
             translated_dict = copy.deepcopy(obj_to_translate)
