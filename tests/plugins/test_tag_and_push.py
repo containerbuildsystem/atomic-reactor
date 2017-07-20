@@ -45,7 +45,7 @@ PUSH_LOGS_1_10 = [
     b'{"status":"Pushed","progressDetail":{},"id":"9508eff2c687"}',
     b'{"status":"Pushed","progressDetail":{},"id":"9508eff2c687"}',
     b'{"status":"latest: digest: ' + DIGEST_LOG.encode('utf-8') + b' size: 1920"}',
-    b'{"progressDetail":{},"aux":{"Tag":"latest","Digest":"' + DIGEST_LOG.encode('utf-8') + b'","Size":1920}}' ]  # noqa
+    b'{"progressDetail":{},"aux":{"Tag":"latest","Digest":"' + DIGEST_LOG.encode('utf-8') + b'","Size":1920}}']  # noqa
 
 PUSH_LOGS_1_10_NOT_IN_STATUS = list(PUSH_LOGS_1_10)
 del PUSH_LOGS_1_10_NOT_IN_STATUS[-2]
@@ -125,7 +125,7 @@ def test_tag_and_push_plugin(
     CONFIG_DIGEST = 'sha256:2c782e3a93d34d89ea4cf54052768be117caed54803263dd1f3798ce42aac14e'
     media_type = 'application/vnd.docker.distribution.manifest.v2+json'
 
-    response_config_json = {
+    manifest_json = {
         'config': {
             'digest': CONFIG_DIGEST,
             'mediaType': 'application/octet-stream',
@@ -147,7 +147,7 @@ def test_tag_and_push_plugin(
         'schemaVersion': 2
     }
 
-    response_json = {
+    config_json = {
         'config': {
             'Size': 12509448,
             'architecture': 'amd64',
@@ -180,48 +180,54 @@ def test_tag_and_push_plugin(
         'parent_id': 'c3fb36aafd5692d2a45115d32bb120edb6edf6c0c3c783ed6592a8dab969fb88'
     }
 
+    # To test out the lack of a config, we really should be testing what happens
+    # when we only return a v1 response and not a v2 response at all; what are
+    # doing now is simply testing that if we return a None instead of json for the
+    # config blob, that None is stored rather than json
     if not has_config:
-        response_json = None
+        config_json = None
 
-    config_latest_url = "https://{}/v2/{}/manifests/latest".format(LOCALHOST_REGISTRY, TEST_IMAGE,)
-    config_url = "https://{}/v2/{}/manifests/{}".format(LOCALHOST_REGISTRY, TEST_IMAGE, DIGEST_V2)
-    blob_url = "https://{}/v2/{}/blobs/{}".format(
+    manifest_latest_url = "https://{}/v2/{}/manifests/latest".format(LOCALHOST_REGISTRY, TEST_IMAGE)
+    manifest_url = "https://{}/v2/{}/manifests/{}".format(LOCALHOST_REGISTRY, TEST_IMAGE, DIGEST_V2)
+    config_blob_url = "https://{}/v2/{}/blobs/{}".format(
         LOCALHOST_REGISTRY, TEST_IMAGE, CONFIG_DIGEST)
 
-    config_response_config_v1 = requests.Response()
-    (flexmock(config_response_config_v1,
+    # We return our v2 manifest in the mocked v1 response as a placeholder - only the
+    # digest matters anyways
+    manifest_response_v1 = requests.Response()
+    (flexmock(manifest_response_v1,
               raise_for_status=lambda: None,
-              json=response_config_json,
+              json=manifest_json,
               headers={
                 'Content-Type': 'application/vnd.docker.distribution.manifest.v1+json',
                 'Docker-Content-Digest': DIGEST_V1
               }))
 
-    config_response_config_v2 = requests.Response()
-    (flexmock(config_response_config_v2,
+    manifest_response_v2 = requests.Response()
+    (flexmock(manifest_response_v2,
               raise_for_status=lambda: None,
-              json=response_config_json,
+              json=manifest_json,
               headers={
                 'Content-Type': 'application/vnd.docker.distribution.manifest.v2+json',
                 'Docker-Content-Digest': DIGEST_V2
               }))
 
-    blob_config = requests.Response()
-    (flexmock(blob_config, raise_for_status=lambda: None, json=response_json))
+    config_blob_response = requests.Response()
+    (flexmock(config_blob_response, raise_for_status=lambda: None, json=config_json))
 
     def custom_get(url, headers, **kwargs):
-        if url == config_latest_url:
+        if url == manifest_latest_url:
             if headers['Accept'] == 'application/vnd.docker.distribution.manifest.v1+json':
-                return config_response_config_v1
+                return manifest_response_v1
 
             if headers['Accept'] == 'application/vnd.docker.distribution.manifest.v2+json':
-                return config_response_config_v2
+                return manifest_response_v2
 
-        if url == config_url:
-            return config_response_config_v2
+        if url == manifest_url:
+            return manifest_response_v2
 
-        if url == blob_url:
-            return blob_config
+        if url == config_blob_url:
+            return config_blob_response
 
     (flexmock(requests)
         .should_receive('get')
