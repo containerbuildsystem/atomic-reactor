@@ -243,6 +243,16 @@ CMD blabla"""
     assert is_string_type(annotations['digests'])
     digests = json.loads(annotations['digests'])
     expected = [{
+        "registry": DOCKER0_REGISTRY,
+        "repository": TEST_IMAGE,
+        "tag": 'latest',
+        "digest": DIGEST1,
+    }, {
+        "registry": DOCKER0_REGISTRY,
+        "repository": "namespace/image",
+        "tag": 'asd123',
+        "digest": DIGEST2,
+    }, {
         "registry": LOCALHOST_REGISTRY,
         "repository": TEST_IMAGE,
         "tag": 'latest',
@@ -543,7 +553,7 @@ def test_store_metadata_fail_update_labels(tmpdir, caplog, koji_plugin):
     [
         [['spam', 'spam:8888'], ],
         ['bacon:8888'],
-        ['spam:8888', ]
+        ['spam:8888', 'bacon:8888']
     ],
 ])
 def test_filter_repositories(tmpdir, pulp_registries, docker_registries,

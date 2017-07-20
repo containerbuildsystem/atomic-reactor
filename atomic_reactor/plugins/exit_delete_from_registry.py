@@ -42,8 +42,136 @@ class DeleteFromRegistryPlugin(ExitPlugin):
 
         self.registries = deepcopy(registries)
 
+    def setup_secret(self, registry, secret_path):
+        auth = None
+
+        if secret_path:
+            self.log.debug("registry %s secret %s", registry, secret_path)
+            dockercfg = Dockercfg(secret_path).get_credentials(registry)
+            try:
+                username = dockercfg['username']
+                password = dockercfg['password']
+            except KeyError:
+                self.log.error("credentials for registry %s not found in %s",
+                               registry, secret_path)
+            else:
+                self.log.debug("found user %s for registry %s", username, registry)
+                auth = requests.auth.HTTPBasicAuth(username, password)
+
+        return auth
+
+    def request_delete(self, url, manifest, insecure, auth):
+        response = requests.delete(url, verify=not insecure, auth=auth)
+
+        if response.ok:
+            self.log.info("deleted manifest %s", manifest)
+            return True
+        elif response.status_code == requests.codes.NOT_FOUND:
+            self.log.warning("cannot delete %s: not found", manifest)
+        elif response.status_code == requests.codes.METHOD_NOT_ALLOWED:
+            self.log.warning("cannot delete %s: image deletion disabled on registry",
+                             manifest)
+        else:
+            msg = "failed to delete %s: %s" % (manifest, response.reason)
+            self.log.error("%s\n%s", msg, response.text)
+            raise PluginFailedException(msg)
+
+        return False
+
+    def make_manifest(self, registry, repo, digest):
+        return "{registry}/{repo}@{digest}".format(**vars())
+
+    def make_url(self, registry, repo, digest):
+        return "{registry}/v2/{repo}/manifests/{digest}".format(**vars())
+
+    def make_registry_noschema(self, registry):
+        return urlparse(registry).netloc
+
+    def find_registry(self, registry_noschema, workflow):
+        for push_conf_registry in workflow.push_conf.docker_registries:
+            if push_conf_registry.uri == registry_noschema:
+                return push_conf_registry
+
+        return None
+
+    def handle_registry(self, registry, push_conf_registry, auth, deleted_digests):
+        registry_noschema = self.make_registry_noschema(registry)
+        deleted = False
+
+        for tag, digests in push_conf_registry.digests.items():
+            digest = digests.default
+            if digest in deleted_digests:
+                # Manifest schema version 2 uses the same digest
+                # for all tags
+                self.log.info('digest already deleted %s', digest)
+                deleted = True
+                continue
+
+            repo = tag.split(':')[0]
+            url = self.make_url(registry, repo, digest)
+            manifest = self.make_manifest(registry_noschema, repo, digest)
+
+            # override insecure if passed
+            insecure = push_conf_registry.insecure
+
+            if self.request_delete(url, manifest, insecure, auth):
+                deleted_digests.add(digest)
+                deleted = True
+
+        return deleted
+
+    def get_worker_digests(self):
+        """
+         If we are being called from an orchestrator build, collect the worker
+         node data and recreate the data locally.
+        """
+        try:
+            builds = self.workflow.build_result.annotations['worker-builds']
+        except(TypeError, KeyError):
+            # This annotation is only set for the orchestrator build.
+            # It's not present, so this is a worker build.
+            return {}
+
+        worker_digests = {}
+
+        for plat, annotation in builds.items():
+            digests = annotation['digests']
+            self.log.debug("build %s has digests: %s", plat, digests)
+
+            for digest in digests:
+                reg = digest['registry']
+                worker_digests.setdefault(reg, [])
+                worker_digests[reg].append(digest)
+
+        return worker_digests
+
+    def handle_worker_digests(self, worker_digests, registry, insecure, auth, deleted_digests):
+        registry_noschema = self.make_registry_noschema(registry)
+
+        if registry_noschema not in worker_digests:
+            return False
+
+        digests = worker_digests[registry_noschema]
+        for digest in digests:
+            if digest['digest'] in deleted_digests:
+                # Manifest schema version 2 uses the same digest
+                # for all tags
+                self.log.info('digest already deleted %s', digest['digest'])
+                return True
+
+            url = self.make_url(registry, digest['repository'], digest['digest'])
+            manifest = self.make_manifest(registry_noschema, digest['repository'],
+                                          digest['digest'])
+
+            if self.request_delete(url, manifest, insecure, auth):
+                deleted_digests.add(digest['digest'])
+
+        return True
+
     def run(self):
         deleted_digests = set()
+
+        worker_digests = self.get_worker_digests()
 
         for registry, registry_conf in self.registries.items():
             if not registry.startswith('http://') and not registry.startswith('https://'):
@@ -51,55 +179,26 @@ class DeleteFromRegistryPlugin(ExitPlugin):
 
             registry_noschema = urlparse(registry).netloc
 
-            auth = None
+            insecure = registry_conf.get('insecure', False)
             secret_path = registry_conf.get('secret')
-            if secret_path:
-                self.log.debug("registry %s secret %s", registry_noschema, secret_path)
-                dockercfg = Dockercfg(secret_path).get_credentials(registry_noschema)
-                try:
-                    username = dockercfg['username']
-                    password = dockercfg['password']
-                except KeyError:
-                    self.log.error("credentials for registry %s not found in %s",
-                                   registry_noschema, secret_path)
-                else:
-                    self.log.debug("found user %s for registry %s", username, registry_noschema)
-                    auth = requests.auth.HTTPBasicAuth(username, password)
+            auth = self.setup_secret(registry_noschema, secret_path)
 
-            for push_conf_registry in self.workflow.push_conf.docker_registries:
-                if push_conf_registry.uri == registry_noschema:
-                    break
-            else:
+            # orchestrator builds use worker_digests
+            if self.handle_worker_digests(worker_digests, registry, insecure,
+                                          auth, deleted_digests):
+                # If we are in orchestrator and found a match, good chance it
+                # will not be in the workflow.push_conf dict.  Just continue.
+                continue
+
+            push_conf_registry = self.find_registry(registry_noschema, self.workflow)
+            if not push_conf_registry:
                 self.log.warning("requested deleting image from %s but we haven't pushed there",
                                  registry_noschema)
                 continue
 
-            for tag, digests in push_conf_registry.digests.items():
-                digest = digests.default
-                if digest in deleted_digests:
-                    # Manifest schema version 2 uses the same digest
-                    # for all tags
-                    self.log.info('digest already deleted %s', digest)
-                    continue
-
-                repo = tag.split(':')[0]
-                url = registry + "/v2/" + repo + "/manifests/" + digest
-                insecure = push_conf_registry.insecure
-                response = requests.delete(url, verify=not insecure, auth=auth)
-
-                if response.status_code == requests.codes.ACCEPTED:
-                    self.log.info("deleted manifest %s/%s@%s", registry_noschema, repo, digest)
-                    deleted_digests.add(digest)
-                elif response.status_code == requests.codes.NOT_FOUND:
-                    self.log.warning("cannot delete %s/%s@%s: not found",
-                                     registry_noschema, repo, digest)
-                elif response.status_code == requests.codes.METHOD_NOT_ALLOWED:
-                    self.log.warning("cannot delete %s/%s@%s: image deletion disabled on registry",
-                                     registry_noschema, repo, digest)
-                else:
-                    msg = "failed to delete %s/%s@%s: %s" % (registry_noschema, repo, digest,
-                                                             response.reason)
-                    self.log.error("%s\n%s", msg, response.text)
-                    raise PluginFailedException(msg)
+            # worker node and manifests use push_conf_registry
+            if self.handle_registry(registry, push_conf_registry, auth, deleted_digests):
+                # delete these temp registries
+                self.workflow.push_conf.remove_docker_registry(push_conf_registry)
 
         return deleted_digests

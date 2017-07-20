@@ -217,6 +217,9 @@ class PushConf(object):
         for registry_uri in registry_uris:
             self.add_docker_registry(registry_uri, insecure=insecure)
 
+    def remove_docker_registry(self, docker_registry):
+        self._registries["docker"].remove(docker_registry)
+
     def add_pulp_registry(self, name, crane_uri, server_side_sync=True):
         if crane_uri is None:
             raise RuntimeError("registry URI cannot be None")
