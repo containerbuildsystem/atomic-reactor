@@ -14,6 +14,7 @@ import os
 import requests
 
 from atomic_reactor import util
+from atomic_reactor.constants import DEFAULT_DOWNLOAD_BLOCK_SIZE
 from atomic_reactor.koji_util import create_koji_session
 from atomic_reactor.plugin import PreBuildPlugin
 from collections import namedtuple
@@ -206,7 +207,7 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
             request = requests.get(download.url, stream=True)
             request.raise_for_status()
             with open(dest_path, 'wb') as f:
-                for chunk in request.iter_content():
+                for chunk in request.iter_content(chunk_size=DEFAULT_DOWNLOAD_BLOCK_SIZE):
                     f.write(chunk)
                     for checksum in checksums.values():
                         checksum.update(chunk)
