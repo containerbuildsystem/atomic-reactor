@@ -135,6 +135,13 @@ class KojiImportPlugin(ExitPlugin):
                 # They are all None
                 extra['image']['help'] = None
 
+    def set_media_types(self, extra, worker_metadatas):
+        for platform in worker_metadatas:
+            annotations = get_worker_build_info(self.workflow, platform).build.get_annotations()
+            if annotations.get('media-types'):
+                extra['image']['media_types'] = annotations['media-types']
+                return
+
     def get_build(self, metadata, worker_metadatas):
         start_time = int(atomic_reactor_start_time)
 
@@ -174,6 +181,8 @@ class KojiImportPlugin(ExitPlugin):
                     extra['filesystem_koji_task_id'] = task_id
 
         self.set_help(extra, worker_metadatas)
+
+        self.set_media_types(extra, worker_metadatas)
 
         build = {
             'name': component,

@@ -176,11 +176,14 @@ def is_string_type(obj):
 
 
 class BuildInfo(object):
-    def __init__(self, value, valid=True):
-        if valid:
-            self.build = BuildResponse({'metadata': {'annotations': {'help_file': value}}})
-        else:
-            self.build = BuildResponse({'metadata': {'annotations': {}}})
+    def __init__(self, help_file=None, help_valid=True, media_types=None):
+        annotations = {}
+        if media_types:
+            annotations['media-types'] = media_types
+        if help_valid:
+            annotations['help_file'] = help_file
+
+        self.build = BuildResponse({'metadata': {'annotations': annotations}})
 
 
 def mock_environment(tmpdir, session=None, name=None,
@@ -1272,3 +1275,50 @@ class TestKojiImport(object):
             assert image['help'] is None
         elif expect_result in ['skip', 'unknown_status']:
             assert 'help' not in image.keys()
+
+    @pytest.mark.parametrize('version', [
+        # no pulp plugin used
+        False,
+        # V1-only image
+        ["application/json"],
+        # V1+V2schema1 image, i.e. what we are building today
+        ["application/json", "application/vnd.docker.distribution.manifest.v1+json"],
+        # V1+V2schema2 image
+        ["application/json", "application/vnd.docker.distribution.manifest.v1+json",
+         "application/vnd.docker.distribution.manifest.v2+json"],
+        # manifest lists, as well as compatibility formats back to V1
+        ["application/json", "application/vnd.docker.distribution.manifest.v1+json",
+         "application/vnd.docker.distribution.manifest.v2+json",
+         "application/vnd.docker.distribution.manifest.list.v2+json"],
+        # manifest lists, with compatibility formats back to V2schema1, without V1
+        ["application/vnd.docker.distribution.manifest.v1+json",
+         "application/vnd.docker.distribution.manifest.v2+json",
+         "application/vnd.docker.distribution.manifest.list.v2+json"],
+    ])
+    def test_koji_import_set_media_types(self, tmpdir, os_env, version):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            session=session)
+        workflow.plugin_workspace[OrchestrateBuildPlugin.key][WORKSPACE_KEY_BUILD_INFO]['x86_64'] = BuildInfo(media_types=version)  # noqa
+
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
+        assert 'image' in extra
+        image = extra['image']
+        assert isinstance(image, dict)
+        if version:
+            assert 'media_types' in image
+            assert image['media_types'] == version
+        else:
+            assert 'media_types' not in image
