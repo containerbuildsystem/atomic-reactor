@@ -410,13 +410,14 @@ def test_get_manifest_digests(tmpdir, image, registry, insecure, creds,
 @pytest.mark.parametrize('has_content_digest', [
     True, False
 ])
-@pytest.mark.parametrize('digest_is_v1,can_convert_v2_v1', [
-    (True, False),
-    (False, True),
-    (False, False),
+@pytest.mark.parametrize('manifest_type,can_convert_v2_v1', [
+    ('v1', False),
+    ('v2', True),
+    ('v2', False),
+    ('oci', False)
 ])
 def test_get_manifest_digests_missing(tmpdir, has_content_type_header, has_content_digest,
-                                      digest_is_v1, can_convert_v2_v1):
+                                      manifest_type, can_convert_v2_v1):
     kwargs = {}
 
     image = ImageName.parse('example.com/spam:latest')
@@ -434,18 +435,18 @@ def test_get_manifest_digests_missing(tmpdir, has_content_type_header, has_conte
         media_type = headers['Accept']
         media_type_prefix = media_type.split('+')[0]
 
-        assert media_type.endswith('v2+json') or media_type.endswith('v1+json')
+        assert media_type.endswith('+json')
 
         # Attempt to simulate how a docker registry behaves:
         #  * If the stored digest is v1, return it
         #  * If the stored digest is v2, and v2 is requested, return it
         #  * If the stored digest is v2, and v1 is requested, try
         #    to convert and return v1 or an error.
-        if digest_is_v1:
+        if manifest_type == 'v1':
             digest = 'v1-digest'
-            media_type_prefix = media_type_prefix.replace('v2', 'v1', 1)
-        else:
-            if media_type.endswith('v2+json'):
+            media_type_prefix = 'application/vnd.docker.distribution.manifest.v1'
+        elif manifest_type == 'v2':
+            if media_type_prefix == 'application/vnd.docker.distribution.manifest.v2':
                 digest = 'v2-digest'
             else:
                 if not can_convert_v2_v1:
@@ -459,6 +460,20 @@ def test_get_manifest_digests_missing(tmpdir, has_content_type_header, has_conte
                     return response
 
                 digest = 'v1-converted-digest'
+                media_type_prefix = 'application/vnd.docker.distribution.manifest.v1'
+        elif manifest_type == 'oci':
+            if media_type_prefix == 'application/vnd.oci.image.manifest.v1':
+                digest = 'oci-digest'
+            else:
+                headers = {}
+                response_json = {"errors": [{"code": "MANIFEST_UNKNOWN"}]}
+                response = requests.Response()
+                flexmock(response,
+                         status_code=requests.codes.not_found,
+                         content=json.dumps(response_json).encode("utf-8"),
+                         headers=headers)
+
+                return response
 
         headers = {}
         if has_content_type_header:
@@ -466,11 +481,11 @@ def test_get_manifest_digests_missing(tmpdir, has_content_type_header, has_conte
         if has_content_digest:
             headers['Docker-Content-Digest'] = digest
 
-        if media_type_prefix.endswith('v2'):
-            response_json = {'schemaVersion': 2,
-                             'mediaType': 'application/vnd.docker.distribution.manifest.v2+json'}
-        else:
+        if media_type_prefix == 'application/vnd.docker.distribution.manifest.v1':
             response_json = {'schemaVersion': 1}
+        else:
+            response_json = {'schemaVersion': 2,
+                             'mediaType': media_type_prefix + '+json'}
 
         response = requests.Response()
         flexmock(response,
@@ -484,7 +499,7 @@ def test_get_manifest_digests_missing(tmpdir, has_content_type_header, has_conte
         .should_receive('get')
         .replace_with(custom_get))
 
-    if digest_is_v1 and not has_content_type_header:
+    if manifest_type == 'v1' and not has_content_type_header:
         # v1 manifests don't have a mediaType field, so we can't fall back
         # to looking at the returned manifest to detect the type.
         with pytest.raises(RuntimeError):
@@ -493,13 +508,14 @@ def test_get_manifest_digests_missing(tmpdir, has_content_type_header, has_conte
     else:
         actual_digests = get_manifest_digests(**kwargs)
 
-    if digest_is_v1:
+    if manifest_type == 'v1':
         if has_content_digest:
             assert actual_digests.v1 == 'v1-digest'
         else:
             assert actual_digests.v1 is True
         assert actual_digests.v2 is None
-    else:
+        assert actual_digests.oci is None
+    elif manifest_type == 'v2':
         if can_convert_v2_v1:
             if has_content_type_header:
                 if has_content_digest:
@@ -514,6 +530,14 @@ def test_get_manifest_digests_missing(tmpdir, has_content_type_header, has_conte
             assert actual_digests.v2 == 'v2-digest'
         else:
             assert actual_digests.v2 is True
+        assert actual_digests.oci is None
+    elif manifest_type == 'oci':
+        assert actual_digests.v1 is None
+        assert actual_digests.v2 is None
+        if has_content_digest:
+            assert actual_digests.oci == 'oci-digest'
+        else:
+            assert actual_digests.oci is True
 
 
 @responses.activate
@@ -532,16 +556,20 @@ def test_get_manifest_digests_connection_error(tmpdir):
         get_manifest_digests(**kwargs)
 
 
-@pytest.mark.parametrize('v1,v2,default', [
-    ('v1-digest', 'v2-digest', 'v2-digest'),
-    ('v1-digest', None, 'v1-digest'),
-    (None, 'v2-digest', 'v2-digest'),
-    (None, None, None),
+@pytest.mark.parametrize('v1,v2,oci,default', [
+    ('v1-digest', 'v2-digest', None, 'v2-digest'),
+    ('v1-digest', None, None, 'v1-digest'),
+    (None, 'v2-digest', None, 'v2-digest'),
+    (None, 'v2-digest', None, 'v2-digest'),
+    (None, None, 'oci-digest', 'oci-digest'),
+    (None, 'v2-digest', 'oci-digest', 'oci-digest'),
+    (None, None, None, None),
 ])
-def test_manifest_digest(v1, v2, default):
-    md = ManifestDigest(v1=v1, v2=v2)
+def test_manifest_digest(v1, v2, oci, default):
+    md = ManifestDigest(v1=v1, v2=v2, oci=oci)
     assert md.v1 == v1
     assert md.v2 == v2
+    assert md.oci == oci
     assert md.default == default
 
 
