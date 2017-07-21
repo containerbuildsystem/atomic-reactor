@@ -19,6 +19,7 @@ import requests
 DIGEST_V1 = 'sha256:7de72140ec27a911d3f88d60335f08d6530a4af136f7beab47797a196e840afd'
 DIGEST_V2 = 'sha256:85a7e3fb684787b86e64808c5b91d926afda9d6b35a0642a72d7a746452e71c1'
 
+
 class MockerTasker(object):
     def __init__(self):
         self.pulled_images = []
@@ -100,23 +101,39 @@ class TestPostPulpPull(object):
     def custom_get_v2(self, url, headers, **kwargs):
         return self.config_response_config_v2
 
-    @pytest.mark.parametrize(('insecure', 'config_version'), [
-        (True, 'v1'),
-        (True, 'v2'),
-        (False, 'v1'),
-        (False, 'v2'),
+    @pytest.mark.parametrize('insecure', [(True, False)])
+    @pytest.mark.parametrize(('schema_version', 'pulp_plugin', 'expected_version'), [
+        ('v1', [], []),
+        ('v1', [{'name': 'pulp_push'}], ['application/json']),
+        ('v1', [{'name': 'pulp_sync'}],
+         ['application/vnd.docker.distribution.manifest.v1+json']),
+        ('v1', [{'name': 'pulp_sync'}, {'name': 'pulp_push'}],
+         ['application/json',
+          'application/vnd.docker.distribution.manifest.v1+json']),
+        ('v2', [],
+         ['application/vnd.docker.distribution.manifest.v2+json']),
+        ('v2', [{'name': 'pulp_push'}],
+         ['application/json',
+          'application/vnd.docker.distribution.manifest.v2+json']),
+        ('v2', [{'name': 'pulp_sync'}],
+         ['application/vnd.docker.distribution.manifest.v1+json',
+          'application/vnd.docker.distribution.manifest.v2+json']),
+        ('v2', [{'name': 'pulp_sync'}, {'name': 'pulp_push'}],
+         ['application/json',
+          'application/vnd.docker.distribution.manifest.v1+json',
+          'application/vnd.docker.distribution.manifest.v2+json']),
     ])
-    def test_pull_first_time(self, insecure, config_version):
+    def test_pull_first_time(self, insecure, schema_version, pulp_plugin, expected_version):
         workflow = self.workflow()
         tasker = MockerTasker()
 
         test_id = 'sha256:(new)'
 
-        if config_version == 'v2':
+        if schema_version == 'v2':
             # for v2, we just return pre-existing ID
             test_id = 'sha256:(old)'
 
-        if config_version == 'v1':
+        if schema_version == 'v1':
             getter = self.custom_get_v1
         else:
             getter = self.custom_get_v2
@@ -125,7 +142,7 @@ class TestPostPulpPull(object):
             .should_receive('get')
             .replace_with(getter))
 
-        if config_version == 'v1':
+        if schema_version == 'v1':
             (flexmock(tasker)
                 .should_call('pull_image')
                 .with_args(self.EXPECTED_IMAGE, insecure=insecure)
@@ -147,12 +164,16 @@ class TestPostPulpPull(object):
                 .should_call('inspect_image')
                 .never())
 
+        workflow.postbuild_plugins_conf = pulp_plugin
+
         plugin = PulpPullPlugin(tasker, workflow, insecure=insecure)
+        results, version = plugin.run()
 
-        # Plugin return value is the new ID
-        assert plugin.run() == test_id
+        # Plugin return value is the new ID and schema
+        assert results == test_id
+        assert version == expected_version
 
-        if config_version == 'v1':
+        if schema_version == 'v1':
             assert len(tasker.pulled_images) == 1
             pulled = tasker.pulled_images[0].to_str()
             assert pulled == self.EXPECTED_PULLSPEC
@@ -178,6 +199,7 @@ class TestPostPulpPull(object):
             .with_args(self.EXPECTED_PULLSPEC)
             .and_raise(NotFound('message', flexmock(content=None)))
             .times(3))
+        workflow.postbuild_plugins_conf = []
 
         plugin = PulpPullPlugin(tasker, workflow, timeout=1, retry_delay=0.6)
 
@@ -206,11 +228,15 @@ class TestPostPulpPull(object):
             .and_raise(NotFound('message', flexmock(content=None)))
             .and_return({'Id': test_id})
             .times(3))
+        workflow.postbuild_plugins_conf = []
 
         plugin = PulpPullPlugin(tasker, workflow, timeout=1, retry_delay=0.6)
 
+        # Plugin return value is the new ID and schema
+        results, version = plugin.run()
+
         # Plugin return value is the new ID
-        assert plugin.run() == test_id
+        assert results == test_id
 
         assert len(tasker.pulled_images) == 3
         for image in tasker.pulled_images:

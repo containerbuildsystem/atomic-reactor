@@ -15,6 +15,7 @@ from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException
 
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
+from atomic_reactor.plugins.post_pulp_pull import PulpPullPlugin
 from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY)
@@ -203,6 +204,11 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
                 annotations['help_file'] = json.dumps(help_result['help_file'])
             else:
                 self.log.error("Unknown result from add_help plugin: %s", help_result)
+
+        pulp_pull_results = self.workflow.postbuild_results.get(PulpPullPlugin.key)
+        if pulp_pull_results:
+            _, media_types = pulp_pull_results
+            annotations['media-types'] = media_types
 
         tar_path = tar_size = tar_md5sum = tar_sha256sum = None
         if len(self.workflow.exported_image_sequence) > 0:

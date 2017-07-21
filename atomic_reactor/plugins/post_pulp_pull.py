@@ -15,6 +15,7 @@ discover the image ID Docker will give it.
 
 from __future__ import unicode_literals
 
+from atomic_reactor.constants import PLUGIN_PULP_PUSH_KEY, PLUGIN_PULP_SYNC_KEY
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.util import get_manifest_digests
@@ -64,10 +65,18 @@ class PulpPullPlugin(PostBuildPlugin):
         pullspec = image.copy()
         pullspec.registry = registry.uri  # the image on Crane
 
+        media_types = []
+        for plugin in self.workflow.postbuild_plugins_conf:
+            if plugin['name'] is PLUGIN_PULP_SYNC_KEY:
+                media_types.append('application/vnd.docker.distribution.manifest.v1+json')
+            if plugin['name'] is PLUGIN_PULP_PUSH_KEY:
+                media_types.append('application/json')
+
         digests = get_manifest_digests(pullspec, registry.uri, self.insecure, self.secret)
         if digests.v2:
             self.log.info("V2 schema 2 digest found, returning %s", self.workflow.builder.image_id)
-            return self.workflow.builder.image_id
+            media_types.append('application/vnd.docker.distribution.manifest.v2+json')
+            return self.workflow.builder.image_id, sorted(media_types)
         else:
             self.log.info("V2 schema 2 digest is not available")
 
@@ -97,4 +106,4 @@ class PulpPullPlugin(PostBuildPlugin):
                        image_id)
         self.workflow.builder.image_id = image_id
 
-        return image_id
+        return image_id, sorted(media_types)

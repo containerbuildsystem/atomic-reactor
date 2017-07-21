@@ -26,6 +26,7 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
+from atomic_reactor.plugins.post_pulp_pull import PulpPullPlugin
 
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
 from atomic_reactor.util import ImageName, LazyGit, ManifestDigest, df_parser
@@ -131,9 +132,20 @@ def prepare(pulp_registries=None, docker_registries=None):
         'status': AddHelpPlugin.HELP_GENERATED,
     }, 'help.md'),
 ))
+@pytest.mark.parametrize(('pulp_results', 'expected_pulp_results'), (
+    (None, False),
+    ((123, ["application/json"]), ["application/json"]),
+    ((123, ["application/json", "application/vnd.docker.distribution.manifest.v1+json"]),
+     ["application/json", "application/vnd.docker.distribution.manifest.v1+json"]),
+    ((123, ["application/json", "application/vnd.docker.distribution.manifest.v1+json",
+            "application/vnd.docker.distribution.manifest.v2+json"]),
+     ["application/json", "application/vnd.docker.distribution.manifest.v1+json",
+      "application/vnd.docker.distribution.manifest.v2+json"]),
+))
 def test_metadata_plugin(tmpdir, br_annotations, expected_br_annotations,
                          br_labels, expected_br_labels, koji,
-                         help_results, expected_help_results):
+                         help_results, expected_help_results,
+                         pulp_results, expected_pulp_results):
     initial_timestamp = datetime.now()
     workflow = prepare()
     df_content = """
@@ -151,6 +163,7 @@ CMD blabla"""
     }
     workflow.postbuild_results = {
         PostBuildRPMqaPlugin.key: "rpm1\nrpm2",
+        PulpPullPlugin.key: pulp_results,
     }
 
     if br_annotations or br_labels:
@@ -256,6 +269,11 @@ CMD blabla"""
         assert 'help_file' not in annotations
     else:
         assert json.loads(annotations['help_file']) == expected_help_results
+
+    if expected_pulp_results is False:
+        assert 'media-types' not in annotations
+    else:
+        assert annotations['media-types'] == expected_pulp_results
 
 
 def test_metadata_plugin_rpmqa_failure(tmpdir):
