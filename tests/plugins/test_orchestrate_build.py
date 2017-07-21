@@ -17,6 +17,7 @@ from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlug
                                                             get_worker_build_info,
                                                             get_koji_upload_dir)
 from atomic_reactor.plugins.pre_reactor_config import ReactorConfig
+from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY
 from flexmock import flexmock
@@ -28,6 +29,7 @@ from osbs.exceptions import OsbsException
 from tests.constants import MOCK_SOURCE, TEST_IMAGE, INPUT_IMAGE, SOURCE
 from tests.docker_mock import mock_docker
 from textwrap import dedent
+from copy import deepcopy
 
 import json
 import os
@@ -125,7 +127,7 @@ def mock_reactor_config(tmpdir, clusters=None):
                     """.format(name=cluster['name'])))
 
 
-def mock_osbs(current_builds=2, worker_builds=1, logs_return_bytes=False):
+def mock_osbs(current_builds=2, worker_builds=1, logs_return_bytes=False, worker_expect=None):
     (flexmock(OSBS)
         .should_receive('list_builds')
         .and_return(range(current_builds)))
@@ -136,6 +138,11 @@ def mock_osbs(current_builds=2, worker_builds=1, logs_return_bytes=False):
         # koji_upload_dir parameter must be identical for all workers
         koji_upload_dirs.add(kwargs.get('koji_upload_dir'))
         assert len(koji_upload_dirs) == 1
+
+        if worker_expect:
+            testkwargs = deepcopy(kwargs)
+            testkwargs.pop('koji_upload_dir')
+            assert testkwargs == worker_expect
 
         return make_build_response('worker-build-{}'.format(kwargs['platform']),
                                    'Running')
@@ -179,7 +186,8 @@ def make_worker_build_kwargs(**overrides):
         'git_uri': SOURCE['uri'],
         'git_ref': 'master',
         'git_branch': 'master',
-        'user': 'bacon'
+        'user': 'bacon',
+        'arrangement_version': 1
     }
     kwargs.update(overrides)
     return kwargs
@@ -823,3 +831,43 @@ def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
             assert 'All clusters for platform x86_64 are unreachable' in str(exc)
         elif fail_at == 'build_canceled':
             assert 'BuildCanceledException()' in str(exc)
+
+
+@pytest.mark.parametrize('is_auto', [
+    True,
+    False
+])
+def test_orchestrate_build_worker_build_kwargs(tmpdir, caplog, is_auto):
+    workflow = mock_workflow(tmpdir)
+    expected_kwargs = {
+        'git_uri': SOURCE['uri'],
+        'git_ref': 'master',
+        'git_branch': 'master',
+        'user': 'bacon',
+        'is_auto': is_auto,
+        'platform': 'x86_64',
+        'release': '10',
+        'arrangement_version': 1
+    }
+    mock_osbs(worker_expect=expected_kwargs)
+    mock_reactor_config(tmpdir)
+
+    plugin_args = {
+        'platforms': ['x86_64'],
+        'build_kwargs': make_worker_build_kwargs(),
+        'worker_build_image': 'fedora:latest',
+        'osbs_client_config': str(tmpdir),
+    }
+
+    runner = BuildStepPluginsRunner(
+        workflow.builder.tasker,
+        workflow,
+        [{
+            'name': OrchestrateBuildPlugin.key,
+            'args': plugin_args,
+        }]
+    )
+    workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_auto
+
+    build_result = runner.run()
+    assert not build_result.is_failed()
