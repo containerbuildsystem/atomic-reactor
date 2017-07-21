@@ -204,9 +204,9 @@ def _find_image(img, ignore_registry=False):
     return None
 
 
-def _docker_exception(code=404, content='not found'):
+def _docker_exception(code=404, content='not found', exc_class=docker.errors.APIError):
     response = flexmock(content=content, status_code=code)
-    return docker.errors.APIError(code, response)
+    return exc_class(code, response)
 
 
 def _mock_pull(repo, tag='latest', **kwargs):
@@ -273,7 +273,7 @@ def mock_docker(build_should_fail=False,
     mock all used docker.Client methods
 
     :param build_should_fail: True == build() log will contain error
-    :param inspect_should_fail: True == inspect_image() will return None
+    :param inspect_should_fail: True == inspect_image() will raise docker.errors.NotFound
     :param wait_should_fail: True == wait() will return 1 instead of 0
     :param provided_image_repotags: images() will contain provided image
     :param should_raise_error: methods (with args) to raise docker.errors.APIError
@@ -281,7 +281,6 @@ def mock_docker(build_should_fail=False,
     """
     if provided_image_repotags:
         mock_image['RepoTags'] = provided_image_repotags
-    inspect_image_result = None if inspect_should_fail else mock_image
     push_result = mock_push_logs if not push_should_fail else mock_push_logs_failed
 
     if build_should_fail:
@@ -297,7 +296,14 @@ def mock_docker(build_should_fail=False,
     flexmock(docker.Client, containers=lambda **kwargs: mock_containers)
     flexmock(docker.Client, create_container=lambda img, **kwargs: mock_containers[0])
     flexmock(docker.Client, images=lambda **kwargs: [mock_image])
-    flexmock(docker.Client, inspect_image=lambda im_id: inspect_image_result)
+
+    def mock_inspect_image(image_id):
+        if inspect_should_fail:
+            raise _docker_exception(exc_class=docker.errors.NotFound)
+        else:
+            return mock_image
+
+    flexmock(docker.Client, inspect_image=mock_inspect_image)
     flexmock(docker.Client, inspect_container=lambda im_id: mock_inspect_container)
     flexmock(docker.Client, logs=lambda cid, **kwargs: iter([mock_logs]) if kwargs.get('stream')
              else mock_logs)
