@@ -22,6 +22,7 @@ import logging
 from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import BuildStepPlugin, BuildCanceledException
 from atomic_reactor.plugins.pre_reactor_config import get_config
+from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import get_preferred_label, df_parser
 from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY
 from osbs.api import OSBS
@@ -279,6 +280,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         build_kwargs['release'] = release
         build_kwargs['platform'] = platform
         build_kwargs['koji_upload_dir'] = koji_upload_dir
+        build_kwargs['is_auto'] = is_rebuild(self.workflow)
         if task_id:
             build_kwargs['filesystem_koji_task_id'] = task_id
 
