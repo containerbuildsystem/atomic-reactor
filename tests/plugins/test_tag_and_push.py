@@ -196,7 +196,7 @@ def test_tag_and_push_plugin(
     # digest matters anyways
     manifest_response_v1 = requests.Response()
     (flexmock(manifest_response_v1,
-              raise_for_status=lambda: None,
+              status_code=200,
               json=manifest_json,
               headers={
                 'Content-Type': 'application/vnd.docker.distribution.manifest.v1+json',
@@ -205,7 +205,7 @@ def test_tag_and_push_plugin(
 
     manifest_response_v2 = requests.Response()
     (flexmock(manifest_response_v2,
-              raise_for_status=lambda: None,
+              status_code=200,
               json=manifest_json,
               headers={
                 'Content-Type': 'application/vnd.docker.distribution.manifest.v2+json',
@@ -220,15 +220,16 @@ def test_tag_and_push_plugin(
               }))
 
     config_blob_response = requests.Response()
-    (flexmock(config_blob_response, raise_for_status=lambda: None, json=config_json))
+    (flexmock(config_blob_response, status_code=200, json=config_json))
 
     def custom_get(method, url, headers, **kwargs):
         if url == manifest_latest_url:
-            if headers['Accept'] == 'application/vnd.docker.distribution.manifest.v1+json':
-                return manifest_response_v1
-
+            # For a manifest stored as v2 or v1, the docker registry defaults to
+            # returning a v1 manifest if a v2 manifest is not explicitly requested
             if headers['Accept'] == 'application/vnd.docker.distribution.manifest.v2+json':
                 return manifest_response_v2
+            else:
+                return manifest_response_v1
 
             if headers['Accept'] == 'application/vnd.docker.distribution.manifest.list.v2+json':
                 return manifest_response_v2_list

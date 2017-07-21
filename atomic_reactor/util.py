@@ -623,10 +623,11 @@ class Dockercfg(object):
 class ManifestDigest(object):
     """Wrapper for digests for a docker manifest."""
 
-    def __init__(self, v1=None, v2=None, v2_list=None):
+    def __init__(self, v1=None, v2=None, v2_list=None, oci=None):
         self.v1 = v1
         self.v2 = v2
         self.v2_list = v2_list
+        self.oci = oci
 
     @property
     def default(self):
@@ -635,15 +636,21 @@ class ManifestDigest(object):
         Depending on the docker version, <= 1.9, used to push
         the image to the registry, v2 schema may not be available.
         In such case, the v1 schema should be used when interacting
-        with the registry.
+        with the registry. An OCI digest will only be present when
+        the manifest was pushed as an OCI digest.
         """
-        return self.v2_list or self.v2 or self.v1
+        return self.v2_list or self.oci or self.v2 or self.v1
 
 
 def get_manifest_media_type(version):
-    if version == 'v2_list':
-        version = 'list.v2'
-    return 'application/vnd.docker.distribution.manifest.{}+json'.format(version)
+    if version in ('v1', 'v2'):
+        return 'application/vnd.docker.distribution.manifest.{}+json'.format(version)
+    elif version == 'v2_list':
+        return 'application/vnd.docker.distribution.manifest.list.v2+json'
+    elif version == 'oci':
+        return 'application/vnd.oci.image.manifest.v1+json'
+    else:
+        raise RuntimeError("Unknown manifest schema type")
 
 
 def query_registry(image, registry, digest=None, insecure=False, dockercfg_path=None,
@@ -709,7 +716,7 @@ def query_registry(image, registry, digest=None, insecure=False, dockercfg_path=
 
 
 def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
-                         versions=('v1', 'v2', 'v2_list'), require_digest=True):
+                         versions=('v1', 'v2', 'v2_list', 'oci'), require_digest=True):
     """Return manifest digest for image.
 
     :param image: ImageName, the remote image to inspect
@@ -724,6 +731,12 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
     :return: dict, versions mapped to their digest
     """
     digests = {}
+    # If all of the media types return a 404 NOT_FOUND status, then we rethrow
+    # an exception, if all of the media types fail for some other reason - like
+    # bad headers - then we return a ManifestDigest object with no digests.
+    # This is interesting for the Pulp "retry until the manifest shows up" case.
+    all_not_found = True
+    saved_not_found = None
     for version in versions:
         media_type = get_manifest_media_type(version)
         headers = {'Accept': media_type}
@@ -733,13 +746,27 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
                 image, registry, digest=None,
                 insecure=insecure, dockercfg_path=dockercfg_path,
                 version=version)
+            all_not_found = False
         except (HTTPError, RetryError) as ex:
+            if ex.response.status_code == requests.codes.not_found:
+                saved_not_found = ex
+            else:
+                all_not_found = False
+
             # If the registry has a v2 manifest that can't be converted into a v1
-            # manifest, the registry fails with status=400, and a error code of
-            # MANIFEST_INVALID.
-            if version == 'v1' and ex.response.status_code == 400:
+            # manifest, the registry fails with status=400 (BAD_REQUEST), and an error code of
+            # MANIFEST_INVALID. Note that if the registry has v2 manifest and
+            # you ask for an OCI manifest, the registry will try to convert the
+            # v2 manifest into a v1 manifest as the default type, so the same
+            # thing occurs.
+            if version != 'v2' and ex.response.status_code == requests.codes.bad_request:
                 logger.warning('Unable to fetch digest for %s, got error %s',
                                media_type, ex.response.status_code)
+                continue
+            # Returned if the manifest could not be retrieved for the given
+            # media type
+            elif (ex.response.status_code == requests.codes.not_found or
+                  ex.response.status_code == requests.codes.not_acceptable):
                 continue
             else:
                 raise
@@ -787,8 +814,11 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
         logger.debug('Image %s:%s has %s manifest digest: %s',
                      context, tag, version, digests[version])
 
-    if not digests and require_digest:
-        raise RuntimeError('No digests found for {}'.format(image))
+    if not digests:
+        if all_not_found and len(versions) > 0:
+            raise saved_not_found
+        if require_digest:
+            raise RuntimeError('No digests found for {}'.format(image))
 
     return ManifestDigest(**digests)
 
