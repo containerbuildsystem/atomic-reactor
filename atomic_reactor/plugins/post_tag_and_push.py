@@ -57,13 +57,8 @@ class TagAndPushPlugin(PostBuildPlugin):
         # If the last image has type OCI_TAR, then hunt back and find the
         # the untarred version, since skopeo only supports OCI's as an
         # untarred directory
-        index = 1
-        while index <= len(self.workflow.exported_image_sequence):
-            image = self.workflow.exported_image_sequence[-index]
-            if image['type'] != IMAGE_TYPE_OCI_TAR:
-                break
-            index += 1
-        assert image is not None
+        image = [x for x in self.workflow.exported_image_sequence if
+                 x['type'] != IMAGE_TYPE_OCI_TAR][-1]
 
         cmd = ['skopeo', 'copy']
         if docker_push_secret is not None:

@@ -2,4 +2,6 @@ docker-py
 docker-squash>=1.0.0rc3
 dockerfile-parse>=0.0.5
 jsonschema
+modulemd
+pdc-client
 PyYAML
