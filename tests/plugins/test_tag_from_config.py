@@ -23,6 +23,13 @@ if MOCK:
     from tests.docker_mock import mock_docker
 
 
+DF_CONTENT_LABELS = '''\
+FROM fedora
+LABEL "version"="version_value"
+LABEL "release"="$parentrelease"
+'''
+
+
 class MockSource(object):
     def __init__(self, tmpdir):
         tmpdir = str(tmpdir)
@@ -121,3 +128,56 @@ def test_bad_inspect_data(tmpdir, docker_tasker, inspect, error):
         runner.run()
 
     assert error in str(exc)
+
+@pytest.mark.parametrize(('unique_tags', 'primary_tags', 'expected'), [  # noqa
+    (None, None, ['name:get_tags', 'name:file_tags']),
+    ([], [], []),
+    (['foo', 'bar'], [], ['name:foo', 'name:bar']),
+    ([], ['foo', 'bar'], ['name:foo', 'name:bar']),
+    ([], ['foo', '{Version}', 'bar'], None),
+    ([], ['foo', '{version}', 'bar'], ['name:foo', 'name:version_value', 'name:bar']),
+    ([], ['foo', '{version}-{release}', 'bar'],
+     ['name:foo', 'name:version_value-7.4.1', 'name:bar']),
+    (['foo', 'bar'], ['{version}'], ['name:foo', 'name:bar', 'name:version_value']),
+    (['foo', 'bar'], ['{version}-{release}'],
+     ['name:foo', 'name:bar', 'name:version_value-7.4.1']),
+])
+def test_tag_parse(tmpdir, docker_tasker, unique_tags, primary_tags, expected):
+    df = df_parser(str(tmpdir))
+    df.content = DF_CONTENT_LABELS
+
+    workflow = mock_workflow(tmpdir)
+    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    workflow.built_image_inspect = {
+        INSPECT_CONFIG: {
+            'Labels': {'Name': 'name'},
+        }
+    }
+    flexmock(workflow, base_image_inspect={
+        INSPECT_CONFIG: {
+            'Labels': {'parentrelease': '7.4.1'},
+            'Env': {'parentrelease': '7.4.1'},
+        }
+    })
+    mock_additional_tags_file(str(tmpdir), ['get_tags', 'file_tags'])
+
+    if unique_tags is not None and primary_tags is not None:
+        input_tags = {
+            'unique': unique_tags,
+            'primary': primary_tags
+        }
+    else:
+        input_tags = None
+    runner = PostBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{'name': TagFromConfigPlugin.key,
+          'args': {'tag_suffixes': input_tags}}]
+    )
+    if expected is not None:
+        results = runner.run()
+        plugin_result = results[TagFromConfigPlugin.key]
+        assert plugin_result == expected
+    else:
+        with pytest.raises(PluginFailedException):
+            runner.run()
