@@ -8,10 +8,11 @@ of the BSD license. See the LICENSE file for details.
 
 import os
 import re
+import string
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.constants import INSPECT_CONFIG, TAG_NAME_REGEX
-from atomic_reactor.util import get_preferred_label_key
+from atomic_reactor.util import get_preferred_label_key, df_parser
 
 
 class TagFromConfigPlugin(PostBuildPlugin):
@@ -43,7 +44,40 @@ class TagFromConfigPlugin(PostBuildPlugin):
 
     TAGS_FILENAME = 'additional-tags'
 
-    def get_tags(self):
+    def __init__(self, tasker, workflow, tag_suffixes=None):
+        super(TagFromConfigPlugin, self).__init__(tasker, workflow)
+        self.tag_suffixes = tag_suffixes
+
+    def parse_and_add_tags(self):
+        class MyFormatter(string.Formatter):
+            """
+            using this because str.format can't handle keys with dots and dashes
+            which are included in some of the labels, such as
+            'authoritative-source-url', 'com.redhat.component', etc
+            """
+            def get_field(self, field_name, args, kwargs):
+                return (self.get_value(field_name, args, kwargs), field_name)
+
+        tags = []
+        name = self.get_component_name()
+        labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow,
+                           env_replace=True).labels
+        for tag_suffix in self.tag_suffixes.get('unique', []):
+            tag = '{}:{}'.format(name, tag_suffix)
+            self.log.debug('Using additional unique tag %s', tag)
+            self.workflow.tag_conf.add_unique_image(tag)
+            tags.append(tag)
+
+        for tag_suffix in self.tag_suffixes.get('primary', []):
+            p_suffix = MyFormatter().vformat(tag_suffix, [], labels)
+            p_tag = '{}:{}'.format(name, p_suffix)
+            self.log.debug('Using additional primary tag %s', p_tag)
+            self.workflow.tag_conf.add_primary_image(p_tag)
+            tags.append(p_tag)
+
+        return tags
+
+    def get_and_add_tags(self):
         tags = []
 
         df_dir = self.workflow.source.get_dockerfile_path()[1]
@@ -65,6 +99,15 @@ class TagFromConfigPlugin(PostBuildPlugin):
                     self.log.warning("tag '%s' does not match '%s'"
                                      "or includes dashes, ignoring", tag, TAG_NAME_REGEX)
 
+        if tags:
+            name = self.get_component_name()
+            for i, tag_suffix in enumerate(tags):
+                tag = '{}:{}'.format(name, tag_suffix)
+                self.log.debug('Using additional tag: %s', tag)
+                self.workflow.tag_conf.add_primary_image(tag)
+                # Store modified name.
+                tags[i] = tag
+
         return tags
 
     def get_component_name(self):
@@ -83,15 +126,9 @@ class TagFromConfigPlugin(PostBuildPlugin):
         return name
 
     def run(self):
-        tags = self.get_tags()
-
-        if tags:
-            name = self.get_component_name()
-            for i, tag_suffix in enumerate(tags):
-                tag = '{}:{}'.format(name, tag_suffix)
-                self.log.debug('Using additional tag: %s', tag)
-                self.workflow.tag_conf.add_primary_image(tag)
-                # Store modified name.
-                tags[i] = tag
+        if self.tag_suffixes is not None:
+            tags = self.parse_and_add_tags()
+        else:
+            tags = self.get_and_add_tags()
 
         return tags
