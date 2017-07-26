@@ -53,12 +53,11 @@ from __future__ import unicode_literals
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import INSPECT_CONFIG
-from atomic_reactor.util import get_docker_architecture, df_parser
+from atomic_reactor.util import get_docker_architecture, df_parser, LabelFormatter
 from osbs.utils import Labels
 import json
 import datetime
 import re
-import string
 
 
 class AddLabelsPlugin(PreBuildPlugin):
@@ -258,16 +257,7 @@ class AddLabelsPlugin(PreBuildPlugin):
         all_labels.update(df_labels)
         all_labels.update(plugin_labels)
 
-        class MyFormatter(string.Formatter):
-            """
-            using this because str.format can't handle keys with dots and dashes
-            which are included in some of the labels, such as
-            'authoritative-source-url', 'com.redhat.component', etc
-            """
-            def get_field(self, field_name, args, kwargs):
-                return (self.get_value(field_name, args, kwargs), field_name)
-
-        info_url = MyFormatter().vformat(self.info_url_format, [], all_labels)
+        info_url = LabelFormatter().vformat(self.info_url_format, [], all_labels)
         self.labels['url'] = info_url
 
     def run(self):

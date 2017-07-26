@@ -23,6 +23,7 @@ import logging
 import uuid
 import yaml
 import codecs
+import string
 
 from atomic_reactor.constants import DOCKERFILE_FILENAME, TOOLS_USED, INSPECT_CONFIG
 
@@ -912,3 +913,13 @@ def read_yaml(yaml_file_path, schema):
         raise
 
     return data
+
+
+class LabelFormatter(string.Formatter):
+    """
+    using this because str.format can't handle keys with dots and dashes
+    which are included in some of the labels, such as
+    'authoritative-source-url', 'com.redhat.component', etc
+    """
+    def get_field(self, field_name, args, kwargs):
+        return (self.get_value(field_name, args, kwargs), field_name)
