@@ -17,7 +17,6 @@ from __future__ import unicode_literals
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
-from atomic_reactor.util import get_manifest_digests
 from docker.errors import NotFound
 from time import time, sleep
 
@@ -31,9 +30,7 @@ class PulpPullPlugin(PostBuildPlugin):
     key = 'pulp_pull'
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow,
-                 timeout=600, retry_delay=30,
-                 insecure=False, secret=None):
+    def __init__(self, tasker, workflow, timeout=600, retry_delay=30, insecure=False):
         """
         constructor
 
@@ -41,15 +38,12 @@ class PulpPullPlugin(PostBuildPlugin):
         :param workflow: DockerBuildWorkflow instance
         :param timeout: int, maximum number of seconds to wait
         :param retry_delay: int, seconds between pull attempts
-        :param insecure: bool, allow non-https pull if true
-        :param secret: str, path to secret
         """
         # call parent constructor
         super(PulpPullPlugin, self).__init__(tasker, workflow)
         self.timeout = timeout
         self.retry_delay = retry_delay
         self.insecure = insecure
-        self.secret = secret
 
     def run(self):
         start = time()
@@ -63,13 +57,6 @@ class PulpPullPlugin(PostBuildPlugin):
 
         pullspec = image.copy()
         pullspec.registry = registry.uri  # the image on Crane
-
-        digests = get_manifest_digests(pullspec, registry.uri, self.insecure, self.secret)
-        if digests.v2:
-            self.log.info("V2 schema 2 digest found, returning %s", self.workflow.builder.image_id)
-            return self.workflow.builder.image_id
-        else:
-            self.log.info("V2 schema 2 digest is not available")
 
         while True:
             # Pull the image from Crane
