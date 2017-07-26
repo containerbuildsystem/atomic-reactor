@@ -1,32 +1,33 @@
 language: python
-python:
-  - "2.7"
-  - "3.4"
-  - "3.5"
-  - "3.6"
-# command to install dependencies
-install:
-  - "pip install -r requirements.txt"
-  - "pip install -r tests/requirements.txt"
-  - "pip install pytest-cov coveralls"
-  - "pip install git+https://github.com/projectatomic/osbs-client"
-  - "if [[ $TRAVIS_PYTHON_VERSION == 2* ]]; then pip install git+https://github.com/release-engineering/dockpulp; fi"
-  - "if [[ $TRAVIS_PYTHON_VERSION == 2* ]]; then pip install -r requirements-py2.txt; fi"
-# command to run tests
-script: "py.test -vv tests --cov atomic_reactor"
-# run in a docker container
-sudo: false
+sudo: "required"
+services:
+  - docker
+env:
+  matrix:
+    - OS=centos
+      OS_VERSION=7
+      PYTHON_VERSION=2
+    - OS=fedora
+      OS_VERSION=25
+      PYTHON_VERSION=2
+    - OS=fedora
+      OS_VERSION=25
+      PYTHON_VERSION=3
+    - OS=fedora
+      OS_VERSION=26
+      PYTHON_VERSION=2
+    - OS=fedora
+      OS_VERSION=26
+      PYTHON_VERSION=3
+    - OS=fedora
+      OS_VERSION=rawhide
+      PYTHON_VERSION=2
+    - OS=fedora
+      OS_VERSION=rawhide
+      PYTHON_VERSION=3
+script:
+ - pip install coveralls
+ - ./test.sh
+after_success: coveralls
 notifications:
   email: false
-after_success: "coveralls"
-deploy:
-  provider: pypi
-  user: bkabrda
-  on:
-    tags: true
-  password:
-    secure: Q4pXe0ARf2Mj7ZEqEICpzW6SBB554PxVPKErJkUcaD4V3zO3e/Ckbrk0aHeCMCPZlD5i/tfBXRMsMJhcvQht+jXTwUo5VD55WvkKBmpvQbJBsvmrIvrX+3C8SxVYXyLiSklQxCdGMCE/EN9dmQVI2574BQsXR43uVhwOzuL2V3k=
-addons:
-  apt:
-    packages:
-    - desktop-file-utils
