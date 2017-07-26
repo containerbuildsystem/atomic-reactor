@@ -14,10 +14,7 @@ from docker.errors import NotFound
 
 from flexmock import flexmock
 import pytest
-import requests
 
-DIGEST_V1 = 'sha256:7de72140ec27a911d3f88d60335f08d6530a4af136f7beab47797a196e840afd'
-DIGEST_V2 = 'sha256:85a7e3fb684787b86e64808c5b91d926afda9d6b35a0642a72d7a746452e71c1'
 
 class MockerTasker(object):
     def __init__(self):
@@ -49,113 +46,34 @@ class TestPostPulpPull(object):
                         builder=builder,
                         plugin_workspace={})
 
-    CONFIG_DIGEST = 'sha256:2c782e3a93d34d89ea4cf54052768be117caed54803263dd1f3798ce42aac14e'
-    media_type = 'application/vnd.docker.distribution.manifest.v2+json'
-
-    response_config_json = {
-        'config': {
-            'digest': CONFIG_DIGEST,
-            'mediaType': 'application/octet-stream',
-            'size': 4132
-        },
-        'layers': [
-            {
-                'digest': 'sha256:16dc1f96e3a1bb628be2e00518fec2bb97bd5933859de592a00e2eb7774b6ecf',
-                'mediaType': 'application/vnd.docker.image.rootfs.diff.tar.gzip',
-                'size': 71907148
-            },
-            {
-                'digest': 'sha256:cebc0565e1f096016765f55fde87a6f60fdb1208c0b5017e35a856ff578f5ccb',
-                'mediaType': 'application/vnd.docker.image.rootfs.diff.tar.gzip',
-                'size': 3945724
-            }
-        ],
-        'mediaType': media_type,
-        'schemaVersion': 2
-    }
-
-    config_response_config_v1 = requests.Response()
-    (flexmock(config_response_config_v1,
-              raise_for_status=lambda: None,
-              status_code=requests.codes.ok,
-              json=response_config_json,
-              headers={
-                'Content-Type': 'application/vnd.docker.distribution.manifest.v1+json',
-                'Docker-Content-Digest': DIGEST_V1
-              }))
-
-    config_response_config_v2 = requests.Response()
-    (flexmock(config_response_config_v2,
-              raise_for_status=lambda: None,
-              status_code=requests.codes.ok,
-              json=response_config_json,
-              headers={
-                'Content-Type': 'application/vnd.docker.distribution.manifest.v2+json',
-                'Docker-Content-Digest': DIGEST_V2
-              }))
-
-    def custom_get_v1(self, url, headers, **kwargs):
-        return self.config_response_config_v1
-
-    def custom_get_v2(self, url, headers, **kwargs):
-        return self.config_response_config_v2
-
-    @pytest.mark.parametrize(('insecure', 'config_version'), [
-        (True, 'v1'),
-        (True, 'v2'),
-        (False, 'v1'),
-        (False, 'v2'),
-    ])
-    def test_pull_first_time(self, insecure, config_version):
+    @pytest.mark.parametrize('insecure', [True, False])
+    def test_pull_first_time(self, insecure):
         workflow = self.workflow()
         tasker = MockerTasker()
 
         test_id = 'sha256:(new)'
 
-        if config_version == 'v2':
-            # for v2, we just return pre-existing ID
-            test_id = 'sha256:(old)'
+        (flexmock(tasker)
+            .should_call('pull_image')
+            .with_args(self.EXPECTED_IMAGE, insecure=insecure)
+            .and_return(self.EXPECTED_PULLSPEC)
+            .once()
+            .ordered())
 
-        if config_version == 'v1':
-            getter = self.custom_get_v1
-        else:
-            getter = self.custom_get_v2
-
-        (flexmock(requests)
-            .should_receive('get')
-            .replace_with(getter))
-
-        if config_version == 'v1':
-            (flexmock(tasker)
-                .should_call('pull_image')
-                .with_args(self.EXPECTED_IMAGE, insecure=insecure)
-                .and_return(self.EXPECTED_PULLSPEC)
-                .once()
-                .ordered())
-
-            (flexmock(tasker)
-                .should_receive('inspect_image')
-                .with_args(self.EXPECTED_PULLSPEC)
-                .and_return({'Id': test_id})
-                .once())
-        else:
-            (flexmock(tasker)
-                .should_call('pull_image')
-                .never())
-
-            (flexmock(tasker)
-                .should_call('inspect_image')
-                .never())
+        (flexmock(tasker)
+            .should_receive('inspect_image')
+            .with_args(self.EXPECTED_PULLSPEC)
+            .and_return({'Id': test_id})
+            .once())
 
         plugin = PulpPullPlugin(tasker, workflow, insecure=insecure)
 
         # Plugin return value is the new ID
         assert plugin.run() == test_id
 
-        if config_version == 'v1':
-            assert len(tasker.pulled_images) == 1
-            pulled = tasker.pulled_images[0].to_str()
-            assert pulled == self.EXPECTED_PULLSPEC
+        assert len(tasker.pulled_images) == 1
+        pulled = tasker.pulled_images[0].to_str()
+        assert pulled == self.EXPECTED_PULLSPEC
 
         # Image ID is updated in workflow
         assert workflow.builder.image_id == test_id
@@ -163,10 +81,6 @@ class TestPostPulpPull(object):
     def test_pull_timeout(self):
         workflow = self.workflow()
         tasker = MockerTasker()
-
-        (flexmock(requests)
-            .should_receive('get')
-            .replace_with(self.custom_get_v1))
 
         (flexmock(tasker)
             .should_call('pull_image')
@@ -189,10 +103,6 @@ class TestPostPulpPull(object):
         workflow = self.workflow()
         tasker = MockerTasker()
         test_id = 'sha256:(new)'
-
-        (flexmock(requests)
-            .should_receive('get')
-            .replace_with(self.custom_get_v1))
 
         (flexmock(tasker)
             .should_call('pull_image')
