@@ -131,9 +131,9 @@ class KojiImportPlugin(ExitPlugin):
                     if annotations['help_file'] is not None:
                         extra['image']['help'] = annotations['help_file']
                         break
-                    else:
-                        # They are all None
-                        extra['image']['help'] = None
+            else:
+                # They are all None
+                extra['image']['help'] = None
 
     def get_build(self, metadata, worker_metadatas):
         start_time = int(atomic_reactor_start_time)
