@@ -6,3 +6,4 @@ build/
 
 # Unit test / coverage reports
 .cache
+.coverage
