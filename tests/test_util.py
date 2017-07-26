@@ -31,7 +31,7 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  human_size, CommandResult,
                                  get_manifest_digests, ManifestDigest,
                                  get_build_json, is_scratch_build, df_parser,
-                                 are_plugins_in_order)
+                                 are_plugins_in_order, LabelFormatter)
 from atomic_reactor import util
 from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1, MOCK_SOURCE
 from atomic_reactor.constants import INSPECT_CONFIG
@@ -551,3 +551,21 @@ def test_df_parser_parent_env_wf(tmpdir, caplog, env_arg):
 def test_are_plugins_in_order(available, requested, result):
     assert are_plugins_in_order([{'name': plugin} for plugin in available],
                                 *requested) == result
+
+
+@pytest.mark.parametrize(('test_string', 'labels', 'expected'), [
+    ('', {}, ''),
+    ('', {'version': 'cat'}, ''),
+    ('dog', {'version': 'cat'}, 'dog'),
+    ('dog', {}, 'dog'),
+    ('{version}', {'version': 'cat'}, 'cat'),
+    ('dog-{version}', {'version': 'cat'}, 'dog-cat'),
+    ('{version}', {}, None),
+    ('{Version}', {'version': 'cat'}, None),
+])
+def test_label_formatter(labels, test_string, expected):
+    if expected is not None:
+        assert expected == LabelFormatter().vformat(test_string, [], labels)
+    else:
+        with pytest.raises(KeyError):
+            LabelFormatter().vformat(test_string, [], labels)

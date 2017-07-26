@@ -8,11 +8,10 @@ of the BSD license. See the LICENSE file for details.
 
 import os
 import re
-import string
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.constants import INSPECT_CONFIG, TAG_NAME_REGEX
-from atomic_reactor.util import get_preferred_label_key, df_parser
+from atomic_reactor.util import get_preferred_label_key, df_parser, LabelFormatter
 
 
 class TagFromConfigPlugin(PostBuildPlugin):
@@ -49,15 +48,6 @@ class TagFromConfigPlugin(PostBuildPlugin):
         self.tag_suffixes = tag_suffixes
 
     def parse_and_add_tags(self):
-        class MyFormatter(string.Formatter):
-            """
-            using this because str.format can't handle keys with dots and dashes
-            which are included in some of the labels, such as
-            'authoritative-source-url', 'com.redhat.component', etc
-            """
-            def get_field(self, field_name, args, kwargs):
-                return (self.get_value(field_name, args, kwargs), field_name)
-
         tags = []
         name = self.get_component_name()
         labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow,
@@ -69,7 +59,7 @@ class TagFromConfigPlugin(PostBuildPlugin):
             tags.append(tag)
 
         for tag_suffix in self.tag_suffixes.get('primary', []):
-            p_suffix = MyFormatter().vformat(tag_suffix, [], labels)
+            p_suffix = LabelFormatter().vformat(tag_suffix, [], labels)
             p_tag = '{}:{}'.format(name, p_suffix)
             self.log.debug('Using additional primary tag %s', p_tag)
             self.workflow.tag_conf.add_primary_image(p_tag)
