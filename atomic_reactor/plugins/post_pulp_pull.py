@@ -72,7 +72,8 @@ class PulpPullPlugin(PostBuildPlugin):
             if plugin['name'] is PLUGIN_PULP_PUSH_KEY:
                 media_types.append('application/json')
 
-        digests = get_manifest_digests(pullspec, registry.uri, self.insecure, self.secret)
+        digests = get_manifest_digests(pullspec, registry.uri, self.insecure, self.secret,
+                                       require_digest=False)
         if digests.v2:
             self.log.info("V2 schema 2 digest found, returning %s", self.workflow.builder.image_id)
             media_types.append('application/vnd.docker.distribution.manifest.v2+json')

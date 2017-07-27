@@ -258,12 +258,17 @@ def test_human_size(size_input, expected):
     True,
     False,
 ])
-@pytest.mark.parametrize('versions', [
-    (('v1', 'v2')),
-    (('v1',)),
-    (('v2',)),
-    (tuple()),
-    None,
+@pytest.mark.parametrize('versions,require_digest', [
+    (('v1', 'v2'), True),
+    (('v1', 'v2'), False),
+    (('v1',), False),
+    (('v1',), True),
+    (('v2',), False),
+    (('v2',), True),
+    (tuple(), False),
+    (tuple(), True),
+    (None, False),
+    (None, True),
 ])
 @pytest.mark.parametrize('creds', [
     ('user1', 'pass'),
@@ -283,7 +288,7 @@ def test_human_size(size_input, expected):
 ])
 @responses.activate
 def test_get_manifest_digests(tmpdir, image, registry, insecure, creds,
-                              versions, path):
+                              versions, require_digest, path):
     kwargs = {}
 
     image = ImageName.parse(image)
@@ -308,7 +313,9 @@ def test_get_manifest_digests(tmpdir, image, registry, insecure, creds,
     if versions is not None:
         kwargs['versions'] = versions
 
-    def request_callback(request):
+    kwargs['require_digest'] = require_digest
+
+    def request_callback(request, all_headers=True):
         if creds and creds[0] and creds[1]:
             assert request.headers['Authorization']
 
@@ -321,10 +328,13 @@ def test_get_manifest_digests(tmpdir, image, registry, insecure, creds,
             raise ValueError('Unexpected media type {}'.format(media_type))
 
         media_type_prefix = media_type.split('+')[0]
-        headers = {
-            'Content-Type': '{}+jsonish'.format(media_type_prefix),
-            'Docker-Content-Digest': digest
-        }
+        if all_headers:
+            headers = {
+                'Content-Type': '{}+jsonish'.format(media_type_prefix),
+                'Docker-Content-Digest': digest
+            }
+        else:
+            headers = {}
         return (200, headers, '')
 
     if registry.startswith('http'):
@@ -353,18 +363,27 @@ def test_get_manifest_digests(tmpdir, image, registry, insecure, creds,
         actual_digests = get_manifest_digests(**kwargs)
         assert actual_digests.v1 == expected_result.get('v1')
         assert actual_digests.v2 == expected_result.get('v2')
-    else:
+    elif require_digest:
         with pytest.raises(RuntimeError):
             get_manifest_digests(**kwargs)
+    else:
+        get_manifest_digests(**kwargs)
 
 
+@pytest.mark.parametrize('has_content_type_header', [
+    True, False
+])
+@pytest.mark.parametrize('has_content_digest', [
+    True, False
+])
 @pytest.mark.parametrize('digest_is_v1,can_convert_v2_v1', [
     (True, False),
     (False, True),
     (False, False),
 ])
 @responses.activate
-def test_get_manifest_digests_missing(tmpdir, digest_is_v1, can_convert_v2_v1):
+def test_get_manifest_digests_missing(tmpdir, has_content_type_header, has_content_digest,
+                                      digest_is_v1, can_convert_v2_v1):
     kwargs = {}
 
     image = ImageName.parse('example.com/spam:latest')
@@ -402,25 +421,38 @@ def test_get_manifest_digests_missing(tmpdir, digest_is_v1, can_convert_v2_v1):
 
                 digest = 'v1-converted-digest'
 
-        headers = {
-            'Content-Type': '{}+jsonish'.format(media_type_prefix),
-            'Docker-Content-Digest': digest
-        }
+        headers = {}
+        if digest_is_v1 or has_content_type_header:
+            headers['Content-Type'] = '{}+jsonish'.format(media_type_prefix)
+        if digest_is_v1 or has_content_digest:
+            headers['Docker-Content-Digest'] = digest
+
         return (200, headers, '')
 
     responses.add_callback(responses.GET, url, callback=request_callback)
 
-    actual_digests = get_manifest_digests(**kwargs)
+    if not digest_is_v1 and not has_content_type_header:
+        with pytest.raises(RuntimeError):
+            get_manifest_digests(**kwargs)
+        return
+    else:
+        actual_digests = get_manifest_digests(**kwargs)
 
     if digest_is_v1:
         assert actual_digests.v1 == 'v1-digest'
-        assert actual_digests.v2 is None
+        assert actual_digests.v2 in [True, None]
     else:
         if can_convert_v2_v1:
-            assert actual_digests.v1 == 'v1-converted-digest'
+            if has_content_digest:
+                assert actual_digests.v1 == 'v1-converted-digest'
+            else:
+                assert actual_digests.v1 is True
         else:
             assert actual_digests.v1 is None
-        assert actual_digests.v2 == 'v2-digest'
+        if has_content_digest:
+            assert actual_digests.v2 == 'v2-digest'
+        else:
+            assert actual_digests.v2 is True
 
 
 @responses.activate

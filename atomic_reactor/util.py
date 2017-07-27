@@ -31,7 +31,8 @@ from dockerfile_parse import DockerfileParser
 from pkg_resources import resource_stream
 
 from importlib import import_module
-
+from requests.utils import guess_json_utf
+from time import sleep
 
 logger = logging.getLogger(__name__)
 
@@ -705,7 +706,7 @@ def query_registry(image, registry, digest=None, insecure=False, dockercfg_path=
 
 
 def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
-                         versions=('v1', 'v2')):
+                         versions=('v1', 'v2'), require_digest=True):
     """Return manifest digest for image.
 
     :param image: ImageName, the remote image to inspect
@@ -714,6 +715,8 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
     :param insecure: bool, when True registry's cert is not verified
     :param dockercfg_path: str, dirname of .dockercfg location
     :param versions: tuple, which manifest schema versions to fetch digest
+    :param require_digest: bool, when True exception is thrown if no digest is
+                                 set in the headers.
 
     :return: dict, versions mapped to their digest
     """
@@ -721,10 +724,16 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
     for version in versions:
         media_type = get_manifest_media_type(version)
         headers = {'Accept': media_type}
-        response = query_registry(
-            image, registry, digest=None,
-            insecure=insecure, dockercfg_path=dockercfg_path,
-            version=version)
+
+        for attempts in range(10):
+            response = query_registry(
+                image, registry, digest=None,
+                insecure=insecure, dockercfg_path=dockercfg_path,
+                version=version)
+            if response.status_code == 404:
+                sleep(1)
+            else:
+                break
 
         # If the registry has a v2 manifest that can't be converted into a v1
         # manifest, the registry fails with status=400, and a error code of
@@ -736,14 +745,41 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
 
         response.raise_for_status()
 
+        received_media_type = None
+        try:
+            received_media_type = response.headers['Content-Type']
+        except KeyError:
+            # Guess content_type from contents
+            try:
+                encoding = guess_json_utf(response.content)
+                manifest = json.loads(response.content.decode(encoding))
+                received_media_type = manifest['mediaType']
+            except (ValueError,  # not valid JSON
+                    KeyError):   # no mediaType key
+                logger.warning("Unable to fetch media type: neither Content-Type header "
+                               "nor mediaType in output was found")
+
+        if not received_media_type:
+            continue
+
         # Only compare prefix as response may use +prettyjws suffix
         # which is the case for signed manifest
-        response_h_prefix = response.headers['Content-Type'].rsplit('+', 1)[0]
+        response_h_prefix = received_media_type.rsplit('+', 1)[0]
         request_h_prefix = media_type.rsplit('+', 1)[0]
         if response_h_prefix != request_h_prefix:
             logger.debug('request headers: %s', headers)
             logger.debug('response headers: %s', response.headers)
-            logger.warning('Unable to fetch digest for %s', media_type)
+            logger.warning('Received media type %s mismatches the expected %s',
+                           media_type, received_media_type)
+            continue
+
+        # set it to truthy value so that koji_import would know pulp supports these digests
+        digests[version] = True
+        logger.warning('received_media_type=%s', received_media_type)
+
+        if not response.headers.get('Docker-Content-Digest'):
+            logger.warning('Unable to fetch digest for %s, no Docker-Content-Digest header',
+                           media_type)
             continue
 
         digests[version] = response.headers['Docker-Content-Digest']
@@ -752,7 +788,7 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
         logger.debug('Image %s:%s has %s manifest digest: %s',
                      context, tag, version, digests[version])
 
-    if not digests:
+    if not digests and require_digest:
         raise RuntimeError('No digests found for {}'.format(image))
 
     return ManifestDigest(**digests)

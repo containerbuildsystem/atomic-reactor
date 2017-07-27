@@ -15,6 +15,7 @@ from docker.errors import NotFound
 from flexmock import flexmock
 import pytest
 import requests
+import json
 
 DIGEST_V1 = 'sha256:7de72140ec27a911d3f88d60335f08d6530a4af136f7beab47797a196e840afd'
 DIGEST_V2 = 'sha256:85a7e3fb684787b86e64808c5b91d926afda9d6b35a0642a72d7a746452e71c1'
@@ -50,36 +51,42 @@ class TestPostPulpPull(object):
                         builder=builder,
                         plugin_workspace={})
 
-    CONFIG_DIGEST = 'sha256:2c782e3a93d34d89ea4cf54052768be117caed54803263dd1f3798ce42aac14e'
-    media_type = 'application/vnd.docker.distribution.manifest.v2+json'
+    media_type_v1 = 'application/vnd.docker.distribution.manifest.v1+json'
+    media_type_v2 = 'application/vnd.docker.distribution.manifest.v2+json'
 
-    response_config_json = {
-        'config': {
-            'digest': CONFIG_DIGEST,
-            'mediaType': 'application/octet-stream',
-            'size': 4132
-        },
-        'layers': [
-            {
-                'digest': 'sha256:16dc1f96e3a1bb628be2e00518fec2bb97bd5933859de592a00e2eb7774b6ecf',
-                'mediaType': 'application/vnd.docker.image.rootfs.diff.tar.gzip',
-                'size': 71907148
+    def get_response_config_json(media_type):
+        return {
+            'config': {
+                'digest': 'sha256:2c782e3a93d34d89ea4cf54052768be117caed54803263dd1f3798ce42aac14',
+                'mediaType': 'application/octet-stream',
+                'size': 4132
             },
-            {
-                'digest': 'sha256:cebc0565e1f096016765f55fde87a6f60fdb1208c0b5017e35a856ff578f5ccb',
-                'mediaType': 'application/vnd.docker.image.rootfs.diff.tar.gzip',
-                'size': 3945724
-            }
-        ],
-        'mediaType': media_type,
-        'schemaVersion': 2
+            'layers': [
+                {
+                    'digest': 'sha256:16dc1f96e3a1bb628be2e00518fec2bb97bd5933859de592a00e2eb7774b',
+                    'mediaType': 'application/vnd.docker.image.rootfs.diff.tar.gzip',
+                    'size': 71907148
+                },
+                {
+                    'digest': 'sha256:cebc0565e1f096016765f55fde87a6f60fdb1208c0b5017e35a856ff578f',
+                    'mediaType': 'application/vnd.docker.image.rootfs.diff.tar.gzip',
+                    'size': 3945724
+                }
+            ],
+            'mediaType': media_type,
+            'schemaVersion': 2
+        }
+
+    broken_response = {
+        'schemaVersion': 'foo',
+        'not-mediaType': 'bar'
     }
 
     config_response_config_v1 = requests.Response()
     (flexmock(config_response_config_v1,
               raise_for_status=lambda: None,
               status_code=requests.codes.ok,
-              json=response_config_json,
+              json=get_response_config_json(media_type_v1),
               headers={
                 'Content-Type': 'application/vnd.docker.distribution.manifest.v1+json',
                 'Docker-Content-Digest': DIGEST_V1
@@ -89,11 +96,25 @@ class TestPostPulpPull(object):
     (flexmock(config_response_config_v2,
               raise_for_status=lambda: None,
               status_code=requests.codes.ok,
-              json=response_config_json,
+              json=get_response_config_json(media_type_v2),
               headers={
                 'Content-Type': 'application/vnd.docker.distribution.manifest.v2+json',
                 'Docker-Content-Digest': DIGEST_V2
               }))
+
+    config_response_config_v2_no_headers = requests.Response()
+    (flexmock(config_response_config_v2_no_headers,
+              raise_for_status=lambda: None,
+              status_code=requests.codes.ok,
+              _content=json.dumps(get_response_config_json(media_type_v2)).encode('utf-8'),
+              headers={}))
+
+    config_response_config_v2_broken = requests.Response()
+    (flexmock(config_response_config_v2_broken,
+              raise_for_status=lambda: None,
+              status_code=requests.codes.ok,
+              _content=json.dumps(broken_response).encode('utf-8'),
+              headers={}))
 
     def custom_get_v1(self, url, headers, **kwargs):
         return self.config_response_config_v1
@@ -101,7 +122,18 @@ class TestPostPulpPull(object):
     def custom_get_v2(self, url, headers, **kwargs):
         return self.config_response_config_v2
 
-    @pytest.mark.parametrize('insecure', [(True, False)])
+    def custom_get_v2_no_headers(self, url, headers, **kwargs):
+        return self.config_response_config_v2_no_headers
+
+    def custom_get_v2_broken(self, url, headers, **kwargs):
+        return self.config_response_config_v2_broken
+
+    @pytest.mark.parametrize(('no_headers, broken_response'), [
+        (True, True),
+        (True, False),
+        (False, False)
+    ])
+    @pytest.mark.parametrize('insecure', [True, False])
     @pytest.mark.parametrize(('schema_version', 'pulp_plugin', 'expected_version'), [
         ('v1', [], []),
         ('v1', [{'name': 'pulp_push'}], ['application/json']),
@@ -123,7 +155,8 @@ class TestPostPulpPull(object):
           'application/vnd.docker.distribution.manifest.v1+json',
           'application/vnd.docker.distribution.manifest.v2+json']),
     ])
-    def test_pull_first_time(self, insecure, schema_version, pulp_plugin, expected_version):
+    def test_pull_first_time(self, no_headers, broken_response, insecure, schema_version,
+                             pulp_plugin, expected_version):
         workflow = self.workflow()
         tasker = MockerTasker()
 
@@ -135,6 +168,11 @@ class TestPostPulpPull(object):
 
         if schema_version == 'v1':
             getter = self.custom_get_v1
+        elif no_headers:
+            if broken_response:
+                getter = self.custom_get_v2_broken
+            else:
+                getter = self.custom_get_v2_no_headers
         else:
             getter = self.custom_get_v2
 
@@ -142,7 +180,7 @@ class TestPostPulpPull(object):
             .should_receive('get')
             .replace_with(getter))
 
-        if schema_version == 'v1':
+        if schema_version == 'v1' or broken_response:
             (flexmock(tasker)
                 .should_call('pull_image')
                 .with_args(self.EXPECTED_IMAGE, insecure=insecure)
@@ -171,7 +209,8 @@ class TestPostPulpPull(object):
 
         # Plugin return value is the new ID and schema
         assert results == test_id
-        assert version == expected_version
+        if not broken_response:
+            assert version == expected_version
 
         if schema_version == 'v1':
             assert len(tasker.pulled_images) == 1
