@@ -12,12 +12,13 @@ from flexmock import flexmock
 import pytest
 import os.path
 
+from atomic_reactor.build import BuildResult
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_tag_from_config import TagFromConfigPlugin
 from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.constants import INSPECT_CONFIG
-from tests.constants import (MOCK_SOURCE, MOCK)
+from tests.constants import (MOCK_SOURCE, MOCK, IMPORTED_IMAGE_ID)
 from tests.fixtures import docker_tasker  # noqa
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -25,6 +26,7 @@ if MOCK:
 
 DF_CONTENT_LABELS = '''\
 FROM fedora
+LABEL "name"="name_value"
 LABEL "version"="version_value"
 LABEL "release"="$parentrelease"
 '''
@@ -88,6 +90,7 @@ def test_tag_from_config_plugin_generated(tmpdir, docker_tasker, tags, name,
     workflow.built_image_inspect = {
         INSPECT_CONFIG: {'Labels': {'Name': name}}
     }
+    workflow.build_result = BuildResult(image_id=IMPORTED_IMAGE_ID)
 
     # Simulate missing additional-tags file.
     if tags is not None:
@@ -115,6 +118,7 @@ def test_bad_inspect_data(tmpdir, docker_tasker, inspect, error):
         workflow.built_image_inspect = {
             INSPECT_CONFIG: inspect
         }
+    workflow.build_result = BuildResult(image_id=IMPORTED_IMAGE_ID)
 
     mock_additional_tags_file(str(tmpdir), ['spam', 'bacon'])
 
@@ -129,18 +133,21 @@ def test_bad_inspect_data(tmpdir, docker_tasker, inspect, error):
 
     assert error in str(exc)
 
+
 @pytest.mark.parametrize(('unique_tags', 'primary_tags', 'expected'), [  # noqa
-    (None, None, ['name:get_tags', 'name:file_tags']),
+    (None, None, ['name_value:get_tags', 'name_value:file_tags']),
     ([], [], []),
-    (['foo', 'bar'], [], ['name:foo', 'name:bar']),
-    ([], ['foo', 'bar'], ['name:foo', 'name:bar']),
-    ([], ['foo', '{Version}', 'bar'], None),
-    ([], ['foo', '{version}', 'bar'], ['name:foo', 'name:version_value', 'name:bar']),
+    (['foo', 'bar'], [], ['name_value:foo', 'name_value:bar']),
+    ([], ['foo', 'bar'], ['name_value:foo', 'name_value:bar']),
+    ([], ['foo', '{unknown}', 'bar'], None),
+    ([], ['foo', '{version}', 'bar'], ['name_value:foo', 'name_value:version_value',
+                                       'name_value:bar']),
     ([], ['foo', '{version}-{release}', 'bar'],
-     ['name:foo', 'name:version_value-7.4.1', 'name:bar']),
-    (['foo', 'bar'], ['{version}'], ['name:foo', 'name:bar', 'name:version_value']),
+     ['name_value:foo', 'name_value:version_value-7.4.1', 'name_value:bar']),
+    (['foo', 'bar'], ['{version}'], ['name_value:foo', 'name_value:bar',
+                                     'name_value:version_value']),
     (['foo', 'bar'], ['{version}-{release}'],
-     ['name:foo', 'name:bar', 'name:version_value-7.4.1']),
+     ['name_value:foo', 'name_value:bar', 'name_value:version_value-7.4.1']),
 ])
 def test_tag_parse(tmpdir, docker_tasker, unique_tags, primary_tags, expected):
     df = df_parser(str(tmpdir))
@@ -148,11 +155,8 @@ def test_tag_parse(tmpdir, docker_tasker, unique_tags, primary_tags, expected):
 
     workflow = mock_workflow(tmpdir)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
-    workflow.built_image_inspect = {
-        INSPECT_CONFIG: {
-            'Labels': {'Name': 'name'},
-        }
-    }
+    workflow.build_result = BuildResult.make_remote_image_result()
+
     flexmock(workflow, base_image_inspect={
         INSPECT_CONFIG: {
             'Labels': {'parentrelease': '7.4.1'},

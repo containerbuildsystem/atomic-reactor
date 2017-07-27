@@ -46,12 +46,12 @@ class TagFromConfigPlugin(PostBuildPlugin):
     def __init__(self, tasker, workflow, tag_suffixes=None):
         super(TagFromConfigPlugin, self).__init__(tasker, workflow)
         self.tag_suffixes = tag_suffixes
+        self.labels = None
 
     def parse_and_add_tags(self):
         tags = []
         name = self.get_component_name()
-        labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow,
-                           env_replace=True).labels
+
         for tag_suffix in self.tag_suffixes.get('unique', []):
             tag = '{}:{}'.format(name, tag_suffix)
             self.log.debug('Using additional unique tag %s', tag)
@@ -59,7 +59,7 @@ class TagFromConfigPlugin(PostBuildPlugin):
             tags.append(tag)
 
         for tag_suffix in self.tag_suffixes.get('primary', []):
-            p_suffix = LabelFormatter().vformat(tag_suffix, [], labels)
+            p_suffix = LabelFormatter().vformat(tag_suffix, [], self.labels)
             p_tag = '{}:{}'.format(name, p_suffix)
             self.log.debug('Using additional primary tag %s', p_tag)
             self.workflow.tag_conf.add_primary_image(p_tag)
@@ -101,24 +101,35 @@ class TagFromConfigPlugin(PostBuildPlugin):
         return tags
 
     def get_component_name(self):
-        if not self.workflow.built_image_inspect:
-            raise RuntimeError('There is no inspect data for built image. '
-                               'Has the build succeeded?')
-
         try:
-            labels = self.workflow.built_image_inspect[INSPECT_CONFIG]['Labels']
-            name_label = str(get_preferred_label_key(labels, "name"))
-            name = labels[name_label]
+            name_label = str(get_preferred_label_key(self.labels, "name"))
+            name = self.labels[name_label]
         except KeyError:
-            self.log.error('Unable to determine "name" from "Labels"')
+            self.log.error('Unable to determine component from "Labels"')
             raise
 
         return name
 
     def run(self):
+        self.lookup_labels()
+
         if self.tag_suffixes is not None:
             tags = self.parse_and_add_tags()
         else:
             tags = self.get_and_add_tags()
 
         return tags
+
+    def lookup_labels(self):
+        if self.workflow.build_result.is_image_available():
+            if not self.workflow.built_image_inspect:
+                raise RuntimeError('There is no inspect data for built image. '
+                                   'Has the build succeeded?')
+            try:
+                self.labels = self.workflow.built_image_inspect[INSPECT_CONFIG]['Labels']
+            except (TypeError, KeyError):
+                self.log.error('Unable to determine "Labels" from built image')
+                raise
+        else:
+            self.labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow,
+                                    env_replace=True).labels
