@@ -202,7 +202,9 @@ class TestPostPulpPull(object):
                 .should_call('inspect_image')
                 .never())
 
-        workflow.postbuild_plugins_conf = pulp_plugin
+        # Convert pulp_plugin into a JSON string and back into an object
+        # to make really sure we get a different string object back.
+        workflow.postbuild_plugins_conf = json.loads(json.dumps(pulp_plugin))
 
         plugin = PulpPullPlugin(tasker, workflow, insecure=insecure)
         results, version = plugin.run()
