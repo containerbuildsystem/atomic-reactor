@@ -32,42 +32,42 @@ DIGEST_V2 = 'sha256:85a7e3fb684787b86e64808c5b91d926afda9d6b35a0642a72d7a746452e
 
 DIGEST_LOG = 'sha256:hey-this-should-not-be-used'
 PUSH_LOGS_1_10 = [
-    b'{"status":"The push refers to a repository [localhost:5000/busybox]"}',
-    b'{"status":"Preparing","progressDetail":{},"id":"5f70bf18a086"}',
-    b'{"status":"Preparing","progressDetail":{},"id":"9508eff2c687"}',
-    b'{"status":"Pushing","progressDetail":{"current":721920,"total":1113436},"progress":"[================================\\u003e                  ] 721.9 kB/1.113 MB","id":"9508eff2c687"}',  # noqa
-    b'{"status":"Pushing","progressDetail":{"current":1024},"progress":"1.024 kB","id":"5f70bf18a086"}',  # noqa
-    b'{"status":"Pushing","progressDetail":{"current":820224,"total":1113436},"progress":"[====================================\\u003e              ] 820.2 kB/1.113 MB","id":"9508eff2c687"}',  # noqa
-    b'{"status":"Pushed","progressDetail":{},"id":"5f70bf18a086"}',
-    b'{"status":"Pushed","progressDetail":{},"id":"5f70bf18a086"}',
-    b'{"status":"Pushing","progressDetail":{"current":1300992,"total":1113436},"progress":"[==================================================\\u003e] 1.301 MB","id":"9508eff2c687"}',  # noqa
-    b'{"status":"Pushing","progressDetail":{"current":1310720,"total":1113436},"progress":"[==================================================\\u003e] 1.311 MB","id":"9508eff2c687"}',  # noqa
-    b'{"status":"Pushed","progressDetail":{},"id":"9508eff2c687"}',
-    b'{"status":"Pushed","progressDetail":{},"id":"9508eff2c687"}',
-    b'{"status":"latest: digest: ' + DIGEST_LOG.encode('utf-8') + b' size: 1920"}',
-    b'{"progressDetail":{},"aux":{"Tag":"latest","Digest":"' + DIGEST_LOG.encode('utf-8') + b'","Size":1920}}']  # noqa
+    {"status": "The push refers to a repository [localhost:5000/busybox]"},
+    {"status": "Preparing", "progressDetail": {}, "id": "5f70bf18a086"},
+    {"status": "Preparing", "progressDetail": {}, "id": "9508eff2c687"},
+    {"status": "Pushing", "progressDetail": {"current": 721920, "total": 1113436}, "progress":"[================================>                  ] 721.9 kB/1.113 MB", "id": "9508eff2c687"},  # noqa
+    {"status": "Pushing", "progressDetail": {"current": 1024}, "progress": "1.024 kB", "id": "5f70bf18a086"},  # noqa
+    {"status": "Pushing", "progressDetail": {"current": 820224, "total": 1113436}, "progress": "[====================================>              ] 820.2 kB/1.113 MB", "id": "9508eff2c687"},  # noqa
+    {"status": "Pushed", "progressDetail": {}, "id": "5f70bf18a086"},
+    {"status": "Pushed", "progressDetail": {}, "id": "5f70bf18a086"},
+    {"status": "Pushing", "progressDetail": {"current": 1300992, "total": 1113436}, "progress": "[==================================================>] 1.301 MB", "id": "9508eff2c687"},  # noqa
+    {"status": "Pushing", "progressDetail": {"current": 1310720, "total": 1113436}, "progress": "[==================================================>] 1.311 MB", "id": "9508eff2c687"},  # noqa
+    {"status": "Pushed", "progressDetail": {}, "id": "9508eff2c687"},
+    {"status": "Pushed", "progressDetail": {}, "id": "9508eff2c687"},
+    {"status": "latest: digest: + DIGEST_LOG.encode('utf-8') + size: 1920"},
+    {"progressDetail":{ }, "aux": {"Tag": "latest", "Digest": " + DIGEST_LOG.encode('utf-8') + ", "Size": 1920}}]  # noqa
 
 PUSH_LOGS_1_10_NOT_IN_STATUS = list(PUSH_LOGS_1_10)
 del PUSH_LOGS_1_10_NOT_IN_STATUS[-2]
 
 PUSH_LOGS_1_9 = [
-    b'{"status":"The push refers to a repository [172.17.42.1:5000/ns/test-image2] (len: 1)"}',
-    b'{"status":"Buffering to Disk","progressDetail":{},"id":"83bca0dcfd1b"}',
-    b'{"status":"Pushing","progressDetail":{"current":1,"total":32},"progress":"[=\\u003e                                                 ]      1 B/32 B","id":"83bca0dcfd1b"}',  # noqa
-    b'{"status":"Pushing","progressDetail":{"current":66813953,"total":66944370},"progress":"[=================================================\\u003e ] 66.81 MB/66.94 MB","id":"ded7cd95e059"}',  # noqa
-    b'{"status":"Pushing","progressDetail":{"current":66944370,"total":66944370},"progress":"[==================================================\\u003e] 66.94 MB/66.94 MB","id":"ded7cd95e059"}',  # noqa
-    b'{"status":"Image successfully pushed","progressDetail":{},"id":"ded7cd95e059"}',
-    b'{"status":"Image already exists","progressDetail":{},"id":"48ecf305d2cf"}',
-    b'{"status":"Digest: ' + DIGEST_LOG.encode('utf-8') + b'"}']
+    {"status": "The push refers to a repository [172.17.42.1:5000/ns/test-image2] (len: 1)"},
+    {"status": "Buffering to Disk", "progressDetail": {}, "id": "83bca0dcfd1b"},
+    {"status": "Pushing", "progressDetail": {"current": 1, "total": 32}, "progress": "[=>                                                 ]      1 B/32 B", "id": "83bca0dcfd1b"},  # noqa
+    {"status": "Pushing", "progressDetail": {"current": 66813953, "total": 66944370}, "progress": "[=================================================> ] 66.81 MB/66.94 MB", "id": "ded7cd95e059"},  # noqa
+    {"status": "Pushing", "progressDetail": {"current": 66944370, "total": 66944370}, "progress": "[==================================================>] 66.94 MB/66.94 MB", "id": "ded7cd95e059"},  # noqa
+    {"status": "Image successfully pushed", "progressDetail": {}, "id": "ded7cd95e059"},
+    {"status": "Image already exists", "progressDetail": {}, "id": "48ecf305d2cf"},
+    {"status": "Digest: + DIGEST_LOG.encode('utf-8') + "}]
 
 PUSH_LOGS_1_X = [  # don't remember which version does this
-    b'{"status":"The push refers to a repository [172.17.42.1:5000/ns/test-image2]"}',
-    b'{"status":"13cde7f2a483: Pushed "}',
-    b'{"status":"7.1-23: digest: ' + DIGEST_LOG.encode('utf-8') + b' size: 1539"}']
+    {"status": "The push refers to a repository [172.17.42.1:5000/ns/test-image2]"},
+    {"status": "13cde7f2a483: Pushed "},
+    {"status": "7.1-23: digest: + DIGEST_LOG.encode('utf-8') + size: 1539"}]
 
 PUSH_ERROR_LOGS = [
-    b'{"status":"The push refers to a repository [xyz/abc] (len: 1)"}\r\n',
-    b'{"errorDetail":{"message":"error message detail"},"error":"error message"}',
+    {"status": "The push refers to a repository [xyz/abc] (len: 1)"},
+    {"errorDetail": {"message": "error message detail"}, "error": "error message"},
 ]
 
 

@@ -42,41 +42,42 @@ mock_image = \
 
 mock_images = None
 
-mock_logs = b'uid=0(root) gid=0(root) groups=10(wheel)'
+mock_logs = 'uid=0(root) gid=0(root) groups=10(wheel)'
 
 mock_build_logs = \
-    [b'{"stream":"Step 0 : FROM fedora:latest\\n"}\r\n',
-     b'{"status":"Pulling from fedora","id":"latest"}\r\n',
-     b'{"status":"Digest: sha256:c63476a082b960f6264e59ef0ff93a9169eac8daf59e24805e0382afdcc9082f"}\r\n',  # noqa
-     b'{"status":"Status: Image is up to date for fedora:latest"}\r\n',
-     b'{"stream":"Step 1 : RUN uname -a \\u0026\\u0026 env\\n"}\r\n',
-     b'{"stream":" ---\\u003e Running in 3600c91d1c40\\n"}\r\n',
-     b'{"stream":"Removing intermediate container 3600c91d1c40\\n"}\r\n',
-     b'{"stream":"Successfully built 1793c2380436\\n"}\r\n']
+    [{"stream": "Step 0 : FROM fedora:latest"},
+     {"status": "Pulling from fedora", "id": "latest"},
+     {"status": "Digest: sha256:c63476a082b960f6264e59ef0ff93a9169eac8daf59e24805e0382afdcc9082f"},  # noqa
+     {"status": "Status: Image is up to date for fedora:latest"},
+     {"stream": "Step 1 : RUN uname -a && env"},
+     {"stream": " ---> Running in 3600c91d1c40"},
+     {"stream": "Removing intermediate container 3600c91d1c40"},
+     {"stream": "Successfully built 1793c2380436"}]
 
 mock_build_logs_failed = mock_build_logs + \
-    [b'{"errorDetail":{"code":2,"message":"The command \\u0026{[/bin/sh -c ls -lha /a/b/c]} returned a non-zero code: 2"},\
-        "error":"The command \\u0026{[/bin/sh -c ls -lha /a/b/c]} returned a non-zero code: 2"}\r\n']  # noqa
+    [{"errorDetail": {"code": 2, "message":
+                      "The command &{[/bin/sh -c ls -lha /a/b/c]} returned a non-zero code: 2"},
+      "error": "The command &{[/bin/sh -c ls -lha /a/b/c]} returned a non-zero code: 2"}]  # noqa
 
 mock_pull_logs = \
-    [b'{"stream":"Trying to pull repository localhost:5000/busybox ..."}\r\n',
-     b'{"status":"Pulling image (latest) from localhost:5000/busybox","progressDetail":{},"id":"8c2e06607696"}',  # noqa
-     b'{"status":"Download complete","progressDetail":{},"id":"8c2e06607696"}',
-     b'{"status":"Status: Image is up to date for localhost:5000/busybox:latest"}\r\n']
+    [{"stream": "Trying to pull repository localhost:5000/busybox ..."},
+     {"status": "Pulling image (latest) from localhost:5000/busybox", "progressDetail": {}, "id": "8c2e06607696"},  # noqa
+     {"status": "Download complete", "progressDetail": {}, "id": "8c2e06607696"},
+     {"status": "Status: Image is up to date for localhost:5000/busybox:latest"}]
 
 mock_pull_logs_failed = \
-    [b'{"errorDetail":{"message":"Error: image ***:latest not found"},"error":"Error: image ***:latest not found"}']  # noqa
+    [{"errorDetail": {"message": "Error: image ***:latest not found"}, "error": "Error: image ***:latest not found"}]  # noqa
 
 mock_push_logs = \
-    [b'{"status":"The push refers to a repository [localhost:5000/busybox] (len: 1)"}\r\n',
-     b'{"status":"Image already exists","progressDetail":{},"id":"17583c7dd0da"}\r\n',
-     b'{"status":"Image already exists","progressDetail":{},"id":"d1592a710ac3"}\r\n'
-     b'{"status":"latest: digest: sha256:afe8a267153784d570bfea7d22699c612a61f984e2b9a93135660bb85a3113cf size: 2735"}\r\n']  # noqa
+    [{"status": "The push refers to a repository [localhost:5000/busybox] (len: 1)"},
+     {"status": "Image already exists", "progressDetail": {}, "id": "17583c7dd0da"},
+     {"status": "Image already exists", "progressDetail": {}, "id": "d1592a710ac3"},
+     {"status": "latest: digest: sha256:afe8a267153784d570bfea7d22699c612a61f984e2b9a93135660bb85a3113cf size: 2735"}]  # noqa
 
 mock_push_logs_failed = \
-    [b'{"status":"The push refers to a repository [localhost:5000/busybox] (len: 1)"}\r\n',
-     b'{"status":"Sending image list"}\r\n',
-     b'{"errorDetail":{"message":"Put http://localhost:5000/v1/repositories/busybox/: dial tcp [::1]:5000: getsockopt: connection refused"},"error":"Put http://localhost:5000/v1/repositories/busybox/: dial tcp [::1]:5000: getsockopt: connection refused"}\r\n']  # noqa
+    [{"status": "The push refers to a repository [localhost:5000/busybox] (len: 1)"},
+     {"status": "Sending image list"},
+     {"errorDetail": {"message": "Put http://localhost:5000/v1/repositories/busybox/: dial tcp [::1]:5000: getsockopt: connection refused"}, "error": "Put http://localhost:5000/v1/repositories/busybox/: dial tcp [::1]:5000: getsockopt: connection refused"}]  # noqa
 
 mock_info = {
     'BridgeNfIp6tables': True,
@@ -323,7 +324,7 @@ def mock_docker(build_should_fail=False,
     flexmock(docker.APIClient, import_image_from_stream=lambda url: mock_import_image)
 
     class GetImageResult(object):
-        data = b''
+        data = ''
 
         def __init__(self):
             self.fp = open(__file__, 'rb')

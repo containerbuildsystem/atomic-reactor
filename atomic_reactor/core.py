@@ -254,12 +254,12 @@ class DockerTasker(LastLogger):
         logger.info("building image '%s' from path '%s'", image, path)
         try:
             response = self.d.build(path=path, tag=image.to_str(), stream=stream,
-                                    nocache=not use_cache,
+                                    nocache=not use_cache, decode=True,
                                     rm=remove_im, forcerm=True, pull=False)  # returns generator
         except TypeError:
             # because changing api is fun
             response = self.d.build(path=path, tag=image.to_str(), stream=stream,
-                                    nocache=not use_cache,
+                                    nocache=not use_cache, decode=True,
                                     rm=remove_im, forcerm=True,)  # returns generator
         return response
 
