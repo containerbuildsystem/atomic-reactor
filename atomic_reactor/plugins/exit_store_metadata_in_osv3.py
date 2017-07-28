@@ -208,7 +208,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         pulp_pull_results = self.workflow.postbuild_results.get(PulpPullPlugin.key)
         if pulp_pull_results:
             _, media_types = pulp_pull_results
-            annotations['media-types'] = media_types
+            annotations['media-types'] = json.dumps(media_types)
 
         tar_path = tar_size = tar_md5sum = tar_sha256sum = None
         if len(self.workflow.exported_image_sequence) > 0:

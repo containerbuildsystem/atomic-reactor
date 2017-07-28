@@ -273,7 +273,7 @@ CMD blabla"""
     if expected_pulp_results is False:
         assert 'media-types' not in annotations
     else:
-        assert annotations['media-types'] == expected_pulp_results
+        assert json.loads(annotations['media-types']) == expected_pulp_results
 
 
 def test_metadata_plugin_rpmqa_failure(tmpdir):
