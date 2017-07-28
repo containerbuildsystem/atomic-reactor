@@ -13,13 +13,15 @@ import os
 from osbs.api import OSBS
 from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException
+from osbs.utils import graceful_chain_get
 
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.post_pulp_pull import PulpPullPlugin
 from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
-                                      PLUGIN_PULP_PUSH_KEY)
+                                      PLUGIN_PULP_PUSH_KEY,
+                                      PLUGIN_ADD_FILESYSTEM_KEY)
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import get_build_json
 
@@ -61,6 +63,10 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             return {}
 
         return annotations
+
+    def get_filesystem_koji_task_id(self):
+        res = self.get_result(self.workflow.prebuild_results.get(PLUGIN_ADD_FILESYSTEM_KEY))
+        return graceful_chain_get(res, 'filesystem-koji-task-id')
 
     def get_digests(self):
         """
@@ -137,6 +143,10 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             koji_build_id = self.get_exit_result(PLUGIN_KOJI_PROMOTE_PLUGIN_KEY)
         if koji_build_id:
             labels["koji-build-id"] = str(koji_build_id)
+
+        filesystem_koji_task_id = self.get_filesystem_koji_task_id()
+        if filesystem_koji_task_id:
+            labels["filesystem-koji-task-id"] = str(filesystem_koji_task_id)
 
         updates = self.workflow.build_result.labels
         if updates:
