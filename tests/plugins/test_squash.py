@@ -59,7 +59,7 @@ class MockInsideBuilder(object):
 
 class TestSquashPlugin(object):
 
-    def setup_method(self):
+    def setup_method(self, method):
         if MOCK:
             mock_docker()
         self.workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
