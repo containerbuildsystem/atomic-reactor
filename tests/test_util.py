@@ -33,7 +33,8 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_manifest_digests, ManifestDigest,
                                  get_build_json, is_scratch_build, df_parser,
                                  are_plugins_in_order, LabelFormatter,
-                                 get_manifest_media_type)
+                                 get_manifest_media_type,
+                                 get_retrying_requests_session)
 from atomic_reactor import util
 from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1, MOCK_SOURCE
 from atomic_reactor.constants import INSPECT_CONFIG
@@ -42,6 +43,7 @@ from tests.util import requires_internet
 
 if MOCK:
     from tests.docker_mock import mock_docker
+    from tests.retry_mock import mock_get_retry_session
 
 TEST_DATA = {
     "repository.com/image-name": ImageName(registry="repository.com", repo="image-name"),
@@ -424,6 +426,8 @@ def test_get_manifest_digests_missing(tmpdir, has_content_type_header, has_conte
 
     expected_url = 'https://example.com/v2/spam/manifests/latest'
 
+    mock_get_retry_session()
+
     def custom_get(url, headers, **kwargs):
         assert url == expected_url
 
@@ -476,7 +480,7 @@ def test_get_manifest_digests_missing(tmpdir, has_content_type_header, has_conte
 
         return response
 
-    (flexmock(requests)
+    (flexmock(requests.Session)
         .should_receive('get')
         .replace_with(custom_get))
 

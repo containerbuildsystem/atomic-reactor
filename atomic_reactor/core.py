@@ -28,12 +28,13 @@ import logging
 import tempfile
 import json
 import requests
-
+import time
 import docker
 from docker.errors import APIError
 
 from atomic_reactor.constants import CONTAINER_SHARE_PATH, CONTAINER_SHARE_SOURCE_SUBDIR,\
-        BUILD_JSON, DOCKER_SOCKET_PATH
+        BUILD_JSON, DOCKER_SOCKET_PATH, DOCKER_MAX_RETRIES, DOCKER_BACKOFF_FACTOR,\
+        DOCKER_CLIENT_STATUS_RETRY
 from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.util import (
     ImageName, wait_for_command, clone_git_repo, figure_out_dockerfile, Dockercfg)
@@ -214,8 +215,47 @@ class BuildContainerFactory(object):
         return container_id
 
 
+def retry(function, *args, **kwargs):
+    retry_times = int(kwargs.pop('retry', 0))
+    retry_delay = DOCKER_BACKOFF_FACTOR
+    retry_client_statuses = DOCKER_CLIENT_STATUS_RETRY
+
+    for counter in range(retry_times + 1):
+        try:
+            return function(*args, **kwargs)
+        except APIError as e:
+            if (e.response.status_code in retry_client_statuses and counter != retry_times):
+                logger.info("retrying %s on %s", function, e.response.status_code)
+                time.sleep(retry_delay * (2 ** counter))
+            else:
+                raise
+
+
+class WrappedDocker(object):
+    def __init__(self, **kwargs):
+        self.retry_times = kwargs.pop('retry', None)
+
+        try:
+            # docker-py 2.x
+            self.wrapped = docker.APIClient(**kwargs)
+        except AttributeError:
+            # docker-py 1.x
+            self.wrapped = docker.Client(**kwargs)
+
+    def __getattr__(self, attr):
+        orig_attr = getattr(self.wrapped, attr)
+
+        if callable(orig_attr):
+            def hooked(*args, **kwargs):
+                return retry(orig_attr, *args, retry=self.retry_times, **kwargs)
+            return hooked
+        else:
+            return orig_attr
+
+
 class DockerTasker(LastLogger):
-    def __init__(self, base_url=None, timeout=120, **kwargs):
+    def __init__(self, base_url=None, retry_times=DOCKER_MAX_RETRIES,
+                 timeout=120, **kwargs):
         """
         Constructor
 
@@ -232,13 +272,10 @@ class DockerTasker(LastLogger):
 
         if hasattr(docker, 'AutoVersionClient'):
             client_kwargs['version'] = 'auto'
+        client_kwargs['retry'] = retry_times
 
-        try:
-            # docker-py 2.x
-            self.d = docker.APIClient(**client_kwargs)
-        except AttributeError:
-            # docker-py 1.x
-            self.d = docker.Client(**client_kwargs)
+        self.d = WrappedDocker(**client_kwargs)
+
 
     def build_image_from_path(self, path, image, stream=False, use_cache=False, remove_im=True):
         """

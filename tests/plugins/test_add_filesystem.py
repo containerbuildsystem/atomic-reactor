@@ -44,6 +44,7 @@ from tests.constants import (MOCK_SOURCE, DOCKERFILE_GIT, DOCKERFILE_SHA1,
 from tests.fixtures import docker_tasker
 if MOCK:
     from tests.docker_mock import mock_docker
+    from tests.retry_mock import mock_get_retry_session
 
 KOJI_HUB = 'https://koji-hub.com'
 FILESYSTEM_TASK_ID = 1234567
@@ -178,6 +179,7 @@ def mock_workflow(tmpdir, dockerfile):
     df = df_parser(str(tmpdir))
     df.content = dockerfile
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    mock_get_retry_session()
 
     return workflow
 

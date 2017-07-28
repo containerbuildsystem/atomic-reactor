@@ -54,4 +54,4 @@ def is_registry_running():
 def docker_tasker():
     if MOCK:
         mock_docker()
-    return DockerTasker()
+    return DockerTasker(retry_times=0)

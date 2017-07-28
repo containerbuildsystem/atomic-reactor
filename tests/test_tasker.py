@@ -8,15 +8,19 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import print_function, unicode_literals
 
-from tests.fixtures import temp_image_name  # noqa
+from tests.fixtures import temp_image_name, docker_tasker  # noqa
 
-from atomic_reactor.core import DockerTasker
+from atomic_reactor.core import DockerTasker, retry
 from atomic_reactor.util import ImageName, clone_git_repo
 from tests.constants import LOCALHOST_REGISTRY, INPUT_IMAGE, DOCKERFILE_GIT, MOCK, COMMAND
 from tests.util import requires_internet
 
 import docker
 import docker.errors
+import requests
+import sys
+import time
+from docker.errors import APIError
 
 from flexmock import flexmock
 import pytest
@@ -121,19 +125,18 @@ def test_remove_container():
         t.remove_container(container_id)
 
 
-def test_remove_image(temp_image_name):  # noqa
+def test_remove_image(temp_image_name, docker_tasker):  # noqa
     if MOCK:
         mock_docker(inspect_should_fail=True)
 
-    t = DockerTasker()
-    container_id = t.run(input_image_name, command="id")
-    t.wait(container_id)
-    image_id = t.commit_container(container_id, image=temp_image_name)
+    container_id = docker_tasker.run(input_image_name, command="id")
+    docker_tasker.wait(container_id)
+    image_id = docker_tasker.commit_container(container_id, image=temp_image_name)
     try:
-        t.remove_container(container_id)
+        docker_tasker.remove_container(container_id)
     finally:
-        t.remove_image(image_id)
-    assert not t.image_exists(temp_image_name)
+        docker_tasker.remove_image(image_id)
+    assert not docker_tasker.image_exists(temp_image_name)
 
 
 def test_commit_container(temp_image_name):  # noqa
@@ -182,7 +185,8 @@ def test_tag_image_same_name(temp_image_name):  # noqa
     t = DockerTasker()
     temp_image_name.registry = "somewhere.example.com"
     temp_image_name.tag = "1"
-    flexmock(t.d).should_receive('tag').never()
+
+    flexmock(docker.APIClient).should_receive('tag').never()
     t.tag_image(temp_image_name, temp_image_name.copy())
 
 
@@ -369,3 +373,33 @@ def test_docker2():
         .once())
 
     DockerTasker()
+
+
+def my_func(*args, **kwargs):
+    my_args = ('some', 'new')
+    my_kwargs = {'one': 'first', 'two': 'second'}
+    assert args == my_args
+    assert kwargs == my_kwargs
+    response = requests.Response()
+    response.status_code = 408
+    raise APIError("test fail", response)
+
+
+@pytest.mark.parametrize('retry_times', [-1, 0, 1, 2, 3])
+def test_retry_method(retry_times):
+    my_args = ('some', 'new')
+    my_kwargs = {'one': 'first', 'two': 'second'}
+
+    (flexmock(sys.modules[__name__])
+        .should_call('my_func')
+        .with_args(*my_args, **my_kwargs)
+        .times(retry_times+1))
+    (flexmock(time)
+        .should_receive('sleep')
+        .and_return(None))
+
+    if retry_times >= 0:
+        with pytest.raises(docker.errors.APIError):
+            retry(my_func, *my_args, retry=retry_times, **my_kwargs)
+    else:
+        retry(my_func, *my_args, retry=retry_times, **my_kwargs)

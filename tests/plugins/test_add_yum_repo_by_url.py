@@ -21,6 +21,7 @@ from flexmock import flexmock
 import os.path
 from tests.constants import DOCKERFILE_GIT, MOCK
 if MOCK:
+    from tests.retry_mock import mock_get_retry_session
     from tests.docker_mock import mock_docker
 
 
@@ -47,6 +48,8 @@ def prepare():
         .should_receive('raise_for_status')
         .and_return(None))
     (flexmock(requests, get=lambda *_: requests.Response()))
+    mock_get_retry_session()
+
     return tasker, workflow
 
 

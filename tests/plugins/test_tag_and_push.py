@@ -15,7 +15,6 @@ from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
 from atomic_reactor.util import ImageName, ManifestDigest
 from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE, MOCK, DOCKER0_REGISTRY
-import atomic_reactor.util  # noqa
 
 import json
 import os.path
@@ -26,6 +25,7 @@ if MOCK:
     import docker
     from flexmock import flexmock
     from tests.docker_mock import mock_docker
+    from tests.retry_mock import mock_get_retry_session
 
 DIGEST_V1 = 'sha256:7de72140ec27a911d3f88d60335f08d6530a4af136f7beab47797a196e840afd'
 DIGEST_V2 = 'sha256:85a7e3fb684787b86e64808c5b91d926afda9d6b35a0642a72d7a746452e71c1'
@@ -222,7 +222,7 @@ def test_tag_and_push_plugin(
     config_blob_response = requests.Response()
     (flexmock(config_blob_response, raise_for_status=lambda: None, json=config_json))
 
-    def custom_get(url, headers, **kwargs):
+    def custom_get(method, url, headers, **kwargs):
         if url == manifest_latest_url:
             if headers['Accept'] == 'application/vnd.docker.distribution.manifest.v1+json':
                 return manifest_response_v1
@@ -239,8 +239,10 @@ def test_tag_and_push_plugin(
         if url == config_blob_url:
             return config_blob_response
 
-    (flexmock(requests)
-        .should_receive('get')
+    mock_get_retry_session()
+
+    (flexmock(requests.Session)
+        .should_receive('request')
         .replace_with(custom_get))
 
     runner = PostBuildPluginsRunner(

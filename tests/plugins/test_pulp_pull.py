@@ -10,6 +10,9 @@ from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
 from atomic_reactor.plugins.post_pulp_pull import PulpPullPlugin
 from atomic_reactor.inner import TagConf, PushConf
 from atomic_reactor.util import ImageName
+from tests.constants import MOCK
+if MOCK:
+    from tests.retry_mock import mock_get_retry_session
 
 from flexmock import flexmock
 import pytest
@@ -47,6 +50,7 @@ class TestPostPulpPull(object):
         if sync:
             push_conf.add_pulp_registry('pulp', crane_uri=self.CRANE_URI, server_side_sync=True)
 
+        mock_get_retry_session()
         builder = flexmock()
         setattr(builder, 'image_id', 'sha256:(old)')
         return flexmock(tag_conf=tag_conf,
@@ -207,7 +211,7 @@ class TestPostPulpPull(object):
         else:
             getter = self.custom_get_v2
 
-        (flexmock(requests)
+        (flexmock(requests.Session)
             .should_receive('get')
             .replace_with(getter))
 
@@ -272,11 +276,11 @@ class TestPostPulpPull(object):
         getter = self.custom_get_v1
 
         if sync:
-            (flexmock(requests)
+            (flexmock(requests.Session)
                 .should_receive('get')
                 .replace_with(getter))
         else:
-            (flexmock(requests)
+            (flexmock(requests.Session)
                 .should_receive('get')
                 .never())
 
@@ -317,7 +321,7 @@ class TestPostPulpPull(object):
 
         not_found = requests.Response()
         flexmock(not_found, status_code=requests.codes.not_found)
-        expectation = flexmock(requests).should_receive('get')
+        expectation = flexmock(requests.Session).should_receive('get')
         for _ in range(failures):
             expectation = expectation.and_return(not_found)
 
@@ -376,7 +380,7 @@ class TestPostPulpPull(object):
         workflow = self.workflow(build_process_failed=True)
         tasker = MockerTasker()
         workflow.postbuild_plugins_conf = []
-        flexmock(requests).should_receive('get').never()
+        flexmock(requests.Session).should_receive('get').never()
         flexmock(tasker).should_receive('pull_image').never()
         flexmock(tasker).should_receive('inspect_image').never()
         plugin = PulpPullPlugin(tasker, workflow)
@@ -389,7 +393,7 @@ class TestPostPulpPull(object):
         tasker = MockerTasker()
         unauthorized = requests.Response()
         flexmock(unauthorized, status_code=requests.codes.unauthorized)
-        flexmock(requests).should_receive('get').and_return(unauthorized)
+        flexmock(requests.Session).should_receive('get').and_return(unauthorized)
         workflow.postbuild_plugins_conf = []
         plugin = PulpPullPlugin(tasker, workflow)
         with pytest.raises(requests.exceptions.HTTPError):

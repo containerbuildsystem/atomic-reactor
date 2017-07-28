@@ -14,7 +14,7 @@ from flexmock import flexmock
 from atomic_reactor.util import ImageName, ManifestDigest
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow, DockerRegistry
-from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import ExitPluginsRunner
 from atomic_reactor.plugins.exit_delete_from_registry import DeleteFromRegistryPlugin
 from atomic_reactor.plugins.build_orchestrate_build import OrchestrateBuildPlugin
 from tests.constants import LOCALHOST_REGISTRY, DOCKER0_REGISTRY, MOCK, TEST_IMAGE, INPUT_IMAGE
@@ -27,6 +27,7 @@ import requests.auth
 
 if MOCK:
     from tests.docker_mock import mock_docker
+    from tests.retry_mock import mock_get_retry_session
 
 DIGEST1 = 'sha256:28b64a8b29fd2723703bb17acf907cd66898440270e536992b937899a4647414'
 DIGEST2 = 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
@@ -63,6 +64,7 @@ class X(object):
 def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir, orchestrator):
     if MOCK:
         mock_docker()
+        mock_get_retry_session()
 
     buildstep_plugin = None
     if orchestrator:
@@ -139,24 +141,24 @@ def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir, orch
                 continue
             url = "https://" + reg + "/v2/" + tag.split(":")[0] + "/manifests/" + dig
             auth_type = requests.auth.HTTPBasicAuth if req_registries[reg] else None
-            (flexmock(requests)
+            (flexmock(requests.Session)
                 .should_receive('delete')
                 .with_args(url, verify=bool, auth=auth_type)
                 .once()
-                .and_return(flexmock(status_code=202, ok=True)))
+                .and_return(flexmock(status_code=202, ok=True, raise_for_status=lambda: None)))
             deleted_digests.add(dig)
 
     result = runner.run()
     assert result[DeleteFromRegistryPlugin.key] == deleted_digests
 
 
-@pytest.mark.parametrize("status_codes", [requests.codes.ACCEPTED,
-                                          requests.codes.NOT_FOUND,
-                                          requests.codes.METHOD_NOT_ALLOWED,
-                                          999])
-def test_delete_from_registry_failures(tmpdir, status_codes):
+@pytest.mark.parametrize("status_code", [requests.codes.ACCEPTED,
+                                         requests.codes.NOT_FOUND,
+                                         requests.codes.METHOD_NOT_ALLOWED])
+def test_delete_from_registry_failures(tmpdir, status_code):
     if MOCK:
         mock_docker()
+        mock_get_retry_session()
 
     req_registries = {DOCKER0_REGISTRY: True}
     saved_digests = {DOCKER0_REGISTRY: {'foo/bar:latest': DIGEST1}}
@@ -206,21 +208,21 @@ def test_delete_from_registry_failures(tmpdir, status_codes):
         for tag, dig in digests.items():
             if dig in deleted_digests:
                 continue
-            ok = True if status_codes == requests.codes.ACCEPTED else False
             url = "https://" + reg + "/v2/" + tag.split(":")[0] + "/manifests/" + dig
             auth_type = requests.auth.HTTPBasicAuth if req_registries[reg] else None
-            (flexmock(requests)
+
+            response = requests.Response()
+            response.status_code = status_code
+
+            (flexmock(requests.Session)
                 .should_receive('delete')
                 .with_args(url, verify=bool, auth=auth_type)
-                .and_return(flexmock(status_code=status_codes, ok=ok, reason="blah", text="foo")))
+                .and_return(response))
+
             deleted_digests.add(dig)
 
-    if status_codes == 999:
-        with pytest.raises(PluginFailedException):
-            runner.run()
+    result = runner.run()
+    if status_code == requests.codes.ACCEPTED:
+        assert result[DeleteFromRegistryPlugin.key] == deleted_digests
     else:
-        result = runner.run()
-        if status_codes == requests.codes.ACCEPTED:
-            assert result[DeleteFromRegistryPlugin.key] == deleted_digests
-        else:
-            assert result[DeleteFromRegistryPlugin.key] == set([])
+        assert result[DeleteFromRegistryPlugin.key] == set([])

@@ -11,7 +11,6 @@ import fnmatch
 import hashlib
 import koji
 import os
-import requests
 
 from atomic_reactor import util
 from atomic_reactor.constants import DEFAULT_DOWNLOAD_BLOCK_SIZE
@@ -193,6 +192,7 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
         artifacts_path = os.path.join(self.workdir, self.DOWNLOAD_DIR)
 
         self.log.debug('%d files to download', len(downloads))
+        session = util.get_retrying_requests_session()
 
         for index, download in enumerate(downloads):
             dest_path = os.path.join(artifacts_path, download.dest)
@@ -204,8 +204,9 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
                            download.url)
 
             checksums = {algo: hashlib.new(algo) for algo in download.checksums}
-            request = requests.get(download.url, stream=True)
+            request = session.get(download.url, stream=True)
             request.raise_for_status()
+
             with open(dest_path, 'wb') as f:
                 for chunk in request.iter_content(chunk_size=DEFAULT_DOWNLOAD_BLOCK_SIZE):
                     f.write(chunk)

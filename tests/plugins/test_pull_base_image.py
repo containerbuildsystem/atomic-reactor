@@ -13,10 +13,10 @@ import flexmock
 import json
 import pytest
 
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.util import ImageName
+from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
 from tests.constants import MOCK, MOCK_SOURCE, LOCALHOST_REGISTRY
 
@@ -112,7 +112,7 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
     if MOCK:
         mock_docker(remember_images=True)
 
-    tasker = DockerTasker()
+    tasker = DockerTasker(retry_times=0)
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = MockBuilder()
     workflow.builder.base_image = ImageName.parse(df_base)

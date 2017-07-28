@@ -15,7 +15,9 @@ import os
 import re
 from pipes import quote
 import requests
-from requests.exceptions import ConnectionError, SSLError
+from requests.exceptions import ConnectionError, SSLError, HTTPError, RetryError
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util import Retry
 import shutil
 import subprocess
 import tempfile
@@ -25,7 +27,9 @@ import yaml
 import codecs
 import string
 
-from atomic_reactor.constants import DOCKERFILE_FILENAME, TOOLS_USED, INSPECT_CONFIG
+from atomic_reactor.constants import DOCKERFILE_FILENAME, TOOLS_USED, INSPECT_CONFIG,\
+                                     HTTP_MAX_RETRIES, HTTP_BACKOFF_FACTOR,\
+                                     HTTP_CLIENT_STATUS_RETRY
 
 from dockerfile_parse import DockerfileParser
 from pkg_resources import resource_stream
@@ -685,12 +689,15 @@ def query_registry(image, registry, digest=None, insecure=False, dockercfg_path=
     headers = {'Accept': (get_manifest_media_type(version))}
     kwargs = {'verify': not insecure, 'headers': headers, 'auth': auth}
 
+    session = get_retrying_requests_session()
+
     for idx, r in enumerate(registries):
         url = '{}/v2/{}/{}/{}'.format(r, context, object_type, reference)
         logger.debug("url: {}, headers: {}".format(url, headers))
 
         try:
-            response = requests.get(url, **kwargs)
+            response = session.get(url, **kwargs)
+            response.raise_for_status()
             break
         except (ConnectionError, SSLError):
             # If there are no more registry URLs to try, let the exception
@@ -721,21 +728,21 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
         media_type = get_manifest_media_type(version)
         headers = {'Accept': media_type}
 
-        response = query_registry(
-            image, registry, digest=None,
-            insecure=insecure, dockercfg_path=dockercfg_path,
-            version=version)
-
-        # If the registry has a v2 manifest that can't be converted into a v1
-        # manifest, the registry fails with status=400, and a error code of
-        # MANIFEST_INVALID.
-        if version == 'v1' and response.status_code == 400:
-            logger.warning('Unable to fetch digest for %s, got error %s',
-                           media_type, response.status_code)
-            continue
-
-        logger.debug("status code: %s", response.status_code)
-        response.raise_for_status()
+        try:
+            response = query_registry(
+                image, registry, digest=None,
+                insecure=insecure, dockercfg_path=dockercfg_path,
+                version=version)
+        except (HTTPError, RetryError) as ex:
+            # If the registry has a v2 manifest that can't be converted into a v1
+            # manifest, the registry fails with status=400, and a error code of
+            # MANIFEST_INVALID.
+            if version == 'v1' and ex.response.status_code == 400:
+                logger.warning('Unable to fetch digest for %s, got error %s',
+                               media_type, ex.response.status_code)
+                continue
+            else:
+                raise
 
         received_media_type = None
         try:
@@ -954,3 +961,17 @@ class LabelFormatter(string.Formatter):
     """
     def get_field(self, field_name, args, kwargs):
         return (self.get_value(field_name, args, kwargs), field_name)
+
+
+def get_retrying_requests_session(client_statuses=HTTP_CLIENT_STATUS_RETRY,
+                                  times=HTTP_MAX_RETRIES, delay=HTTP_BACKOFF_FACTOR):
+    retry = Retry(
+        total=int(times),
+        backoff_factor=delay,
+        status_forcelist=client_statuses
+    )
+    session = requests.Session()
+    session.mount('http://', HTTPAdapter(max_retries=retry))
+    session.mount('https://', HTTPAdapter(max_retries=retry))
+
+    return session
