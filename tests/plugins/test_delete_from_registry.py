@@ -14,7 +14,7 @@ from flexmock import flexmock
 from atomic_reactor.util import ImageName, ManifestDigest
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow, DockerRegistry
-from atomic_reactor.plugin import ExitPluginsRunner
+from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.exit_delete_from_registry import DeleteFromRegistryPlugin
 from atomic_reactor.plugins.build_orchestrate_build import OrchestrateBuildPlugin
 from tests.constants import LOCALHOST_REGISTRY, DOCKER0_REGISTRY, MOCK, TEST_IMAGE, INPUT_IMAGE
@@ -154,7 +154,8 @@ def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir, orch
 
 @pytest.mark.parametrize("status_code", [requests.codes.ACCEPTED,
                                          requests.codes.NOT_FOUND,
-                                         requests.codes.METHOD_NOT_ALLOWED])
+                                         requests.codes.METHOD_NOT_ALLOWED,
+                                         520])
 def test_delete_from_registry_failures(tmpdir, status_code):
     if MOCK:
         mock_docker()
@@ -221,8 +222,14 @@ def test_delete_from_registry_failures(tmpdir, status_code):
 
             deleted_digests.add(dig)
 
-    result = runner.run()
-    if status_code == requests.codes.ACCEPTED:
-        assert result[DeleteFromRegistryPlugin.key] == deleted_digests
+    if status_code == 520:
+        with pytest.raises(PluginFailedException):
+            result = runner.run()
+            assert result[DeleteFromRegistryPlugin.key] == set([])
     else:
-        assert result[DeleteFromRegistryPlugin.key] == set([])
+        result = runner.run()
+
+        if status_code == requests.codes.ACCEPTED:
+            assert result[DeleteFromRegistryPlugin.key] == deleted_digests
+        else:
+            assert result[DeleteFromRegistryPlugin.key] == set([])
