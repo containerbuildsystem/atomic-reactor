@@ -24,13 +24,13 @@ from textwrap import dedent
 
 import json
 import re
-import requests
 import os
 
 from atomic_reactor.constants import DEFAULT_DOWNLOAD_BLOCK_SIZE, PLUGIN_ADD_FILESYSTEM_KEY
 from atomic_reactor.plugin import PreBuildPlugin, BuildCanceledException
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.koji_util import create_koji_session, TaskWatcher, stream_task_output
+from atomic_reactor.util import get_retrying_requests_session
 from atomic_reactor import util
 
 
@@ -124,7 +124,8 @@ class AddFilesystemPlugin(PreBuildPlugin):
         return base_image.strip().lower() == 'koji/image-build'
 
     def extract_base_url(self, repo_url):
-        response = requests.get(repo_url)
+        session = get_retrying_requests_session()
+        response = session.get(repo_url)
         response.raise_for_status()
         repo = ConfigParser()
         repo.readfp(StringIO(response.text))

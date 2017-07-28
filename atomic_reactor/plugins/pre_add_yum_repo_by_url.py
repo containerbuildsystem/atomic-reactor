@@ -25,9 +25,9 @@ Example configuration to add content of repo file at URL:
 """
 from atomic_reactor.constants import YUM_REPOS_DIR
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.util import get_retrying_requests_session
 import os
 import os.path
-import requests
 
 try:
     # py2
@@ -58,7 +58,8 @@ class YumRepo(object):
         return os.path.join(self.dst_repos_dir, self.filename)
 
     def fetch(self):
-        response = requests.get(self.repourl)
+        session = get_retrying_requests_session()
+        response = session.get(self.repourl)
         response.raise_for_status()
         self.content = response.content
 

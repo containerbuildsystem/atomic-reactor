@@ -42,7 +42,7 @@ SET_DEFAULT_LAYER_ID = object()
 
 class MockInsideBuilder(object):
     def __init__(self):
-        self.tasker = DockerTasker()
+        self.tasker = DockerTasker(retry_times=0)
         self.base_image = ImageName(repo='Fedora', tag='22')
         self.image_id = 'image_id'
         self.image = 'image'

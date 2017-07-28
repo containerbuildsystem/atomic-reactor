@@ -34,10 +34,11 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_fetch_maven_artifacts import FetchMavenArtifactsPlugin
 from atomic_reactor.util import ImageName
-from tests.constants import MOCK_SOURCE
+from tests.constants import MOCK_SOURCE, MOCK
 from tests.fixtures import docker_tasker  # noqa
+if MOCK:
+    from tests.retry_mock import mock_get_retry_session
 from textwrap import dedent
-
 
 KOJI_HUB = 'https://koji-hub.com'
 KOJI_ROOT = 'https://koji-root.com'
@@ -292,6 +293,7 @@ def mock_workflow(tmpdir):
     setattr(workflow, 'builder', X)
     workflow.builder.source = mock_source
     flexmock(workflow, source=mock_source)
+    mock_get_retry_session()
 
     return workflow
 

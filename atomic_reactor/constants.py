@@ -73,3 +73,16 @@ PLUGIN_PULP_TAG_KEY = 'pulp_tag'
 PLUGIN_ADD_FILESYSTEM_KEY = 'add_filesystem'
 PLUGIN_FETCH_WORKER_METADATA_KEY = 'fetch_worker_metadata'
 PLUGIN_GROUP_MANIFESTS_KEY = 'group_manifests'
+
+# max retries for docker requests
+DOCKER_MAX_RETRIES = 3
+# how many seconds should wait before another try of docker request
+DOCKER_BACKOFF_FACTOR = 5
+# docker retries statuses
+DOCKER_CLIENT_STATUS_RETRY = [408, 500, 502, 503, 504]
+# max retries for http requests
+HTTP_MAX_RETRIES = 3
+# how many seconds should wait before another try of http request
+HTTP_BACKOFF_FACTOR = 5
+# http retries statuses
+HTTP_CLIENT_STATUS_RETRY = [408, 500, 502, 503, 504]

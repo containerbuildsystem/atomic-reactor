@@ -29,7 +29,7 @@ class ImportImagePlugin(PostBuildPlugin):
 
     def __init__(self, tasker, workflow, imagestream, docker_image_repo,
                  url, build_json_dir, verify_ssl=True, use_auth=True,
-                 insecure_registry=None, retry_delay=30, import_attempts=3):
+                 insecure_registry=None):
         """
         constructor
 
@@ -43,9 +43,6 @@ class ImportImagePlugin(PostBuildPlugin):
         :param use_auth: bool, initiate authentication with openshift?
         :param insecure_registry: bool, whether the Docker registry uses
                plain HTTP
-        :param retry_delay: int, number of seconds to delay before retrying
-        :param import_attempts: int, number of times it will be retried to
-               import image; at least 1.
         """
         # call parent constructor
         super(ImportImagePlugin, self).__init__(tasker, workflow)
@@ -56,13 +53,6 @@ class ImportImagePlugin(PostBuildPlugin):
         self.verify_ssl = verify_ssl
         self.use_auth = use_auth
         self.insecure_registry = insecure_registry
-        self.retry_delay = retry_delay
-
-        if import_attempts < 1:
-            msg = "import_attempts is %d, should be at least 1"
-            raise ValueError(msg % import_attempts)
-
-        self.import_attempts = import_attempts
 
     def run(self):
         metadata = get_build_json().get("metadata", {})
@@ -114,14 +104,4 @@ class ImportImagePlugin(PostBuildPlugin):
         if failures:
             raise RuntimeError("Failed to import ImageStreamTag(s). Check logs")
 
-        attempts = 0
-        while not osbs.import_image(self.imagestream):
-            attempts += 1
-
-            if attempts >= self.import_attempts:
-                msg = "Failed to import new tags for %s"
-                raise RuntimeError(msg % self.imagestream)
-
-            self.log.info("no new tags, will retry after %d seconds (%d/%d)",
-                          self.retry_delay, attempts, self.import_attempts)
-            sleep(self.retry_delay)
+        osbs.import_image(self.imagestream)

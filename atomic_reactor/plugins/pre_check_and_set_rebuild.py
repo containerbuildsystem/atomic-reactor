@@ -14,7 +14,6 @@ from osbs.exceptions import OsbsResponseException
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import get_build_json
 
-
 def is_rebuild(workflow):
     return (CheckAndSetRebuildPlugin.key in workflow.prebuild_results and
             workflow.prebuild_results[CheckAndSetRebuildPlugin.key])
@@ -94,15 +93,6 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
                                       namespace=metadata.get('namespace', None))
             osbs = OSBS(osbs_conf, osbs_conf)
             labels = {self.label_key: self.label_value}
-            try:
-                osbs.set_labels_on_build_config(buildconfig, labels)
-            except OsbsResponseException as ex:
-                if ex.status_code == 409:
-                    # Someone else was modifying the build
-                    # configuration at the same time. Try again.
-                    self.log.debug("got status %d, retrying", ex.status_code)
-                    osbs.set_labels_on_build_config(buildconfig, labels)
-                else:
-                    raise
+            osbs.set_labels_on_build_config(buildconfig, labels)
 
         return is_rebuild

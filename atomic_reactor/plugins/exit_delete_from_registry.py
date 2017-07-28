@@ -17,7 +17,8 @@ except ImportError:
     from urllib.parse import urlparse
 
 from atomic_reactor.plugin import ExitPlugin, PluginFailedException
-from atomic_reactor.util import Dockercfg
+from atomic_reactor.util import Dockercfg, get_retrying_requests_session
+from requests.exceptions import HTTPError, RetryError
 
 
 class DeleteFromRegistryPlugin(ExitPlugin):
@@ -61,20 +62,25 @@ class DeleteFromRegistryPlugin(ExitPlugin):
         return auth
 
     def request_delete(self, url, manifest, insecure, auth):
-        response = requests.delete(url, verify=not insecure, auth=auth)
+        session = get_retrying_requests_session()
 
-        if response.ok:
+        try:
+            response = session.delete(url, verify=not insecure, auth=auth)
+            response.raise_for_status()
             self.log.info("deleted manifest %s", manifest)
             return True
-        elif response.status_code == requests.codes.NOT_FOUND:
-            self.log.warning("cannot delete %s: not found", manifest)
-        elif response.status_code == requests.codes.METHOD_NOT_ALLOWED:
-            self.log.warning("cannot delete %s: image deletion disabled on registry",
-                             manifest)
-        else:
-            msg = "failed to delete %s: %s" % (manifest, response.reason)
-            self.log.error("%s\n%s", msg, response.text)
-            raise PluginFailedException(msg)
+
+        except (HTTPError, RetryError) as ex:
+
+            if ex.response.status_code == requests.codes.NOT_FOUND:
+                self.log.warning("cannot delete %s: not found", manifest)
+            elif ex.response.status_code == requests.codes.METHOD_NOT_ALLOWED:
+                self.log.warning("cannot delete %s: image deletion disabled on registry",
+                                 manifest)
+            else:
+                msg = "failed to delete %s: %s" % (manifest, ex.response.reason)
+                self.log.error("%s\n%s", msg, ex.response.text)
+                raise PluginFailedException(msg)
 
         return False
 

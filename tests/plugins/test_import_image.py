@@ -46,8 +46,7 @@ class ImageStreamResponse:
         self.json = lambda: {'hello': 'howdy'}
 
 
-def prepare(insecure_registry=None, retry_delay=0, import_attempts=3,
-            namespace=None):
+def prepare(insecure_registry=None, namespace=None):
     """
     Boiler-plate test set-up
     """
@@ -86,8 +85,6 @@ def prepare(insecure_registry=None, retry_delay=0, import_attempts=3,
             'verify_ssl': False,
             'use_auth': False,
             'insecure_registry': insecure_registry,
-            'retry_delay': retry_delay,
-            'import_attempts': import_attempts,
         }}])
 
     return runner
@@ -227,71 +224,6 @@ def test_import_image(namespace, monkeypatch):
      .with_args(TEST_IMAGESTREAM)
      .and_return(True))
     runner.run()
-
-
-@pytest.mark.parametrize(('retry_delay', 'results'), [
-    (0, [False, True]),
-    (0.01, [False, False, False]),
-    (0.02, [True]),
-])
-def test_import_image_retry(retry_delay, results, monkeypatch):
-    """
-    Test retrying importing tags for an existing ImageStream
-    """
-    import_attempts = len(results)
-    runner = prepare(retry_delay=retry_delay, import_attempts=import_attempts)
-
-    build_json = {"metadata": {}}
-    monkeypatch.setenv("BUILD", json.dumps(build_json))
-
-    (flexmock(OSBS)
-     .should_receive('get_image_stream')
-     .once()
-     .with_args(TEST_IMAGESTREAM)
-     .and_return(ImageStreamResponse()))
-    (flexmock(OSBS)
-     .should_receive('create_image_stream')
-     .never())
-    (flexmock(OSBS)
-     .should_receive('ensure_image_stream_tag')
-     .times(6))
-    (flexmock(OSBS)
-     .should_receive('import_image')
-     .with_args(TEST_IMAGESTREAM)
-     .times(import_attempts)
-     .and_return(*results)
-     .one_by_one())
-
-    if not results[-1]:
-        with pytest.raises(PluginFailedException):
-            runner.run()
-    else:
-        runner.run()
-
-
-@pytest.mark.parametrize(('import_attempts'), [0, 1, 2])
-def test_import_image_attempts_config(import_attempts):
-    """
-    Test the validation of import_attempts
-    """
-    args = {
-        "tasker": None,
-        "workflow": None,
-        "imagestream": None,
-        "docker_image_repo": None,
-        "url": None,
-        "build_json_dir": None,
-        "import_attempts": import_attempts,
-    }
-
-    if import_attempts > 0:
-        plugin = ImportImagePlugin(**args)
-        assert plugin.import_attempts == import_attempts
-    else:
-        with pytest.raises(ValueError) as value_error:
-            ImportImagePlugin(**args)
-            assert value_error.value.message == (
-                "import_attempts is %d, should be at least 1" % import_attempts)
 
 
 def test_exception_during_create(monkeypatch):
