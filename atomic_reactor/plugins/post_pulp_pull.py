@@ -67,9 +67,9 @@ class PulpPullPlugin(PostBuildPlugin):
 
         media_types = []
         for plugin in self.workflow.postbuild_plugins_conf:
-            if plugin['name'] is PLUGIN_PULP_SYNC_KEY:
+            if plugin['name'] == PLUGIN_PULP_SYNC_KEY:
                 media_types.append('application/vnd.docker.distribution.manifest.v1+json')
-            if plugin['name'] is PLUGIN_PULP_PUSH_KEY:
+            if plugin['name'] == PLUGIN_PULP_PUSH_KEY:
                 media_types.append('application/json')
 
         digests = get_manifest_digests(pullspec, registry.uri, self.insecure, self.secret,
