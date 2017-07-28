@@ -179,7 +179,7 @@ class BuildInfo(object):
     def __init__(self, help_file=None, help_valid=True, media_types=None):
         annotations = {}
         if media_types:
-            annotations['media-types'] = media_types
+            annotations['media-types'] = json.dumps(media_types)
         if help_valid:
             annotations['help_file'] = help_file
 
@@ -1278,7 +1278,7 @@ class TestKojiImport(object):
 
     @pytest.mark.parametrize('version', [
         # no pulp plugin used
-        False,
+        None,
         # V1-only image
         ["application/json"],
         # V1+V2schema1 image, i.e. what we are building today
@@ -1302,8 +1302,9 @@ class TestKojiImport(object):
                                             version='1.0',
                                             release='1',
                                             session=session)
-        workflow.plugin_workspace[OrchestrateBuildPlugin.key][WORKSPACE_KEY_BUILD_INFO]['x86_64'] = BuildInfo(media_types=version)  # noqa
-
+        build_info = BuildInfo(media_types=version)
+        orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
+        orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = build_info
         runner = create_runner(tasker, workflow)
         runner.run()
 
@@ -1318,7 +1319,7 @@ class TestKojiImport(object):
         image = extra['image']
         assert isinstance(image, dict)
         if version:
-            assert 'media_types' in image
+            assert 'media_types' in image.keys()
             assert image['media_types'] == version
         else:
-            assert 'media_types' not in image
+            assert 'media_types' not in image.keys()

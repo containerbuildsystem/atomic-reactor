@@ -139,7 +139,7 @@ class KojiImportPlugin(ExitPlugin):
         for platform in worker_metadatas:
             annotations = get_worker_build_info(self.workflow, platform).build.get_annotations()
             if annotations.get('media-types'):
-                extra['image']['media_types'] = annotations['media-types']
+                extra['image']['media_types'] = json.loads(annotations['media-types'])
                 return
 
     def get_build(self, metadata, worker_metadatas):
