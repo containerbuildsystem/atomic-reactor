@@ -101,10 +101,10 @@ def test_clone_git_repo(tmpdir):
 
 class TestCommandResult(object):
     @pytest.mark.parametrize(('item', 'expected'), [
-        (b'{"stream":"Step 0 : FROM ebbc51b7dfa5bcd993a[...]\\n"}\n',
+        ({"stream": "Step 0 : FROM ebbc51b7dfa5bcd993a[...]"},
          "Step 0 : FROM ebbc51b7dfa5bcd993a[...]"),
 
-        (b'this is not valid JSON\n',
+        ('this is not valid JSON',
          'this is not valid JSON'),
     ])
     def test_parse_item(self, item, expected):

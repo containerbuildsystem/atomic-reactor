@@ -155,23 +155,17 @@ class CommandResult(object):
 
     def parse_item(self, item):
         """
-        :param item: str, json-encoded string
+        :param item: dict, decoded log data
         """
-        item = item.decode("utf-8")
-        try:
-            parsed_item = json.loads(item)
-        except ValueError:
-            parsed_item = None
-        else:
-            # append here just in case .get bellow fails
-            self._parsed_logs.append(parsed_item)
+        # append here just in case .get bellow fails
+        self._parsed_logs.append(item)
 
-        # make sure the json is a dictionary object
-        if isinstance(parsed_item, dict):
-            line = parsed_item.get("stream", "")
+        # make sure the log item is a dictionary object
+        if isinstance(item, dict):
+            line = item.get("stream", "")
         else:
-            parsed_item = None
             line = item
+            item = None
 
         for l in line.splitlines():
             l = l.strip()
@@ -179,11 +173,11 @@ class CommandResult(object):
             if l:
                 logger.debug(l)
 
-        if parsed_item is not None:
-            self._error = parsed_item.get("error", None)
-            self._error_detail = parsed_item.get("errorDetail", None)
+        if item is not None:
+            self._error = item.get("error", None)
+            self._error_detail = item.get("errorDetail", None)
             if self._error:
-                logger.error(item.strip())
+                logger.error(item)
 
     @property
     def parsed_logs(self):
