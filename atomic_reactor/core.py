@@ -593,8 +593,9 @@ class DockerTasker(LastLogger):
         # returns bytes
         response = self.d.logs(container_id, stdout=True, stderr=stderr, stream=stream)
         if not stream:
-            response = response.decode("utf-8")  # py2 & 3 compat
-            response = [line for line in response.split('\n') if line]
+            if isinstance(response, bytes):
+                response = response.decode("utf-8")  # py2 & 3 compat
+            response = [line for line in response.splitlines() if line]
         return response
 
     def wait(self, container_id):
