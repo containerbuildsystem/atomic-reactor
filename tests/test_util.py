@@ -12,6 +12,7 @@ import json
 import os
 import tempfile
 import pytest
+import requests
 import responses
 from requests.exceptions import ConnectionError
 import six
@@ -381,7 +382,6 @@ def test_get_manifest_digests(tmpdir, image, registry, insecure, creds,
     (False, True),
     (False, False),
 ])
-@responses.activate
 def test_get_manifest_digests_missing(tmpdir, has_content_type_header, has_content_digest,
                                       digest_is_v1, can_convert_v2_v1):
     kwargs = {}
@@ -391,10 +391,12 @@ def test_get_manifest_digests_missing(tmpdir, has_content_type_header, has_conte
 
     kwargs['registry'] = 'https://example.com'
 
-    url = 'https://example.com/v2/spam/manifests/latest'
+    expected_url = 'https://example.com/v2/spam/manifests/latest'
 
-    def request_callback(request):
-        media_type = request.headers['Accept']
+    def custom_get(url, headers, **kwargs):
+        assert url == expected_url
+
+        media_type = headers['Accept']
         media_type_prefix = media_type.split('+')[0]
 
         assert media_type.endswith('v2+json') or media_type.endswith('v1+json')
@@ -412,26 +414,44 @@ def test_get_manifest_digests_missing(tmpdir, has_content_type_header, has_conte
                 digest = 'v2-digest'
             else:
                 if not can_convert_v2_v1:
-                    # In some cases it's not possible to do the V2 => V1 conversion. For example,
-                    # if the V2 image doesn't have the legacy history information. This is the
-                    # response that the docker registry gives in that case
-                    headers = {}
-                    return (400, headers,
-                            '{"errors":[{"code":"MANIFEST_INVALID"}]}')
+                    response_json = {"errors": [{"code": "MANIFEST_INVALID"}]}
+                    response = requests.Response()
+                    flexmock(response,
+                             status_code=400,
+                             content=json.dumps(response_json).encode("utf-8"),
+                             headers=headers)
+
+                    return response
 
                 digest = 'v1-converted-digest'
 
         headers = {}
-        if digest_is_v1 or has_content_type_header:
+        if has_content_type_header:
             headers['Content-Type'] = '{}+jsonish'.format(media_type_prefix)
-        if digest_is_v1 or has_content_digest:
+        if has_content_digest:
             headers['Docker-Content-Digest'] = digest
 
-        return (200, headers, '')
+        if media_type_prefix.endswith('v2'):
+            response_json = {'schemaVersion': 2,
+                             'mediaType': 'application/vnd.docker.distribution.manifest.v2+json'}
+        else:
+            response_json = {'schemaVersion': 1}
 
-    responses.add_callback(responses.GET, url, callback=request_callback)
+        response = requests.Response()
+        flexmock(response,
+                 status_code=200,
+                 content=json.dumps(response_json).encode("utf-8"),
+                 headers=headers)
 
-    if not digest_is_v1 and not has_content_type_header:
+        return response
+
+    (flexmock(requests)
+        .should_receive('get')
+        .replace_with(custom_get))
+
+    if digest_is_v1 and not has_content_type_header:
+        # v1 manifests don't have a mediaType field, so we can't fall back
+        # to looking at the returned manifest to detect the type.
         with pytest.raises(RuntimeError):
             get_manifest_digests(**kwargs)
         return
@@ -439,14 +459,20 @@ def test_get_manifest_digests_missing(tmpdir, has_content_type_header, has_conte
         actual_digests = get_manifest_digests(**kwargs)
 
     if digest_is_v1:
-        assert actual_digests.v1 == 'v1-digest'
-        assert actual_digests.v2 in [True, None]
+        if has_content_digest:
+            assert actual_digests.v1 == 'v1-digest'
+        else:
+            assert actual_digests.v1 is True
+        assert actual_digests.v2 is None
     else:
         if can_convert_v2_v1:
-            if has_content_digest:
-                assert actual_digests.v1 == 'v1-converted-digest'
-            else:
-                assert actual_digests.v1 is True
+            if has_content_type_header:
+                if has_content_digest:
+                    assert actual_digests.v1 == 'v1-converted-digest'
+                else:
+                    assert actual_digests.v1 is True
+            else:  # don't even know the response is v1 without Content-Type
+                assert actual_digests.v1 is None
         else:
             assert actual_digests.v1 is None
         if has_content_digest:
