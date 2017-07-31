@@ -207,20 +207,16 @@ class CommandResult(object):
 
 def wait_for_command(logs_generator):
     """
-    using given generator, wait for it to raise StopIteration, which
-    indicates that docker has finished with processing
+    Create a CommandResult from given iterator
 
-    :return: list of str, logs
+    :return: CommandResult
     """
     logger.info("wait_for_command")
     cr = CommandResult()
-    while True:
-        try:
-            item = next(logs_generator)  # py2 & 3 compat
-            cr.parse_item(item)
-        except StopIteration:
-            logger.info("no more logs")
-            break
+    for item in logs_generator:
+        cr.parse_item(item)
+
+    logger.info("no more logs")
     return cr
 
 
