@@ -37,7 +37,7 @@ def setup_module(module):
         d.inspect_image(INPUT_IMAGE)
         setattr(module, 'HAS_IMAGE', True)
     except docker.errors.APIError:
-        _ = [x for x in d.pull(INPUT_IMAGE, decode=True, stream=True)]
+        [x for x in d.pull(INPUT_IMAGE, decode=True, stream=True)]
         setattr(module, 'HAS_IMAGE', False)
 
 
