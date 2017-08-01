@@ -432,10 +432,10 @@ class DockerTasker(LastLogger):
         logger.debug("image = '%s', insecure = '%s'", image, insecure)
         try:
             logs_gen = self.d.pull(image.to_str(tag=False), tag=image.tag,
-                                   insecure_registry=insecure, stream=True)
+                                   insecure_registry=insecure, decode=True, stream=True)
         except TypeError:
             # because changing api is fun
-            logs_gen = self.d.pull(image.to_str(tag=False), tag=image.tag, stream=True)
+            logs_gen = self.d.pull(image.to_str(tag=False), tag=image.tag, decode=True, stream=True)
         command_result = wait_for_command(logs_gen)
         self.last_logs = command_result.logs
         return image.to_str()
@@ -507,10 +507,10 @@ class DockerTasker(LastLogger):
             # push returns string composed of newline separated jsons; exactly what 'docker push'
             # outputs
             logs = self.d.push(image.to_str(tag=False), tag=image.tag, insecure_registry=insecure,
-                               stream=True)
+                               decode=True, stream=True)
         except TypeError:
             # because changing api is fun
-            logs = self.d.push(image.to_str(tag=False), tag=image.tag, stream=True)
+            logs = self.d.push(image.to_str(tag=False), tag=image.tag, decode=True, stream=True)
 
         command_result = wait_for_command(logs)
         self.last_logs = command_result.logs
