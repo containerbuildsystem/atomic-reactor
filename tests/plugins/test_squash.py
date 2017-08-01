@@ -14,7 +14,7 @@ import pytest
 
 from flexmock import flexmock
 
-from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME
+from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME, IMAGE_TYPE_DOCKER_ARCHIVE
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
@@ -164,6 +164,7 @@ class TestSquashPlugin(object):
                 'md5sum': DUMMY_TARBALL['md5sum'],
                 'sha256sum': DUMMY_TARBALL['sha256sum'],
                 'size': DUMMY_TARBALL['size'],
+                'type': IMAGE_TYPE_DOCKER_ARCHIVE,
                 'path': self.output_path,
             }]
         else:

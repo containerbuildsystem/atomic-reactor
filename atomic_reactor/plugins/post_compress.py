@@ -15,7 +15,8 @@ except ImportError:
     import lzma
 import os
 
-from atomic_reactor.constants import EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE
+from atomic_reactor.constants import (EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE,
+                                      IMAGE_TYPE_DOCKER_ARCHIVE)
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.util import get_exported_image_metadata, human_size
 
@@ -79,16 +80,19 @@ class CompressPlugin(PostBuildPlugin):
         if self.load_exported_image:
             if len(self.workflow.exported_image_sequence) == 0:
                 raise RuntimeError('load_exported_image used, but no exported image')
-            image = self.workflow.exported_image_sequence[-1].get('path')
+            image_metadata = self.workflow.exported_image_sequence[-1]
+            image = image_metadata.get('path')
+            image_type = image_metadata.get('type')
             self.log.info('preparing to compress image %s', image)
             with open(image, 'rb') as image_stream:
                 outfile = self._compress_image_stream(image_stream)
         else:
             image = self.workflow.image
+            image_type = IMAGE_TYPE_DOCKER_ARCHIVE
             self.log.info('fetching image %s from docker', image)
             with self.tasker.d.get_image(image) as image_stream:
                 outfile = self._compress_image_stream(image_stream)
-        metadata = get_exported_image_metadata(outfile)
+        metadata = get_exported_image_metadata(outfile, image_type)
 
         if self.uncompressed_size != 0:
             metadata['uncompressed_size'] = self.uncompressed_size

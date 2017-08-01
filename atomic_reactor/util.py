@@ -28,6 +28,7 @@ import codecs
 import string
 
 from atomic_reactor.constants import DOCKERFILE_FILENAME, TOOLS_USED, INSPECT_CONFIG,\
+                                     IMAGE_TYPE_OCI,\
                                      HTTP_MAX_RETRIES, HTTP_BACKOFF_FACTOR,\
                                      HTTP_CLIENT_STATUS_RETRY
 
@@ -465,12 +466,13 @@ def get_docker_architecture(tasker):
     return (host_arch, docker_version['Version'])
 
 
-def get_exported_image_metadata(path):
-    logger.info('getting metadata for tarball %s', path)
-    metadata = {'path': path}
-    metadata['size'] = os.path.getsize(path)
-    logger.debug('size: %d bytes', metadata['size'])
-    metadata.update(get_checksums(path, ['md5', 'sha256']))
+def get_exported_image_metadata(path, image_type):
+    logger.info('getting metadata for exported image %s (%s)', path, image_type)
+    metadata = {'path': path, 'type': image_type}
+    if image_type != IMAGE_TYPE_OCI:
+        metadata['size'] = os.path.getsize(path)
+        logger.debug('size: %d bytes', metadata['size'])
+        metadata.update(get_checksums(path, ['md5', 'sha256']))
     return metadata
 
 

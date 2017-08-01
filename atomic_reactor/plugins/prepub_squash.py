@@ -11,7 +11,7 @@ It returns the dockerfile itself and therefore displays it in results.
 from __future__ import unicode_literals
 import os
 
-from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME
+from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME, IMAGE_TYPE_DOCKER_ARCHIVE
 from atomic_reactor.plugin import PrePublishPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.util import get_exported_image_metadata
@@ -105,7 +105,6 @@ class PrePublishSquashPlugin(PrePublishPlugin):
             self.workflow.builder.image_id = new_id
 
         if self.save_archive:
-            metadata.update(get_exported_image_metadata(output_path))
+            metadata.update(get_exported_image_metadata(output_path, IMAGE_TYPE_DOCKER_ARCHIVE))
             self.workflow.exported_image_sequence.append(metadata)
-
         defer_removal(self.workflow, self.image)

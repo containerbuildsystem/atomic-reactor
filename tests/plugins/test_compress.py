@@ -3,7 +3,8 @@ import tarfile
 
 import pytest
 
-from atomic_reactor.constants import EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE
+from atomic_reactor.constants import (EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE,
+                                      IMAGE_TYPE_DOCKER_ARCHIVE)
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner
@@ -49,7 +50,8 @@ class TestCompress(object):
 
         if load_exported_image:
             tarfile.open(exp_img, mode='w').close()
-            workflow.exported_image_sequence.append({'path': exp_img})
+            workflow.exported_image_sequence.append({'path': exp_img,
+                                                     'type': IMAGE_TYPE_DOCKER_ARCHIVE})
 
         runner = PostBuildPluginsRunner(
             tasker,
@@ -71,6 +73,7 @@ class TestCompress(object):
         assert os.path.exists(compressed_img)
         metadata = workflow.exported_image_sequence[-1]
         assert metadata['path'] == compressed_img
+        assert metadata['type'] == IMAGE_TYPE_DOCKER_ARCHIVE
         assert 'uncompressed_size' in metadata
         assert isinstance(metadata['uncompressed_size'], integer_types)
         assert ", ratio: " in caplog.text()
