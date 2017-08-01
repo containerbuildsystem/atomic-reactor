@@ -52,9 +52,21 @@ class PulpPullPlugin(PostBuildPlugin):
         self.insecure = insecure
         self.secret = secret
 
-    def run(self):
+    def _retry(self, f):
         start = time()
 
+        while True:
+            res = f()
+            if res is not None:
+                return res
+            if time() - start > self.timeout:
+                raise CraneTimeoutError("{} seconds exceeded"
+                                        .format(self.timeout))
+
+            self.log.info("will try again in %ss", self.retry_delay)
+            sleep(self.retry_delay)
+
+    def run(self):
         # Work out the name of the image to pull
         assert self.workflow.tag_conf.unique_images  # must be set
         image = self.workflow.tag_conf.unique_images[0]
@@ -72,33 +84,38 @@ class PulpPullPlugin(PostBuildPlugin):
             if plugin['name'] == PLUGIN_PULP_PUSH_KEY:
                 media_types.append('application/json')
 
-        digests = get_manifest_digests(pullspec, registry.uri, self.insecure, self.secret,
-                                       require_digest=False)
-        if digests.v2:
+        def get_digests():
+            d = get_manifest_digests(pullspec, registry.uri, self.insecure, self.secret,
+                                     require_digest=False)
+            return d if d.default is not None else None
+
+        digests = None
+        try:
+            digests = self._retry(get_digests)
+        except CraneTimeoutError:
+            self.log.warn("Failed to retrieve any manifest digests from crane")
+
+        if digests and digests.v2:
             self.log.info("V2 schema 2 digest found, returning %s", self.workflow.builder.image_id)
             media_types.append('application/vnd.docker.distribution.manifest.v2+json')
             return self.workflow.builder.image_id, sorted(media_types)
         else:
             self.log.info("V2 schema 2 digest is not available")
 
-        while True:
+        def get_metadata():
             # Pull the image from Crane
             name = self.tasker.pull_image(pullspec, insecure=self.insecure)
 
             # Inspect it
             try:
-                metadata = self.tasker.inspect_image(name)
+                md = self.tasker.inspect_image(name)
             except NotFound:
-                if time() - start > self.timeout:
-                    raise CraneTimeoutError("{} seconds exceeded"
-                                            .format(self.timeout))
-
-                self.log.info("will try again in %ss", self.retry_delay)
-                sleep(self.retry_delay)
-                continue
+                return None
 
             defer_removal(self.workflow, name)
-            break
+            return md
+
+        metadata = self._retry(get_metadata)
 
         # Adjust our idea of the image ID
         image_id = metadata['Id']

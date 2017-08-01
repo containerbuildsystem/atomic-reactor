@@ -206,7 +206,12 @@ class TestPostPulpPull(object):
         # to make really sure we get a different string object back.
         workflow.postbuild_plugins_conf = json.loads(json.dumps(pulp_plugin))
 
-        plugin = PulpPullPlugin(tasker, workflow, insecure=insecure)
+        # Set the timeout parameters so that we retry exactly once, but quickly.
+        # With the get_manifest_digests() API, the 'broken_response' case isn't
+        # distinguishable from no manifest yet, so we retry until timout and then
+        # fall through to pulp_pull.
+        plugin = PulpPullPlugin(tasker, workflow, insecure=insecure,
+                                timeout=0.1, retry_delay=0.25)
         results, version = plugin.run()
 
         # Plugin return value is the new ID and schema
