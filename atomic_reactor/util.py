@@ -32,7 +32,6 @@ from pkg_resources import resource_stream
 
 from importlib import import_module
 from requests.utils import guess_json_utf
-from time import sleep
 
 logger = logging.getLogger(__name__)
 
@@ -719,15 +718,10 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
         media_type = get_manifest_media_type(version)
         headers = {'Accept': media_type}
 
-        for attempts in range(10):
-            response = query_registry(
-                image, registry, digest=None,
-                insecure=insecure, dockercfg_path=dockercfg_path,
-                version=version)
-            if response.status_code == 404:
-                sleep(1)
-            else:
-                break
+        response = query_registry(
+            image, registry, digest=None,
+            insecure=insecure, dockercfg_path=dockercfg_path,
+            version=version)
 
         # If the registry has a v2 manifest that can't be converted into a v1
         # manifest, the registry fails with status=400, and a error code of
