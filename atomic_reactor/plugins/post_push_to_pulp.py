@@ -39,220 +39,16 @@ pulp_secret_path:
 """
 
 from __future__ import print_function, unicode_literals
-from dockpulp import setup_logger
+
+import tempfile
+from tempfile import NamedTemporaryFile
+import os
+import subprocess
 
 from atomic_reactor.constants import PLUGIN_PULP_SYNC_KEY, PLUGIN_PULP_PUSH_KEY
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.util import ImageName, are_plugins_in_order
-
-import dockpulp
-import dockpulp.imgutils
-
-import os
-import re
-import tempfile
-import subprocess
-from collections import namedtuple
-from tempfile import NamedTemporaryFile
-
-
-# let's silence warnings from dockpulp: there is one warning for every request
-# which may result in tenths of messages: very annoying
-# with "module", it just prints one warning -- this should balance security and UX
-import warnings
-warnings.filterwarnings("module")
-
-
-PulpRepo = namedtuple('PulpRepo', ['registry_id', 'tags'])
-
-
-class PulpUploader(object):
-    CER = 'pulp.cer'
-    KEY = 'pulp.key'
-
-    def __init__(self, workflow, pulp_instance, filename, log,
-                 pulp_secret_path=None,
-                 username=None, password=None,
-                 publish=True):
-        self.workflow = workflow
-        self.pulp_instance = pulp_instance
-        self.filename = filename
-        self.pulp_secret_path = pulp_secret_path
-        self.log = log
-        # U/N & password has bigger prio than secret cert
-        self.username = username
-        self.password = password
-        self.publish = publish
-
-    def _check_file(self):
-        # Sanity-check image
-        manifest = dockpulp.imgutils.get_manifest(self.filename)
-        vers = dockpulp.imgutils.get_versions(manifest)
-        for _, version in vers.items():
-            verparts = version.split('.')
-            major = int(verparts[0])
-            if major < 1:
-                minor = 0
-                if len(verparts) > 1:
-                    minor = int(verparts[1])
-                if minor < 10:
-                    raise RuntimeError('An image layer uses an unsupported '
-                                       'version of docker (%s)' % version)
-
-        r_chk = dockpulp.imgutils.check_repo(self.filename)
-        if r_chk == 1:
-            raise RuntimeError('Image is missing a /repositories file')
-        elif r_chk == 2:
-            raise RuntimeError('Pulp demands exactly 1 repo in /repositories')
-        elif r_chk == 3:
-            raise RuntimeError('/repositories references external images')
-
-    def _set_auth(self, p):
-        # The pulp.cer and pulp.key values must be set in a
-        # 'Secret'-type resource and mounted somewhere we can get at them.
-        if self.username and self.password:
-            p.login(self.username, self.password)
-        elif self.pulp_secret_path or 'SOURCE_SECRET_PATH' in os.environ:
-            if self.pulp_secret_path is not None:
-                path = self.pulp_secret_path
-                self.log.info("using configured path %s for secrets", path)
-            else:
-                path = os.environ["SOURCE_SECRET_PATH"]
-                self.log.info("SOURCE_SECRET_PATH=%s from environment", path)
-
-            # Work out the pathnames for the certificate/key pair.
-            cer = os.path.join(path, self.CER)
-            key = os.path.join(path, self.KEY)
-
-            if not os.path.exists(cer):
-                raise RuntimeError("Certificate does not exist.")
-            if not os.path.exists(key):
-                raise RuntimeError("Key does not exist.")
-
-            # Tell dockpulp.
-            p.set_certs(cer, key)
-
-    def _create_missing_repos(self, p, pulp_repos, repo_prefix):
-        repos = pulp_repos.keys()
-        found_repos = p.getRepos(repos, fields=["id"])
-        found_repo_ids = [repo["id"] for repo in found_repos]
-
-        missing_repos = set(repos) - set(found_repo_ids)
-        self.log.info("Missing repos: %s" % ", ".join(missing_repos))
-        for repo in missing_repos:
-            p.createRepo(repo, None,
-                         registry_id=pulp_repos[repo].registry_id,
-                         prefix_with=repo_prefix)
-
-    def _get_tar_metadata(self, tarfile):
-        metadata = dockpulp.imgutils.get_metadata(tarfile)
-        pulp_md = dockpulp.imgutils.get_metadata_pulp(metadata)
-        layers = pulp_md.keys()
-        top_layer = dockpulp.imgutils.get_top_layer(pulp_md)
-
-        return top_layer, layers
-
-    def push_tarball_to_pulp(self, image_names, repo_prefix="redhat-"):
-        self.log.info("checking image before upload")
-        self._check_file()
-
-        p = dockpulp.Pulp(env=self.pulp_instance)
-        self._set_auth(p)
-
-        # pulp_repos is mapping from repo-ids to registry-ids and tags
-        # which should be applied to those repos, expected structure:
-        # {
-        #    "my-image": PulpRepo(registry_id="nick/my-image", tags=["v1", "latest"])
-        #    ...
-        # }
-        pulp_repos = {}
-        for image in image_names:
-            repo_id = image.pulp_repo
-            tag = image.tag if image.tag else 'latest'
-            if repo_prefix:
-                repo_id = repo_prefix + repo_id
-
-            if repo_id in pulp_repos:
-                pulp_repos[repo_id].tags.append(tag)
-            else:
-                pulp_repos[repo_id] = PulpRepo(
-                    registry_id=image.to_str(registry=False, tag=False),
-                    tags=[tag]
-                )
-
-        self.log.info("pulp_repos = %s", pulp_repos)
-        self._create_missing_repos(p, pulp_repos, repo_prefix)
-
-        _, file_extension = os.path.splitext(self.filename)
-
-        try:
-            top_layer, layers = self._get_tar_metadata(self.filename)
-            # getImageIdsExist was introduced in rh-dockpulp 0.6+
-            existing_imageids = p.getImageIdsExist(layers)
-            self.log.debug("existing layers: %s", existing_imageids)
-
-            # Strip existing layers from the tar and repack it
-            remove_layers = [str(os.path.join(x, 'layer.tar')) for x in existing_imageids]
-
-            commands = {'.xz': 'xzcat', '.gz': 'zcat', '.bz2': 'bzcat', '.tar': 'cat'}
-            unpacker = commands.get(file_extension, None)
-            self.log.debug("using unpacker %s for extension %s", unpacker, file_extension)
-            if unpacker is None:
-                raise Exception("Unknown tarball format: %s" % self.filename)
-
-            with NamedTemporaryFile(prefix='strip_tar_', suffix='.gz') as outfile:
-                cmd = "set -o pipefail; {0} {1} | tar --delete {2} | gzip - > {3}".format(
-                    unpacker, self.filename, ' '.join(remove_layers), outfile.name)
-                self.log.debug("running %s", cmd)
-                subprocess.check_call(cmd, shell=True)
-                self.log.debug("uploading %s", outfile.name)
-                p.upload(outfile.name)
-        except:
-            self.log.debug("Error on creating deduplicated layers tar", exc_info=True)
-            try:
-                if file_extension != '.tar':
-                    raise RuntimeError("tar is already compressed")
-                with NamedTemporaryFile(prefix='full_tar_', suffix='.gz') as outfile:
-                    cmd = "set -o pipefail; cat {0} | gzip - > {1}".format(
-                        self.filename, outfile.name)
-                    self.log.debug("Compressing tar using '%s' command", cmd)
-                    subprocess.check_call(cmd, shell=True)
-                    self.log.debug("uploading %s", outfile.name)
-                    p.upload(outfile.name)
-            except:
-                self.log.info("Falling back to full tar upload")
-                p.upload(self.filename)
-
-        for repo_id, pulp_repo in pulp_repos.items():
-            for layer in layers:
-                p.copy(repo_id, layer)
-            p.updateRepo(repo_id, {"tag": "%s:%s" % (",".join(pulp_repo.tags),
-                                                     top_layer)})
-
-        # Only publish if we don't the pulp_sync plugin also configured
-        if self.publish:
-            task_ids = p.crane(pulp_repos.keys(), wait=True)
-            self.log.info("waiting for repos to be published to crane, tasks: %s",
-                          ", ".join(map(str, task_ids)))
-            p.watch_tasks(task_ids)
-        else:
-            self.log.info("publishing deferred until %s plugin runs",
-                          PLUGIN_PULP_SYNC_KEY)
-
-        # Store the registry URI in the push configuration
-
-        # We only want the hostname[:port]
-        pulp_registry = re.sub(r'^https?://([^/]*)/?.*',
-                               lambda m: m.groups()[0],
-                               p.registry)
-
-        self.workflow.push_conf.add_pulp_registry(self.pulp_instance,
-                                                  pulp_registry)
-
-        # Return the set of qualified repo names for this image
-        return [ImageName(registry=pulp_registry, repo=repodata.registry_id, tag=tag)
-                for dummy_repo, repodata in pulp_repos.items()
-                for tag in repodata.tags]  # noqa
+from atomic_reactor.pulp_util import PulpHandler
 
 
 class PulpPushPlugin(PostBuildPlugin):
@@ -282,12 +78,11 @@ class PulpPushPlugin(PostBuildPlugin):
         self.image_names = image_names
         if load_squashed_image is not None and load_exported_image is not None and \
                 (load_squashed_image != load_exported_image):
-            raise RuntimeError(
-                'Can\'t use load_squashed_image and load_exported_image with different values')
+            raise RuntimeError("Can\'t use load_squashed_image and "
+                               "load_exported_image with different values")
         if load_squashed_image is not None:
-            self.log.warning(
-                'load_squashed_image argument is obsolete and will be removed in a future version;'
-                'please use load_exported_image instead')
+            self.log.warning('load_squashed_image argument is obsolete and will be '
+                             'removed in a future version; please use load_exported_image instead')
         self.load_exported_image = load_exported_image or load_squashed_image or False
         self.pulp_secret_path = pulp_secret_path
         self.username = username
@@ -296,22 +91,84 @@ class PulpPushPlugin(PostBuildPlugin):
         self.publish = not are_plugins_in_order(self.workflow.postbuild_plugins_conf,
                                                 self.key, PLUGIN_PULP_SYNC_KEY)
 
-        if dockpulp_loglevel is not None:
-            logger = setup_logger(dockpulp.log)
-            try:
-                logger.setLevel(dockpulp_loglevel)
-            except (ValueError, TypeError) as ex:
-                self.log.error("Can't set provided log level %r: %r", dockpulp_loglevel, ex)
+        self.dockpulp_loglevel = dockpulp_loglevel
+        self.pulp_handler = PulpHandler(self.workflow, self.pulp_registry_name, self.log,
+                                        pulp_secret_path=self.pulp_secret_path,
+                                        username=self.username, password=self.password,
+                                        dockpulp_loglevel=self.dockpulp_loglevel)
 
-    def push_tar(self, image_path, image_names=None):
+    def push_tar(self, filename, image_names=None, repo_prefix="redhat-"):
         # Find out how to tag this image.
         self.log.info("image names: %s", [str(image_name) for image_name in image_names])
 
-        # Give that compressed tarball to pulp.
-        uploader = PulpUploader(self.workflow, self.pulp_registry_name, image_path, self.log,
-                                pulp_secret_path=self.pulp_secret_path, username=self.username,
-                                password=self.password, publish=self.publish)
-        return uploader.push_tarball_to_pulp(image_names)
+        self.log.info("checking image before upload %s", filename)
+        self.pulp_handler.check_file(filename)
+
+        pulp_repos = self.pulp_handler.create_dockpulp_and_repos(image_names, repo_prefix)
+        _, file_extension = os.path.splitext(filename)
+
+        try:
+            top_layer, layers = self.pulp_handler.get_tar_metadata(filename)
+            # getImageIdsExist was introduced in rh-dockpulp 0.6+
+            existing_imageids = self.pulp_handler.get_image_ids_existing(layers)
+            self.log.debug("existing layers: %s", existing_imageids)
+
+            # Strip existing layers from the tar and repack it
+            remove_layers = [str(os.path.join(x, 'layer.tar')) for x in existing_imageids]
+
+            commands = {'.xz': 'xzcat', '.gz': 'zcat', '.bz2': 'bzcat', '.tar': 'cat'}
+            unpacker = commands.get(file_extension, None)
+            self.log.debug("using unpacker %s for extension %s", unpacker, file_extension)
+            if unpacker is None:
+                raise Exception("Unknown tarball format: %s" % filename)
+
+            with NamedTemporaryFile(prefix='strip_tar_', suffix='.gz') as outfile:
+                cmd = "set -o pipefail; {0} {1} | tar --delete {2} | gzip - > {3}".format(
+                    unpacker, filename, ' '.join(remove_layers), outfile.name)
+                self.log.debug("running %s", cmd)
+                subprocess.check_call(cmd, shell=True)
+                self.log.debug("uploading %s", outfile.name)
+                self.pulp_handler.upload(outfile.name)
+        except:
+            self.log.debug("Error on creating deduplicated layers tar", exc_info=True)
+            try:
+                if file_extension != '.tar':
+                    raise RuntimeError("tar is already compressed")
+                with NamedTemporaryFile(prefix='full_tar_', suffix='.gz') as outfile:
+                    cmd = "set -o pipefail; cat {0} | gzip - > {1}".format(
+                        filename, outfile.name)
+                    self.log.debug("Compressing tar using '%s' command", cmd)
+                    subprocess.check_call(cmd, shell=True)
+                    self.log.debug("uploading %s", outfile.name)
+                    self.pulp_handler.upload(outfile.name)
+            except:
+                self.log.info("Falling back to full tar upload")
+                self.pulp_handler.upload(filename)
+
+        for repo_id, pulp_repo in pulp_repos.items():
+            for layer in layers:
+                self.pulp_handler.copy(repo_id, layer)
+            self.pulp_handler.update_repo(repo_id, {"tag": "%s:%s" % (",".join(pulp_repo.tags),
+                                                                      top_layer)})
+
+        # Only publish if we don't the pulp_sync plugin also configured
+        if self.publish:
+            self.pulp_handler.publish(pulp_repos.keys())
+        else:
+            self.log.info("publishing deferred until %s plugin runs", PLUGIN_PULP_SYNC_KEY)
+
+        # Store the registry URI in the push configuration
+
+        # We only want the hostname[:port]
+        pulp_registry = self.pulp_handler.get_registry_hostname()
+
+        self.workflow.push_conf.add_pulp_registry(self.pulp_handler.get_pulp_instance(),
+                                                  pulp_registry)
+
+        # Return the set of qualified repo names for this image
+        return [ImageName(registry=pulp_registry, repo=repodata.registry_id, tag=tag)
+                for dummy_repo, repodata in pulp_repos.items()
+                for tag in repodata.tags]  # noqa
 
     def run(self):
         image_names = self.workflow.tag_conf.images[:]
