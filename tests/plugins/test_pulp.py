@@ -9,15 +9,20 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 import os
+import sys
 
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.util import ImageName
 try:
+    if sys.version_info.major > 2:
+        # importing dockpulp in Python 3 causes SyntaxError
+        raise ImportError
+
     import dockpulp
     from atomic_reactor.plugins.post_push_to_pulp import PulpPushPlugin
-except (ImportError, SyntaxError):
+except (ImportError):
     dockpulp = None
 
 import subprocess
@@ -141,10 +146,12 @@ def test_pulp_dedup_layers(
 
     runner.run()
     assert PulpPushPlugin.key is not None
-    images = [i.to_str() for i in workflow.postbuild_results[PulpPushPlugin.key]]
+    top_layer, crane_images = workflow.postbuild_results[PulpPushPlugin.key]
+    images = [i.to_str() for i in crane_images]
     assert "registry.example.com/image-name1:latest" in images
     assert "registry.example.com/prefix/image-name2:latest" in images
     assert "registry.example.com/image-name3:asd" in images
+    assert top_layer == 'foo'
 
 
 @pytest.mark.skipif(dockpulp is None,
@@ -177,7 +184,8 @@ def test_pulp_source_secret(tmpdir, check_repo_retval, should_raise, monkeypatch
 
     runner.run()
     assert PulpPushPlugin.key is not None
-    images = [i.to_str() for i in workflow.postbuild_results[PulpPushPlugin.key]]
+    _, crane_images = workflow.postbuild_results[PulpPushPlugin.key]
+    images = [i.to_str() for i in crane_images]
     assert "registry.example.com/image-name1:latest" in images
     assert "registry.example.com/prefix/image-name2:latest" in images
     assert "registry.example.com/image-name3:asd" in images
@@ -201,7 +209,8 @@ def test_pulp_service_account_secret(tmpdir, monkeypatch):
         }}])
 
     runner.run()
-    images = [i.to_str() for i in workflow.postbuild_results[PulpPushPlugin.key]]
+    _, crane_images = workflow.postbuild_results[PulpPushPlugin.key]
+    images = [i.to_str() for i in crane_images]
     assert "registry.example.com/image-name1:latest" in images
     assert "registry.example.com/prefix/image-name2:latest" in images
     assert "registry.example.com/image-name3:asd" in images

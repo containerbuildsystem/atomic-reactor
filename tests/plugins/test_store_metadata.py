@@ -20,7 +20,8 @@ import osbs.conf
 from osbs.exceptions import OsbsResponseException
 from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
-                                      PLUGIN_KOJI_UPLOAD_PLUGIN_KEY)
+                                      PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
+                                      PLUGIN_PULP_PUSH_KEY)
 from atomic_reactor.build import BuildResult
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
@@ -132,7 +133,11 @@ def prepare(pulp_registries=None, docker_registries=None):
         'status': AddHelpPlugin.HELP_GENERATED,
     }, 'help.md'),
 ))
-@pytest.mark.parametrize(('pulp_results', 'expected_pulp_results'), (
+@pytest.mark.parametrize(('pulp_push_results', 'expected_pulp_push_results'), (
+    (None, False),
+    (['foo', []], 'foo'),
+))
+@pytest.mark.parametrize(('pulp_pull_results', 'expected_pulp_pull_results'), (
     (None, False),
     ((123, ["application/json"]), ["application/json"]),
     ((123, ["application/json", "application/vnd.docker.distribution.manifest.v1+json"]),
@@ -145,7 +150,8 @@ def prepare(pulp_registries=None, docker_registries=None):
 def test_metadata_plugin(tmpdir, br_annotations, expected_br_annotations,
                          br_labels, expected_br_labels, koji,
                          help_results, expected_help_results,
-                         pulp_results, expected_pulp_results):
+                         pulp_push_results, expected_pulp_push_results,
+                         pulp_pull_results, expected_pulp_pull_results):
     initial_timestamp = datetime.now()
     workflow = prepare()
     df_content = """
@@ -163,7 +169,8 @@ CMD blabla"""
     }
     workflow.postbuild_results = {
         PostBuildRPMqaPlugin.key: "rpm1\nrpm2",
-        PulpPullPlugin.key: pulp_results,
+        PulpPullPlugin.key: pulp_pull_results,
+        PLUGIN_PULP_PUSH_KEY: pulp_push_results,
     }
 
     if br_annotations or br_labels:
@@ -270,10 +277,15 @@ CMD blabla"""
     else:
         assert json.loads(annotations['help_file']) == expected_help_results
 
-    if expected_pulp_results is False:
+    if expected_pulp_push_results is False:
+        assert 'v1-image-id' not in annotations
+    else:
+        assert annotations['v1-image-id'] == expected_pulp_push_results
+
+    if expected_pulp_pull_results is False:
         assert 'media-types' not in annotations
     else:
-        assert json.loads(annotations['media-types']) == expected_pulp_results
+        assert json.loads(annotations['media-types']) == expected_pulp_pull_results
 
 
 def test_metadata_plugin_rpmqa_failure(tmpdir):
