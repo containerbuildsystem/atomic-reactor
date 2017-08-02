@@ -166,7 +166,7 @@ class PulpPushPlugin(PostBuildPlugin):
                                                   pulp_registry)
 
         # Return the set of qualified repo names for this image
-        return [ImageName(registry=pulp_registry, repo=repodata.registry_id, tag=tag)
+        return top_layer, [ImageName(registry=pulp_registry, repo=repodata.registry_id, tag=tag)
                 for dummy_repo, repodata in pulp_repos.items()
                 for tag in repodata.tags]  # noqa
 
@@ -180,8 +180,8 @@ class PulpPushPlugin(PostBuildPlugin):
         if self.load_exported_image:
             if len(self.workflow.exported_image_sequence) == 0:
                 raise RuntimeError('no exported image to push to pulp')
-            crane_repos = self.push_tar(self.workflow.exported_image_sequence[-1].get("path"),
-                                        image_names)
+            export_path = self.workflow.exported_image_sequence[-1].get("path")
+            top_layer, crane_repos = self.push_tar(export_path, image_names)
         else:
             # Work out image ID
             image = self.workflow.image
@@ -191,10 +191,10 @@ class PulpPushPlugin(PostBuildPlugin):
                 # This file will be referenced by its filename, not file
                 # descriptor - must ensure contents are written to disk
                 image_file.flush()
-                crane_repos = self.push_tar(image_file.name, image_names)
+                top_layer, crane_repos = self.push_tar(image_file.name, image_names)
 
         if self.publish:
             for image_name in crane_repos:
                 self.log.info("image available at %s", str(image_name))
 
-        return crane_repos
+        return top_layer, crane_repos
