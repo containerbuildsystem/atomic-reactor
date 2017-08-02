@@ -22,7 +22,7 @@ except ImportError:
     import inspect
 
     # Find our dockpulp stub
-    import tests.dockpulp as dockpulp
+    import tests.mock.dockpulp as dockpulp
     mock_dockpulp_path = os.path.dirname(inspect.getfile(dockpulp.Pulp))
     if mock_dockpulp_path not in sys.path:
         sys.path.insert(0, os.path.dirname(mock_dockpulp_path))
