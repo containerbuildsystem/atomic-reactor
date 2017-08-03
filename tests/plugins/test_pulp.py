@@ -218,12 +218,13 @@ def test_pulp_service_account_secret(tmpdir, monkeypatch):
 
 @pytest.mark.skipif(dockpulp is None,
                     reason='dockpulp module not available')
-@pytest.mark.parametrize(('before_name', 'after_name', 'should_publish'), [
-    ('foo', 'foo', True),
-    ('pulp_sync', 'foo', True),
-    ('foo', 'pulp_sync', False),
+@pytest.mark.parametrize(('before_name', 'after_name', 'publish', 'should_publish'), [
+    ('foo', 'foo', True, True),
+    ('pulp_sync', 'foo', True, True),
+    ('foo', 'pulp_sync', True, False),
+    ('pulp_sync', 'foo', False, False),
 ])
-def test_pulp_publish_only_without_sync(before_name, after_name,
+def test_pulp_publish_only_without_sync(before_name, after_name, publish,
                                         should_publish, caplog):
     conf = [
         {
@@ -236,7 +237,8 @@ def test_pulp_publish_only_without_sync(before_name, after_name,
         {
             'name': PulpPushPlugin.key,
             'args': {
-                'pulp_registry_name': 'test'
+                'pulp_registry_name': 'test',
+                'publish': publish,
             },
         },
         {
@@ -249,7 +251,7 @@ def test_pulp_publish_only_without_sync(before_name, after_name,
     ]
 
     tasker, workflow = prepare(conf=conf)
-    plugin = PulpPushPlugin(tasker, workflow, 'pulp_registry_name')
+    plugin = PulpPushPlugin(tasker, workflow, 'pulp_registry_name', publish=publish)
 
     expectation = flexmock(dockpulp.Pulp).should_receive('crane')
     if should_publish:

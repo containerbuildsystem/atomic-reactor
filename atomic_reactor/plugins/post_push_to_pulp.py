@@ -57,7 +57,7 @@ class PulpPushPlugin(PostBuildPlugin):
 
     def __init__(self, tasker, workflow, pulp_registry_name, load_squashed_image=None,
                  load_exported_image=None, image_names=None, pulp_secret_path=None,
-                 username=None, password=None, dockpulp_loglevel=None):
+                 username=None, password=None, dockpulp_loglevel=None, publish=True):
         """
         constructor
 
@@ -71,6 +71,7 @@ class PulpPushPlugin(PostBuildPlugin):
         :param pulp_secret_path: path to pulp.cer and pulp.key; $SOURCE_SECRET_PATH otherwise
         :param username: pulp username, used in preference to certificate and key
         :param password: pulp password, used in preference to certificate and key
+        :param publish: Bool, whether to publish to crane or not
         """
         # call parent constructor
         super(PulpPushPlugin, self).__init__(tasker, workflow)
@@ -88,8 +89,8 @@ class PulpPushPlugin(PostBuildPlugin):
         self.username = username
         self.password = password
 
-        self.publish = not are_plugins_in_order(self.workflow.postbuild_plugins_conf,
-                                                self.key, PLUGIN_PULP_SYNC_KEY)
+        self.publish = publish and not are_plugins_in_order(self.workflow.postbuild_plugins_conf,
+                                                            self.key, PLUGIN_PULP_SYNC_KEY)
 
         self.dockpulp_loglevel = dockpulp_loglevel
         self.pulp_handler = PulpHandler(self.workflow, self.pulp_registry_name, self.log,
