@@ -121,9 +121,12 @@ class PulpHandler(object):
 
         return top_layer, layers
 
-    def create_dockpulp_and_repos(self, image_names, repo_prefix="redhat-"):
+    def create_dockpulp(self):
         self.p = dockpulp.Pulp(env=self.pulp_instance)
         self._set_auth()
+
+    def create_dockpulp_and_repos(self, image_names, repo_prefix="redhat-"):
+        self.create_dockpulp()
 
         # pulp_repos is mapping from repo-ids to registry-ids and tags
         # which should be applied to those repos, expected structure:
@@ -163,7 +166,13 @@ class PulpHandler(object):
     def update_repo(self, repo_id, tag):
         self.p.updateRepo(repo_id, tag)
 
+    def remove_image(self, repo_id, image):
+        self.p.remove(repo_id, image)
+
     def publish(self, keys):
+        # dockpulp will call publish for every repository if len(keys) == 0
+        # so check to make sure keys has values
+        assert keys
         task_ids = self.p.crane(keys, wait=True)
         self.log.info("waiting for repos to be published to crane, tasks: %s",
                       ", ".join(map(str, task_ids)))
