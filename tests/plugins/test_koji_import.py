@@ -181,7 +181,7 @@ class BuildInfo(object):
         if media_types:
             annotations['media-types'] = json.dumps(media_types)
         if help_valid:
-            annotations['help_file'] = help_file
+            annotations['help_file'] = json.dumps(help_file)
 
         self.build = BuildResponse({'metadata': {'annotations': annotations}})
 
