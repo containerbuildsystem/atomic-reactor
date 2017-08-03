@@ -128,8 +128,9 @@ class KojiImportPlugin(ExitPlugin):
             # See if any are not None
             for known, annotations in zip(help_known, all_annotations):
                 if known:
-                    if annotations['help_file'] is not None:
-                        extra['image']['help'] = annotations['help_file']
+                    help_file = json.loads(annotations['help_file'])
+                    if help_file is not None:
+                        extra['image']['help'] = help_file
                         break
             else:
                 # They are all None
