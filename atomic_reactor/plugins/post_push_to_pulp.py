@@ -164,7 +164,8 @@ class PulpPushPlugin(PostBuildPlugin):
         pulp_registry = self.pulp_handler.get_registry_hostname()
 
         self.workflow.push_conf.add_pulp_registry(self.pulp_handler.get_pulp_instance(),
-                                                  pulp_registry)
+                                                  pulp_registry,
+                                                  server_side_sync=False)
 
         # Return the set of qualified repo names for this image
         return top_layer, [ImageName(registry=pulp_registry, repo=repodata.registry_id, tag=tag)

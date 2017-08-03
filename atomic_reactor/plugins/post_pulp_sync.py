@@ -194,7 +194,8 @@ class PulpSyncPlugin(PostBuildPlugin):
 
         # Store the registry URI in the push configuration
         self.workflow.push_conf.add_pulp_registry(self.pulp_registry_name,
-                                                  pulp_registry)
+                                                  pulp_registry,
+                                                  server_side_sync=True)
 
         self.log.info("syncing from docker V2 registry %s",
                       self.docker_registry)

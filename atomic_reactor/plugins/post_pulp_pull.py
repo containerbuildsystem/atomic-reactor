@@ -84,23 +84,29 @@ class PulpPullPlugin(PostBuildPlugin):
             if plugin['name'] == PLUGIN_PULP_PUSH_KEY:
                 media_types.append('application/json')
 
-        def get_digests():
-            d = get_manifest_digests(pullspec, registry.uri, self.insecure, self.secret,
-                                     require_digest=False)
-            return d if d.default is not None else None
+        if registry.server_side_sync:
+            # We only expect to find a v1 or v2 digest if the pulp_sync plugin was
+            # used (either instead of or in addition to push_to_push()). We want
+            # to avoid unnecessarily waiting for digests that never appear.
 
-        digests = None
-        try:
-            digests = self._retry(get_digests)
-        except CraneTimeoutError:
-            self.log.warn("Failed to retrieve any manifest digests from crane")
+            def get_digests():
+                d = get_manifest_digests(pullspec, registry.uri, self.insecure, self.secret,
+                                         require_digest=False)
+                return d if d.default is not None else None
 
-        if digests and digests.v2:
-            self.log.info("V2 schema 2 digest found, returning %s", self.workflow.builder.image_id)
-            media_types.append('application/vnd.docker.distribution.manifest.v2+json')
-            return self.workflow.builder.image_id, sorted(media_types)
-        else:
-            self.log.info("V2 schema 2 digest is not available")
+            digests = None
+            try:
+                digests = self._retry(get_digests)
+            except CraneTimeoutError:
+                self.log.warn("Failed to retrieve any manifest digests from crane")
+
+            if digests and digests.v2:
+                self.log.info("V2 schema 2 digest found, returning %s",
+                              self.workflow.builder.image_id)
+                media_types.append('application/vnd.docker.distribution.manifest.v2+json')
+                return self.workflow.builder.image_id, sorted(media_types)
+            else:
+                self.log.info("V2 schema 2 digest is not available")
 
         def get_metadata():
             # Pull the image from Crane
