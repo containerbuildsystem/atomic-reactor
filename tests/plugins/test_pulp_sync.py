@@ -509,7 +509,8 @@ class TestPostPulpSync(object):
             .and_return(mockpulp))
 
         if already_exists:
-            workflow.push_conf.add_pulp_registry(env, mockpulp.registry)
+            workflow.push_conf.add_pulp_registry(env, mockpulp.registry,
+                                                 server_side_sync=False)
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=workflow,

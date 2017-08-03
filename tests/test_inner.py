@@ -1282,3 +1282,25 @@ def test_show_version(request, has_version):
     workflow.build_docker_image()
     expected_log_message = ("build json was built by osbs-client %s", VERSION)
     assert (expected_log_message in fake_logger.debugs) == has_version
+
+
+def test_add_pulp_registry():
+    push_conf = atomic_reactor.inner.PushConf()
+
+    push_conf.add_pulp_registry("example.com", "http://example.com", False)
+    assert push_conf.pulp_registries[0].name == "example.com"
+    assert push_conf.pulp_registries[0].uri == "http://example.com"
+    assert not push_conf.pulp_registries[0].server_side_sync
+
+    push_conf.add_pulp_registry("example.com", "http://example.com", True)
+    assert push_conf.pulp_registries[0].server_side_sync
+    push_conf.add_pulp_registry("example.com", "http://example.com", False)
+    assert push_conf.pulp_registries[0].server_side_sync
+
+    with pytest.raises(RuntimeError):
+        push_conf.add_pulp_registry("example2.com", None, False)
+    with pytest.raises(RuntimeError):
+        push_conf.add_pulp_registry("example.com", "http://example2.com", False)
+
+    push_conf.add_pulp_registry("registry2.example.com", "http://registry2.example.com", True)
+    assert len(push_conf.pulp_registries) == 2

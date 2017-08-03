@@ -39,11 +39,15 @@ class TestPostPulpPull(object):
     EXPECTED_IMAGE = ImageName.parse('%s/%s' % (CRANE_URI, TEST_UNIQUE_IMAGE))
     EXPECTED_PULLSPEC = EXPECTED_IMAGE.to_str()
 
-    def workflow(self):
+    def workflow(self, push=True, sync=True):
         tag_conf = TagConf()
         tag_conf.add_unique_image(self.TEST_UNIQUE_IMAGE)
         push_conf = PushConf()
-        push_conf.add_pulp_registry('pulp', crane_uri=self.CRANE_URI)
+        if push:
+            push_conf.add_pulp_registry('pulp', crane_uri=self.CRANE_URI, server_side_sync=False)
+        if sync:
+            push_conf.add_pulp_registry('pulp', crane_uri=self.CRANE_URI, server_side_sync=True)
+
         builder = flexmock()
         setattr(builder, 'image_id', 'sha256:(old)')
         return flexmock(tag_conf=tag_conf,
@@ -226,6 +230,47 @@ class TestPostPulpPull(object):
 
         # Image ID is updated in workflow
         assert workflow.builder.image_id == test_id
+
+    @pytest.mark.parametrize(('push', 'sync'), [
+        (True, False),
+        (False, True),
+        (True, True)
+    ])
+    def test_pull_push_vs_sync(self, push, sync):
+        workflow = self.workflow(push=push, sync=sync)
+        tasker = MockerTasker()
+
+        test_id = 'sha256:(new)'
+
+        getter = self.custom_get_v1
+
+        if sync:
+            (flexmock(requests)
+                .should_receive('get')
+                .replace_with(getter))
+        else:
+            (flexmock(requests)
+                .should_receive('get')
+                .never())
+
+        (flexmock(tasker)
+            .should_call('pull_image')
+            .with_args(self.EXPECTED_IMAGE, insecure=False)
+            .and_return(self.EXPECTED_PULLSPEC)
+            .ordered())
+
+        (flexmock(tasker)
+            .should_receive('inspect_image')
+            .with_args(self.EXPECTED_PULLSPEC)
+            .and_return({'Id': test_id}))
+
+        workflow.postbuild_plugins_conf = []
+
+        plugin = PulpPullPlugin(tasker, workflow)
+        results, version = plugin.run()
+
+        assert results == test_id
+        assert len(tasker.pulled_images) == 1
 
     def test_pull_timeout(self):
         workflow = self.workflow()

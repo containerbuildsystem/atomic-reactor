@@ -176,6 +176,11 @@ class PulpRegistry(Registry):
         super(PulpRegistry, self).__init__(crane_uri, insecure=insecure)
         self.name = name
 
+        # True if we've synced an image to the pulp repository using the
+        # docker protocol - and thus can support retrieving manifests
+        # via the v2 api.
+        self.server_side_sync = False
+
 
 class DockerRegistry(Registry):
     """ v1/v2 docker registry """
@@ -212,10 +217,21 @@ class PushConf(object):
         for registry_uri in registry_uris:
             self.add_docker_registry(registry_uri, insecure=insecure)
 
-    def add_pulp_registry(self, name, crane_uri):
+    def add_pulp_registry(self, name, crane_uri, server_side_sync=True):
         if crane_uri is None:
             raise RuntimeError("registry URI cannot be None")
+
+        old_registry = self._registries["pulp"].get(name)
+        if old_registry is not None:
+            if crane_uri != old_registry.uri:
+                raise RuntimeError("Conflicting Pulp registries with name: %s" % name)
+            # Merge
+            if server_side_sync:
+                old_registry.server_side_sync = True
+            return old_registry
+
         r = PulpRegistry(name, crane_uri)
+        r.server_side_sync = server_side_sync
         self._registries["pulp"][name] = r
         return r
 
