@@ -24,6 +24,18 @@ data:
     mbs: OMITTED
 """
 
+FLATPAK_APP_FINISH_ARGS = [
+    "--filesystem=host",
+    "--share=ipc",
+    "--socket=x11",
+    "--socket=wayland",
+    "--socket=session-bus",
+    "--filesystem=~/.config/dconf:ro",
+    "--filesystem=xdg-run/dconf",
+    "--talk-name=ca.desrt.dconf",
+    "--env=DCONF_USER_CONFIG_DIR=.config/dconf"
+]
+
 FLATPAK_APP_JSON = {
     "id": "org.gnome.eog",
     "version": "3.20.0-2.fc26",
@@ -32,15 +44,7 @@ FLATPAK_APP_JSON = {
     "sdk": "org.fedoraproject.Sdk",
     "command": "eog",
     "tags": ["Viewer"],
-    "finish-args": ["--filesystem=host",
-                    "--share=ipc",
-                    "--socket=x11",
-                    "--socket=wayland",
-                    "--socket=session-bus",
-                    "--filesystem=~/.config/dconf:ro",
-                    "--filesystem=xdg-run/dconf",
-                    "--talk-name=ca.desrt.dconf",
-                    "--env=DCONF_USER_CONFIG_DIR=.config/dconf"]
+    "finish-args": FLATPAK_APP_FINISH_ARGS
 }
 
 FLATPAK_RUNTIME_MODULEMD = """
