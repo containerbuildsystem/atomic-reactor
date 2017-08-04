@@ -111,8 +111,29 @@ class TestBumpRelease(object):
         False
     ])
     @pytest.mark.parametrize('next_release', [
-        {'actual': '1', 'expected': '1'},
-        {'actual': '1', 'expected': '2'},
+        {'actual': '1', 'builds': [], 'expected': '1'},
+        {'actual': '1', 'builds': ['1'], 'expected': '2'},
+        {'actual': '1', 'builds': ['1', '2'], 'expected': '3'},
+        {'actual': '20', 'builds': ['19.1'], 'expected': '20'},
+        {'actual': '20', 'builds': ['20', '20.1'], 'expected': '21'},
+        {'actual': '20.1', 'builds': ['20'], 'expected': '21'},
+        {'actual': '20.1', 'builds': ['20', '20.1'], 'expected': '21'},
+        {'actual': '20.2', 'builds': ['20', '20.1'], 'expected': '21'},
+        {'actual': '20.2', 'builds': ['20', '20.1', '20.2'], 'expected': '21'},
+        {'actual': '20.fc25', 'builds': ['20.fc24'], 'expected': '20.fc25'},
+        {'actual': '20.fc25', 'builds': ['20.fc25'], 'expected': '21.fc25'},
+        {'actual': '20.foo.fc25',
+         'builds': ['20.foo.fc25'],
+         'expected': '21.foo.fc25'},
+        {'actual': '20.1.fc25',
+         'builds': ['20.fc25', '20.1.fc25'],
+         'expected': '21.fc25'},
+        {'actual': '20.1.fc25',
+         'builds': ['20.fc25', '20.1.fc25', '21.fc25'],
+         'expected': '22.fc25'},
+        {'actual': '20.1.fc25',
+         'builds': ['20.1.fc25', '21.fc25'],
+         'expected': '22.fc25'},
     ])
     def test_increment(self, tmpdir, component, version, next_release,
                        include_target):
@@ -129,9 +150,10 @@ class TestBumpRelease(object):
             def getBuild(self, build_info):
                 assert build_info['name'] == list(component.values())[0]
                 assert build_info['version'] == list(version.values())[0]
-                if build_info['release'] >= next_release['expected']:
-                    return None
-                return True
+
+                if build_info['release'] in next_release['builds']:
+                    return True
+                return None
 
             def ssl_login(self, cert, ca, serverca, proxyuser=None):
                 self.ca_path = ca
