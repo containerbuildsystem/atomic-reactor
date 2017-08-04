@@ -116,6 +116,8 @@ class TestBumpRelease(object):
         {'actual': '1', 'builds': ['1', '2'], 'expected': '3'},
         {'actual': '20', 'builds': ['19.1'], 'expected': '20'},
         {'actual': '20', 'builds': ['20', '20.1'], 'expected': '21'},
+        {'actual': '20.1', 'builds': ['19.1'], 'expected': '20'},
+        {'actual': '20.1', 'builds': ['19.1', '20'], 'expected': '21'},
         {'actual': '20.1', 'builds': ['20'], 'expected': '21'},
         {'actual': '20.1', 'builds': ['20', '20.1'], 'expected': '21'},
         {'actual': '20.2', 'builds': ['20', '20.1'], 'expected': '21'},
@@ -130,9 +132,6 @@ class TestBumpRelease(object):
          'expected': '21.fc25'},
         {'actual': '20.1.fc25',
          'builds': ['20.fc25', '20.1.fc25', '21.fc25'],
-         'expected': '22.fc25'},
-        {'actual': '20.1.fc25',
-         'builds': ['20.1.fc25', '21.fc25'],
          'expected': '22.fc25'},
     ])
     def test_increment(self, tmpdir, component, version, next_release,
