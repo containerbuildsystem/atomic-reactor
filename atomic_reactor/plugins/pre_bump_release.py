@@ -46,20 +46,17 @@ class BumpReleasePlugin(PreBuildPlugin):
             }
         self.xmlrpc = create_koji_session(hub, koji_auth_info)
 
-    def get_patched_release(self, original_release, force_increment=False):
+    def get_patched_release(self, original_release, increment=False):
         # Split the original release by dots, make sure there at least 3 items in parts list
         parts = original_release.split('.', 2) + [None, None]
         release, suffix, rest = parts[:3]
 
-        # Is this a "dot" release, i.e. second part is a number?
-        is_dotrel = suffix is not None and suffix.isdigit()
-
-        if is_dotrel or force_increment:
+        if increment:
             # Increment first part as a number
             release = str(int(release) + 1)
 
         # Remove second part if it's a number
-        if is_dotrel:
+        if suffix is not None and suffix.isdigit():
             suffix = None
 
         # Recombine the parts
@@ -107,7 +104,7 @@ class BumpReleasePlugin(PreBuildPlugin):
             if not build:
                 break
 
-            next_release = self.get_patched_release(next_release, force_increment=True)
+            next_release = self.get_patched_release(next_release, increment=True)
 
         # Always set preferred release label - other will be set if old-style
         # label is present
