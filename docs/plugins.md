@@ -141,6 +141,9 @@ These are run after 'git clone' is used to fetch the git repository content cont
  * **fetch_maven_artifacts**
    * Status: enabled
    * Download artifacts from either a koji build or directly from a URL.
+ * **inject_parent_image**
+   * Status: enabled
+   * Overwrite parent image image reference.
 
 ### Buildstep plugins
 

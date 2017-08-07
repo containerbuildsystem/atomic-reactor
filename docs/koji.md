@@ -1,6 +1,6 @@
 ## Koji integration
 
-The `add_filesystem`, `koji`, `fetch_maven_artifacts` pre-build plugins and the `koji_promote` and `koji_tag_build` exit plugins provide integration with [Koji](https://docs.pagure.org/koji/).
+The `add_filesystem`, `koji`, `fetch_maven_artifacts`, `inject_parent_image` pre-build plugins and the `koji_promote` and `koji_tag_build` exit plugins provide integration with [Koji](https://docs.pagure.org/koji/).
 
 ## Pre-build plugins
 
@@ -11,6 +11,8 @@ The `koji` pre-build plugin creates a yum repofile to allow instructions in the 
 The `koji_parent` pre-build plugin determines the expected NVR (Name-Version-Release) of the Koji build for the parent image. It waits for a given amount if build does not exist yet.
 
 The `fetch_maven_artifacts` pre-build plugin will use configuration files to download external maven artifacts. One of these sources can be a Koji build.
+
+The `inject_parent_image` pre-build plugin overwrites the parent image to be used based on a given Koji build.
 
 ## Exit plugins
 
