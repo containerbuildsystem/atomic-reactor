@@ -46,17 +46,32 @@ TEST_DATA = {
     "repository.com/prefix/image-name:1": ImageName(registry="repository.com",
                                                     namespace="prefix",
                                                     repo="image-name", tag="1"),
+    "repository.com/prefix/image-name@sha256:12345": ImageName(registry="repository.com",
+                                                               namespace="prefix",
+                                                               repo="image-name",
+                                                               tag="sha256:12345"),
     "repository.com/prefix/image-name": ImageName(registry="repository.com",
                                                   namespace="prefix",
                                                   repo="image-name"),
     "image-name": ImageName(repo="image-name"),
+
     "registry:5000/image-name:latest": ImageName(registry="registry:5000",
                                                  repo="image-name", tag="latest"),
+    "registry:5000/image-name@sha256:12345": ImageName(registry="registry:5000",
+                                                       repo="image-name", tag="sha256:12345"),
     "registry:5000/image-name": ImageName(registry="registry:5000", repo="image-name"),
+
     "fedora:20": ImageName(repo="fedora", tag="20"),
+    "fedora@sha256:12345": ImageName(repo="fedora", tag="sha256:12345"),
+
     "prefix/image-name:1": ImageName(namespace="prefix", repo="image-name", tag="1"),
+    "prefix/image-name@sha256:12345": ImageName(namespace="prefix", repo="image-name",
+                                                tag="sha256:12345"),
+
     "library/fedora:20": ImageName(namespace="library", repo="fedora", tag="20"),
-    }
+    "library/fedora@sha256:12345": ImageName(namespace="library", repo="fedora",
+                                             tag="sha256:12345"),
+}
 
 
 def test_image_name_parse():

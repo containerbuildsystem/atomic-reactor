@@ -61,10 +61,12 @@ class ImageName(object):
             result.namespace = s[1]
         result.repo = s[-1]
 
-        try:
-            result.repo, result.tag = result.repo.rsplit(':', 1)
-        except ValueError:
-            pass
+        for sep in '@:':
+            try:
+                result.repo, result.tag = result.repo.rsplit(sep, 1)
+            except ValueError:
+                continue
+            break
 
         return result
 
@@ -75,7 +77,9 @@ class ImageName(object):
 
         result = self.repo
 
-        if tag and self.tag:
+        if tag and self.tag and ':' in self.tag:
+            result = '{0}@{1}'.format(result, self.tag)
+        elif tag and self.tag:
             result = '{0}:{1}'.format(result, self.tag)
         elif tag and explicit_tag:
             result = '{0}:{1}'.format(result, 'latest')
