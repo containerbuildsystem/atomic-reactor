@@ -122,7 +122,8 @@ class TestKojiParent(object):
         (flexmock(koji_session)
             .should_receive('ssl_login')
             .with_args(*expected_ssl_login_args)
-            .and_return(True))
+            .and_return(True)
+            .once())
         plugin_args = {'koji_ssl_certs_dir': certs_dir}
         self.run_plugin_with_args(workflow, plugin_args)
 
