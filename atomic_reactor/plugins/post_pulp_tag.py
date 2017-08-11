@@ -74,7 +74,7 @@ class PulpTagPlugin(PostBuildPlugin):
             v1_image_id = annotations.get('v1-image-id')
             if v1_image_id:
                 if has_v1_image_id:
-                    msg = "two platforms with v1-image-ids: {0} and {0}".format(platform,
+                    msg = "two platforms with v1-image-ids: {0} and {1}".format(platform,
                                                                                 has_v1_image_id)
                     raise RuntimeError(msg)
                 has_v1_image_id = platform
