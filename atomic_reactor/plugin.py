@@ -17,6 +17,7 @@ import traceback
 import imp
 import datetime
 import inspect
+import time
 
 from atomic_reactor.build import BuildResult
 from atomic_reactor.util import process_substitutions
@@ -570,3 +571,20 @@ class InputPluginsRunner(PluginsRunner):
         if self.autoinput:
             result['auto'] = result.pop(autousable)
         return result
+
+
+# Built-in plugins
+class PreBuildSleepPlugin(PreBuildPlugin):
+    """
+    Sleep for a specified number of seconds.
+
+    This plugin is only intended to be used for debugging.
+    """
+
+    key = 'pre_sleep'
+
+    def __init__(self, tasker, workflow, seconds=60):
+        self.seconds = seconds
+
+    def run(self):
+        time.sleep(self.seconds)

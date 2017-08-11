@@ -10,6 +10,7 @@ from __future__ import unicode_literals
 
 import json
 import os
+import time
 
 from dockerfile_parse import DockerfileParser
 from flexmock import flexmock
@@ -22,7 +23,8 @@ from atomic_reactor.plugin import (BuildPluginsRunner, PreBuildPluginsRunner,
                                    PluginFailedException, PrePublishPluginsRunner,
                                    ExitPluginsRunner, BuildStepPluginsRunner,
                                    PluginsRunner, InappropriateBuildStepError,
-                                   BuildStepPlugin, PreBuildPlugin)
+                                   BuildStepPlugin, PreBuildPlugin,
+                                   PreBuildSleepPlugin)
 from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
 from atomic_reactor.util import ImageName
 
@@ -387,3 +389,22 @@ class TestInputPluginsRunner(object):
         runner = InputPluginsRunner([{'name': 'auto', 'args': {'substitutions': {}}}])
         results = runner.run()
         assert results == {'auto': {'image': 'some-image'}}
+
+
+class TestPreBuildSleepPlugin(object):
+    @pytest.mark.parametrize(('seconds', 'exp'), [(None, 60), (1, 1)])
+    def test_sleep_plugin(self, seconds, exp):
+        (flexmock(time)
+         .should_receive('sleep')
+         .with_args(exp)
+         .once())
+
+        kwargs = {
+            'tasker': None,
+            'workflow': None,
+        }
+        if seconds is not None:
+            kwargs['seconds'] = seconds
+
+        plugin = PreBuildSleepPlugin(**kwargs)
+        plugin.run()
