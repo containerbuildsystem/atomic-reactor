@@ -38,6 +38,9 @@ from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.util import (
     ImageName, wait_for_command, clone_git_repo, figure_out_dockerfile, Dockercfg)
 
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
