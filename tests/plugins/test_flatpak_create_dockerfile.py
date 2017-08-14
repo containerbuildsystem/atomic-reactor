@@ -9,12 +9,14 @@ of the BSD license. See the LICENSE file for details.
 from flexmock import flexmock
 
 import json
+from modulemd import ModuleMetadata
 import responses
 import os
-import pytest
-from six.moves.urllib.parse import urlparse, parse_qs
 
 from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.plugins.pre_resolve_module_compose import (ComposeInfo,
+                                                               ModuleInfo,
+                                                               set_compose_info)
 from atomic_reactor.plugins.pre_flatpak_create_dockerfile import FlatpakCreateDockerfilePlugin
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.source import VcsInfo
@@ -79,37 +81,23 @@ LATEST_VERSION_JSON = [{"modulemd": FLATPAK_APP_MODULEMD}]
 
 
 @responses.activate  # noqa - docker_tasker fixture
-@pytest.mark.parametrize('specify_version', [True, False])
-def test_flatpak_create_dockerfile(tmpdir, docker_tasker, specify_version):
+def test_flatpak_create_dockerfile(tmpdir, docker_tasker):
     workflow = mock_workflow(tmpdir)
 
-    def handle_unreleasedvariants(request):
-        query = parse_qs(urlparse(request.url).query)
-
-        assert query['variant_id'] == [MODULE_NAME]
-        assert query['variant_version'] == [MODULE_STREAM]
-
-        if query.get('fields', None) == ['variant_release']:
-            body = ALL_VERSIONS_JSON
-        else:
-            assert query['variant_release'] == [LATEST_VERSION]
-            body = LATEST_VERSION_JSON
-
-        return (200, {}, json.dumps(body))
-
-    responses.add_callback(responses.GET, PDC_URL + '/unreleasedvariants/',
-                           content_type='application/json',
-                           callback=handle_unreleasedvariants)
-
     args = {
-        'module_name': 'eog',
-        'module_stream': 'f26',
-        "compose_url": "https://git.example.com/composes/{name}-{stream}-{version}/",
         'base_image': "registry.fedoraproject.org/fedora:latest",
-        'pdc_url': PDC_URL
     }
-    if specify_version:
-        args['module_version'] = LATEST_VERSION
+
+    mmd = ModuleMetadata()
+    mmd.loads(FLATPAK_APP_MODULEMD)
+
+    base_module = ModuleInfo(MODULE_NAME, MODULE_STREAM, LATEST_VERSION,
+                             mmd)
+    repo_url = 'http://odcs.example/composes/latest-odcs-42-1/compose/Temporary/$basearch/os/'
+    compose_info = ComposeInfo(42, base_module,
+                               {'eog': base_module},
+                               repo_url)
+    set_compose_info(workflow, compose_info)
 
     runner = PreBuildPluginsRunner(
         docker_tasker,

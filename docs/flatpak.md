@@ -16,10 +16,15 @@ In addition to building docker images from Dockerfiles, atomic-reactor can also 
           "args": {
               "module_name": "flatpak-runtime",
               "module_stream": "f26",
-              "base_image": "registry.fedoraproject.org/fedora:26",
+              "odcs_url": "https://odcs.fedoraproject.org/odcs/1",
+              "odcs_insecure": false,
               "pdc_url": "https://pdc.fedoraproject.org/rest_api/v1",
               "pdc_insecure": false,
-              "compose_url": "https://people.redhat.com/otaylor/modularity/composes/{name}-{stream}-{version}/"
+          }
+        },
+        { "name": "flatpak_create_dockerfile",
+          "args": {
+              "base_image": "registry.fedoraproject.org/fedora:26"
           }
         },
         { "name": "pull_base_image",

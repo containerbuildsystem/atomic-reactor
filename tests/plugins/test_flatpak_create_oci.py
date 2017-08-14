@@ -22,6 +22,9 @@ from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PrePublishPluginsRunner
 from atomic_reactor.plugins.prepub_flatpak_create_oci import FlatpakCreateOciPlugin
+from atomic_reactor.plugins.pre_resolve_module_compose import (ModuleInfo,
+                                                               ComposeInfo,
+                                                               set_compose_info)
 from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (FlatpakSourceInfo,
                                                                   set_flatpak_source_info)
 from atomic_reactor.util import ImageName
@@ -437,11 +440,18 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, mock_flatpak):
     mmd = ModuleMetadata()
     mmd.loads(config['module_metadata'])
 
-    source = FlatpakSourceInfo(flatpak_json=FLATPAK_APP_JSON,
-                               module_name=config['module_name'],
-                               module_stream=config['module_stream'],
-                               module_version=config['module_version'],
-                               mmd=mmd)
+    base_module = ModuleInfo(config['module_name'],
+                             config['module_stream'],
+                             config['module_version'],
+                             mmd)
+    repo_url = 'http://odcs.example/composes/latest-odcs-42-1/compose/Temporary/$basearch/os/'
+    compose_info = ComposeInfo(42, base_module,
+                               {config['module_name']: base_module},
+                               repo_url)
+    set_compose_info(workflow, compose_info)
+
+    source = FlatpakSourceInfo(FLATPAK_APP_JSON,
+                               compose_info)
     set_flatpak_source_info(workflow, source)
 
     runner = PrePublishPluginsRunner(
