@@ -73,7 +73,7 @@ class TagAndPushPlugin(PostBuildPlugin):
             cmd.append('--dest-tls-verify=false')
 
         if image['type'] == IMAGE_TYPE_OCI:
-            source_img = 'oci:{path}::{ref_name}'.format(**image)
+            source_img = 'oci:{path}:{ref_name}'.format(**image)
         elif image['type'] == IMAGE_TYPE_DOCKER_ARCHIVE:
             source_img = 'docker-archive://{path}'.format(**image)
         else:
