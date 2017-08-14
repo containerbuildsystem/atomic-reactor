@@ -13,7 +13,7 @@ import json
 
 import logging
 from atomic_reactor.core import DockerTasker, LastLogger
-from atomic_reactor.util import ImageName, print_version_of_tools, df_parser
+from atomic_reactor.util import ImageName, print_version_of_tools, df_parser, base_image_is_scratch
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +154,11 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         :return: dict
         """
         logger.info("inspecting base image '%s'", self.base_image)
-        inspect_data = self.tasker.inspect_image(self.base_image)
+        if base_image_is_scratch(self.base_image.to_str()):
+            logger.debug("base image is scratch, setting empty inspect data")
+            inspect_data = {}
+        else:
+            inspect_data = self.tasker.inspect_image(self.base_image)
         return inspect_data
 
     def inspect_built_image(self):

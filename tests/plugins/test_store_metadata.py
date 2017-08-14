@@ -431,6 +431,38 @@ CMD blabla"""
     assert int(labels["koji-build-id"]) == koji_build_id
 
 
+def test_store_metadata_scratch_base(tmpdir):
+    workflow = prepare()
+    df_content = """
+FROM scratch
+CMD blabla"""
+    df = df_parser(str(tmpdir))
+    df.content = df_content
+    workflow.builder = X
+    workflow.builder.base_image = ImageName(repo="scratch", tag="latest")
+    workflow.builder.df_path = df.dockerfile_path
+    workflow.builder.df_dir = str(tmpdir)
+
+    runner = ExitPluginsRunner(
+        None,
+        workflow,
+        [{
+            'name': StoreMetadataInOSv3Plugin.key,
+            "args": {
+                "url": "http://example.com/"
+            }
+        }]
+    )
+    output = runner.run()
+    assert 'store_metadata_in_osv3' in output
+    metadata = output['store_metadata_in_osv3']
+    assert 'annotations' in metadata
+    annotations = metadata['annotations']
+    assert 'base-image-id' in annotations
+    base_image_id = annotations['base-image-id']
+    assert base_image_id is ""
+
+
 def test_missing_koji_build_id(tmpdir):
     workflow = prepare()
     workflow.exit_results = {}

@@ -12,6 +12,7 @@ Pull base image to build our layer on.
 from __future__ import unicode_literals
 
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.util import base_image_is_scratch
 
 
 class PullBaseImagePlugin(PreBuildPlugin):
@@ -38,6 +39,10 @@ class PullBaseImagePlugin(PreBuildPlugin):
         pull base image
         """
         base_image = self.workflow.builder.base_image
+        if base_image_is_scratch(base_image.to_str()):
+            self.log.debug('base image is scratch, do not attempt to pull')
+            return
+
         if self.parent_registry is not None:
             self.log.info("pulling base image '%s' from registry '%s'",
                           base_image, self.parent_registry)
