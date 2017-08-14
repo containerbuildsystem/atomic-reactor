@@ -406,7 +406,7 @@ def test_tag_and_push_plugin_oci(
         if use_secret:
             assert '--dest-creds=user:mypassword' in args
         assert '--dest-tls-verify=false' in args
-        assert args[-2] == 'oci:' + oci_dir + '::' + REF_NAME
+        assert args[-2] == 'oci:' + oci_dir + ':' + REF_NAME
         assert args[-1] == 'docker://' + LOCALHOST_REGISTRY + '/' + TEST_IMAGE
 
     (flexmock(subprocess)
