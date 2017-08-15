@@ -15,7 +15,8 @@ from atomic_reactor.plugin import BuildStepPluginsRunner
 from atomic_reactor.plugins import pre_reactor_config
 from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
                                                             get_worker_build_info,
-                                                            get_koji_upload_dir)
+                                                            get_koji_upload_dir,
+                                                            override_build_kwarg)
 from atomic_reactor.plugins.pre_reactor_config import ReactorConfig
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.util import ImageName, df_parser
@@ -868,6 +869,43 @@ def test_orchestrate_build_worker_build_kwargs(tmpdir, caplog, is_auto):
         }]
     )
     workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_auto
+
+    build_result = runner.run()
+    assert not build_result.is_failed()
+
+
+def test_orchestrate_override_build_kwarg(tmpdir):
+    workflow = mock_workflow(tmpdir)
+    expected_kwargs = {
+        'git_uri': SOURCE['uri'],
+        'git_ref': 'master',
+        'git_branch': 'master',
+        'user': 'bacon',
+        'is_auto': False,
+        'platform': 'x86_64',
+        'release': '4242',
+        'arrangement_version': 1
+    }
+    mock_osbs(worker_expect=expected_kwargs)
+    mock_reactor_config(tmpdir)
+
+    plugin_args = {
+        'platforms': ['x86_64'],
+        'build_kwargs': make_worker_build_kwargs(),
+        'worker_build_image': 'fedora:latest',
+        'osbs_client_config': str(tmpdir),
+    }
+
+    override_build_kwarg(workflow, 'release', '4242')
+
+    runner = BuildStepPluginsRunner(
+        workflow.builder.tasker,
+        workflow,
+        [{
+            'name': OrchestrateBuildPlugin.key,
+            'args': plugin_args,
+        }]
+    )
 
     build_result = runner.run()
     assert not build_result.is_failed()

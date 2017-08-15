@@ -34,6 +34,7 @@ from osbs.constants import BUILD_FINISHED_STATES
 ClusterInfo = namedtuple('ClusterInfo', ('cluster', 'platform', 'osbs', 'load'))
 WORKSPACE_KEY_BUILD_INFO = 'build_info'
 WORKSPACE_KEY_UPLOAD_DIR = 'koji_upload_dir'
+WORKSPACE_KEY_OVERRIDE_KWARGS = 'override_kwargs'
 
 
 def get_worker_build_info(workflow, platform):
@@ -50,6 +51,17 @@ def get_koji_upload_dir(workflow):
     """
     workspace = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
     return workspace[WORKSPACE_KEY_UPLOAD_DIR]
+
+
+def override_build_kwarg(workflow, k, v):
+    """
+    Override a build-kwarg for all worker builds
+    """
+    key = OrchestrateBuildPlugin.key
+
+    workspace = workflow.plugin_workspace.setdefault(key, {})
+    override_kwargs = workspace.setdefault(WORKSPACE_KEY_OVERRIDE_KWARGS, {})
+    override_kwargs[k] = v
 
 
 class WorkerBuildInfo(object):
@@ -342,11 +354,15 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         return task_id
 
     def do_worker_build(self, release, cluster_info, koji_upload_dir, task_id):
+        workspace = self.workflow.plugin_workspace.get(self.key, {})
+        override_kwargs = workspace.get(WORKSPACE_KEY_OVERRIDE_KWARGS, {})
+
         build = None
 
         try:
             kwargs = self.get_worker_build_kwargs(release, cluster_info.platform,
                                                   koji_upload_dir, task_id)
+            kwargs.update(override_kwargs)
             build = cluster_info.osbs.create_worker_build(**kwargs)
         except Exception:
             self.log.exception('%s - failed to create worker build',
@@ -419,11 +435,10 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             if not build_info.build or not build_info.build.is_succeeded()
         }
 
-        self.workflow.plugin_workspace[self.key] = {
-            WORKSPACE_KEY_UPLOAD_DIR: koji_upload_dir,
-            WORKSPACE_KEY_BUILD_INFO: {build_info.platform: build_info
-                                       for build_info in self.worker_builds},
-        }
+        workspace = self.workflow.plugin_workspace.setdefault(self.key, {})
+        workspace[WORKSPACE_KEY_UPLOAD_DIR] = koji_upload_dir
+        workspace[WORKSPACE_KEY_BUILD_INFO] = {build_info.platform: build_info
+                                               for build_info in self.worker_builds}
 
         if fail_reasons:
             return BuildResult(fail_reason=json.dumps(fail_reasons),
