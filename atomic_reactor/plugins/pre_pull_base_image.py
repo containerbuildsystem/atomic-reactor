@@ -11,7 +11,10 @@ Pull base image to build our layer on.
 
 from __future__ import unicode_literals
 
+import docker
+
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.util import get_build_json, ImageName
 
 
 class PullBaseImagePlugin(PreBuildPlugin):
@@ -71,9 +74,32 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
         self.workflow.pulled_base_images.add(pulled_base)
 
-        if not base_image.registry:
-            response = self.tasker.tag_image(base_image_with_registry, base_image, force=True)
-            self.workflow.pulled_base_images.add(response)
-            pulled_base = response
+        # Attempt to tag it using a unique ID. We might have to retry
+        # if another build with the same parent image is finishing up
+        # and removing images it pulled.
 
+        # Use the OpenShift build name as the unique ID
+        unique_id = get_build_json()['metadata']['name']
+        base_image = ImageName(repo=unique_id)
+
+        for _ in range(20):
+            try:
+                self.log.info("tagging pulled image")
+                response = self.tasker.tag_image(base_image_with_registry,
+                                                 base_image)
+                self.workflow.pulled_base_images.add(response)
+                break
+            except docker.errors.NotFound:
+                # If we get here, some other build raced us to remove
+                # the parent image, and that build won.
+                # Retry the pull immediately.
+                self.log.info("re-pulling removed image")
+                self.tasker.pull_image(base_image_with_registry,
+                                       insecure=self.parent_registry_insecure)
+        else:
+            # Failed to tag it
+            self.log.error("giving up trying to pull image")
+            raise RuntimeError("too many attempts to pull and tag image")
+
+        self.workflow.builder.set_base_image(base_image.to_str())
         self.log.debug("image '%s' is available", pulled_base)
