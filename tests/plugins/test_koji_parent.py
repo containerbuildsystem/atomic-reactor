@@ -147,12 +147,9 @@ class TestKojiParent(object):
     @pytest.mark.parametrize('remove_label', ('com.redhat.component', 'version', 'release'))
     def test_base_image_missing_labels(self, workflow, koji_session, remove_label):
         del workflow.base_image_inspect[INSPECT_CONFIG]['Labels'][remove_label]
-        with pytest.raises(PluginFailedException) as exc_info:
-            self.run_plugin_with_args(workflow)
-        assert 'KeyError' in str(exc_info.value)
-        assert remove_label in str(exc_info.value)
+        self.run_plugin_with_args(workflow, expect_result=False)
 
-    def run_plugin_with_args(self, workflow, plugin_args=None):
+    def run_plugin_with_args(self, workflow, plugin_args=None, expect_result=True):
         plugin_args = plugin_args or {}
         plugin_args.setdefault('koji_hub', KOJI_HUB)
         plugin_args.setdefault('poll_interval', 0.01)
@@ -165,4 +162,9 @@ class TestKojiParent(object):
         )
 
         result = runner.run()
-        assert result[KojiParentPlugin.key] == {'parent-image-koji-build-id': KOJI_BUILD_ID}
+        if expect_result:
+            expected_result = {'parent-image-koji-build-id': KOJI_BUILD_ID}
+        else:
+            expected_result = None
+
+        assert result[KojiParentPlugin.key] == expected_result
