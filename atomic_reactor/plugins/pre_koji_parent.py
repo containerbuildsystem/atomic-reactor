@@ -65,7 +65,8 @@ class KojiParentPlugin(PreBuildPlugin):
         self._poll_start = None
 
     def run(self):
-        self.detect_parent_image_nvr()
+        if not self.detect_parent_image_nvr():
+            return
         self.wait_for_parent_image_build()
         self.verify_parent_image_build()
         return self.make_result()
@@ -74,8 +75,17 @@ class KojiParentPlugin(PreBuildPlugin):
         config = self.workflow.base_image_inspect[INSPECT_CONFIG]
         labels = config['Labels'] or {}
 
+        label_names = 'com.redhat.component', 'version', 'release'
+        for label_name in label_names:
+            if label_name not in labels:
+                self._parent_image_nvr = None
+                self.log.info("Failed to find label '%s' in parent image. "
+                              "Not waiting for Koji build.", label_name)
+                return False
+
         self._parent_image_nvr = '-'.join(
-            labels[segment] for segment in ('com.redhat.component', 'version', 'release'))
+            labels[label_name] for label_name in label_names)
+        return True
 
     def wait_for_parent_image_build(self):
         self.start_polling_timer()
