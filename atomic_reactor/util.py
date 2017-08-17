@@ -619,9 +619,10 @@ class Dockercfg(object):
 class ManifestDigest(object):
     """Wrapper for digests for a docker manifest."""
 
-    def __init__(self, v1=None, v2=None):
+    def __init__(self, v1=None, v2=None, v2_list=None):
         self.v1 = v1
         self.v2 = v2
+        self.v2_list = v2_list
 
     @property
     def default(self):
@@ -632,10 +633,12 @@ class ManifestDigest(object):
         In such case, the v1 schema should be used when interacting
         with the registry.
         """
-        return self.v2 or self.v1
+        return self.v2_list or self.v2 or self.v1
 
 
 def get_manifest_media_type(version):
+    if version == 'v2_list':
+        version = 'list.v2'
     return 'application/vnd.docker.distribution.manifest.{}+json'.format(version)
 
 
