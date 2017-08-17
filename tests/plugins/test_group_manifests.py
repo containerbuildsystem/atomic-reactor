@@ -13,6 +13,10 @@ import responses
 from copy import deepcopy
 from tempfile import mkdtemp
 import os
+from flexmock import flexmock
+import subprocess
+from subprocess import CalledProcessError
+from requests.exceptions import ConnectionError
 
 from tests.constants import SOURCE, INPUT_IMAGE, MOCK, DOCKER0_REGISTRY
 
@@ -92,10 +96,10 @@ BUILD_ANNOTATIONS = {
             ],
         },
     }
-V1_REGISTRY = "172.17.42.2:5000"
+V1_REGISTRY = "10.10.0.1:5000"
 
 
-def mock_environment(tmpdir, docker_registry=None, primary_images=None,
+def mock_environment(tmpdir, primary_images=None,
                      worker_annotations={}):
     if MOCK:
         mock_docker()
@@ -113,6 +117,7 @@ def mock_environment(tmpdir, docker_registry=None, primary_images=None,
     setattr(workflow, 'tag_conf', TagConf())
     if primary_images:
         workflow.tag_conf.add_primary_images(primary_images)
+        workflow.tag_conf.add_unique_image(primary_images[0])
 
     annotations = deepcopy(BUILD_ANNOTATIONS)
     if not worker_annotations:
@@ -147,14 +152,111 @@ def mock_url_responses(docker_registry, test_images, worker_digests, version='2'
 
 
 class TestGroupManifests(object):
-    def test_group_manifests_unimplemented(self, tmpdir):
+    @pytest.mark.parametrize(('goarch', 'worker_annotations', 'valid'), [
+        ({}, {}, False),
+        ({'ppc64le': 'powerpc', 'x86_64': 'amd64'},
+         {'ppc64le': PPC_ANNOTATIONS, 'x86_64': X86_ANNOTATIONS}, True),
+        ({'ppc64le': 'powerpc', 'x86_64': 'amd64'},
+         {'ppc64le': PPC_ANNOTATIONS, 'x86_64': X86_ANNOTATIONS}, False),
+    ])
+    @responses.activate  # noqa
+    def test_group_manifests_true(self, tmpdir, goarch, worker_annotations, valid):
+        if MOCK:
+            mock_docker()
+
+        test_images = ['registry.example.com/namespace/httpd:2.4',
+                       'registry.example.com/namespace/httpd:latest']
+        expected_results = set()
+
+        registries = {
+            DOCKER0_REGISTRY: {'version': 'v2', 'insecure': True},
+            V1_REGISTRY: {'version': 'v2', 'insecure': True},
+        }
+
         plugins_conf = [{
             'name': GroupManifestsPlugin.key,
             'args': {
-                'registries': {},
-            }
+                'registries': registries,
+                'group': True,
+                'goarch': goarch,
+            },
         }]
-        tasker, workflow = mock_environment(tmpdir)
+        tasker, workflow = mock_environment(tmpdir, primary_images=test_images,
+                                            worker_annotations=worker_annotations)
+
+        def request_callback(request):
+            media_type = request.headers['Accept']
+            if media_type.endswith('list.v2+json'):
+                digest = 'v2_list-digest:{0}'.format(request.url)
+            else:
+                raise ValueError('Unexpected media type {}'.format(media_type))
+
+            media_type_prefix = media_type.split('+')[0]
+            headers = {
+                'Content-Type': '{}+jsonish'.format(media_type_prefix),
+                'Docker-Content-Digest': digest
+            }
+            return (200, headers, '')
+
+        for registry in registries:
+            if valid:
+                repo_and_tag = workflow.tag_conf.images[0].to_str(registry=False).split(':')
+                url = 'http://{0}/v2/{1}/manifests/{2}'.format(registry, repo_and_tag[0],
+                                                               repo_and_tag[1])
+                expected_results.add('v2_list-digest:{0}'.format(url))
+            for image in workflow.tag_conf.images:
+                repo_and_tag = image.to_str(registry=False).split(':')
+                path = '/v2/{0}/manifests/{1}'.format(repo_and_tag[0], repo_and_tag[1])
+                https_url = 'https://' + registry + path
+                responses.add(responses.GET, https_url, body=ConnectionError())
+                url = 'http://' + registry + path
+                if valid:
+                    responses.add_callback(responses.GET, url, callback=request_callback)
+
+        (flexmock(subprocess)
+         .should_receive("check_output"))
+
+        runner = PostBuildPluginsRunner(tasker, workflow, plugins_conf)
+        if valid:
+            result = runner.run()
+            test_results = set()
+            for digest in result['group_manifests']:
+                test_results.add(digest.v2_list)
+            assert test_results == expected_results
+        else:
+            with pytest.raises(PluginFailedException):
+                runner.run()
+
+    @responses.activate  # noqa
+    def test_group_manifests_manifest_tool_fail(self, tmpdir):
+        if MOCK:
+            mock_docker()
+
+        goarch = {'ppc64le': 'powerpc', 'x86_64': 'amd64'}
+        worker_annotations = {'ppc64le': PPC_ANNOTATIONS, 'x86_64': X86_ANNOTATIONS}
+
+        test_images = ['registry.example.com/namespace/httpd:2.4',
+                       'registry.example.com/namespace/httpd:latest']
+
+        registries = {
+            DOCKER0_REGISTRY: {'version': 'v2', 'insecure': True},
+            V1_REGISTRY: {'version': 'v2', 'insecure': True},
+        }
+
+        plugins_conf = [{
+            'name': GroupManifestsPlugin.key,
+            'args': {
+                'registries': registries,
+                'group': True,
+                'goarch': goarch,
+            },
+        }]
+        tasker, workflow = mock_environment(tmpdir, primary_images=test_images,
+                                            worker_annotations=worker_annotations)
+
+        (flexmock(subprocess)
+         .should_receive("check_output")
+         .and_raise(CalledProcessError))
 
         runner = PostBuildPluginsRunner(tasker, workflow, plugins_conf)
         with pytest.raises(PluginFailedException):
@@ -173,7 +275,7 @@ class TestGroupManifests(object):
          {'ppc64le': PPC_ANNOTATIONS, 'x86_64': X86_ANNOTATIONS}, True, False),
     ])
     @responses.activate  # noqa
-    def test_basic_group_manifests(self, tmpdir, use_secret, goarch,
+    def test_group_manifests_false(self, tmpdir, use_secret, goarch,
                                    worker_annotations, version, valid, respond):
         if MOCK:
             mock_docker()
@@ -181,8 +283,8 @@ class TestGroupManifests(object):
         if version == '1':
             valid = False
 
-        test_images = ['namespace/httpd:2.4', 'namespace/sshd:2.4']
-        test_results = [{'tag': 'testtag', 'schemaVersion': '2'}]
+        test_images = ['registry.example.com/namespace/httpd:2.4',
+                       'registry.example.com/namespace/httpd:latest']
 
         registries = {
             DOCKER0_REGISTRY: {'version': 'v2'},
@@ -208,15 +310,14 @@ class TestGroupManifests(object):
                 'goarch': goarch,
             },
         }]
-        tasker, workflow = mock_environment(tmpdir, docker_registry=DOCKER0_REGISTRY,
-                                            primary_images=test_images,
+        tasker, workflow = mock_environment(tmpdir, primary_images=test_images,
                                             worker_annotations=worker_annotations)
         mock_url_responses([DOCKER0_REGISTRY], test_images, [X86_DIGESTS], version, respond)
 
         runner = PostBuildPluginsRunner(tasker, workflow, plugins_conf)
         if valid and respond:
             result = runner.run()
-            assert result['group_manifests'] == test_results
+            assert result['group_manifests'] == []
         else:
             with pytest.raises(PluginFailedException):
                 runner.run()
