@@ -32,7 +32,8 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  human_size, CommandResult,
                                  get_manifest_digests, ManifestDigest,
                                  get_build_json, is_scratch_build, df_parser,
-                                 are_plugins_in_order, LabelFormatter)
+                                 are_plugins_in_order, LabelFormatter,
+                                 get_manifest_media_type)
 from atomic_reactor import util
 from tests.constants import DOCKERFILE_GIT, INPUT_IMAGE, MOCK, DOCKERFILE_SHA1, MOCK_SOURCE
 from atomic_reactor.constants import INSPECT_CONFIG
@@ -270,13 +271,22 @@ def test_human_size(size_input, expected):
     assert human_size(size_input) == expected
 
 
+@pytest.mark.parametrize(('version', 'expected'), [
+    ('v1', 'application/vnd.docker.distribution.manifest.v1+json'),
+    ('v2', 'application/vnd.docker.distribution.manifest.v2+json'),
+    ('v2_list', 'application/vnd.docker.distribution.manifest.list.v2+json'),
+])
+def test_get_manifest_media_type(version, expected):
+    assert get_manifest_media_type(version) == expected
+
+
 @pytest.mark.parametrize('insecure', [
     True,
     False,
 ])
 @pytest.mark.parametrize('versions,require_digest', [
-    (('v1', 'v2'), True),
-    (('v1', 'v2'), False),
+    (('v1', 'v2', 'v2_list'), True),
+    (('v1', 'v2', 'v2_list'), False),
     (('v1',), False),
     (('v1',), True),
     (('v2',), False),
@@ -285,6 +295,8 @@ def test_human_size(size_input, expected):
     (tuple(), True),
     (None, False),
     (None, True),
+    (('v2_list',), True),
+    (('v2_list',), False),
 ])
 @pytest.mark.parametrize('creds', [
     ('user1', 'pass'),
@@ -311,7 +323,6 @@ def test_get_manifest_digests(tmpdir, image, registry, insecure, creds,
     kwargs['image'] = image
 
     if creds:
-
         temp_dir = mkdtemp(dir=str(tmpdir))
         with open(os.path.join(temp_dir, '.dockercfg'), 'w+') as dockerconfig:
             dockerconfig.write(json.dumps({
@@ -336,7 +347,9 @@ def test_get_manifest_digests(tmpdir, image, registry, insecure, creds,
             assert request.headers['Authorization']
 
         media_type = request.headers['Accept']
-        if media_type.endswith('v2+json'):
+        if media_type.endswith('list.v2+json'):
+            digest = 'v2_list-digest'
+        elif media_type.endswith('v2+json'):
             digest = 'v2-digest'
         elif media_type.endswith('v1+json'):
             digest = 'v1-digest'
@@ -379,6 +392,7 @@ def test_get_manifest_digests(tmpdir, image, registry, insecure, creds,
         actual_digests = get_manifest_digests(**kwargs)
         assert actual_digests.v1 == expected_result.get('v1')
         assert actual_digests.v2 == expected_result.get('v2')
+        assert actual_digests.v2_list == expected_result.get('v2_list')
     elif require_digest:
         with pytest.raises(RuntimeError):
             get_manifest_digests(**kwargs)
