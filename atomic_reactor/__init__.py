@@ -50,6 +50,9 @@ class EncodedStream(object):
             self.binarystream.write(text.encode(self.encoding))
         else:
             self.binarystream.write(text)
+        # We need to flush regularly, because launching plugins or running
+        # subprocess calls breaks serialization of logging output otherwise
+        self.binarystream.flush()
 
     def __del__(self):
         try:
