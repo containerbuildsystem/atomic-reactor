@@ -37,7 +37,8 @@ class TestBumpRelease(object):
                 tmpdir,
                 labels=None,
                 include_target=True,
-                certs=False):
+                certs=False,
+                append=False):
         if labels is None:
             labels = {}
 
@@ -57,6 +58,8 @@ class TestBumpRelease(object):
         }
         if include_target:
             kwargs['target'] = 'foo'
+        if append:
+            kwargs['append'] = True
         if certs:
             with open('{}/ca'.format(tmpdir), 'w') as ca_fd:
                 ca_fd.write('ca')
@@ -187,3 +190,37 @@ class TestBumpRelease(object):
             assert 'Release' not in parser.labels
         else:
             assert parser.labels['Release'] == next_release['expected']
+
+    @pytest.mark.parametrize('base_release,builds,expected', [
+        ('42', [], '42.1'),
+        ('42', ['42.1', '42.2'], '42.3'),
+        # No interpretation of the base release when appending - just treated as string
+        ('42.1', ['42.2'], '42.1.1'),
+        ('42.1', ['42.1.1'], '42.1.2'),
+    ])
+    def test_append(self, tmpdir, base_release, builds, expected):
+
+        class MockedClientSession(object):
+            def __init__(self, hub, opts=None):
+                pass
+
+            def getBuild(self, build_info):
+                if build_info['release'] in builds:
+                    return True
+                return None
+
+        session = MockedClientSession('')
+        flexmock(koji, ClientSession=session)
+
+        labels = {
+            'com.redhat.component': 'component1',
+            'version': 'fc26',
+            'release': base_release
+        }
+
+        plugin = self.prepare(tmpdir, labels=labels,
+                              append=True)
+        plugin.run()
+
+        parser = df_parser(plugin.workflow.builder.df_path, workflow=plugin.workflow)
+        assert parser.labels['release'] == expected
