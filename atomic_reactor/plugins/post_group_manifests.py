@@ -22,11 +22,12 @@ from six.moves.urllib.parse import urlparse
 
 from atomic_reactor.plugin import PostBuildPlugin, PluginFailedException
 from atomic_reactor.util import Dockercfg, get_manifest_digests
+from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY
 
 
 class GroupManifestsPlugin(PostBuildPlugin):
-    key = 'group_manifests'
     is_allowed_to_fail = False
+    key = PLUGIN_GROUP_MANIFESTS_KEY
 
     def __init__(self, tasker, workflow, registries, group=True, goarch=None):
         """
