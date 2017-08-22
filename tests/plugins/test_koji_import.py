@@ -42,7 +42,8 @@ from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
 from atomic_reactor.util import ImageName, ManifestDigest
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.build import BuildResult
-from atomic_reactor.constants import PLUGIN_PULP_PULL_KEY, PLUGIN_PULP_SYNC_KEY
+from atomic_reactor.constants import (PLUGIN_PULP_PULL_KEY, PLUGIN_PULP_SYNC_KEY,
+                                      PLUGIN_GROUP_MANIFESTS_KEY)
 from tests.constants import SOURCE, MOCK
 
 from flexmock import flexmock
@@ -295,6 +296,10 @@ def mock_environment(tmpdir, session=None, name=None,
                 'metadata_fragment': 'configmap/build-1-ppc64le-md',
                 'metadata_fragment_key': 'metadata.json',
             }
+        },
+        'repositories': {
+            'unique': ['brew-pulp-docker:8888/myproject/hello-world:0.0.1-9'],
+            'primary': []
         }
     }
 
@@ -1345,3 +1350,46 @@ class TestKojiImport(object):
             assert image['media_types'] == version
         else:
             assert 'media_types' not in image.keys()
+
+    @pytest.mark.parametrize('digests', [
+        [],
+        [ManifestDigest(v2_list='sha256:e6593f3e')],
+    ])
+    def test_koji_import_set_manifest_list_info(self, tmpdir, os_env, digests):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            session=session,
+                                            docker_registry=True)
+        workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = digests
+        orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
+        orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = BuildInfo()
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
+        assert 'image' in extra
+        image = extra['image']
+        assert isinstance(image, dict)
+        if digests:
+            assert 'index' in image.keys()
+            expected_results = {}
+            expected_results['tags'] = [tag.tag for tag in workflow.tag_conf.images]
+            pullspec = "docker.example.com/myproject/hello-world@{0}".format(digests[0].v2_list)
+            expected_results['pull'] = [pullspec]
+            for tag in expected_results['tags']:
+                if '-' in tag:
+                    pullspec = "docker.example.com/myproject/hello-world:{0}".format(tag)
+                    expected_results['pull'].append(pullspec)
+                    break
+            assert image['index'] == expected_results
+        else:
+            assert 'index' not in image.keys()

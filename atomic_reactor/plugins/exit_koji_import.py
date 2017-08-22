@@ -16,14 +16,14 @@ from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.build_orchestrate_build import (get_worker_build_info,
                                                             get_koji_upload_dir)
-from atomic_reactor.plugins.post_fetch_worker_metadata import FetchWorkerMetadataPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_PULP_PULL_KEY,
-                                      PLUGIN_PULP_SYNC_KEY)
-from atomic_reactor.util import (get_build_json, get_preferred_label,
-                                 df_parser, ImageName)
+                                      PLUGIN_PULP_SYNC_KEY,
+                                      PLUGIN_FETCH_WORKER_METADATA_KEY,
+                                      PLUGIN_GROUP_MANIFESTS_KEY)
+from atomic_reactor.util import (get_build_json, get_preferred_label, df_parser, ImageName)
 from atomic_reactor.koji_util import create_koji_session
 from osbs.conf import Configuration
 from osbs.api import OSBS
@@ -173,6 +173,29 @@ class KojiImportPlugin(ExitPlugin):
                 extra['image']['media_types'] = json.loads(annotations['media-types'])
                 return
 
+    def set_manifest_list_info(self, extra, worker_metadatas):
+        manifest_list_digests = self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY)
+        if manifest_list_digests:
+            index = {}
+            index['tags'] = [image.tag for image in self.workflow.tag_conf.images]
+            repositories = self.workflow.build_result.annotations['repositories']['unique']
+            repo = ImageName.parse(repositories[0]).to_str(registry=False, tag=False)
+            # group_manifests added the registry, so this should be valid
+            registries = self.workflow.push_conf.pulp_registries
+            if not registries:
+                registries = self.workflow.push_conf.all_registries
+            for registry in registries:
+                pullspec = "{0}/{1}@{2}".format(registry.uri, repo,
+                                                manifest_list_digests[0].v2_list)
+                index['pull'] = [pullspec]
+                for tag in index['tags']:
+                    if '-' in tag:  # {version}-{release} only, and only one instance
+                        pullspec = "{0}/{1}:{2}".format(registry.uri, repo, tag)
+                        index['pull'].append(pullspec)
+                        break
+                break
+            extra['image']['index'] = index
+
     def get_build(self, metadata, worker_metadatas):
         start_time = int(atomic_reactor_start_time)
 
@@ -212,8 +235,8 @@ class KojiImportPlugin(ExitPlugin):
                     extra['filesystem_koji_task_id'] = task_id
 
         self.set_help(extra, worker_metadatas)
-
         self.set_media_types(extra, worker_metadatas)
+        self.set_manifest_list_info(extra, worker_metadatas)
 
         build = {
             'name': component,
@@ -237,7 +260,7 @@ class KojiImportPlugin(ExitPlugin):
 
         metadata_version = 0
 
-        worker_metadatas = self.workflow.postbuild_results.get(FetchWorkerMetadataPlugin.key)
+        worker_metadatas = self.workflow.postbuild_results.get(PLUGIN_FETCH_WORKER_METADATA_KEY)
         build = self.get_build(metadata, worker_metadatas)
         buildroot = self.get_buildroot(worker_metadatas)
         output = self.get_output(worker_metadatas)
