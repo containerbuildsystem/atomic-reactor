@@ -4,4 +4,6 @@ dockerfile-parse>=0.0.5
 jsonschema
 modulemd
 pdc-client
+# https://pagure.io/modulemd/pull-request/46
+python-dateutil
 PyYAML
