@@ -223,7 +223,7 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
             self.log.info("Cleaning up docker container")
             self.tasker.d.remove_container(container_id)
 
-    def _create_runtime_oci(self, tarfile, outfile):
+    def _create_runtime_oci(self, tarred_filesystem, outfile):
         info = self.source.flatpak_json
 
         builddir = os.path.join(self.workflow.source.workdir, "build")
@@ -262,7 +262,7 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
                                '--owner-gid=0', '--no-xattrs',
                                '--branch', runtime_ref,
                                '-s', 'build of ' + runtime_ref,
-                               '--tree=tar=' + tarfile,
+                               '--tree=tar=' + tarred_filesystem,
                                '--tree=dir=' + builddir])
         subprocess.check_call(['ostree', 'summary', '-u', '--repo', repo])
 
@@ -272,7 +272,7 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
 
         return runtime_ref
 
-    def _create_app_oci(self, tarfile, outfile):
+    def _create_app_oci(self, tarred_filesystem, outfile):
         info = self.source.flatpak_json
         app_id = info['id']
 
@@ -286,7 +286,8 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
 
         subprocess.check_call(['flatpak', 'build-init',
                                builddir, app_id, runtime_id, runtime_id, runtime_version])
-        subprocess.check_call(['tar', 'xCf', builddir, tarfile])
+        # with gzip'ed tarball, tar is several seconds faster than tarfile.extractall
+        subprocess.check_call(['tar', 'xCfz', builddir, tarred_filesystem])
 
         update_desktop_files(app_id, builddir)
 
@@ -304,15 +305,15 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         if self.source is None:
             raise RuntimeError("flatpak_create_dockerfile must be run before flatpak_create_oci")
 
-        tarfile = self._export_filesystem()
-        self.log.info('filesystem tarfile written to %s', tarfile)
+        tarred_filesystem = self._export_filesystem()
+        self.log.info('filesystem tarfile written to %s', tarred_filesystem)
 
         outfile = os.path.join(self.workflow.source.workdir, 'flatpak-oci-image')
 
         if self.source.runtime:
-            ref_name = self._create_runtime_oci(tarfile, outfile)
+            ref_name = self._create_runtime_oci(tarred_filesystem, outfile)
         else:
-            ref_name = self._create_app_oci(tarfile, outfile)
+            ref_name = self._create_app_oci(tarred_filesystem, outfile)
 
         metadata = get_exported_image_metadata(outfile, IMAGE_TYPE_OCI)
         metadata['ref_name'] = ref_name
@@ -321,8 +322,8 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         self.log.info('OCI image is available as %s', outfile)
 
         tarred_outfile = outfile + '.tar'
-        cmd = ['tar', 'cf', os.path.basename(tarred_outfile), os.path.basename(outfile)]
-        subprocess.check_call(cmd, cwd=self.workflow.source.workdir)
+        with tarfile.TarFile(tarred_outfile, "w") as tf:
+            tf.add(outfile, os.path.basename(outfile))
 
         metadata = get_exported_image_metadata(tarred_outfile, IMAGE_TYPE_OCI_TAR)
         metadata['ref_name'] = ref_name
