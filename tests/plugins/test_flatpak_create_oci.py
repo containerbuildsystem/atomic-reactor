@@ -136,7 +136,8 @@ class MockOSTree:
     def commit(repo, branch, subject, tar_tree, dir_tree):
         branch_path = os.path.join(repo, branch)
         os.makedirs(branch_path)
-        default_check_call(['tar', 'xCfz', branch_path, tar_tree])
+        with tarfile.open(tar_tree) as tf:
+            tf.extractall(path=branch_path)
         for f in os.listdir(dir_tree):
             full = os.path.join(dir_tree, f)
             if os.path.isdir(f):
