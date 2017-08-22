@@ -42,6 +42,7 @@ from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
 from atomic_reactor.util import ImageName, ManifestDigest
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.build import BuildResult
+from atomic_reactor.constants import PLUGIN_PULP_PULL_KEY
 from tests.constants import SOURCE, MOCK
 
 from flexmock import flexmock
@@ -1043,10 +1044,11 @@ class TestKojiImport(object):
          False),
     ])
     @pytest.mark.parametrize('tag_later', (True, False))
+    @pytest.mark.parametrize('pulp_pull', (("abcdef01234567", 'v1'), False))
     def test_koji_import_success(self, tmpdir, apis, docker_registry,
                                  pulp_registries,
                                  target, os_env, has_config, is_autorebuild,
-                                 tag_later):
+                                 tag_later, pulp_pull):
         session = MockedClientSession('')
         # When target is provided koji build will always be tagged,
         # either by koji_import or koji_tag_build.
@@ -1074,6 +1076,8 @@ class TestKojiImport(object):
                                             pulp_registries=pulp_registries,
                                             has_config=has_config)
         workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_autorebuild
+        if pulp_pull:
+            workflow.postbuild_results[PLUGIN_PULP_PULL_KEY] = pulp_pull
         runner = create_runner(tasker, workflow, target=target, tag_later=tag_later)
         runner.run()
 
@@ -1097,6 +1101,10 @@ class TestKojiImport(object):
 
         output_files = data['output']
         assert isinstance(output_files, list)
+        if pulp_pull:
+            for output in output_files:
+                if 'extra' in output:
+                    assert output['extra']['docker']['id'] == pulp_pull[0]
 
         assert set(build.keys()) == set([
             'name',

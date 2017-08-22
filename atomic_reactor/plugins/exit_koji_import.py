@@ -19,7 +19,7 @@ from atomic_reactor.plugins.build_orchestrate_build import (get_worker_build_inf
 from atomic_reactor.plugins.post_fetch_worker_metadata import FetchWorkerMetadataPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
-from atomic_reactor.constants import PLUGIN_KOJI_IMPORT_PLUGIN_KEY
+from atomic_reactor.constants import PLUGIN_KOJI_IMPORT_PLUGIN_KEY, PLUGIN_PULP_PULL_KEY
 from atomic_reactor.util import (get_build_json, get_preferred_label, df_parser)
 from atomic_reactor.koji_util import create_koji_session
 from osbs.conf import Configuration
@@ -98,9 +98,15 @@ class KojiImportPlugin(ExitPlugin):
         :return: list, containing dicts of partial metadata
         """
         outputs = []
+        has_pulp_pull = PLUGIN_PULP_PULL_KEY in self.workflow.postbuild_results
         for platform in worker_metadatas:
             for instance in worker_metadatas[platform]['output']:
                 instance['buildroot_id'] = '{}-{}'.format(platform, instance['buildroot_id'])
+
+                # update image ID with pulp_pull results
+                if 'extra' in instance and platform == "x86_64" and has_pulp_pull:
+                    image_id, _ = self.workflow.postbuild_results[PLUGIN_PULP_PULL_KEY]
+                    instance['extra']['docker']['id'] = image_id
                 outputs.append(instance)
 
         return outputs
