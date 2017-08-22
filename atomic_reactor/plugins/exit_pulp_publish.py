@@ -81,7 +81,8 @@ class PulpPublishPlugin(ExitPlugin):
         self.pulp_handler.create_dockpulp()
         if not repo_prefix:
             repo_prefix = ''
-        pulp_repos = ['%s%s' % (repo_prefix, image.pulp_repo) for image in image_names]
+        pulp_repos = set(['%s%s' % (repo_prefix, image.pulp_repo)
+                          for image in image_names])
         self.pulp_handler.publish(pulp_repos)
 
         pulp_registry = self.pulp_handler.get_registry_hostname()

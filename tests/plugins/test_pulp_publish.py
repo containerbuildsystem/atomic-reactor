@@ -61,9 +61,12 @@ def prepare(success=True, v1_image_ids={}):
     setattr(workflow.builder.source, 'path', None)
     setattr(workflow, 'tag_conf', X())
     setattr(workflow.tag_conf, 'images', [ImageName(repo="image-name1"),
-                                          ImageName(namespace="prefix",
+                                          ImageName(repo="image-name1",
+                                                    tag="2"),
+                                          ImageName(namespace="namespace",
                                                     repo="image-name2"),
-                                          ImageName(repo="image-name3", tag="asd")])
+                                          ImageName(repo="image-name3",
+                                                    tag="asd")])
 
     # Mock dockpulp and docker
     dockpulp.Pulp = flexmock(dockpulp.Pulp)
@@ -78,7 +81,7 @@ def prepare(success=True, v1_image_ids={}):
      .with_args(list, fields=list)
      .and_return([
          {"id": "redhat-image-name1"},
-         {"id": "redhat-prefix-image-name2"}
+         {"id": "redhat-namespace-image-name2"}
       ]))
     (flexmock(dockpulp.Pulp)
      .should_receive('createRepo'))
@@ -140,9 +143,12 @@ def test_pulp_publish_success(caplog):
     tasker, workflow = prepare(success=True)
     plugin = PulpPublishPlugin(tasker, workflow, 'pulp_registry_name')
 
-#     .once()
+
     (flexmock(dockpulp.Pulp).should_receive('crane')
-     .with_args(list, wait=True)
+     .with_args(set(['redhat-image-name1',
+                     'redhat-image-name3',
+                     'redhat-namespace-image-name2']),
+                wait=True)
      .and_return([]))
     (flexmock(dockpulp.Pulp)
      .should_receive('watch_tasks')
@@ -153,7 +159,8 @@ def test_pulp_publish_success(caplog):
     assert 'to be published' in caplog.text()
     images = [i.to_str() for i in crane_images]
     assert "registry.example.com/image-name1:latest" in images
-    assert "registry.example.com/prefix/image-name2:latest" in images
+    assert "registry.example.com/image-name1:2" in images
+    assert "registry.example.com/namespace/image-name2:latest" in images
     assert "registry.example.com/image-name3:asd" in images
 
 
