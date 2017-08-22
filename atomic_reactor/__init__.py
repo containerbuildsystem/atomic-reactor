@@ -32,6 +32,8 @@ class ArchFormatter(logging.Formatter):
         if not hasattr(record, 'arch'):
             record.arch = '-'
 
+        record.msg = record.msg.replace('\n', ' ')
+
         return super(ArchFormatter, self).format(record)
 
 
