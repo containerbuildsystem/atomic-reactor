@@ -12,12 +12,13 @@ import pytest
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PostBuildPluginsRunner
+from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
 from atomic_reactor.util import ImageName, ManifestDigest, get_exported_image_metadata
 from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE, MOCK, DOCKER0_REGISTRY
 
 import json
+import logging
 import os.path
 from tempfile import mkdtemp
 import requests
@@ -267,7 +268,7 @@ def test_tag_and_push_plugin(
     )
 
     if should_raise:
-        with pytest.raises(Exception):
+        with pytest.raises(PluginFailedException):
             runner.run()
     else:
         output = runner.run()
@@ -296,8 +297,12 @@ def test_tag_and_push_plugin(
     True,
     False,
 ])
+@pytest.mark.parametrize("fail_push", [
+    False,
+    True,
+])
 def test_tag_and_push_plugin_oci(
-        tmpdir, monkeypatch, use_secret):
+        tmpdir, monkeypatch, use_secret, fail_push, caplog):
 
     # For now, we don't want to require having a skopeo and an OCI-supporting
     # registry in the test environment
@@ -401,18 +406,21 @@ def test_tag_and_push_plugin_oci(
 
     # Mock the subprocess call to skopeo
 
-    def check_check_call(args, **kwargs):
+    def check_check_output(args, **kwargs):
+        if fail_push:
+            raise subprocess.CalledProcessError(returncode=1, cmd=args, output="Failed")
         assert args[0] == 'skopeo'
         if use_secret:
             assert '--dest-creds=user:mypassword' in args
         assert '--dest-tls-verify=false' in args
         assert args[-2] == 'oci:' + oci_dir + ':' + REF_NAME
         assert args[-1] == 'docker://' + LOCALHOST_REGISTRY + '/' + TEST_IMAGE
+        return ''
 
     (flexmock(subprocess)
-     .should_receive("check_call")
+     .should_receive("check_output")
      .once()
-     .replace_with(check_check_call))
+     .replace_with(check_check_output))
 
     # Mock out the response from the registry once the OCI image is uploaded
 
@@ -476,13 +484,23 @@ def test_tag_and_push_plugin_oci(
         }]
     )
 
-    output = runner.run()
-    image = output[TagAndPushPlugin.key][0]
-    tasker.remove_image(image)
-    assert len(workflow.push_conf.docker_registries) > 0
+    with caplog.atLevel(logging.DEBUG):
+        if fail_push:
+            with pytest.raises(PluginFailedException):
+                output = runner.run()
+        else:
+            output = runner.run()
 
-    assert workflow.push_conf.docker_registries[0].digests[TEST_IMAGE].v1 is None
-    assert workflow.push_conf.docker_registries[0].digests[TEST_IMAGE].v2 is None
-    assert workflow.push_conf.docker_registries[0].digests[TEST_IMAGE].oci == DIGEST_OCI
+    for r in caplog.records():
+        assert 'mypassword' not in r.getMessage()
 
-    assert workflow.push_conf.docker_registries[0].config is config_json
+    if not fail_push:
+        image = output[TagAndPushPlugin.key][0]
+        tasker.remove_image(image)
+        assert len(workflow.push_conf.docker_registries) > 0
+
+        assert workflow.push_conf.docker_registries[0].digests[TEST_IMAGE].v1 is None
+        assert workflow.push_conf.docker_registries[0].digests[TEST_IMAGE].v2 is None
+        assert workflow.push_conf.docker_registries[0].digests[TEST_IMAGE].oci == DIGEST_OCI
+
+        assert workflow.push_conf.docker_registries[0].config is config_json

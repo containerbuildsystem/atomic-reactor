@@ -7,6 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from copy import deepcopy
+import re
 import subprocess
 
 from atomic_reactor.constants import IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
@@ -82,10 +83,18 @@ class TagAndPushPlugin(PostBuildPlugin):
 
         dest_img = 'docker://' + registry_image.to_str()
 
+        # Make sure we don't log the credentials
         cmd += [source_img, dest_img]
+        log_cmd = [re.sub(r'^--dest-creds=.*', '--dest-creds=<HIDDEN>', arg)
+                   for arg in cmd]
 
-        self.log.info("Calling: %s", ' '.join(cmd))
-        subprocess.check_call(cmd)
+        self.log.info("Calling: %s", ' '.join(log_cmd))
+        try:
+            subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as e:
+            self.log.error("push failed with output:\n%s", e.output)
+            e.cmd = log_cmd  # hide credentials
+            raise
 
     def run(self):
         pushed_images = []
