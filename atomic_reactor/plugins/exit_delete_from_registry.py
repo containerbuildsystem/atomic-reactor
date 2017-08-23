@@ -184,16 +184,15 @@ class DeleteFromRegistryPlugin(ExitPlugin):
             auth = self.setup_secret(registry_noschema, secret_path)
 
             # orchestrator builds use worker_digests
-            if self.handle_worker_digests(worker_digests, registry, insecure,
-                                          auth, deleted_digests):
-                # If we are in orchestrator and found a match, good chance it
-                # will not be in the workflow.push_conf dict.  Just continue.
-                continue
+            orchestrator_delete = self.handle_worker_digests(worker_digests, registry, insecure,
+                                                             auth, deleted_digests)
 
             push_conf_registry = self.find_registry(registry_noschema, self.workflow)
             if not push_conf_registry:
-                self.log.warning("requested deleting image from %s but we haven't pushed there",
-                                 registry_noschema)
+                # only warn if we're not running in the orchestrator
+                if not orchestrator_delete:
+                    self.log.warning("requested deleting image from %s but we haven't pushed there",
+                                     registry_noschema)
                 continue
 
             # worker node and manifests use push_conf_registry
