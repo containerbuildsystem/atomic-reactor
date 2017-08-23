@@ -350,7 +350,8 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
 
         tarred_outfile = outfile + '.tar'
         with tarfile.TarFile(tarred_outfile, "w") as tf:
-            tf.add(outfile, os.path.basename(outfile))
+            for f in os.listdir(outfile):
+                tf.add(os.path.join(outfile, f), f)
 
         metadata = get_exported_image_metadata(tarred_outfile, IMAGE_TYPE_OCI_TAR)
         metadata['ref_name'] = ref_name
