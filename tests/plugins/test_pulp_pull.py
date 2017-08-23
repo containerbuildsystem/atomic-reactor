@@ -273,56 +273,56 @@ class TestPostPulpPull(object):
         assert results == test_id
         assert len(tasker.pulled_images) == 1
 
-    def test_pull_timeout(self):
+    @pytest.mark.parametrize('v2', [False, True])
+    @pytest.mark.parametrize('timeout,retry_delay,failures,expect_success', [
+        (0.1, 0.06, 1, True),
+        (0.1, 0.06, 1, True),
+        (0.1, 0.06, 3, False),
+    ])
+    def test_pull_retry(self, v2, timeout, retry_delay, failures,
+                        expect_success):
         workflow = self.workflow()
         tasker = MockerTasker()
+        if v2:
+            test_id = 'sha256:(old)'
+        else:
+            # Image ID is updated in workflow
+            test_id = 'sha256:(new)'
 
-        (flexmock(requests)
-            .should_receive('get')
-            .replace_with(self.custom_get_v1))
+        not_found = requests.Response()
+        flexmock(not_found, status_code=requests.codes.not_found)
+        expectation = flexmock(requests).should_receive('get')
+        for _ in range(failures):
+            expectation = expectation.and_return(not_found)
 
-        (flexmock(tasker)
-            .should_call('pull_image')
-            .and_return(self.EXPECTED_PULLSPEC)
-            .times(3))
+        expectation.and_return(self.config_response_config_v1)
+        if v2:
+            expectation.and_return(self.config_response_config_v2)
+        else:
+            expectation.and_return(self.config_response_config_v1)
 
-        (flexmock(tasker)
-            .should_receive('inspect_image')
-            .with_args(self.EXPECTED_PULLSPEC)
-            .and_raise(NotFound('message', flexmock(content=None)))
-            .times(3))
+        expectation = flexmock(tasker).should_call('pull_image')
+        if v2:
+            expectation.never()
+        else:
+            expectation.and_return(self.EXPECTED_PULLSPEC).once()
+
+        expectation = flexmock(tasker).should_receive('inspect_image')
+        if v2:
+            expectation.never()
+        else:
+            (expectation
+             .with_args(self.EXPECTED_PULLSPEC)
+             .and_return({'Id': test_id})
+             .once())
         workflow.postbuild_plugins_conf = []
 
-        plugin = PulpPullPlugin(tasker, workflow, timeout=1, retry_delay=0.6)
+        plugin = PulpPullPlugin(tasker, workflow, timeout=timeout,
+                                retry_delay=retry_delay)
 
-        # Should raise a timeout exception
-        with pytest.raises(CraneTimeoutError):
-            plugin.run()
-
-    def test_pull_retry(self):
-        workflow = self.workflow()
-        tasker = MockerTasker()
-        test_id = 'sha256:(new)'
-
-        (flexmock(requests)
-            .should_receive('get')
-            .replace_with(self.custom_get_v1))
-
-        (flexmock(tasker)
-            .should_call('pull_image')
-            .and_return(self.EXPECTED_PULLSPEC)
-            .times(3))
-
-        (flexmock(tasker)
-            .should_receive('inspect_image')
-            .with_args(self.EXPECTED_PULLSPEC)
-            .and_raise(NotFound('message', flexmock(content=None)))
-            .and_raise(NotFound('message', flexmock(content=None)))
-            .and_return({'Id': test_id})
-            .times(3))
-        workflow.postbuild_plugins_conf = []
-
-        plugin = PulpPullPlugin(tasker, workflow, timeout=1, retry_delay=0.6)
+        if not expect_success:
+            with pytest.raises(Exception):
+                plugin.run()
 
         # Plugin return value is the new ID and schema
         results, version = plugin.run()
@@ -330,12 +330,11 @@ class TestPostPulpPull(object):
         # Plugin return value is the new ID
         assert results == test_id
 
-        assert len(tasker.pulled_images) == 3
-        for image in tasker.pulled_images:
-            pulled = image.to_str()
-            assert pulled == self.EXPECTED_PULLSPEC
+        assert len(tasker.pulled_images) == 0 if v2 else 1
+        if not v2:
+            img = tasker.pulled_images[0].to_str()
+            assert img == self.EXPECTED_PULLSPEC
 
-        # Image ID is updated in workflow
         assert workflow.builder.image_id == test_id
 
     def test_plugin_type(self):
@@ -344,3 +343,14 @@ class TestPostPulpPull(object):
 
         # arrangement version >= 4
         assert issubclass(PulpPullPlugin, ExitPlugin)
+
+    def test_unexpected_response(self):
+        workflow = self.workflow()
+        tasker = MockerTasker()
+        unauthorized = requests.Response()
+        flexmock(unauthorized, status_code=requests.codes.unauthorized)
+        flexmock(requests).should_receive('get').and_return(unauthorized)
+        workflow.postbuild_plugins_conf = []
+        plugin = PulpPullPlugin(tasker, workflow)
+        with pytest.raises(requests.exceptions.HTTPError):
+            plugin.run()

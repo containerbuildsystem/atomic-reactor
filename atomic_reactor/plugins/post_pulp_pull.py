@@ -19,7 +19,7 @@ from atomic_reactor.constants import PLUGIN_PULP_PUSH_KEY, PLUGIN_PULP_SYNC_KEY
 from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.util import get_manifest_digests
-from docker.errors import NotFound
+import requests
 from time import time, sleep
 
 
@@ -56,18 +56,24 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
         self.insecure = insecure
         self.secret = secret
 
-    def _retry(self, f):
+    def retry_if_not_found(self, func, *args, **kwargs):
         start = time()
 
         while True:
-            res = f()
-            if res is not None:
-                return res
+            try:
+                return func(*args, **kwargs)
+            except requests.exceptions.HTTPError as ex:
+                # Retry for 404 not-found because we assume Crane has
+                # not spotted the new Pulp content yet. For all other
+                # errors, give up.
+                if ex.response.status_code != requests.codes.not_found:
+                    raise
+
             if time() - start > self.timeout:
                 raise CraneTimeoutError("{} seconds exceeded"
                                         .format(self.timeout))
 
-            self.log.info("will try again in %ss", self.retry_delay)
+            self.log.info("not found; will try again in %ss", self.retry_delay)
             sleep(self.retry_delay)
 
     def run(self):
@@ -88,44 +94,32 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
             if plugin['name'] == PLUGIN_PULP_PUSH_KEY:
                 media_types.append('application/json')
 
+        # We only expect to find a v2 digest from Crane if the
+        # pulp_sync plugin was used. If we do find a v2 digest, there
+        # is no need to pull the image.
         if registry.server_side_sync:
-            # We only expect to find a v1 or v2 digest if the pulp_sync plugin was
-            # used (either instead of or in addition to push_to_push()). We want
-            # to avoid unnecessarily waiting for digests that never appear.
-
-            def get_digests():
-                d = get_manifest_digests(pullspec, registry.uri, self.insecure, self.secret,
-                                         require_digest=False)
-                return d if d.default is not None else None
-
-            digests = None
-            try:
-                digests = self._retry(get_digests)
-            except CraneTimeoutError:
-                self.log.warn("Failed to retrieve any manifest digests from crane")
-
+            digests = self.retry_if_not_found(get_manifest_digests,
+                                              pullspec, registry.uri,
+                                              self.insecure, self.secret,
+                                              require_digest=False)
             if digests and digests.v2:
                 self.log.info("V2 schema 2 digest found, returning %s",
                               self.workflow.builder.image_id)
                 media_types.append('application/vnd.docker.distribution.manifest.v2+json')
+                # No need to pull the image to work out the image ID as
+                # we already know it.
                 return self.workflow.builder.image_id, sorted(media_types)
             else:
                 self.log.info("V2 schema 2 digest is not available")
 
-        def get_metadata():
-            # Pull the image from Crane
-            name = self.tasker.pull_image(pullspec, insecure=self.insecure)
+        # Pull the image from Crane to find out the image ID for the
+        # v2 schema 1 manifest (which we have not seen before).
+        name = self.tasker.pull_image(pullspec, insecure=self.insecure)
 
-            # Inspect it
-            try:
-                md = self.tasker.inspect_image(name)
-            except NotFound:
-                return None
+        # Inspect it
+        metadata = self.tasker.inspect_image(name)
 
-            defer_removal(self.workflow, name)
-            return md
-
-        metadata = self._retry(get_metadata)
+        defer_removal(self.workflow, name)
 
         # Adjust our idea of the image ID
         image_id = metadata['Id']
