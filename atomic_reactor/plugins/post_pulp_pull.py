@@ -16,7 +16,7 @@ discover the image ID Docker will give it.
 from __future__ import unicode_literals
 
 from atomic_reactor.constants import PLUGIN_PULP_PUSH_KEY, PLUGIN_PULP_SYNC_KEY
-from atomic_reactor.plugin import PostBuildPlugin
+from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.util import get_manifest_digests
 from docker.errors import NotFound
@@ -28,7 +28,11 @@ class CraneTimeoutError(Exception):
     pass
 
 
-class PulpPullPlugin(PostBuildPlugin):
+# Note: We use multiple inheritance here only to make it explicit that
+# this plugin needs to act as both an exit plugin (since arrangement
+# version 4) and as a post-build plugin (arrangement version < 4). In
+# fact, ExitPlugin is a subclass of PostBuildPlugin.
+class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
     key = 'pulp_pull'
     is_allowed_to_fail = False
 

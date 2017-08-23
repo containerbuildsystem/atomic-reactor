@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
 from atomic_reactor.plugins.post_pulp_pull import (PulpPullPlugin,
                                                    CraneTimeoutError)
 from atomic_reactor.inner import TagConf, PushConf
@@ -336,3 +337,10 @@ class TestPostPulpPull(object):
 
         # Image ID is updated in workflow
         assert workflow.builder.image_id == test_id
+
+    def test_plugin_type(self):
+        # arrangement versions < 4
+        assert issubclass(PulpPullPlugin, PostBuildPlugin)
+
+        # arrangement version >= 4
+        assert issubclass(PulpPullPlugin, ExitPlugin)
