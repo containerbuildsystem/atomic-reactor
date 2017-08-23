@@ -763,7 +763,7 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
 
         # set it to truthy value so that koji_import would know pulp supports these digests
         digests[version] = True
-        logger.warning('received_media_type=%s', received_media_type)
+        logger.debug('received_media_type=%s', received_media_type)
 
         if not response.headers.get('Docker-Content-Digest'):
             logger.warning('Unable to fetch digest for %s, no Docker-Content-Digest header',
