@@ -30,6 +30,30 @@ def get_arch():
                                    universal_newlines=True).strip()
 
 
+# flatpak build-init requires the sdk and runtime to be installed on the
+# build system (so that subsequent build steps can execute things with
+# the SDK). While it isn't impossible to download the runtime image and
+# install the flatpak, that would be a lot of unnecessary complexity
+# since our build step is just unpacking the filesystem we've already
+# created. This is a stub implementation of 'flatpak build-init' that
+# doesn't check for the SDK or use it to set up the build filesystem.
+def build_init(directory, appname, sdk, runtime, runtime_branch):
+    if not os.path.isdir(directory):
+        os.mkdir(directory)
+    with open(os.path.join(directory, "metadata"), "w") as f:
+        f.write(dedent("""\
+                       [Application]
+                       name={appname}
+                       runtime={runtime}/{arch}/{runtime_branch}
+                       sdk={sdk}/{arch}/{runtime_branch}
+                       """.format(appname=appname,
+                                  sdk=sdk,
+                                  runtime=runtime,
+                                  runtime_branch=runtime_branch,
+                                  arch=get_arch())))
+    os.mkdir(os.path.join(directory, "files"))
+
+
 # add_app_prefix('org.gimp', 'gimp, 'gimp.desktop') => org.gimp.desktop
 # add_app_prefix('org.gnome', 'eog, 'eog.desktop') => org.gnome.eog.desktop
 def add_app_prefix(app_id, root, full):
@@ -284,8 +308,11 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
 
         repo = os.path.join(self.workflow.source.workdir, "repo")
 
-        subprocess.check_call(['flatpak', 'build-init',
-                               builddir, app_id, runtime_id, runtime_id, runtime_version])
+        # See comment for build_init() for why we can't use 'flatpak build-init'
+        # subprocess.check_call(['flatpak', 'build-init',
+        #                        builddir, app_id, runtime_id, runtime_id, runtime_version])
+        build_init(builddir, app_id, runtime_id, runtime_id, runtime_version)
+
         # with gzip'ed tarball, tar is several seconds faster than tarfile.extractall
         subprocess.check_call(['tar', 'xCfz', builddir, tarred_filesystem])
 
