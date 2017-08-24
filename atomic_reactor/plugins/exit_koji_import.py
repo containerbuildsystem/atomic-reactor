@@ -19,8 +19,11 @@ from atomic_reactor.plugins.build_orchestrate_build import (get_worker_build_inf
 from atomic_reactor.plugins.post_fetch_worker_metadata import FetchWorkerMetadataPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
-from atomic_reactor.constants import PLUGIN_KOJI_IMPORT_PLUGIN_KEY, PLUGIN_PULP_PULL_KEY
-from atomic_reactor.util import (get_build_json, get_preferred_label, df_parser)
+from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
+                                      PLUGIN_PULP_PULL_KEY,
+                                      PLUGIN_PULP_SYNC_KEY)
+from atomic_reactor.util import (get_build_json, get_preferred_label,
+                                 df_parser, ImageName)
 from atomic_reactor.koji_util import create_koji_session
 from osbs.conf import Configuration
 from osbs.api import OSBS
@@ -99,14 +102,34 @@ class KojiImportPlugin(ExitPlugin):
         """
         outputs = []
         has_pulp_pull = PLUGIN_PULP_PULL_KEY in self.workflow.postbuild_results
+        try:
+            pulp_sync_results = self.workflow.postbuild_results[PLUGIN_PULP_SYNC_KEY]
+            crane_registry = pulp_sync_results[0]
+        except (KeyError, IndexError):
+            crane_registry = None
+
         for platform in worker_metadatas:
             for instance in worker_metadatas[platform]['output']:
                 instance['buildroot_id'] = '{}-{}'.format(platform, instance['buildroot_id'])
 
+                if instance['type'] != 'docker-image':
+                    continue
+
                 # update image ID with pulp_pull results
-                if 'extra' in instance and platform == "x86_64" and has_pulp_pull:
+                if platform == "x86_64" and has_pulp_pull:
                     image_id, _ = self.workflow.postbuild_results[PLUGIN_PULP_PULL_KEY]
                     instance['extra']['docker']['id'] = image_id
+
+                # update repositories to point to Crane
+                if crane_registry:
+                    pulp_pullspecs = []
+                    for pullspec in instance['extra']['docker']['repositories']:
+                        image = ImageName.parse(pullspec)
+                        image.registry = crane_registry.registry
+                        pulp_pullspecs.append(image.to_str())
+
+                    instance['extra']['docker']['repositories'] = pulp_pullspecs
+
                 outputs.append(instance)
 
         return outputs

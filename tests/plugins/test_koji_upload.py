@@ -943,13 +943,7 @@ class TestKojiUpload(object):
         if blocksize is not None:
             assert blocksize == session.blocksize
 
-    @pytest.mark.parametrize(('primary', 'unique', 'invalid'), [
-        (True, True, False),
-        (True, False, False),
-        (False, True, False),
-        (False, False, True),
-    ])
-    def test_koji_upload_pullspec(self, tmpdir, os_env, primary, unique, invalid):
+    def test_koji_upload_pullspec(self, tmpdir, os_env):
         osbs = MockedOSBS()
         session = MockedClientSession('')
         name = 'ns/name'
@@ -962,18 +956,7 @@ class TestKojiUpload(object):
                                             release=release,
                                             pulp_registries=1,
                                             )
-        if not primary:
-            workflow.tag_conf._primary_images = []
-        if not unique:
-            workflow.tag_conf._unique_images = []
-
         runner = create_runner(tasker, workflow)
-
-        if invalid:
-            with pytest.raises(PluginFailedException):
-                runner.run()
-            return
-
         runner.run()
 
         metadata = get_metadata(workflow, osbs)
@@ -985,19 +968,23 @@ class TestKojiUpload(object):
         assert len(docker_outputs) == 1
         docker_output = docker_outputs[0]
 
-        pullspecs = [
+        digest_pullspecs = [
+            repo
+            for repo in docker_output['extra']['docker']['repositories']
+            if '@sha256' in repo
+        ]
+        assert len(digest_pullspecs) == 1
+
+        tag_pullspecs = [
             repo
             for repo in docker_output['extra']['docker']['repositories']
             if '@sha256' not in repo
         ]
-        assert len(pullspecs) == 1
-        pullspec = pullspecs[0]
+        assert len(tag_pullspecs) == 1
+        pullspec = tag_pullspecs[0]
 
-        if primary:
-            nvr_tag = '{}:{}-{}'.format(name, version, release)
-            assert pullspec.endswith(nvr_tag)
-        else:
-            assert pullspec.endswith('-timestamp')
+        nvr_tag = '{}:{}-{}'.format(name, version, release)
+        assert pullspec.endswith(nvr_tag)
 
     @pytest.mark.parametrize('logs_return_bytes', [
         True,
