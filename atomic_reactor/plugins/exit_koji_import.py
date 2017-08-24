@@ -101,7 +101,7 @@ class KojiImportPlugin(ExitPlugin):
         :return: list, containing dicts of partial metadata
         """
         outputs = []
-        has_pulp_pull = PLUGIN_PULP_PULL_KEY in self.workflow.postbuild_results
+        has_pulp_pull = PLUGIN_PULP_PULL_KEY in self.workflow.exit_results
         try:
             pulp_sync_results = self.workflow.postbuild_results[PLUGIN_PULP_SYNC_KEY]
             crane_registry = pulp_sync_results[0]
@@ -117,7 +117,7 @@ class KojiImportPlugin(ExitPlugin):
 
                 # update image ID with pulp_pull results
                 if platform == "x86_64" and has_pulp_pull:
-                    image_id, _ = self.workflow.postbuild_results[PLUGIN_PULP_PULL_KEY]
+                    image_id, _ = self.workflow.exit_results[PLUGIN_PULP_PULL_KEY]
                     instance['extra']['docker']['id'] = image_id
 
                 # update repositories to point to Crane
