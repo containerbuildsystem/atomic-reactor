@@ -77,6 +77,11 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
             sleep(self.retry_delay)
 
     def run(self):
+        # Only run if the build was successful
+        if self.workflow.build_process_failed:
+            self.log.info("Not running for failed build")
+            return None, []
+
         # Work out the name of the image to pull
         assert self.workflow.tag_conf.unique_images  # must be set
         image = self.workflow.tag_conf.unique_images[0]

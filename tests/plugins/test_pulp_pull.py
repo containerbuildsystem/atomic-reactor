@@ -40,7 +40,7 @@ class TestPostPulpPull(object):
     EXPECTED_IMAGE = ImageName.parse('%s/%s' % (CRANE_URI, TEST_UNIQUE_IMAGE))
     EXPECTED_PULLSPEC = EXPECTED_IMAGE.to_str()
 
-    def workflow(self, push=True, sync=True):
+    def workflow(self, push=True, sync=True, build_process_failed=False):
         tag_conf = TagConf()
         tag_conf.add_unique_image(self.TEST_UNIQUE_IMAGE)
         push_conf = PushConf()
@@ -54,6 +54,7 @@ class TestPostPulpPull(object):
         return flexmock(tag_conf=tag_conf,
                         push_conf=push_conf,
                         builder=builder,
+                        build_process_failed=build_process_failed,
                         plugin_workspace={})
 
     media_type_v1 = 'application/vnd.docker.distribution.manifest.v1+json'
@@ -343,6 +344,19 @@ class TestPostPulpPull(object):
 
         # arrangement version >= 4
         assert issubclass(PulpPullPlugin, ExitPlugin)
+
+        # Verify the plugin does nothing when running as an exit
+        # plugin for an already-failed build
+        workflow = self.workflow(build_process_failed=True)
+        tasker = MockerTasker()
+        workflow.postbuild_plugins_conf = []
+        flexmock(requests).should_receive('get').never()
+        flexmock(tasker).should_receive('pull_image').never()
+        flexmock(tasker).should_receive('inspect_image').never()
+        plugin = PulpPullPlugin(tasker, workflow)
+        image_id, media_types = plugin.run()
+        assert image_id is None
+        assert len(media_types) == 0
 
     def test_unexpected_response(self):
         workflow = self.workflow()
