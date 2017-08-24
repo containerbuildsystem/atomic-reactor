@@ -32,6 +32,7 @@ except ImportError:
     import dockpulp
 
 from atomic_reactor.plugins.post_pulp_sync import PulpSyncPlugin
+from atomic_reactor.constants import PLUGIN_PULP_PUSH_KEY
 
 from flexmock import flexmock
 import json
@@ -594,8 +595,15 @@ class TestPostPulpSync(object):
 
         plugin.run()
 
-    @pytest.mark.parametrize('has_pulp_push', [False, True])
-    def test_print_availability_info(self, has_pulp_push, caplog):
+    @pytest.mark.parametrize('publish,has_pulp_push,should_publish', [
+        (None, False, True),
+        (None, True, False),
+        (True, False, True),
+        (True, True, False),
+        (False, False, False),
+        (False, True, False),
+    ])
+    def test_publish(self, publish, has_pulp_push, should_publish, caplog):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
@@ -621,33 +629,52 @@ class TestPostPulpSync(object):
             .and_return(([], []))
             .once()
             .ordered())
-        (flexmock(mockpulp)
-            .should_receive('crane')
-            .with_args([prefixed_pulp_repoid], wait=True)
-            .once()
-            .ordered())
+        if should_publish:
+            (flexmock(mockpulp)
+                .should_receive('crane')
+                .with_args([prefixed_pulp_repoid], wait=True)
+                .once()
+                .ordered())
+        else:
+            (flexmock(mockpulp)
+                .should_receive('crane')
+                .never())
+
         (flexmock(dockpulp)
             .should_receive('Pulp')
             .with_args(env=env)
             .and_return(mockpulp))
 
         workflow = self.workflow([docker_repository], mockpulp.registry)
-        workflow.postbuild_plugins_conf.append({'name': PulpSyncPlugin.key})
+        workflow.postbuild_plugins_conf.append(
+            {
+                'name': PulpSyncPlugin.key,
+            },
+        )
         if has_pulp_push:
-            # PulpPushPlugin.key is not imported here to avoid circular import
-            workflow.postbuild_plugins_conf.append({'name': 'pulp_push'})
+            workflow.postbuild_plugins_conf.append(
+                {
+                    'name': PLUGIN_PULP_PUSH_KEY,
+                },
+            )
+
+        kwargs = {
+            'pulp_registry_name': env,
+            'docker_registry': docker_registry,
+        }
+        if publish is not None:
+            kwargs['publish'] = publish
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=workflow,
-                                pulp_registry_name=env,
-                                docker_registry=docker_registry)
+                                **kwargs)
 
         plugin.run()
         log_messages = [l.getMessage() for l in caplog.records()]
 
         for image in workflow.tag_conf.images:
             expected_log = 'image available at %s' % image.to_str()
-            if has_pulp_push:
-                assert expected_log not in log_messages
-            else:
+            if should_publish:
                 assert expected_log in log_messages
+            else:
+                assert expected_log not in log_messages

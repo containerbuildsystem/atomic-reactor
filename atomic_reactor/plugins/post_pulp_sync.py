@@ -81,7 +81,8 @@ class PulpSyncPlugin(PostBuildPlugin):
                  registry_secret_path=None,
                  insecure_registry=None,
                  dockpulp_loglevel=None,
-                 pulp_repo_prefix=None):
+                 pulp_repo_prefix=None,
+                 publish=True):
         """
         constructor
 
@@ -120,8 +121,10 @@ class PulpSyncPlugin(PostBuildPlugin):
             self.log.error("will not delete from registry as instructed: "
                            "not implemented")
 
-        self.publish = not are_plugins_in_order(self.workflow.postbuild_plugins_conf,
-                                                self.key, PLUGIN_PULP_PUSH_KEY)
+        self.publish = (publish and
+                        not are_plugins_in_order(self.workflow.postbuild_plugins_conf,
+                                                 self.key,
+                                                 PLUGIN_PULP_PUSH_KEY))
 
     def set_auth(self, pulp):
         path = self.pulp_secret_path
@@ -226,10 +229,10 @@ class PulpSyncPlugin(PostBuildPlugin):
                                     namespace=image.namespace,
                                     tag=image.tag))
 
-        self.log.info("publishing to crane")
-        pulp.crane(list(repos.values()), wait=True)
-
         if self.publish:
+            self.log.info("publishing to crane")
+            pulp.crane(list(repos.values()), wait=True)
+
             for image_name in images:
                 self.log.info("image available at %s", image_name.to_str())
 
