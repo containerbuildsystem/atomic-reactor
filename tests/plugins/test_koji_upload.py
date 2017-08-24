@@ -834,7 +834,8 @@ class TestKojiUpload(object):
         assert isinstance(tags, list)
         expected_tags = set([version,
                              "{}-{}".format(version, release),
-                             'latest'])
+                             'latest',
+                             "{}-timestamp".format(version)])
         if additional_tags:
             expected_tags.update(additional_tags)
 
