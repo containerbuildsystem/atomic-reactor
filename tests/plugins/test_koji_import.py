@@ -1078,7 +1078,7 @@ class TestKojiImport(object):
                                             has_config=has_config)
         workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_autorebuild
         if pulp_pull:
-            workflow.postbuild_results[PLUGIN_PULP_PULL_KEY] = pulp_pull
+            workflow.exit_results[PLUGIN_PULP_PULL_KEY] = pulp_pull
         runner = create_runner(tasker, workflow, target=target, tag_later=tag_later)
         runner.run()
 
