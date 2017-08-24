@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
+from collections import namedtuple
 import json
 import os
 try:
@@ -53,6 +54,8 @@ import subprocess
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from six import string_types
+
+LogEntry = namedtuple('LogEntry', ['platform', 'line'])
 
 NAMESPACE = 'mynamespace'
 BUILD_ID = 'build-1'
@@ -194,8 +197,7 @@ def mock_environment(tmpdir, session=None, name=None,
                      is_rebuild=True, docker_registry=True,
                      pulp_registries=0, blocksize=None,
                      task_states=None, additional_tags=None,
-                     has_config=None,
-                     logs_return_bytes=True):
+                     has_config=None):
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -239,12 +241,9 @@ def mock_environment(tmpdir, session=None, name=None,
     flexmock(subprocess, Popen=fake_Popen)
     flexmock(koji, ClientSession=lambda hub, opts: session)
     flexmock(GitSource)
-    if logs_return_bytes:
-        logs = b'build logs - \xe2\x80\x98 \xe2\x80\x97 \xe2\x80\x99'
-    else:
-        logs = 'build logs - \u2018 \u2017 \u2019'
+    logs = [LogEntry('x86_64', 'Hurray for bacon: \u2017')]
     (flexmock(OSBS)
-        .should_receive('get_build_logs')
+        .should_receive('get_orchestrator_build_logs')
         .with_args(BUILD_ID)
         .and_return(logs))
     (flexmock(OSBS)
@@ -725,7 +724,7 @@ class TestKojiImport(object):
             runner.run()
 
     @pytest.mark.parametrize('fail_method', [
-        'get_build_logs',
+        'get_orchestrator_build_logs',
         'get_pod_for_build',
     ])
     def test_koji_import_osbs_fail(self, tmpdir, os_env, fail_method):

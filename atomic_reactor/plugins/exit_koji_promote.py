@@ -8,7 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
-from collections import namedtuple
 import json
 import os
 import random
@@ -32,34 +31,11 @@ from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json, get_preferred_label,
                                  get_docker_architecture, df_parser,
                                  are_plugins_in_order)
-from atomic_reactor.koji_util import create_koji_session, tag_koji_build
+from atomic_reactor.koji_util import (create_koji_session, tag_koji_build,
+                                      Output, KojiUploadLogger)
 from osbs.conf import Configuration
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
-
-# An output file and its metadata
-Output = namedtuple('Output', ['file', 'metadata'])
-
-
-class KojiUploadLogger(object):
-    def __init__(self, logger, notable_percent=10):
-        self.logger = logger
-        self.notable_percent = notable_percent
-        self.last_percent_done = 0
-
-    def callback(self, offset, totalsize, size, t1, t2):  # pylint: disable=W0613
-        if offset == 0:
-            self.logger.debug("upload size: %.1fMiB", totalsize / 1024.0 / 1024)
-
-        if not totalsize or not t1:
-            return
-
-        percent_done = 100 * offset / totalsize
-        if (percent_done >= 99 or
-                percent_done - self.last_percent_done >= self.notable_percent):
-            self.last_percent_done = percent_done
-            self.logger.debug("upload: %d%% done (%.1f MiB/sec)",
-                              percent_done, size / t1 / 1024 / 1024)
 
 
 class KojiPromotePlugin(ExitPlugin):
