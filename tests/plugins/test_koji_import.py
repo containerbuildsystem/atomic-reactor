@@ -42,7 +42,7 @@ from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
 from atomic_reactor.util import ImageName, ManifestDigest
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.build import BuildResult
-from atomic_reactor.constants import PLUGIN_PULP_PULL_KEY
+from atomic_reactor.constants import PLUGIN_PULP_PULL_KEY, PLUGIN_PULP_SYNC_KEY
 from tests.constants import SOURCE, MOCK
 
 from flexmock import flexmock
@@ -394,7 +394,8 @@ def mock_environment(tmpdir, session=None, name=None,
                         },
                         'docker': {
                             'repositories': [
-                                'brew-pulp-docker:8888/myproject/hello-world:0.0.1-9',
+                                'docker-registry.example.com:8888/ns/name:1.0-1',
+                                'docker-registry.example.com:8888/ns/name@sha256:...',
                             ],
                             'parent_id': 'sha256:bf203442',
                             'id': '123456',
@@ -1157,14 +1158,8 @@ class TestKojiImport(object):
         #    assert session.build_tags[build_id] == session.DEST_TAG
         #    assert session.tag_task_state == 'CLOSED'
 
-    """
-    @pytest.mark.parametrize(('primary', 'unique', 'invalid'), [
-        (True, True, False),
-        (True, False, False),
-        (False, True, False),
-        (False, False, True),
-    ])
-    def test_koji_import_pullspec(self, tmpdir, os_env, primary, unique, invalid):
+    @pytest.mark.parametrize('use_pulp', [False, True])
+    def test_koji_import_pullspec(self, tmpdir, os_env, use_pulp):
         session = MockedClientSession('')
         name = 'ns/name'
         version = '1.0'
@@ -1176,18 +1171,12 @@ class TestKojiImport(object):
                                             release=release,
                                             pulp_registries=1,
                                             )
-        if not primary:
-            workflow.tag_conf._primary_images = []
-        if not unique:
-            workflow.tag_conf._unique_images = []
+        if use_pulp:
+            workflow.postbuild_results[PLUGIN_PULP_SYNC_KEY] = [
+                ImageName.parse('crane.example.com/ns/name:1.0-1'),
+            ]
 
         runner = create_runner(tasker, workflow)
-
-        if invalid:
-            with pytest.raises(PluginFailedException):
-                runner.run()
-            return
-
         runner.run()
 
         docker_outputs = [
@@ -1198,20 +1187,31 @@ class TestKojiImport(object):
         assert len(docker_outputs) == 1
         docker_output = docker_outputs[0]
 
-        pullspecs = [
+        digest_pullspecs = [
+            repo
+            for repo in docker_output['extra']['docker']['repositories']
+            if '@sha256' in repo
+        ]
+        assert len(digest_pullspecs) == 1
+
+        tag_pullspecs = [
             repo
             for repo in docker_output['extra']['docker']['repositories']
             if '@sha256' not in repo
         ]
-        assert len(pullspecs) == 1
-        pullspec = pullspecs[0]
+        assert len(tag_pullspecs) == 1
+        pullspec = tag_pullspecs[0]
+        nvr_tag = '{}:{}-{}'.format(name, version, release)
+        assert pullspec.endswith(nvr_tag)
 
-        if primary:
-            nvr_tag = '{}:{}-{}'.format(name, version, release)
-            assert pullspec.endswith(nvr_tag)
+        # Check registry
+        reg = set(ImageName.parse(repo).registry
+                  for repo in docker_output['extra']['docker']['repositories'])
+        assert len(reg) == 1
+        if use_pulp:
+            assert reg == set(['crane.example.com'])
         else:
-            assert pullspec.endswith('-timestamp')
-    """
+            assert reg == set(['docker-registry.example.com:8888'])
 
     def test_koji_import_without_build_info(self, tmpdir, os_env):
 
@@ -1313,6 +1313,9 @@ class TestKojiImport(object):
         build_info = BuildInfo(media_types=version)
         orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
         orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = build_info
+        workflow.postbuild_results[PLUGIN_PULP_SYNC_KEY] = [
+            ImageName.parse('crane.example.com/ns/name:1.0-1'),
+        ]
         runner = create_runner(tasker, workflow)
         runner.run()
 
