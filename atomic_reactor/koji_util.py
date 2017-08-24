@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function
 
 
+from collections import namedtuple
 import koji
 import logging
 import os
@@ -18,6 +19,28 @@ from atomic_reactor.constants import DEFAULT_DOWNLOAD_BLOCK_SIZE
 
 
 logger = logging.getLogger(__name__)
+Output = namedtuple('Output', ['file', 'metadata'])
+
+
+class KojiUploadLogger(object):
+    def __init__(self, logger, notable_percent=10):
+        self.logger = logger
+        self.notable_percent = notable_percent
+        self.last_percent_done = 0
+
+    def callback(self, offset, totalsize, size, t1, t2):  # pylint: disable=W0613
+        if offset == 0:
+            self.logger.debug("upload size: %.1fMiB", totalsize / 1024.0 / 1024)
+
+        if not totalsize or not t1:
+            return
+
+        percent_done = 100 * offset / totalsize
+        if (percent_done >= 99 or
+                percent_done - self.last_percent_done >= self.notable_percent):
+            self.last_percent_done = percent_done
+            self.logger.debug("upload: %d%% done (%.1f MiB/sec)",
+                              percent_done, size / t1 / 1024 / 1024)
 
 
 def koji_login(session,
