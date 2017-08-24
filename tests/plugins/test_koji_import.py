@@ -1295,6 +1295,7 @@ class TestKojiImport(object):
         elif expect_result in ['skip', 'unknown_status']:
             assert 'help' not in image.keys()
 
+    @pytest.mark.parametrize('has_pulp_sync', (True, False))
     @pytest.mark.parametrize('version', [
         # no pulp plugin used
         None,
@@ -1314,19 +1315,23 @@ class TestKojiImport(object):
          "application/vnd.docker.distribution.manifest.v2+json",
          "application/vnd.docker.distribution.manifest.list.v2+json"],
     ])
-    def test_koji_import_set_media_types(self, tmpdir, os_env, version):
+    def test_koji_import_set_media_types(self, tmpdir, os_env, has_pulp_sync, version):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
                                             name='ns/name',
                                             version='1.0',
                                             release='1',
                                             session=session)
-        build_info = BuildInfo(media_types=version)
-        orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
-        orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = build_info
-        workflow.postbuild_results[PLUGIN_PULP_SYNC_KEY] = [
-            ImageName.parse('crane.example.com/ns/name:1.0-1'),
-        ]
+        if has_pulp_sync:
+            if version:
+                workflow.exit_results[PLUGIN_PULP_PULL_KEY] = ("acbdef1234", version)
+        else:
+            build_info = BuildInfo(media_types=version)
+            orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
+            orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = build_info
+            workflow.postbuild_results[PLUGIN_PULP_SYNC_KEY] = [
+                ImageName.parse('crane.example.com/ns/name:1.0-1'),
+            ]
         runner = create_runner(tasker, workflow)
         runner.run()
 

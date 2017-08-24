@@ -167,11 +167,15 @@ class KojiImportPlugin(ExitPlugin):
                 extra['image']['help'] = None
 
     def set_media_types(self, extra, worker_metadatas):
-        for platform in worker_metadatas:
-            annotations = get_worker_build_info(self.workflow, platform).build.get_annotations()
-            if annotations.get('media-types'):
-                extra['image']['media_types'] = json.loads(annotations['media-types'])
-                return
+        pulp_pull_results = self.workflow.exit_results.get(PLUGIN_PULP_PULL_KEY)
+        if pulp_pull_results:
+            extra['image']['media_types'] = pulp_pull_results[1]
+        else:
+            for platform in worker_metadatas:
+                annotations = get_worker_build_info(self.workflow, platform).build.get_annotations()
+                if annotations.get('media-types'):
+                    extra['image']['media_types'] = json.loads(annotations['media-types'])
+                    break
 
     def get_build(self, metadata, worker_metadatas):
         start_time = int(atomic_reactor_start_time)
