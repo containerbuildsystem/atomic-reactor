@@ -48,4 +48,8 @@ class DockerApiPlugin(BuildStepPlugin):
                                fail_reason=command_result.error)
         else:
             image_id = builder.get_built_image_info()['Id']
+            if ':' not in image_id:
+                # Older versions of the daemon do not include the prefix
+                image_id = 'sha256:{}'.format(image_id)
+
             return BuildResult(logs=command_result.logs, image_id=image_id)

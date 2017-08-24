@@ -34,10 +34,10 @@ class X(object):
 
 
 class MockInsideBuilder(object):
-    def __init__(self, failed=False):
+    def __init__(self, failed=False, image_id=None):
         self.tasker = MockDockerTasker()
         self.base_image = ImageName(repo='Fedora', tag='22')
-        self.image_id = 'asd'
+        self.image_id = image_id or 'asd'
         self.image = 'image'
         self.failed = failed
         self.df_path = 'some'
@@ -71,13 +71,14 @@ class MockInsideBuilder(object):
     True,
     False,
 ])
-def test_build(is_failed):
+@pytest.mark.parametrize('image_id', ['sha256:12345', '12345'])
+def test_build(is_failed, image_id):
     """
     tests docker build api plugin working
     """
     flexmock(DockerfileParser, content='df_content')
     mock_docker()
-    fake_builder = MockInsideBuilder()
+    fake_builder = MockInsideBuilder(image_id=image_id)
     flexmock(InsideBuilder).new_instances(fake_builder)
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
@@ -99,3 +100,6 @@ def test_build(is_failed):
         assert workflow.build_result.fail_reason == error
         assert '\\' not in workflow.plugins_errors['docker_api']
         assert error in workflow.plugins_errors['docker_api']
+    else:
+        assert workflow.build_result.image_id.startswith('sha256:')
+        assert workflow.build_result.image_id.count(':') == 1
