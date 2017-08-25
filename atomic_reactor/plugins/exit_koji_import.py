@@ -112,23 +112,23 @@ class KojiImportPlugin(ExitPlugin):
             for instance in worker_metadatas[platform]['output']:
                 instance['buildroot_id'] = '{}-{}'.format(platform, instance['buildroot_id'])
 
-                if instance['type'] != 'docker-image':
-                    continue
+                if instance['type'] == 'docker-image':
+                    # update image ID with pulp_pull results
+                    if platform == "x86_64" and has_pulp_pull:
+                        exit_results = self.workflow.exit_results
+                        image_id, _ = exit_results[PLUGIN_PULP_PULL_KEY]
+                        instance['extra']['docker']['id'] = image_id
 
-                # update image ID with pulp_pull results
-                if platform == "x86_64" and has_pulp_pull:
-                    image_id, _ = self.workflow.exit_results[PLUGIN_PULP_PULL_KEY]
-                    instance['extra']['docker']['id'] = image_id
+                    # update repositories to point to Crane
+                    if crane_registry:
+                        pulp_pullspecs = []
+                        docker = instance['extra']['docker']
+                        for pullspec in docker['repositories']:
+                            image = ImageName.parse(pullspec)
+                            image.registry = crane_registry.registry
+                            pulp_pullspecs.append(image.to_str())
 
-                # update repositories to point to Crane
-                if crane_registry:
-                    pulp_pullspecs = []
-                    for pullspec in instance['extra']['docker']['repositories']:
-                        image = ImageName.parse(pullspec)
-                        image.registry = crane_registry.registry
-                        pulp_pullspecs.append(image.to_str())
-
-                    instance['extra']['docker']['repositories'] = pulp_pullspecs
+                        docker['repositories'] = pulp_pullspecs
 
                 outputs.append(instance)
 

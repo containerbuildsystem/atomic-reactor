@@ -1179,6 +1179,13 @@ class TestKojiImport(object):
         runner = create_runner(tasker, workflow)
         runner.run()
 
+        log_outputs = [
+            output
+            for output in session.metadata['output']
+            if output['type'] == 'log'
+        ]
+        assert log_outputs
+
         docker_outputs = [
             output
             for output in session.metadata['output']
