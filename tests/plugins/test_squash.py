@@ -104,7 +104,18 @@ class TestSquashPlugin(object):
         with pytest.raises(PluginFailedException):
             self.run_plugin_with_args({'from_layer': None})
 
-    def should_squash_with_kwargs(self, **kwargs):
+    @pytest.mark.parametrize('new_id,expected_id', [
+        ('abcdef', 'sha256:abcdef'),
+        ('sha256:abcdef', 'sha256:abcdef'),
+    ])
+    def test_sha256_prefix(self, new_id, expected_id):
+        if MOCK:
+            mock_docker()
+        self.should_squash_with_kwargs(new_id=new_id)
+        self.run_plugin_with_args({})
+        assert self.workflow.builder.image_id == expected_id
+
+    def should_squash_with_kwargs(self, new_id='abc', **kwargs):
         kwargs.setdefault('image', self.workflow.builder.image_id)
         kwargs.setdefault('load_image', True)
         kwargs.setdefault('log', logging.Logger)
@@ -124,6 +135,8 @@ class TestSquashPlugin(object):
         def mock_run():
             with open(kwargs['output_path'], 'w') as f:
                 f.write(DUMMY_TARBALL['contents'])
+
+            return new_id
 
         squash = flexmock()
         squash.should_receive('run').replace_with(mock_run)

@@ -92,6 +92,9 @@ class PrePublishSquashPlugin(PrePublishPlugin):
             # squash the image and output both tarfile and Docker engine image
             new_id = Squash(log=self.log, image=self.image, from_layer=self.from_layer,
                             tag=self.tag, output_path=metadata["path"], load_image=True).run()
+            if ':' not in new_id:
+                # Older versions of the daemon do not include the prefix
+                new_id = 'sha256:{}'.format(new_id)
             self.workflow.builder.image_id = new_id
 
         metadata.update(get_exported_image_metadata(metadata["path"]))
