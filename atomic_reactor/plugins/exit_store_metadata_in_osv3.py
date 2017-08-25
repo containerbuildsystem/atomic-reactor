@@ -21,7 +21,8 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_PULP_PUSH_KEY,
-                                      PLUGIN_ADD_FILESYSTEM_KEY)
+                                      PLUGIN_ADD_FILESYSTEM_KEY,
+                                      PLUGIN_BUILD_ORCHESTRATE_KEY)
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import get_build_json
 
@@ -86,8 +87,17 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
     def _get_registries(self):
         """
         Return a list of registries that this build updated
+
+        For orchestrator it should attempt to filter out non-pulp registries, on worker - return
+        all registries
         """
-        return self.workflow.push_conf.all_registries
+        if self.workflow.buildstep_result.get(PLUGIN_BUILD_ORCHESTRATE_KEY):
+            registries = self.workflow.push_conf.pulp_registries
+            if not registries:
+                registries = self.workflow.push_conf.all_registries
+            return registries
+        else:
+            return self.workflow.push_conf.all_registries
 
     def get_repositories(self):
         # usually repositories formed from NVR labels
@@ -223,7 +233,9 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         if pulp_push_results:
             media_types += ['application/json']
 
-        pulp_pull_results = self.workflow.postbuild_results.get(PulpPullPlugin.key)
+        # pulp_pull may run on worker as a postbuild plugin or on orchestrator as an exit plugin
+        pulp_pull_results = (self.workflow.postbuild_results.get(PulpPullPlugin.key) or
+                             self.workflow.exit_results.get(PulpPullPlugin.key))
         if pulp_pull_results:
             _, pulp_pull_media_types = pulp_pull_results
             media_types += pulp_pull_media_types
@@ -251,6 +263,10 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         self.apply_build_result_annotations(annotations)
 
+        # If pulp_pull has ran on orchestrator, then repositories have to be restored, otherwise
+        # these would contain worker builds only
+        if pulp_pull_results:
+            annotations['repositories'] = json.dumps(self.get_repositories())
         try:
             osbs.set_annotations_on_build(build_id, annotations)
         except OsbsResponseException:

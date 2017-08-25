@@ -29,6 +29,7 @@ from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.post_pulp_pull import PulpPullPlugin
+from atomic_reactor.plugins.build_orchestrate_build import OrchestrateBuildPlugin
 
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
 from atomic_reactor.util import ImageName, LazyGit, ManifestDigest, df_parser
@@ -170,8 +171,10 @@ CMD blabla"""
     }
     workflow.postbuild_results = {
         PostBuildRPMqaPlugin.key: "rpm1\nrpm2",
-        PulpPullPlugin.key: pulp_pull_results,
         PLUGIN_PULP_PUSH_KEY: pulp_push_results,
+    }
+    workflow.exit_results = {
+        PulpPullPlugin.key: pulp_pull_results,
     }
 
     if br_annotations or br_labels:
@@ -607,3 +610,51 @@ CMD blabla"""
                 matched.add(repo)
 
     assert matched == set(primary_repositories)
+
+
+@pytest.mark.parametrize(('pulp_registries', 'docker_registries', 'is_orchestrator', 'expected'), [
+    ([], [], False,
+     {'unique': [], 'primary': []}),
+    ([('spam', 'spam:8888')], ['docker:9999'], False,
+     {'primary': ['docker:9999/atomic-reactor-test-image',
+                  'spam:8888/atomic-reactor-test-image'],
+      'unique': ['docker:9999/namespace/image:asd123',
+                 'spam:8888/namespace/image:asd123']}),
+    ([('spam', 'spam:8888')], ['docker:9999'], True,
+     {'primary': ['spam:8888/atomic-reactor-test-image'],
+      'unique': ['spam:8888/namespace/image:asd123']}),
+    ([], ['docker:9999'], True,
+     {'primary': ['docker:9999/atomic-reactor-test-image'],
+      'unique': ['docker:9999/namespace/image:asd123']}),
+])
+def test_filter_nonpulp_repositories(tmpdir, pulp_registries, docker_registries,
+                                     is_orchestrator, expected):
+    workflow = prepare(pulp_registries=pulp_registries,
+                       docker_registries=docker_registries)
+    df_content = """
+FROM fedora
+RUN yum install -y python-django
+CMD blabla"""
+    df = df_parser(str(tmpdir))
+    df.content = df_content
+    workflow.builder = X
+    workflow.builder.df_path = df.dockerfile_path
+    workflow.builder.df_dir = str(tmpdir)
+
+    runner = ExitPluginsRunner(
+        None,
+        workflow,
+        [{
+            'name': StoreMetadataInOSv3Plugin.key,
+            "args": {
+                "url": "http://example.com/"
+            }
+        }]
+    )
+    if is_orchestrator:
+        workflow.buildstep_result[OrchestrateBuildPlugin.key] = 'foo'
+    output = runner.run()
+    assert StoreMetadataInOSv3Plugin.key in output
+    annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
+    repositories = json.loads(annotations['repositories'])
+    assert repositories == expected

@@ -24,7 +24,7 @@ from atomic_reactor.plugin import BuildStepPlugin, BuildCanceledException
 from atomic_reactor.plugins.pre_reactor_config import get_config
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import get_preferred_label, df_parser
-from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY
+from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from osbs.conf import Configuration
@@ -155,7 +155,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     CONTAINER_FILENAME = 'container.yaml'
     UNREACHABLE_CLUSTER_LOAD = object()
 
-    key = 'orchestrate_build'
+    key = PLUGIN_BUILD_ORCHESTRATE_KEY
 
     def __init__(self, tasker, workflow, platforms, build_kwargs,
                  osbs_client_config=None, worker_build_image=None,
