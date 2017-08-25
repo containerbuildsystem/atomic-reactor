@@ -1045,11 +1045,15 @@ class TestKojiImport(object):
          False),
     ])
     @pytest.mark.parametrize('tag_later', (True, False))
-    @pytest.mark.parametrize('pulp_pull', (("abcdef01234567", 'v1'), False))
+    @pytest.mark.parametrize('pulp_pull,expect_id', (
+        (("abcdef01234567", ['v1']), 'abcdef01234567'),
+        ((None, ['v1', 'v2']), '123456'),
+        (False, '123456'),
+    ))
     def test_koji_import_success(self, tmpdir, apis, docker_registry,
                                  pulp_registries,
                                  target, os_env, has_config, is_autorebuild,
-                                 tag_later, pulp_pull):
+                                 tag_later, pulp_pull, expect_id):
         session = MockedClientSession('')
         # When target is provided koji build will always be tagged,
         # either by koji_import or koji_tag_build.
@@ -1105,7 +1109,7 @@ class TestKojiImport(object):
         if pulp_pull:
             for output in output_files:
                 if 'extra' in output:
-                    assert output['extra']['docker']['id'] == pulp_pull[0]
+                    assert output['extra']['docker']['id'] == expect_id
 
         assert set(build.keys()) == set([
             'name',

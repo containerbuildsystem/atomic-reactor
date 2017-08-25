@@ -117,7 +117,8 @@ class KojiImportPlugin(ExitPlugin):
                     if platform == "x86_64" and has_pulp_pull:
                         exit_results = self.workflow.exit_results
                         image_id, _ = exit_results[PLUGIN_PULP_PULL_KEY]
-                        instance['extra']['docker']['id'] = image_id
+                        if image_id is not None:
+                            instance['extra']['docker']['id'] = image_id
 
                     # update repositories to point to Crane
                     if crane_registry:
