@@ -73,6 +73,7 @@ PLUGIN_PULP_TAG_KEY = 'pulp_tag'
 PLUGIN_ADD_FILESYSTEM_KEY = 'add_filesystem'
 PLUGIN_FETCH_WORKER_METADATA_KEY = 'fetch_worker_metadata'
 PLUGIN_GROUP_MANIFESTS_KEY = 'group_manifests'
+PLUGIN_BUILD_ORCHESTRATE_KEY = 'orchestrate_build'
 
 # max retries for docker requests
 DOCKER_MAX_RETRIES = 3
