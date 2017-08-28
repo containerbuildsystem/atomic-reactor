@@ -1,0 +1,307 @@
+{
+  "buildroots": [
+    {
+      "container": {
+        "type": "docker",
+        "arch": "ppc64le"
+      },
+      "content_generator": {
+        "version": "1.6.24.1",
+        "name": "atomic-reactor"
+      },
+      "host": {
+        "os": "Red Hat Enterprise Linux Server 7.3 (Maipo)",
+        "arch": "ppc64le"
+      },
+      "components": [
+        {
+          "name": "python-ethtool",
+          "sigmd5": "af8ee0374e8160dc19b2598da2b22162",
+          "arch": "ppc64le",
+          "epoch": null,
+          "version": "0.8",
+          "signature": "199e2f91fd431d51",
+          "release": "5.el7",
+          "type": "rpm"
+        },
+        {
+          "name": "python-kitchen",
+          "sigmd5": "25c2edc551a562b6d0f53444b439a895",
+          "arch": "noarch",
+          "epoch": null,
+          "version": "1.1.1",
+          "signature": "199e2f91fd431d51",
+          "release": "5.el7",
+          "type": "rpm"
+        },
+        {
+          "name": "rootfiles",
+          "sigmd5": "44409ce44e76605dacfa2aaece2daf31",
+          "arch": "noarch",
+          "epoch": null,
+          "version": "8.1",
+          "signature": "199e2f91fd431d51",
+          "release": "11.el7",
+          "type": "rpm"
+        },
+        {
+          "name": "bash",
+          "sigmd5": "f972a9919443a8f08420c99d8ad44b9d",
+          "arch": "ppc64le",
+          "epoch": null,
+          "version": "4.2.46",
+          "signature": "199e2f91fd431d51",
+          "release": "28.el7",
+          "type": "rpm"
+        },
+        {
+          "name": "perl-URI",
+          "sigmd5": "4bf2ed4cb63b3c2fbbf77664460d292b",
+          "arch": "noarch",
+          "epoch": 4,
+          "version": "1.71",
+          "signature": null,
+          "release": "1.el7eng",
+          "type": "rpm"
+        },
+        {
+          "name": "perl-HTTP-Date",
+          "sigmd5": "13f25441e44fb9f67a62144ac51772a6",
+          "arch": "noarch",
+          "epoch": null,
+          "version": "6.02",
+          "signature": "199e2f91fd431d51",
+          "release": "8.el7",
+          "type": "rpm"
+        }
+      ],
+      "tools": [
+        {
+          "version": "1.10.6",
+          "name": "docker-py"
+        },
+        {
+          "version": "1.0.5",
+          "name": "docker_squash"
+        },
+        {
+          "version": "1.6.24.1",
+          "name": "atomic_reactor"
+        },
+        {
+          "version": "0.40.1",
+          "name": "osbs-client"
+        },
+        {
+          "version": "1.42",
+          "name": "dockpulp"
+        },
+        {
+          "version": "1.12.6",
+          "name": "docker"
+        }
+      ],
+      "id": 1
+    }
+  ],
+  "build": {
+    "name": "osbs-buildroot-docker",
+    "extra": {
+      "image": {
+        "autorebuild": false,
+        "help": null
+      },
+      "container_koji_task_id": 13781698
+    },
+    "start_time": 1501847970,
+    "version": "1.0",
+    "end_time": 1501848733,
+    "release": "71"
+  },
+  "metadata_version": 0,
+  "output": [
+    {
+      "type": "log",
+      "arch": "noarch",
+      "filename": "openshift-final.log",
+      "filesize": 1265642,
+      "checksum": "178ac369bcb83ee3fc8f31a3face72f6",
+      "checksum_type": "md5",
+      "buildroot_id": 1
+    },
+    {
+      "type": "log",
+      "arch": "noarch",
+      "filename": "build.log",
+      "filesize": 99320,
+      "checksum": "0daaaa438d51f6a32eb8544646c2251d",
+      "checksum_type": "md5",
+      "buildroot_id": 1
+    },
+    {
+      "extra": {
+        "image": {
+          "arch": "ppc64le"
+        },
+        "docker": {
+          "repositories": [
+            "docker.example.com:8888/rcm/buildroot:1.0-71"
+          ],
+          "parent_id": "sha256:93bb76ddeb7a0a882f74f9ebc2c4d25b035823b2d3a4a98243e6f11f55b3f1d7",
+          "config": {
+            "created": "2017-08-04T12:04:12.191057Z",
+            "config": {
+              "Tty": false,
+              "Cmd": [
+                "atomic-reactor",
+                "--verbose",
+                "inside-build",
+                "--input",
+                "osv3"
+              ],
+              "Volumes": null,
+              "Domainname": "",
+              "WorkingDir": "",
+              "Image": "ff9b0d9e9c2bb087c0b906ba08467936addb4f8f514c84f9952dd37d50995bea",
+              "Hostname": "bb140734f94b",
+              "StdinOnce": false,
+              "ArgsEscaped": true,
+              "AttachStdin": false,
+              "User": "",
+              "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "container=oci",
+                "LC_ALL=en_US.UTF-8"
+              ],
+              "Entrypoint": null,
+              "OnBuild": [],
+              "AttachStderr": false,
+              "AttachStdout": false,
+              "OpenStdin": false
+            },
+            "architecture": "amd64",
+            "docker_version": "1.12.6",
+            "rootfs": {
+              "type": "layers",
+              "diff_ids": [
+                "sha256:dda6e8dfdcf7a918d1fd7038a2a6de43f78c194c0bb220ea086af6c414254f4b",
+                "sha256:86888f0aea6df7a7a4ae5595c505b0abccc1002f717efa5be32fa0337099bf1d",
+                "sha256:4138467b7181b375094ab9a4a504450696a0e9eba26f786afd3348d970c23efc"
+              ]
+            },
+            "os": "linux",
+            "history": [
+              {
+                "comment": "Imported from -",
+                "created": "2017-06-21T15:53:59.772302644Z"
+              },
+              {
+                "author": "Red Hat, Inc.",
+                "created_by": "/bin/sh -c rm -f '/etc/yum.repos.d/compose-rpms-1.repo'",
+                "created": "2017-06-21T15:54:32.554216Z"
+              },
+              {
+                "comment": "",
+                "created": "2017-08-04T12:04:12.191057Z"
+              }
+            ]
+          },
+          "id": "sha256:8c52ac84e6421795491981dcc09bc449a268ac83f6d2893dcd124dbdba808aec",
+          "tags": [
+            "1.0-71",
+            "1.0",
+            "latest"
+          ]
+        }
+      },
+      "checksum": "0eea7b32a9a9fe99ebbcc59e82deb364",
+      "buildroot_id": 1,
+      "components": [
+        {
+          "name": "perl-Mozilla-CA",
+          "sigmd5": "6ed1c24f1780b6909e88968bed9c3957",
+          "arch": "noarch",
+          "epoch": null,
+          "version": "20130114",
+          "signature": "199e2f91fd431d51",
+          "release": "5.el7",
+          "type": "rpm"
+        },
+        {
+          "name": "tzdata",
+          "sigmd5": "2255a5807ca7e4d7274995db18e52bea",
+          "arch": "noarch",
+          "epoch": null,
+          "version": "2017b",
+          "signature": "199e2f91fd431d51",
+          "release": "1.el7",
+          "type": "rpm"
+        },
+        {
+          "name": "perl-IO-Socket-SSL",
+          "sigmd5": "e7ba0fe21165e9995b8644e546f9fc45",
+          "arch": "noarch",
+          "epoch": null,
+          "version": "1.94",
+          "signature": "199e2f91fd431d51",
+          "release": "6.el7",
+          "type": "rpm"
+        },
+        {
+          "name": "setup",
+          "sigmd5": "0a445b9930665e1b435ed08b792f4811",
+          "arch": "noarch",
+          "epoch": null,
+          "version": "2.8.71",
+          "signature": "199e2f91fd431d51",
+          "release": "7.el7",
+          "type": "rpm"
+        },
+        {
+          "name": "openssl",
+          "sigmd5": "83e8942ce054db9d039dd42bcc97d710",
+          "arch": "ppc64le",
+          "epoch": 1,
+          "version": "1.0.2k",
+          "signature": "199e2f91fd431d51",
+          "release": "8.el7",
+          "type": "rpm"
+        },
+        {
+          "name": "perl-URI",
+          "sigmd5": "4bf2ed4cb63b3c2fbbf77664460d292b",
+          "arch": "noarch",
+          "epoch": 4,
+          "version": "1.71",
+          "signature": null,
+          "release": "1.el7eng",
+          "type": "rpm"
+        },
+        {
+          "name": "perl-Mozilla-PublicSuffix",
+          "sigmd5": "cad070218512ed9864a895e8a58cb5b5",
+          "arch": "noarch",
+          "epoch": null,
+          "version": "0.1.19",
+          "signature": null,
+          "release": "1.el7eng",
+          "type": "rpm"
+        },
+        {
+          "name": "perl-Net-SSLeay",
+          "sigmd5": "0a1d1a777fdb2159792a3f435078da2e",
+          "arch": "ppc64le",
+          "epoch": null,
+          "version": "1.55",
+          "signature": "199e2f91fd431d51",
+          "release": "6.el7",
+          "type": "rpm"
+        }
+      ],
+      "type": "docker-image",
+      "checksum_type": "md5",
+      "arch": "ppc64le",
+      "filesize": 155732563
+    }
+  ]
+}
