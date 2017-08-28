@@ -167,15 +167,20 @@ class KojiImportPlugin(ExitPlugin):
                 extra['image']['help'] = None
 
     def set_media_types(self, extra, worker_metadatas):
+        media_types = []
+        for platform in worker_metadatas:
+            annotations = get_worker_build_info(self.workflow, platform).build.get_annotations()
+            if annotations.get('media-types'):
+                media_types = json.loads(annotations['media-types'])
+                break
+
+        # Append media_types from pulp pull
         pulp_pull_results = self.workflow.exit_results.get(PLUGIN_PULP_PULL_KEY)
         if pulp_pull_results:
-            extra['image']['media_types'] = pulp_pull_results[1]
-        else:
-            for platform in worker_metadatas:
-                annotations = get_worker_build_info(self.workflow, platform).build.get_annotations()
-                if annotations.get('media-types'):
-                    extra['image']['media_types'] = json.loads(annotations['media-types'])
-                    break
+            media_types += pulp_pull_results[1]
+
+        if media_types:
+            extra['image']['media_types'] = sorted(list(set(media_types)))
 
     def set_manifest_list_info(self, extra, worker_metadatas):
         manifest_list_digests = self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY)

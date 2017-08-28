@@ -293,10 +293,15 @@ CMD blabla"""
     else:
         assert annotations['v1-image-id'] == expected_pulp_push_results
 
-    if expected_pulp_pull_results is False:
+    if not expected_pulp_pull_results and not expected_pulp_push_results:
         assert 'media-types' not in annotations
     else:
-        assert json.loads(annotations['media-types']) == expected_pulp_pull_results
+        media_types = []
+        if expected_pulp_push_results:
+            media_types = ['application/json']
+        if pulp_pull_results:
+            media_types += pulp_pull_results[1]
+        assert sorted(json.loads(annotations['media-types'])) == sorted(list(set(media_types)))
 
 
 @pytest.mark.parametrize(('res'), (
