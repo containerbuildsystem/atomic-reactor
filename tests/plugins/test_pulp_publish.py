@@ -143,7 +143,6 @@ def test_pulp_publish_success(caplog):
     tasker, workflow = prepare(success=True)
     plugin = PulpPublishPlugin(tasker, workflow, 'pulp_registry_name')
 
-
     (flexmock(dockpulp.Pulp).should_receive('crane')
      .with_args(set(['redhat-image-name1',
                      'redhat-image-name3',

@@ -7,11 +7,9 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
-from atomic_reactor.plugins.post_pulp_pull import (PulpPullPlugin,
-                                                   CraneTimeoutError)
+from atomic_reactor.plugins.post_pulp_pull import PulpPullPlugin
 from atomic_reactor.inner import TagConf, PushConf
 from atomic_reactor.util import ImageName
-from docker.errors import NotFound
 
 from flexmock import flexmock
 import pytest
