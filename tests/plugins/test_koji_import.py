@@ -1300,43 +1300,111 @@ class TestKojiImport(object):
         elif expect_result in ['skip', 'unknown_status']:
             assert 'help' not in image.keys()
 
-    @pytest.mark.parametrize('has_pulp_sync', (True, False))
-    @pytest.mark.parametrize('version', [
-        # no pulp plugin used
-        None,
-        # V1-only image
-        ["application/json"],
-        # V1+V2schema1 image, i.e. what we are building today
-        ["application/json", "application/vnd.docker.distribution.manifest.v1+json"],
-        # V1+V2schema2 image
-        ["application/json", "application/vnd.docker.distribution.manifest.v1+json",
-         "application/vnd.docker.distribution.manifest.v2+json"],
-        # manifest lists, as well as compatibility formats back to V1
-        ["application/json", "application/vnd.docker.distribution.manifest.v1+json",
-         "application/vnd.docker.distribution.manifest.v2+json",
-         "application/vnd.docker.distribution.manifest.list.v2+json"],
-        # manifest lists, with compatibility formats back to V2schema1, without V1
-        ["application/vnd.docker.distribution.manifest.v1+json",
-         "application/vnd.docker.distribution.manifest.v2+json",
-         "application/vnd.docker.distribution.manifest.list.v2+json"],
+    @pytest.mark.parametrize(('config', 'expected'), [
+        ({'pulp_push': False,
+          'pulp_pull_in_worker': False,
+          'pulp_pull_in_orchestrator': False,
+          'schema1': False,
+          'schema2': False,
+          'list': False},
+         None),
+        ({'pulp_push': True,
+          'pulp_pull_in_worker': False,
+          'pulp_pull_in_orchestrator': False,
+          'schema1': False,
+          'schema2': False,
+          'list': False},
+         ["application/json"]),
+        ({'pulp_push': True,
+          'pulp_pull_in_worker': True,
+          'pulp_pull_in_orchestrator': False,
+          'schema1': True,
+          'schema2': False,
+          'list': False},
+         ["application/json",
+          "application/vnd.docker.distribution.manifest.v1+json"]),
+        ({'pulp_push': False,
+          'pulp_pull_in_worker': True,
+          'pulp_pull_in_orchestrator': False,
+          'schema1': True,
+          'schema2': False,
+          'list': False},
+         ["application/vnd.docker.distribution.manifest.v1+json"]),
+        ({'pulp_push': True,
+          'pulp_pull_in_worker': True,
+          'pulp_pull_in_orchestrator': False,
+          'schema1': True,
+          'schema2': True,
+          'list': False},
+         ["application/json",
+          "application/vnd.docker.distribution.manifest.v1+json",
+          "application/vnd.docker.distribution.manifest.v2+json"]),
+        ({'pulp_push': True,
+          'pulp_pull_in_worker': False,
+          'pulp_pull_in_orchestrator': True,
+          'schema1': True,
+          'schema2': True,
+          'list': False},
+         ["application/json",
+          "application/vnd.docker.distribution.manifest.v1+json",
+          "application/vnd.docker.distribution.manifest.v2+json"]),
+        ({'pulp_push': True,
+          'pulp_pull_in_worker': False,
+          'pulp_pull_in_orchestrator': True,
+          'schema1': True,
+          'schema2': True,
+          'list': True},
+         ["application/json",
+          "application/vnd.docker.distribution.manifest.v1+json",
+          "application/vnd.docker.distribution.manifest.v2+json",
+          "application/vnd.docker.distribution.manifest.list.v2+json"]),
+        ({'pulp_push': True,
+          'pulp_pull_in_worker': False,
+          'pulp_pull_in_orchestrator': True,
+          'schema1': False,
+          'schema2': True,
+          'list': True},
+         ["application/json",
+          "application/vnd.docker.distribution.manifest.v2+json",
+          "application/vnd.docker.distribution.manifest.list.v2+json"]),
+        ({'pulp_push': False,
+          'pulp_pull_in_worker': False,
+          'pulp_pull_in_orchestrator': True,
+          'schema1': True,
+          'schema2': True,
+          'list': True},
+         ["application/vnd.docker.distribution.manifest.v1+json",
+          "application/vnd.docker.distribution.manifest.v2+json",
+          "application/vnd.docker.distribution.manifest.list.v2+json"]),
     ])
-    def test_koji_import_set_media_types(self, tmpdir, os_env, has_pulp_sync, version):
+    def test_koji_import_set_media_types(self, tmpdir, os_env, config, expected):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
                                             name='ns/name',
                                             version='1.0',
                                             release='1',
                                             session=session)
-        if has_pulp_sync:
-            if version:
-                workflow.exit_results[PLUGIN_PULP_PULL_KEY] = ("acbdef1234", version)
-        else:
-            build_info = BuildInfo(media_types=version)
+        worker_media_types = []
+        if config['pulp_push']:
+            worker_media_types += ["application/json"]
+        pulp_pull_media_types = []
+        if config['schema1']:
+            pulp_pull_media_types += ['application/vnd.docker.distribution.manifest.v1+json']
+        if config['schema2']:
+            pulp_pull_media_types += ['application/vnd.docker.distribution.manifest.v2+json']
+        if config['list']:
+            pulp_pull_media_types += ['application/vnd.docker.distribution.manifest.list.v2+json']
+        if config['pulp_pull_in_worker']:
+            worker_media_types += pulp_pull_media_types
+        if worker_media_types:
+            build_info = BuildInfo(media_types=worker_media_types)
             orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
             orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = build_info
             workflow.postbuild_results[PLUGIN_PULP_SYNC_KEY] = [
                 ImageName.parse('crane.example.com/ns/name:1.0-1'),
             ]
+        if config['pulp_pull_in_orchestrator']:
+            workflow.exit_results[PLUGIN_PULP_PULL_KEY] = ("acbdef1234", pulp_pull_media_types)
         runner = create_runner(tasker, workflow)
         runner.run()
 
@@ -1350,9 +1418,9 @@ class TestKojiImport(object):
         assert 'image' in extra
         image = extra['image']
         assert isinstance(image, dict)
-        if version:
+        if expected:
             assert 'media_types' in image.keys()
-            assert image['media_types'] == version
+            assert sorted(image['media_types']) == sorted(expected)
         else:
             assert 'media_types' not in image.keys()
 
