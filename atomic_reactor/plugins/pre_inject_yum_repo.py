@@ -20,7 +20,10 @@ logger = None
 
 def alter_yum_commands(df, wrap_str):
     regex = re.compile(r"RUN\s+(?P<yum_command>yum((\s.+\\\n)+)?(.+))", re.MULTILINE)
-    sub_func = lambda match: wrap_str % {'yum_command': match.group('yum_command').rstrip()}
+
+    def sub_func(match):
+        return wrap_str % {'yum_command': match.group('yum_command').rstrip()}
+
     return regex.sub(sub_func, df)
 
 

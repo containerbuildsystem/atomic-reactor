@@ -519,7 +519,6 @@ class InputPlugin(Plugin):
         :param build_json: dict, build json
         :return: dict, substituted build json
         """
-        print(self.substitutions)
         process_substitutions(build_json, self.substitutions)
         return build_json
 

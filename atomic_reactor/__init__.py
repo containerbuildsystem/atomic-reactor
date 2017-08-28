@@ -15,7 +15,7 @@ from os import fdopen, dup
 import sys
 import time
 
-from atomic_reactor.version import __version__
+from atomic_reactor.version import __version__  # noqa
 
 try:
     from osbs.constants import ATOMIC_REACTOR_LOGGING_FMT
@@ -92,5 +92,6 @@ def set_logging(name="atomic_reactor", level=logging.DEBUG, handler=None):
     logger = logging.getLogger('osbs')
     for hdlr in list(logger.handlers):  # make a copy so it doesn't change
         hdlr.setFormatter(formatter)
+
 
 set_logging(level=logging.WARNING)  # override this however you want

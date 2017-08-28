@@ -74,7 +74,9 @@ def construct_kwargs(**kwargs):
     recognized_kwargs = ['image', 'parent_registry', 'parent_registry_insecure',
                          'target_registries', 'target_registries_insecure',
                          'dont_pull_base_image']
-    is_recognized_kwarg = lambda x: x in recognized_kwargs or x.startswith('source__')
+
+    def is_recognized_kwarg(x):
+        return x in recognized_kwargs or x.startswith('source__')
 
     for k, v in kwargs.items():
         if is_recognized_kwarg(k):
