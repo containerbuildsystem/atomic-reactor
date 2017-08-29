@@ -57,6 +57,7 @@ class TestPostPulpPull(object):
 
     media_type_v1 = 'application/vnd.docker.distribution.manifest.v1+json'
     media_type_v2 = 'application/vnd.docker.distribution.manifest.v2+json'
+    media_type_v2_list = 'application/vnd.docker.distribution.manifest.list.v2+json'
 
     def get_response_config_json(media_type):
         return {
@@ -120,11 +121,23 @@ class TestPostPulpPull(object):
               _content=json.dumps(broken_response).encode('utf-8'),
               headers={}))
 
+    config_response_config_v2_list = requests.Response()
+    (flexmock(config_response_config_v2_list,
+              raise_for_status=lambda: None,
+              status_code=requests.codes.ok,
+              json=get_response_config_json(media_type_v2_list),
+              headers={
+                'Content-Type': 'application/vnd.docker.distribution.manifest.list.v2+json',
+              }))
+
     def custom_get_v1(self, url, headers, **kwargs):
         return self.config_response_config_v1
 
     def custom_get_v2(self, url, headers, **kwargs):
         return self.config_response_config_v2
+
+    def custom_get_v2_list(self, url, headers, **kwargs):
+        return self.config_response_config_v2_list
 
     def custom_get_v2_no_headers(self, url, headers, **kwargs):
         return self.config_response_config_v2_no_headers
@@ -158,6 +171,18 @@ class TestPostPulpPull(object):
          ['application/json',
           'application/vnd.docker.distribution.manifest.v1+json',
           'application/vnd.docker.distribution.manifest.v2+json']),
+        ('list.v2', [],
+         ['application/vnd.docker.distribution.manifest.list.v2+json']),
+        ('list.v2', [{'name': 'pulp_push'}],
+         ['application/json',
+          'application/vnd.docker.distribution.manifest.list.v2+json']),
+        ('list.v2', [{'name': 'pulp_sync'}],
+         ['application/vnd.docker.distribution.manifest.list.v2+json',
+          'application/vnd.docker.distribution.manifest.v1+json']),
+        ('list.v2', [{'name': 'pulp_sync'}, {'name': 'pulp_push'}],
+         ['application/json',
+          'application/vnd.docker.distribution.manifest.list.v2+json',
+          'application/vnd.docker.distribution.manifest.v1+json']),
     ])
     def test_pull_first_time(self, no_headers, broken_response, insecure, schema_version,
                              pulp_plugin, expected_version):
@@ -172,6 +197,8 @@ class TestPostPulpPull(object):
 
         if schema_version == 'v1':
             getter = self.custom_get_v1
+        elif schema_version == 'list.v2':
+            getter = self.custom_get_v2_list
         elif no_headers:
             if broken_response:
                 getter = self.custom_get_v2_broken
@@ -184,7 +211,7 @@ class TestPostPulpPull(object):
             .should_receive('get')
             .replace_with(getter))
 
-        if schema_version == 'v1' or broken_response:
+        if schema_version in ['v1', 'list.v2'] or broken_response:
             (flexmock(tasker)
                 .should_call('pull_image')
                 .with_args(self.EXPECTED_IMAGE, insecure=insecure)
@@ -299,6 +326,7 @@ class TestPostPulpPull(object):
             expectation.and_return(self.config_response_config_v2)
         else:
             expectation.and_return(self.config_response_config_v1)
+        expectation.and_return(self.config_response_config_v2_list)
 
         expectation = flexmock(tasker).should_call('pull_image')
         if v2:

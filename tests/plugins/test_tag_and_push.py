@@ -211,6 +211,13 @@ def test_tag_and_push_plugin(
                 'Content-Type': 'application/vnd.docker.distribution.manifest.v2+json',
                 'Docker-Content-Digest': DIGEST_V2
               }))
+    manifest_response_v2_list = requests.Response()
+    (flexmock(manifest_response_v2_list,
+              raise_for_status=lambda: None,
+              json=manifest_json,
+              headers={
+                'Content-Type': 'application/vnd.docker.distribution.manifest.list.v2+json',
+              }))
 
     config_blob_response = requests.Response()
     (flexmock(config_blob_response, raise_for_status=lambda: None, json=config_json))
@@ -222,6 +229,9 @@ def test_tag_and_push_plugin(
 
             if headers['Accept'] == 'application/vnd.docker.distribution.manifest.v2+json':
                 return manifest_response_v2
+
+            if headers['Accept'] == 'application/vnd.docker.distribution.manifest.list.v2+json':
+                return manifest_response_v2_list
 
         if url == manifest_url:
             return manifest_response_v2
