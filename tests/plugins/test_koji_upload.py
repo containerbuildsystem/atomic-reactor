@@ -222,7 +222,8 @@ def mock_environment(tmpdir, session=None, name=None,
                      source=None, build_process_failed=False,
                      docker_registry=True, pulp_registries=0,
                      blocksize=None, task_states=None,
-                     additional_tags=None, has_config=None):
+                     additional_tags=None, has_config=None,
+                     prefer_schema1_digest=True):
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -275,7 +276,8 @@ def mock_environment(tmpdir, session=None, name=None,
 
         for image in workflow.tag_conf.images:
             tag = image.to_str(registry=False)
-            if pulp_registries:
+
+            if pulp_registries and prefer_schema1_digest:
                 docker_reg.digests[tag] = ManifestDigest(v1=fake_digest(image),
                                                          v2='sha256:not-used')
             else:
@@ -325,7 +327,7 @@ def os_env(monkeypatch):
 
 
 def create_runner(tasker, workflow, ssl_certs=False, principal=None,
-                  keytab=None, blocksize=None, target=None):
+                  keytab=None, blocksize=None, target=None, prefer_schema1_digest=None):
     args = {
         'kojihub': '',
         'url': '/',
@@ -347,6 +349,9 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
     if target:
         args['target'] = target
         args['poll_interval'] = 0
+
+    if prefer_schema1_digest is not None:
+        args['prefer_schema1_digest'] = prefer_schema1_digest
 
     plugins_conf = [
         {'name': KojiUploadPlugin.key, 'args': args},
@@ -872,9 +877,10 @@ class TestKojiUpload(object):
 
     ])
     @pytest.mark.parametrize('has_config', (True, False))
+    @pytest.mark.parametrize('prefer_schema1_digest', (True, False))
     def test_koji_upload_success(self, tmpdir, apis, docker_registry,
                                  pulp_registries, blocksize, target,
-                                 os_env, has_config):
+                                 os_env, has_config, prefer_schema1_digest):
         osbs = MockedOSBS()
         session = MockedClientSession('')
         component = 'component'
@@ -895,8 +901,11 @@ class TestKojiUpload(object):
                                             docker_registry=docker_registry,
                                             pulp_registries=pulp_registries,
                                             blocksize=blocksize,
-                                            has_config=has_config)
-        runner = create_runner(tasker, workflow, blocksize=blocksize, target=target)
+                                            has_config=has_config,
+                                            prefer_schema1_digest=prefer_schema1_digest,
+                                            )
+        runner = create_runner(tasker, workflow, blocksize=blocksize, target=target,
+                               prefer_schema1_digest=prefer_schema1_digest)
         runner.run()
 
         data = get_metadata(workflow, osbs)

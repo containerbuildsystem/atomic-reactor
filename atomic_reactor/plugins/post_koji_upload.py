@@ -79,7 +79,7 @@ class KojiUploadPlugin(PostBuildPlugin):
                  koji_upload_dir, verify_ssl=True, use_auth=True,
                  koji_ssl_certs_dir=None, koji_proxy_user=None,
                  koji_principal=None, koji_keytab=None,
-                 blocksize=None):
+                 blocksize=None, prefer_schema1_digest=True):
         """
         constructor
 
@@ -96,6 +96,8 @@ class KojiUploadPlugin(PostBuildPlugin):
         :param koji_principal: str, Kerberos principal (must specify keytab)
         :param koji_keytab: str, keytab name (must specify principal)
         :param blocksize: int, blocksize to use for uploading files
+        :param prefer_schema1_digest: bool, when True, v2 schema 1 digest will
+            be preferred as the built image digest
         """
         super(KojiUploadPlugin, self).__init__(tasker, workflow)
 
@@ -109,6 +111,7 @@ class KojiUploadPlugin(PostBuildPlugin):
         self.blocksize = blocksize
         self.build_json_dir = build_json_dir
         self.koji_upload_dir = koji_upload_dir
+        self.prefer_schema1_digest = prefer_schema1_digest
 
         self.namespace = get_build_json().get('metadata', {}).get('namespace', None)
         osbs_conf = Configuration(conf_file=None, openshift_uri=url,
@@ -398,14 +401,23 @@ class KojiUploadPlugin(PostBuildPlugin):
             for image in self.workflow.tag_conf.images:
                 image_str = image.to_str()
                 if image_str in registry.digests:
-                    # pulp/crane supports only manifest schema v1
-                    if self.workflow.push_conf.pulp_registries:
-                        digest = registry.digests[image_str].v1
-                    else:
-                        digest = registry.digests[image_str].default
+                    digest = self.select_digest(registry.digests[image_str])
                     digests[image.to_str(registry=False)] = digest
 
         return digests
+
+    def select_digest(self, digests):
+        digest = digests.default
+
+        # pulp/crane supports only manifest schema v1
+        if self.prefer_schema1_digest:
+            if self.workflow.push_conf.pulp_registries:
+                self.log.info('Using schema v1 digest because of older Pulp integration')
+                digest = digests.v1
+            else:
+                self.log.info('Schema v1 preferred, but not used')
+
+        return digest
 
     def get_repositories(self, digests):
         """
