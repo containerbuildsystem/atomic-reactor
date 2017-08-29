@@ -122,7 +122,6 @@ class GroupManifestsPlugin(PostBuildPlugin):
 
     def get_worker_manifest(self, worker_data):
         worker_digests = worker_data['digests']
-        worker_manifest = []
 
         msg = "worker_registries {0}".format(self.worker_registries)
         self.log.debug(msg)
@@ -175,10 +174,11 @@ class GroupManifestsPlugin(PostBuildPlugin):
                 headers = {'Content-Type': v2schema2}
                 kwargs = {'verify': not insecure, 'headers': headers, 'auth': auth}
 
+                push_conf_registry = self.workflow.push_conf.add_docker_registry(registry,
+                                                                                 insecure=insecure)
                 for image in self.workflow.tag_conf.images:
-                    image_tag = image.to_str(registry=False).split(':')[1]
-                    url = '{0}/v2/{1}/manifests/{2}'.format(registry, repo, image_tag)
-                    self.log.debug("for image_tag %s, putting at %s", image_tag, url)
+                    url = '{0}/v2/{1}/manifests/{2}'.format(registry, repo, image.tag)
+                    self.log.debug("for image_tag %s, putting at %s", image.tag, url)
                     response = requests.put(url, data=image_manifest, **kwargs)
 
                     if not response.ok:
@@ -187,11 +187,9 @@ class GroupManifestsPlugin(PostBuildPlugin):
                         self.log.error(msg)
                     response.raise_for_status()
 
-                worker_manifest.append(image_manifest)
-                self.log.debug("appending an image_manifest")
+                    # add a tag for any plugins running later that expect it
+                    push_conf_registry.digests[image.tag] = digest
                 break
-
-        return worker_manifest
 
     def run(self):
         if self.group:
