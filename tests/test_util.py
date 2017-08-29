@@ -358,8 +358,9 @@ def test_get_manifest_digests(tmpdir, image, registry, insecure, creds,
         if all_headers:
             headers = {
                 'Content-Type': '{}+jsonish'.format(media_type_prefix),
-                'Docker-Content-Digest': digest
             }
+            if not media_type.endswith('list.v2+json'):
+                headers['Docker-Content-Digest'] = digest
         else:
             headers = {}
         return (200, headers, '')
@@ -385,12 +386,15 @@ def test_get_manifest_digests(tmpdir, image, registry, insecure, creds,
     expected_result = dict(
         (version, '{}-digest'.format(version))
         for version in expected_versions)
+    if versions and 'v2_list' in versions:
+        expected_result['v2_list'] = True
 
     if expected_versions:
         actual_digests = get_manifest_digests(**kwargs)
         assert actual_digests.v1 == expected_result.get('v1')
         assert actual_digests.v2 == expected_result.get('v2')
-        assert actual_digests.v2_list == expected_result.get('v2_list')
+        if 'v2_list' in expected_result:
+            assert actual_digests.v2_list == expected_result.get('v2_list')
     elif require_digest:
         with pytest.raises(RuntimeError):
             get_manifest_digests(**kwargs)

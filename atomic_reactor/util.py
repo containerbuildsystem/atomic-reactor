@@ -687,7 +687,7 @@ def query_registry(image, registry, digest=None, insecure=False, dockercfg_path=
 
     for idx, r in enumerate(registries):
         url = '{}/v2/{}/{}/{}'.format(r, context, object_type, reference)
-        logger.debug("url: {}".format(url))
+        logger.debug("url: {}, headers: {}".format(url, headers))
 
         try:
             response = requests.get(url, **kwargs)
@@ -702,7 +702,7 @@ def query_registry(image, registry, digest=None, insecure=False, dockercfg_path=
 
 
 def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
-                         versions=('v1', 'v2'), require_digest=True):
+                         versions=('v1', 'v2', 'v2_list'), require_digest=True):
     """Return manifest digest for image.
 
     :param image: ImageName, the remote image to inspect
@@ -766,7 +766,7 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
 
         # set it to truthy value so that koji_import would know pulp supports these digests
         digests[version] = True
-        logger.debug('received_media_type=%s', received_media_type)
+        logger.debug('Received media type %s', received_media_type)
 
         if not response.headers.get('Docker-Content-Digest'):
             logger.warning('Unable to fetch digest for %s, no Docker-Content-Digest header',
