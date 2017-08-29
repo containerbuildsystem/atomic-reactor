@@ -96,7 +96,12 @@ class PulpPublishPlugin(ExitPlugin):
         return crane_repos
 
     def delete_v1_layers(self, repo_prefix="redhat-"):
-        worker_builds = self.workflow.build_result.annotations['worker-builds']
+        annotations = self.workflow.build_result.annotations
+        if not annotations:
+            # No worker builds created
+            return
+
+        worker_builds = annotations['worker-builds']
 
         for platform in worker_builds:
             build_info = get_worker_build_info(self.workflow, platform)
@@ -111,10 +116,10 @@ class PulpPublishPlugin(ExitPlugin):
                 for repo_id in pulp_repos:
                     self.log.info("removing %s from repo %s", v1_image_id, repo_id)
                     self.pulp_handler.remove_image(repo_id, v1_image_id)
-        return []
 
     def run(self):
         if self.workflow.build_process_failed:
-            return self.delete_v1_layers()
+            self.delete_v1_layers()
+            return []
         else:
             return self.publish_to_crane()
