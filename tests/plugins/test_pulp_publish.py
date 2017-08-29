@@ -165,12 +165,17 @@ def test_pulp_publish_success(caplog):
 
 @pytest.mark.skipif(dockpulp is None,
                     reason='dockpulp module not available')
+@pytest.mark.parametrize(('worker_builds_created'), [True, False])
 @pytest.mark.parametrize(("v1_image_ids", "expected"), [
     ({'x86_64': None, 'ppc64le': None}, False),
     ({'x86_64': None, 'ppc64le': 'ppc64le_v1_image_id'}, True),
 ])
-def test_pulp_publish_delete(v1_image_ids, expected, caplog):
+def test_pulp_publish_delete(worker_builds_created, v1_image_ids,
+                             expected, caplog):
     tasker, workflow = prepare(success=False, v1_image_ids=v1_image_ids)
+    if not worker_builds_created:
+        workflow.build_result = BuildResult(fail_reason="not built")
+
     plugin = PulpPublishPlugin(tasker, workflow, 'pulp_registry_name')
     msg = "removing ppc64le_v1_image_id from"
 
@@ -183,7 +188,7 @@ def test_pulp_publish_delete(v1_image_ids, expected, caplog):
     crane_images = plugin.run()
 
     assert crane_images == []
-    if expected:
+    if expected and worker_builds_created:
         assert msg in caplog.text()
     else:
         assert msg not in caplog.text()
