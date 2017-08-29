@@ -112,7 +112,7 @@ class PulpPublishPlugin(ExitPlugin):
                 self.pulp_handler.create_dockpulp()
                 if not repo_prefix:
                     repo_prefix = ''
-                pulp_repos = ['%s%s' % (repo_prefix, image.pulp_repo) for image in image_names]
+                pulp_repos = set(['%s%s' % (repo_prefix, image.pulp_repo) for image in image_names])
                 for repo_id in pulp_repos:
                     self.log.info("removing %s from repo %s", v1_image_id, repo_id)
                     self.pulp_handler.remove_image(repo_id, v1_image_id)
