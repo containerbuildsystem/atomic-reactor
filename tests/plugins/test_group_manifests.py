@@ -131,6 +131,10 @@ def mock_environment(tmpdir, primary_images=None,
 
 
 def mock_url_responses(docker_registry, test_images, worker_digests, version='2', respond=True):
+    def verify_put_body(req):
+        assert req.body == body.encode('utf-8')
+        return (status, req.headers, '')
+
     responses.reset()
     for worker_digest in worker_digests:
         digest = worker_digest[0]['digest']
@@ -148,11 +152,6 @@ def mock_url_responses(docker_registry, test_images, worker_digests, version='2'
                 body = json.dumps({'error': 'INVALID MANIFEST'})
             for image_tag in test_images:
                 url = '{0}/v2/{1}/manifests/{2}'.format(registry, repo, image_tag.split(':')[1])
-
-                def verify_put_body(req):
-                    assert req.body == body.encode('utf-8')
-                    return (status, req.headers, '')
-
                 responses.add_callback(responses.PUT, url, callback=verify_put_body)
 
 
@@ -323,6 +322,11 @@ class TestGroupManifests(object):
         if valid and respond:
             result = runner.run()
             assert result['group_manifests'] == []
+            expected_digests = {}
+            for image in workflow.tag_conf.primary_images:
+                expected_digests[image.tag] = "sha256:worker-build-x86_64-digest"
+            assert workflow.push_conf.docker_registries
+            assert expected_digests == workflow.push_conf.docker_registries[0].digests
         else:
             with pytest.raises(PluginFailedException):
                 runner.run()
