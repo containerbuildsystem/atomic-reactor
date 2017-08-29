@@ -182,7 +182,7 @@ class KojiImportPlugin(ExitPlugin):
         if media_types:
             extra['image']['media_types'] = sorted(list(set(media_types)))
 
-    def set_manifest_list_info(self, extra, worker_metadatas):
+    def set_group_manifest_info(self, extra, worker_metadatas):
         manifest_list_digests = self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY)
         if manifest_list_digests:
             index = {}
@@ -204,6 +204,18 @@ class KojiImportPlugin(ExitPlugin):
                         break
                 break
             extra['image']['index'] = index
+        # group_manifests returns None if didn't run, [] if group=False
+        elif manifest_list_digests == []:
+            for platform in worker_metadatas:
+                if platform == "x86_64":
+                    for instance in worker_metadatas[platform]['output']:
+                        if instance['type'] == 'docker-image':
+                            # koji_upload, running in the worker, doesn't have the full tags
+                            # so set them here
+                            tags = [image.tag for image in self.workflow.tag_conf.images]
+                            instance['extra']['docker']['tags'] = tags
+                            self.log.debug("reset tags to so that docker is %s",
+                                           instance['extra']['docker'])
 
     def get_build(self, metadata, worker_metadatas):
         start_time = int(atomic_reactor_start_time)
@@ -245,7 +257,7 @@ class KojiImportPlugin(ExitPlugin):
 
         self.set_help(extra, worker_metadatas)
         self.set_media_types(extra, worker_metadatas)
-        self.set_manifest_list_info(extra, worker_metadatas)
+        self.set_group_manifest_info(extra, worker_metadatas)
 
         build = {
             'name': component,
