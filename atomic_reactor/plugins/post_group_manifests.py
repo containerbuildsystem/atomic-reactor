@@ -167,12 +167,11 @@ class GroupManifestsPlugin(PostBuildPlugin):
                 self.log.debug("attempting get from %s", url)
                 response = requests.get(url, **kwargs)
 
-                image_manifest = response.json()
-
-                if image_manifest['schemaVersion'] == '1':
+                if response.json()['schemaVersion'] == '1':
                     msg = 'invalid schema from {0}'.format(url)
                     raise PluginFailedException(msg)
 
+                image_manifest = response.content
                 headers = {'Content-Type': v2schema2}
                 kwargs = {'verify': not insecure, 'headers': headers, 'auth': auth}
 
@@ -180,7 +179,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
                     image_tag = image.to_str(registry=False).split(':')[1]
                     url = '{0}/v2/{1}/manifests/{2}'.format(registry, repo, image_tag)
                     self.log.debug("for image_tag %s, putting at %s", image_tag, url)
-                    response = requests.put(url, json=image_manifest, **kwargs)
+                    response = requests.put(url, data=image_manifest, **kwargs)
 
                     if not response.ok:
                         msg = "PUT failed: {0},\n manifest was: {1}".format(response.json(),
