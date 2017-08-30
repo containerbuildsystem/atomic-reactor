@@ -734,6 +734,7 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
                            media_type, response.status_code)
             continue
 
+        logger.debug("status code: %s", response.status_code)
         response.raise_for_status()
 
         received_media_type = None
@@ -746,9 +747,12 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
                 manifest = json.loads(response.content.decode(encoding))
                 received_media_type = manifest['mediaType']
             except (ValueError,  # not valid JSON
-                    KeyError):   # no mediaType key
+                    KeyError) as ex:  # no mediaType key
                 logger.warning("Unable to fetch media type: neither Content-Type header "
                                "nor mediaType in output was found")
+                logger.debug("exception: %r", ex)
+                logger.debug("response content: %r", response.content)
+                logger.debug("response headers: %s", response.headers)
 
         if not received_media_type:
             continue
