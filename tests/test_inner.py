@@ -452,7 +452,7 @@ def test_workflow_compat(request):
 
     workflow.build_docker_image()
     assert watch_exit.was_called()
-    assert len(fake_logger.errors) > 0
+    assert len(fake_logger.errors) == 0  # This is explicitly allowed now
 
 
 class Pre(PreBuildPlugin):
