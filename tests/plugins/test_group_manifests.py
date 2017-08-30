@@ -139,7 +139,7 @@ def mock_url_responses(docker_registry, test_images, worker_digests, version='2'
             if not registry.startswith('http://') and not registry.startswith('https://'):
                 registry = 'https://' + registry
             url = '{0}/v2/{1}/manifests/{2}'.format(registry, repo, digest)
-            body = json.dumps({'tag': 'testtag', 'schemaVersion': version})
+            body = json.dumps({'tag': 'testtag', 'schemaVersion': version}, indent=2)
             responses.add(responses.GET, url, body=body)
             if respond:
                 status = 200
@@ -148,7 +148,12 @@ def mock_url_responses(docker_registry, test_images, worker_digests, version='2'
                 body = json.dumps({'error': 'INVALID MANIFEST'})
             for image_tag in test_images:
                 url = '{0}/v2/{1}/manifests/{2}'.format(registry, repo, image_tag.split(':')[1])
-                responses.add(responses.PUT, url, status=status, json=body)
+
+                def verify_put_body(req):
+                    assert req.body == body.encode('utf-8')
+                    return (status, req.headers, '')
+
+                responses.add_callback(responses.PUT, url, callback=verify_put_body)
 
 
 class TestGroupManifests(object):
