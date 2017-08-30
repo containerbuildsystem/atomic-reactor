@@ -38,7 +38,8 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
 
     def __init__(self, tasker, workflow,
                  timeout=600, retry_delay=30,
-                 insecure=False, secret=None):
+                 insecure=False, secret=None,
+                 expect_v2schema2=False):
         """
         constructor
 
@@ -48,6 +49,8 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
         :param retry_delay: int, seconds between pull attempts
         :param insecure: bool, allow non-https pull if true
         :param secret: str, path to secret
+        :param expect_v2schema2: bool, require Pulp to return a schema 2 digest and
+                                       retry until it does
         """
         # call parent constructor
         super(PulpPullPlugin, self).__init__(tasker, workflow)
@@ -55,19 +58,25 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
         self.retry_delay = retry_delay
         self.insecure = insecure
         self.secret = secret
+        self.expect_v2schema2 = expect_v2schema2
 
     def retry_if_not_found(self, func, *args, **kwargs):
         start = time()
 
         while True:
             try:
-                return func(*args, **kwargs)
+                digests = func(*args, **kwargs)
             except requests.exceptions.HTTPError as ex:
                 # Retry for 404 not-found because we assume Crane has
                 # not spotted the new Pulp content yet. For all other
                 # errors, give up.
                 if ex.response.status_code != requests.codes.not_found:
                     raise
+            else:
+                if not self.expect_v2schema2 or digests.v2:
+                    return digests
+                elif self.expect_v2schema2:
+                    self.log.warn("Expected schema 2 manifest, but only schema 1 found")
 
             if time() - start > self.timeout:
                 raise CraneTimeoutError("{} seconds exceeded"

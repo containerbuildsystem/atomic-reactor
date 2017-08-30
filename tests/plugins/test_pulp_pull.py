@@ -299,13 +299,18 @@ class TestPostPulpPull(object):
         assert results == test_id
         assert len(tasker.pulled_images) == 1
 
-    @pytest.mark.parametrize('v2', [False, True])
+    @pytest.mark.parametrize('v2,expect_v2schema2', [
+        (False, False),
+        (False, True),
+        (True, False),
+        (True, True),
+    ])
     @pytest.mark.parametrize('timeout,retry_delay,failures,expect_success', [
         (0.1, 0.06, 1, True),
         (0.1, 0.06, 1, True),
         (0.1, 0.06, 3, False),
     ])
-    def test_pull_retry(self, v2, timeout, retry_delay, failures,
+    def test_pull_retry(self, expect_v2schema2, v2, timeout, retry_delay, failures,
                         expect_success):
         workflow = self.workflow()
         tasker = MockerTasker()
@@ -328,16 +333,21 @@ class TestPostPulpPull(object):
             expectation.and_return(self.config_response_config_v1)
         expectation.and_return(self.config_response_config_v2_list)
 
+        # A special case for retries - schema 2 manifest digest is expected,
+        # but its never being sent - the test should fail on timeout
+        if not v2 and expect_v2schema2:
+            expect_success = False
+
         expectation = flexmock(tasker).should_call('pull_image')
         if v2:
             expectation.never()
-        else:
+        elif expect_success:
             expectation.and_return(self.EXPECTED_PULLSPEC).once()
 
         expectation = flexmock(tasker).should_receive('inspect_image')
         if v2:
             expectation.never()
-        else:
+        elif expect_success:
             (expectation
              .with_args(self.EXPECTED_PULLSPEC)
              .and_return({'Id': test_id})
@@ -345,11 +355,13 @@ class TestPostPulpPull(object):
         workflow.postbuild_plugins_conf = []
 
         plugin = PulpPullPlugin(tasker, workflow, timeout=timeout,
-                                retry_delay=retry_delay)
+                                retry_delay=retry_delay,
+                                expect_v2schema2=expect_v2schema2)
 
         if not expect_success:
             with pytest.raises(Exception):
                 plugin.run()
+            return
 
         # Plugin return value is the new ID and schema
         results, version = plugin.run()
