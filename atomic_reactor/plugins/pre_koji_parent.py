@@ -10,6 +10,7 @@ from __future__ import print_function, unicode_literals
 from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.koji_util import create_koji_session
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.constants import PLUGIN_KOJI_PARENT_KEY
 
 import time
 
@@ -34,7 +35,7 @@ class KojiParentPlugin(PreBuildPlugin):
     image that is known in Koji.
     """
 
-    key = 'koji_parent'
+    key = PLUGIN_KOJI_PARENT_KEY
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, koji_hub, koji_ssl_certs_dir=None,

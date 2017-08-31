@@ -74,6 +74,7 @@ PLUGIN_ADD_FILESYSTEM_KEY = 'add_filesystem'
 PLUGIN_FETCH_WORKER_METADATA_KEY = 'fetch_worker_metadata'
 PLUGIN_GROUP_MANIFESTS_KEY = 'group_manifests'
 PLUGIN_BUILD_ORCHESTRATE_KEY = 'orchestrate_build'
+PLUGIN_KOJI_PARENT_KEY = 'koji_parent'
 
 # max retries for docker requests
 DOCKER_MAX_RETRIES = 3
