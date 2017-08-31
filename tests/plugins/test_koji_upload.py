@@ -328,7 +328,7 @@ def os_env(monkeypatch):
 
 def create_runner(tasker, workflow, ssl_certs=False, principal=None,
                   keytab=None, blocksize=None, target=None,
-                  prefer_schema1_digest=None, buildstep_logs=None):
+                  prefer_schema1_digest=None, platform=None):
     args = {
         'kojihub': '',
         'url': '/',
@@ -354,8 +354,8 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
     if prefer_schema1_digest is not None:
         args['prefer_schema1_digest'] = prefer_schema1_digest
 
-    if buildstep_logs is not None:
-        args['buildstep_logs'] = buildstep_logs
+    if platform is not None:
+        args['platform'] = platform
 
     plugins_conf = [
         {'name': KojiUploadPlugin.key, 'args': args},
@@ -1004,12 +1004,12 @@ class TestKojiUpload(object):
         True,
         False,
     ])
-    @pytest.mark.parametrize('buildstep_logs,expected_logs', [
-        (None, set(['build.log'])),
-        ('x86_64-build.log', set(['x86_64-build.log'])),
+    @pytest.mark.parametrize('platform,expected_logs', [
+        (None, set(['x86_64-build.log'])),
+        ('foo', set(['foo-build.log'])),
     ])
     def test_koji_upload_logs(self, tmpdir, os_env, logs_return_bytes,
-                              buildstep_logs, expected_logs):
+                              platform, expected_logs):
         MockedOSBS(logs_return_bytes=logs_return_bytes)
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
@@ -1017,10 +1017,19 @@ class TestKojiUpload(object):
                                             name='name',
                                             version='1.0',
                                             release='1')
-        runner = create_runner(tasker, workflow, buildstep_logs=buildstep_logs)
+        runner = create_runner(tasker, workflow, platform=platform)
         runner.run()
 
         log_files = set(f for f in session.uploaded_files
                         if f.endswith('.log'))
 
         assert log_files == expected_logs
+
+        images = [f for f in session.uploaded_files
+                  if f not in log_files]
+        assert len(images) == 1
+
+        if platform is None:
+            platform = 'x86_64'
+
+        assert images[0].endswith(platform + ".tar.xz")
