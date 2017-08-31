@@ -327,7 +327,8 @@ def os_env(monkeypatch):
 
 
 def create_runner(tasker, workflow, ssl_certs=False, principal=None,
-                  keytab=None, blocksize=None, target=None, prefer_schema1_digest=None):
+                  keytab=None, blocksize=None, target=None,
+                  prefer_schema1_digest=None, logs_prefix=None):
     args = {
         'kojihub': '',
         'url': '/',
@@ -352,6 +353,9 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
 
     if prefer_schema1_digest is not None:
         args['prefer_schema1_digest'] = prefer_schema1_digest
+
+    if logs_prefix is not None:
+        args['logs_prefix'] = logs_prefix
 
     plugins_conf = [
         {'name': KojiUploadPlugin.key, 'args': args},
@@ -1000,11 +1004,17 @@ class TestKojiUpload(object):
         True,
         False,
     ])
-    def test_koji_upload_logs(self, tmpdir, os_env, logs_return_bytes):
+    @pytest.mark.parametrize('logs_prefix', [None, 'x86_64-'])
+    def test_koji_upload_logs(self, tmpdir, os_env, logs_return_bytes,
+                              logs_prefix):
         MockedOSBS(logs_return_bytes=logs_return_bytes)
+        session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
                                             name='name',
                                             version='1.0',
                                             release='1')
-        runner = create_runner(tasker, workflow)
+        runner = create_runner(tasker, workflow, logs_prefix=logs_prefix)
         runner.run()
+
+        assert session.uploaded_files is None

@@ -185,7 +185,7 @@ class KojiImportPlugin(ExitPlugin):
                 platform_logs[platform] = NamedTemporaryFile(prefix="%s-%s" %
                                                              (self.build_id, filename),
                                                              suffix=".log", mode='wb')
-            platform_logs[platform].write(entry.line.encode('utf-8'))
+            platform_logs[platform].write((entry.line + '\n').encode('utf-8'))
 
         for platform, logfile in platform_logs.items():
             logfile.flush()
