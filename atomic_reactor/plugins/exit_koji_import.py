@@ -24,7 +24,8 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_PULP_PULL_KEY,
                                       PLUGIN_PULP_SYNC_KEY,
                                       PLUGIN_FETCH_WORKER_METADATA_KEY,
-                                      PLUGIN_GROUP_MANIFESTS_KEY)
+                                      PLUGIN_GROUP_MANIFESTS_KEY,
+                                      PLUGIN_KOJI_PARENT_KEY)
 from atomic_reactor.util import (get_build_json, get_preferred_label,
                                  df_parser, ImageName, get_checksums)
 from atomic_reactor.koji_util import (create_koji_session, Output, KojiUploadLogger)
@@ -141,6 +142,10 @@ class KojiImportPlugin(ExitPlugin):
                 outputs.append(instance)
 
         return outputs
+
+    def get_parent_image_koji_build_id(self):
+        res = self.workflow.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY, {})
+        return res.get('parent-image-koji-build-id')
 
     def get_buildroot(self, worker_metadatas):
         """
@@ -316,6 +321,16 @@ class KojiImportPlugin(ExitPlugin):
                     self.log.error("invalid task ID %r", fs_task_id, exc_info=1)
                 else:
                     extra['filesystem_koji_task_id'] = task_id
+
+        parent_id = self.get_parent_image_koji_build_id()
+        if parent_id is not None:
+            try:
+                parent_id = int(parent_id)
+            except ValueError:
+                self.log.exception("invalid koji parent id %r", parent_id)
+            else:
+                extra.setdefault('image', {})
+                extra['image']['parent_build_id'] = parent_id
 
         self.set_help(extra, worker_metadatas)
         self.set_media_types(extra, worker_metadatas)

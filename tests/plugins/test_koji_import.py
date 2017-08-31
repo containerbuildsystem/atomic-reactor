@@ -45,7 +45,7 @@ from atomic_reactor.util import ImageName, ManifestDigest
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.build import BuildResult
 from atomic_reactor.constants import (PLUGIN_PULP_PULL_KEY, PLUGIN_PULP_SYNC_KEY,
-                                      PLUGIN_GROUP_MANIFESTS_KEY)
+                                      PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY)
 from tests.constants import SOURCE, MOCK
 
 from flexmock import flexmock
@@ -961,6 +961,46 @@ class TestKojiImport(object):
             runner.run()
 
         assert 'metadata:' in caplog.text()
+
+    @pytest.mark.parametrize(('parent_id', 'expect_success', 'expect_error'), [
+        (1234, True, False),
+        (None, False, False),
+        ('x', False, True)
+    ])
+    def test_koji_import_parent_id(self, parent_id, tmpdir, expect_success, os_env, expect_error,
+                                   caplog):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            session=session)
+        workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = {
+            'parent-image-koji-build-id': parent_id,
+        }
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
+
+        if expect_error:
+            assert 'invalid koji parent id' in caplog.text()
+        if expect_success:
+            image = extra['image']
+            assert isinstance(image, dict)
+            assert 'parent_build_id' in image
+            parent_image_koji_build_id = image['parent_build_id']
+            assert isinstance(parent_image_koji_build_id, int)
+            assert parent_image_koji_build_id == parent_id
+        else:
+            if 'image' in extra:
+                assert 'parent_build_id' not in extra['image']
 
     @pytest.mark.parametrize(('task_id', 'expect_success'), [
         (1234, True),
