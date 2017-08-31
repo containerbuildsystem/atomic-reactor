@@ -11,6 +11,7 @@ from __future__ import unicode_literals
 from collections import namedtuple
 import json
 import os
+from textwrap import dedent
 try:
     import koji
 except ImportError:
@@ -75,7 +76,7 @@ class MockedClientSession(object):
     DEST_TAG = 'images-candidate'
 
     def __init__(self, hub, opts=None, task_states=None):
-        self.uploaded_files = []
+        self.uploaded_files = {}
         self.build_tags = {}
         self.task_states = task_states or ['FREE', 'ASSIGNED', 'CLOSED']
 
@@ -94,8 +95,9 @@ class MockedClientSession(object):
 
     def uploadWrapper(self, localfile, path, name=None, callback=None,
                       blocksize=1048576, overwrite=True):
-        self.uploaded_files.append(path)
         self.blocksize = blocksize
+        with open(localfile, 'rb') as fp:
+            self.uploaded_files[name] = fp.read()
 
     def CGImport(self, metadata, server_dir):
         self.metadata = metadata
@@ -241,7 +243,9 @@ def mock_environment(tmpdir, session=None, name=None,
     flexmock(subprocess, Popen=fake_Popen)
     flexmock(koji, ClientSession=lambda hub, opts: session)
     flexmock(GitSource)
-    logs = [LogEntry('x86_64', 'Hurray for bacon: \u2017')]
+    logs = [LogEntry(None, 'orchestrator'),
+            LogEntry('x86_64', 'Hurray for bacon: \u2017'),
+            LogEntry('x86_64', 'line 2')]
     (flexmock(OSBS)
         .should_receive('get_orchestrator_build_logs')
         .with_args(BUILD_ID)
@@ -1162,9 +1166,17 @@ class TestKojiImport(object):
         build_id = runner.plugins_results[KojiImportPlugin.key]
         assert build_id == "123"
 
-        # if target is not None:
-        #    assert session.build_tags[build_id] == session.DEST_TAG
-        #    assert session.tag_task_state == 'CLOSED'
+        assert set(session.uploaded_files.keys()) == set([
+            'orchestrator.log',
+            'x86_64.log',
+        ])
+        orchestrator_log = session.uploaded_files['orchestrator.log']
+        assert orchestrator_log == b'orchestrator\n'
+        x86_64_log = session.uploaded_files['x86_64.log']
+        assert x86_64_log.decode('utf-8') == dedent("""\
+            Hurray for bacon: \u2017
+            line 2
+        """)
 
     @pytest.mark.parametrize('use_pulp', [False, True])
     def test_koji_import_pullspec(self, tmpdir, os_env, use_pulp):
