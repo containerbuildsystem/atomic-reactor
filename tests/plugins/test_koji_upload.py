@@ -130,7 +130,7 @@ class MockedClientSession(object):
 
     def uploadWrapper(self, localfile, path, name=None, callback=None,
                       blocksize=1048576, overwrite=True):
-        self.uploaded_files.append(path)
+        self.uploaded_files.append(name)
         self.blocksize = blocksize
         assert path.split(os.path.sep, 1)[0] == KOJI_UPLOAD_DIR
 
@@ -328,7 +328,7 @@ def os_env(monkeypatch):
 
 def create_runner(tasker, workflow, ssl_certs=False, principal=None,
                   keytab=None, blocksize=None, target=None,
-                  prefer_schema1_digest=None, logs_prefix=None):
+                  prefer_schema1_digest=None, buildstep_logs=None):
     args = {
         'kojihub': '',
         'url': '/',
@@ -354,8 +354,8 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
     if prefer_schema1_digest is not None:
         args['prefer_schema1_digest'] = prefer_schema1_digest
 
-    if logs_prefix is not None:
-        args['logs_prefix'] = logs_prefix
+    if buildstep_logs is not None:
+        args['buildstep_logs'] = buildstep_logs
 
     plugins_conf = [
         {'name': KojiUploadPlugin.key, 'args': args},
@@ -1004,9 +1004,12 @@ class TestKojiUpload(object):
         True,
         False,
     ])
-    @pytest.mark.parametrize('logs_prefix', [None, 'x86_64-'])
+    @pytest.mark.parametrize('buildstep_logs,expected_logs', [
+        (None, set(['build.log'])),
+        ('x86_64-build.log', set(['x86_64-build.log'])),
+    ])
     def test_koji_upload_logs(self, tmpdir, os_env, logs_return_bytes,
-                              logs_prefix):
+                              buildstep_logs, expected_logs):
         MockedOSBS(logs_return_bytes=logs_return_bytes)
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
@@ -1014,7 +1017,10 @@ class TestKojiUpload(object):
                                             name='name',
                                             version='1.0',
                                             release='1')
-        runner = create_runner(tasker, workflow, logs_prefix=logs_prefix)
+        runner = create_runner(tasker, workflow, buildstep_logs=buildstep_logs)
         runner.run()
 
-        assert session.uploaded_files is None
+        log_files = set(f for f in session.uploaded_files
+                        if f.endswith('.log'))
+
+        assert log_files == expected_logs
