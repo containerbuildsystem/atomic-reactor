@@ -80,7 +80,7 @@ class KojiUploadPlugin(PostBuildPlugin):
                  koji_ssl_certs_dir=None, koji_proxy_user=None,
                  koji_principal=None, koji_keytab=None,
                  blocksize=None, prefer_schema1_digest=True,
-                 buildstep_logs=None):
+                 platform='x86_64'):
         """
         constructor
 
@@ -99,7 +99,7 @@ class KojiUploadPlugin(PostBuildPlugin):
         :param blocksize: int, blocksize to use for uploading files
         :param prefer_schema1_digest: bool, when True, v2 schema 1 digest will
             be preferred as the built image digest
-        :param buildstep_logs: str, filename to use for buildstep logs
+        :param platform: str, platform name for this build
         """
         super(KojiUploadPlugin, self).__init__(tasker, workflow)
 
@@ -123,7 +123,7 @@ class KojiUploadPlugin(PostBuildPlugin):
         self.osbs = OSBS(osbs_conf, osbs_conf)
         self.build_id = None
         self.pullspec_image = None
-        self.buildstep_logs = buildstep_logs or "build.log"
+        self.platform = platform
 
     @staticmethod
     def parse_rpm_output(output, tags, separator=';'):
@@ -323,9 +323,10 @@ class KojiUploadPlugin(PostBuildPlugin):
                                          mode='wb')
         build_logs.write("\n".join(self.workflow.build_result.logs).encode('utf-8'))
         build_logs.flush()
+        filename = "{platform}-build.log".format(platform=self.platform)
         return [Output(file=build_logs,
                        metadata=self.get_output_metadata(build_logs.name,
-                                                         self.buildstep_logs))]
+                                                         filename))]
 
     def get_image_components(self):
         """
@@ -349,14 +350,13 @@ class KojiUploadPlugin(PostBuildPlugin):
         return self.parse_rpm_output(output, PostBuildRPMqaPlugin.rpm_tags,
                                      separator=sep)
 
-    def get_image_output(self, arch):
+    def get_image_output(self):
         """
         Create the output for the image
 
         This is the Koji Content Generator metadata, along with the
         'docker save' output to upload.
 
-        :param arch: str, architecture for this output
         :return: tuple, (metadata dict, Output instance)
 
         """
@@ -364,8 +364,9 @@ class KojiUploadPlugin(PostBuildPlugin):
         image_id = self.workflow.builder.image_id
         saved_image = self.workflow.exported_image_sequence[-1].get('path')
         ext = saved_image.split('.', 1)[1]
-        name_fmt = 'docker-image-{id}.{arch}.{ext}'
-        image_name = name_fmt.format(id=image_id, arch=arch, ext=ext)
+        name_fmt = 'docker-image-{id}.{platform}.{ext}'
+        image_name = name_fmt.format(id=image_id, platform=self.platform,
+                                     ext=ext)
         metadata = self.get_output_metadata(saved_image, image_name)
         output = Output(file=open(saved_image), metadata=metadata)
 
@@ -466,7 +467,7 @@ class KojiUploadPlugin(PostBuildPlugin):
         digests = self.get_digests()
         repositories = self.get_repositories(digests)
         tags = set(image.tag for image in self.workflow.tag_conf.images)
-        metadata, output = self.get_image_output(arch)
+        metadata, output = self.get_image_output()
         metadata.update({
             'arch': arch,
             'type': 'docker-image',
