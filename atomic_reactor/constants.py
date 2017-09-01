@@ -80,10 +80,10 @@ DOCKER_MAX_RETRIES = 3
 # how many seconds should wait before another try of docker request
 DOCKER_BACKOFF_FACTOR = 5
 # docker retries statuses
-DOCKER_CLIENT_STATUS_RETRY = [408, 500, 502, 503, 504]
+DOCKER_CLIENT_STATUS_RETRY = (408, 500, 502, 503, 504)
 # max retries for http requests
 HTTP_MAX_RETRIES = 3
 # how many seconds should wait before another try of http request
 HTTP_BACKOFF_FACTOR = 5
 # http retries statuses
-HTTP_CLIENT_STATUS_RETRY = [408, 500, 502, 503, 504]
+HTTP_CLIENT_STATUS_RETRY = (408, 500, 502, 503, 504)
