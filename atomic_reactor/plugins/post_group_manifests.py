@@ -21,7 +21,7 @@ from subprocess import check_output, CalledProcessError, STDOUT
 from six.moves.urllib.parse import urlparse
 
 from atomic_reactor.plugin import PostBuildPlugin, PluginFailedException
-from atomic_reactor.util import Dockercfg, get_manifest_digests
+from atomic_reactor.util import Dockercfg, get_manifest_digests, get_retrying_requests_session
 from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY
 
 
@@ -125,6 +125,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
 
         msg = "worker_registries {0}".format(self.worker_registries)
         self.log.debug(msg)
+        session = get_retrying_requests_session()
 
         for registry, registry_conf in self.registries.items():
             if registry_conf.get('version') == 'v1':
@@ -164,7 +165,8 @@ class GroupManifestsPlugin(PostBuildPlugin):
 
                 url = '{0}/v2/{1}/manifests/{2}'.format(registry, repo, digest)
                 self.log.debug("attempting get from %s", url)
-                response = requests.get(url, **kwargs)
+                response = session.get(url, **kwargs)
+                response.raise_for_status()
 
                 if response.json()['schemaVersion'] == '1':
                     msg = 'invalid schema from {0}'.format(url)
@@ -179,7 +181,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
                 for image in self.workflow.tag_conf.images:
                     url = '{0}/v2/{1}/manifests/{2}'.format(registry, repo, image.tag)
                     self.log.debug("for image_tag %s, putting at %s", image.tag, url)
-                    response = requests.put(url, data=image_manifest, **kwargs)
+                    response = session.put(url, data=image_manifest, **kwargs)
 
                     if not response.ok:
                         msg = "PUT failed: {0},\n manifest was: {1}".format(response.json(),
