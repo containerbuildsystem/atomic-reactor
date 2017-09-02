@@ -10,6 +10,8 @@ from __future__ import unicode_literals
 
 import json
 import os
+import platform
+import sys
 
 try:
     import koji
@@ -49,6 +51,11 @@ from six import string_types
 NAMESPACE = 'mynamespace'
 BUILD_ID = 'build-1'
 KOJI_UPLOAD_DIR = 'upload'
+LOCAL_ARCH = platform.processor()
+if sys.version_info[0] == 2:
+    B_LOCAL_ARCH = bytes(LOCAL_ARCH)
+elif sys.version_info[0] == 3:
+    B_LOCAL_ARCH = LOCAL_ARCH.encode()
 
 
 def noop(*args, **kwargs): return None
@@ -168,7 +175,7 @@ class MockedClientSession(object):
 
 FAKE_SIGMD5 = b'0' * 32
 FAKE_RPM_OUTPUT = (
-    b'name1;1.0;1;x86_64;0;' + FAKE_SIGMD5 + b';(none);'
+    b'name1;1.0;1;' + B_LOCAL_ARCH + b';0;' + FAKE_SIGMD5 + b';(none);'
     b'RSA/SHA256, Mon 29 Jun 2015 13:58:22 BST, Key ID abcdef01234567\n'
 
     b'gpg-pubkey;01234567;01234567;(none);(none);(none);(none);(none)\n'
@@ -176,7 +183,7 @@ FAKE_RPM_OUTPUT = (
     b'gpg-pubkey-doc;01234567;01234567;noarch;(none);' + FAKE_SIGMD5 +
     b';(none);(none)\n'
 
-    b'name2;2.0;2;x86_64;0;' + FAKE_SIGMD5 + b';' +
+    b'name2;2.0;2;' + B_LOCAL_ARCH + b';0;' + FAKE_SIGMD5 + b';' +
     b'RSA/SHA256, Mon 29 Jun 2015 13:58:22 BST, Key ID bcdef012345678;(none)\n'
     b'\n')
 
@@ -286,7 +293,7 @@ def mock_environment(tmpdir, session=None, name=None,
 
             if has_config:
                 docker_reg.config = {
-                    'config': {'architecture': 'x86_64'},
+                    'config': {'architecture': LOCAL_ARCH},
                     'container_config': {}
                 }
 
@@ -305,9 +312,9 @@ def mock_environment(tmpdir, session=None, name=None,
                                             image_id="id1234")
     workflow.prebuild_plugins_conf = {}
     workflow.postbuild_results[PostBuildRPMqaPlugin.key] = [
-        "name1;1.0;1;x86_64;0;2000;" + FAKE_SIGMD5.decode() + ";23000;"
+        "name1;1.0;1;" + LOCAL_ARCH + ";0;2000;" + FAKE_SIGMD5.decode() + ";23000;"
         "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abc;(none)",
-        "name2;2.0;1;x86_64;0;3000;" + FAKE_SIGMD5.decode() + ";24000"
+        "name2;2.0;1;" + LOCAL_ARCH + ";0;3000;" + FAKE_SIGMD5.decode() + ";24000"
         "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abd;(none)",
     ]
 
@@ -702,7 +709,7 @@ class TestKojiUpload(object):
                 'checksum_type',
                 'type',
             ])
-            assert output['arch'] == 'x86_64'
+            assert output['arch'] == LOCAL_ARCH
         else:
             assert set(output.keys()) == set([
                 'buildroot_id',
