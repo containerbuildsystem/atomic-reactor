@@ -233,7 +233,8 @@ class KojiImportPlugin(ExitPlugin):
         manifest_list_digests = self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY)
         if manifest_list_digests:
             index = {}
-            index['tags'] = [image.tag for image in self.workflow.tag_conf.images]
+            index['tags'] = [image.tag
+                             for image in self.workflow.tag_conf.primary_images]
             repositories = self.workflow.build_result.annotations['repositories']['unique']
             repo = ImageName.parse(repositories[0]).to_str(registry=False, tag=False)
             # group_manifests added the registry, so this should be valid
@@ -259,7 +260,8 @@ class KojiImportPlugin(ExitPlugin):
                         if instance['type'] == 'docker-image':
                             # koji_upload, running in the worker, doesn't have the full tags
                             # so set them here
-                            tags = [image.tag for image in self.workflow.tag_conf.images]
+                            tags = [image.tag
+                                    for image in self.workflow.tag_conf.primary_images]
                             instance['extra']['docker']['tags'] = tags
                             self.log.debug("reset tags to so that docker is %s",
                                            instance['extra']['docker'])

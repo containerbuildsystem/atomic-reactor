@@ -1464,7 +1464,8 @@ class TestKojiImport(object):
         image = extra['image']
         assert isinstance(image, dict)
         expected_results = {}
-        expected_results['tags'] = [tag.tag for tag in workflow.tag_conf.images]
+        expected_results['tags'] = [tag.tag
+                                    for tag in workflow.tag_conf.primary_images]
         if digests:
             assert 'index' in image.keys()
             pullspec = "docker.example.com/myproject/hello-world@{0}".format(digests[0].v2_list)
