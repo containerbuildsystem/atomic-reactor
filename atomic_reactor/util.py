@@ -468,10 +468,6 @@ def get_docker_architecture(tasker):
 def get_exported_image_metadata(path):
     logger.info('getting metadata for tarball %s', path)
     metadata = {'path': path}
-    if not path or not os.path.isfile(path):
-        logger.error('%s is not a file', path)
-        return
-
     metadata['size'] = os.path.getsize(path)
     logger.debug('size: %d bytes', metadata['size'])
     metadata.update(get_checksums(path, ['md5', 'sha256']))
