@@ -769,7 +769,7 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
             logger.debug('request headers: %s', headers)
             logger.debug('response headers: %s', response.headers)
             logger.warning('Received media type %s mismatches the expected %s',
-                           media_type, received_media_type)
+                           received_media_type, media_type)
             continue
 
         # set it to truthy value so that koji_import would know pulp supports these digests
