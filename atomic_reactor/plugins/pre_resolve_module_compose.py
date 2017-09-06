@@ -27,10 +27,10 @@ import os
 import re
 from modulemd import ModuleMetadata
 from pdc_client import PDCClient
-import requests
 import time
 
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.util import get_retrying_requests_session
 
 
 class ModuleInfo(object):
@@ -76,6 +76,8 @@ class ODCSClient(object):
         self.insecure = insecure
         self.token = token
         self.log = log
+        # method_whitelist=False allows retrying non-idempotent methods like POST
+        self.session = get_retrying_requests_session(method_whitelist=False)
 
     def _auth_headers(self):
         headers = {}
@@ -101,9 +103,9 @@ class ODCSClient(object):
 
         self.log.info("Starting compose for source_type={source_type}, source={source}"
                       .format(source_type=source_type, source=source))
-        response = requests.post(self.url + 'composes/',
-                                 json=body,
-                                 headers=self._auth_headers())
+        response = self.session.post(self.url + 'composes/',
+                                     json=body,
+                                     headers=self._auth_headers())
         response.raise_for_status()
 
         return response.json()
@@ -119,7 +121,7 @@ class ODCSClient(object):
         headers = self._auth_headers()
         start_time = time.time()
         while True:
-            response = requests.get(url, headers=headers)
+            response = self.session.get(url, headers=headers)
             response.raise_for_status()
             response_json = response.json()
 

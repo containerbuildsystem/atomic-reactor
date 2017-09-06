@@ -24,6 +24,7 @@ from atomic_reactor.util import ImageName
 from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
 from tests.fixtures import docker_tasker  # noqa
 from tests.flatpak import FLATPAK_APP_JSON, FLATPAK_APP_MODULEMD
+from tests.retry_mock import mock_get_retry_session
 
 
 class MockSource(object):
@@ -102,6 +103,7 @@ def test_resolve_module_compose(tmpdir, docker_tasker, specify_version):
         f.write("green_eggs_and_ham")
 
     workflow = mock_workflow(tmpdir)
+    mock_get_retry_session()
 
     def handle_composes_post(request):
         assert request.headers['OIDC_access_token'] == 'green_eggs_and_ham'
