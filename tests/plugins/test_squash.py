@@ -115,6 +115,10 @@ class TestSquashPlugin(object):
         self.run_plugin_with_args({})
         assert self.workflow.builder.image_id == expected_id
 
+    def test_skip_saving_archive(self):
+        self.should_squash_with_kwargs(output_path=None)
+        self.run_plugin_with_args({'save_archive': False})
+
     def should_squash_with_kwargs(self, new_id='abc', **kwargs):
         kwargs.setdefault('image', self.workflow.builder.image_id)
         kwargs.setdefault('load_image', True)
@@ -133,8 +137,9 @@ class TestSquashPlugin(object):
             kwargs['from_layer'] = self.workflow.base_image_inspect['Id']
 
         def mock_run():
-            with open(kwargs['output_path'], 'w') as f:
-                f.write(DUMMY_TARBALL['contents'])
+            if not kwargs['output_path'] is None:
+                with open(kwargs['output_path'], 'w') as f:
+                    f.write(DUMMY_TARBALL['contents'])
 
             return new_id
 
@@ -154,9 +159,12 @@ class TestSquashPlugin(object):
         result = runner.run()
         assert result[PrePublishSquashPlugin.key] is None
 
-        assert self.workflow.exported_image_sequence == [{
-            'md5sum': DUMMY_TARBALL['md5sum'],
-            'sha256sum': DUMMY_TARBALL['sha256sum'],
-            'size': DUMMY_TARBALL['size'],
-            'path': self.output_path,
-        }]
+        if self.output_path:
+            assert self.workflow.exported_image_sequence == [{
+                'md5sum': DUMMY_TARBALL['md5sum'],
+                'sha256sum': DUMMY_TARBALL['sha256sum'],
+                'size': DUMMY_TARBALL['size'],
+                'path': self.output_path,
+            }]
+        else:
+            assert self.workflow.exported_image_sequence == []
