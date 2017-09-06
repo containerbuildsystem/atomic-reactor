@@ -135,14 +135,14 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         for source, target in rules:
             source = re.sub("^ROOT", ROOT, source)
             if source.endswith("/"):
-                patterns.append((re.compile(source + "(.*)"), target))
-                patterns.append((source[:-1], target))
+                patterns.append((re.compile(source + "(.*)"), target, False))
+                patterns.append((source[:-1], target, True))
             else:
-                patterns.append((source, target))
+                patterns.append((source, target, True))
 
         def get_target_func(self, path):
-            for source, target in patterns:
-                if isinstance(source, str):
+            for source, target, is_exact_match in patterns:
+                if is_exact_match:
                     if source == path:
                         return target
                 else:
