@@ -56,15 +56,17 @@ class PrePublishSquashPlugin(PrePublishPlugin):
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, tag=None, from_base=True, from_layer=None,
-                 dont_load=False):
+                 dont_load=False, save_archive=True):
         """
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param from_base: bool, squash from base-image layer, on by default
         :param from_layer: layer from we will squash - if specified, takes precedence over from_base
         :param tag: str, new name of the image - by default use the former one
-        :param dont_load: if `False` (default), squashed image is loaded into Docker *and* saved
-            to `$tmpdir/image.tar`; if `True`, squashed image is only saved as a file
+        :param dont_load: if `False` (default), squashed image is loaded back into Docker daemon;
+            if `True`, squashed image is not loaded back into Docker
+        :param save_archive: if `True` (default), squashed image is saved in an archive on the
+            disk under the image.tar name; if `False`, archive is not generated
         """
         super(PrePublishSquashPlugin, self).__init__(tasker, workflow)
         self.image = self.workflow.builder.image_id
@@ -74,29 +76,36 @@ class PrePublishSquashPlugin(PrePublishPlugin):
             try:
                 base_image_id = self.workflow.base_image_inspect['Id']
             except KeyError:
-                self.log.error("Missing Id in inspection: '%s'", self.workflow.base_image_inspect)
+                self.log.error("Missing Id in inspection: '%s'",
+                               self.workflow.base_image_inspect)
                 raise
             self.log.info("will squash from base-image: '%s'", base_image_id)
             self.from_layer = base_image_id
         self.dont_load = dont_load
+        self.save_archive = save_archive
 
     def run(self):
-        metadata = {"path":
-                    os.path.join(self.workflow.source.workdir, EXPORTED_SQUASHED_IMAGE_NAME)}
-
-        if self.dont_load:
-            # squash the image, don't load it back to docker
-            Squash(log=self.log, image=self.image, from_layer=self.from_layer,
-                   tag=self.tag, output_path=metadata["path"], load_image=False).run()
+        if self.save_archive:
+            output_path = os.path.join(self.workflow.source.workdir, EXPORTED_SQUASHED_IMAGE_NAME)
+            metadata = {"path": output_path}
         else:
-            # squash the image and output both tarfile and Docker engine image
-            new_id = Squash(log=self.log, image=self.image, from_layer=self.from_layer,
-                            tag=self.tag, output_path=metadata["path"], load_image=True).run()
-            if ':' not in new_id:
-                # Older versions of the daemon do not include the prefix
-                new_id = 'sha256:{}'.format(new_id)
+            output_path = None
+
+        # Squash the image and output tarfile
+        # If the parameter dont_load is set to True squashed image won't be
+        # loaded in to Docker daemon. If it's set to False it will be loaded.
+        new_id = Squash(log=self.log, image=self.image, from_layer=self.from_layer,
+                        tag=self.tag, output_path=output_path, load_image=not self.dont_load).run()
+
+        if ':' not in new_id:
+            # Older versions of the daemon do not include the prefix
+            new_id = 'sha256:{}'.format(new_id)
+
+        if not self.dont_load:
             self.workflow.builder.image_id = new_id
 
-        metadata.update(get_exported_image_metadata(metadata["path"]))
-        self.workflow.exported_image_sequence.append(metadata)
+        if self.save_archive:
+            metadata.update(get_exported_image_metadata(output_path))
+            self.workflow.exported_image_sequence.append(metadata)
+
         defer_removal(self.workflow, self.image)
