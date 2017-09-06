@@ -995,11 +995,13 @@ class LabelFormatter(string.Formatter):
 
 
 def get_retrying_requests_session(client_statuses=HTTP_CLIENT_STATUS_RETRY,
-                                  times=HTTP_MAX_RETRIES, delay=HTTP_BACKOFF_FACTOR):
+                                  times=HTTP_MAX_RETRIES, delay=HTTP_BACKOFF_FACTOR,
+                                  method_whitelist=None):
     retry = Retry(
         total=int(times),
         backoff_factor=delay,
-        status_forcelist=client_statuses
+        status_forcelist=client_statuses,
+        method_whitelist=method_whitelist
     )
     session = requests.Session()
     session.mount('http://', HTTPAdapter(max_retries=retry))
