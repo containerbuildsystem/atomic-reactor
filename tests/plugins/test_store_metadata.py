@@ -22,7 +22,8 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_PULP_PUSH_KEY,
-                                      PLUGIN_ADD_FILESYSTEM_KEY)
+                                      PLUGIN_ADD_FILESYSTEM_KEY,
+                                      PLUGIN_GROUP_MANIFESTS_KEY)
 from atomic_reactor.build import BuildResult
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
@@ -658,3 +659,51 @@ CMD blabla"""
     annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
     repositories = json.loads(annotations['repositories'])
     assert repositories == expected
+
+
+@pytest.mark.parametrize('group_manifests,restore', (
+    ([], True),
+    (['foo'], True),
+    (None, False),
+))
+def test_arrangementv4_repositories(tmpdir, group_manifests, restore):
+    workflow = prepare()
+    df_content = """
+FROM fedora
+RUN yum install -y python-django
+CMD blabla"""
+    df = df_parser(str(tmpdir))
+    df.content = df_content
+    workflow.builder = X
+    workflow.builder.df_path = df.dockerfile_path
+    workflow.builder.df_dir = str(tmpdir)
+
+    runner = ExitPluginsRunner(
+        None,
+        workflow,
+        [{
+            'name': StoreMetadataInOSv3Plugin.key,
+            "args": {
+                "url": "http://example.com/"
+            }
+        }]
+    )
+
+    worker_data = {
+        'repositories': {
+            'primary': ['worker:1'],
+            'unique': ['worker:unique'],
+        },
+    }
+    workflow.buildstep_result[OrchestrateBuildPlugin.key] = worker_data
+    workflow.build_result = BuildResult.make_remote_image_result(annotations=worker_data)
+    if group_manifests is not None:
+        workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = group_manifests
+    output = runner.run()
+    assert StoreMetadataInOSv3Plugin.key in output
+    annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
+    repositories = json.loads(annotations['repositories'])
+    if restore:
+        assert repositories != worker_data['repositories']
+    else:
+        assert repositories == worker_data['repositories']

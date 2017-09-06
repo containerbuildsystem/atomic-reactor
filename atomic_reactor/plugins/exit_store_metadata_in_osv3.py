@@ -22,7 +22,8 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_PULP_PUSH_KEY,
                                       PLUGIN_ADD_FILESYSTEM_KEY,
-                                      PLUGIN_BUILD_ORCHESTRATE_KEY)
+                                      PLUGIN_BUILD_ORCHESTRATE_KEY,
+                                      PLUGIN_GROUP_MANIFESTS_KEY)
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import get_build_json
 
@@ -263,9 +264,10 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         self.apply_build_result_annotations(annotations)
 
-        # If pulp_pull has ran on orchestrator, then repositories have to be restored, otherwise
-        # these would contain worker builds only
-        if pulp_pull_results:
+        # For arrangement version 4 onwards (where group_manifests
+        # runs in the orchestrator build), restore the repositories
+        # metadata which orchestrate_build adjusted.
+        if PLUGIN_GROUP_MANIFESTS_KEY in self.workflow.postbuild_results:
             annotations['repositories'] = json.dumps(self.get_repositories())
         try:
             osbs.set_annotations_on_build(build_id, annotations)
