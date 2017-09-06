@@ -142,6 +142,7 @@ def prepare(pulp_registries=None, docker_registries=None):
 ))
 @pytest.mark.parametrize(('pulp_pull_results', 'expected_pulp_pull_results'), (
     (None, False),
+    (Exception(), False),
     ((123, ["application/json"]), ["application/json"]),
     ((123, ["application/json", "application/vnd.docker.distribution.manifest.v1+json"]),
      ["application/json", "application/vnd.docker.distribution.manifest.v1+json"]),
@@ -303,7 +304,7 @@ CMD blabla"""
         media_types = []
         if expected_pulp_push_results:
             media_types = ['application/json']
-        if pulp_pull_results:
+        if expected_pulp_pull_results:
             media_types += pulp_pull_results[1]
         assert sorted(json.loads(annotations['media-types'])) == sorted(list(set(media_types)))
 
