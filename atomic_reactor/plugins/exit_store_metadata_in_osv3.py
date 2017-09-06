@@ -236,6 +236,9 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         # pulp_pull may run on worker as a postbuild plugin or on orchestrator as an exit plugin
         pulp_pull_results = (self.workflow.postbuild_results.get(PulpPullPlugin.key) or
                              self.workflow.exit_results.get(PulpPullPlugin.key))
+        if isinstance(pulp_pull_results, Exception):
+            pulp_pull_results = None
+
         if pulp_pull_results:
             _, pulp_pull_media_types = pulp_pull_results
             media_types += pulp_pull_media_types
