@@ -1466,15 +1466,19 @@ class TestKojiImport(object):
         expected_results = {}
         expected_results['tags'] = [tag.tag
                                     for tag in workflow.tag_conf.primary_images]
+        for tag in expected_results['tags']:
+            if '-' in tag:
+                version_release = tag
+                break
+        else:
+            raise RuntimeError("incorrect test data")
+
         if digests:
             assert 'index' in image.keys()
             pullspec = "docker.example.com/myproject/hello-world@{0}".format(digests[0].v2_list)
             expected_results['pull'] = [pullspec]
-            for tag in expected_results['tags']:
-                if '-' in tag:
-                    pullspec = "docker.example.com/myproject/hello-world:{0}".format(tag)
-                    expected_results['pull'].append(pullspec)
-                    break
+            pullspec = "docker.example.com/myproject/hello-world:{0}".format(version_release)
+            expected_results['pull'].append(pullspec)
             assert image['index'] == expected_results
         else:
             assert 'index' not in image.keys()
@@ -1487,3 +1491,13 @@ class TestKojiImport(object):
                 assert 'docker' in extra
                 assert 'tags' in extra['docker']
                 assert sorted(expected_results['tags']) == sorted(extra['docker']['tags'])
+                repositories = extra['docker']['repositories']
+                assert len(repositories) == 2
+                assert len([pullspec for pullspec in repositories
+                            if '@' in pullspec]) == 1
+                by_tags = [pullspec for pullspec in repositories
+                           if '@' not in pullspec]
+                assert len(by_tags) == 1
+                by_tag = by_tags[0]
+                image, tag = by_tag.split(':', 1)
+                assert tag == version_release

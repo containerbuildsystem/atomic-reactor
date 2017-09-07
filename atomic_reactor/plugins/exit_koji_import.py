@@ -230,11 +230,20 @@ class KojiImportPlugin(ExitPlugin):
             extra['image']['media_types'] = sorted(list(set(media_types)))
 
     def set_group_manifest_info(self, extra, worker_metadatas):
+        version_release = None
+        for image in self.workflow.tag_conf.primary_images:
+            if '-' in image.tag:  # {version}-{release} only, and only one instance
+                version_release = image.tag
+                break
+
+        assert version_release is not None
+        tags = [image.tag
+                for image in self.workflow.tag_conf.primary_images]
+
         manifest_list_digests = self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY)
         if manifest_list_digests:
             index = {}
-            index['tags'] = [image.tag
-                             for image in self.workflow.tag_conf.primary_images]
+            index['tags'] = tags
             repositories = self.workflow.build_result.annotations['repositories']['unique']
             repo = ImageName.parse(repositories[0]).to_str(registry=False, tag=False)
             # group_manifests added the registry, so this should be valid
@@ -245,11 +254,9 @@ class KojiImportPlugin(ExitPlugin):
                 pullspec = "{0}/{1}@{2}".format(registry.uri, repo,
                                                 manifest_list_digests[0].v2_list)
                 index['pull'] = [pullspec]
-                for tag in index['tags']:
-                    if '-' in tag:  # {version}-{release} only, and only one instance
-                        pullspec = "{0}/{1}:{2}".format(registry.uri, repo, tag)
-                        index['pull'].append(pullspec)
-                        break
+                pullspec = "{0}/{1}:{2}".format(registry.uri, repo,
+                                                version_release)
+                index['pull'].append(pullspec)
                 break
             extra['image']['index'] = index
         # group_manifests returns None if didn't run, [] if group=False
@@ -260,9 +267,17 @@ class KojiImportPlugin(ExitPlugin):
                         if instance['type'] == 'docker-image':
                             # koji_upload, running in the worker, doesn't have the full tags
                             # so set them here
-                            tags = [image.tag
-                                    for image in self.workflow.tag_conf.primary_images]
                             instance['extra']['docker']['tags'] = tags
+                            repositories = []
+                            for pullspec in instance['extra']['docker']['repositories']:
+                                if '@' not in pullspec:
+                                    image, tag = pullspec.split(':', 1)
+                                    tag = version_release
+                                    pullspec = ':'.join([image, tag])
+
+                                repositories.append(pullspec)
+
+                            instance['extra']['docker']['repositories'] = repositories
                             self.log.debug("reset tags to so that docker is %s",
                                            instance['extra']['docker'])
 
