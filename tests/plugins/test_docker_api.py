@@ -8,6 +8,9 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
+import docker
+import requests
+
 from dockerfile_parse import DockerfileParser
 
 from atomic_reactor.plugin import PluginFailedException
@@ -103,3 +106,32 @@ def test_build(is_failed, image_id):
     else:
         assert workflow.build_result.image_id.startswith('sha256:')
         assert workflow.build_result.image_id.count(':') == 1
+
+
+def test_syntax_error():
+    """
+    tests reporting of syntax errors
+    """
+    flexmock(DockerfileParser, content='df_content')
+    mock_docker()
+    fake_builder = MockInsideBuilder()
+
+    def raise_exc(*args, **kwargs):
+        explanation = ("Syntax error - can't find = in \"CMD\". "
+                       "Must be of the form: name=value")
+        http_error = requests.HTTPError('500 Server Error')
+        raise docker.errors.APIError(message='foo',
+                                     response=http_error,
+                                     explanation=explanation)
+        yield {}
+
+    fake_builder.tasker.build_image_from_path = raise_exc
+    flexmock(InsideBuilder).new_instances(fake_builder)
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    with pytest.raises(PluginFailedException):
+        workflow.build_docker_image()
+
+    assert isinstance(workflow.buildstep_result['docker_api'], BuildResult)
+    assert workflow.build_result == workflow.buildstep_result['docker_api']
+    assert workflow.build_result.is_failed()
+    assert "Syntax error" in workflow.build_result.fail_reason
