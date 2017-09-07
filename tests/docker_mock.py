@@ -258,19 +258,13 @@ def _mock_tag(src_img, dest_repo, dest_tag='latest', **kwargs):
     return True
 
 
-def _mock_generator_raises():
-    raise RuntimeError("build generator failure")
-    yield {}
-
-
 def mock_docker(build_should_fail=False,
                 inspect_should_fail=False,
                 wait_should_fail=False,
                 provided_image_repotags=None,
                 should_raise_error={},
                 remember_images=False,
-                push_should_fail=False,
-                build_should_fail_generator=False):
+                push_should_fail=False):
     """
     mock all used docker.APIClient methods
 
@@ -286,10 +280,7 @@ def mock_docker(build_should_fail=False,
     push_result = mock_push_logs if not push_should_fail else mock_push_logs_failed
 
     if build_should_fail:
-        if build_should_fail_generator:
-            build_result = _mock_generator_raises()
-        else:
-            build_result = iter(mock_build_logs_failed)
+        build_result = iter(mock_build_logs_failed)
     else:
         build_result = iter(mock_build_logs)
 
