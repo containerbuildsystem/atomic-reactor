@@ -757,9 +757,6 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
                     KeyError) as ex:  # no mediaType key
                 logger.warning("Unable to fetch media type: neither Content-Type header "
                                "nor mediaType in output was found")
-                logger.debug("exception: %r", ex)
-                logger.debug("response content: %r", response.content)
-                logger.debug("response headers: %s", response.headers)
 
         if not received_media_type:
             continue
