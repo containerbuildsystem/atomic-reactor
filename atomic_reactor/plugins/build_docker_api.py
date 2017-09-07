@@ -7,6 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 from __future__ import print_function, unicode_literals
 
+import docker
 from atomic_reactor.plugin import BuildStepPlugin
 from atomic_reactor.util import wait_for_command
 from atomic_reactor.build import BuildResult
@@ -41,7 +42,10 @@ class DockerApiPlugin(BuildStepPlugin):
                                                      builder.image)
 
         self.log.debug('build is submitted, waiting for it to finish')
-        command_result = wait_for_command(logs_gen)
+        try:
+            command_result = wait_for_command(logs_gen)
+        except docker.errors.APIError as ex:
+            return BuildResult(logs=[], fail_reason=ex.explanation)
 
         if command_result.is_failed():
             return BuildResult(logs=command_result.logs,
