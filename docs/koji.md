@@ -45,6 +45,12 @@ Data which is placed here includes:
 - `build.extra.filesystem_koji_task_id` (int): Koji task ID which atomic-reactor created in order to generate the initial layer of the image (for "FROM koji/image-build" images) -- note that this location is technically incorrect but remains as-is for compatibility with existing software
 - `build.extra.media_types` (str list): Container image media types for which this image is available, where "application/json" is for a Docker Registry HTTP API V1 image; currently this key is only set when Pulp integration is enabled
 - `build.extra.image.parent_build_id` (int): Koji build id of the parent image, if found
+- `build.extra.image.index` (map): information about the manifest list
+
+The index map has these entries:
+
+- `pull` (str list): docker pull specifications for the manifest list, by tag and by digest
+- `tags` (str list): tags applied to the manifest list when it was created
 
 # Type-specific buildroot metadata:
 
@@ -64,7 +70,7 @@ The docker map has these entries:
 
 - `id` (string): the image ID -- for Docker 1.10 and higher this is a content-aware image ID
 - `parent_id` (string): the image ID of the parent image
-- `repositories` (string list): docker pull specifications for the name:version-release image in the docker registry (or in Crane, if Pulp/Crane integration is used)
+- `repositories` (string list): docker pull specifications for the name:version-release image in the docker registry (or in Crane, if Pulp/Crane integration is used), by tag and by digests (there may be multiple digests, e.g. v2 schema 1 and v2 schema 2)
 - `config` (map): the [v2 schema 2 'config' object](https://docs.docker.com/registry/spec/manifest-v2-2/#image-manifest-field-descriptions) but with the 'container_config' entry removed
 - `tags` (string list): the image tags (i.e. the part after the ":") applied to this image when it was tagged and pushed
 
