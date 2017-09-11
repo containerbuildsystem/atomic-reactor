@@ -276,9 +276,9 @@ class KojiImportPlugin(ExitPlugin):
                             repositories = []
                             for pullspec in instance['extra']['docker']['repositories']:
                                 if '@' not in pullspec:
-                                    image, tag = pullspec.split(':', 1)
-                                    tag = version_release
-                                    pullspec = ':'.join([image, tag])
+                                    image = ImageName.parse(pullspec)
+                                    image.tag = version_release
+                                    pullspec = image.to_str()
 
                                 repositories.append(pullspec)
 

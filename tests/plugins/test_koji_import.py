@@ -277,7 +277,7 @@ def mock_environment(tmpdir, session=None, name=None,
                 }
 
     for pulp_registry in range(pulp_registries):
-        workflow.push_conf.add_pulp_registry('env', 'pulp.example.com')
+        workflow.push_conf.add_pulp_registry('env', 'crane.example.com:5000')
 
     with open(os.path.join(str(tmpdir), 'image.tar.xz'), 'wt') as fp:
         fp.write('x' * 2**12)
@@ -402,8 +402,8 @@ def mock_environment(tmpdir, session=None, name=None,
                         },
                         'docker': {
                             'repositories': [
-                                'docker-registry.example.com:8888/ns/name:1.0-1',
-                                'docker-registry.example.com:8888/ns/name@sha256:...',
+                                'docker-registry.example.com:8888/myproject/hello-world:unique-tag',
+                                'docker-registry.example.com:8888/myproject/hello-world@sha256:...',
                             ],
                             'parent_id': 'sha256:bf203442',
                             'id': '123456',
@@ -1221,7 +1221,7 @@ class TestKojiImport(object):
     @pytest.mark.parametrize('use_pulp', [False, True])
     def test_koji_import_pullspec(self, tmpdir, os_env, use_pulp):
         session = MockedClientSession('')
-        name = 'ns/name'
+        name = 'myproject/hello-world'
         version = '1.0'
         release = '1'
         tasker, workflow = mock_environment(tmpdir,
@@ -1233,7 +1233,7 @@ class TestKojiImport(object):
                                             )
         if use_pulp:
             workflow.postbuild_results[PLUGIN_PULP_SYNC_KEY] = [
-                ImageName.parse('crane.example.com/ns/name:1.0-1'),
+                ImageName.parse('crane.example.com:5000/myproject/hello-world:1.0-1'),
             ]
 
         runner = create_runner(tasker, workflow)
@@ -1261,22 +1261,12 @@ class TestKojiImport(object):
         ]
         assert len(digest_pullspecs) == 1
 
-        tag_pullspecs = [
-            repo
-            for repo in docker_output['extra']['docker']['repositories']
-            if '@sha256' not in repo
-        ]
-        assert len(tag_pullspecs) == 1
-        pullspec = tag_pullspecs[0]
-        nvr_tag = '{}:{}-{}'.format(name, version, release)
-        assert pullspec.endswith(nvr_tag)
-
         # Check registry
         reg = set(ImageName.parse(repo).registry
                   for repo in docker_output['extra']['docker']['repositories'])
         assert len(reg) == 1
         if use_pulp:
-            assert reg == set(['crane.example.com'])
+            assert reg == set(['crane.example.com:5000'])
         else:
             assert reg == set(['docker-registry.example.com:8888'])
 
@@ -1486,7 +1476,8 @@ class TestKojiImport(object):
                                             version='1.0',
                                             release='1',
                                             session=session,
-                                            docker_registry=True)
+                                            docker_registry=True,
+                                            pulp_registries=1)
         workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = digests
         orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
         orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = BuildInfo()
@@ -1515,9 +1506,9 @@ class TestKojiImport(object):
 
         if digests:
             assert 'index' in image.keys()
-            pullspec = "docker.example.com/myproject/hello-world@{0}".format(digests[0].v2_list)
+            pullspec = "crane.example.com:5000/myproject/hello-world@{0}".format(digests[0].v2_list)
             expected_results['pull'] = [pullspec]
-            pullspec = "docker.example.com/myproject/hello-world:{0}".format(version_release)
+            pullspec = "crane.example.com:5000/myproject/hello-world:{0}".format(version_release)
             expected_results['pull'].append(pullspec)
             assert image['index'] == expected_results
         else:
@@ -1539,5 +1530,10 @@ class TestKojiImport(object):
                            if '@' not in pullspec]
                 assert len(by_tags) == 1
                 by_tag = by_tags[0]
-                image, tag = by_tag.split(':', 1)
-                assert tag == version_release
+
+                # This test uses a metadata fragment which reports the
+                # following registry. In real uses this would really
+                # be a Crane registry URI.
+                registry = 'docker-registry.example.com:8888'
+                assert by_tag == '%s/myproject/hello-world:%s' % (registry,
+                                                                  version_release)
