@@ -466,7 +466,7 @@ class KojiUploadPlugin(PostBuildPlugin):
 
         digests = self.get_digests()
         repositories = self.get_repositories(digests)
-        tags = set(image.tag for image in self.workflow.tag_conf.primary_images)
+        tags = set(image.tag for image in self.workflow.tag_conf.images)
         metadata, output = self.get_image_output()
         metadata.update({
             'arch': arch,
