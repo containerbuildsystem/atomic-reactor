@@ -28,6 +28,12 @@ except ImportError:
     del koji
     import koji
 
+try:
+    import atomic_reactor.plugins.post_pulp_sync  # noqa:F401
+    PULP_SYNC_AVAILABLE = True
+except ImportError:
+    PULP_SYNC_AVAILABLE = False
+
 from osbs.build.build_response import BuildResponse
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.post_fetch_worker_metadata import FetchWorkerMetadataPlugin
@@ -1537,3 +1543,60 @@ class TestKojiImport(object):
                 registry = 'docker-registry.example.com:8888'
                 assert by_tag == '%s/myproject/hello-world:%s' % (registry,
                                                                   version_release)
+
+    @pytest.mark.skipif(not PULP_SYNC_AVAILABLE,
+                        reason="pulp_sync not available")
+    @pytest.mark.parametrize('available,expected', [
+        (None, ['sha256:v1', 'sha256:v2']),
+        (['foo', 'sha256:v1'], ['sha256:v1']),
+        (['sha256:v1', 'sha256:v2'], ['sha256:v1', 'sha256:v2']),
+    ])
+    def test_koji_import_unavailable_manifest_digests(self, tmpdir, os_env,
+                                                      available, expected):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            session=session)
+        registry = workflow.push_conf.add_docker_registry('docker.example.com')
+        for image in workflow.tag_conf.images:
+            tag = image.to_str(registry=False)
+            registry.digests[tag] = ManifestDigest(v1='sha256:v1',
+                                                   v2='sha256:v2')
+
+        for platform, metadata in workflow.postbuild_results[FetchWorkerMetadataPlugin.key].items():
+            for output in metadata['output']:
+                if output['type'] != 'docker-image':
+                    continue
+
+                output['extra']['docker']['repositories'] = [
+                    'crane.example.com/foo:tag',
+                    'crane.example.com/foo@sha256:v1',
+                    'crane.example.com/foo@sha256:v2',
+                ]
+
+        list_digests = [ManifestDigest(v2_list='sha256:manifest-list')]
+        workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = list_digests
+        orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
+        orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = BuildInfo()
+        if available is not None:
+            workflow.plugin_workspace[PLUGIN_PULP_SYNC_KEY] = available
+
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+        outputs = data['output']
+        for output in outputs:
+            if output['type'] != 'docker-image':
+                continue
+
+            repositories = output['extra']['docker']['repositories']
+            repositories = [pullspec.split('@', 1)[1]
+                            for pullspec in repositories
+                            if '@' in pullspec]
+            assert repositories == expected
+            break
+        else:
+            raise RuntimeError("no docker-image output found")

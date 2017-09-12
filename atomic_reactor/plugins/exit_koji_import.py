@@ -20,6 +20,13 @@ from atomic_reactor.plugins.build_orchestrate_build import (get_worker_build_inf
                                                             get_koji_upload_dir)
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
+try:
+    from atomic_reactor.plugins.post_pulp_sync import get_manifests_in_pulp_repository
+except ImportError:
+    # no dockpulp available
+    def get_manifests_in_pulp_repository(_):
+        raise KeyError
+
 from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_PULP_PULL_KEY,
                                       PLUGIN_PULP_SYNC_KEY,
@@ -234,6 +241,34 @@ class KojiImportPlugin(ExitPlugin):
         if media_types:
             extra['image']['media_types'] = sorted(list(set(media_types)))
 
+    def remove_unavailable_manifest_digests(self, worker_metadatas):
+        try:
+            available = get_manifests_in_pulp_repository(self.workflow)
+        except KeyError:
+            # pulp_sync didn't run
+            return
+
+        for platform, metadata in worker_metadatas.items():
+            for output in metadata['output']:
+                if output['type'] != 'docker-image':
+                    continue
+
+                unavailable = []
+                repositories = output['extra']['docker']['repositories']
+                for pullspec in repositories:
+                    # Ignore by-tag pullspecs
+                    if '@' not in pullspec:
+                        continue
+
+                    image, digest = pullspec.split('@', 1)
+                    if digest not in available:
+                        self.log.info("%s: %s not available, removing", platform, pullspec)
+                        unavailable.append(pullspec)
+
+                # Update the list in-place
+                for pullspec in unavailable:
+                    repositories.remove(pullspec)
+
     def set_group_manifest_info(self, extra, worker_metadatas):
         version_release = None
         for image in self.workflow.tag_conf.primary_images:
@@ -351,6 +386,7 @@ class KojiImportPlugin(ExitPlugin):
 
         self.set_help(extra, worker_metadatas)
         self.set_media_types(extra, worker_metadatas)
+        self.remove_unavailable_manifest_digests(worker_metadatas)
         self.set_group_manifest_info(extra, worker_metadatas)
 
         build = {
