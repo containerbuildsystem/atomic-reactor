@@ -335,7 +335,8 @@ def os_env(monkeypatch):
 
 def create_runner(tasker, workflow, ssl_certs=False, principal=None,
                   keytab=None, blocksize=None, target=None,
-                  prefer_schema1_digest=None, platform=None):
+                  prefer_schema1_digest=None, platform=None,
+                  multiple=None):
     args = {
         'kojihub': '',
         'url': '/',
@@ -363,6 +364,9 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
 
     if platform is not None:
         args['platform'] = platform
+
+    if multiple is not None:
+        args['report_multiple_digests'] = multiple
 
     plugins_conf = [
         {'name': KojiUploadPlugin.key, 'args': args},
@@ -1039,3 +1043,32 @@ class TestKojiUpload(object):
             platform = 'x86_64'
 
         assert images[0].endswith(platform + ".tar.xz")
+
+    @pytest.mark.parametrize('multiple', [False, True])
+    def test_koji_upload_multiple_digests(self, tmpdir, os_env,
+                                          multiple):
+        server = MockedOSBS()
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
+                                            name='name',
+                                            version='1.0',
+                                            release='1')
+        runner = create_runner(tasker, workflow, platform='x86_64',
+                               multiple=multiple)
+        runner.run()
+
+        for data in server.configmap.values():
+            break
+        else:
+            raise RuntimeError("no configmap found")
+
+        outputs = data['metadata.json']['output']
+        output = [op for op in outputs if op['type'] == 'docker-image'][0]
+        repositories = output['extra']['docker']['repositories']
+        pullspecs = [pullspec for pullspec in repositories
+                     if '@' in pullspec]
+        if multiple:
+            assert len(pullspecs) > 1
+        else:
+            assert len(pullspecs) == 1
