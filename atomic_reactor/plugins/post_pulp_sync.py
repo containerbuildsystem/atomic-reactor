@@ -66,6 +66,15 @@ from warnings import filterwarnings
 filterwarnings("module")
 
 
+def get_manifests_in_pulp_repository(workflow):
+    """
+    Obtain a list of manifest refs (specifically digests) available in
+    the repository after sync
+    """
+
+    return workflow.plugin_workspace[PulpSyncPlugin.key]
+
+
 class PulpSyncPlugin(PostBuildPlugin):
     key = PLUGIN_PULP_SYNC_KEY
     is_allowed_to_fail = False
@@ -235,6 +244,14 @@ class PulpSyncPlugin(PostBuildPlugin):
 
             for image_name in images:
                 self.log.info("image available at %s", image_name.to_str())
+
+        # Fetch the repository content so we can remove v2 schema 2
+        # manifests from Koji metadata if they are not present
+        # (i.e. if Pulp does not have v2 schema 2 support).
+        self.log.info("fetching repository content")
+        content = pulp.listRepo(list(repos.values()), content=True)
+        manifest_refs = list(content.keys())
+        self.workflow.plugin_workspace[PulpSyncPlugin.key] = manifest_refs
 
         # Return the set of qualified repo names for this image
         return images

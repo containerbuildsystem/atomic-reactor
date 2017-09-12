@@ -71,6 +71,9 @@ class MockPulp(object):
     def crane(self, repos, wait=True):
         pass
 
+    def listRepo(self, repos, content=False):
+        return {'manifests': ['sha256:1234']}
+
 
 class TestPostPulpSync(object):
     @staticmethod
@@ -85,7 +88,8 @@ class TestPostPulpSync(object):
         push_conf = PushConf()
         return flexmock(tag_conf=tag_conf,
                         push_conf=push_conf,
-                        postbuild_plugins_conf=[])
+                        postbuild_plugins_conf=[],
+                        plugin_workspace={})
 
     @pytest.mark.parametrize('get_prefix', [True, False])
     @pytest.mark.parametrize(('pulp_repo_prefix', 'expected_prefix'), [
