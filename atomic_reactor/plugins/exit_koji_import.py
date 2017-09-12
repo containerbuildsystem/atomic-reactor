@@ -260,7 +260,7 @@ class KojiImportPlugin(ExitPlugin):
                     if '@' not in pullspec:
                         continue
 
-                    image, digest = pullspec.split('@', 1)
+                    _, digest = pullspec.split('@', 1)
                     if digest not in available:
                         self.log.info("%s: %s not available, removing", platform, pullspec)
                         unavailable.append(pullspec)

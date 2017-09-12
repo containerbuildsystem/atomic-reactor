@@ -80,7 +80,7 @@ class KojiUploadPlugin(PostBuildPlugin):
                  koji_ssl_certs_dir=None, koji_proxy_user=None,
                  koji_principal=None, koji_keytab=None,
                  blocksize=None, prefer_schema1_digest=True,
-                 platform='x86_64'):
+                 platform='x86_64', report_multiple_digests=False):
         """
         constructor
 
@@ -100,6 +100,8 @@ class KojiUploadPlugin(PostBuildPlugin):
         :param prefer_schema1_digest: bool, when True, v2 schema 1 digest will
             be preferred as the built image digest
         :param platform: str, platform name for this build
+        :param report_multiple_digests: bool, whether to report both schema 1
+            and schema 2 digests; if truthy, prefer_schema1_digest is ignored
         """
         super(KojiUploadPlugin, self).__init__(tasker, workflow)
 
@@ -114,6 +116,7 @@ class KojiUploadPlugin(PostBuildPlugin):
         self.build_json_dir = build_json_dir
         self.koji_upload_dir = koji_upload_dir
         self.prefer_schema1_digest = prefer_schema1_digest
+        self.report_multiple_digests = report_multiple_digests
 
         self.namespace = get_build_json().get('metadata', {}).get('namespace', None)
         osbs_conf = Configuration(conf_file=None, openshift_uri=url,
@@ -374,16 +377,22 @@ class KojiUploadPlugin(PostBuildPlugin):
 
     def get_digests(self):
         """
-        Returns a map of repositories to digests
+        Returns a map of images to their digests
         """
 
-        digests = {}  # repository -> digest
+        digests = {}  # repository -> digests
         for registry in self.workflow.push_conf.docker_registries:
             for image in self.workflow.tag_conf.images:
                 image_str = image.to_str()
                 if image_str in registry.digests:
-                    digest = self.select_digest(registry.digests[image_str])
-                    digests[image.to_str(registry=False)] = digest
+                    image_digests = registry.digests[image_str]
+                    if self.report_multiple_digests:
+                        digest_list = [digest for digest in (image_digests.v1,
+                                                             image_digests.v2)
+                                       if digest]
+                    else:
+                        digest_list = [self.select_digest(image_digests)]
+                    digests[image.to_str(registry=False)] = digest_list
 
         return digests
 
@@ -404,7 +413,7 @@ class KojiUploadPlugin(PostBuildPlugin):
         """
         Build the repositories metadata
 
-        :param digests: dict, repository -> digest
+        :param digests: dict, image -> digests
         """
         if self.workflow.push_conf.pulp_registries:
             # If pulp was used, only report pulp images
@@ -421,8 +430,8 @@ class KojiUploadPlugin(PostBuildPlugin):
 
             output_images.append(pullspec)
 
-            digest = digests.get(image.to_str(registry=False))
-            if digest:
+            digest_list = digests.get(image.to_str(registry=False), ())
+            for digest in digest_list:
                 digest_pullspec = image.to_str(tag=False) + "@" + digest
                 output_images.append(digest_pullspec)
 
