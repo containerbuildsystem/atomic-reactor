@@ -71,7 +71,7 @@ class MockPulp(object):
     def crane(self, repos, wait=True):
         pass
 
-    def listRepo(self, repos, content=False):
+    def listRepos(self, repos, content=False):
         return {'manifests': ['sha256:1234']}
 
 
