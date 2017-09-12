@@ -31,7 +31,7 @@ except ImportError:
     del dockpulp
     import dockpulp
 
-from atomic_reactor.plugins.post_pulp_sync import PulpSyncPlugin
+from atomic_reactor.plugins.post_pulp_sync import PulpSyncPlugin, get_manifests_in_pulp_repository
 from atomic_reactor.constants import PLUGIN_PULP_PUSH_KEY
 
 from flexmock import flexmock
@@ -72,7 +72,14 @@ class MockPulp(object):
         pass
 
     def listRepos(self, repos, content=False):
-        return {'manifests': ['sha256:1234']}
+        return [{
+            'id': repo,
+            'manifests': {
+                'sha256:{}'.format(repo): {
+                    'layers': ['sha256:layer1', 'sha256:layer2'],
+                    'tag': 'the-tag',
+                }
+            }} for repo in repos]
 
 
 class TestPostPulpSync(object):
@@ -682,3 +689,55 @@ class TestPostPulpSync(object):
                 assert expected_log in log_messages
             else:
                 assert expected_log not in log_messages
+
+    def test_workspace_updated(self):
+        docker_registry = 'http://registry.example.com'
+        docker_repository = 'prod/myrepository'
+        prefixed_pulp_repoid = 'redhat-prod-myrepository'
+        env = 'pulp'
+
+        mockpulp = MockPulp()
+        (flexmock(mockpulp)
+            .should_receive('getRepos')
+            .with_args([prefixed_pulp_repoid], fields=['id'])
+            .and_return([{'id': prefixed_pulp_repoid}])
+            .once()
+            .ordered())
+        (flexmock(mockpulp)
+            .should_receive('syncRepo')
+            .with_args(repo=prefixed_pulp_repoid,
+                       feed=docker_registry)
+            .and_return(([], []))
+            .once()
+            .ordered())
+        (flexmock(mockpulp)
+            .should_receive('crane')
+            .with_args([prefixed_pulp_repoid], wait=True)
+            .once()
+            .ordered())
+
+        (flexmock(dockpulp)
+            .should_receive('Pulp')
+            .with_args(env=env)
+            .and_return(mockpulp))
+
+        workflow = self.workflow([docker_repository], mockpulp.registry)
+        workflow.postbuild_plugins_conf.append(
+            {
+                'name': PulpSyncPlugin.key,
+            },
+        )
+
+        kwargs = {
+            'pulp_registry_name': env,
+            'docker_registry': docker_registry,
+        }
+
+        plugin = PulpSyncPlugin(tasker=None,
+                                workflow=workflow,
+                                **kwargs)
+
+        plugin.run()
+
+        manifests = get_manifests_in_pulp_repository(workflow)
+        assert manifests == ['sha256:{}'.format(prefixed_pulp_repoid)]
