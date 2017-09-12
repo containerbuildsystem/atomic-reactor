@@ -27,6 +27,7 @@ except ImportError:
     del koji
     import koji
 
+from atomic_reactor.constants import PLUGIN_PULP_SYNC_KEY
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.exit_koji_promote import (KojiUploadLogger,
                                                       KojiPromotePlugin)
@@ -41,6 +42,12 @@ from atomic_reactor.util import ImageName, ManifestDigest
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.build import BuildResult
 from tests.constants import SOURCE, MOCK
+
+try:
+    import atomic_reactor.plugins.post_pulp_sync  # noqa:F401
+    PULP_SYNC_AVAILABLE = True
+except ImportError:
+    PULP_SYNC_AVAILABLE = False
 
 from flexmock import flexmock
 import pytest
@@ -163,9 +170,9 @@ def fake_Popen(cmd, *args, **kwargs):
     return MockedPopen(cmd, *args, **kwargs)
 
 
-def fake_digest(image):
+def fake_digest(image, schema=1):
     tag = image.to_str(registry=False)
-    return 'sha256:{0:032x}'.format(len(tag))
+    return 'sha256:{0:x}{1:031x}'.format(schema, len(tag))
 
 
 def is_string_type(obj):
@@ -177,7 +184,8 @@ def mock_environment(tmpdir, session=None, name=None,
                      component=None, version=None, release=None,
                      source=None, build_process_failed=False,
                      is_rebuild=True, docker_registry=True,
-                     pulp_registries=0, blocksize=None,
+                     pulp_registries=0, pulp_supports_schema2=False,
+                     blocksize=None,
                      task_states=None, additional_tags=None,
                      has_config=None,
                      logs_return_bytes=True):
@@ -243,20 +251,25 @@ def mock_environment(tmpdir, session=None, name=None,
     if docker_registry:
         docker_reg = workflow.push_conf.add_docker_registry('docker.example.com')
 
+        sync_result = {}
         for image in workflow.tag_conf.images:
             tag = image.to_str(registry=False)
+            digests = ManifestDigest(v1=fake_digest(image, 1),
+                                     v2=fake_digest(image, 2))
+            docker_reg.digests[tag] = digests
             if pulp_registries:
-                docker_reg.digests[tag] = ManifestDigest(v1=fake_digest(image),
-                                                         v2='sha256:not-used')
-            else:
-                docker_reg.digests[tag] = ManifestDigest(v1='sha256:not-used',
-                                                         v2=fake_digest(image))
+                sync_result[digests.v1] = {}
+                if pulp_supports_schema2:
+                    sync_result[digests.v2] = {}
 
             if has_config:
                 docker_reg.config = {
                     'config': {'architecture': 'x86_64'},
                     'container_config': {}
                 }
+
+        if PULP_SYNC_AVAILABLE and pulp_registries:
+            workflow.plugin_workspace[PLUGIN_PULP_SYNC_KEY] = sync_result
 
     for pulp_registry in range(pulp_registries):
         workflow.push_conf.add_pulp_registry('env', 'pulp.example.com')
@@ -771,10 +784,7 @@ class TestKojiPromote(object):
             repositories_tag = list(filter(lambda repo: '@sha256' not in repo, repositories))
 
             assert len(repositories_tag) == 1
-            if expect_digest:
-                assert len(repositories_digest) == 1
-            else:
-                assert not repositories_digest
+            assert len(repositories_digest) == len(expect_digest)
 
             # check for duplicates
             assert sorted(repositories_tag) == sorted(set(repositories_tag))
@@ -788,9 +798,19 @@ class TestKojiPromote(object):
                 assert image.repo
                 assert image.tag and image.tag != 'latest'
 
-            if expect_digest:
-                digest_pullspec = image.to_str(tag=False) + '@' + fake_digest(image)
-                assert digest_pullspec in repositories_digest
+            # These fake digests have the schema number as the first digit
+            schemas = []
+            for pullspec in repositories_digest:
+                # drop image name (before '@')
+                _, digest = pullspec.split('@', 1)
+                # drop algorithm name (before 'sha256:')
+                _, hashval = digest.split(':', 1)
+                schemas.append(int(hashval[0]))
+
+            # Expect schema 1 digest if only one digest expected, or
+            # schema 1 and schema 2 if two digests are expected
+            for schema in expect_digest:
+                assert schema in schemas
 
             tags = docker['tags']
             assert isinstance(tags, list)
@@ -945,12 +965,14 @@ class TestKojiPromote(object):
     @pytest.mark.parametrize(('apis',
                               'docker_registry',
                               'pulp_registries',
+                              'pulp_supports_schema2',
                               'metadata_only',
                               'blocksize',
                               'target'), [
         ('v1-only',
          False,
          1,
+         False,
          False,
          None,
          'images-docker-candidate'),
@@ -959,6 +981,7 @@ class TestKojiPromote(object):
          True,
          2,
          False,
+         False,
          10485760,
          None),
 
@@ -966,12 +989,14 @@ class TestKojiPromote(object):
          True,
          1,
          True,
+         True,
          None,
          None),
 
         ('v1+v2',
          True,
          0,
+         False,
          False,
          10485760,
          None),
@@ -985,7 +1010,8 @@ class TestKojiPromote(object):
     ])
     @pytest.mark.parametrize('tag_later', (True, False))
     def test_koji_promote_success(self, tmpdir, apis, docker_registry,
-                                  pulp_registries, metadata_only, blocksize,
+                                  pulp_registries, pulp_supports_schema2,
+                                  metadata_only, blocksize,
                                   target, os_env, has_config, is_autorebuild,
                                   tag_later):
         session = MockedClientSession('')
@@ -1013,6 +1039,7 @@ class TestKojiPromote(object):
                                             release=release,
                                             docker_registry=docker_registry,
                                             pulp_registries=pulp_registries,
+                                            pulp_supports_schema2=pulp_supports_schema2,
                                             blocksize=blocksize,
                                             has_config=has_config)
         workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_autorebuild
@@ -1093,9 +1120,22 @@ class TestKojiPromote(object):
             assert len([b for b in buildroots
                         if b['id'] == buildroot['id']]) == 1
 
+        if docker_registry:
+            # v2 support
+            if PULP_SYNC_AVAILABLE and pulp_registries:
+                if pulp_supports_schema2:
+                    expect_digest = (1, 2)
+                else:
+                    expect_digest = (1,)
+            else:
+                expect_digest = (2,)
+        else:
+            # no v2 support
+            expect_digest = ()
+
         for output in output_files:
             self.validate_output(output, metadata_only, has_config,
-                                 expect_digest=docker_registry)
+                                 expect_digest=expect_digest)
             buildroot_id = output['buildroot_id']
 
             # References one of the buildroots

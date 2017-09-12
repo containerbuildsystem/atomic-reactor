@@ -25,6 +25,13 @@ from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
+try:
+    from atomic_reactor.plugins.post_pulp_sync import get_manifests_in_pulp_repository
+except ImportError:
+    # no dockpulp available
+    def get_manifests_in_pulp_repository(_):
+        raise KeyError
+
 from atomic_reactor.constants import (PROG, PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_TAG_BUILD_KEY)
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
@@ -394,20 +401,32 @@ class KojiPromotePlugin(ExitPlugin):
 
     def get_digests(self):
         """
-        Returns a map of repositories to digests
+        Returns a map of images to their digests
         """
 
-        digests = {}  # repository -> digest
+        try:
+            pulp = get_manifests_in_pulp_repository(self.workflow)
+        except KeyError:
+            pulp = None
+
+        digests = {}  # repository -> digests
         for registry in self.workflow.push_conf.docker_registries:
             for image in self.workflow.tag_conf.images:
                 image_str = image.to_str()
                 if image_str in registry.digests:
-                    # pulp/crane supports only manifest schema v1
-                    if self.workflow.push_conf.pulp_registries:
-                        digest = registry.digests[image_str].v1
+                    image_digests = registry.digests[image_str]
+                    if pulp is None:
+                        digest_list = [image_digests.default]
                     else:
-                        digest = registry.digests[image_str].default
-                    digests[image.to_str(registry=False)] = digest
+                        # If Pulp is enabled, only report digests that
+                        # were synced into Pulp. This may not be all
+                        # of them, depending on whether Pulp has
+                        # schema 2 support.
+                        digest_list = [digest for digest in (image_digests.v1,
+                                                             image_digests.v2)
+                                       if digest in pulp]
+
+                    digests[image.to_str(registry=False)] = digest_list
 
         return digests
 
@@ -415,7 +434,7 @@ class KojiPromotePlugin(ExitPlugin):
         """
         Build the repositories metadata
 
-        :param digests: dict, repository -> digest
+        :param digests: dict, image -> digests
         """
         if self.workflow.push_conf.pulp_registries:
             # If pulp was used, only report pulp images
@@ -432,8 +451,8 @@ class KojiPromotePlugin(ExitPlugin):
 
             output_images.append(pullspec)
 
-            digest = digests.get(image.to_str(registry=False))
-            if digest:
+            digest_list = digests.get(image.to_str(registry=False), ())
+            for digest in digest_list:
                 digest_pullspec = image.to_str(tag=False) + "@" + digest
                 output_images.append(digest_pullspec)
 
