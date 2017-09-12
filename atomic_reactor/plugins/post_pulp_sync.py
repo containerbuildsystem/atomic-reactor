@@ -249,7 +249,7 @@ class PulpSyncPlugin(PostBuildPlugin):
         # manifests from Koji metadata if they are not present
         # (i.e. if Pulp does not have v2 schema 2 support).
         self.log.info("fetching repository content")
-        content = pulp.listRepo(list(repos.values()), content=True)
+        content = pulp.listRepos(list(repos.values()), content=True)
         manifest_refs = list(content.keys())
         self.workflow.plugin_workspace[PulpSyncPlugin.key] = manifest_refs
 
