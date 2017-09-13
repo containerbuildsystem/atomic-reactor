@@ -383,7 +383,9 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             kwargs = self.get_worker_build_kwargs(release, cluster_info.platform,
                                                   koji_upload_dir, task_id)
             kwargs.update(override_kwargs)
-            build = cluster_info.osbs.create_worker_build(**kwargs)
+            with cluster_info.osbs.retries_disabled():
+                build = cluster_info.osbs.create_worker_build(**kwargs)
+
         except Exception:
             self.log.exception('%s - failed to create worker build',
                                cluster_info.platform)
