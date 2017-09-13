@@ -893,6 +893,8 @@ def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
                 'platforms': ['x86_64'],
                 'build_kwargs': make_worker_build_kwargs(),
                 'osbs_client_config': str(tmpdir),
+                'unreachable_cluster_retry_delay': .1,
+                'unreachable_cluster_retry_count': 2
             }
         }]
     )
