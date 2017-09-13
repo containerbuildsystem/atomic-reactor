@@ -225,7 +225,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     def get_current_builds(self, osbs):
         field_selector = ','.join(['status!={status}'.format(status=status.capitalize())
                                    for status in BUILD_FINISHED_STATES])
-        return len(osbs.list_builds(field_selector=field_selector))
+        with osbs.retries_disabled():
+            return len(osbs.list_builds(field_selector=field_selector))
 
     def get_cluster_info(self, cluster, platform):
         kwargs = deepcopy(self.config_kwargs)
