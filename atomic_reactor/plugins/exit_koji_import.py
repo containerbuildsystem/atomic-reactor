@@ -271,14 +271,14 @@ class KojiImportPlugin(ExitPlugin):
 
     def set_group_manifest_info(self, extra, worker_metadatas):
         version_release = None
-        for image in self.workflow.tag_conf.primary_images:
+        primary_images = self.get_primary_images()
+        for image in primary_images:
             if '-' in image.tag:  # {version}-{release} only, and only one instance
                 version_release = image.tag
                 break
 
-        assert version_release is not None
-        tags = [image.tag
-                for image in self.workflow.tag_conf.primary_images]
+        assert version_release is not None, 'Unable to find version-release image'
+        tags = [image.tag for image in primary_images]
 
         manifest_list_digests = self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY)
         if manifest_list_digests:
@@ -320,6 +320,14 @@ class KojiImportPlugin(ExitPlugin):
                             instance['extra']['docker']['repositories'] = repositories
                             self.log.debug("reset tags to so that docker is %s",
                                            instance['extra']['docker'])
+
+    def get_primary_images(self):
+        primary_images = self.workflow.tag_conf.primary_images
+        if not primary_images:
+            primary_images = [
+                ImageName.parse(primary) for primary in
+                self.workflow.build_result.annotations['repositories']['primary']]
+        return primary_images
 
     def get_output_metadata(self, path, filename):
         """

@@ -205,7 +205,8 @@ def mock_environment(tmpdir, session=None, name=None,
                      is_rebuild=True, docker_registry=True,
                      pulp_registries=0, blocksize=None,
                      task_states=None, additional_tags=None,
-                     has_config=None):
+                     has_config=None, add_tag_conf_primaries=True,
+                     add_build_result_primaries=False):
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -235,7 +236,7 @@ def mock_environment(tmpdir, session=None, name=None,
     if name and version:
         workflow.tag_conf.add_unique_image('user/test-image:{v}-timestamp'
                                            .format(v=version))
-    if name and version and release:
+    if name and version and release and add_tag_conf_primaries:
         workflow.tag_conf.add_primary_images(["{0}:{1}-{2}".format(name,
                                                                    version,
                                                                    release),
@@ -311,6 +312,14 @@ def mock_environment(tmpdir, session=None, name=None,
             'primary': []
         }
     }
+
+    if name and version and release and add_build_result_primaries:
+        annotations['repositories']['primary'] = [
+            'brew-pulp-docker:8888/{0}:{1}-{2}'.format(name, version, release),
+            'brew-pulp-docker:8888/{0}:{1}'.format(name, version),
+            'brew-pulp-docker:8888/{0}:latest'.format(name),
+        ]
+
 
     if build_process_failed:
         workflow.build_result = BuildResult(logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
@@ -1600,3 +1609,30 @@ class TestKojiImport(object):
             break
         else:
             raise RuntimeError("no docker-image output found")
+
+    @pytest.mark.parametrize(('add_tag_conf_primaries', 'add_build_result_primaries', 'success'), (
+        (False, False, False),
+        (True, False, True),
+        (False, True, True),
+    ))
+    def test_koji_import_primary_images(self, tmpdir, os_env, add_tag_conf_primaries,
+                                        add_build_result_primaries, success):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            add_tag_conf_primaries=add_tag_conf_primaries,
+                                            add_build_result_primaries=add_build_result_primaries,
+                                            )
+
+        runner = create_runner(tasker, workflow)
+
+        if not success:
+            with pytest.raises(PluginFailedException) as exc_info:
+                runner.run()
+            assert 'Unable to find version-release image' in str(exc_info.value)
+            return
+
+        runner.run()
