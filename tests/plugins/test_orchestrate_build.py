@@ -324,6 +324,8 @@ def test_orchestrate_build_annotations_and_labels(tmpdir, metadata_fragment):
                 'platforms': ['x86_64', 'ppc64le'],
                 'build_kwargs': make_worker_build_kwargs(),
                 'osbs_client_config': str(tmpdir),
+                'max_cluster_fails': 2,
+                'unreachable_cluster_retry_delay': .1
             }
         }]
     )
@@ -391,6 +393,86 @@ def test_orchestrate_build_annotations_and_labels(tmpdir, metadata_fragment):
     assert koji_upload_dir
 
 
+def test_orchestrate_choose_cluster_retry(tmpdir):
+
+    mock_osbs()
+
+    (flexmock(OSBS).should_receive('list_builds')
+        .and_raise(OsbsException)
+        .and_raise(OsbsException)
+        .and_return([1, 2, 3]))
+
+    workflow = mock_workflow(tmpdir)
+
+    mock_reactor_config(tmpdir, {
+        'x86_64': [
+            {'name': cluster[0], 'max_concurrent_builds': cluster[1]}
+            for cluster in [('chosen_x86_64', 5), ('spam', 4)]
+        ],
+        'ppc64le': [
+            {'name': cluster[0], 'max_concurrent_builds': cluster[1]}
+            for cluster in [('chosen_ppc64le', 5), ('ham', 5)]
+        ]
+    })
+
+    runner = BuildStepPluginsRunner(
+        workflow.builder.tasker,
+        workflow,
+        [{
+            'name': OrchestrateBuildPlugin.key,
+            'args': {
+                'platforms': ['x86_64', 'ppc64le'],
+                'build_kwargs': make_worker_build_kwargs(),
+                'osbs_client_config': str(tmpdir),
+                'find_cluster_retry_delay': .1,
+                'max_cluster_fails': 2
+            }
+        }]
+    )
+
+    runner.run()
+
+
+def test_orchestrate_choose_cluster_retry_timeout(tmpdir):
+
+    (flexmock(OSBS).should_receive('list_builds')
+        .and_raise(OsbsException)
+        .and_raise(OsbsException)
+        .and_raise(OsbsException))
+
+    workflow = mock_workflow(tmpdir)
+
+    mock_reactor_config(tmpdir, {
+        'x86_64': [
+            {'name': cluster[0], 'max_concurrent_builds': cluster[1]}
+            for cluster in [('chosen_x86_64', 5), ('spam', 4)]
+        ],
+        'ppc64le': [
+            {'name': cluster[0], 'max_concurrent_builds': cluster[1]}
+            for cluster in [('chosen_ppc64le', 5), ('ham', 5)]
+        ]
+    })
+
+    runner = BuildStepPluginsRunner(
+        workflow.builder.tasker,
+        workflow,
+        [{
+            'name': OrchestrateBuildPlugin.key,
+            'args': {
+                'platforms': ['x86_64', 'ppc64le'],
+                'build_kwargs': make_worker_build_kwargs(),
+                'osbs_client_config': str(tmpdir),
+                'find_cluster_retry_delay': .1,
+                'max_cluster_fails': 2
+            }
+        }]
+    )
+
+    with pytest.raises(Exception) as exc:
+        runner.run()
+    assert 'Could not find appropriate cluster for worker build.' in str(exc)
+
+
 def test_orchestrate_build_cancelation(tmpdir):
     workflow = mock_workflow(tmpdir)
     mock_osbs()
@@ -431,19 +513,15 @@ def test_orchestrate_build_cancelation(tmpdir):
         def __init__(self):
             self.exception_raised = False
 
-        def wait(self, timeout=None):
+        def get(self, timeout=None):
             time.sleep(0.1)
             if not self.exception_raised:
                 self.exception_raised = True
                 raise BuildCanceledException()
 
     raise_once = RaiseOnce()
-    (flexmock(AsyncResult).should_receive('wait')
-        .replace_with(raise_once.wait))
-
-    # Required due to python3 implementation.
     (flexmock(AsyncResult).should_receive('get')
-        .and_return(None))
+        .replace_with(raise_once.get))
 
     with pytest.raises(PluginFailedException) as exc:
         runner.run()
@@ -627,6 +705,8 @@ def test_orchestrate_build_failed_create(tmpdir):
                 'platforms': ['x86_64', 'ppc64le'],
                 'build_kwargs': make_worker_build_kwargs(),
                 'osbs_client_config': str(tmpdir),
+                'find_cluster_retry_delay': .1,
+                'failure_retry_delay': .1
             }
         }]
     )
@@ -784,7 +864,7 @@ def test_orchestrate_build_get_fs_task_id(tmpdir, task_id, error):
         assert not build_result.is_failed()
 
 
-@pytest.mark.parametrize('fail_at', ('all', 'first', 'build_canceled'))
+@pytest.mark.parametrize('fail_at', ('all', 'first'))
 def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
     workflow = mock_workflow(tmpdir)
     mock_osbs()  # Current builds is a constant 2
@@ -816,6 +896,8 @@ def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
                 'platforms': ['x86_64'],
                 'build_kwargs': make_worker_build_kwargs(),
                 'osbs_client_config': str(tmpdir),
+                'find_cluster_retry_delay': .1,
+                'max_cluster_fails': 2
             }
         }]
     )
@@ -829,7 +911,7 @@ def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
         with pytest.raises(PluginFailedException) as exc:
             build_result = runner.run()
         if fail_at == 'all':
-            assert 'All clusters for platform x86_64 are unreachable' in str(exc)
+            assert 'Could not find appropriate cluster for worker build.' in str(exc)
         elif fail_at == 'build_canceled':
             assert 'BuildCanceledException()' in str(exc)
 

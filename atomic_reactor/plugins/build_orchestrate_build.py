@@ -14,13 +14,17 @@ from multiprocessing.pool import ThreadPool
 import yaml
 import json
 import os
+from operator import attrgetter
 import random
 from string import ascii_letters
 import time
 import logging
+from datetime import timedelta
+import datetime as dt
+import copy
 
 from atomic_reactor.build import BuildResult
-from atomic_reactor.plugin import BuildStepPlugin, BuildCanceledException
+from atomic_reactor.plugin import BuildStepPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_config
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import get_preferred_label, df_parser
@@ -35,6 +39,9 @@ ClusterInfo = namedtuple('ClusterInfo', ('cluster', 'platform', 'osbs', 'load'))
 WORKSPACE_KEY_BUILD_INFO = 'build_info'
 WORKSPACE_KEY_UPLOAD_DIR = 'koji_upload_dir'
 WORKSPACE_KEY_OVERRIDE_KWARGS = 'override_kwargs'
+FIND_CLUSTER_RETRY_DELAY = 15.0
+FAILURE_RETRY_DELAY = 10.0
+MAX_CLUSTER_FAILS = 20
 
 
 def get_worker_build_info(workflow, platform):
@@ -62,6 +69,61 @@ def override_build_kwarg(workflow, k, v):
     workspace = workflow.plugin_workspace.setdefault(key, {})
     override_kwargs = workspace.setdefault(WORKSPACE_KEY_OVERRIDE_KWARGS, {})
     override_kwargs[k] = v
+
+
+class UnknownPlatformException(Exception):
+    """ No clusters could be found for a platform """
+
+
+class AllClustersFailedException(Exception):
+    """ Each cluster has reached max_cluster_fails """
+
+
+class ClusterRetryContext(object):
+    def __init__(self, max_cluster_fails):
+        # how many times this cluster has failed
+        self.fails = 0
+
+        # datetime at which attempts can resume
+        self.retry_at = dt.datetime.utcfromtimestamp(0)
+
+        # the number of fail counts before this cluster is considered dead
+        self.max_cluster_fails = max_cluster_fails
+
+    @property
+    def failed(self):
+        """Is this cluster considered dead?"""
+        return self.fails >= self.max_cluster_fails
+
+    @property
+    def in_retry_wait(self):
+        """Should we wait before trying this cluster again?"""
+        return dt.datetime.now() < self.retry_at
+
+    def try_again_later(self, seconds):
+        """Put this cluster in retry-wait (or consider it dead)"""
+        if not self.failed:
+            self.fails += 1
+            self.retry_at = (dt.datetime.now() + timedelta(seconds=seconds))
+
+
+def wait_for_any_cluster(contexts):
+    """
+    Wait until any of the clusters are out of retry-wait
+
+    :param contexts: List[ClusterRetryContext]
+    :raises: AllClustersFailedException if no more retry attempts allowed
+    """
+    try:
+        earliest_retry_at = min(ctx.retry_at for ctx in contexts.values()
+                                if not ctx.failed)
+    except ValueError:  # can't take min() of empty sequence
+        raise AllClustersFailedException(
+            "Could not find appropriate cluster for worker build."
+        )
+
+    time_until_next = earliest_retry_at - dt.datetime.now()
+    time.sleep(max(timedelta(seconds=0), time_until_next).seconds)
 
 
 class WorkerBuildInfo(object):
@@ -171,7 +233,10 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
     def __init__(self, tasker, workflow, platforms, build_kwargs,
                  osbs_client_config=None, worker_build_image=None,
-                 config_kwargs=None):
+                 config_kwargs=None,
+                 find_cluster_retry_delay=FIND_CLUSTER_RETRY_DELAY,
+                 failure_retry_delay=FAILURE_RETRY_DELAY,
+                 max_cluster_fails=MAX_CLUSTER_FAILS):
         """
         constructor
 
@@ -183,12 +248,22 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         :param worker_build_image: str, the builder image to use for worker builds
                                   (deprecated, use config_kwargs instead)
         :param config_kwargs: dict, keyword arguments to override worker configuration
+        :param find_cluster_retry_delay: the delay in seconds to try again reaching a cluster
+        :param failure_retry_delay: the delay in seconds to try again starting a build
+        :param max_cluster_fails: the maximum number of times a cluster can fail before being
+                                  ignored
         """
         super(OrchestrateBuildPlugin, self).__init__(tasker, workflow)
         self.platforms = set(platforms)
         self.build_kwargs = build_kwargs
         self.osbs_client_config = osbs_client_config
         self.config_kwargs = config_kwargs or {}
+        self.find_cluster_retry_delay = find_cluster_retry_delay
+        self.failure_retry_delay = failure_retry_delay
+        self.max_cluster_fails = max_cluster_fails
+        self.koji_upload_dir = self.get_koji_upload_dir()
+        self.fs_task_id = self.get_fs_task_id()
+        self.release = self.get_release()
 
         if worker_build_image:
             self.log.warning('worker_build_image is deprecated, use config_kwargs instead')
@@ -219,7 +294,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     def get_current_builds(self, osbs):
         field_selector = ','.join(['status!={status}'.format(status=status.capitalize())
                                    for status in BUILD_FINISHED_STATES])
-        return len(osbs.list_builds(field_selector=field_selector))
+        with osbs.retries_disabled():
+            return len(osbs.list_builds(field_selector=field_selector))
 
     def get_cluster_info(self, cluster, platform):
         kwargs = deepcopy(self.config_kwargs)
@@ -229,42 +305,38 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         conf = Configuration(**kwargs)
         osbs = OSBS(conf, conf)
-        try:
-            current_builds = self.get_current_builds(osbs)
-        except OsbsException as e:
-            # If the build is canceled reraise the error
-            if isinstance(e.cause, BuildCanceledException):
-                raise e
 
-            self.log.exception("Error occurred while listing builds on %s",
-                               cluster.name)
-            return ClusterInfo(cluster, platform, osbs, self.UNREACHABLE_CLUSTER_LOAD)
+        current_builds = self.get_current_builds(osbs)
 
         load = current_builds / cluster.max_concurrent_builds
         self.log.debug('enabled cluster %s for platform %s has load %s and active builds %s/%s',
                        cluster.name, platform, load, current_builds, cluster.max_concurrent_builds)
         return ClusterInfo(cluster, platform, osbs, load)
 
-    def choose_cluster(self, platform):
-        config = get_config(self.workflow)
-        clusters = [self.get_cluster_info(cluster, platform) for cluster in
-                    config.get_enabled_clusters_for_platform(platform)]
+    def get_clusters(self, platform, retry_contexts, all_clusters):
+        ''' return clusters sorted by load. '''
 
-        if not clusters:
-            raise RuntimeError('No clusters found for platform {}!'
-                               .format(platform))
+        possible_cluster_info = {}
+        candidates = set(copy.copy(all_clusters))
+        while candidates and not possible_cluster_info:
+            wait_for_any_cluster(retry_contexts)
 
-        reachable_clusters = [cluster for cluster in clusters
-                              if cluster.load != self.UNREACHABLE_CLUSTER_LOAD]
+            for cluster in sorted(candidates, key=attrgetter('priority')):
+                ctx = retry_contexts[cluster.name]
+                if ctx.in_retry_wait:
+                    continue
+                if ctx.failed:
+                    continue
+                try:
+                    cluster_info = self.get_cluster_info(cluster, platform)
+                    possible_cluster_info[cluster] = cluster_info
+                except OsbsException:
+                    ctx.try_again_later(self.find_cluster_retry_delay)
+            candidates -= set([c for c in candidates if retry_contexts[c.name].failed])
 
-        if not reachable_clusters:
-            raise RuntimeError('All clusters for platform {} are unreachable!'
-                               .format(platform))
-
-        selected = min(reachable_clusters, key=lambda c: c.load)
-        self.log.info('platform %s will use cluster %s',
-                      platform, selected.cluster.name)
-        return selected
+        ret = sorted(possible_cluster_info.values(), key=lambda c: c.cluster.priority)
+        ret = sorted(ret, key=lambda c: c.load)
+        return ret
 
     def get_release(self):
         labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels
@@ -353,17 +425,22 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         return task_id
 
-    def do_worker_build(self, release, cluster_info, koji_upload_dir, task_id):
+    def do_worker_build(self, cluster_info):
         workspace = self.workflow.plugin_workspace.get(self.key, {})
         override_kwargs = workspace.get(WORKSPACE_KEY_OVERRIDE_KWARGS, {})
 
         build = None
 
         try:
-            kwargs = self.get_worker_build_kwargs(release, cluster_info.platform,
-                                                  koji_upload_dir, task_id)
+            kwargs = self.get_worker_build_kwargs(self.release, cluster_info.platform,
+                                                  self.koji_upload_dir, self.fs_task_id)
             kwargs.update(override_kwargs)
-            build = cluster_info.osbs.create_worker_build(**kwargs)
+            with cluster_info.osbs.retries_disabled():
+                build = cluster_info.osbs.create_worker_build(**kwargs)
+        except OsbsException:
+            self.log.exception('%s - failed to create worker build.',
+                               cluster_info.platform)
+            raise
         except Exception:
             self.log.exception('%s - failed to create worker build',
                                cluster_info.platform)
@@ -389,29 +466,45 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
                 except OsbsException:
                     pass
 
+    def select_and_start_cluster(self, platform):
+        ''' Choose a cluster and start a build on it '''
+
+        config = get_config(self.workflow)
+        clusters = config.get_enabled_clusters_for_platform(platform)
+
+        if not clusters:
+            raise UnknownPlatformException('No clusters found for platform {}!'
+                                           .format(platform))
+
+        retry_contexts = {
+            cluster.name: ClusterRetryContext(self.max_cluster_fails)
+            for cluster in clusters
+        }
+
+        while True:
+            possible_cluster_info = self.get_clusters(platform, retry_contexts, clusters)
+
+            for cluster_info in possible_cluster_info:
+                ctx = retry_contexts[cluster_info.cluster.name]
+                try:
+                    self.do_worker_build(cluster_info)
+                    return
+                except OsbsException:
+                    ctx.try_again_later(self.failure_retry_delay)
+                    # this will put the cluster in retry-wait when get_clusters runs
+
     def run(self):
-        release = self.get_release()
         platforms = self.get_platforms()
-        koji_upload_dir = self.get_koji_upload_dir()
-        task_id = self.get_fs_task_id()
 
         thread_pool = ThreadPool(len(platforms))
-        result = thread_pool.map_async(
-            lambda cluster_info: self.do_worker_build(release, cluster_info,
-                                                      koji_upload_dir, task_id),
-            [self.choose_cluster(platform) for platform in platforms]
-        )
+        result = thread_pool.map_async(self.select_and_start_cluster, platforms)
 
         try:
-            while not result.ready():
-                # The wait call is a blocking call which prevents signals
-                # from being processed. Wait for short intervals instead
-                # of a single long interval, so build cancellation can
-                # be handled virtually immediately.
-                result.wait(1)
+            result.get()
         # Always clean up worker builds on any error to avoid
         # runaway worker builds (includes orchestrator build cancellation)
         except Exception:
+            thread_pool.terminate()
             self.log.info('build cancelled, cancelling worker builds')
             if self.worker_builds:
                 ThreadPool(len(self.worker_builds)).map(
@@ -419,6 +512,9 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             while not result.ready():
                 result.wait(1)
             raise
+        else:
+            thread_pool.close()
+            thread_pool.join()
 
         annotations = {'worker-builds': {
             build_info.platform: build_info.get_annotations()
@@ -436,7 +532,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         }
 
         workspace = self.workflow.plugin_workspace.setdefault(self.key, {})
-        workspace[WORKSPACE_KEY_UPLOAD_DIR] = koji_upload_dir
+        workspace[WORKSPACE_KEY_UPLOAD_DIR] = self.koji_upload_dir
         workspace[WORKSPACE_KEY_BUILD_INFO] = {build_info.platform: build_info
                                                for build_info in self.worker_builds}
 
