@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import get_worker_build_info
 from atomic_reactor.constants import PLUGIN_FETCH_WORKER_METADATA_KEY
+from atomic_reactor.plugins.exit_remove_worker_metadata import defer_removal
 
 
 class FetchWorkerMetadataPlugin(PostBuildPlugin):
@@ -55,5 +56,7 @@ class FetchWorkerMetadataPlugin(PostBuildPlugin):
             metadata = cm_data.get_data_by_key(cm_frag_key)
 
             metadatas[platform] = metadata
+
+            defer_removal(self.workflow, cm_key, osbs)
 
         return metadatas
