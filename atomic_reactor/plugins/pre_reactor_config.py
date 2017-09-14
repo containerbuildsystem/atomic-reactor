@@ -41,10 +41,11 @@ class ClusterConfig(object):
     Configuration relating to a particular cluster
     """
 
-    def __init__(self, name, max_concurrent_builds, enabled=True):
+    def __init__(self, name, max_concurrent_builds, enabled=True, priority=0):
         self.name = str(name)
         self.max_concurrent_builds = int(max_concurrent_builds)
         self.enabled = enabled
+        self.priority = priority
 
 
 class ReactorConfigKeys(object):
@@ -83,7 +84,8 @@ class ReactorConfig(object):
         self.cluster_configs = {}
         for platform, clusters in self.conf.get(ReactorConfigKeys.CLUSTERS_KEY,
                                                 {}).items():
-            cluster_configs = [ClusterConfig(**cluster) for cluster in clusters]
+            cluster_configs = [ClusterConfig(priority=priority, **cluster)
+                               for priority, cluster in enumerate(clusters)]
             self.cluster_configs[platform] = [conf for conf in cluster_configs
                                               if conf.enabled]
 
