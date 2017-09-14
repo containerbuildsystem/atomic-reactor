@@ -81,6 +81,7 @@ PLUGIN_GROUP_MANIFESTS_KEY = 'group_manifests'
 PLUGIN_BUILD_ORCHESTRATE_KEY = 'orchestrate_build'
 PLUGIN_KOJI_PARENT_KEY = 'koji_parent'
 PLUGIN_COMPARE_COMPONENTS_KEY = 'compare_components'
+PLUGIN_REMOVE_WORKER_METADATA_KEY = 'remove_worker_metadata'
 
 # max retries for docker requests
 DOCKER_MAX_RETRIES = 3
