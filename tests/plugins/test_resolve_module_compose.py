@@ -12,6 +12,7 @@ import json
 import responses
 import os
 import pytest
+import six
 from six.moves.urllib.parse import urlparse, parse_qs
 
 from atomic_reactor.inner import DockerBuildWorkflow
@@ -108,7 +109,11 @@ def test_resolve_module_compose(tmpdir, docker_tasker, specify_version):
     def handle_composes_post(request):
         assert request.headers['OIDC_access_token'] == 'green_eggs_and_ham'
 
-        body_json = json.loads(request.body.decode())
+        if isinstance(request.body, six.text_type):
+            body = request.body
+        else:
+            body = request.body.decode()
+        body_json = json.loads(body)
         assert body_json['source']['type'] == 'module'
         if specify_version:
             assert body_json['source']['source'] == MODULE_NSV
