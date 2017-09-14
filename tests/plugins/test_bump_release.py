@@ -197,6 +197,9 @@ class TestBumpRelease(object):
         # No interpretation of the base release when appending - just treated as string
         ('42.1', ['42.2'], '42.1.1'),
         ('42.1', ['42.1.1'], '42.1.2'),
+        (None, [], '1.1'),
+        (None, ['1.1'], '1.2'),
+        (None, ['1.1', '1.2'], '1.3'),
     ])
     def test_append(self, tmpdir, base_release, builds, expected):
 
@@ -215,8 +218,9 @@ class TestBumpRelease(object):
         labels = {
             'com.redhat.component': 'component1',
             'version': 'fc26',
-            'release': base_release
         }
+        if base_release:
+            labels['release'] = base_release
 
         plugin = self.prepare(tmpdir, labels=labels,
                               append=True)
