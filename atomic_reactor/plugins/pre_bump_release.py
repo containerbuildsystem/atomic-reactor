@@ -90,9 +90,10 @@ class BumpReleasePlugin(PreBuildPlugin):
         # This is brute force, but trying to use getNextRelease() would be fragile
         # magic depending on the exact details of how koji increments the release,
         # and we expect that the number of builds for any one base_release will be small.
+        release = base_release or '1'
         suffix = 1
         while True:
-            next_release = base_release + '.' + str(suffix)
+            next_release = '%s.%s' % (release, suffix)
             build_info = {'name': component, 'version': version, 'release': next_release}
             self.log.debug('checking that the build does not exist: %s', build_info)
             build = self.xmlrpc.getBuild(build_info)
