@@ -17,8 +17,7 @@ if [[ $OS == "fedora" ]]; then
   if [[ $OS_VERSION == 25 && $PYTHON_VERSION == 2 ]]; then PIP_PKG="python-pip"; else PIP_PKG="python$PYTHON_VERSION-pip"; fi
   PIP="pip$PYTHON_VERSION"
   PKG="dnf"
-  # F25 has outdated flatpak, don't run flatpak tests on it
-  if [[ $OS_VERSION == 25 ]]; then PKG_EXTRA="dnf-plugins-core desktop-file-utils"; else PKG_EXTRA="dnf-plugins-core desktop-file-utils flatpak ostree"; fi
+  PKG_EXTRA="dnf-plugins-core desktop-file-utils flatpak ostree"
   BUILDDEP="dnf builddep"
   PYTHON="python$PYTHON_VERSION"
   PYTEST="py.test-$PYTHON_VERSION"
