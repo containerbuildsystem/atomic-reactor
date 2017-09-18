@@ -277,14 +277,13 @@ class KojiUploadPlugin(PostBuildPlugin):
         for the metadata.
         """
 
-        try:
-            output = self.workflow.postbuild_results[PostBuildRPMqaPlugin.key]
-        except KeyError:
+        output = self.workflow.image_components
+        if output is None:
             self.log.error("%s plugin did not run!",
                            PostBuildRPMqaPlugin.key)
-            return []
+            output = []
 
-        return parse_rpm_output(output)
+        return output
 
     def get_image_output(self):
         """
