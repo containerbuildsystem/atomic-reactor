@@ -42,6 +42,7 @@ from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  are_plugins_in_order)
 from atomic_reactor.koji_util import (create_koji_session, tag_koji_build,
                                       Output, KojiUploadLogger)
+from atomic_reactor.rpm_util import parse_rpm_output, rpm_qf_args
 from osbs.conf import Configuration
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
@@ -122,65 +123,6 @@ class KojiPromotePlugin(ExitPlugin):
         self.build_id = None
         self.pullspec_image = None
 
-    @staticmethod
-    def parse_rpm_output(output, tags, separator=';'):
-        """
-        Parse output of the rpm query.
-
-        :param output: list, decoded output (str) from the rpm subprocess
-        :param tags: list, str fields used for query output
-        :return: list, dicts describing each rpm package
-        """
-
-        def field(tag):
-            """
-            Get a field value by name
-            """
-            try:
-                value = fields[tags.index(tag)]
-            except ValueError:
-                return None
-
-            if value == '(none)':
-                return None
-
-            return value
-
-        components = []
-        sigmarker = 'Key ID '
-        for rpm in output:
-            fields = rpm.rstrip('\n').split(separator)
-            if len(fields) < len(tags):
-                continue
-
-            signature = field('SIGPGP:pgpsig') or field('SIGGPG:pgpsig')
-            if signature:
-                parts = signature.split(sigmarker, 1)
-                if len(parts) > 1:
-                    signature = parts[1]
-
-            component_rpm = {
-                'type': 'rpm',
-                'name': field('NAME'),
-                'version': field('VERSION'),
-                'release': field('RELEASE'),
-                'arch': field('ARCH'),
-                'sigmd5': field('SIGMD5'),
-                'signature': signature,
-            }
-
-            # Special handling for epoch as it must be an integer or None
-            epoch = field('EPOCH')
-            if epoch is not None:
-                epoch = int(epoch)
-
-            component_rpm['epoch'] = epoch
-
-            if component_rpm['name'] != 'gpg-pubkey':
-                components.append(component_rpm)
-
-        return components
-
     def get_rpms(self):
         """
         Build a list of installed RPMs in the format required for the
@@ -198,9 +140,7 @@ class KojiPromotePlugin(ExitPlugin):
             'SIGGPG:pgpsig',
         ]
 
-        sep = ';'
-        fmt = sep.join(["%%{%s}" % tag for tag in tags])
-        cmd = "/bin/rpm -qa --qf '{0}\n'".format(fmt)
+        cmd = "/bin/rpm " + rpm_qf_args(tags)
         try:
             # py3
             (status, output) = subprocess.getstatusoutput(cmd)
@@ -221,7 +161,7 @@ class KojiPromotePlugin(ExitPlugin):
             self.log.debug("%s: stderr output: %s", cmd, stderr)
             raise RuntimeError("%s: exit code %s" % (cmd, status))
 
-        return self.parse_rpm_output(output.splitlines(), tags, separator=sep)
+        return parse_rpm_output(output.splitlines(), tags)
 
     def get_output_metadata(self, path, filename):
         """
@@ -363,14 +303,7 @@ class KojiPromotePlugin(ExitPlugin):
                            PostBuildRPMqaPlugin.key)
             return []
 
-        try:
-            sep = PostBuildRPMqaPlugin.sep
-        except AttributeError:
-            # sep instance variable added in Aug 2016
-            sep = ','
-
-        return self.parse_rpm_output(output, PostBuildRPMqaPlugin.rpm_tags,
-                                     separator=sep)
+        return parse_rpm_output(output)
 
     def get_image_output(self, arch):
         """
