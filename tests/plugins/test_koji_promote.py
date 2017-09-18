@@ -32,13 +32,13 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.exit_koji_promote import (KojiUploadLogger,
                                                       KojiPromotePlugin)
 from atomic_reactor.plugins.exit_koji_tag_build import KojiTagBuildPlugin
-from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
 from atomic_reactor.util import ImageName, ManifestDigest
+from atomic_reactor.rpm_util import parse_rpm_output
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.build import BuildResult
 from tests.constants import SOURCE, MOCK
@@ -286,12 +286,13 @@ def mock_environment(tmpdir, session=None, name=None,
                                             image_id="id1234")
     workflow.prebuild_plugins_conf = {}
     workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_rebuild
-    workflow.postbuild_results[PostBuildRPMqaPlugin.key] = [
+
+    workflow.image_components = parse_rpm_output([
         "name1;1.0;1;x86_64;0;2000;" + FAKE_SIGMD5.decode() + ";23000;"
         "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abc;(none)",
         "name2;2.0;1;x86_64;0;3000;" + FAKE_SIGMD5.decode() + ";24000"
         "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abd;(none)",
-    ]
+    ])
 
     return tasker, workflow
 

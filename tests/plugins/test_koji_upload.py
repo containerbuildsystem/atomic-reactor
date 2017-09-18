@@ -32,10 +32,10 @@ except ImportError:
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.post_koji_upload import (KojiUploadLogger,
                                                      KojiUploadPlugin)
-from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
 from atomic_reactor.util import ImageName, ManifestDigest
+from atomic_reactor.rpm_util import parse_rpm_output
 from atomic_reactor.source import GitSource
 from atomic_reactor.build import BuildResult
 from tests.constants import SOURCE, MOCK
@@ -311,12 +311,13 @@ def mock_environment(tmpdir, session=None, name=None,
         workflow.build_result = BuildResult(logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
                                             image_id="id1234")
     workflow.prebuild_plugins_conf = {}
-    workflow.postbuild_results[PostBuildRPMqaPlugin.key] = [
+
+    workflow.image_components = parse_rpm_output([
         "name1;1.0;1;" + LOCAL_ARCH + ";0;2000;" + FAKE_SIGMD5.decode() + ";23000;"
         "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abc;(none)",
         "name2;2.0;1;" + LOCAL_ARCH + ";0;3000;" + FAKE_SIGMD5.decode() + ";24000"
         "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abd;(none)",
-    ]
+    ])
 
     return tasker, workflow
 
