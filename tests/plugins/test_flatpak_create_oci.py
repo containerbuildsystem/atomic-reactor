@@ -32,7 +32,7 @@ from atomic_reactor.util import ImageName
 from tests.constants import TEST_IMAGE
 from tests.fixtures import docker_tasker  # noqa
 from tests.flatpak import (
-    FLATPAK_APP_JSON, FLATPAK_APP_MODULEMD, FLATPAK_APP_FINISH_ARGS,
+    FLATPAK_APP_JSON, FLATPAK_APP_MODULEMD, FLATPAK_APP_RPMS, FLATPAK_APP_FINISH_ARGS,
     FLATPAK_RUNTIME_JSON, FLATPAK_RUNTIME_MODULEMD
 )
 
@@ -80,6 +80,7 @@ APP_CONFIG = {
     'module_version': '20170629213428',
     'flatpak_json': FLATPAK_APP_JSON,
     'module_metadata': FLATPAK_APP_MODULEMD,
+    'module_rpms': FLATPAK_APP_RPMS,
     'filesystem_contents': APP_FILESYSTEM_CONTENTS,
     'expected_contents': EXPECTED_APP_FLATPAK_CONTENTS
 }
@@ -104,6 +105,7 @@ RUNTIME_CONFIG = {
     'module_version': '20170629185228',
     'flatpak_json': FLATPAK_RUNTIME_JSON,
     'module_metadata': FLATPAK_RUNTIME_MODULEMD,
+    'module_rpms': [], # We don't use this currently
     'filesystem_contents': RUNTIME_FILESYSTEM_CONTENTS,
     'expected_contents': EXPECTED_RUNTIME_FLATPAK_CONTENTS
 }
@@ -444,7 +446,8 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, mock_flatpak):
     base_module = ModuleInfo(config['module_name'],
                              config['module_stream'],
                              config['module_version'],
-                             mmd)
+                             mmd,
+                             config['module_rpms'])
     repo_url = 'http://odcs.example/composes/latest-odcs-42-1/compose/Temporary/$basearch/os/'
     compose_info = ComposeInfo(42, base_module,
                                {config['module_name']: base_module},

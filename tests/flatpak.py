@@ -24,6 +24,35 @@ data:
     mbs: OMITTED
 """
 
+FLATPAK_APP_RPMS = [
+    "eog-0:3.24.1-1.module_7b96ed10.src.rpm",
+    "eog-0:3.24.1-1.module_7b96ed10.x86_64.rpm",
+    "eog-debuginfo-0:3.24.1-1.module_7b96ed10.x86_64.rpm",
+    "eog-devel-0:3.24.1-1.module_7b96ed10.x86_64.rpm",
+    "eog-tests-0:3.24.1-1.module_7b96ed10.x86_64.rpm",
+    "exempi-0:2.4.2-4.module_7b96ed10.src.rpm",
+    "exempi-0:2.4.2-4.module_7b96ed10.x86_64.rpm",
+    "exempi-debuginfo-0:2.4.2-4.module_7b96ed10.x86_64.rpm",
+    "exempi-devel-0:2.4.2-4.module_7b96ed10.x86_64.rpm",
+    "glade-0:3.20.0-3.module_7b96ed10.src.rpm",
+    "glade-0:3.20.0-3.module_7b96ed10.x86_64.rpm",
+    "glade-debuginfo-0:3.20.0-3.module_7b96ed10.x86_64.rpm",
+    "glade-devel-0:3.20.0-3.module_7b96ed10.x86_64.rpm",
+    "glade-libs-0:3.20.0-3.module_7b96ed10.x86_64.rpm",
+    "libexif-0:0.6.21-11.module_7b96ed10.src.rpm",
+    "libexif-0:0.6.21-11.module_7b96ed10.x86_64.rpm",
+    "libexif-debuginfo-0:0.6.21-11.module_7b96ed10.x86_64.rpm",
+    "libexif-devel-0:0.6.21-11.module_7b96ed10.x86_64.rpm",
+    "libexif-doc-0:0.6.21-11.module_7b96ed10.x86_64.rpm",
+    "libpeas-0:1.20.0-5.module_7b96ed10.src.rpm",
+    "libpeas-0:1.20.0-5.module_7b96ed10.x86_64.rpm",
+    "libpeas-debuginfo-0:1.20.0-5.module_7b96ed10.x86_64.rpm",
+    "libpeas-devel-0:1.20.0-5.module_7b96ed10.x86_64.rpm",
+    "libpeas-gtk-0:1.20.0-5.module_7b96ed10.x86_64.rpm",
+    "libpeas-loader-python-0:1.20.0-5.module_7b96ed10.x86_64.rpm",
+    "libpeas-loader-python3-0:1.20.0-5.module_7b96ed10.x86_64.rpm",
+]
+
 FLATPAK_APP_FINISH_ARGS = [
     "--filesystem=host",
     "--share=ipc",
