@@ -20,7 +20,7 @@ from modulemd import ModuleMetadata
 
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PrePublishPluginsRunner
+from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.prepub_flatpak_create_oci import FlatpakCreateOciPlugin
 from atomic_reactor.plugins.pre_resolve_module_compose import (ModuleInfo,
                                                                ComposeInfo,
@@ -56,12 +56,23 @@ MimeType=image/bmp;image/gif;image/jpeg;image/jpg;image/pjpeg;image/png;image/ti
 # Extra keywords that can be used to search for eog in GNOME Shell and Unity
 Keywords=Picture;Slideshow;Graphics;"""
 
+# The list of RPMs inherited from the runtime is abbreviated; we just need one
+# (abattis-cantarell-fonts) to check that they are properly ignored.
+APP_MANIFEST_CONTENTS = """eog;3.24.1;1.module_7b96ed10;x86_64;(none);42;sigmd5;1491914281;sigpgp;siggpg
+exempi;2.4.2;4.module_7b96ed10;x86_64;(none);42;sigmd5;1491914281;sigpgp;siggpg
+libexif;0.6.21;11.module_7b96ed10;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libpeas;1.20.0;5.module_7b96ed10;x86_64;1;42;sigmd5;1491914281;sigpgp;siggpg
+libpeas-gtk;1.20.0;5.module_7b96ed10;x86_64;1;42;sigmd5;0;42;1491914281;sigpgp;siggpg
+abattis-cantarell-fonts;0.0.25;2.module_e15740c0;noarch;(none);42;sigmd5;1491914281;sigpgp;siggpg
+"""
+
 APP_FILESYSTEM_CONTENTS = {
     '/usr/bin/not_eog': 'SHOULD_IGNORE',
     ROOT + '/usr/bin/also_not_eog': 'SHOULD_IGNORE',
     ROOT + '/app/bin/eog': 'MY_PROGRAM',
     ROOT + '/app/share/applications/eog.desktop': DESKTOP_FILE_CONTENTS,
     ROOT + '/app/share/icons/hicolor/256x256/apps/eog.png': 'MY_ICON',
+    '/var/tmp/flatpak-build.rpm_qf': APP_MANIFEST_CONTENTS
 }
 
 EXPECTED_APP_FLATPAK_CONTENTS = [
@@ -75,21 +86,240 @@ EXPECTED_APP_FLATPAK_CONTENTS = [
 ]
 
 APP_CONFIG = {
-    'module_name': 'eog',
-    'module_stream': 'f26',
-    'module_version': '20170629213428',
+    'base_module': 'eog',
+    'modules': {
+        'eog': {
+            'stream': 'f26',
+            'version': '20170629213428',
+            'metadata': FLATPAK_APP_MODULEMD,
+            'rpms': FLATPAK_APP_RPMS,
+        },
+        'flatpak-runtime': {
+            'stream': 'f26',
+            'version': '20170629185228',
+            'metadata': FLATPAK_RUNTIME_MODULEMD,
+            'rpms': [],  # We don't use this currently
+        },
+    },
     'flatpak_json': FLATPAK_APP_JSON,
-    'module_metadata': FLATPAK_APP_MODULEMD,
-    'module_rpms': FLATPAK_APP_RPMS,
     'filesystem_contents': APP_FILESYSTEM_CONTENTS,
-    'expected_contents': EXPECTED_APP_FLATPAK_CONTENTS
+    'expected_contents': EXPECTED_APP_FLATPAK_CONTENTS,
+    'expected_components': ['eog'],
+    'unexpected_components': ['abattis-cantarell-fonts'],
 }
+
+RUNTIME_MANIFEST_CONTENTS = """abattis-cantarell-fonts;0.0.25;2.module_e15740c0;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+acl;2.2.52;13.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+adwaita-cursor-theme;3.24.0;2.module_e15740c0;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+adwaita-gtk2-theme;3.22.3;2.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+adwaita-icon-theme;3.24.0;2.module_e15740c0;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+atk;2.24.0;1.module_98c1823a;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+at-spi2-atk;2.24.1;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+at-spi2-core;2.24.1;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+audit-libs;2.7.3;1.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+avahi-libs;0.6.32;7.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+basesystem;11;3.module_7e01f122;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+bash;4.4.11;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+bzip2-libs;1.0.6;22.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+ca-certificates;2017.2.11;5.module_7e01f122;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+cairo;1.14.10;1.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+cairo-gobject;1.14.10;1.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+chkconfig;1.9;1.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+colord-libs;1.3.5;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+coreutils;8.27;3.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+coreutils-common;8.27;3.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+cracklib;2.9.6;5.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+crypto-policies;20170330;3.git55b66da.module_82827beb;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+cryptsetup-libs;1.7.3;3.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+cups-libs;2.2.2;6.module_98c1823a;x86_64;1;42;sigmd5;1491914281;sigpgp;siggpg
+dbus;1.11.10;2.module_7e01f122;x86_64;1;42;sigmd5;1491914281;sigpgp;siggpg
+dbus-libs;1.11.10;2.module_7e01f122;x86_64;1;42;sigmd5;1491914281;sigpgp;siggpg
+device-mapper;1.02.137;4.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+device-mapper-libs;1.02.137;4.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+elfutils-default-yama-scope;0.168;5.module_7e01f122;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+elfutils-libelf;0.168;5.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+elfutils-libs;0.168;5.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+emacs-filesystem;25.2;0.1.rc2.module_7e01f122;noarch;1;42;sigmd5;1491914281;sigpgp;siggpg
+enchant;1.6.0;16.module_e15740c0;x86_64;1;42;sigmd5;1491914281;sigpgp;siggpg
+expat;2.2.0;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+fedora-modular-release;26;4.module_bc43b454;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+fedora-modular-repos;26;0.1.module_bc43b454;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+filesystem;3.2;40.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+flatpak-runtime-config;27;3.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+fontconfig;2.12.1;4.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+fontpackages-filesystem;1.44;18.module_f9511cd3;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+freetype;2.7.1;9.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+gawk;4.1.4;3.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+gdbm;1.12;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+gdk-pixbuf2;2.36.6;1.module_98c1823a;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+gdk-pixbuf2-modules;2.36.6;1.module_98c1823a;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+glib2;2.52.2;3.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+glibc;2.25;4.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+glibc-all-langpacks;2.25;4.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+glibc-common;2.25;4.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+glib-networking;2.50.0;2.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+gmp;6.1.2;3.module_7e01f122;x86_64;1;42;sigmd5;1491914281;sigpgp;siggpg
+gnome-desktop3;3.24.2;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+gnome-themes-standard;3.22.3;2.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+gnutls;3.5.10;1.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+gobject-introspection;1.52.1;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+graphite2;1.3.6;2.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+grep;3.0;1.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+gsettings-desktop-schemas;3.24.0;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+gtk2;2.24.31;3.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+gtk3;3.22.16;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+gtk-update-icon-cache;3.22.16;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+gvfs-client;1.32.1;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+gzip;1.8;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+harfbuzz;1.4.4;1.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+hicolor-icon-theme;0.15;4.module_f9511cd3;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+hunspell;1.5.4;2.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+hunspell-en-GB;0.20140811.1;6.module_e15740c0;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+hunspell-en-US;0.20140811.1;6.module_e15740c0;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+hwdata;0.301;1.module_f9511cd3;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+info;6.3;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+iptables-libs;1.6.1;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+jasper-libs;2.0.12;1.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+jbigkit-libs;2.1;6.module_98c1823a;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+json-glib;1.2.8;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+keyutils-libs;1.5.9;9.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+kmod-libs;24;1.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+krb5-libs;1.15;9.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+lcms2;2.8;3.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libacl;2.2.52;13.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libappstream-glib;0.7.0;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libarchive;3.2.2;3.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libattr;2.4.47;18.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libblkid;2.29.1;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libcap;2.25;5.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libcap-ng;0.7.8;3.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libcom_err;1.43.4;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libcroco;0.6.11;3.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libcrypt;2.25;4.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libdatrie;0.2.9;4.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libdb;5.3.28;17.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libdrm;2.4.81;1.module_98c1823a;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libepoxy;1.4.1;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libfdisk;2.29.1;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libffi;3.1;10.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libgcab1;0.7;2.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libgcc;7.0.1;0.15.module_191b5bc9;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libgcrypt;1.7.6;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libglvnd;0.2.999;17.20170308git8e6e102.module_f9511cd3;x86_64;1;42;sigmd5;1491914281;sigpgp;siggpg
+libglvnd-egl;0.2.999;17.20170308git8e6e102.module_f9511cd3;x86_64;1;42;sigmd5;1491914281;sigpgp;siggpg
+libglvnd-glx;0.2.999;17.20170308git8e6e102.module_f9511cd3;x86_64;1;42;sigmd5;1491914281;sigpgp;siggpg
+libgpg-error;1.25;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libgusb;0.2.10;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libidn;1.33;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libidn2;0.16;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libjpeg-turbo;1.5.1;2.module_98c1823a;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libmodman;2.0.1;13.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libmount;2.29.1;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libnotify;0.7.7;2.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libpcap;1.8.1;3.module_7e01f122;x86_64;14;42;sigmd5;1491914281;sigpgp;siggpg
+libpciaccess;0.13.4;4.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libpng;1.6.28;2.module_7e01f122;x86_64;2;42;sigmd5;1491914281;sigpgp;siggpg
+libproxy;0.4.15;1.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libpwquality;1.3.0;8.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+librsvg2;2.40.17;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libseccomp;2.3.2;1.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libselinux;2.6;6.module_98c1823a;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libsemanage;2.6;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libsepol;2.6;1.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libsigsegv;2.11;1.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libsmartcols;2.29.1;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libsoup;2.58.1;2.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libstdc++;7.0.1;0.15.module_191b5bc9;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libstemmer;0;5.585svn.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libtasn1;4.10;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libthai;0.1.25;2.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libtiff;4.0.8;1.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libunistring;0.9.7;1.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libusbx;1.0.21;2.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libutempter;1.1.6;9.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libuuid;2.29.1;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libverto;0.2.6;7.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libwayland-client;1.13.0;2.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libwayland-cursor;1.13.0;2.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libwayland-server;1.13.0;2.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libX11;1.6.5;2.module_98c1823a;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libX11-common;1.6.5;2.module_98c1823a;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+libXau;1.0.8;7.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libxcb;1.12;3.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libXcomposite;0.4.4;9.module_98c1823a;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libXcursor;1.1.14;8.module_98c1823a;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libXdamage;1.1.4;9.module_98c1823a;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libXext;1.3.3;5.module_98c1823a;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libXfixes;5.0.3;2.module_98c1823a;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libXft;2.3.2;5.module_98c1823a;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libXi;1.7.9;2.module_98c1823a;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libXinerama;1.1.3;7.module_98c1823a;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libxkbcommon;0.7.1;3.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libxml2;2.9.4;2.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libXrandr;1.5.1;2.module_98c1823a;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libXrender;0.9.10;2.module_98c1823a;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libxshmfence;1.2;4.module_98c1823a;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libXtst;1.2.3;2.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+libXxf86vm;1.1.4;4.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+lz4-libs;1.7.5;3.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+lzo;2.08;9.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+mesa-libEGL;17.1.4;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+mesa-libgbm;17.1.4;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+mesa-libGL;17.1.4;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+mesa-libglapi;17.1.4;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+mesa-libwayland-egl;17.1.4;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+mpfr;3.1.5;3.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+ncurses;6.0;8.20170212.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+ncurses-base;6.0;8.20170212.module_7e01f122;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+ncurses-libs;6.0;8.20170212.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+nettle;3.3;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+openssl-libs;1.1.0e;1.module_7e01f122;x86_64;1;42;sigmd5;1491914281;sigpgp;siggpg
+p11-kit;0.23.5;1.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+p11-kit-trust;0.23.5;1.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+pam;1.3.0;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+pango;1.40.6;1.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+pcre;8.40;5.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+pixman;0.34.0;3.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+popt;1.16;8.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+python3;3.6.0;21.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+python3-appdirs;1.4.0;10.module_7e01f122;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+python3-cairo;1.10.0;20.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+python3-gobject;3.24.1;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+python3-gobject-base;3.24.1;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+python3-libs;3.6.0;21.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+python3-packaging;16.8;4.module_7e01f122;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+python3-pip;9.0.1;7.module_7e01f122;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+python3-pyparsing;2.1.10;3.module_7e01f122;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+python3-setuptools;36.0.1;1.module_e15740c0;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+python3-six;1.10.0;8.module_e15740c0;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+qrencode-libs;3.4.2;7.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+readline;7.0;5.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+rest;0.8.0;2.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+sed;4.4;1.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+setup;2.10.5;2.module_7e01f122;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+shadow-utils;4.3.1;3.module_7e01f122;x86_64;2;42;sigmd5;1491914281;sigpgp;siggpg
+shared-mime-info;1.8;2.module_f9511cd3;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+sqlite-libs;3.17.0;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+systemd;233;3.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+systemd-libs;233;3.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+systemd-pam;233;3.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+system-python;3.6.0;21.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+system-python-libs;3.6.0;21.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+tzdata;2016j;3.module_7e01f122;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+ustr;1.0.4;22.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+util-linux;2.29.1;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+xkeyboard-config;2.21;1.module_e15740c0;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+xz-libs;5.2.3;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+zenity;3.24.0;1.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+zlib;1.2.11;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
+"""
 
 RUNTIME_FILESYSTEM_CONTENTS = {
     '/usr/bin/not_eog': 'SHOULD_IGNORE',
     ROOT + '/etc/passwd': 'SOME_CONFIG_FILE',
     ROOT + '/usr/bin/bash': 'SOME_BINARY',
     ROOT + '/usr/lib64/libfoo.so.1.0.0': 'SOME_LIB',
+    '/var/tmp/flatpak-build.rpm_qf': RUNTIME_MANIFEST_CONTENTS
 }
 
 EXPECTED_RUNTIME_FLATPAK_CONTENTS = [
@@ -100,14 +330,20 @@ EXPECTED_RUNTIME_FLATPAK_CONTENTS = [
 ]
 
 RUNTIME_CONFIG = {
-    'module_name': 'flatpak-runtime',
-    'module_stream': 'f26',
-    'module_version': '20170629185228',
+    'base_module': 'flatpak-runtime',
+    'modules': {
+        'flatpak-runtime': {
+            'stream': 'f26',
+            'version': '20170629185228',
+            'metadata': FLATPAK_RUNTIME_MODULEMD,
+            'rpms': [],  # We don't use this currently
+        },
+    },
     'flatpak_json': FLATPAK_RUNTIME_JSON,
-    'module_metadata': FLATPAK_RUNTIME_MODULEMD,
-    'module_rpms': [], # We don't use this currently
     'filesystem_contents': RUNTIME_FILESYSTEM_CONTENTS,
-    'expected_contents': EXPECTED_RUNTIME_FLATPAK_CONTENTS
+    'expected_contents': EXPECTED_RUNTIME_FLATPAK_CONTENTS,
+    'expected_components': ['abattis-cantarell-fonts'],
+    'unexpected_components': [],
 }
 
 CONFIGS = {
@@ -373,9 +609,16 @@ class MockInspector(object):
             return f.read()
 
 
-@pytest.mark.parametrize('config_name', ('app', 'runtime'))  # noqa - docker_tasker fixture
+@pytest.mark.parametrize('config_name, breakage', [ # noqa - docker_tasker fixture
+    ('app', None),
+    ('app', 'stray_component'),
+    ('app', 'no_runtime'),
+    ('runtime', None),
+    ('runtime', 'stray_component'),
+    ('runtime', 'missing_component'),
+])
 @pytest.mark.parametrize('mock_flatpak', (False, True))
-def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, mock_flatpak):
+def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_flatpak):
     if not mock_flatpak:
         # Check that we actually have flatpak available
         have_flatpak = False
@@ -415,10 +658,41 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, mock_flatpak):
     for path, contents in filesystem_contents.items():
         fullpath = os.path.join(filesystem_dir, path[1:])
         parent_dir = os.path.dirname(fullpath)
-        os.makedirs(parent_dir)
+        if not os.path.isdir(parent_dir):
+            os.makedirs(parent_dir)
 
         with open(fullpath, 'w') as f:
             f.write(contents)
+
+    if breakage == 'stray_component':
+        fullpath = os.path.join(filesystem_dir, 'var/tmp/flatpak-build.rpm_qf')
+        with open(fullpath, 'a') as f:
+            f.write("bad-rpm;1.2.3;1.fc26;x86_64;0;42;sigmd5;0;42;1491914281;sigpgp;siggpg\n")
+        expected_exception = 'bad-rpm'
+    elif breakage == 'missing_component':
+        fullpath = os.path.join(filesystem_dir, 'var/tmp/flatpak-build.rpm_qf')
+        with open(fullpath, 'r') as f:
+            with open(fullpath + '.tmp', 'w') as g:
+                f.readline()
+                g.write(f.read())
+        os.rename(fullpath + '.tmp', fullpath)
+        expected_exception = 'Installed set of packages does not match runtime profile'
+    elif breakage == 'no_runtime':
+        mmd = ModuleMetadata()
+
+        # Copy the parts of the config we are going to change
+        config = dict(config)
+        config['modules'] = dict(config['modules'])
+        config['modules']['eog'] = dict(config['modules']['eog'])
+
+        module_config = config['modules']['eog']
+        mmd.loads(module_config['metadata'])
+        del mmd.buildrequires['flatpak-runtime']
+        module_config['metadata'] = mmd.dumps()
+        expected_exception = 'Failed to identify runtime module'
+    else:
+        assert breakage is None
+        expected_exception = None
 
     filesystem_tar = os.path.join(filesystem_dir, 'tar')
     with open(filesystem_tar, "wb") as f:
@@ -440,17 +714,20 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, mock_flatpak):
      .should_receive('remove_container')
      .with_args(CONTAINER_ID))
 
-    mmd = ModuleMetadata()
-    mmd.loads(config['module_metadata'])
+    modules = {}
+    for name, module_config in config['modules'].items():
+        mmd = ModuleMetadata()
+        mmd.loads(module_config['metadata'])
+        modules[name] = ModuleInfo(name,
+                                   module_config['stream'],
+                                   module_config['version'],
+                                   mmd,
+                                   module_config['rpms'])
+    base_module = modules[config['base_module']]
 
-    base_module = ModuleInfo(config['module_name'],
-                             config['module_stream'],
-                             config['module_version'],
-                             mmd,
-                             config['module_rpms'])
     repo_url = 'http://odcs.example/composes/latest-odcs-42-1/compose/Temporary/$basearch/os/'
     compose_info = ComposeInfo(42, base_module,
-                               {config['module_name']: base_module},
+                               modules,
                                repo_url)
     set_compose_info(workflow, compose_info)
 
@@ -467,26 +744,37 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, mock_flatpak):
         }]
     )
 
-    runner.run()
-
-    dir_metadata = workflow.exported_image_sequence[-2]
-    assert dir_metadata['type'] == IMAGE_TYPE_OCI
-
-    tar_metadata = workflow.exported_image_sequence[-1]
-    assert tar_metadata['type'] == IMAGE_TYPE_OCI_TAR
-
-    # Check that the expected files ended up in the flatpak
-
-    if mock_flatpak:
-        inspector = MockInspector(tmpdir, dir_metadata)
+    if expected_exception:
+        with pytest.raises(PluginFailedException) as ex:
+            runner.run()
+        assert expected_exception in str(ex)
     else:
-        inspector = DefaultInspector(tmpdir, dir_metadata)
+        runner.run()
 
-    files = inspector.list_files()
-    assert sorted(files) == config['expected_contents']
+        dir_metadata = workflow.exported_image_sequence[-2]
+        assert dir_metadata['type'] == IMAGE_TYPE_OCI
 
-    if config_name is 'app':
-        # Check that the desktop file was rewritten
-        output = inspector.cat_file('/export/share/applications/org.gnome.eog.desktop')
-        lines = output.split('\n')
-        assert 'Icon=org.gnome.eog' in lines
+        tar_metadata = workflow.exported_image_sequence[-1]
+        assert tar_metadata['type'] == IMAGE_TYPE_OCI_TAR
+
+        # Check that the expected files ended up in the flatpak
+
+        if mock_flatpak:
+            inspector = MockInspector(tmpdir, dir_metadata)
+        else:
+            inspector = DefaultInspector(tmpdir, dir_metadata)
+
+        files = inspector.list_files()
+        assert sorted(files) == config['expected_contents']
+
+        components = {c['name'] for c in workflow.image_components}
+        for n in config['expected_components']:
+            assert n in components
+        for n in config['unexpected_components']:
+            assert n not in components
+
+        if config_name is 'app':
+            # Check that the desktop file was rewritten
+            output = inspector.cat_file('/export/share/applications/org.gnome.eog.desktop')
+            lines = output.split('\n')
+            assert 'Icon=org.gnome.eog' in lines

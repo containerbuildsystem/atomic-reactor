@@ -25,6 +25,7 @@ from atomic_reactor.constants import FLATPAK_FILENAME, DOCKERFILE_FILENAME, YUM_
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_resolve_module_compose import get_compose_info
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
+from atomic_reactor.rpm_util import rpm_qf_args
 from atomic_reactor.util import render_yum_repo
 
 DOCKERFILE_TEMPLATE = '''FROM {base_image}
@@ -36,6 +37,7 @@ LABEL release="{version}"
 
 RUN dnf -y --nogpgcheck --disablerepo=* --enablerepo=atomic-reactor-module-* \\
     --installroot=/var/tmp/flatpak-build install {packages}
+RUN rpm --root=/var/tmp/flatpak-build {rpm_qf_args} > /var/tmp/flatpak-build.rpm_qf
 COPY cleanup.sh /var/tmp/flatpak-build/tmp/
 RUN chroot /var/tmp/flatpak-build/ /bin/sh /tmp/cleanup.sh
 '''
@@ -124,7 +126,8 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
                                                 stream=module_info.stream,
                                                 version=module_info.version,
                                                 base_image=self.base_image,
-                                                packages=packages))
+                                                packages=packages,
+                                                rpm_qf_args=rpm_qf_args()))
 
         self.workflow.builder.set_df_path(df_path)
 
