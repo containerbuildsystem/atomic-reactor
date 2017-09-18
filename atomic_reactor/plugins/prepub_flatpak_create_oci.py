@@ -21,6 +21,7 @@ from textwrap import dedent
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.plugin import PrePublishPlugin
 from atomic_reactor.plugins.pre_flatpak_create_dockerfile import get_flatpak_source_info
+from atomic_reactor.rpm_util import parse_rpm_output
 from atomic_reactor.util import get_exported_image_metadata
 
 
@@ -189,6 +190,7 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
 
     def _export_container(self, container_id):
         outfile = os.path.join(self.workflow.source.workdir, 'filesystem.tar.gz')
+        manifestfile = os.path.join(self.workflow.source.workdir, 'flatpak-build.rpm_qf')
 
         export_stream = self.tasker.d.export(container_id)
         out_fileobj = open(outfile, "wb")
@@ -199,6 +201,11 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         out_tf = tarfile.open(fileobj=compress_process.stdin, mode='w|')
 
         for member in in_tf:
+            if member.name == 'var/tmp/flatpak-build.rpm_qf':
+                reader = in_tf.extractfile(member)
+                with open(manifestfile, 'wb') as out:
+                    out.write(reader.read())
+                reader.close()
             target_name = self._get_target_path(member.name)
             if target_name is None:
                 continue
@@ -233,7 +240,7 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
             raise RuntimeError("gzip failed")
         out_fileobj.close()
 
-        return outfile
+        return outfile, manifestfile
 
     def _export_filesystem(self):
         image = self.workflow.image
@@ -246,6 +253,109 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         finally:
             self.log.info("Cleaning up docker container")
             self.tasker.d.remove_container(container_id)
+
+    def _get_components(self, manifest):
+        with open(manifest, 'r') as f:
+            lines = f.readlines()
+
+        return parse_rpm_output(lines)
+
+    def _check_runtime_manifest(self, components):
+        # For a runtime, we want to make sure that the set of RPMs that was installed
+        # into the filesystem is *exactly* the set that is listed in the 'runtime'
+        # profile. Requiring the full listed set of RPMs to be listed makes it
+        # easier to catch unintentional changes in the package list that might break
+        # applications depending on the runtime. It also simplifies the checking we
+        # do for application flatpaks, since we can simply look at the runtime
+        # modulemd to find out what packages are present in the runtime.
+
+        base_module = self.source.compose.base_module
+
+        component_names = {c['name'] for c in components}
+        expected_component_names = set(base_module.mmd.profiles['runtime'].rpms)
+
+        if component_names != expected_component_names:
+            missing = expected_component_names - component_names
+            extra = component_names - expected_component_names
+            raise RuntimeError("Installed set of packages does not match runtime profile:\n"
+                               "\tmissing: {}\n\textra: {}"
+                               .format(" ".join(sorted(missing)),
+                                       " ".join(sorted(extra))))
+
+        return components
+
+    def _identify_app_source_modules(self):
+        modules = self.source.compose.modules
+        base_module = self.source.compose.base_module
+
+        # Identify the module for the Flatpak runtime that this app runs against
+        runtime_module = None
+        for key in base_module.mmd.buildrequires.keys():
+            try:
+                module = modules[key]
+                if 'runtime' in module.mmd.profiles:
+                    runtime_module = module
+                    break
+            except KeyError:
+                pass
+
+        if runtime_module is None:
+            raise RuntimeError("Failed to identify runtime module in the buildrequires for {}"
+                               .format(base_module.name))
+
+        # Identify all modules that were build against the Flatpak runtime,
+        # and thus were built with prefix=/app. This is primarily the app module
+        # but might contain modules shared between multiple flatpaks as well.
+        app_modules = [m for m in modules.values() if runtime_module.name in m.mmd.buildrequires]
+
+        assert base_module in app_modules
+
+        return runtime_module, app_modules
+
+    def _check_app_manifest(self, components):
+        # For an application, we want to make sure that each RPM that was installed
+        # into the filesystem is *either* an RPM that is part of the 'runtime'
+        # profile of the base runtime, or from a module that was built with
+        # flatpak-rpm-macros in the install root and, thus, prefix=/app.
+
+        runtime_module, app_modules = self._identify_app_source_modules()
+
+        app_components = []
+        stray_components = []
+
+        runtime_rpms = runtime_module.mmd.profiles['runtime'].rpms
+        for component in components:
+            # Is it from the runtime?
+            if component['name'] in runtime_rpms:
+                continue
+
+            # If it's not from the runtime, check that the specific package
+            # version was built in one of the app modules
+            if component['epoch'] is not None:
+                component_filename = \
+                    "{name}-{epoch}:{version}-{release}.{arch}.rpm".format(**component)
+            else:
+                # The PDC data has the misapprehension that epoch 0 is the same as no epoch
+                component_filename = \
+                    "{name}-0:{version}-{release}.{arch}.rpm".format(**component)
+
+            found_in_app = False
+            for app_module in app_modules:
+                if component_filename in app_module.rpms:
+                    found_in_app = True
+                    break
+
+            if found_in_app:
+                app_components.append(component)
+                continue
+
+            stray_components.append(component_filename)
+
+        if len(stray_components) > 0:
+            raise RuntimeError("Found installed packages not from the runtime or application: {}"
+                               .format(" ".join(stray_components)))
+
+        return app_components
 
     def _create_runtime_oci(self, tarred_filesystem, outfile):
         info = self.source.flatpak_json
@@ -332,8 +442,21 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         if self.source is None:
             raise RuntimeError("flatpak_create_dockerfile must be run before flatpak_create_oci")
 
-        tarred_filesystem = self._export_filesystem()
+        tarred_filesystem, manifest = self._export_filesystem()
         self.log.info('filesystem tarfile written to %s', tarred_filesystem)
+        self.log.info('manifest written to %s', manifest)
+
+        all_components = self._get_components(manifest)
+        if self.source.runtime:
+            image_components = self._check_runtime_manifest(all_components)
+        else:
+            image_components = self._check_app_manifest(all_components)
+
+        self.log.info("Components:\n%s",
+                      "\n".join("        {name}-{epoch}:{version}-{release}.{arch}.rpm"
+                                .format(**c) for c in image_components))
+
+        self.workflow.image_components = image_components
 
         outfile = os.path.join(self.workflow.source.workdir, 'flatpak-oci-image')
 
