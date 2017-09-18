@@ -34,11 +34,12 @@ from atomic_reactor.util import get_retrying_requests_session
 
 
 class ModuleInfo(object):
-    def __init__(self, name, stream, version, mmd):
+    def __init__(self, name, stream, version, mmd, rpms):
         self.name = name
         self.stream = stream
         self.version = version
         self.mmd = mmd
+        self.rpms = rpms
 
 
 class ComposeInfo(object):
@@ -242,7 +243,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
 
             self.log.info("Looking up module metadata for '%s' in the PDC", module_spec)
             retval = pdc_client['unreleasedvariants/'](page_size=-1,
-                                                       fields=['modulemd'], **query)
+                                                       fields=['modulemd', 'rpms'], **query)
             # Error handling
             if not retval:
                 raise RuntimeError("Failed to find module in PDC %r" % query)
@@ -251,9 +252,10 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
 
             mmd = ModuleMetadata()
             mmd.loads(retval[0]['modulemd'])
+            rpms = set(retval[0]['rpms'])
 
             resolved_modules[module_name] = ModuleInfo(module_name, module_stream, module_version,
-                                                       mmd)
+                                                       mmd, rpms)
 
         base_module = resolved_modules[self.module_name]
         assert base_module.stream == self.module_stream

@@ -24,7 +24,7 @@ from atomic_reactor.util import ImageName
 
 from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
 from tests.fixtures import docker_tasker  # noqa
-from tests.flatpak import FLATPAK_APP_JSON, FLATPAK_APP_MODULEMD
+from tests.flatpak import FLATPAK_APP_JSON, FLATPAK_APP_MODULEMD, FLATPAK_APP_RPMS
 from tests.retry_mock import mock_get_retry_session
 
 
@@ -79,7 +79,8 @@ MODULE_NSV = MODULE_NS + '-' + MODULE_VERSION
 ODCS_URL = 'https://odcs.fedoraproject.org/odcs/1'
 
 PDC_URL = 'https://pdc.fedoraproject.org/rest_api/v1'
-LATEST_VERSION_JSON = [{"modulemd": FLATPAK_APP_MODULEMD}]
+LATEST_VERSION_JSON = [{"modulemd": FLATPAK_APP_MODULEMD,
+                        "rpms": FLATPAK_APP_RPMS}]
 
 
 def compose_json(state, state_name):

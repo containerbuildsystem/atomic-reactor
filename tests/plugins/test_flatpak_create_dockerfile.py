@@ -24,7 +24,7 @@ from atomic_reactor.util import ImageName
 
 from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
 from tests.fixtures import docker_tasker  # noqa
-from tests.flatpak import FLATPAK_APP_JSON, FLATPAK_APP_MODULEMD
+from tests.flatpak import FLATPAK_APP_JSON, FLATPAK_APP_MODULEMD, FLATPAK_APP_RPMS
 
 
 class MockSource(object):
@@ -92,7 +92,7 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker):
     mmd.loads(FLATPAK_APP_MODULEMD)
 
     base_module = ModuleInfo(MODULE_NAME, MODULE_STREAM, LATEST_VERSION,
-                             mmd)
+                             mmd, FLATPAK_APP_RPMS)
     repo_url = 'http://odcs.example/composes/latest-odcs-42-1/compose/Temporary/$basearch/os/'
     compose_info = ComposeInfo(42, base_module,
                                {'eog': base_module},
