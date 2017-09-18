@@ -151,7 +151,7 @@ class KojiImportPlugin(ExitPlugin):
         return outputs
 
     def get_parent_image_koji_build_id(self):
-        res = self.workflow.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY, {})
+        res = self.workflow.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY) or {}
         return res.get('parent-image-koji-build-id')
 
     def get_buildroot(self, worker_metadatas):

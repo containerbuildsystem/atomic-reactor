@@ -980,7 +980,8 @@ class TestKojiImport(object):
     @pytest.mark.parametrize(('parent_id', 'expect_success', 'expect_error'), [
         (1234, True, False),
         (None, False, False),
-        ('x', False, True)
+        ('x', False, True),
+        ('NO-RESULT', False, False),
     ])
     def test_koji_import_parent_id(self, parent_id, tmpdir, expect_success, os_env, expect_error,
                                    caplog):
@@ -990,9 +991,14 @@ class TestKojiImport(object):
                                             version='1.0',
                                             release='1',
                                             session=session)
-        workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = {
-            'parent-image-koji-build-id': parent_id,
-        }
+
+        koji_parent_result = None
+        if parent_id != 'NO-RESULT':
+            koji_parent_result = {
+                'parent-image-koji-build-id': parent_id,
+            }
+        workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = koji_parent_result
+
         runner = create_runner(tasker, workflow)
         runner.run()
 
