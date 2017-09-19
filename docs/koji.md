@@ -43,7 +43,7 @@ Data which is placed here includes:
 - `build.extra.image.help` (string or null): filename of the markdown help file in the repository if this build has a markdown help converted to man page; null otherwise
 - `build.extra.container_koji_task_id` (int): Koji task ID which created the BuildConfig for this OpenShift Build -- note that this location is technically incorrect but remains as-is for compatibility with existing software
 - `build.extra.filesystem_koji_task_id` (int): Koji task ID which atomic-reactor created in order to generate the initial layer of the image (for "FROM koji/image-build" images) -- note that this location is technically incorrect but remains as-is for compatibility with existing software
-- `build.extra.media_types` (str list): Container image media types for which this image is available, where "application/json" is for a Docker Registry HTTP API V1 image; currently this key is only set when Pulp integration is enabled
+- `build.extra.image.media_types` (str list): Container image media types for which this image is available, where "application/json" is for a Docker Registry HTTP API V1 image; currently this key is only set when Pulp integration is enabled
 - `build.extra.image.parent_build_id` (int): Koji build id of the parent image, if found
 - `build.extra.image.index` (map): information about the manifest list
 
