@@ -726,7 +726,8 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
     base_module = modules[config['base_module']]
 
     repo_url = 'http://odcs.example/composes/latest-odcs-42-1/compose/Temporary/$basearch/os/'
-    compose_info = ComposeInfo(42, base_module,
+    compose_info = ComposeInfo(base_module.name + '-' + base_module.stream,
+                               42, base_module,
                                modules,
                                repo_url)
     set_compose_info(workflow, compose_info)

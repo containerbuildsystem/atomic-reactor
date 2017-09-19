@@ -94,7 +94,8 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker):
     base_module = ModuleInfo(MODULE_NAME, MODULE_STREAM, LATEST_VERSION,
                              mmd, FLATPAK_APP_RPMS)
     repo_url = 'http://odcs.example/composes/latest-odcs-42-1/compose/Temporary/$basearch/os/'
-    compose_info = ComposeInfo(42, base_module,
+    compose_info = ComposeInfo(MODULE_STREAM + '-' + MODULE_STREAM,
+                               42, base_module,
                                {'eog': base_module},
                                repo_url)
     set_compose_info(workflow, compose_info)

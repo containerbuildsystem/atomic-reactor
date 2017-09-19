@@ -47,6 +47,9 @@ Data which is placed here includes:
 - `build.extra.image.media_types` (str list): Container image media types for which this image is available, where "application/json" is for a Docker Registry HTTP API V1 image; currently this key is only set when Pulp integration is enabled
 - `build.extra.image.parent_build_id` (int): Koji build id of the parent image, if found
 - `build.extra.image.index` (map): information about the manifest list
+- `build.extra.image.flatpak` (boolean): true if this image is a Flatpak
+- `build.extra.image.modules` (boolean): the [modules](https://docs.pagure.org/modularity/) that provide the packages for this image, resolved to `NAME-STREAM-VERSION`. This will include the resolved versions of the modules in `source_modules`, and the dependencies of those modules. (Currently only for Flatpaks)
+- `build.extra.image.source_modules` (boolean): the modules that were specified as input to the build process. (Currently only for Flatpaks)
 
 The index map has these entries:
 

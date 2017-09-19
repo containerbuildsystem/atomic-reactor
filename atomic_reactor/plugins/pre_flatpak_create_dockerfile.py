@@ -51,6 +51,12 @@ class FlatpakSourceInfo(object):
         mmd = compose.base_module.mmd
         self.runtime = 'runtime' in mmd.profiles
 
+    def koji_metadata(self):
+        metadata = self.compose.koji_metadata()
+        metadata['flatpak'] = True
+
+        return metadata
+
 
 WORKSPACE_SOURCE_KEY = 'source_info'
 

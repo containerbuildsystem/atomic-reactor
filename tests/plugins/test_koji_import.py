@@ -45,6 +45,10 @@ from atomic_reactor.plugins.exit_koji_tag_build import KojiTagBuildPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
+from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (FlatpakSourceInfo,
+                                                                  set_flatpak_source_info)
+from atomic_reactor.plugins.pre_resolve_module_compose import (ModuleInfo,
+                                                               ComposeInfo)
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
 from atomic_reactor.util import ImageName, ManifestDigest
@@ -54,6 +58,8 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
                                       PLUGIN_PULP_PULL_KEY, PLUGIN_PULP_SYNC_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY)
 from tests.constants import SOURCE, MOCK
+
+from modulemd import ModuleMetadata
 
 from flexmock import flexmock
 import pytest
@@ -1403,6 +1409,56 @@ class TestKojiImport(object):
             assert image['help'] is None
         elif expect_result in ['skip', 'unknown_status']:
             assert 'help' not in image.keys()
+
+    def test_koji_import_flatpak(self, tmpdir, os_env):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            session=session)
+
+        modules = {
+            'eog': ModuleInfo(name='eog',
+                              stream='f26',
+                              version='20170629213428',
+                              mmd=ModuleMetadata(),
+                              rpms=[]),
+            'flatpak-runtime': ModuleInfo(name='flatpak-runtime',
+                                          stream='f26',
+                                          version='20170701152209',
+                                          mmd=ModuleMetadata(),
+                                          rpms=[]),
+        }
+        base_module = modules['eog']
+
+        repo_url = 'http://odcs.example/composes/latest-odcs-42-1/compose/Temporary/$basearch/os/'
+        compose_info = ComposeInfo(base_module.name + '-' + base_module.stream,
+                                   42, base_module,
+                                   modules,
+                                   repo_url)
+
+        source = FlatpakSourceInfo(flatpak_json={}, compose=compose_info)
+        set_flatpak_source_info(workflow, source)
+
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
+        assert 'image' in extra
+        image = extra['image']
+        assert isinstance(image, dict)
+
+        assert image.get('flatpak') is True
+        assert image.get('modules') == ['eog-f26-20170629213428',
+                                        'flatpak-runtime-f26-20170701152209']
+        assert image.get('source_modules') == ['eog-f26']
 
     @pytest.mark.parametrize(('config', 'expected'), [
         ({'pulp_push': False,

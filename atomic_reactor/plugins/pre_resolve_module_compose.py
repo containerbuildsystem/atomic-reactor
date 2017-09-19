@@ -43,11 +43,21 @@ class ModuleInfo(object):
 
 
 class ComposeInfo(object):
-    def __init__(self, compose_id, base_module, modules, repo_url):
+    def __init__(self, source_spec, compose_id, base_module, modules, repo_url):
+        self.source_spec = source_spec
         self.compose_id = compose_id
         self.base_module = base_module
         self.modules = modules
         self.repo_url = repo_url
+
+    def koji_metadata(self):
+        sorted_modules = [self.modules[k] for k in sorted(self.modules.keys())]
+
+        return {
+            'source_modules': [self.source_spec],
+            'modules': ['-'.join((m.name, m.stream, m.version)) for
+                        m in sorted_modules]
+        }
 
 
 WORKSPACE_SOURCE_KEY = 'compose_info'
@@ -207,13 +217,12 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
         # makes things simpler.
         pdc_client = PDCClient(server=self.pdc_url, ssl_verify=not self.pdc_insecure, develop=True)
 
-        if self.compose_id is None:
-            if self.module_version is not None:
-                source = self.module_name + '-' + self.module_stream + '-' + self.module_version
-            else:
-                source = self.module_name + '-' + self.module_stream
+        fmt = '{n}-{s}' if self.module_version is None else '{n}-{s}-{v}'
+        source_spec = fmt.format(n=self.module_name, s=self.module_stream, v=self.module_version)
 
-            self.compose_id = odcs_client.start_compose(source_type='module', source=source)['id']
+        if self.compose_id is None:
+            self.compose_id = odcs_client.start_compose(source_type='module',
+                                                        source=source_spec)['id']
 
         compose_info = odcs_client.wait_for_compose(self.compose_id)
         if compose_info['state_name'] != "done":
@@ -262,7 +271,8 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
         if self.module_version is not None:
             assert base_module.version == self.module_version
 
-        return ComposeInfo(compose_id=self.compose_id,
+        return ComposeInfo(source_spec=source_spec,
+                           compose_id=self.compose_id,
                            base_module=base_module,
                            modules=resolved_modules,
                            repo_url=compose_info['result_repo'] + '/$basearch/os/')
