@@ -17,6 +17,7 @@ from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.build import InsideBuilder, BuildResult
 from atomic_reactor.util import ImageName, CommandResult
 from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.constants import INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS
 
 from tests.docker_mock import mock_docker
 from flexmock import flexmock
@@ -24,7 +25,14 @@ import pytest
 from tests.constants import MOCK_SOURCE
 
 
+class MockDocker(object):
+    def history(self, name):
+        return []
+
 class MockDockerTasker(object):
+    def __init__(self):
+        self.d = MockDocker()
+
     def inspect_image(self, name):
         return {}
 
@@ -64,7 +72,7 @@ class MockInsideBuilder(object):
         return {'Id': 'some'}
 
     def inspect_built_image(self):
-        return None
+        return {INSPECT_ROOTFS: {INSPECT_ROOTFS_LAYERS: []}}
 
     def ensure_not_built(self):
         pass

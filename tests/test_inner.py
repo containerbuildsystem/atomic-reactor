@@ -32,6 +32,7 @@ import signal
 
 from atomic_reactor.inner import BuildResults, BuildResultsEncoder, BuildResultsJSONDecoder
 from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.constants import INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS
 
 
 BUILD_RESULTS_ATTRS = ['build_logs',
@@ -68,7 +69,18 @@ def test_build_results_decoder():
         assert getattr(results, attr) == getattr(expected_results, attr)
 
 
+class MockDocker(object):
+    def history(self, name):
+        return [{'Size': 1, 'Id': "sha256:layer1-newest"},
+                {'Size': 2, 'Id': "sha256:layer2"},
+                {'Size': 3, 'Id': "sha256:layer3"},
+                {'Size': 4, 'Id': "sha256:layer4-oldest"}]
+
+
 class MockDockerTasker(object):
+    def __init__(self):
+        self.d = MockDocker()
+
     def inspect_image(self, name):
         return {}
 
@@ -117,7 +129,10 @@ class MockInsideBuilder(object):
         return {'Id': 'some'}
 
     def inspect_built_image(self):
-        return None
+        return {INSPECT_ROOTFS: {INSPECT_ROOTFS_LAYERS: ['sha256:diff_id1-oldest',
+                                                         'sha256:diff_id2',
+                                                         'sha256:diff_id3',
+                                                         'sha256:diff_id4-newest']}}
 
     def ensure_not_built(self):
         pass
@@ -1304,3 +1319,34 @@ def test_add_pulp_registry():
 
     push_conf.add_pulp_registry("registry2.example.com", "http://registry2.example.com", True)
     assert len(push_conf.pulp_registries) == 2
+
+
+def test_layer_sizes():
+    flexmock(DockerfileParser, content='df_content')
+    this_file = inspect.getfile(PreRaises)
+    mock_docker()
+    fake_builder = MockInsideBuilder()
+    flexmock(InsideBuilder).new_instances(fake_builder)
+    watch_exit = Watcher()
+    watch_buildstep = Watcher()
+    workflow = DockerBuildWorkflow(SOURCE, 'test-image',
+                                   exit_plugins=[{'name': 'uses_source',
+                                                  'args': {
+                                                      'watcher': watch_exit,
+                                                  }}],
+                                   buildstep_plugins=[{'name': 'buildstep_watched',
+                                                       'args': {
+                                                           'watcher': watch_buildstep,
+                                                       }}],
+                                   plugin_files=[this_file])
+
+    workflow.build_docker_image()
+
+    expected = [
+        {'diff_id': u'sha256:diff_id1-oldest', 'size': 4},
+        {'diff_id': u'sha256:diff_id2', 'size': 3},
+        {'diff_id': u'sha256:diff_id3', 'size': 2},
+        {'diff_id': u'sha256:diff_id4-newest', 'size': 1}
+    ]
+
+    assert workflow.layer_sizes == expected

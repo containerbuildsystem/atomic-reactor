@@ -34,6 +34,10 @@ DEFAULT_YUM_REPOFILE_NAME = 'atomic-reactor-injected.repo'
 # key in dictionary returned by "docker inspect" that holds the image
 # configuration (such as labels)
 INSPECT_CONFIG = "Config"
+# key that holds the RootFS
+INSPECT_ROOTFS = "RootFS"
+# key that holds the layer diff_ids
+INSPECT_ROOTFS_LAYERS = 'Layers'
 
 # docs constants
 
