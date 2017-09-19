@@ -24,6 +24,7 @@ from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
+from atomic_reactor.plugins.pre_flatpak_create_dockerfile import get_flatpak_source_info
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 try:
     from atomic_reactor.plugins.post_pulp_sync import get_manifests_in_pulp_repository
@@ -474,6 +475,7 @@ class KojiPromotePlugin(ExitPlugin):
             raise RuntimeError('git source required')
 
         extra = {'image': {'autorebuild': is_rebuild(self.workflow)}}
+
         koji_task_id = metadata.get('labels', {}).get('koji-task-id')
         if koji_task_id is not None:
             self.log.info("build configuration created by Koji Task ID %s",
@@ -530,6 +532,10 @@ class KojiPromotePlugin(ExitPlugin):
                 extra['image']['help'] = help_result['help_file']
             else:
                 self.log.error("Unknown result from add_help plugin: %s", help_result)
+
+        flatpak_source_info = get_flatpak_source_info(self.workflow)
+        if flatpak_source_info is not None:
+            extra['image'].update(flatpak_source_info.koji_metadata())
 
         build = {
             'name': component,

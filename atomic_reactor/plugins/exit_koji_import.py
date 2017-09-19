@@ -20,6 +20,7 @@ from atomic_reactor.plugins.build_orchestrate_build import (get_worker_build_inf
                                                             get_koji_upload_dir)
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
+from atomic_reactor.plugins.pre_flatpak_create_dockerfile import get_flatpak_source_info
 try:
     from atomic_reactor.plugins.post_pulp_sync import get_manifests_in_pulp_repository
 except ImportError:
@@ -392,6 +393,10 @@ class KojiImportPlugin(ExitPlugin):
             else:
                 extra.setdefault('image', {})
                 extra['image']['parent_build_id'] = parent_id
+
+        flatpak_source_info = get_flatpak_source_info(self.workflow)
+        if flatpak_source_info is not None:
+            extra['image'].update(flatpak_source_info.koji_metadata())
 
         self.set_help(extra, worker_metadatas)
         self.set_media_types(extra, worker_metadatas)
