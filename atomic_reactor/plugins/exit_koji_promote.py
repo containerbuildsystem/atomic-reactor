@@ -39,7 +39,8 @@ from atomic_reactor.constants import (PROG, PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json, get_preferred_label,
                                  get_docker_architecture, df_parser,
-                                 are_plugins_in_order)
+                                 are_plugins_in_order,
+                                 get_image_upload_filename)
 from atomic_reactor.koji_util import (create_koji_session, tag_koji_build,
                                       Output, KojiUploadLogger)
 from osbs.conf import Configuration
@@ -387,11 +388,10 @@ class KojiPromotePlugin(ExitPlugin):
 
         """
 
-        image_id = self.workflow.builder.image_id
         saved_image = self.workflow.exported_image_sequence[-1].get('path')
-        ext = saved_image.split('.', 1)[1]
-        name_fmt = 'docker-image-{id}.{arch}.{ext}'
-        image_name = name_fmt.format(id=image_id, arch=arch, ext=ext)
+        image_name = get_image_upload_filename(self.workflow.exported_image_sequence[-1],
+                                               self.workflow.builder.image_id,
+                                               arch)
         if self.metadata_only:
             metadata = self.get_output_metadata(os.path.devnull, image_name)
             output = Output(file=None, metadata=metadata)

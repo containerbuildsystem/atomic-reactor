@@ -24,6 +24,7 @@ from flexmock import flexmock
 from collections import OrderedDict
 import docker
 from atomic_reactor.build import BuildResult
+from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR)
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  LazyGit, figure_out_build_file,
@@ -36,7 +37,8 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  are_plugins_in_order, LabelFormatter,
                                  get_manifest_media_type,
                                  get_retrying_requests_session,
-                                 get_primary_images)
+                                 get_primary_images,
+                                 get_image_upload_filename)
 from atomic_reactor import util
 from tests.constants import (DOCKERFILE_GIT, FLATPAK_GIT,
                              INPUT_IMAGE, MOCK, DOCKERFILE_SHA1, MOCK_SOURCE)
@@ -233,6 +235,24 @@ def test_get_hexdigests(tmpdir, content, algorithms, expected):
 
         checksums = get_checksums(tmpfile.name, algorithms)
         assert checksums == expected
+
+
+@pytest.mark.parametrize('path, image_type, expected', [
+    ('foo.tar', IMAGE_TYPE_DOCKER_ARCHIVE, 'docker-image-XXX.x86_64.tar'),
+    ('foo.tar.gz', IMAGE_TYPE_DOCKER_ARCHIVE, 'docker-image-XXX.x86_64.tar.gz'),
+    ('foo.tar.gz', IMAGE_TYPE_OCI_TAR, 'oci-image-XXX.x86_64.tar.gz'),
+    ('foo', IMAGE_TYPE_OCI, None),
+])
+def test_get_image_upload_filename(path, image_type, expected):
+    metadata = {
+        'path': path,
+        'type': image_type,
+    }
+    if expected is None:
+        with pytest.raises(ValueError):
+            get_image_upload_filename(metadata, 'XXX', 'x86_64')
+    else:
+        assert get_image_upload_filename(metadata, 'XXX', 'x86_64') == expected
 
 
 def test_get_versions_of_tools():

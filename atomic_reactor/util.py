@@ -28,7 +28,8 @@ import codecs
 import string
 
 from atomic_reactor.constants import DOCKERFILE_FILENAME, FLATPAK_FILENAME, TOOLS_USED,\
-                                     INSPECT_CONFIG, IMAGE_TYPE_OCI,\
+                                     INSPECT_CONFIG,\
+                                     IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,\
                                      HTTP_MAX_RETRIES, HTTP_BACKOFF_FACTOR,\
                                      HTTP_CLIENT_STATUS_RETRY, HTTP_REQUEST_TIMEOUT
 
@@ -480,6 +481,21 @@ def get_exported_image_metadata(path, image_type):
         logger.debug('size: %d bytes', metadata['size'])
         metadata.update(get_checksums(path, ['md5', 'sha256']))
     return metadata
+
+
+def get_image_upload_filename(metadata, image_id, platform):
+    saved_image = metadata.get('path')
+    image_type = metadata.get('type')
+    if image_type == IMAGE_TYPE_DOCKER_ARCHIVE:
+        base_name = 'docker-image'
+    elif image_type == IMAGE_TYPE_OCI_TAR:
+        base_name = 'oci-image'
+    else:
+        raise ValueError("Unhandled image type for upload: {}".format(image_type))
+    ext = saved_image.split('.', 1)[1]
+    name_fmt = '{base_name}-{id}.{platform}.{ext}'
+    return name_fmt.format(base_name=base_name, id=image_id,
+                           platform=platform, ext=ext)
 
 
 def get_version_of_tools():

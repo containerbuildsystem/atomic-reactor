@@ -27,7 +27,8 @@ except ImportError:
     del koji
     import koji
 
-from atomic_reactor.constants import (PLUGIN_PULP_SYNC_KEY, PLUGIN_PULP_PULL_KEY,
+from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
+                                      PLUGIN_PULP_SYNC_KEY, PLUGIN_PULP_PULL_KEY,
                                       PLUGIN_KOJI_PARENT_KEY)
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.exit_koji_promote import (KojiUploadLogger,
@@ -277,7 +278,8 @@ def mock_environment(tmpdir, session=None, name=None,
 
     with open(os.path.join(str(tmpdir), 'image.tar.xz'), 'wt') as fp:
         fp.write('x' * 2**12)
-        setattr(workflow, 'exported_image_sequence', [{'path': fp.name}])
+        setattr(workflow, 'exported_image_sequence', [{'path': fp.name,
+                                                       'type': IMAGE_TYPE_DOCKER_ARCHIVE}])
 
     if build_process_failed:
         workflow.build_result = BuildResult(logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
