@@ -28,6 +28,7 @@ from atomic_reactor.plugin import (
     PrePublishPluginsRunner,
 )
 from atomic_reactor.source import get_source_instance_for
+from atomic_reactor.constants import INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS
 from atomic_reactor.util import ImageName
 from atomic_reactor.build import BuildResult
 from atomic_reactor import get_logging_encoding
@@ -310,6 +311,7 @@ class DockerBuildWorkflow(object):
 
         self.builder = None
         self.built_image_inspect = None
+        self.layer_sizes = []
         self._base_image_inspect = None
 
         self.pulled_base_images = set()
@@ -413,6 +415,16 @@ class DockerBuildWorkflow(object):
             except PluginFailedException as ex:
                 logger.error("one or more prepublish plugins failed: %s", ex)
                 raise
+
+            if self.build_result.is_image_available():
+                history = self.builder.tasker.d.history(self.builder.image_id)
+                diff_ids = self.built_image_inspect[INSPECT_ROOTFS][INSPECT_ROOTFS_LAYERS]
+
+                # diff_ids is ordered oldest first
+                # history is ordered newest first
+                # We want layer_sizes to be ordered oldest first
+                self.layer_sizes = [{"diff_id": diff_id, "size": layer['Size']}
+                                    for (diff_id, layer) in zip(diff_ids, reversed(history))]
 
             postbuild_runner = PostBuildPluginsRunner(self.builder.tasker, self,
                                                       self.postbuild_plugins_conf,

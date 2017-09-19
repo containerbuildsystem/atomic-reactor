@@ -477,6 +477,7 @@ class KojiUploadPlugin(PostBuildPlugin):
         repositories = self.get_repositories(digests)
         tags = set(image.tag for image in self.workflow.tag_conf.images)
         metadata, output = self.get_image_output()
+
         metadata.update({
             'arch': arch,
             'type': 'docker-image',
@@ -489,6 +490,7 @@ class KojiUploadPlugin(PostBuildPlugin):
                     'id': image_id,
                     'parent_id': parent_id,
                     'repositories': repositories,
+                    'layer_sizes': self.workflow.layer_sizes,
                     'tags': list(tags),
                     'config': config
                 },

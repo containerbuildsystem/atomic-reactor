@@ -770,6 +770,7 @@ class TestKojiPromote(object):
                 'parent_id',
                 'id',
                 'repositories',
+                'layer_sizes',
                 'tags',
             ])
             if has_config:

@@ -510,6 +510,7 @@ class KojiPromotePlugin(ExitPlugin):
                     'id': image_id,
                     'parent_id': parent_id,
                     'repositories': repositories,
+                    'layer_sizes': self.workflow.layer_sizes,
                     'tags': list(tags),
                     'config': config
                 },
