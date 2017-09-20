@@ -128,8 +128,12 @@ class KojiImportPlugin(ExitPlugin):
                 instance['buildroot_id'] = '{}-{}'.format(platform, instance['buildroot_id'])
 
                 if instance['type'] == 'docker-image':
-                    # update image ID with pulp_pull results
-                    if platform == "x86_64" and has_pulp_pull:
+                    # update image ID with pulp_pull results;
+                    # necessary when using Pulp < 2.14. Only do this
+                    # when building for a single architecture -- if
+                    # building for many, we know Pulp has schema 2
+                    # support.
+                    if len(worker_metadatas) == 1 and has_pulp_pull:
                         exit_results = self.workflow.exit_results
                         image_id, _ = exit_results[PLUGIN_PULP_PULL_KEY]
                         if image_id is not None:
