@@ -110,9 +110,6 @@ class DeleteFromRegistryPlugin(ExitPlugin):
             url = self.make_url(registry, repo, digest)
             manifest = self.make_manifest(registry_noschema, repo, digest)
 
-            # override insecure if passed
-            insecure = push_conf_registry.insecure
-
             if self.request_delete(url, manifest, insecure, auth):
                 deleted_digests.add(digest)
                 deleted = True
@@ -178,7 +175,20 @@ class DeleteFromRegistryPlugin(ExitPlugin):
 
             registry_noschema = registry_hostname(registry)
 
-            insecure = registry_conf.get('insecure', False)
+            push_conf_registry = self.find_registry(registry_noschema, self.workflow)
+
+            try:
+                insecure = registry_conf['insecure']
+            except KeyError:
+                # 'insecure' didn't used to be set in the registry config passed to this
+                # plugin - it would simply be inherited from the push_conf. To handle
+                # orchestrated builds, we need to have it configured for this plugin,
+                # but, if not set,  check in the push_conf for compat.
+                if push_conf_registry:
+                    insecure = push_conf_registry.insecure
+                else:
+                    insecure = False
+
             secret_path = registry_conf.get('secret')
             auth = self.setup_secret(registry, secret_path)
 
@@ -186,7 +196,6 @@ class DeleteFromRegistryPlugin(ExitPlugin):
             orchestrator_delete = self.handle_worker_digests(worker_digests, registry, insecure,
                                                              auth, deleted_digests)
 
-            push_conf_registry = self.find_registry(registry_noschema, self.workflow)
             if not push_conf_registry:
                 # only warn if we're not running in the orchestrator
                 if not orchestrator_delete:
