@@ -32,7 +32,7 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_checksums, print_version_of_tools,
                                  get_version_of_tools, get_preferred_label_key,
                                  human_size, CommandResult,
-                                 registry_hostname, Dockercfg,
+                                 registry_hostname, Dockercfg, RegistrySession,
                                  get_manifest_digests, ManifestDigest,
                                  get_build_json, is_scratch_build, df_parser,
                                  are_plugins_in_order, LabelFormatter,
@@ -333,6 +333,48 @@ def test_dockercfg(tmpdir, in_config, lookup, expected):
     found = creds.get('username') == 'john.doe' and creds.get('password') == 'letmein'
 
     assert found == expected
+
+
+@pytest.mark.parametrize(('registry', 'insecure'), [
+    ('https://example.com', False),
+    ('example.com', True),
+    ('example.com', False),
+])
+@pytest.mark.parametrize(('method', 'responses_method'), [
+    (RegistrySession.get, responses.GET),
+    (RegistrySession.head, responses.HEAD),
+    (RegistrySession.put, responses.PUT),
+    (RegistrySession.delete, responses.DELETE),
+])
+@responses.activate
+def test_registry_session(tmpdir, registry, insecure, method, responses_method):
+    temp_dir = mkdtemp(dir=str(tmpdir))
+    with open(os.path.join(temp_dir, '.dockercfg'), 'w+') as dockerconfig:
+        dockerconfig.write(json.dumps({
+            registry_hostname(registry): {
+                'username': 'john.doe', 'password': 'letmein'
+            }
+        }))
+    session = RegistrySession(registry, insecure=insecure, dockercfg_path=temp_dir)
+
+    path = '/v2/test/image/manifests/latest'
+    if registry.startswith('http'):
+        url = registry + path
+    elif insecure:
+        https_url = 'https://' + registry + path
+        responses.add(responses_method, https_url, body=ConnectionError())
+        url = 'http://' + registry + path
+    else:
+        url = 'https://' + registry + path
+
+    def request_callback(request, all_headers=True):
+        assert request.headers.get('Authorization') is not None
+        return (200, {}, 'A-OK')
+
+    responses.add_callback(responses_method, url, request_callback)
+
+    res = method(session, path)
+    assert res.text == 'A-OK'
 
 
 @pytest.mark.parametrize(('version', 'expected'), [

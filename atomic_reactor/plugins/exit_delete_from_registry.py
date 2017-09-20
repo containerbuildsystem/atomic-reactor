@@ -10,10 +10,9 @@ from __future__ import unicode_literals
 
 from copy import deepcopy
 import requests
-import requests.auth
 
 from atomic_reactor.plugin import ExitPlugin, PluginFailedException
-from atomic_reactor.util import Dockercfg, get_retrying_requests_session, registry_hostname
+from atomic_reactor.util import RegistrySession, registry_hostname
 from requests.exceptions import HTTPError, RetryError, Timeout
 
 
@@ -39,29 +38,9 @@ class DeleteFromRegistryPlugin(ExitPlugin):
 
         self.registries = deepcopy(registries)
 
-    def setup_secret(self, registry, secret_path):
-        auth = None
-
-        if secret_path:
-            self.log.debug("registry %s secret %s", registry, secret_path)
-            dockercfg = Dockercfg(secret_path).get_credentials(registry)
-            try:
-                username = dockercfg['username']
-                password = dockercfg['password']
-            except KeyError:
-                self.log.error("credentials for registry %s not found in %s",
-                               registry, secret_path)
-            else:
-                self.log.debug("found user %s for registry %s", username, registry)
-                auth = requests.auth.HTTPBasicAuth(username, password)
-
-        return auth
-
-    def request_delete(self, url, manifest, insecure, auth):
-        session = get_retrying_requests_session()
-
+    def request_delete(self, session, url, manifest):
         try:
-            response = session.delete(url, verify=not insecure, auth=auth)
+            response = session.delete(url)
             response.raise_for_status()
             self.log.info("deleted manifest %s", manifest)
             return True
@@ -83,8 +62,8 @@ class DeleteFromRegistryPlugin(ExitPlugin):
     def make_manifest(self, registry, repo, digest):
         return "{registry}/{repo}@{digest}".format(**vars())
 
-    def make_url(self, registry, repo, digest):
-        return "{registry}/v2/{repo}/manifests/{digest}".format(**vars())
+    def make_url(self, repo, digest):
+        return "/v2/{repo}/manifests/{digest}".format(**vars())
 
     def find_registry(self, registry_noschema, workflow):
         for push_conf_registry in workflow.push_conf.docker_registries:
@@ -93,8 +72,8 @@ class DeleteFromRegistryPlugin(ExitPlugin):
 
         return None
 
-    def handle_registry(self, registry, push_conf_registry, auth, deleted_digests):
-        registry_noschema = registry_hostname(registry)
+    def handle_registry(self, session, push_conf_registry, deleted_digests):
+        registry_noschema = registry_hostname(session.registry)
         deleted = False
 
         for tag, digests in push_conf_registry.digests.items():
@@ -107,10 +86,10 @@ class DeleteFromRegistryPlugin(ExitPlugin):
                 continue
 
             repo = tag.split(':')[0]
-            url = self.make_url(registry, repo, digest)
+            url = self.make_url(repo, digest)
             manifest = self.make_manifest(registry_noschema, repo, digest)
 
-            if self.request_delete(url, manifest, insecure, auth):
+            if self.request_delete(session, url, manifest):
                 deleted_digests.add(digest)
                 deleted = True
 
@@ -135,14 +114,14 @@ class DeleteFromRegistryPlugin(ExitPlugin):
             self.log.debug("build %s has digests: %s", plat, digests)
 
             for digest in digests:
-                reg = digest['registry']
+                reg = registry_hostname(digest['registry'])
                 worker_digests.setdefault(reg, [])
                 worker_digests[reg].append(digest)
 
         return worker_digests
 
-    def handle_worker_digests(self, worker_digests, registry, insecure, auth, deleted_digests):
-        registry_noschema = registry_hostname(registry)
+    def handle_worker_digests(self, session, worker_digests, deleted_digests):
+        registry_noschema = registry_hostname(session.registry)
 
         if registry_noschema not in worker_digests:
             return False
@@ -155,11 +134,11 @@ class DeleteFromRegistryPlugin(ExitPlugin):
                 self.log.info('digest already deleted %s', digest['digest'])
                 return True
 
-            url = self.make_url(registry, digest['repository'], digest['digest'])
+            url = self.make_url(digest['repository'], digest['digest'])
             manifest = self.make_manifest(registry_noschema, digest['repository'],
                                           digest['digest'])
 
-            if self.request_delete(url, manifest, insecure, auth):
+            if self.request_delete(session, url, manifest):
                 deleted_digests.add(digest['digest'])
 
         return True
@@ -170,9 +149,6 @@ class DeleteFromRegistryPlugin(ExitPlugin):
         worker_digests = self.get_worker_digests()
 
         for registry, registry_conf in self.registries.items():
-            if not registry.startswith('http://') and not registry.startswith('https://'):
-                registry = 'https://' + registry
-
             registry_noschema = registry_hostname(registry)
 
             push_conf_registry = self.find_registry(registry_noschema, self.workflow)
@@ -190,11 +166,12 @@ class DeleteFromRegistryPlugin(ExitPlugin):
                     insecure = False
 
             secret_path = registry_conf.get('secret')
-            auth = self.setup_secret(registry, secret_path)
+
+            session = RegistrySession(registry, insecure=insecure, dockercfg_path=secret_path)
 
             # orchestrator builds use worker_digests
-            orchestrator_delete = self.handle_worker_digests(worker_digests, registry, insecure,
-                                                             auth, deleted_digests)
+            orchestrator_delete = self.handle_worker_digests(session, worker_digests,
+                                                             deleted_digests)
 
             if not push_conf_registry:
                 # only warn if we're not running in the orchestrator
@@ -204,7 +181,7 @@ class DeleteFromRegistryPlugin(ExitPlugin):
                 continue
 
             # worker node and manifests use push_conf_registry
-            if self.handle_registry(registry, push_conf_registry, auth, deleted_digests):
+            if self.handle_registry(session, push_conf_registry, deleted_digests):
                 # delete these temp registries
                 self.workflow.push_conf.remove_docker_registry(push_conf_registry)
 

@@ -12,15 +12,12 @@ it for all existing image tags.
 
 
 from __future__ import unicode_literals
-import requests
-import requests.auth
 from tempfile import NamedTemporaryFile
 import yaml
 from subprocess import check_output, CalledProcessError, STDOUT
 
 from atomic_reactor.plugin import PostBuildPlugin, PluginFailedException
-from atomic_reactor.util import (Dockercfg, get_manifest_digests, get_retrying_requests_session,
-                                 registry_hostname)
+from atomic_reactor.util import RegistrySession, registry_hostname, get_manifest_digests
 from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY, MEDIA_TYPE_DOCKER_V2_SCHEMA2
 
 
@@ -124,34 +121,16 @@ class GroupManifestsPlugin(PostBuildPlugin):
 
         msg = "worker_registries {0}".format(self.worker_registries)
         self.log.debug(msg)
-        session = get_retrying_requests_session()
 
         for registry, registry_conf in self.registries.items():
             if registry_conf.get('version') == 'v1':
                 continue
 
-            if not registry.startswith('http://') and not registry.startswith('https://'):
-                registry = 'https://' + registry
+            insecure = registry_conf.get('insecure', False)
+            secret_path = registry_conf.get('secret')
+            session = RegistrySession(registry, insecure=insecure, dockercfg_path=secret_path)
 
             registry_noschema = registry_hostname(registry)
-            self.log.debug("evaluating registry %s", registry_noschema)
-
-            insecure = registry_conf.get('insecure', False)
-            auth = None
-            secret_path = registry_conf.get('secret')
-            if secret_path:
-                self.log.debug("registry %s secret %s", registry_noschema, secret_path)
-                dockercfg = Dockercfg(secret_path).get_credentials(registry_noschema)
-                try:
-                    username = dockercfg['username']
-                    password = dockercfg['password']
-                except KeyError:
-                    self.log.error("credentials for registry %s not found in %s",
-                                   registry_noschema, secret_path)
-                else:
-                    self.log.debug("found user %s for registry %s", username, registry_noschema)
-                    auth = requests.auth.HTTPBasicAuth(username, password)
-
             if registry_noschema in self.worker_registries:
                 self.log.debug("getting manifests from %s", registry_noschema)
                 digest = worker_digests[0]['digest']
@@ -160,11 +139,10 @@ class GroupManifestsPlugin(PostBuildPlugin):
                 # get a v2 schemav2 response for now
                 v2schema2 = MEDIA_TYPE_DOCKER_V2_SCHEMA2
                 headers = {'accept': v2schema2}
-                kwargs = {'verify': not insecure, 'headers': headers, 'auth': auth}
 
-                url = '{0}/v2/{1}/manifests/{2}'.format(registry, repo, digest)
+                url = '/v2/{}/manifests/{}'.format(repo, digest)
                 self.log.debug("attempting get from %s", url)
-                response = session.get(url, **kwargs)
+                response = session.get(url, headers=headers)
                 response.raise_for_status()
 
                 if response.json()['schemaVersion'] == '1':
@@ -173,14 +151,13 @@ class GroupManifestsPlugin(PostBuildPlugin):
 
                 image_manifest = response.content
                 headers = {'Content-Type': v2schema2}
-                kwargs = {'verify': not insecure, 'headers': headers, 'auth': auth}
 
                 push_conf_registry = self.workflow.push_conf.add_docker_registry(registry,
                                                                                  insecure=insecure)
                 for image in self.workflow.tag_conf.images:
-                    url = '{0}/v2/{1}/manifests/{2}'.format(registry, repo, image.tag)
+                    url = '/v2/{}/manifests/{}'.format(repo, image.tag)
                     self.log.debug("for image_tag %s, putting at %s", image.tag, url)
-                    response = session.put(url, data=image_manifest, **kwargs)
+                    response = session.put(url, data=image_manifest, headers=headers)
 
                     if not response.ok:
                         msg = "PUT failed: {0},\n manifest was: {1}".format(response.json(),
