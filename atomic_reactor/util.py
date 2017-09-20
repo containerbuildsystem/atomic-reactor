@@ -663,6 +663,63 @@ class Dockercfg(object):
             return {}
 
 
+class RegistrySession(object):
+    def __init__(self, registry, insecure=False, dockercfg_path=None):
+        self.registry = registry
+        self._resolved = None
+        self.insecure = insecure
+
+        self.auth = None
+        if dockercfg_path:
+            dockercfg = Dockercfg(dockercfg_path).get_credentials(registry)
+
+            username = dockercfg.get('username')
+            password = dockercfg.get('password')
+            if username and password:
+                self.auth = requests.auth.HTTPBasicAuth(username, password)
+
+        self._fallback = None
+        if re.match('http(s)?://', self.registry):
+            self._base = self.registry
+        else:
+            self._base = 'https://{}'.format(self.registry)
+            if insecure:
+                # In the insecure case, if the registry is just a hostname:port, we
+                # don't know whether to talk HTTPS or HTTP to it, so we try first
+                # with https then fallback
+                self._fallback = 'http://{}'.format(self.registry)
+
+        self.session = get_retrying_requests_session()
+
+    def _do(self, f, relative_url, *args, **kwargs):
+        kwargs['auth'] = self.auth
+        kwargs['verify'] = not self.insecure
+        if self._fallback:
+            try:
+                res = f(self._base + relative_url, *args, **kwargs)
+                self._fallback = None  # don't fallback after one success
+                return res
+            except (SSLError, ConnectionError):
+                self._base = self._fallback
+                self._fallback = None
+        return f(self._base + relative_url, *args, **kwargs)
+
+    def get(self, relative_url, data=None, **kwargs):
+        return self._do(self.session.get, relative_url, **kwargs)
+
+    def head(self, relative_url, data=None, **kwargs):
+        return self._do(self.session.head, relative_url, **kwargs)
+
+    def post(self, relative_url, data=None, **kwargs):
+        return self._do(self.session.post, relative_url, data=data, **kwargs)
+
+    def put(self, relative_url, data=None, **kwargs):
+        return self._do(self.session.put, relative_url, data=data, **kwargs)
+
+    def delete(self, relative_url, **kwargs):
+        return self._do(self.session.delete, relative_url, **kwargs)
+
+
 class ManifestDigest(dict):
     """Wrapper for digests for a docker manifest."""
 
@@ -720,39 +777,18 @@ def get_digests_map_from_annotations(digests_str):
         digests[media_type] = digest
     return digests
 
-def query_registry(image, registry, digest=None, insecure=False, dockercfg_path=None,
-                   version='v1', is_blob=False):
+
+def query_registry(registry_session, image, digest=None, version='v1', is_blob=False):
     """Return manifest digest for image.
 
+    :param registry_session: RegistrySession
     :param image: ImageName, the remote image to inspect
-    :param registry: str, URI for registry, if URI schema is not provided,
-                          https:// will be used
     :param digest: str, digest of the image manifest
-    :param insecure: bool, when True registry's cert is not verified
-    :param dockercfg_path: str, dirname of .dockercfg location
     :param version: str, which manifest schema version to fetch digest
     :param is_blob: bool, read blob config if set to True
 
     :return: requests.Response object
     """
-    auth = None
-    if dockercfg_path:
-        dockercfg = Dockercfg(dockercfg_path).get_credentials(registry)
-
-        username = dockercfg.get('username')
-        password = dockercfg.get('password')
-        if username and password:
-            auth = requests.auth.HTTPBasicAuth(username, password)
-
-    # In the insecure case, if the registry is just a hostname:port, we don't
-    # know whether to talk HTTPS or HTTP to it, so try both ways
-    if not re.match('http(s)?://', registry):
-        if insecure:
-            registries = ('https://{}'.format(registry), 'http://{}'.format(registry))
-        else:
-            registries = ('https://{}'.format(registry),)
-    else:
-        registries = (registry,)
 
     context = '/'.join([x for x in [image.namespace, image.repo] if x])
     reference = digest or image.tag or 'latest'
@@ -761,23 +797,11 @@ def query_registry(image, registry, digest=None, insecure=False, dockercfg_path=
         object_type = 'blobs'
 
     headers = {'Accept': (get_manifest_media_type(version))}
-    kwargs = {'verify': not insecure, 'headers': headers, 'auth': auth}
+    url = '/v2/{}/{}/{}'.format(context, object_type, reference)
+    logger.debug("query_registry: querying {}, headers: {}".format(url, headers))
 
-    session = get_retrying_requests_session()
-
-    for idx, r in enumerate(registries):
-        url = '{}/v2/{}/{}/{}'.format(r, context, object_type, reference)
-        logger.debug("url: {}, headers: {}".format(url, headers))
-
-        try:
-            response = session.get(url, **kwargs)
-            response.raise_for_status()
-            break
-        except (ConnectionError, SSLError):
-            # If there are no more registry URLs to try, let the exception
-            # propagate, otherwise we'll try again
-            if idx == len(registries) - 1:
-                raise
+    response = registry_session.get(url, headers=headers)
+    response.raise_for_status()
 
     return response
 
@@ -797,6 +821,9 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
 
     :return: dict, versions mapped to their digest
     """
+
+    registry_session = RegistrySession(registry, insecure=insecure, dockercfg_path=dockercfg_path)
+
     digests = {}
     # If all of the media types return a 404 NOT_FOUND status, then we rethrow
     # an exception, if all of the media types fail for some other reason - like
@@ -810,8 +837,7 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
 
         try:
             response = query_registry(
-                image, registry, digest=None,
-                insecure=insecure, dockercfg_path=dockercfg_path,
+                registry_session, image, digest=None,
                 version=version)
             all_not_found = False
         except (HTTPError, RetryError, Timeout) as ex:
@@ -904,16 +930,16 @@ def get_config_from_registry(image, registry, digest, insecure=False,
 
     :return: dict, versions mapped to their digest
     """
+    registry_session = RegistrySession(registry, insecure=insecure, dockercfg_path=dockercfg_path)
+
     response = query_registry(
-        image, registry, digest=digest, insecure=insecure,
-        dockercfg_path=dockercfg_path, version=version)
+        registry_session, image, digest=digest, version=version)
     response.raise_for_status()
     manifest_config = response.json()
     config_digest = manifest_config['config']['digest']
 
     config_response = query_registry(
-        image, registry, digest=config_digest, insecure=insecure,
-        dockercfg_path=dockercfg_path, version=version, is_blob=True)
+        registry_session, image, digest=config_digest, version=version, is_blob=True)
     config_response.raise_for_status()
 
     blob_config = config_response.json()
