@@ -14,6 +14,9 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.util import ImageName, df_parser
+from atomic_reactor import start_time as atomic_reactor_start_time
+
+from datetime import datetime as dt
 from tests.constants import MOCK_SOURCE
 from tests.fixtures import docker_tasker  # noqa
 
@@ -240,3 +243,57 @@ def test_add_help_md2man_error(request, tmpdir, docker_tasker, filename,
         assert list(result.keys()) == ['add_help']
         assert isinstance(result['add_help'], RuntimeError)
         assert 'Error running' in str(result['add_help'])
+
+
+@pytest.mark.parametrize('filename', ['help.md', 'other_file.md'])  # noqa
+def test_add_help_generate_metadata(tmpdir, docker_tasker, filename):
+    df_content = dedent("""\
+        FROM fedora
+        LABEL name='test' \\
+              maintainer='me'
+        """)
+
+    df = df_parser(str(tmpdir))
+    df.content = df_content
+
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    workflow.builder = X
+    workflow.builder.df_path = df.dockerfile_path
+    workflow.builder.df_dir = str(tmpdir)
+
+    help_markdown_path = os.path.join(workflow.builder.df_dir, filename)
+    generate_a_file(help_markdown_path, "foo")
+    help_man_path = os.path.join(workflow.builder.df_dir, AddHelpPlugin.man_filename)
+    generate_a_file(help_man_path, "bar")
+
+    cmd = ['go-md2man', '-in={}'.format(help_markdown_path), '-out={}'.format(help_man_path)]
+
+    def check_popen(*args, **kwargs):
+        assert args[0] == cmd
+        return MockedPopen()
+
+    (flexmock(subprocess)
+     .should_receive("Popen")
+     .once()
+     .replace_with(check_popen))
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': AddHelpPlugin.key,
+            'args': {'help_file': filename}
+        }]
+    )
+    runner.run()
+    lines = ""
+    with open(help_markdown_path) as f:
+        lines = "".join(f.readlines())
+
+    example = dedent("""\
+        %% test (1) Container Image Pages
+        %% me
+        %% %s
+        foo""") % dt.fromtimestamp(atomic_reactor_start_time).strftime(format="%B %-d, %Y")
+
+    assert lines == dedent(example)

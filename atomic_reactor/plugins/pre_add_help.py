@@ -20,8 +20,11 @@ Example configuration:
 import errno
 import os
 from subprocess import check_output, CalledProcessError, STDOUT
+from datetime import datetime as dt
+from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
+from atomic_reactor.util import get_preferred_label
 
 DEFAULT_HELP_FILENAME = "help.md"
 
@@ -66,6 +69,26 @@ class AddHelpPlugin(PreBuildPlugin):
             result['status'] = self.NO_HELP_FILE_FOUND
             return result
 
+        dockerfile = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
+        labels = dockerfile.labels
+
+        with open(help_path, 'r+') as help_file:
+            lines = help_file.readlines()
+
+            if not lines[0].startswith("% "):
+                lines.insert(0, "%% %s (1) Container Image Pages\n" %
+                             (get_preferred_label(labels, "name") or ""))
+                lines.insert(1, "%% %s\n" %
+                             (get_preferred_label(labels, "maintainer") or ""))
+                lines.insert(2, "%% %s\n" % dt.fromtimestamp(atomic_reactor_start_time)
+                             .strftime(format="%B %-d, %Y"))
+
+                help_file.seek(0)
+                help_file.truncate()
+                help_file.writelines(lines)
+
+                self.log.info("added metadata to %s for generating nicer manpages", help_path)
+
         man_path = os.path.join(self.workflow.builder.df_dir, self.man_filename)
 
         go_md2man_cmd = ['go-md2man', '-in={}'.format(help_path), '-out={}'.format(man_path)]
@@ -86,7 +109,7 @@ class AddHelpPlugin(PreBuildPlugin):
             raise RuntimeError("go-md2man run complete, but man file is not found")
 
         # Include the help file in the docker file
-        dockerfile = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
+
         lines = dockerfile.lines
 
         content = 'ADD {0} /{0}'.format(self.man_filename)
