@@ -89,7 +89,7 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
     def _load_source(self):
         flatpak_path = os.path.join(self.workflow.builder.df_dir, FLATPAK_FILENAME)
         with open(flatpak_path, 'r') as fp:
-            flatpak_json = json.load(fp)
+            flatpak_json = json.load(fp, strict=False)
 
         compose_info = get_compose_info(self.workflow)
         if compose_info is None:
