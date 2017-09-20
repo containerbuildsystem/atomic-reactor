@@ -32,6 +32,7 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_checksums, print_version_of_tools,
                                  get_version_of_tools, get_preferred_label_key,
                                  human_size, CommandResult,
+                                 registry_hostname, Dockercfg,
                                  get_manifest_digests, ManifestDigest,
                                  get_build_json, is_scratch_build, df_parser,
                                  are_plugins_in_order, LabelFormatter,
@@ -298,6 +299,40 @@ def test_preferred_labels(labels, name, expected):
 ])
 def test_human_size(size_input, expected):
     assert human_size(size_input) == expected
+
+
+@pytest.mark.parametrize(('registry', 'expected'), [
+    ('example.com', 'example.com'),
+    # things that don't look like URIs are left untouched
+    ('example.com/foo', 'example.com/foo'),
+    ('http://example.com', 'example.com'),
+    ('http://example.com:5000', 'example.com:5000'),
+    ('https://example.com:5000', 'example.com:5000'),
+    ('https://example.com/foo', 'example.com')
+])
+def test_registry_hostname(registry, expected):
+    assert registry_hostname(registry) == expected
+
+
+@pytest.mark.parametrize(('in_config', 'lookup', 'expected'), [
+    ('example.com', 'example.com', True),
+    ('example.com', 'https://example.com/v2', True),
+    ('https://example.com/v2', 'https://example.com/v2', True),
+    ('example.com', 'https://example.com/v2', True),
+    ('example.com', 'notexample.com', False),
+])
+def test_dockercfg(tmpdir, in_config, lookup, expected):
+    temp_dir = mkdtemp(dir=str(tmpdir))
+    with open(os.path.join(temp_dir, '.dockercfg'), 'w+') as dockerconfig:
+        dockerconfig.write(json.dumps({
+            in_config: {
+                'username': 'john.doe', 'password': 'letmein'
+            }
+        }))
+    creds = Dockercfg(temp_dir).get_credentials(lookup)
+    found = creds.get('username') == 'john.doe' and creds.get('password') == 'letmein'
+
+    assert found == expected
 
 
 @pytest.mark.parametrize(('version', 'expected'), [

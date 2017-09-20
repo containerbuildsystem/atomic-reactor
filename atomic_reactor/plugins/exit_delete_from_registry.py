@@ -11,13 +11,9 @@ from __future__ import unicode_literals
 from copy import deepcopy
 import requests
 import requests.auth
-try:
-    from urlparse import urlparse
-except ImportError:
-    from urllib.parse import urlparse
 
 from atomic_reactor.plugin import ExitPlugin, PluginFailedException
-from atomic_reactor.util import Dockercfg, get_retrying_requests_session
+from atomic_reactor.util import Dockercfg, get_retrying_requests_session, registry_hostname
 from requests.exceptions import HTTPError, RetryError, Timeout
 
 
@@ -90,9 +86,6 @@ class DeleteFromRegistryPlugin(ExitPlugin):
     def make_url(self, registry, repo, digest):
         return "{registry}/v2/{repo}/manifests/{digest}".format(**vars())
 
-    def make_registry_noschema(self, registry):
-        return urlparse(registry).netloc
-
     def find_registry(self, registry_noschema, workflow):
         for push_conf_registry in workflow.push_conf.docker_registries:
             if push_conf_registry.uri == registry_noschema:
@@ -101,7 +94,7 @@ class DeleteFromRegistryPlugin(ExitPlugin):
         return None
 
     def handle_registry(self, registry, push_conf_registry, auth, deleted_digests):
-        registry_noschema = self.make_registry_noschema(registry)
+        registry_noschema = registry_hostname(registry)
         deleted = False
 
         for tag, digests in push_conf_registry.digests.items():
@@ -152,7 +145,7 @@ class DeleteFromRegistryPlugin(ExitPlugin):
         return worker_digests
 
     def handle_worker_digests(self, worker_digests, registry, insecure, auth, deleted_digests):
-        registry_noschema = self.make_registry_noschema(registry)
+        registry_noschema = registry_hostname(registry)
 
         if registry_noschema not in worker_digests:
             return False
@@ -183,11 +176,11 @@ class DeleteFromRegistryPlugin(ExitPlugin):
             if not registry.startswith('http://') and not registry.startswith('https://'):
                 registry = 'https://' + registry
 
-            registry_noschema = urlparse(registry).netloc
+            registry_noschema = registry_hostname(registry)
 
             insecure = registry_conf.get('insecure', False)
             secret_path = registry_conf.get('secret')
-            auth = self.setup_secret(registry_noschema, secret_path)
+            auth = self.setup_secret(registry, secret_path)
 
             # orchestrator builds use worker_digests
             orchestrator_delete = self.handle_worker_digests(worker_digests, registry, insecure,

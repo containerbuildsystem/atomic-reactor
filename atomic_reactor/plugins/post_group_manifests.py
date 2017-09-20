@@ -18,10 +18,9 @@ from tempfile import NamedTemporaryFile
 import yaml
 from subprocess import check_output, CalledProcessError, STDOUT
 
-from six.moves.urllib.parse import urlparse
-
 from atomic_reactor.plugin import PostBuildPlugin, PluginFailedException
-from atomic_reactor.util import Dockercfg, get_manifest_digests, get_retrying_requests_session
+from atomic_reactor.util import (Dockercfg, get_manifest_digests, get_retrying_requests_session,
+                                 registry_hostname)
 from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY, MEDIA_TYPE_DOCKER_V2_SCHEMA2
 
 
@@ -134,7 +133,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
             if not registry.startswith('http://') and not registry.startswith('https://'):
                 registry = 'https://' + registry
 
-            registry_noschema = urlparse(registry).netloc
+            registry_noschema = registry_hostname(registry)
             self.log.debug("evaluating registry %s", registry_noschema)
 
             insecure = registry_conf.get('insecure', False)
