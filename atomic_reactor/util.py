@@ -27,6 +27,8 @@ import yaml
 import codecs
 import string
 
+from six.moves.urllib.parse import urlparse
+
 from atomic_reactor.constants import (DOCKERFILE_FILENAME, FLATPAK_FILENAME, TOOLS_USED,
                                       INSPECT_CONFIG,
                                       IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,
@@ -616,6 +618,16 @@ def human_size(num, suffix='B'):
     return "%.2f %s%s" % (num, 'Yi', suffix)
 
 
+def registry_hostname(registry):
+    """
+    Strip a reference to a registry to just the hostname:port
+    """
+    if registry.startswith('http:') or registry.startswith('https:'):
+        return urlparse(registry).netloc
+    else:
+        return registry
+
+
 class Dockercfg(object):
     def __init__(self, secret_path):
         """
@@ -635,9 +647,18 @@ class Dockercfg(object):
             raise RuntimeError(msg)
 
     def get_credentials(self, docker_registry):
+        # For maximal robustness we check the host:port of the passed in
+        # registry against the host:port of the items in the secret. This is
+        # somewhat similar to what the Docker CLI does.
+        #
+        docker_registry = registry_hostname(docker_registry)
         try:
             return self.json_secret[docker_registry]
         except KeyError:
+            for reg, creds in self.json_secret.items():
+                if registry_hostname(reg) == docker_registry:
+                    return creds
+
             logger.warn('%s not found in .dockercfg', docker_registry)
             return {}
 
