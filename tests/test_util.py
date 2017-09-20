@@ -360,7 +360,7 @@ def test_get_manifest_digests(tmpdir, image, registry, insecure, creds,
         temp_dir = mkdtemp(dir=str(tmpdir))
         with open(os.path.join(temp_dir, '.dockercfg'), 'w+') as dockerconfig:
             dockerconfig.write(json.dumps({
-                image.registry: {
+                registry: {
                     'username': creds[0], 'password': creds[1]
                 }
             }))

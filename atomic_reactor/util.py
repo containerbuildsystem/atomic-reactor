@@ -716,7 +716,7 @@ def query_registry(image, registry, digest=None, insecure=False, dockercfg_path=
     """
     auth = None
     if dockercfg_path:
-        dockercfg = Dockercfg(dockercfg_path).get_credentials(image.registry)
+        dockercfg = Dockercfg(dockercfg_path).get_credentials(registry)
 
         username = dockercfg.get('username')
         password = dockercfg.get('password')
