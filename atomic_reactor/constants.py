@@ -109,3 +109,4 @@ MEDIA_TYPE_DOCKER_V2_SCHEMA1 = "application/vnd.docker.distribution.manifest.v1+
 MEDIA_TYPE_DOCKER_V2_SCHEMA2 = "application/vnd.docker.distribution.manifest.v2+json"
 MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST = "application/vnd.docker.distribution.manifest.list.v2+json"
 MEDIA_TYPE_OCI_V1 = "application/vnd.oci.image.manifest.v1+json"
+MEDIA_TYPE_OCI_V1_INDEX = "application/vnd.oci.image.index.v1+json"
