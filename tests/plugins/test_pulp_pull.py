@@ -325,10 +325,10 @@ class TestPostPulpPull(object):
         not_found = requests.Response()
         flexmock(not_found, status_code=requests.codes.not_found)
         expectation = flexmock(requests.Session).should_receive('get')
-        # If pulp is returning a 404 for a manifest URL, we will get 4 requests
-        # (for v1, v2, list.v2, and oci media types) before get_manifest_digests
-        # gives up, so we need to return 4 404's to equal one "failure".
-        for _ in range(4 * failures):
+        # If pulp is returning a 404 for a manifest URL, we will get 5 requests
+        # (for v1, v2, list.v2, oci, and oci.index media types) before get_manifest_digests
+        # gives up, so we need to return 5 404's to equal one "failure".
+        for _ in range(5 * failures):
             expectation = expectation.and_return(not_found)
 
         expectation.and_return(self.config_response_config_v1)

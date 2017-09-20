@@ -35,7 +35,8 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, FLATPAK_FILENAME, TOO
                                       HTTP_MAX_RETRIES, HTTP_BACKOFF_FACTOR,
                                       HTTP_CLIENT_STATUS_RETRY, HTTP_REQUEST_TIMEOUT,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
-                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST, MEDIA_TYPE_OCI_V1)
+                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST, MEDIA_TYPE_OCI_V1,
+                                      MEDIA_TYPE_OCI_V1_INDEX)
 
 from dockerfile_parse import DockerfileParser
 from pkg_resources import resource_stream
@@ -727,7 +728,8 @@ class ManifestDigest(dict):
         'v1': MEDIA_TYPE_DOCKER_V2_SCHEMA1,
         'v2': MEDIA_TYPE_DOCKER_V2_SCHEMA2,
         'v2_list': MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
-        'oci': MEDIA_TYPE_OCI_V1
+        'oci': MEDIA_TYPE_OCI_V1,
+        'oci_index': MEDIA_TYPE_OCI_V1_INDEX,
     }
 
     @property
@@ -740,7 +742,7 @@ class ManifestDigest(dict):
         with the registry. An OCI digest will only be present when
         the manifest was pushed as an OCI digest.
         """
-        return self.v2_list or self.oci or self.v2 or self.v1
+        return self.v2_list or self.oci_index or self.oci or self.v2 or self.v1
 
     def __getattr__(self, attr):
         if attr not in self.content_type:
@@ -807,7 +809,7 @@ def query_registry(registry_session, image, digest=None, version='v1', is_blob=F
 
 
 def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
-                         versions=('v1', 'v2', 'v2_list', 'oci'), require_digest=True):
+                         versions=('v1', 'v2', 'v2_list', 'oci', 'oci_index'), require_digest=True):
     """Return manifest digest for image.
 
     :param image: ImageName, the remote image to inspect
