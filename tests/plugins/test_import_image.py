@@ -46,7 +46,11 @@ class ImageStreamResponse:
         self.json = lambda: {'hello': 'howdy'}
 
 
-def prepare(insecure_registry=None, namespace=None):
+DEFAULT_TAGS_AMOUNT = 6
+
+
+def prepare(insecure_registry=None, namespace=None, primary_images_tag_conf=DEFAULT_TAGS_AMOUNT,
+            primary_images_annotations=DEFAULT_TAGS_AMOUNT):
     """
     Boiler-plate test set-up
     """
@@ -60,11 +64,22 @@ def prepare(insecure_registry=None, namespace=None):
     setattr(workflow.builder.source, 'dockerfile_path', None)
     setattr(workflow.builder.source, 'path', None)
 
-    a = {
-        'repositories': {
-            'primary': ['one', 'two', 'three', 'four', 'five', 'six']}}
-    build_result = BuildResult(annotations=a, image_id='foo')
+    annotations = None
+    if primary_images_annotations:
+        annotations = {
+            'repositories': {
+                'primary': [
+                    'registry.example.com/fedora:annotation_{}'.format(x)
+                    for x in range(primary_images_annotations)
+                ]}}
+    build_result = BuildResult(annotations=annotations, image_id='foo')
     setattr(workflow, 'build_result', build_result)
+
+    if primary_images_tag_conf:
+        workflow.tag_conf.add_primary_images([
+            'registry.example.com/fedora:tag_conf_{}'.format(x)
+            for x in range(primary_images_tag_conf)
+        ])
 
     fake_conf = osbs.conf.Configuration(conf_file=None, openshift_uri='/')
 
@@ -144,7 +159,7 @@ def test_create_image(insecure_registry, namespace, monkeypatch):
      .and_return(ImageStreamResponse()))
     (flexmock(OSBS)
      .should_receive('ensure_image_stream_tag')
-     .times(6))
+     .times(DEFAULT_TAGS_AMOUNT))
     (flexmock(OSBS)
      .should_receive('import_image')
      .once()
@@ -152,13 +167,18 @@ def test_create_image(insecure_registry, namespace, monkeypatch):
     runner.run()
 
 
+@pytest.mark.parametrize(('tag_conf', 'annotations', 'tag_prefix'), (
+    (DEFAULT_TAGS_AMOUNT, 0, 'tag_conf_'),
+    (DEFAULT_TAGS_AMOUNT, DEFAULT_TAGS_AMOUNT, 'tag_conf_'),
+    (0, DEFAULT_TAGS_AMOUNT, 'annotation_'),
+))
 @pytest.mark.parametrize(('osbs_error'), [True, False])
-def test_ensure_primary(monkeypatch, osbs_error):
+def test_ensure_primary(monkeypatch, osbs_error, tag_conf, annotations, tag_prefix):
     """
     Test that primary image tags are ensured
     """
 
-    runner = prepare()
+    runner = prepare(primary_images_annotations=annotations, primary_images_tag_conf=tag_conf)
 
     monkeypatch.setenv("BUILD", json.dumps({
         "metadata": {}
@@ -170,25 +190,27 @@ def test_ensure_primary(monkeypatch, osbs_error):
      .with_args(TEST_IMAGESTREAM)
      .and_return(ImageStreamResponse()))
 
+    for x in range(DEFAULT_TAGS_AMOUNT):
+        expectation = (
+            flexmock(OSBS)
+            .should_receive('ensure_image_stream_tag')
+            .with_args(dict, tag_prefix + str(x))
+            .once()
+            .ordered()
+        )
+        if osbs_error:
+            expectation.and_raise(OsbsResponseException('None', 500))
+
+    (flexmock(OSBS)
+     .should_receive('import_image')
+     .with_args(TEST_IMAGESTREAM)
+     .times(0 if osbs_error else 1)
+     .and_return(True))
+
     if osbs_error:
-        (flexmock(OSBS)
-         .should_receive('ensure_image_stream_tag')
-         .times(6)
-         .and_raise(OsbsResponseException('None', 500)))
-        (flexmock(OSBS)
-         .should_receive('import_image')
-         .never())
         with pytest.raises(PluginFailedException):
             runner.run()
     else:
-        (flexmock(OSBS)
-         .should_receive('ensure_image_stream_tag')
-         .times(6))
-        (flexmock(OSBS)
-         .should_receive('import_image')
-         .once()
-         .with_args(TEST_IMAGESTREAM)
-         .and_return(True))
         runner.run()
 
 
@@ -217,7 +239,7 @@ def test_import_image(namespace, monkeypatch):
      .never())
     (flexmock(OSBS)
      .should_receive('ensure_image_stream_tag')
-     .times(6))
+     .times(DEFAULT_TAGS_AMOUNT))
     (flexmock(OSBS)
      .should_receive('import_image')
      .once()

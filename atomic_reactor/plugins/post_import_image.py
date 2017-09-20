@@ -15,7 +15,7 @@ from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException
 
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.util import get_build_json, ImageName
+from atomic_reactor.util import get_build_json, get_primary_images
 
 
 class ImportImagePlugin(PostBuildPlugin):
@@ -82,19 +82,13 @@ class ImportImagePlugin(PostBuildPlugin):
                                                    **kwargs)
         self.log.info("Importing new tags for %s", self.imagestream)
 
-        primaries = None
-        try:
-            primaries = self.workflow.build_result.annotations['repositories']['primary']
-        except (TypeError, KeyError):
-            self.log.exception('Unable to read primary repositories annotations')
-
-        if not primaries:
+        primary_images = get_primary_images(self.workflow)
+        if not primary_images:
             raise RuntimeError('Could not find primary images in workflow')
 
         failures = False
-        for s in primaries:
-            tag_image_name = ImageName.parse(s)
-            tag = tag_image_name.tag
+        for primary_image in primary_images:
+            tag = primary_image.tag
             try:
                 osbs.ensure_image_stream_tag(imagestream.json(), tag)
                 self.log.info("Imported ImageStreamTag: (%s)", tag)
