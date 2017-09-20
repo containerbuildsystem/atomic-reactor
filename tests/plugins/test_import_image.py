@@ -81,14 +81,13 @@ def prepare(insecure_registry=None, namespace=None, primary_images_tag_conf=DEFA
             for x in range(primary_images_tag_conf)
         ])
 
-    fake_conf = osbs.conf.Configuration(conf_file=None, openshift_uri='/')
+    fake_conf = osbs.conf.Configuration(conf_file=None, openshift_url='/')
 
     expectation = flexmock(osbs.conf).should_receive('Configuration').and_return(fake_conf)
     if namespace:
         expectation.with_args(conf_file=None, namespace=namespace,
                               verify_ssl=False, openshift_url="",
-                              openshift_uri="", use_auth=False,
-                              build_json_dir="")
+                              use_auth=False, build_json_dir="")
 
     runner = PostBuildPluginsRunner(tasker, workflow, [{
         'name': ImportImagePlugin.key,
