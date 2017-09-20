@@ -23,6 +23,7 @@ from flexmock import flexmock
 
 from collections import OrderedDict
 import docker
+from atomic_reactor.build import BuildResult
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  LazyGit, figure_out_build_file,
@@ -34,7 +35,8 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_build_json, is_scratch_build, df_parser,
                                  are_plugins_in_order, LabelFormatter,
                                  get_manifest_media_type,
-                                 get_retrying_requests_session)
+                                 get_retrying_requests_session,
+                                 get_primary_images)
 from atomic_reactor import util
 from tests.constants import (DOCKERFILE_GIT, FLATPAK_GIT,
                              INPUT_IMAGE, MOCK, DOCKERFILE_SHA1, MOCK_SOURCE)
@@ -696,3 +698,38 @@ def test_label_formatter(labels, test_string, expected):
     else:
         with pytest.raises(KeyError):
             LabelFormatter().vformat(test_string, [], labels)
+
+
+@pytest.mark.parametrize(('tag_conf', 'tag_annotation', 'expected'), (
+    (['spam', 'bacon'], [], ['spam', 'bacon']),
+    ([], ['spam', 'bacon'], ['spam', 'bacon']),
+    (['spam', 'bacon'], ['ignored', 'scorned'], ['spam', 'bacon']),
+))
+def test_get_primary_images(tag_conf, tag_annotation, expected):
+    template_image = ImageName.parse('registry.example.com/fedora')
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+
+    for tag in tag_conf:
+        image_name = ImageName.parse(str(template_image))
+        image_name.tag = tag
+        workflow.tag_conf.add_primary_image(str(image_name))
+
+    annotations = {}
+    for tag in tag_annotation:
+        annotations.setdefault('repositories', {}).setdefault('primary', [])
+        image_name = ImageName.parse(str(template_image))
+        image_name.tag = tag
+
+        annotations['repositories']['primary'].append(str(image_name))
+
+    build_result = BuildResult(annotations=annotations, image_id='foo')
+    workflow.build_result = build_result
+
+    actual = get_primary_images(workflow)
+    assert len(actual) == len(expected)
+    for index, primary_image in enumerate(actual):
+        assert primary_image.registry == template_image.registry
+        assert primary_image.namespace == template_image.namespace
+        assert primary_image.repo == template_image.repo
+
+        assert primary_image.tag == expected[index]

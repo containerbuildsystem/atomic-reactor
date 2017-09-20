@@ -1008,3 +1008,12 @@ def get_retrying_requests_session(client_statuses=HTTP_CLIENT_STATUS_RETRY,
     session.mount('https://', HTTPAdapter(max_retries=retry))
 
     return session
+
+
+def get_primary_images(workflow):
+    primary_images = workflow.tag_conf.primary_images
+    if not primary_images:
+        primary_images = [
+            ImageName.parse(primary) for primary in
+            workflow.build_result.annotations['repositories']['primary']]
+    return primary_images

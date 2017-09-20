@@ -34,7 +34,7 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY,
                                       PLUGIN_KOJI_PARENT_KEY)
 from atomic_reactor.util import (get_build_json, get_preferred_label,
-                                 df_parser, ImageName, get_checksums)
+                                 df_parser, ImageName, get_checksums, get_primary_images)
 from atomic_reactor.koji_util import (create_koji_session, Output, KojiUploadLogger)
 from osbs.conf import Configuration
 from osbs.api import OSBS
@@ -275,7 +275,7 @@ class KojiImportPlugin(ExitPlugin):
 
     def set_group_manifest_info(self, extra, worker_metadatas):
         version_release = None
-        primary_images = self.get_primary_images()
+        primary_images = get_primary_images(self.workflow)
         for image in primary_images:
             if '-' in image.tag:  # {version}-{release} only, and only one instance
                 version_release = image.tag
@@ -324,14 +324,6 @@ class KojiImportPlugin(ExitPlugin):
                             instance['extra']['docker']['repositories'] = repositories
                             self.log.debug("reset tags to so that docker is %s",
                                            instance['extra']['docker'])
-
-    def get_primary_images(self):
-        primary_images = self.workflow.tag_conf.primary_images
-        if not primary_images:
-            primary_images = [
-                ImageName.parse(primary) for primary in
-                self.workflow.build_result.annotations['repositories']['primary']]
-        return primary_images
 
     def get_output_metadata(self, path, filename):
         """
