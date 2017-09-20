@@ -15,7 +15,7 @@ import os
 import re
 from pipes import quote
 import requests
-from requests.exceptions import ConnectionError, SSLError, HTTPError, RetryError
+from requests.exceptions import ConnectionError, SSLError, HTTPError, RetryError, Timeout
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util import Retry
 import shutil
@@ -30,7 +30,7 @@ import string
 from atomic_reactor.constants import DOCKERFILE_FILENAME, FLATPAK_FILENAME, TOOLS_USED,\
                                      INSPECT_CONFIG, IMAGE_TYPE_OCI,\
                                      HTTP_MAX_RETRIES, HTTP_BACKOFF_FACTOR,\
-                                     HTTP_CLIENT_STATUS_RETRY
+                                     HTTP_CLIENT_STATUS_RETRY, HTTP_REQUEST_TIMEOUT
 
 from dockerfile_parse import DockerfileParser
 from pkg_resources import resource_stream
@@ -751,7 +751,7 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
                 insecure=insecure, dockercfg_path=dockercfg_path,
                 version=version)
             all_not_found = False
-        except (HTTPError, RetryError) as ex:
+        except (HTTPError, RetryError, Timeout) as ex:
             if ex.response.status_code == requests.codes.not_found:
                 saved_not_found = ex
             else:
@@ -994,6 +994,18 @@ class LabelFormatter(string.Formatter):
         return (self.get_value(field_name, args, kwargs), field_name)
 
 
+class SessionWithTimeout(requests.Session):
+    """
+    requests Session with added timeout
+    """
+    def __init__(self, *args, **kwargs):
+        super(SessionWithTimeout, self).__init__(*args, **kwargs)
+
+    def request(self, *args, **kwargs):
+        kwargs.setdefault('timeout', HTTP_REQUEST_TIMEOUT)
+        return super(SessionWithTimeout, self).request(*args, **kwargs)
+
+
 def get_retrying_requests_session(client_statuses=HTTP_CLIENT_STATUS_RETRY,
                                   times=HTTP_MAX_RETRIES, delay=HTTP_BACKOFF_FACTOR,
                                   method_whitelist=None):
@@ -1003,7 +1015,7 @@ def get_retrying_requests_session(client_statuses=HTTP_CLIENT_STATUS_RETRY,
         status_forcelist=client_statuses,
         method_whitelist=method_whitelist
     )
-    session = requests.Session()
+    session = SessionWithTimeout()
     session.mount('http://', HTTPAdapter(max_retries=retry))
     session.mount('https://', HTTPAdapter(max_retries=retry))
 

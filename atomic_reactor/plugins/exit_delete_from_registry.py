@@ -18,7 +18,7 @@ except ImportError:
 
 from atomic_reactor.plugin import ExitPlugin, PluginFailedException
 from atomic_reactor.util import Dockercfg, get_retrying_requests_session
-from requests.exceptions import HTTPError, RetryError
+from requests.exceptions import HTTPError, RetryError, Timeout
 
 
 class DeleteFromRegistryPlugin(ExitPlugin):
@@ -70,7 +70,7 @@ class DeleteFromRegistryPlugin(ExitPlugin):
             self.log.info("deleted manifest %s", manifest)
             return True
 
-        except (HTTPError, RetryError) as ex:
+        except (HTTPError, RetryError, Timeout) as ex:
 
             if ex.response.status_code == requests.codes.NOT_FOUND:
                 self.log.warning("cannot delete %s: not found", manifest)
