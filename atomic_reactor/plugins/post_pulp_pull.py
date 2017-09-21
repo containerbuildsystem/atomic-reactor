@@ -89,6 +89,7 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
         # Only run if the build was successful
         if self.workflow.build_process_failed:
             self.log.info("Not running for failed build")
+            self.workflow.builder.image_id = None
             return []
 
         # Work out the name of the image to pull

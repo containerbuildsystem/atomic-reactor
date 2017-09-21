@@ -147,7 +147,7 @@ def prepare(pulp_registries=None, docker_registries=None):
     (["application/json", "application/vnd.docker.distribution.manifest.v1+json"],
      ["application/json", "application/vnd.docker.distribution.manifest.v1+json"]),
     (["application/json", "application/vnd.docker.distribution.manifest.v1+json",
-            "application/vnd.docker.distribution.manifest.v2+json"],
+      "application/vnd.docker.distribution.manifest.v2+json"],
      ["application/json", "application/vnd.docker.distribution.manifest.v1+json",
       "application/vnd.docker.distribution.manifest.v2+json"]),
 ))
