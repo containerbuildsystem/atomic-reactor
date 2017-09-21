@@ -64,22 +64,27 @@ def prepare(insecure_registry=None, namespace=None, primary_images_tag_conf=DEFA
     setattr(workflow.builder.source, 'dockerfile_path', None)
     setattr(workflow.builder.source, 'path', None)
 
+    version_release_primary_image = 'registry.example.com/fedora:version-release'
+
     annotations = None
     if primary_images_annotations:
-        annotations = {
-            'repositories': {
-                'primary': [
-                    'registry.example.com/fedora:annotation_{}'.format(x)
-                    for x in range(primary_images_annotations)
-                ]}}
+        primary_images = [
+            'registry.example.com/fedora:annotation_{}'.format(x)
+            for x in range(primary_images_annotations)
+        ]
+        primary_images.append(version_release_primary_image)
+        annotations = {'repositories': {'primary': primary_images}}
+        annotations
     build_result = BuildResult(annotations=annotations, image_id='foo')
     setattr(workflow, 'build_result', build_result)
 
     if primary_images_tag_conf:
-        workflow.tag_conf.add_primary_images([
+        primary_images = [
             'registry.example.com/fedora:tag_conf_{}'.format(x)
             for x in range(primary_images_tag_conf)
-        ])
+        ]
+        primary_images.append(version_release_primary_image)
+        workflow.tag_conf.add_primary_images(primary_images)
 
     fake_conf = osbs.conf.Configuration(conf_file=None, openshift_url='/')
 
@@ -189,6 +194,8 @@ def test_ensure_primary(monkeypatch, osbs_error, tag_conf, annotations, tag_pref
      .with_args(TEST_IMAGESTREAM)
      .and_return(ImageStreamResponse()))
 
+    # By using a combination of ordered and once, we verify that
+    # ensure_image_stream_tag is not called with version-release tag
     for x in range(DEFAULT_TAGS_AMOUNT):
         expectation = (
             flexmock(OSBS)

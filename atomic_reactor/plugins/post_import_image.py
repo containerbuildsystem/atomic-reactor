@@ -87,6 +87,9 @@ class ImportImagePlugin(PostBuildPlugin):
         failures = False
         for primary_image in primary_images:
             tag = primary_image.tag
+            if '-' in tag:
+                self.log.info('skipping non-transient tag, %s', tag)
+                continue
             try:
                 osbs.ensure_image_stream_tag(imagestream.json(), tag)
                 self.log.info("Imported ImageStreamTag: (%s)", tag)
