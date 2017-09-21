@@ -27,7 +27,7 @@ except ImportError:
     del koji
     import koji
 
-from atomic_reactor.constants import PLUGIN_PULP_SYNC_KEY
+from atomic_reactor.constants import (PLUGIN_PULP_SYNC_KEY, PLUGIN_PULP_PULL_KEY)
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.exit_koji_promote import (KojiUploadLogger,
                                                       KojiPromotePlugin)
@@ -1325,3 +1325,41 @@ class TestKojiPromote(object):
                                             logs_return_bytes=logs_return_bytes)
         runner = create_runner(tasker, workflow)
         runner.run()
+
+    @pytest.mark.parametrize('expect_result', [
+        ["application/vnd.docker.distribution.manifest.v1+json",
+         "application/json",
+         "application/vnd.docker.distribution.manifest.v2+json"],
+        None,
+        ["application/vnd.docker.distribution.manifest.v1+json",
+         "application/json"]
+    ])
+    def test_koji_promote_set_media_types(self, tmpdir, os_env, expect_result):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            session=session)
+
+        workflow.exit_results[PLUGIN_PULP_PULL_KEY] = expect_result
+
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
+        assert 'image' in extra
+        image = extra['image']
+        assert isinstance(image, dict)
+
+        if expect_result:
+            assert 'media_types' in image.keys()
+            assert sorted(image['media_types']) == sorted(expect_result)
+        else:
+            assert 'media_types' not in image.keys()

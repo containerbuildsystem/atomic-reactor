@@ -33,7 +33,8 @@ except ImportError:
         raise KeyError
 
 from atomic_reactor.constants import (PROG, PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
-                                      PLUGIN_KOJI_TAG_BUILD_KEY)
+                                      PLUGIN_KOJI_TAG_BUILD_KEY,
+                                      PLUGIN_PULP_PULL_KEY)
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json, get_preferred_label,
                                  get_docker_architecture, df_parser,
@@ -562,6 +563,11 @@ class KojiPromotePlugin(ExitPlugin):
                     self.log.error("invalid task ID %r", fs_task_id, exc_info=1)
                 else:
                     extra['filesystem_koji_task_id'] = task_id
+
+        # Append media_types from pulp pull
+        pulp_pull_results = self.workflow.exit_results.get(PLUGIN_PULP_PULL_KEY)
+        if pulp_pull_results:
+            extra['image']['media_types'] = sorted(list(set(pulp_pull_results)))
 
         help_result = self.workflow.prebuild_results.get(AddHelpPlugin.key)
         if isinstance(help_result, dict) and 'help_file' in help_result and 'status' in help_result:
