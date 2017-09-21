@@ -24,7 +24,7 @@ class ImportImagePlugin(PostBuildPlugin):
     creating an ImageStream if one does not already exist.
     """
 
-    key = "import_image"
+    key = 'import_image'
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, imagestream, docker_image_repo,
@@ -46,7 +46,7 @@ class ImportImagePlugin(PostBuildPlugin):
         """
         # call parent constructor
         super(ImportImagePlugin, self).__init__(tasker, workflow)
-        self.imagestream = imagestream
+        self.imagestream_name = imagestream
         self.docker_image_repo = docker_image_repo
         self.url = url
         self.build_json_dir = build_json_dir
@@ -54,49 +54,66 @@ class ImportImagePlugin(PostBuildPlugin):
         self.use_auth = use_auth
         self.insecure_registry = insecure_registry
 
-    def run(self):
-        metadata = get_build_json().get("metadata", {})
-        kwargs = {}
+        self.osbs = None
+        self.imagestream = None
 
+    def run(self):
+        self.setup_osbs_api()
+        self.get_or_create_imagestream()
+        self.process_tags()
+        self.osbs.import_image(self.imagestream_name)
+
+    def setup_osbs_api(self):
+        metadata = get_build_json().get("metadata", {})
         osbs_conf = Configuration(conf_file=None,
                                   openshift_url=self.url,
                                   use_auth=self.use_auth,
                                   verify_ssl=self.verify_ssl,
                                   build_json_dir=self.build_json_dir,
                                   namespace=metadata.get('namespace', None))
-        osbs = OSBS(osbs_conf, osbs_conf)
-        imagestream = None
+        self.osbs = OSBS(osbs_conf, osbs_conf)
+
+    def get_or_create_imagestream(self):
         try:
-            imagestream = osbs.get_image_stream(self.imagestream)
+            self.imagestream = self.osbs.get_image_stream(self.imagestream_name)
         except OsbsResponseException:
+            kwargs = {}
             if self.insecure_registry is not None:
                 kwargs['insecure_registry'] = self.insecure_registry
 
-            self.log.info("Creating ImageStream %s for %s", self.imagestream,
+            self.log.info('Creating ImageStream %s for %s', self.imagestream_name,
                           self.docker_image_repo)
 
-            imagestream = osbs.create_image_stream(self.imagestream,
-                                                   self.docker_image_repo,
-                                                   **kwargs)
-        self.log.info("Importing new tags for %s", self.imagestream)
+            self.imagestream = self.osbs.create_image_stream(self.imagestream_name,
+                                                             self.docker_image_repo,
+                                                             **kwargs)
 
+    def process_tags(self):
+        self.log.info('Importing new tags for %s', self.imagestream_name)
+        failures = False
+
+        for tag in self.get_trackable_tags():
+            try:
+                self.osbs.ensure_image_stream_tag(self.imagestream.json(), tag)
+                self.log.info('Imported ImageStreamTag: (%s)', tag)
+            except OsbsResponseException:
+                failures = True
+                self.log.info('Could not import ImageStreamTag: (%s)', tag)
+
+        if failures:
+            raise RuntimeError('Failed to import ImageStreamTag(s). Check logs')
+
+    def get_trackable_tags(self):
         primary_images = get_primary_images(self.workflow)
         if not primary_images:
             raise RuntimeError('Could not find primary images in workflow')
 
-        failures = False
+        tags = []
         for primary_image in primary_images:
             tag = primary_image.tag
             if '-' in tag:
-                self.log.info('skipping non-transient tag, %s', tag)
+                self.log.info('Skipping non-transient tag, %s', tag)
                 continue
-            try:
-                osbs.ensure_image_stream_tag(imagestream.json(), tag)
-                self.log.info("Imported ImageStreamTag: (%s)", tag)
-            except OsbsResponseException:
-                failures = True
-                self.log.info("Could not import ImageStreamTag: (%s)", tag)
-        if failures:
-            raise RuntimeError("Failed to import ImageStreamTag(s). Check logs")
+            tags.append(tag)
 
-        osbs.import_image(self.imagestream)
+        return tags
