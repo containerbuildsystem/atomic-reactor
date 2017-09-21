@@ -12,13 +12,22 @@ it for all existing image tags.
 
 
 from __future__ import unicode_literals
-from tempfile import NamedTemporaryFile
-import yaml
-from subprocess import check_output, CalledProcessError, STDOUT
+import json
+import requests
 
 from atomic_reactor.plugin import PostBuildPlugin, PluginFailedException
-from atomic_reactor.util import RegistrySession, registry_hostname, get_manifest_digests
-from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY, MEDIA_TYPE_DOCKER_V2_SCHEMA2
+from atomic_reactor.util import RegistrySession, registry_hostname, ManifestDigest
+from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
+                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST, MEDIA_TYPE_OCI_V1,
+                                      MEDIA_TYPE_OCI_V1_INDEX)
+
+
+# The plugin requires that the worker builds have already pushed their images into
+# each registry that we want the final tags to end up in. There is code here to
+# copy images between repositories in a single registry (which is simple, because
+# it can be done entirely server-side), but not between registries. Extending the
+# code to copy registries is possible, but would be more involved because of the
+# size of layers and the complications of the protocol for copying them.
 
 
 class GroupManifestsPlugin(PostBuildPlugin):
@@ -47,144 +56,296 @@ class GroupManifestsPlugin(PostBuildPlugin):
         self.registries = registries
         self.worker_registries = {}
 
-    def submit_manifest_list(self, registry, registry_conf, manifest_list_spec):
-        docker_secret_path = registry_conf.get('secret', None)
-        with NamedTemporaryFile(prefix='manifest-list', suffix=".yml", mode='w') as fp:
-            yaml.dump(manifest_list_spec, stream=fp)
-            fp.flush()
-            self.log.debug("Wrote to file %s with config %s", fp.name, docker_secret_path)
+    def get_manifest(self, session, repository, ref):
+        """
+        Downloads a manifest from a registry. ref can be a digest, or a tag.
+        """
+        self.log.debug("%s: Retrieving manifest for %s:%s", session.registry, repository, ref)
 
-            # --docker-cfg may be rendundant here, but it's how the tool should work
-            cmd = ['manifest-tool', '--docker-cfg=%s' % docker_secret_path,
-                   'push', 'from-spec', fp.name]
-            # docker always looks in $HOME for the .dockercfg, so set $HOME to the path
-            try:
-                check_output(cmd, stderr=STDOUT, env={'HOME': docker_secret_path})
-            except CalledProcessError as exc:
-                self.log.error("manifest-tool failed with %s", exc.output)
-                raise
-            self.log.info("Manifest list submitted for %s", registry)
+        headers = {
+            'Accept': ', '.join((
+                MEDIA_TYPE_DOCKER_V2_SCHEMA2,
+                MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
+                MEDIA_TYPE_OCI_V1,
+                MEDIA_TYPE_OCI_V1_INDEX
+            ))
+        }
 
-    def get_grouped_manifests(self):
-        grouped_manifests = []
-        for registry, registry_conf in self.registries.items():
-            if registry_conf.get('version') == 'v1':
-                continue
+        url = '/v2/{}/manifests/{}'.format(repository, ref)
+        response = session.get(url, headers=headers)
+        response.raise_for_status()
+        return (response.content,
+                response.headers['Docker-Content-Digest'],
+                response.headers['Content-Type'],
+                int(response.headers['Content-Length']))
 
-            manifest_list_spec = {}
-            manifest_list_spec['manifests'] = []
-            all_annotations = self.workflow.build_result.annotations['worker-builds']
-            for platform in all_annotations:
-                worker_image = all_annotations[platform]['digests'][0]
-                tag = worker_image['tag']
-                repository = worker_image['repository']
-                arch_entry = {
-                    'image': '{0}/{1}:{2}'.format(registry, repository, tag),
-                    'platform': {
-                        'os': 'linux',
-                        'architecture': self.goarch.get(platform, platform)
-                    }
-                }
-                manifest_list_spec['manifests'].append(arch_entry)
+    def link_blob_into_repository(self, session, digest, source_repo, target_repo):
+        """
+        Links ("mounts" in Docker Registry terminology) a blob from one repository in a
+        registry into another repository in the same registry.
+        """
+        self.log.debug("%s: Linking blob %s from %s to %s",
+                       session.registry, digest, source_repo, target_repo)
 
-            manifest_list_spec['tags'] = [image.tag for image in self.workflow.tag_conf.images]
-            # use a unique image tag because manifest-tool can't accept a digest that
-            # isn't in the respository yet
-            registry_image = self.workflow.tag_conf.unique_images[0]
-            registry_image.registry = registry
-            manifest_list_spec['image'] = registry_image.to_str()
-            self.log.info("Submitting manifest-list spec %s", manifest_list_spec)
-            self.submit_manifest_list(registry, registry_conf, manifest_list_spec)
-            insecure = registry_conf.get('insecure', False)
-            secret_path = registry_conf.get('secret')
+        # Check that it exists in the source repository
+        url = "/v2/{}/blobs/{}".format(source_repo, digest)
+        result = session.head(url)
+        if result.status_code == requests.codes.NOT_FOUND:
+            self.log.debug("%s: blob %s, not present in %s, skipping",
+                           session.registry, digest, source_repo)
+            # Assume we don't need to copy it - maybe it's a foreign layer
+            return
+        result.raise_for_status()
 
-            self.log.debug('attempting get_manifest_digests from %s for %s',
-                           registry, registry_image)
-            manifest_list_digest = get_manifest_digests(registry_image, registry=registry,
-                                                        insecure=insecure,
-                                                        dockercfg_path=secret_path,
-                                                        versions=('v2_list',))
-            if not manifest_list_digest.v2_list:
-                raise PluginFailedException('no manifest list digest for %s', registry)
-            self.log.debug('Digest for registry %s is %s', registry, manifest_list_digest.v2_list)
-            push_conf_registry = self.workflow.push_conf.add_docker_registry(registry,
-                                                                             insecure=insecure)
-            tag = registry_image.to_str(registry=False)
-            push_conf_registry.digests[tag] = manifest_list_digest
-            grouped_manifests.append(manifest_list_digest)
+        url = "/v2/{}/blobs/uploads/?mount={}&from={}".format(target_repo, digest, source_repo)
+        result = session.post(url, data='')
+        result.raise_for_status()
 
-        self.log.info("Manifest lists created and collected for all repositories")
-        return grouped_manifests
+        if result.status_code != requests.codes.CREATED:
+            # A 202-Accepted would mean that the source blob didn't exist and
+            # we're starting an upload - but we've checked that above
+            raise RuntimeError("Blob mount had unexpected status {}".format(result.status_code))
 
-    def get_worker_manifest(self, worker_data):
-        worker_digests = worker_data['digests']
+    def link_manifest_references_into_repository(self, session, manifest, media_type,
+                                                 source_repo, target_repo):
+        """
+        Links all the blobs referenced by the manifest from source_repo into target_repo.
+        """
 
-        msg = "worker_registries {0}".format(self.worker_registries)
-        self.log.debug(msg)
+        if source_repo == target_repo:
+            return
 
-        for registry, registry_conf in self.registries.items():
-            if registry_conf.get('version') == 'v1':
-                continue
+        parsed = json.loads(manifest.decode('utf-8'))
 
-            insecure = registry_conf.get('insecure', False)
-            secret_path = registry_conf.get('secret')
-            session = RegistrySession(registry, insecure=insecure, dockercfg_path=secret_path)
+        references = []
+        if media_type in (MEDIA_TYPE_DOCKER_V2_SCHEMA2, MEDIA_TYPE_OCI_V1):
+            references.append(parsed['config']['digest'])
+            for l in parsed['layers']:
+                references.append(l['digest'])
+        else:
+            # manifest list support could be added here, but isn't needed currently, since
+            # we never copy a manifest list as a whole between repositories
+            raise RuntimeError("Unhandled media-type {}".format(media_type))
 
-            registry_noschema = registry_hostname(registry)
-            if registry_noschema in self.worker_registries:
-                self.log.debug("getting manifests from %s", registry_noschema)
-                digest = worker_digests[0]['digest']
-                repo = worker_digests[0]['repository']
+        for digest in references:
+            self.link_blob_into_repository(session, digest, source_repo, target_repo)
 
-                # get a v2 schemav2 response for now
-                v2schema2 = MEDIA_TYPE_DOCKER_V2_SCHEMA2
-                headers = {'accept': v2schema2}
+    def store_manifest_in_repository(self, session, manifest, media_type,
+                                     source_repo, target_repo, digest=None, tag=None):
+        """
+        Stores the manifest into target_repo, possibly tagging it. This may involve
+        copying referenced blobs from source_repo.
+        """
 
-                url = '/v2/{}/manifests/{}'.format(repo, digest)
-                self.log.debug("attempting get from %s", url)
-                response = session.get(url, headers=headers)
-                response.raise_for_status()
+        if tag:
+            self.log.debug("%s: Tagging manifest (or list) from %s as %s:%s",
+                           session.registry, source_repo, target_repo, tag)
+            ref = tag
+        elif digest:
+            self.log.debug("%s: Storing manifest (or list) %s from %s in %s",
+                           session.registry, digest, source_repo, target_repo)
+            ref = digest
+        else:
+            raise RuntimeError("Either digest or tag must be specified")
 
-                if response.json()['schemaVersion'] == '1':
-                    msg = 'invalid schema from {0}'.format(url)
-                    raise PluginFailedException(msg)
+        self.link_manifest_references_into_repository(session, manifest, media_type,
+                                                      source_repo, target_repo)
 
-                image_manifest = response.content
-                headers = {'Content-Type': v2schema2}
+        url = '/v2/{}/manifests/{}'.format(target_repo, ref)
+        headers = {'Content-Type': media_type}
+        response = session.put(url, data=manifest, headers=headers)
+        response.raise_for_status()
 
-                push_conf_registry = self.workflow.push_conf.add_docker_registry(registry,
-                                                                                 insecure=insecure)
-                for image in self.workflow.tag_conf.images:
-                    url = '/v2/{}/manifests/{}'.format(repo, image.tag)
-                    self.log.debug("for image_tag %s, putting at %s", image.tag, url)
-                    response = session.put(url, data=image_manifest, headers=headers)
+    def build_list(self, manifests):
+        """
+        Builds a manifest list or OCI image out of the given manifests
+        """
 
-                    if not response.ok:
-                        msg = "PUT failed: {0},\n manifest was: {1}".format(response.json(),
-                                                                            image_manifest)
-                        self.log.error(msg)
-                    response.raise_for_status()
+        media_type = manifests[0]['media_type']
+        if (not all(m['media_type'] == media_type for m in manifests)):
+            raise PluginFailedException('worker manifests have inconsistent types: {}'
+                                        .format(manifests))
 
-                    # add a tag for any plugins running later that expect it
-                    push_conf_registry.digests[image.tag] = digest
-                break
+        if media_type == MEDIA_TYPE_DOCKER_V2_SCHEMA2:
+            list_type = MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST
+        elif media_type == MEDIA_TYPE_OCI_V1:
+            list_type = MEDIA_TYPE_OCI_V1_INDEX
+        else:
+            raise PluginFailedException('worker manifests have unsupported type: {}'
+                                        .format(media_type))
 
-    def run(self):
-        if self.group:
-            return self.get_grouped_manifests()
+        return list_type, json.dumps({
+                "schemaVersion": 2,
+                "mediaType": list_type,
+                "manifests": [
+                    {
+                        "mediaType": media_type,
+                        "size": m['size'],
+                        "digest": m['digest'],
+                        "platform": {
+                            "architecture": m['architecture'],
+                            "os": "linux"
+                        }
+                    } for m in manifests
+                ],
+        }, indent=4)
+
+    def group_manifests_and_tag(self, session, worker_digests):
+        """
+        Creates a manifest list or OCI image index that groups the different manifests
+        in worker_digests, then tags the result with with all the configured tags found
+        in workflow.tag_conf.
+        """
+        self.log.info("%s: Creating manifest list", session.registry)
+
+        # Extract information about the manifests that we will group - we get the
+        # size and content type of the manifest by querying the registry
+        manifests = []
+        for platform, worker_image in worker_digests.items():
+            repository = worker_image['repository']
+            digest = worker_image['digest']
+            content, _, media_type, size = self.get_manifest(session, repository, digest)
+
+            manifests.append({
+                'content': content,
+                'repository': repository,
+                'digest': digest,
+                'size': size,
+                'media_type': media_type,
+                'architecture': self.goarch.get(platform, platform),
+            })
+
+        list_type, list_json = self.build_list(manifests)
+        self.log.info("%s: Created manifest, Content-Type=%s\n%s", session.registry,
+                      list_type, list_json)
+
+        # Now push the manifest list to the registry once per each tag
+        self.log.info("%s: Tagging manifest list", session.registry)
+
+        for image in self.workflow.tag_conf.images:
+            target_repo = image.to_str(registry=False, tag=False)
+            # We have to call store_manifest_in_repository directly for each
+            # referenced manifest, since they potentially come from different repos
+            for manifest in manifests:
+                self.store_manifest_in_repository(session,
+                                                  manifest['content'],
+                                                  manifest['media_type'],
+                                                  manifest['repository'],
+                                                  target_repo,
+                                                  digest=manifest['digest'])
+            self.store_manifest_in_repository(session, list_json, list_type,
+                                              target_repo, target_repo, tag=image.tag)
+        # Get the digest of the manifest list using one of the tags
+        registry_image = self.workflow.tag_conf.unique_images[0]
+        _, digest, _, _ = self.get_manifest(session,
+                                            registry_image.to_str(registry=False, tag=False),
+                                            registry_image.tag)
+
+        if list_type == MEDIA_TYPE_OCI_V1_INDEX:
+            digests = ManifestDigest(oci_index=digest)
+        else:
+            digests = ManifestDigest(v2_list=digest)
+
+        # And store the manifest list in the push_conf
+        push_conf_registry = self.workflow.push_conf.add_docker_registry(session.registry,
+                                                                         insecure=session.insecure)
+        for image in self.workflow.tag_conf.images:
+            push_conf_registry.digests[image.tag] = digests
+
+        self.log.info("%s: Manifest list digest is %s", session.registry, digest)
+
+    def tag_manifest_into_registry(self, session, worker_digest):
+        """
+        Tags the manifest identified by worker_digest into session.registry with all the
+        configured tags found in workflow.tag_conf.
+        """
+        self.log.info("%s: Tagging manifest", session.registry)
+
+        digest = worker_digest['digest']
+        source_repo = worker_digest['repository']
+
+        image_manifest, _, media_type, _ = self.get_manifest(session, source_repo, digest)
+        if media_type == MEDIA_TYPE_DOCKER_V2_SCHEMA2:
+            digests = ManifestDigest(v1=digest)
+        elif media_type == MEDIA_TYPE_OCI_V1:
+            digests = ManifestDigest(oci=digest)
+        else:
+            raise RuntimeError("Unexpected media type found in worker repository: {}"
+                               .format(media_type))
+
+        push_conf_registry = self.workflow.push_conf.add_docker_registry(session.registry,
+                                                                         insecure=session.insecure)
+        for image in self.workflow.tag_conf.images:
+            target_repo = image.to_str(registry=False, tag=False)
+            self.store_manifest_in_repository(session, image_manifest, media_type,
+                                              source_repo, target_repo, tag=image.tag)
+
+            # add a tag for any plugins running later that expect it
+            push_conf_registry.digests[image.tag] = digests
+
+    def sort_annotations(self):
+        """
+        Return a map of maps to look up a single "worker digest" that has information
+        about where to find an image manifest for each registry/architecture combination:
+
+          worker_digest = <result>[registry][architecture]
+        """
 
         all_annotations = self.workflow.build_result.annotations['worker-builds']
+        all_platforms = set(all_annotations)
+        if len(all_platforms) == 0:
+            raise RuntimeError("No worker builds found, cannot group them")
+
+        sorted_digests = {}
+
         for plat, annotation in all_annotations.items():
-            digests = annotation['digests']
-            for digest in digests:
-                registry = digest['registry']
-                self.worker_registries.setdefault(registry, [])
-                self.worker_registries[registry].append(registry)
+            for digest in annotation['digests']:
+                hostname = registry_hostname(digest['registry'])
 
-        for platform in all_annotations:
-            if self.goarch.get(platform, platform) == 'amd64':
-                self.get_worker_manifest(all_annotations[platform])
-                self.log.debug("found an x86_64 platform and grouped its manifest")
-                return []
+                platforms = sorted_digests.setdefault(hostname, {})
+                repos = platforms.setdefault(plat, [])
+                repos.append(digest)
 
-        raise ValueError('failed to find an x86_64 platform')
+        sources = {}
+        for registry in self.registries:
+            registry_conf = self.registries[registry]
+            if registry_conf.get('version') == 'v1':
+                continue
+
+            hostname = registry_hostname(registry)
+            platforms = sorted_digests.get(hostname, {})
+
+            if set(platforms) != all_platforms:
+                raise RuntimeError("Missing platforms for registry {}: found {}, expected {}"
+                                   .format(registry, sorted(platforms), sorted(all_platforms)))
+
+            selected_digests = {}
+            for p, repos in platforms.items():
+                selected_digests[p] = sorted(repos, key=lambda d: d['repository'])[0]
+
+            sources[registry] = selected_digests
+
+        return sources
+
+    def get_registry_session(self, registry):
+        registry_conf = self.registries[registry]
+
+        insecure = registry_conf.get('insecure', False)
+        secret_path = registry_conf.get('secret')
+
+        return RegistrySession(registry, insecure=insecure, dockercfg_path=secret_path)
+
+    def run(self):
+        for registry, source in self.sort_annotations().items():
+            session = self.get_registry_session(registry)
+
+            if self.group:
+                digest = self.group_manifests_and_tag(session, source)
+            else:
+                found = False
+                for platform, digest in source.items():
+                    if self.goarch.get(platform, platform) == 'amd64':
+                        self.tag_manifest_into_registry(session, digest)
+                        found = True
+                if not found:
+                    raise ValueError('failed to find an x86_64 platform')
