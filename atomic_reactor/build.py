@@ -152,7 +152,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
     @property
     def df_path(self):
         if self._df_path is None:
-            raise RuntimeError("Dockerfile has not yet been generated")
+            raise AttributeError("Dockerfile has not yet been generated")
 
         return self._df_path
 

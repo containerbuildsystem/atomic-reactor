@@ -55,7 +55,19 @@ class X(object):
     # image = ImageName.parse("test-image:unique_tag_123")
 
 
-def prepare(pulp_registries=None, docker_registries=None):
+class XBeforeDockerfile(object):
+    image_id = INPUT_IMAGE
+    source = Y()
+    source.dockerfile_path = None
+    source.path = None
+    base_image = None
+
+    @property
+    def df_path(self):
+        raise AttributeError("Dockerfile has not yet been generated")
+
+
+def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=False):
     if pulp_registries is None:
         pulp_registries = (
             ("test", LOCALHOST_REGISTRY),
@@ -102,11 +114,14 @@ def prepare(pulp_registries=None, docker_registries=None):
         r.digests["namespace/image:asd123"] = ManifestDigest(v1='not-used',
                                                              v2=DIGEST2)
 
-    setattr(workflow, 'builder', X)
-    setattr(workflow, '_base_image_inspect', {'Id': '01234567'})
-    workflow.build_logs = [
-        "a", "b",
-    ]
+    if before_dockerfile:
+        setattr(workflow, 'builder', XBeforeDockerfile())
+    else:
+        setattr(workflow, 'builder', X)
+        setattr(workflow, '_base_image_inspect', {'Id': '01234567'})
+        workflow.build_logs = [
+            "a", "b",
+        ]
     workflow.source.lg = LazyGit(None, commit="commit")
     flexmock(workflow.source.lg)
     workflow.source.lg.should_receive("_commit_id").and_return("commit")
@@ -478,6 +493,30 @@ CMD blabla"""
     assert StoreMetadataInOSv3Plugin.key in output
     labels = output[StoreMetadataInOSv3Plugin.key]["labels"]
     assert "koji-build-id" not in labels
+
+
+def test_exit_before_dockerfile_created(tmpdir):
+    workflow = prepare(before_dockerfile=True)
+    workflow.exit_results = {}
+    workflow.builder = XBeforeDockerfile()
+    workflow.builder.df_dir = str(tmpdir)
+
+    runner = ExitPluginsRunner(
+        None,
+        workflow,
+        [{
+            'name': StoreMetadataInOSv3Plugin.key,
+            "args": {
+                "url": "http://example.com/"
+            }
+        }]
+    )
+    output = runner.run()
+    assert StoreMetadataInOSv3Plugin.key in output
+    annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
+    assert annotations["base-image-name"] == ""
+    assert annotations["base-image-id"] == ""
+    assert annotations["dockerfile"] == ""
 
 
 def test_store_metadata_fail_update_annotations(tmpdir, caplog):
