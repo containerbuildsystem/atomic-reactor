@@ -35,6 +35,8 @@ ClusterInfo = namedtuple('ClusterInfo', ('cluster', 'platform', 'osbs', 'load'))
 WORKSPACE_KEY_BUILD_INFO = 'build_info'
 WORKSPACE_KEY_UPLOAD_DIR = 'koji_upload_dir'
 WORKSPACE_KEY_OVERRIDE_KWARGS = 'override_kwargs'
+UNREACHABLE_CLUSTER_RETRY_DELAY = 30
+UNREACHABLE_CLUSTER_RETRY_COUNT = 10
 
 
 def get_worker_build_info(workflow, platform):
@@ -171,7 +173,9 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
     def __init__(self, tasker, workflow, platforms, build_kwargs,
                  osbs_client_config=None, worker_build_image=None,
-                 config_kwargs=None):
+                 config_kwargs=None,
+                 unreachable_cluster_retry_delay=UNREACHABLE_CLUSTER_RETRY_DELAY,
+                 unreachable_cluster_retry_count=UNREACHABLE_CLUSTER_RETRY_COUNT):
         """
         constructor
 
@@ -187,6 +191,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         super(OrchestrateBuildPlugin, self).__init__(tasker, workflow)
         self.platforms = set(platforms)
         self.build_kwargs = build_kwargs
+        self.unreachable_cluster_retry_count = unreachable_cluster_retry_count
+        self.unreachable_cluster_retry_delay = unreachable_cluster_retry_delay
         self.osbs_client_config = osbs_client_config
         self.config_kwargs = config_kwargs or {}
 
@@ -219,7 +225,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     def get_current_builds(self, osbs):
         field_selector = ','.join(['status!={status}'.format(status=status.capitalize())
                                    for status in BUILD_FINISHED_STATES])
-        return len(osbs.list_builds(field_selector=field_selector))
+        with osbs.retries_disabled():
+            return len(osbs.list_builds(field_selector=field_selector))
 
     def get_cluster_info(self, cluster, platform):
         kwargs = deepcopy(self.config_kwargs)
@@ -245,7 +252,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
                        cluster.name, platform, load, current_builds, cluster.max_concurrent_builds)
         return ClusterInfo(cluster, platform, osbs, load)
 
-    def choose_cluster(self, platform):
+    def _get_reachable_clusters(self, platform):
         config = get_config(self.workflow)
         clusters = [self.get_cluster_info(cluster, platform) for cluster in
                     config.get_enabled_clusters_for_platform(platform)]
@@ -254,11 +261,24 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             raise RuntimeError('No clusters found for platform {}!'
                                .format(platform))
 
-        reachable_clusters = [cluster for cluster in clusters
-                              if cluster.load != self.UNREACHABLE_CLUSTER_LOAD]
+        return [cluster for cluster in clusters
+                if cluster.load != self.UNREACHABLE_CLUSTER_LOAD]
 
+    def choose_cluster(self, platform):
+        retries = 0
+        while retries < self.unreachable_cluster_retry_count:
+            self.log.info('Attempt number {0} to find reachable cluster for platform: {1}'
+                          .format(retries+1, platform))
+            reachable_clusters = self._get_reachable_clusters(platform)
+            if not reachable_clusters:
+                self.log.info('Waiting {0} seconds to retry'
+                              .format(self.unreachable_cluster_retry_delay))
+                retries += 1
+                time.sleep(self.unreachable_cluster_retry_delay)
+            else:
+                break
         if not reachable_clusters:
-            raise RuntimeError('All clusters for platform {} are unreachable!'
+            raise RuntimeError('Retries Exceeded. All clusters for platform {} are unreachable!'
                                .format(platform))
 
         selected = min(reachable_clusters, key=lambda c: c.load)
@@ -363,7 +383,9 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             kwargs = self.get_worker_build_kwargs(release, cluster_info.platform,
                                                   koji_upload_dir, task_id)
             kwargs.update(override_kwargs)
-            build = cluster_info.osbs.create_worker_build(**kwargs)
+            with cluster_info.osbs.retries_disabled():
+                build = cluster_info.osbs.create_worker_build(**kwargs)
+
         except Exception:
             self.log.exception('%s - failed to create worker build',
                                cluster_info.platform)

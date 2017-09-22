@@ -500,6 +500,83 @@ def test_orchestrate_build_choose_clusters(tmpdir, clusters_x86_64,
         assert plat_annotations['build']['cluster-url'] == 'https://chosen_{}.com/'.format(platform)
 
 
+def test_orchestrate_choose_cluster_retry(tmpdir):
+
+    (flexmock(OSBS).should_receive('list_builds')
+        .and_raise(OsbsException)
+        .and_raise(OsbsException)
+        .and_return([1, 2, 3]))
+
+    workflow = mock_workflow(tmpdir)
+
+    mock_reactor_config(tmpdir, {
+        'x86_64': [
+            {'name': cluster[0], 'max_concurrent_builds': cluster[1]}
+            for cluster in [('chosen_x86_64', 5), ('spam', 4)]
+        ],
+        'ppc64le': [
+            {'name': cluster[0], 'max_concurrent_builds': cluster[1]}
+            for cluster in [('chosen_ppc64le', 5), ('ham', 5)]
+        ]
+    })
+
+    runner = BuildStepPluginsRunner(
+        workflow.builder.tasker,
+        workflow,
+        [{
+            'name': OrchestrateBuildPlugin.key,
+            'args': {
+                'platforms': ['x86_64', 'ppc64le'],
+                'build_kwargs': make_worker_build_kwargs(),
+                'osbs_client_config': str(tmpdir),
+                'unreachable_cluster_retry_delay': .1
+            }
+        }]
+    )
+
+    runner.run()
+
+
+def test_orchestrate_choose_cluster_retry_timeout(tmpdir):
+
+    (flexmock(OSBS).should_receive('list_builds')
+        .and_raise(OsbsException)
+        .and_raise(OsbsException)
+        .and_raise(OsbsException))
+
+    workflow = mock_workflow(tmpdir)
+
+    mock_reactor_config(tmpdir, {
+        'x86_64': [
+            {'name': cluster[0], 'max_concurrent_builds': cluster[1]}
+            for cluster in [('chosen_x86_64', 5), ('spam', 4)]
+        ],
+        'ppc64le': [
+            {'name': cluster[0], 'max_concurrent_builds': cluster[1]}
+            for cluster in [('chosen_ppc64le', 5), ('ham', 5)]
+        ]
+    })
+
+    runner = BuildStepPluginsRunner(
+        workflow.builder.tasker,
+        workflow,
+        [{
+            'name': OrchestrateBuildPlugin.key,
+            'args': {
+                'platforms': ['x86_64', 'ppc64le'],
+                'build_kwargs': make_worker_build_kwargs(),
+                'osbs_client_config': str(tmpdir),
+                'unreachable_cluster_retry_delay': .1,
+                'unreachable_cluster_retry_count': 2
+            }
+        }]
+    )
+
+    with pytest.raises(Exception) as exc:
+        runner.run()
+    assert 'Retries Exceeded' in str(exc)
+
+
 @pytest.mark.parametrize(('platforms', 'platform_exclude', 'platform_only', 'result'), [
     (['x86_64', 'powerpc64le'], '', 'powerpc64le', ['powerpc64le']),
     (['x86_64', 'spam', 'bacon', 'toast', 'powerpc64le'], ['spam', 'bacon', 'eggs', 'toast'], '',
@@ -816,6 +893,8 @@ def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
                 'platforms': ['x86_64'],
                 'build_kwargs': make_worker_build_kwargs(),
                 'osbs_client_config': str(tmpdir),
+                'unreachable_cluster_retry_delay': .1,
+                'unreachable_cluster_retry_count': 2
             }
         }]
     )
