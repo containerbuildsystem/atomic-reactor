@@ -89,7 +89,7 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
         # Only run if the build was successful
         if self.workflow.build_process_failed:
             self.log.info("Not running for failed build")
-            return None, []
+            return []
 
         # Work out the name of the image to pull
         assert self.workflow.tag_conf.unique_images  # must be set
@@ -121,12 +121,12 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
                     self.log.info("Manifest list found")
                     media_types.append('application/vnd.docker.distribution.manifest.list.v2+json')
                 if digests.v2:
-                    self.log.info("V2 schema 2 digest found, returning %s",
+                    self.log.info("V2 schema 2 digest found, leaving image ID unchanged %s",
                                   self.workflow.builder.image_id)
                     media_types.append('application/vnd.docker.distribution.manifest.v2+json')
                     # No need to pull the image to work out the image ID as
                     # we already know it.
-                    return self.workflow.builder.image_id, sorted(media_types)
+                    return sorted(media_types)
             else:
                 self.log.info("No digests were found")
 
@@ -146,4 +146,4 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
                        image_id)
         self.workflow.builder.image_id = image_id
 
-        return image_id, sorted(media_types)
+        return sorted(media_types)

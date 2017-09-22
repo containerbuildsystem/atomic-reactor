@@ -141,13 +141,13 @@ def prepare(pulp_registries=None, docker_registries=None):
     (['foo', []], 'foo'),
 ))
 @pytest.mark.parametrize(('pulp_pull_results', 'expected_pulp_pull_results'), (
-    (None, False),
+    ([], False),
     (Exception(), False),
-    ((123, ["application/json"]), ["application/json"]),
-    ((123, ["application/json", "application/vnd.docker.distribution.manifest.v1+json"]),
+    (["application/json"], ["application/json"]),
+    (["application/json", "application/vnd.docker.distribution.manifest.v1+json"],
      ["application/json", "application/vnd.docker.distribution.manifest.v1+json"]),
-    ((123, ["application/json", "application/vnd.docker.distribution.manifest.v1+json",
-            "application/vnd.docker.distribution.manifest.v2+json"]),
+    (["application/json", "application/vnd.docker.distribution.manifest.v1+json",
+            "application/vnd.docker.distribution.manifest.v2+json"],
      ["application/json", "application/vnd.docker.distribution.manifest.v1+json",
       "application/vnd.docker.distribution.manifest.v2+json"]),
 ))
@@ -305,7 +305,7 @@ CMD blabla"""
         if expected_pulp_push_results:
             media_types = ['application/json']
         if expected_pulp_pull_results:
-            media_types += pulp_pull_results[1]
+            media_types += pulp_pull_results
         assert sorted(json.loads(annotations['media-types'])) == sorted(list(set(media_types)))
 
 

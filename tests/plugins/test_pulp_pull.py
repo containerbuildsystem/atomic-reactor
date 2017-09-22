@@ -247,10 +247,8 @@ class TestPostPulpPull(object):
         # fall through to pulp_pull.
         plugin = PulpPullPlugin(tasker, workflow, insecure=insecure,
                                 timeout=0.1, retry_delay=0.25)
-        results, version = plugin.run()
+        version = plugin.run()
 
-        # Plugin return value is the new ID and schema
-        assert results == test_id
         if not broken_response:
             assert version == expected_version
 
@@ -298,9 +296,9 @@ class TestPostPulpPull(object):
         workflow.postbuild_plugins_conf = []
 
         plugin = PulpPullPlugin(tasker, workflow)
-        results, version = plugin.run()
+        plugin.run()
 
-        assert results == test_id
+        assert workflow.builder.image_id == test_id
         assert len(tasker.pulled_images) == 1
 
     @pytest.mark.parametrize('v2,expect_v2schema2', [
@@ -372,11 +370,7 @@ class TestPostPulpPull(object):
                 plugin.run()
             return
 
-        # Plugin return value is the new ID and schema
-        results, version = plugin.run()
-
-        # Plugin return value is the new ID
-        assert results == test_id
+        plugin.run()
 
         assert len(tasker.pulled_images) == 0 if v2 else 1
         if not v2:
@@ -401,8 +395,7 @@ class TestPostPulpPull(object):
         flexmock(tasker).should_receive('pull_image').never()
         flexmock(tasker).should_receive('inspect_image').never()
         plugin = PulpPullPlugin(tasker, workflow)
-        image_id, media_types = plugin.run()
-        assert image_id is None
+        media_types = plugin.run()
         assert len(media_types) == 0
 
     def test_unexpected_response(self):

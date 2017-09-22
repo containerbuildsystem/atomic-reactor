@@ -241,8 +241,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             pulp_pull_results = None
 
         if pulp_pull_results:
-            _, pulp_pull_media_types = pulp_pull_results
-            media_types += pulp_pull_media_types
+            media_types += pulp_pull_results
 
         if media_types:
             annotations['media-types'] = json.dumps(sorted(list(set(media_types))))
