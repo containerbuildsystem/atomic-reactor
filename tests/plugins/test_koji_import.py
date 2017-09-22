@@ -1114,10 +1114,10 @@ class TestKojiImport(object):
          False),
     ])
     @pytest.mark.parametrize('tag_later', (True, False))
-    @pytest.mark.parametrize('pulp_pull,expect_id', (
-        (("abcdef01234567", ['v1']), 'abcdef01234567'),
-        ((None, ['v1', 'v2']), '123456'),
-        (False, '123456'),
+    @pytest.mark.parametrize(('pulp_pull', 'expect_id'), (
+        (['v1'], 'abcdef123456'),
+        (['v1', 'v2'], 'abc123'),
+        (False, 'ab12')
     ))
     def test_koji_import_success(self, tmpdir, apis, docker_registry,
                                  pulp_registries,
@@ -1152,6 +1152,9 @@ class TestKojiImport(object):
         workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_autorebuild
         if pulp_pull:
             workflow.exit_results[PLUGIN_PULP_PULL_KEY] = pulp_pull
+
+        workflow.builder.image_id = expect_id
+
         runner = create_runner(tasker, workflow, target=target, tag_later=tag_later)
         runner.run()
 
@@ -1466,7 +1469,7 @@ class TestKojiImport(object):
                 ImageName.parse('crane.example.com/ns/name:1.0-1'),
             ]
         if config['pulp_pull_in_orchestrator']:
-            workflow.exit_results[PLUGIN_PULP_PULL_KEY] = ("acbdef1234", pulp_pull_media_types)
+            workflow.exit_results[PLUGIN_PULP_PULL_KEY] = pulp_pull_media_types
         runner = create_runner(tasker, workflow)
         runner.run()
 

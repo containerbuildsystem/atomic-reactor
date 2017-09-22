@@ -134,10 +134,8 @@ class KojiImportPlugin(ExitPlugin):
                     # building for many, we know Pulp has schema 2
                     # support.
                     if len(worker_metadatas) == 1 and has_pulp_pull:
-                        exit_results = self.workflow.exit_results
-                        image_id, _ = exit_results[PLUGIN_PULP_PULL_KEY]
-                        if image_id is not None:
-                            instance['extra']['docker']['id'] = image_id
+                        if self.workflow.builder.image_id is not None:
+                            instance['extra']['docker']['id'] = self.workflow.builder.image_id
 
                     # update repositories to point to Crane
                     if crane_registry:
@@ -240,7 +238,7 @@ class KojiImportPlugin(ExitPlugin):
         # Append media_types from pulp pull
         pulp_pull_results = self.workflow.exit_results.get(PLUGIN_PULP_PULL_KEY)
         if pulp_pull_results:
-            media_types += pulp_pull_results[1]
+            media_types += pulp_pull_results
 
         if media_types:
             extra['image']['media_types'] = sorted(list(set(media_types)))
