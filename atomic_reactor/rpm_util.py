@@ -30,7 +30,7 @@ def rpm_qf_args(tags=None, separator=';'):
         tags = image_component_rpm_tags
 
     fmt = separator.join(["%%{%s}" % tag for tag in tags])
-    return "-qa --qf '{0}\n'".format(fmt)
+    return r"-qa --qf '{0}\n'".format(fmt)
 
 
 def parse_rpm_output(output, tags=None, separator=';'):
