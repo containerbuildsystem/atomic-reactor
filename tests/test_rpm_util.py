@@ -18,9 +18,9 @@ FAKE_SIGNATURE = "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abc"
 
 @pytest.mark.parametrize(('tags', 'separator', 'expected'), [
     (None, None,
-     "-qa --qf '%{NAME};%{VERSION};%{RELEASE};%{ARCH};%{EPOCH};%{SIZE};%{SIGMD5};%{BUILDTIME};%{SIGPGP:pgpsig};%{SIGGPG:pgpsig}\n'"),  # noqa
+     r"-qa --qf '%{NAME};%{VERSION};%{RELEASE};%{ARCH};%{EPOCH};%{SIZE};%{SIGMD5};%{BUILDTIME};%{SIGPGP:pgpsig};%{SIGGPG:pgpsig}\n'"),  # noqa
     (['NAME', 'VERSION'], "|",
-     "-qa --qf '%{NAME}|%{VERSION}\n'"),
+     r"-qa --qf '%{NAME}|%{VERSION}\n'"),
 ])
 def test_rpm_qf_args(tags, separator, expected):
     kwargs = {}
