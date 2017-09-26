@@ -1343,7 +1343,7 @@ class TestKojiPromote(object):
                                             release='1',
                                             session=session)
 
-        workflow.exit_results[PLUGIN_PULP_PULL_KEY] = expect_result
+        workflow.postbuild_results[PLUGIN_PULP_PULL_KEY] = expect_result
 
         runner = create_runner(tasker, workflow)
         runner.run()
