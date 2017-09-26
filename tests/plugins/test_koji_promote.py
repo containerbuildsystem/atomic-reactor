@@ -27,7 +27,8 @@ except ImportError:
     del koji
     import koji
 
-from atomic_reactor.constants import (PLUGIN_PULP_SYNC_KEY, PLUGIN_PULP_PULL_KEY)
+from atomic_reactor.constants import (PLUGIN_PULP_SYNC_KEY, PLUGIN_PULP_PULL_KEY,
+                                      PLUGIN_KOJI_PARENT_KEY)
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.exit_koji_promote import (KojiUploadLogger,
                                                       KojiPromotePlugin)
@@ -1364,3 +1365,69 @@ class TestKojiPromote(object):
             assert sorted(image['media_types']) == sorted(expect_result)
         else:
             assert 'media_types' not in image.keys()
+
+    @pytest.mark.parametrize(('parent_output', 'expected_result'), [
+        (None, None),
+        ("1234", 1234),
+        ("string123", None),
+        (1234, 1234),
+        (1234890, 1234890),
+    ])
+    def test_koji_promote_set_parent_id(self, tmpdir, os_env, parent_output, expected_result):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            session=session)
+
+        if parent_output:
+            workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = \
+                {'parent-image-koji-build-id': parent_output}
+        else:
+            workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = parent_output
+
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
+        assert 'image' in extra
+        image = extra['image']
+        assert isinstance(image, dict)
+
+        if expected_result:
+            assert 'parent_build_id' in image.keys()
+            assert image['parent_build_id'] == expected_result
+        else:
+            assert 'parent_build_id' not in image.keys()
+
+    def test_koji_promote_no_parent_id(self, tmpdir, os_env):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            session=session)
+
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
+        assert 'image' in extra
+        image = extra['image']
+        assert isinstance(image, dict)
+
+        assert 'parent_build_id' not in image.keys()
+        assert PLUGIN_KOJI_PARENT_KEY not in workflow.prebuild_results

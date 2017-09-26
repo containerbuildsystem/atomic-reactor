@@ -34,7 +34,8 @@ except ImportError:
 
 from atomic_reactor.constants import (PROG, PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_TAG_BUILD_KEY,
-                                      PLUGIN_PULP_PULL_KEY)
+                                      PLUGIN_PULP_PULL_KEY,
+                                      PLUGIN_KOJI_PARENT_KEY)
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json, get_preferred_label,
                                  get_docker_architecture, df_parser,
@@ -569,6 +570,17 @@ class KojiPromotePlugin(ExitPlugin):
         pulp_pull_results = self.workflow.postbuild_results.get(PLUGIN_PULP_PULL_KEY)
         if pulp_pull_results:
             extra['image']['media_types'] = sorted(list(set(pulp_pull_results)))
+
+        # Append parent_build_id from koji parent
+        parent_results = self.workflow.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY) or {}
+        parent_id = parent_results.get('parent-image-koji-build-id')
+        if parent_id is not None:
+            try:
+                parent_id = int(parent_id)
+            except ValueError:
+                self.log.exception("invalid koji parent id %r", parent_id)
+            else:
+                extra['image']['parent_build_id'] = parent_id
 
         help_result = self.workflow.prebuild_results.get(AddHelpPlugin.key)
         if isinstance(help_result, dict) and 'help_file' in help_result and 'status' in help_result:
