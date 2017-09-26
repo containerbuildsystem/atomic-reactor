@@ -67,6 +67,7 @@ if [[ $PYTHON_VERSION == 2* ]]; then
   $RUN $PIP install git+https://github.com/release-engineering/dockpulp
   $RUN $PIP install -r requirements-py2.txt
 fi
+$RUN $PIP install -r requirements-flatpak.txt
 $RUN $PIP install docker-squash
 $RUN $PYTHON setup.py install
 
