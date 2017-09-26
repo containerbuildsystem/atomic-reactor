@@ -566,7 +566,7 @@ class KojiPromotePlugin(ExitPlugin):
                     extra['filesystem_koji_task_id'] = task_id
 
         # Append media_types from pulp pull
-        pulp_pull_results = self.workflow.exit_results.get(PLUGIN_PULP_PULL_KEY)
+        pulp_pull_results = self.workflow.postbuild_results.get(PLUGIN_PULP_PULL_KEY)
         if pulp_pull_results:
             extra['image']['media_types'] = sorted(list(set(pulp_pull_results)))
 
