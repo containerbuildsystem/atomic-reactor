@@ -1,0 +1,4 @@
+modulemd
+pdc-client
+# https://pagure.io/modulemd/pull-request/46
+python-dateutil
