@@ -361,7 +361,10 @@ class KojiImportPlugin(ExitPlugin):
             except ValueError:
                 self.log.error("invalid task ID %r", koji_task_id, exc_info=1)
 
-        isolated = metadata.get('labels', {}).get('isolated', False)
+        try:
+            isolated = str(metadata['labels']['isolated']).lower() == 'true'
+        except (IndexError, AttributeError, KeyError):
+            isolated = False
         self.log.info("build is isolated: {}".format(isolated))
         extra['image']['isolated'] = isolated
 
