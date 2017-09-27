@@ -361,6 +361,10 @@ class KojiImportPlugin(ExitPlugin):
             except ValueError:
                 self.log.error("invalid task ID %r", koji_task_id, exc_info=1)
 
+        isolated = metadata.get('labels', {}).get('isolated', False)
+        self.log.info("build is isolated: {}".format(isolated))
+        extra['image']['isolated'] = isolated
+
         fs_result = self.workflow.prebuild_results.get(AddFilesystemPlugin.key)
         if fs_result is not None:
             try:
