@@ -40,6 +40,7 @@ For atomic-reactor container image builds the `image` type is used, and so type-
 Data which is placed here includes:
 
 - `build.extra.image.autorebuild` (boolean): true if this build was triggered automatically; false otherwise
+- `build.extra.image.isolated` (boolean): true if this build was an isolated build; false otherwise
 - `build.extra.image.help` (string or null): filename of the markdown help file in the repository if this build has a markdown help converted to man page; null otherwise
 - `build.extra.container_koji_task_id` (int): Koji task ID which created the BuildConfig for this OpenShift Build -- note that this location is technically incorrect but remains as-is for compatibility with existing software
 - `build.extra.filesystem_koji_task_id` (int): Koji task ID which atomic-reactor created in order to generate the initial layer of the image (for "FROM koji/image-build" images) -- note that this location is technically incorrect but remains as-is for compatibility with existing software
@@ -89,6 +90,7 @@ Example type-specific content generator metadata in context:
     "extra": {
       "image": {
         "autorebuild": false,
+        "isolated": false,
         "help": null,
         "parent_build_id": 123456
       },
