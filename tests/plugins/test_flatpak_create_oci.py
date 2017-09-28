@@ -11,6 +11,7 @@ from flexmock import flexmock
 import os
 import pytest
 import re
+import stat
 import shutil
 import subprocess
 import tarfile
@@ -317,14 +318,19 @@ zlib;1.2.11;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
 RUNTIME_FILESYSTEM_CONTENTS = {
     '/usr/bin/not_eog': 'SHOULD_IGNORE',
     ROOT + '/etc/passwd': 'SOME_CONFIG_FILE',
+    ROOT + '/etc/shadow:0444': 'FUNNY_PERMISSIONS',
     ROOT + '/usr/bin/bash': 'SOME_BINARY',
+    ROOT + '/usr/bin/mount:1755': 'SOME_SETUID_BINARY',
     ROOT + '/usr/lib64/libfoo.so.1.0.0': 'SOME_LIB',
-    '/var/tmp/flatpak-build.rpm_qf': RUNTIME_MANIFEST_CONTENTS
+    ROOT + '/usr/share/foo:0777': None,  # writeable directory
+    '/var/tmp/flatpak-build.rpm_qf': RUNTIME_MANIFEST_CONTENTS,
 }
 
 EXPECTED_RUNTIME_FLATPAK_CONTENTS = [
     '/files/bin/bash',
+    '/files/bin/mount',
     '/files/etc/passwd',
+    '/files/etc/shadow',
     '/files/lib64/libfoo.so.1.0.0',
     '/metadata'
 ]
@@ -583,6 +589,17 @@ class DefaultInspector(object):
                                      path],
                                     universal_newlines=True)
 
+    def get_file_perms(self, path):
+        output = default_check_output(['ostree', '--repo=' + self.repodir,
+                                       'ls', '-R', self.ref_name, path],
+                                      universal_newlines=True)
+        for line in output.split('\n'):
+            line = line.strip()
+            if line == '':
+                continue
+            perms, user, group, size, path = line.split()
+            return perms
+
 
 class MockInspector(object):
     def __init__(self,  tmpdir, metadata):
@@ -607,6 +624,14 @@ class MockInspector(object):
         full = os.path.join(self.path, 'tree', path[1:])
         with open(full, "r") as f:
             return f.read()
+
+    def get_file_perms(self, path):
+        full = os.path.join(self.path, 'tree', path[1:])
+        mode = os.stat(full).st_mode
+        if stat.S_ISDIR(mode):
+            return 'd{:05o}'.format(stat.S_IMODE(mode))
+        else:
+            return '-{:05o}'.format(stat.S_IMODE(mode))
 
 
 @pytest.mark.parametrize('config_name, breakage', [ # noqa - docker_tasker fixture
@@ -656,13 +681,23 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
     filesystem_contents = config['filesystem_contents']
 
     for path, contents in filesystem_contents.items():
+        parts = path.split(':', 1)
+        path = parts[0]
+        mode = parts[1] if len(parts) == 2 else None
+
         fullpath = os.path.join(filesystem_dir, path[1:])
         parent_dir = os.path.dirname(fullpath)
         if not os.path.isdir(parent_dir):
             os.makedirs(parent_dir)
 
-        with open(fullpath, 'w') as f:
-            f.write(contents)
+        if contents is None:
+            os.mkdir(fullpath)
+        else:
+            with open(fullpath, 'w') as f:
+                f.write(contents)
+
+        if mode is not None:
+            os.chmod(fullpath, int(mode, 8))
 
     if breakage == 'stray_component':
         fullpath = os.path.join(filesystem_dir, 'var/tmp/flatpak-build.rpm_qf')
@@ -774,8 +809,13 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
         for n in config['unexpected_components']:
             assert n not in components
 
-        if config_name is 'app':
+        if config_name == 'app':
             # Check that the desktop file was rewritten
             output = inspector.cat_file('/export/share/applications/org.gnome.eog.desktop')
             lines = output.split('\n')
             assert 'Icon=org.gnome.eog' in lines
+        else:  # runtime
+            # Check that permissions have been normalized
+            assert inspector.get_file_perms('/files/etc/shadow') == '-00644'
+            assert inspector.get_file_perms('/files/bin/mount') == '-00755'
+            assert inspector.get_file_perms('/files/share/foo') == 'd00755'

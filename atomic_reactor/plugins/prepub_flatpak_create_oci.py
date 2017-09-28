@@ -210,10 +210,23 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
             if target_name is None:
                 continue
 
-            # flatpak tries to create files/.ref and behaves badly if the root directory
-            # isn't writable. It also has trouble upgrading if any directory is not
-            # user-writable.
-            member.mode |= 0o0200
+            # Match the ownership/permissions changes done by 'flatpak build-export'.
+            # See commit_filter() in:
+            #   https://github.com/flatpak/flatpak/blob/master/app/flatpak-builtins-build-export.c
+            #
+            # We'll run build-export anyways in the app case, but in the runtime case we skip
+            # flatpak build-export and use ostree directly.
+            member.uid = 0
+            member.gid = 0
+            member.uname = "root"
+            member.gname = "root"
+
+            if member.isdir():
+                member.mode = 0o0755
+            elif member.mode & 0o0100:
+                member.mode = 0o0755
+            else:
+                member.mode = 0o0644
 
             member.name = target_name
             if member.islnk():
