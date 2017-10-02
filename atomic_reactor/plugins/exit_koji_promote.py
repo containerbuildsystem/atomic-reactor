@@ -582,6 +582,14 @@ class KojiPromotePlugin(ExitPlugin):
             else:
                 extra['image']['parent_build_id'] = parent_id
 
+        # Append isolated build flag
+        try:
+            isolated = str(metadata['labels']['isolated']).lower() == 'true'
+        except (IndexError, AttributeError, KeyError):
+            isolated = False
+        self.log.info("build is isolated: {}".format(isolated))
+        extra['image']['isolated'] = isolated
+
         help_result = self.workflow.prebuild_results.get(AddHelpPlugin.key)
         if isinstance(help_result, dict) and 'help_file' in help_result and 'status' in help_result:
             if help_result['status'] == AddHelpPlugin.NO_HELP_FILE_FOUND:
