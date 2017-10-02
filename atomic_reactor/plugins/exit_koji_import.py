@@ -365,7 +365,7 @@ class KojiImportPlugin(ExitPlugin):
             isolated = str(metadata['labels']['isolated']).lower() == 'true'
         except (IndexError, AttributeError, KeyError):
             isolated = False
-        self.log.info("build is isolated: {}".format(isolated))
+        self.log.info("build is isolated: %r", isolated)
         extra['image']['isolated'] = isolated
 
         fs_result = self.workflow.prebuild_results.get(AddFilesystemPlugin.key)
