@@ -103,8 +103,6 @@ Requires:       python-dockerfile-parse >= 0.0.5
 Requires:       python-docker-squash >= 1.0.0-0.3
 Requires:       python-backports-lzma
 Requires:       python-jsonschema
-# Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
-Requires:       nfs-utils
 Requires:       PyYAML
 Provides:       python-dock = %{version}-%{release}
 Obsoletes:      python-dock < %{dock_obsolete_vr}
@@ -167,8 +165,6 @@ Requires:       python3-setuptools
 Requires:       python3-dockerfile-parse >= 0.0.5
 Requires:       python3-docker-squash >= 1.0.0-0.3
 Requires:       python3-jsonschema
-# Due to CopyBuiltImageToNFSPlugin, might be moved to subpackage later.
-Requires:       nfs-utils
 Requires:       python3-PyYAML
 Provides:       python3-dock = %{version}-%{release}
 Obsoletes:      python3-dock < %{dock_obsolete_vr}
@@ -649,4 +645,3 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 * Sun Nov  2 2014 Jakub Dorňák <jdornak@redhat.com> - 0.0.1-1
 - Initial package
-
