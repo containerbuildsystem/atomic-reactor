@@ -444,6 +444,43 @@ class TestKojiPromote(object):
             runner.run()
         assert "plugin 'koji_promote' raised an exception: RuntimeError" in str(exc)
 
+    @pytest.mark.parametrize(('isolated'), [
+        False,
+        True,
+        None
+    ])
+    def test_promote_isolated_metadata_json(self, tmpdir, monkeypatch, os_env, isolated):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1')
+        runner = create_runner(tasker, workflow)
+
+        patch = {
+            'metadata': {
+                'creationTimestamp': '2015-07-27T09:24:00Z',
+                'namespace': NAMESPACE,
+                'name': BUILD_ID,
+                'labels': {
+                },
+            }
+        }
+
+        if isolated is not None:
+            patch['metadata']['labels']['isolated'] = isolated
+
+        monkeypatch.setenv("BUILD", json.dumps(patch))
+
+        runner.run()
+
+        build_metadata = session.metadata['build']['extra']['image']['isolated']
+        if isolated:
+            assert build_metadata is True
+        else:
+            assert build_metadata is False
+
     @pytest.mark.parametrize(('koji_task_id', 'expect_success'), [
         (12345, True),
         ('x', False),
