@@ -22,7 +22,7 @@ from six.moves.urllib.parse import urlparse
 
 from atomic_reactor.plugin import PostBuildPlugin, PluginFailedException
 from atomic_reactor.util import Dockercfg, get_manifest_digests, get_retrying_requests_session
-from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY
+from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY, MEDIA_TYPE_DOCKER_V2_SCHEMA2
 
 
 class GroupManifestsPlugin(PostBuildPlugin):
@@ -159,7 +159,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
                 repo = worker_digests[0]['repository']
 
                 # get a v2 schemav2 response for now
-                v2schema2 = 'application/vnd.docker.distribution.manifest.v2+json'
+                v2schema2 = MEDIA_TYPE_DOCKER_V2_SCHEMA2
                 headers = {'accept': v2schema2}
                 kwargs = {'verify': not insecure, 'headers': headers, 'auth': auth}
 

@@ -27,11 +27,13 @@ import yaml
 import codecs
 import string
 
-from atomic_reactor.constants import DOCKERFILE_FILENAME, FLATPAK_FILENAME, TOOLS_USED,\
-                                     INSPECT_CONFIG,\
-                                     IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,\
-                                     HTTP_MAX_RETRIES, HTTP_BACKOFF_FACTOR,\
-                                     HTTP_CLIENT_STATUS_RETRY, HTTP_REQUEST_TIMEOUT
+from atomic_reactor.constants import (DOCKERFILE_FILENAME, FLATPAK_FILENAME, TOOLS_USED,
+                                      INSPECT_CONFIG,
+                                      IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,
+                                      HTTP_MAX_RETRIES, HTTP_BACKOFF_FACTOR,
+                                      HTTP_CLIENT_STATUS_RETRY, HTTP_REQUEST_TIMEOUT,
+                                      MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
+                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST, MEDIA_TYPE_OCI_V1)
 
 from dockerfile_parse import DockerfileParser
 from pkg_resources import resource_stream
@@ -643,6 +645,13 @@ class Dockercfg(object):
 class ManifestDigest(object):
     """Wrapper for digests for a docker manifest."""
 
+    content_type = {
+        'v1': MEDIA_TYPE_DOCKER_V2_SCHEMA1,
+        'v2': MEDIA_TYPE_DOCKER_V2_SCHEMA2,
+        'v2_list': MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
+        'oci': MEDIA_TYPE_OCI_V1
+    }
+
     def __init__(self, v1=None, v2=None, v2_list=None, oci=None):
         self.v1 = v1
         self.v2 = v2
@@ -663,12 +672,8 @@ class ManifestDigest(object):
 
 
 def get_manifest_media_type(version):
-    if version in ('v1', 'v2'):
-        return 'application/vnd.docker.distribution.manifest.{}+json'.format(version)
-    elif version == 'v2_list':
-        return 'application/vnd.docker.distribution.manifest.list.v2+json'
-    elif version == 'oci':
-        return 'application/vnd.oci.image.manifest.v1+json'
+    if version in ManifestDigest.content_type.keys():
+        return ManifestDigest.content_type[version]
     else:
         raise RuntimeError("Unknown manifest schema type")
 

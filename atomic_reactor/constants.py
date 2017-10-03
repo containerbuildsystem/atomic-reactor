@@ -101,3 +101,11 @@ HTTP_BACKOFF_FACTOR = 5
 HTTP_CLIENT_STATUS_RETRY = (408, 500, 502, 503, 504)
 # requests timeout in seconds
 HTTP_REQUEST_TIMEOUT = 600
+
+
+# Media types
+MEDIA_TYPE_DOCKER_V1 = "application/json"
+MEDIA_TYPE_DOCKER_V2_SCHEMA1 = "application/vnd.docker.distribution.manifest.v1+json"
+MEDIA_TYPE_DOCKER_V2_SCHEMA2 = "application/vnd.docker.distribution.manifest.v2+json"
+MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST = "application/vnd.docker.distribution.manifest.list.v2+json"
+MEDIA_TYPE_OCI_V1 = "application/vnd.oci.image.manifest.v1+json"
