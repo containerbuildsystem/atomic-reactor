@@ -15,7 +15,9 @@ discover the image ID Docker will give it.
 
 from __future__ import unicode_literals
 
-from atomic_reactor.constants import PLUGIN_PULP_PUSH_KEY, PLUGIN_PULP_SYNC_KEY
+from atomic_reactor.constants import (PLUGIN_PULP_PUSH_KEY, PLUGIN_PULP_SYNC_KEY,
+                                      MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
+                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
 from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.util import get_manifest_digests
@@ -105,9 +107,9 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
         media_types = []
         for plugin in self.workflow.postbuild_plugins_conf:
             if plugin['name'] == PLUGIN_PULP_SYNC_KEY:
-                media_types.append('application/vnd.docker.distribution.manifest.v1+json')
+                media_types.append(MEDIA_TYPE_DOCKER_V2_SCHEMA1)
             if plugin['name'] == PLUGIN_PULP_PUSH_KEY:
-                media_types.append('application/json')
+                media_types.append(MEDIA_TYPE_DOCKER_V1)
 
         # We only expect to find a v2 digest from Crane if the
         # pulp_sync plugin was used. If we do find a v2 digest, there
@@ -120,11 +122,11 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
             if digests:
                 if digests.v2_list:
                     self.log.info("Manifest list found")
-                    media_types.append('application/vnd.docker.distribution.manifest.list.v2+json')
+                    media_types.append(MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
                 if digests.v2:
                     self.log.info("V2 schema 2 digest found, leaving image ID unchanged %s",
                                   self.workflow.builder.image_id)
-                    media_types.append('application/vnd.docker.distribution.manifest.v2+json')
+                    media_types.append(MEDIA_TYPE_DOCKER_V2_SCHEMA2)
                     # No need to pull the image to work out the image ID as
                     # we already know it.
                     return sorted(media_types)

@@ -23,7 +23,8 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_PULP_PUSH_KEY,
                                       PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY,
-                                      PLUGIN_GROUP_MANIFESTS_KEY)
+                                      PLUGIN_GROUP_MANIFESTS_KEY,
+                                      MEDIA_TYPE_DOCKER_V1)
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import get_build_json
 
@@ -244,7 +245,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         media_types = []
         if pulp_push_results:
-            media_types += ['application/json']
+            media_types += [MEDIA_TYPE_DOCKER_V1]
 
         # pulp_pull may run on worker as a postbuild plugin or on orchestrator as an exit plugin
         pulp_pull_results = (self.workflow.postbuild_results.get(PulpPullPlugin.key) or
