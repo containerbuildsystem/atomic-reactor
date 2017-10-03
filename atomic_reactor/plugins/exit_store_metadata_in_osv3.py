@@ -26,7 +26,7 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY,
                                       MEDIA_TYPE_DOCKER_V1)
 from atomic_reactor.plugin import ExitPlugin
-from atomic_reactor.util import get_build_json
+from atomic_reactor.util import get_build_json, get_manifest_media_version
 
 
 class StoreMetadataInOSv3Plugin(ExitPlugin):
@@ -81,7 +81,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             for image in self.workflow.tag_conf.images:
                 image_str = image.to_str()
                 if image_str in registry.digests:
-                    digest = registry.digests[image_str].default
+                    digest = registry.digests[image_str]
                     digests[image.to_str(registry=False)] = digest
 
         return digests
@@ -129,13 +129,16 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         pullspecs = []
         for registry in self._get_registries():
             for image in self.workflow.tag_conf.images:
-                if image.to_str() in digests:
+                image_str = image.to_str()
+                if image_str in digests:
                     pullspecs.append({
                         "registry": registry.uri,
                         "repository": image.to_str(registry=False, tag=False),
                         "tag": image.tag or 'latest',
-                        "digest": digests[image.to_str()]
+                        "digest": digests[image_str].default,
+                        "version": get_manifest_media_version(digests[image_str])
                     })
+
         return pullspecs
 
     def get_plugin_metadata(self):

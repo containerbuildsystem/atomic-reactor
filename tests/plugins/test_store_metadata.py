@@ -267,21 +267,25 @@ CMD blabla"""
         "repository": TEST_IMAGE,
         "tag": 'latest',
         "digest": DIGEST1,
+        "version": "v2"
     }, {
         "registry": DOCKER0_REGISTRY,
         "repository": "namespace/image",
         "tag": 'asd123',
         "digest": DIGEST2,
+        "version": "v2"
     }, {
         "registry": LOCALHOST_REGISTRY,
         "repository": TEST_IMAGE,
         "tag": 'latest',
         "digest": DIGEST1,
+        "version": "v2"
     }, {
         "registry": LOCALHOST_REGISTRY,
         "repository": "namespace/image",
         "tag": 'asd123',
         "digest": DIGEST2,
+        "version": "v2"
     }]
     assert digests == expected or digests == reversed(expected)
 

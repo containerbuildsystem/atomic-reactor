@@ -35,7 +35,9 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY,
                                       PLUGIN_KOJI_PARENT_KEY)
 from atomic_reactor.util import (get_build_json, get_preferred_label,
-                                 df_parser, ImageName, get_checksums, get_primary_images)
+                                 df_parser, ImageName, get_checksums, get_primary_images,
+                                 get_manifest_media_type,
+                                 get_digests_map_from_annotations)
 from atomic_reactor.koji_util import (create_koji_session, Output, KojiUploadLogger)
 from osbs.conf import Configuration
 from osbs.api import OSBS
@@ -210,7 +212,6 @@ class KojiImportPlugin(ExitPlugin):
 
         return output
 
-
     def set_help(self, extra, worker_metadatas):
         all_annotations = [get_worker_build_info(self.workflow, platform).build.get_annotations()
                            for platform in worker_metadatas]
@@ -300,6 +301,13 @@ class KojiImportPlugin(ExitPlugin):
                 pullspec = "{0}/{1}:{2}".format(registry.uri, repo,
                                                 version_release)
                 index['pull'].append(pullspec)
+
+                # Store each digest with according media type
+                index['digests'] = {}
+                for version, digest in manifest_list_digests[0].items():
+                    if digest:
+                        media_type = get_manifest_media_type(version)
+                        index['digests'][media_type] = digest
                 break
             extra['image']['index'] = index
         # group_manifests returns None if didn't run, [] if group=False
@@ -323,6 +331,13 @@ class KojiImportPlugin(ExitPlugin):
                             instance['extra']['docker']['repositories'] = repositories
                             self.log.debug("reset tags to so that docker is %s",
                                            instance['extra']['docker'])
+                            annotations = get_worker_build_info(self.workflow, platform).\
+                                build.get_annotations()
+                            digests = {}
+                            if 'digests' in annotations:
+                                digests = get_digests_map_from_annotations(annotations['digests'])
+                                instance['extra']['docker']['digests'] = digests
+
 
     def get_output_metadata(self, path, filename):
         """

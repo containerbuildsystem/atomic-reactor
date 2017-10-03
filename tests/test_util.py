@@ -36,6 +36,7 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_build_json, is_scratch_build, df_parser,
                                  are_plugins_in_order, LabelFormatter,
                                  get_manifest_media_type,
+                                 get_manifest_media_version,
                                  get_retrying_requests_session,
                                  get_primary_images,
                                  get_image_upload_filename)
@@ -306,6 +307,11 @@ def test_human_size(size_input, expected):
 ])
 def test_get_manifest_media_type(version, expected):
     assert get_manifest_media_type(version) == expected
+
+
+def test_get_manifest_media_type_unknown():
+    with pytest.raises(RuntimeError):
+        assert get_manifest_media_type('no_such_version')
 
 
 @pytest.mark.parametrize('insecure', [
@@ -584,21 +590,33 @@ def test_get_manifest_digests_connection_error(tmpdir):
         get_manifest_digests(**kwargs)
 
 
-@pytest.mark.parametrize('v1,v2,oci,default', [
-    ('v1-digest', 'v2-digest', None, 'v2-digest'),
-    ('v1-digest', None, None, 'v1-digest'),
-    (None, 'v2-digest', None, 'v2-digest'),
-    (None, 'v2-digest', None, 'v2-digest'),
-    (None, None, 'oci-digest', 'oci-digest'),
-    (None, 'v2-digest', 'oci-digest', 'oci-digest'),
-    (None, None, None, None),
+@pytest.mark.parametrize('v1,v2,v2_list,oci,default', [
+    ('v1-digest', 'v2-digest', None, None, 'v2-digest'),
+    ('v1-digest', None, None, None, 'v1-digest'),
+    (None, 'v2-digest', None, None, 'v2-digest'),
+    (None, 'v2-digest', None, None, 'v2-digest'),
+    (None, None, None, 'oci-digest', 'oci-digest'),
+    (None, 'v2-digest', None, 'oci-digest', 'oci-digest'),
+    ('v1-digest', 'v2-digest', 'v2-list-digest', 'oci-digest', 'v2-list-digest'),
+    (None, 'v2-digest', 'v2-list-digest', 'oci-digest', 'v2-list-digest'),
+    ('v1-digest', None, 'v2-list-digest', 'oci-digest', 'v2-list-digest'),
+    ('v1-digest', 'v2-digest', 'v2-list-digest', None, 'v2-list-digest'),
+    (None, None, None, None, None),
 ])
-def test_manifest_digest(v1, v2, oci, default):
-    md = ManifestDigest(v1=v1, v2=v2, oci=oci)
+def test_manifest_digest(v1, v2, v2_list, oci, default):
+    md = ManifestDigest(v1=v1, v2=v2, v2_list=v2_list, oci=oci)
     assert md.v1 == v1
     assert md.v2 == v2
+    assert md.v2_list == v2_list
     assert md.oci == oci
     assert md.default == default
+    with pytest.raises(AttributeError):
+        assert md.no_such_version
+
+
+def test_get_manifest_media_version_unknown():
+    with pytest.raises(RuntimeError):
+        assert get_manifest_media_version(ManifestDigest())
 
 
 @pytest.mark.parametrize('environ,expected', [
