@@ -51,7 +51,8 @@ from atomic_reactor.plugins.pre_resolve_module_compose import (ModuleInfo,
                                                                ComposeInfo)
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
-from atomic_reactor.util import ImageName, ManifestDigest
+from atomic_reactor.util import (ImageName, ManifestDigest,
+                                 get_manifest_media_version, get_manifest_media_type)
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.build import BuildResult
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
@@ -196,12 +197,21 @@ def is_string_type(obj):
 
 
 class BuildInfo(object):
-    def __init__(self, help_file=None, help_valid=True, media_types=None):
+    def __init__(self, help_file=None, help_valid=True, media_types=None, digests=None):
         annotations = {}
         if media_types:
             annotations['media-types'] = json.dumps(media_types)
         if help_valid:
             annotations['help_file'] = json.dumps(help_file)
+        if digests:
+            digest_annotation = []
+            for digest_item in digests:
+                digest_annotation_item = {
+                    "version": get_manifest_media_version(digest_item),
+                    "digest": digest_item.default,
+                }
+                digest_annotation.append(digest_annotation_item)
+            annotations['digests'] = json.dumps(digest_annotation)
 
         self.build = BuildResponse({'metadata': {'annotations': annotations}})
 
@@ -470,7 +480,7 @@ def mock_environment(tmpdir, session=None, name=None,
         OrchestrateBuildPlugin.key: {
             WORKSPACE_KEY_UPLOAD_DIR: 'test-dir',
             WORKSPACE_KEY_BUILD_INFO: {
-               'x86_64': BuildInfo('help.md')
+               'x86_64': BuildInfo(help_file='help.md')
             }
         }
     }
@@ -557,14 +567,14 @@ class TestKojiImport(object):
                     'type': 'docker',
                 },
                 'id': 'ppc64le-1',
-             },
+            },
             {
                 'container': {
                     'arch': 'x86_64',
                     'type': 'docker',
                 },
                 'id': 'x86_64-1',
-             },
+            },
         ]
 
         session = MockedClientSession('')
@@ -1584,6 +1594,57 @@ class TestKojiImport(object):
         else:
             assert 'media_types' not in image.keys()
 
+    @pytest.mark.parametrize('digest', [
+        None,
+        ManifestDigest(v2='sha256:abcdef345'),
+        ManifestDigest(v1='sha256:abcdef678'),
+        ManifestDigest(oci='sha256:abcdef901'),
+        ManifestDigest(v2='sha256:abcdef123', v1='sha256:abcdef456'),
+    ])
+    def test_koji_import_set_digests_info(self, tmpdir, os_env, digest):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            session=session)
+        registry = workflow.push_conf.add_docker_registry('docker.example.com')
+        for image in workflow.tag_conf.images:
+            tag = image.to_str(registry=False)
+            registry.digests[tag] = 'tag'
+        for platform, metadata in workflow.postbuild_results[FetchWorkerMetadataPlugin.key].items():
+            for output in metadata['output']:
+                if output['type'] != 'docker-image':
+                    continue
+
+                output['extra']['docker']['repositories'] = [
+                    'crane.example.com/foo:tag',
+                    'crane.example.com/foo@sha256:bar',
+                ]
+        workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = []
+        orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
+        if digest:
+            build_info = BuildInfo(digests=[digest])
+        else:
+            build_info = BuildInfo()
+        orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = build_info
+
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+        for output in data['output']:
+            if output['type'] != 'docker-image':
+                continue
+            if not digest:
+                assert 'digests' not in output['extra']['docker']
+            else:
+                digest_version = get_manifest_media_version(digest)
+                expected_media_type = get_manifest_media_type(digest_version)
+                expected_digest_value = digest.default
+                expected_digests = {expected_media_type: expected_digest_value}
+                assert output['extra']['docker']['digests'] == expected_digests
+
     @pytest.mark.parametrize('digests', [
         [],
         [ManifestDigest(v2_list='sha256:e6593f3e')],
@@ -1629,6 +1690,8 @@ class TestKojiImport(object):
             expected_results['pull'] = [pullspec]
             pullspec = "crane.example.com:5000/myproject/hello-world:{0}".format(version_release)
             expected_results['pull'].append(pullspec)
+            expected_results['digests'] = {
+                'application/vnd.docker.distribution.manifest.list.v2+json': digests[0].v2_list}
             assert image['index'] == expected_results
         else:
             assert 'index' not in image.keys()

@@ -16,7 +16,8 @@ discover the image ID Docker will give it.
 from __future__ import unicode_literals
 
 from atomic_reactor.constants import (PLUGIN_PULP_PUSH_KEY, PLUGIN_PULP_SYNC_KEY,
-                                      MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
+                                      MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_SCHEMA1,
+                                      MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
 from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal

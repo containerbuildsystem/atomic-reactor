@@ -642,7 +642,7 @@ class Dockercfg(object):
             return {}
 
 
-class ManifestDigest(object):
+class ManifestDigest(dict):
     """Wrapper for digests for a docker manifest."""
 
     content_type = {
@@ -651,12 +651,6 @@ class ManifestDigest(object):
         'v2_list': MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
         'oci': MEDIA_TYPE_OCI_V1
     }
-
-    def __init__(self, v1=None, v2=None, v2_list=None, oci=None):
-        self.v1 = v1
-        self.v2 = v2
-        self.v2_list = v2_list
-        self.oci = oci
 
     @property
     def default(self):
@@ -670,13 +664,40 @@ class ManifestDigest(object):
         """
         return self.v2_list or self.oci or self.v2 or self.v1
 
+    def __getattr__(self, attr):
+        if attr not in self.content_type:
+            raise AttributeError("Unknown version: %s", attr)
+        else:
+            return self.get(attr, None)
+
 
 def get_manifest_media_type(version):
-    if version in ManifestDigest.content_type.keys():
+    try:
         return ManifestDigest.content_type[version]
-    else:
+    except KeyError:
         raise RuntimeError("Unknown manifest schema type")
 
+
+def get_manifest_media_version(digest):
+    found_version = None
+    for version in ManifestDigest.content_type:
+        if digest.default and getattr(digest, version) == digest.default:
+            found_version = version
+            break
+    if not found_version:
+        raise RuntimeError("Can't detect version for digest %s" % digest)
+    return found_version
+
+
+def get_digests_map_from_annotations(digests_str):
+    digests = {}
+    digests_annotations = json.loads(digests_str)
+    for digest_annotation in digests_annotations:
+        digest_version = digest_annotation['version']
+        digest = digest_annotation['digest']
+        media_type = get_manifest_media_type(digest_version)
+        digests[media_type] = digest
+    return digests
 
 def query_registry(image, registry, digest=None, insecure=False, dockercfg_path=None,
                    version='v1', is_blob=False):
