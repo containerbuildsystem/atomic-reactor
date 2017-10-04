@@ -77,4 +77,4 @@ $RUN $PIP install -r tests/requirements.txt
 # Run tests
 $RUN $PIP install pytest-cov
 if [[ $OS != "fedora" ]]; then $RUN $PIP install -U pytest-cov; fi
-$RUN $PYTEST -vv tests --cov atomic_reactor
+$RUN $PYTEST -vv tests --cov atomic_reactor "$@"
