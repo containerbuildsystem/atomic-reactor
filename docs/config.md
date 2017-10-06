@@ -7,7 +7,7 @@ It has the following keys:
 
 **version** which must be 1.
 
-**clusters** is a map of platform names, with each value being a list. Each list item describes an OpenShift cluster that can handle builds for that platform.
+**clusters** is a map of platform names, with each value being a list. Each list item describes an OpenShift cluster that can handle builds for that platform. The list is in order of preference, most preferred first.
 
 The cluster description includes a **name**, which must correspond to the instance names in the osbs.conf available to atomic-reactor; a **max_concurrent_builds** integer describing how many worker builds this cluster should be allowed to handle; and an optional **enabled** boolean which defaults to true.
 
