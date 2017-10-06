@@ -86,8 +86,8 @@ def koji_login(session,
         # Use Kerberos
         logger.info("Using Kerberos for Koji authentication")
         if krb_principal and krb_keytab:
-            kwargs['principal'] = krb_principal
-            kwargs['keytab'] = krb_keytab
+            kwargs['principal'] = str(krb_principal)
+            kwargs['keytab'] = str(krb_keytab)
 
         result = session.krb_login(**kwargs)
 
