@@ -43,7 +43,7 @@ from atomic_reactor.plugins.pre_resolve_module_compose import (ModuleInfo,
                                                                ComposeInfo)
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
-from atomic_reactor.util import ImageName, ManifestDigest
+from atomic_reactor.util import ImageName, ManifestDigest, get_manifest_media_type
 from atomic_reactor.rpm_util import parse_rpm_output
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.build import BuildResult
@@ -193,6 +193,7 @@ def mock_environment(tmpdir, session=None, name=None,
                      source=None, build_process_failed=False,
                      is_rebuild=True, docker_registry=True,
                      pulp_registries=0, pulp_supports_schema2=False,
+                     digest=None, digest_version=None,
                      blocksize=None,
                      task_states=None, additional_tags=None,
                      has_config=None,
@@ -287,12 +288,21 @@ def mock_environment(tmpdir, session=None, name=None,
         setattr(workflow, 'exported_image_sequence', [{'path': fp.name,
                                                        'type': IMAGE_TYPE_DOCKER_ARCHIVE}])
 
+    annotations = {}
+    if digest and digest_version:
+        annotations['digests'] = json.dumps([{
+            'digest': digest,
+            'version': digest_version
+        }])
+
     if build_process_failed:
         workflow.build_result = BuildResult(logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
-                                            fail_reason="not built")
+                                            fail_reason="not built",
+                                            annotations=annotations)
     else:
         workflow.build_result = BuildResult(logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
-                                            image_id="id1234")
+                                            image_id="id1234",
+                                            annotations=annotations)
     workflow.prebuild_plugins_conf = {}
     workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_rebuild
 
@@ -741,7 +751,7 @@ class TestKojiPromote(object):
         assert is_string_type(osbs['builder_image_id'])
 
     def validate_output(self, output, metadata_only, has_config,
-                        expect_digest):
+                        expect_digest, expected_digest, expected_digest_version):
         if metadata_only:
             mdonly = set()
         else:
@@ -817,6 +827,7 @@ class TestKojiPromote(object):
                 'parent_id',
                 'id',
                 'repositories',
+                'digests',
                 'layer_sizes',
                 'tags',
             ])
@@ -869,6 +880,11 @@ class TestKojiPromote(object):
                 assert isinstance(config, dict)
                 assert 'container_config' not in [x.lower() for x in config.keys()]
                 assert all(is_string_type(entry) for entry in config)
+
+            expected_digest_dict = {
+                get_manifest_media_type(expected_digest_version): expected_digest
+            }
+            assert docker['digests'] == expected_digest_dict
 
     def test_koji_promote_import_fail(self, tmpdir, os_env, caplog):
         session = MockedClientSession('')
@@ -1014,6 +1030,8 @@ class TestKojiPromote(object):
                               'docker_registry',
                               'pulp_registries',
                               'pulp_supports_schema2',
+                              'digest',
+                              'digest_version',
                               'metadata_only',
                               'blocksize',
                               'target'), [
@@ -1021,6 +1039,8 @@ class TestKojiPromote(object):
          False,
          1,
          False,
+         'sha256:1000000000000000000000000000000d',
+         'v1',
          False,
          None,
          'images-docker-candidate'),
@@ -1029,6 +1049,8 @@ class TestKojiPromote(object):
          True,
          2,
          False,
+         'sha256:1000000000000000000000000000000d',
+         'v2',
          False,
          10485760,
          None),
@@ -1037,6 +1059,8 @@ class TestKojiPromote(object):
          True,
          1,
          True,
+         'sha256:1000000000000000000000000000000d',
+         'v2',
          True,
          None,
          None),
@@ -1045,6 +1069,8 @@ class TestKojiPromote(object):
          True,
          0,
          False,
+         'sha256:1000000000000000000000000000000d',
+         'v2',
          False,
          10485760,
          None),
@@ -1059,6 +1085,7 @@ class TestKojiPromote(object):
     @pytest.mark.parametrize('tag_later', (True, False))
     def test_koji_promote_success(self, tmpdir, apis, docker_registry,
                                   pulp_registries, pulp_supports_schema2,
+                                  digest, digest_version,
                                   metadata_only, blocksize,
                                   target, os_env, has_config, is_autorebuild,
                                   tag_later):
@@ -1088,6 +1115,8 @@ class TestKojiPromote(object):
                                             docker_registry=docker_registry,
                                             pulp_registries=pulp_registries,
                                             pulp_supports_schema2=pulp_supports_schema2,
+                                            digest=digest,
+                                            digest_version=digest_version,
                                             blocksize=blocksize,
                                             has_config=has_config)
         workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_autorebuild
@@ -1183,7 +1212,9 @@ class TestKojiPromote(object):
 
         for output in output_files:
             self.validate_output(output, metadata_only, has_config,
-                                 expect_digest=expect_digest)
+                                 expect_digest=expect_digest,
+                                 expected_digest=digest,
+                                 expected_digest_version=digest_version)
             buildroot_id = output['buildroot_id']
 
             # References one of the buildroots
