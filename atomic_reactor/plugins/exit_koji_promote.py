@@ -41,7 +41,8 @@ from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json, get_preferred_label,
                                  get_docker_architecture, df_parser,
                                  are_plugins_in_order,
-                                 get_image_upload_filename)
+                                 get_image_upload_filename,
+                                 get_digests_map_from_annotations)
 from atomic_reactor.koji_util import (create_koji_session, tag_koji_build,
                                       Output, KojiUploadLogger)
 from atomic_reactor.rpm_util import parse_rpm_output, rpm_qf_args
@@ -451,6 +452,10 @@ class KojiPromotePlugin(ExitPlugin):
                 },
             },
         })
+        annotations = self.workflow.build_result.annotations
+        if annotations and 'digests' in annotations:
+            digests = get_digests_map_from_annotations(annotations['digests'])
+            metadata['extra']['docker']['digests'] = digests
 
         if not config:
             del metadata['extra']['docker']['config']
