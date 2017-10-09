@@ -20,7 +20,14 @@ from atomic_reactor.plugins.build_orchestrate_build import (get_worker_build_inf
                                                             get_koji_upload_dir)
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
-from atomic_reactor.plugins.pre_flatpak_create_dockerfile import get_flatpak_source_info
+
+try:
+    from atomic_reactor.plugins.pre_flatpak_create_dockerfile import get_flatpak_source_info
+except ImportError:
+    # modulemd and/or pdc_client not available
+    def get_flatpak_source_info(_):
+        return None
+
 try:
     from atomic_reactor.plugins.post_pulp_sync import get_manifests_in_pulp_repository
 except ImportError:
