@@ -16,7 +16,8 @@ import json
 import requests
 
 from atomic_reactor.plugin import PostBuildPlugin, PluginFailedException
-from atomic_reactor.util import RegistrySession, registry_hostname, ManifestDigest
+from atomic_reactor.util import (RegistrySession, registry_hostname, ManifestDigest,
+                                 get_manifest_media_type)
 from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST, MEDIA_TYPE_OCI_V1,
                                       MEDIA_TYPE_OCI_V1_INDEX)
@@ -33,6 +34,12 @@ from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY, MEDIA_TYPE_DOC
 class GroupManifestsPlugin(PostBuildPlugin):
     is_allowed_to_fail = False
     key = PLUGIN_GROUP_MANIFESTS_KEY
+    manifest_media_types = [
+        MEDIA_TYPE_DOCKER_V2_SCHEMA2,
+        MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
+        MEDIA_TYPE_OCI_V1,
+        MEDIA_TYPE_OCI_V1_INDEX
+    ]
 
     def __init__(self, tasker, workflow, registries, group=True, goarch=None):
         """
@@ -63,12 +70,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
         self.log.debug("%s: Retrieving manifest for %s:%s", session.registry, repository, ref)
 
         headers = {
-            'Accept': ', '.join((
-                MEDIA_TYPE_DOCKER_V2_SCHEMA2,
-                MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
-                MEDIA_TYPE_OCI_V1,
-                MEDIA_TYPE_OCI_V1_INDEX
-            ))
+            'Accept': ', '.join(self.manifest_media_types)
         }
 
         url = '/v2/{}/manifests/{}'.format(repository, ref)
@@ -204,6 +206,9 @@ class GroupManifestsPlugin(PostBuildPlugin):
         for platform, worker_image in worker_digests.items():
             repository = worker_image['repository']
             digest = worker_image['digest']
+            media_type = get_manifest_media_type(worker_image['version'])
+            if media_type not in self.manifest_media_types:
+                continue
             content, _, media_type, size = self.get_manifest(session, repository, digest)
 
             manifests.append({
@@ -301,6 +306,9 @@ class GroupManifestsPlugin(PostBuildPlugin):
         for plat, annotation in all_annotations.items():
             for digest in annotation['digests']:
                 hostname = registry_hostname(digest['registry'])
+                media_type = get_manifest_media_type(digest['version'])
+                if media_type not in self.manifest_media_types:
+                    continue
 
                 platforms = sorted_digests.setdefault(hostname, {})
                 repos = platforms.setdefault(plat, [])
