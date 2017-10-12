@@ -17,17 +17,23 @@ import subprocess
 import tarfile
 from textwrap import dedent
 
-from modulemd import ModuleMetadata
 
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.prepub_flatpak_create_oci import FlatpakCreateOciPlugin
-from atomic_reactor.plugins.pre_resolve_module_compose import (ModuleInfo,
-                                                               ComposeInfo,
-                                                               set_compose_info)
-from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (FlatpakSourceInfo,
-                                                                  set_flatpak_source_info)
+
+try:
+    from atomic_reactor.plugins.prepub_flatpak_create_oci import FlatpakCreateOciPlugin
+    from atomic_reactor.plugins.pre_resolve_module_compose import (ModuleInfo,
+                                                                   ComposeInfo,
+                                                                   set_compose_info)
+    from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (FlatpakSourceInfo,
+                                                                      set_flatpak_source_info)
+    from modulemd import ModuleMetadata
+    MODULEMD_AVAILABLE = True
+except ImportError:
+    MODULEMD_AVAILABLE = False
+
 from atomic_reactor.util import ImageName
 
 from tests.constants import TEST_IMAGE
@@ -634,7 +640,9 @@ class MockInspector(object):
             return '-{:05o}'.format(stat.S_IMODE(mode))
 
 
-@pytest.mark.parametrize('config_name, breakage', [ # noqa - docker_tasker fixture
+@pytest.mark.skipif(not MODULEMD_AVAILABLE,  # noqa - docker_tasker fixture
+                    reason="modulemd not available")
+@pytest.mark.parametrize('config_name, breakage', [
     ('app', None),
     ('app', 'stray_component'),
     ('app', 'no_runtime'),
