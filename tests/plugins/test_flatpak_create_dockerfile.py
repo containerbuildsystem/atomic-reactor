@@ -9,15 +9,21 @@ of the BSD license. See the LICENSE file for details.
 from flexmock import flexmock
 
 import json
-from modulemd import ModuleMetadata
 import responses
 import os
+import pytest
 
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugins.pre_resolve_module_compose import (ComposeInfo,
-                                                               ModuleInfo,
-                                                               set_compose_info)
-from atomic_reactor.plugins.pre_flatpak_create_dockerfile import FlatpakCreateDockerfilePlugin
+try:
+    from atomic_reactor.plugins.pre_resolve_module_compose import (ComposeInfo,
+                                                                   ModuleInfo,
+                                                                   set_compose_info)
+    from atomic_reactor.plugins.pre_flatpak_create_dockerfile import FlatpakCreateDockerfilePlugin
+    from modulemd import ModuleMetadata
+    MODULEMD_AVAILABLE = True
+except ImportError:
+    MODULEMD_AVAILABLE = False
+
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.util import ImageName
@@ -81,6 +87,8 @@ LATEST_VERSION_JSON = [{"modulemd": FLATPAK_APP_MODULEMD}]
 
 
 @responses.activate  # noqa - docker_tasker fixture
+@pytest.mark.skipif(not MODULEMD_AVAILABLE,
+                    reason='modulemd not available')
 def test_flatpak_create_dockerfile(tmpdir, docker_tasker):
     workflow = mock_workflow(tmpdir)
 

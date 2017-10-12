@@ -45,10 +45,6 @@ from atomic_reactor.plugins.exit_koji_tag_build import KojiTagBuildPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
-from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (FlatpakSourceInfo,
-                                                                  set_flatpak_source_info)
-from atomic_reactor.plugins.pre_resolve_module_compose import (ModuleInfo,
-                                                               ComposeInfo)
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
 from atomic_reactor.util import ImageName, ManifestDigest
@@ -59,7 +55,15 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
                                       PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY)
 from tests.constants import SOURCE, MOCK
 
-from modulemd import ModuleMetadata
+try:
+    from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (FlatpakSourceInfo,
+                                                                      set_flatpak_source_info)
+    from atomic_reactor.plugins.pre_resolve_module_compose import (ModuleInfo,
+                                                                   ComposeInfo)
+    from modulemd import ModuleMetadata
+    MODULEMD_AVAILABLE = True
+except ImportError:
+    MODULEMD_AVAILABLE = False
 
 from flexmock import flexmock
 import pytest
@@ -1410,6 +1414,8 @@ class TestKojiImport(object):
         elif expect_result in ['skip', 'unknown_status']:
             assert 'help' not in image.keys()
 
+    @pytest.mark.skipif(not MODULEMD_AVAILABLE,
+                        reason="modulemd not available")
     def test_koji_import_flatpak(self, tmpdir, os_env):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,

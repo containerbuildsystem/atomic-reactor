@@ -16,8 +16,13 @@ import six
 from six.moves.urllib.parse import urlparse, parse_qs
 
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugins.pre_resolve_module_compose import (ResolveModuleComposePlugin,
-                                                               get_compose_info)
+try:
+    from atomic_reactor.plugins.pre_resolve_module_compose import (ResolveModuleComposePlugin,
+                                                                   get_compose_info)
+    MODULEMD_AVAILABLE = True
+except ImportError:
+    MODULEMD_AVAILABLE = False
+
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.util import ImageName
@@ -97,6 +102,8 @@ def compose_json(state, state_name):
 
 
 @responses.activate  # noqa - docker_tasker fixture
+@pytest.mark.skipif(not MODULEMD_AVAILABLE,
+                    reason="modulemd not available")
 @pytest.mark.parametrize('specify_version', [True, False])
 def test_resolve_module_compose(tmpdir, docker_tasker, specify_version):
     secrets_path = os.path.join(str(tmpdir), "secret")
