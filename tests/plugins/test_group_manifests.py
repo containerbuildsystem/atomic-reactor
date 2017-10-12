@@ -252,12 +252,19 @@ def mock_registries(registries, config, schema_version='v2', foreign_layers=Fals
                 registry.add_blob(name, 'config-' + platform)
                 manifest_bytes = to_bytes(json.dumps(manifest))
                 digest = registry.add_manifest(name, tag, manifest_bytes)
-
                 digests.append({
                     'registry': reg,
                     'repository': name,
                     'tag': tag,
-                    'digest': digest
+                    'digest': digest,
+                    'version': schema_version
+                })
+                digests.append({
+                    'registry': reg,
+                    'repository': name,
+                    'tag': tag,
+                    'digest': 'not-used',
+                    'version': 'v1'
                 })
 
         worker_builds[platform] = {
@@ -500,6 +507,9 @@ def test_group_manifests(tmpdir, test_name,
                 for image in test_images:
                     name, tag = image.split(':')
 
+                    if tag not in target_registry.get_repo(name)['tags']:
+                        continue
+
                     manifest_list = json.loads(to_text(target_registry.get_manifest(name, tag)))
                     assert manifest_list['mediaType'] == list_type
                     assert manifest_list['schemaVersion'] == 2
@@ -530,6 +540,8 @@ def test_group_manifests(tmpdir, test_name,
                 target_registry = mocked_registries[registry]
                 for image in test_images:
                     name, tag = image.split(':')
+                    if tag not in target_registry.get_repo(name)['tags']:
+                        continue
                     verify_manifest_in_repository(target_registry, name,
                                                   source_manifest, 'x86_64',
                                                   tag)
