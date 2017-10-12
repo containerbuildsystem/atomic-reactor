@@ -40,6 +40,7 @@ from tests.util import is_string_type
 
 DIGEST1 = "sha256:1da9b9e1c6bf6ab40f1627d76e2ad58e9b2be14351ef4ff1ed3eb4a156138189"
 DIGEST2 = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+DIGEST_NOT_USED = "not-used"
 
 
 class Y(object):
@@ -110,8 +111,8 @@ def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=Fals
 
     for docker_registry in docker_registries:
         r = workflow.push_conf.add_docker_registry(docker_registry)
-        r.digests[TEST_IMAGE] = ManifestDigest(v1='not-used', v2=DIGEST1)
-        r.digests["namespace/image:asd123"] = ManifestDigest(v1='not-used',
+        r.digests[TEST_IMAGE] = ManifestDigest(v1=DIGEST_NOT_USED, v2=DIGEST1)
+        r.digests["namespace/image:asd123"] = ManifestDigest(v1=DIGEST_NOT_USED,
                                                              v2=DIGEST2)
 
     if before_dockerfile:
@@ -266,8 +267,20 @@ CMD blabla"""
         "registry": DOCKER0_REGISTRY,
         "repository": TEST_IMAGE,
         "tag": 'latest',
+        "digest": DIGEST_NOT_USED,
+        "version": "v1"
+    }, {
+        "registry": DOCKER0_REGISTRY,
+        "repository": TEST_IMAGE,
+        "tag": 'latest',
         "digest": DIGEST1,
         "version": "v2"
+    }, {
+        "registry": DOCKER0_REGISTRY,
+        "repository": "namespace/image",
+        "tag": 'asd123',
+        "digest": DIGEST_NOT_USED,
+        "version": "v1"
     }, {
         "registry": DOCKER0_REGISTRY,
         "repository": "namespace/image",
@@ -278,8 +291,20 @@ CMD blabla"""
         "registry": LOCALHOST_REGISTRY,
         "repository": TEST_IMAGE,
         "tag": 'latest',
+        "digest": DIGEST_NOT_USED,
+        "version": "v1"
+    }, {
+        "registry": LOCALHOST_REGISTRY,
+        "repository": TEST_IMAGE,
+        "tag": 'latest',
         "digest": DIGEST1,
         "version": "v2"
+    }, {
+        "registry": LOCALHOST_REGISTRY,
+        "repository": "namespace/image",
+        "tag": 'asd123',
+        "digest": DIGEST_NOT_USED,
+        "version": "v1"
     }, {
         "registry": LOCALHOST_REGISTRY,
         "repository": "namespace/image",

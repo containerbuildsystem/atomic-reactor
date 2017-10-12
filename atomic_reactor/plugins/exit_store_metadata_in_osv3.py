@@ -26,7 +26,7 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY,
                                       MEDIA_TYPE_DOCKER_V1)
 from atomic_reactor.plugin import ExitPlugin
-from atomic_reactor.util import get_build_json, get_manifest_media_version
+from atomic_reactor.util import get_build_json
 
 
 class StoreMetadataInOSv3Plugin(ExitPlugin):
@@ -131,13 +131,17 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             for image in self.workflow.tag_conf.images:
                 image_str = image.to_str()
                 if image_str in digests:
-                    pullspecs.append({
-                        "registry": registry.uri,
-                        "repository": image.to_str(registry=False, tag=False),
-                        "tag": image.tag or 'latest',
-                        "digest": digests[image_str].default,
-                        "version": get_manifest_media_version(digests[image_str])
-                    })
+                    digest = digests[image_str]
+                    for digest_version in digest.content_type:
+                        if digest_version not in digest:
+                            continue
+                        pullspecs.append({
+                            "registry": registry.uri,
+                            "repository": image.to_str(registry=False, tag=False),
+                            "tag": image.tag or 'latest',
+                            "digest": digest[digest_version],
+                            "version": digest_version
+                        })
 
         return pullspecs
 
