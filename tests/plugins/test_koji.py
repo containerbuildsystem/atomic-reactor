@@ -84,7 +84,7 @@ class MockedClientSession(object):
             return None
         return GET_REPO_RESPONSE
 
-    def ssl_login(self, cert, ca, serverca, proxyuser=None):
+    def ssl_login(self, cert=None, ca=None, serverca=None, proxyuser=None):
         self.ca_path = ca
         self.cert_path = cert
         self.serverca_path = serverca
@@ -194,12 +194,8 @@ class TestKoji(object):
 
         if koji_ssl_certs:
             args['koji_ssl_certs_dir'] = str(tmpdir)
-            with open('{}/ca'.format(tmpdir), 'w') as ca_fd:
-                ca_fd.write('ca')
-            with open('{}/cert'.format(tmpdir), 'w') as cert_fd:
-                cert_fd.write('cert')
-            with open('{}/serverca'.format(tmpdir), 'w') as serverca_fd:
-                serverca_fd.write('serverca')
+            tmpdir.join('cert').write('cert')
+            tmpdir.join('serverca').write('serverca')
 
         runner = PreBuildPluginsRunner(tasker, workflow, [{
             'name': KojiPlugin.key,
@@ -212,8 +208,7 @@ class TestKoji(object):
             return
 
         if koji_ssl_certs:
-            for file_path, expected in [(workflow.koji_session.ca_path, 'ca'),
-                                        (workflow.koji_session.cert_path, 'cert'),
+            for file_path, expected in [(workflow.koji_session.cert_path, 'cert'),
                                         (workflow.koji_session.serverca_path, 'serverca')]:
 
                 assert os.path.isfile(file_path)

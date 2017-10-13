@@ -69,19 +69,28 @@ class TestKojiLogin(object):
         koji_login(session, **call_kwargs)
 
     @pytest.mark.parametrize('proxyuser', [None, 'proxy'])
-    def test_koji_login_ssl(self, proxyuser):
+    @pytest.mark.parametrize('serverca', [True, False])
+    def test_koji_login_ssl(self, tmpdir, proxyuser, serverca):
         session = flexmock()
         expectation = session.should_receive('ssl_login').once().and_return(True)
         call_kwargs = {
-            'ssl_certs_dir': '/certs',
+            'ssl_certs_dir': str(tmpdir),
         }
-        exp_kwargs = {}
+        exp_kwargs = {
+            'cert': str(tmpdir.join('cert')),
+            'ca': None,
+        }
+
+        if serverca:
+            serverca = tmpdir.join('serverca')
+            serverca.write('spam')
+            exp_kwargs['serverca'] = str(serverca)
+
         if proxyuser:
             call_kwargs['proxyuser'] = proxyuser
             exp_kwargs['proxyuser'] = proxyuser
 
-        expectation.with_args('/certs/cert', '/certs/ca', '/certs/serverca',
-                              **exp_kwargs)
+        expectation.with_args(**exp_kwargs)
         koji_login(session, **call_kwargs)
 
 

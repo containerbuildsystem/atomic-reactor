@@ -58,7 +58,7 @@ class MockedClientSession(object):
     def krb_login(self, principal=None, keytab=None, proxyuser=None):
         raise RuntimeError('No certificates provided')
 
-    def ssl_login(self, cert, ca, serverca, proxyuser=None):
+    def ssl_login(self, cert=None, ca=None, serverca=None, proxyuser=None):
         return True
 
     def getBuild(self, build_id):

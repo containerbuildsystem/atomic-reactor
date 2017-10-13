@@ -54,7 +54,7 @@ def koji_login(session,
 
     :param session: koji.ClientSession instance
     :param proxyuser: str, proxy user
-    :param ssl_certs_dir: str, path to "cert", "ca", and "serverca"
+    :param ssl_certs_dir: str, path to "cert" (required), and "serverca" (optional)
     :param krb_principal: str, name of Kerberos principal
     :param krb_keytab: str, Kerberos keytab
     :return: None
@@ -67,10 +67,21 @@ def koji_login(session,
     if ssl_certs_dir:
         # Use certificates
         logger.info("Using SSL certificates for Koji authentication")
-        result = session.ssl_login(os.path.join(ssl_certs_dir, 'cert'),
-                                   os.path.join(ssl_certs_dir, 'ca'),
-                                   os.path.join(ssl_certs_dir, 'serverca'),
-                                   **kwargs)
+        kwargs['cert'] = os.path.join(ssl_certs_dir, 'cert')
+
+        # serverca is not required in newer versions of koji, but if set
+        # koji will always ensure file exists
+        # NOTE: older versions of koji may require this to be set, in
+        # that case, make sure serverca is passed in
+        serverca_path = os.path.join(ssl_certs_dir, 'serverca')
+        if os.path.exists(serverca_path):
+            kwargs['serverca'] = serverca_path
+
+        # Older versions of koji actually require this parameter, even though
+        # it's completely ignored.
+        kwargs['ca'] = None
+
+        result = session.ssl_login(**kwargs)
     else:
         # Use Kerberos
         logger.info("Using Kerberos for Koji authentication")

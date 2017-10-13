@@ -198,19 +198,20 @@ class TestKojiParent(object):
                 self.run_plugin_with_args(workflow)
             assert 'differs from repository for existing parent image' in str(exc_info.value)
 
-    def test_koji_ssl_certs_used(self, workflow, koji_session):
-        certs_dir = '/my/super/secret/dir'
-        expected_ssl_login_args = (
-            '{}/cert'.format(certs_dir),
-            '{}/ca'.format(certs_dir),
-            '{}/serverca'.format(certs_dir),
-        )
+    def test_koji_ssl_certs_used(self, tmpdir, workflow, koji_session):
+        serverca = tmpdir.join('serverca')
+        serverca.write('spam')
+        expected_ssl_login_args = {
+            'cert': str(tmpdir.join('cert')),
+            'serverca': str(serverca),
+            'ca': None,
+        }
         (flexmock(koji_session)
             .should_receive('ssl_login')
-            .with_args(*expected_ssl_login_args)
+            .with_args(**expected_ssl_login_args)
             .and_return(True)
             .once())
-        plugin_args = {'koji_ssl_certs_dir': certs_dir}
+        plugin_args = {'koji_ssl_certs_dir': str(tmpdir)}
         self.run_plugin_with_args(workflow, plugin_args)
 
     def test_no_archives(self, workflow):
