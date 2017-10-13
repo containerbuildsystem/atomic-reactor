@@ -407,7 +407,6 @@ class DockerBuildWorkflow(object):
             self.builder.is_built = True
             if self.build_result.is_image_available():
                 self.builder.image_id = self.build_result.image_id
-                self.built_image_inspect = self.builder.inspect_built_image()
 
             # run prepublish plugins
             prepublish_runner = PrePublishPluginsRunner(self.builder.tasker, self,
@@ -420,6 +419,7 @@ class DockerBuildWorkflow(object):
                 raise
 
             if self.build_result.is_image_available():
+                self.built_image_inspect = self.builder.inspect_built_image()
                 history = self.builder.tasker.d.history(self.builder.image_id)
                 diff_ids = self.built_image_inspect[INSPECT_ROOTFS][INSPECT_ROOTFS_LAYERS]
 
