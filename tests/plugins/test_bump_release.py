@@ -44,13 +44,13 @@ class TestBumpRelease(object):
 
         workflow = flexmock()
         setattr(workflow, 'builder', flexmock())
-        filename = os.path.join(str(tmpdir), 'Dockerfile')
-        with open(filename, 'wt') as df:
-            df.write('FROM base\n')
-            for key, value in labels.items():
-                df.write('LABEL {key}={value}\n'.format(key=key, value=value))
 
-        setattr(workflow.builder, 'df_path', filename)
+        df = tmpdir.join('Dockerfile')
+        df.write('FROM base\n')
+        for key, value in labels.items():
+            df.write('LABEL {key}={value}\n'.format(key=key, value=value), mode='a')
+        setattr(workflow.builder, 'df_path', str(df))
+
         kwargs = {
             'tasker': None,
             'workflow': workflow,
@@ -61,10 +61,8 @@ class TestBumpRelease(object):
         if append:
             kwargs['append'] = True
         if certs:
-            with open('{}/cert'.format(tmpdir), 'w') as cert_fd:
-                cert_fd.write('cert')
-            with open('{}/serverca'.format(tmpdir), 'w') as serverca_fd:
-                serverca_fd.write('serverca')
+            tmpdir.join('cert').write('cert')
+            tmpdir.join('serverca').write('serverca')
             kwargs['koji_ssl_certs_dir'] = str(tmpdir)
         plugin = BumpReleasePlugin(**kwargs)
         return plugin
