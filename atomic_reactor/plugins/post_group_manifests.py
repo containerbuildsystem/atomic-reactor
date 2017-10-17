@@ -258,6 +258,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
             push_conf_registry.digests[image.tag] = digests
 
         self.log.info("%s: Manifest list digest is %s", session.registry, digest)
+        return digest
 
     def tag_manifest_into_registry(self, session, worker_digest):
         """
@@ -344,11 +345,14 @@ class GroupManifestsPlugin(PostBuildPlugin):
         return RegistrySession(registry, insecure=insecure, dockercfg_path=secret_path)
 
     def run(self):
+        digests = set()
         for registry, source in self.sort_annotations().items():
             session = self.get_registry_session(registry)
 
             if self.group:
                 digest = self.group_manifests_and_tag(session, source)
+                self.log.debug("digest: %s", digest)
+                digests.add(digest)
             else:
                 found = False
                 for platform, digest in source.items():
@@ -357,3 +361,4 @@ class GroupManifestsPlugin(PostBuildPlugin):
                         found = True
                 if not found:
                     raise ValueError('failed to find an x86_64 platform')
+        return list(digests)
