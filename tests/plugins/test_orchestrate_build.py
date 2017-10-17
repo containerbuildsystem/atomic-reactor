@@ -468,9 +468,10 @@ def test_orchestrate_choose_cluster_retry_timeout(tmpdir):
         }]
     )
 
-    with pytest.raises(Exception) as exc:
-        runner.run()
-    assert 'Could not find appropriate cluster for worker build.' in str(exc)
+    build_result = runner.run()
+    assert build_result.is_failed()
+    fail_reason = json.loads(build_result.fail_reason)['ppc64le']['general']
+    assert 'Could not find appropriate cluster for worker build.' in fail_reason
 
 
 def test_orchestrate_build_cancelation(tmpdir):
@@ -716,7 +717,8 @@ def test_orchestrate_build_failed_create(tmpdir):
 
     annotations = build_result.annotations
     assert set(annotations['worker-builds'].keys()) == annotation_keys
-    assert fail_reason in json.loads(build_result.fail_reason)['ppc64le']['general']
+    fail_reason = json.loads(build_result.fail_reason)['ppc64le']['general']
+    assert "Could not find appropriate cluster for worker build." in fail_reason
 
 
 @pytest.mark.parametrize('pod_available,pod_failure_reason,expected,cancel_fails', [
@@ -908,10 +910,11 @@ def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
         annotations = build_result.annotations
         assert annotations['worker-builds']['x86_64']['build']['cluster-url'] == 'https://eggs.com/'
     else:
-        with pytest.raises(PluginFailedException) as exc:
-            build_result = runner.run()
+        build_result = runner.run()
+        assert build_result.is_failed()
         if fail_at == 'all':
-            assert 'Could not find appropriate cluster for worker build.' in str(exc)
+            assert 'Could not find appropriate cluster for worker build.' \
+                in build_result.fail_reason
         elif fail_at == 'build_canceled':
             assert 'BuildCanceledException()' in str(exc)
 

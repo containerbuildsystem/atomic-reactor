@@ -171,11 +171,17 @@ class WorkerBuildInfo(object):
         return annotations
 
     def get_fail_reason(self):
+        fail_reason = {}
+        if self.monitor_exception:
+            fail_reason['general'] = repr(self.monitor_exception)
+        elif not self.build:
+            fail_reason['general'] = 'build not started'
+
         if not self.build:
-            return {'general': 'build not started'}
+            return fail_reason
+
         build_annotations = self.build.get_annotations() or {}
         metadata = json.loads(build_annotations.get('plugins-metadata', '{}'))
-        fail_reason = {}
         if self.monitor_exception:
             fail_reason['general'] = repr(self.monitor_exception)
 
@@ -482,7 +488,18 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         }
 
         while True:
-            possible_cluster_info = self.get_clusters(platform, retry_contexts, clusters)
+            try:
+                possible_cluster_info = self.get_clusters(platform,
+                                                          retry_contexts,
+                                                          clusters)
+            except AllClustersFailedException as ex:
+                cluster = ClusterInfo(None, platform, None, None)
+                build_info = WorkerBuildInfo(build=None,
+                                             cluster_info=cluster,
+                                             logger=self.log)
+                build_info.monitor_exception = repr(ex)
+                self.worker_builds.append(build_info)
+                return
 
             for cluster_info in possible_cluster_info:
                 ctx = retry_contexts[cluster_info.cluster.name]
