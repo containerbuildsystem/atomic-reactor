@@ -74,7 +74,20 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
                 # not spotted the new Pulp content yet. For all other
                 # errors, give up.
                 if ex.response.status_code != requests.codes.not_found:
-                    raise
+                    # ... although for 403, also retry, but log about it.
+                    # This has been seen very occasionally but not is not
+                    # yet understood.
+                    if ex.response.status_code == requests.codes.forbidden:
+                        self.log.error("[%s] %s %s %r: from %s %s",
+                                       ex.response.status_code,
+                                       ex.response.reason,
+                                       ex.response.headers,
+                                       ex.response.content,
+                                       ex.request.url,
+                                       ex.request.headers)
+                    else:
+                        # OK, really give up now.
+                        raise
             else:
                 if not self.expect_v2schema2 or digests.v2:
                     return digests

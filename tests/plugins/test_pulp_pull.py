@@ -408,3 +408,25 @@ class TestPostPulpPull(object):
         plugin = PulpPullPlugin(tasker, workflow)
         with pytest.raises(requests.exceptions.HTTPError):
             plugin.run()
+
+    def test_forbidden_response(self):
+        workflow = self.workflow()
+        tasker = MockerTasker()
+        forbidden = requests.Response()
+        flexmock(forbidden,
+                 status_code=requests.codes.forbidden,
+                 request=requests.Request(url='https://crane.example.com'))
+        expectation = flexmock(requests.Session).should_receive('get')
+        expectation.and_return(forbidden)
+        expectation.and_return(self.config_response_config_v1)
+        expectation.and_return(self.config_response_config_v2)
+        expectation.and_return(self.config_response_config_v2_list)
+        # No OCI support in Pulp at the moment, will return a v1 response
+        expectation.and_return(self.config_response_config_v1)
+        expectation.and_return(self.config_response_config_v1)
+        workflow.postbuild_plugins_conf = []
+        plugin = PulpPullPlugin(tasker, workflow, timeout=0.1,
+                                retry_delay=0.06,
+                                expect_v2schema2=True)
+
+        plugin.run()
