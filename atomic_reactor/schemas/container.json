@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-06/schema#",
+
+  "title": "container image build configuration",
+
+  "type": "object",
+  "properties": {
+    "platforms": {
+      "type": "object",
+      "properties": {
+        "only": {
+          "$ref": "#/definitions/platforms"
+        },
+        "not": {
+          "$ref": "#/definitions/platforms"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+
+  "definitions": {
+    "platform": {
+      "type": "string"
+    },
+    "platforms": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/platform"
+        },
+        { "type": "array",
+          "items": {
+            "$ref": "#/definitions/platform"
+          }
+        }
+      ]
+    }
+  }
+}
