@@ -456,8 +456,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         if build_info.build:
             try:
-                self.log.info('%s - created build %s', cluster_info.platform,
-                              build_info.name)
+                self.log.info('%s - created build %s on cluster %s.', cluster_info.platform,
+                              build_info.name, cluster_info.cluster.name)
                 build_info.watch_logs()
                 build_info.wait_to_finish()
             except Exception as e:
@@ -504,6 +504,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             for cluster_info in possible_cluster_info:
                 ctx = retry_contexts[cluster_info.cluster.name]
                 try:
+                    self.log.info('Attempting to start build for platform %s on cluster %s',
+                                  platform, cluster_info.cluster.name)
                     self.do_worker_build(cluster_info)
                     return
                 except OsbsException:
