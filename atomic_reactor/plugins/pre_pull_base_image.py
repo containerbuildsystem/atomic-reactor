@@ -15,6 +15,7 @@ import docker
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import get_build_json, ImageName
+from atomic_reactor.core import RetryGeneratorException
 
 
 class PullBaseImagePlugin(PreBuildPlugin):
@@ -62,16 +63,26 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
             base_image_with_registry.registry = self.parent_registry
 
-        pulled_base = self.tasker.pull_image(base_image_with_registry,
-                                             insecure=self.parent_registry_insecure)
-        if (base_image_with_registry.namespace != 'library' and
-                not self.tasker.image_exists(base_image_with_registry.to_str())):
+        try:
+            self.tasker.pull_image(base_image_with_registry,
+                                   insecure=self.parent_registry_insecure)
+
+        except RetryGeneratorException as original_exc:
+            if base_image_with_registry.namespace == 'library':
+                raise
+
             self.log.info("'%s' not found", base_image_with_registry.to_str())
             base_image_with_registry.namespace = 'library'
             self.log.info("trying '%s'", base_image_with_registry.to_str())
-            pulled_base = self.tasker.pull_image(base_image_with_registry,
-                                                 insecure=self.parent_registry_insecure)
 
+            try:
+                self.tasker.pull_image(base_image_with_registry,
+                                       insecure=self.parent_registry_insecure)
+
+            except RetryGeneratorException:
+                raise original_exc
+
+        pulled_base = base_image_with_registry.to_str()
         self.workflow.pulled_base_images.add(pulled_base)
 
         # Attempt to tag it using a unique ID. We might have to retry

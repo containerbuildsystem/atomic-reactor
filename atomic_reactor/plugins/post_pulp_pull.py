@@ -136,7 +136,8 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
 
         # Pull the image from Crane to find out the image ID for the
         # v2 schema 1 manifest (which we have not seen before).
-        name = self.tasker.pull_image(pullspec, insecure=self.insecure)
+        self.tasker.pull_image(pullspec, insecure=self.insecure)
+        name = pullspec.to_str()
 
         # Inspect it
         metadata = self.tasker.inspect_image(name)

@@ -30,16 +30,18 @@ import json
 import requests
 import time
 import docker
+import atomic_reactor.util
 from docker.errors import APIError
+from functools import wraps
 
 from atomic_reactor.constants import CONTAINER_SHARE_PATH, CONTAINER_SHARE_SOURCE_SUBDIR,\
         BUILD_JSON, DOCKER_SOCKET_PATH, DOCKER_MAX_RETRIES, DOCKER_BACKOFF_FACTOR,\
         DOCKER_CLIENT_STATUS_RETRY
 from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.util import (
-    ImageName, wait_for_command, clone_git_repo, figure_out_build_file, Dockercfg)
+    ImageName, clone_git_repo, figure_out_build_file, Dockercfg)
 
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
+from requests.packages.urllib3.exceptions import InsecureRequestWarning, ProtocolError
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
@@ -231,6 +233,13 @@ def retry(function, *args, **kwargs):
                 raise
 
 
+class RetryGeneratorException(Exception):
+    """Retry generator pull/push failed"""
+    def __init__(self, message, error, *args, **kwargs):
+        super(RetryGeneratorException, self).__init__(message, *args, **kwargs)
+        self.error = error
+
+
 class WrappedDocker(object):
     def __init__(self, **kwargs):
         self.retry_times = kwargs.pop('retry', None)
@@ -246,6 +255,7 @@ class WrappedDocker(object):
         orig_attr = getattr(self.wrapped, attr)
 
         if callable(orig_attr):
+            @wraps(orig_attr)
             def hooked(*args, **kwargs):
                 return retry(orig_attr, *args, retry=self.retry_times, **kwargs)
             return hooked
@@ -272,10 +282,46 @@ class DockerTasker(LastLogger):
 
         if hasattr(docker, 'AutoVersionClient'):
             client_kwargs['version'] = 'auto'
-        client_kwargs['retry'] = retry_times
+        self.retry_times = retry_times
+        client_kwargs['retry'] = self.retry_times
 
         self.d = WrappedDocker(**client_kwargs)
 
+    def retry_generator(self, function, *args, **kwargs):
+        retry_times = int(kwargs.pop('retry_times', self.retry_times))
+        retry_delay = DOCKER_BACKOFF_FACTOR
+        retry_client_statuses = DOCKER_CLIENT_STATUS_RETRY
+
+        for counter in range(retry_times + 1):
+            exc = None
+            context = None
+            try:
+                logs_gen = function(*args, **kwargs)
+                cmd_result = atomic_reactor.util.wait_for_command(logs_gen)
+            except ProtocolError as e:
+                exc = e
+                context = e.args
+            except APIError as e:
+                exc = e
+                context = e.response.content
+            else:
+                if cmd_result.is_failed():
+                    exc = cmd_result.error_detail
+                    context = cmd_result.error
+
+            if exc:
+                if counter == retry_times or \
+                    (isinstance(exc, APIError) and
+                     exc.response.status_code not in retry_client_statuses):
+                    raise RetryGeneratorException("Failed to %s image %s: %r" %
+                                                  (function.__name__, args, context),
+                                                  exc)
+
+                logger.info("retrying %s - %s on %r", function.__name__, args, context)
+                time.sleep(retry_delay * (2 ** counter))
+                continue
+
+            return cmd_result
 
     def build_image_from_path(self, path, image, stream=False, use_cache=False, remove_im=True):
         """
@@ -471,12 +517,16 @@ class DockerTasker(LastLogger):
         logger.info("pulling image '%s' from registry", image)
         logger.debug("image = '%s', insecure = '%s'", image, insecure)
         try:
-            logs_gen = self.d.pull(image.to_str(tag=False), tag=image.tag,
-                                   insecure_registry=insecure, decode=True, stream=True)
+            command_result = self.retry_generator(self.d.pull,
+                                                  image.to_str(tag=False),
+                                                  tag=image.tag, insecure_registry=insecure,
+                                                  decode=True, stream=True)
         except TypeError:
             # because changing api is fun
-            logs_gen = self.d.pull(image.to_str(tag=False), tag=image.tag, decode=True, stream=True)
-        command_result = wait_for_command(logs_gen)
+            command_result = self.retry_generator(self.d.pull,
+                                                  image.to_str(tag=False),
+                                                  tag=image.tag, decode=True, stream=True)
+
         self.last_logs = command_result.logs
         return image.to_str()
 
@@ -546,17 +596,17 @@ class DockerTasker(LastLogger):
         try:
             # push returns string composed of newline separated jsons; exactly what 'docker push'
             # outputs
-            logs = self.d.push(image.to_str(tag=False), tag=image.tag, insecure_registry=insecure,
-                               decode=True, stream=True)
+            command_result = self.retry_generator(self.d.push,
+                                                  image.to_str(tag=False),
+                                                  tag=image.tag, insecure_registry=insecure,
+                                                  decode=True, stream=True)
         except TypeError:
             # because changing api is fun
-            logs = self.d.push(image.to_str(tag=False), tag=image.tag, decode=True, stream=True)
+            command_result = self.retry_generator(self.d.push,
+                                                  image.to_str(tag=False),
+                                                  tag=image.tag, decode=True, stream=True)
 
-        command_result = wait_for_command(logs)
         self.last_logs = command_result.logs
-        if command_result.is_failed():
-            detail = command_result.error_detail
-            raise RuntimeError("Failed to push image %s: %s" % (image, detail))
         return command_result.parsed_logs
 
     def tag_and_push_image(self, image, target_image, insecure=False, force=False,

@@ -12,10 +12,11 @@ import docker
 import flexmock
 import json
 import pytest
+import atomic_reactor
 
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.util import ImageName
+from atomic_reactor.util import ImageName, CommandResult
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
 from tests.constants import MOCK, MOCK_SOURCE, LOCALHOST_REGISTRY
@@ -194,3 +195,53 @@ def test_retry_pull_base_image(exc, failures, should_succeed):
     else:
         with pytest.raises(Exception):
             runner.run()
+
+
+@pytest.mark.parametrize('library', [True, False])
+def test_try_with_library_pull_base_image(library):
+    if MOCK:
+        mock_docker(remember_images=True)
+
+    tasker = DockerTasker(retry_times=0)
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    workflow.builder = MockBuilder()
+
+    if library:
+        base_image = 'library/parent-image'
+    else:
+        base_image = 'parent-image'
+    workflow.builder.base_image = ImageName.parse(base_image)
+
+    class MockResponse(object):
+        content = ''
+
+    cr = CommandResult()
+    cr._error = "cmd_error"
+    cr._error_detail = {"message": "error_detail"}
+
+    if library:
+        call_wait = 1
+    else:
+        call_wait = 2
+
+    (flexmock(atomic_reactor.util)
+        .should_receive('wait_for_command')
+        .times(call_wait)
+        .and_return(cr))
+
+    error_message = 'registry.example.com/' + base_image
+
+    runner = PreBuildPluginsRunner(
+        tasker,
+        workflow,
+        [{
+            'name': PullBaseImagePlugin.key,
+            'args': {'parent_registry': 'registry.example.com',
+                     'parent_registry_insecure': True},
+        }],
+    )
+
+    with pytest.raises(PluginFailedException) as exc:
+        runner.run()
+
+    assert error_message in exc.value.args[0]
