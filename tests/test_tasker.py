@@ -10,9 +10,10 @@ from __future__ import print_function, unicode_literals
 
 from tests.fixtures import temp_image_name, docker_tasker  # noqa
 
-from atomic_reactor.core import DockerTasker, retry
-from atomic_reactor.util import ImageName, clone_git_repo
+from atomic_reactor.core import DockerTasker, retry, RetryGeneratorException
+from atomic_reactor.util import ImageName, clone_git_repo, CommandResult
 from tests.constants import LOCALHOST_REGISTRY, INPUT_IMAGE, DOCKERFILE_GIT, MOCK, COMMAND
+from requests.packages.urllib3.exceptions import ProtocolError
 from tests.util import requires_internet
 
 import docker
@@ -20,6 +21,7 @@ import docker.errors
 import requests
 import sys
 import time
+import atomic_reactor
 from docker.errors import APIError
 
 from flexmock import flexmock
@@ -203,9 +205,9 @@ def test_push_image(temp_image_name, should_fail):
     temp_image_name.tag = "1"
     t.tag_image(INPUT_IMAGE, temp_image_name)
     if should_fail:
-        with pytest.raises(RuntimeError) as exc:
+        with pytest.raises(RetryGeneratorException) as exc:
             output = t.push_image(temp_image_name, insecure=True)
-        assert "Failed to push image" in str(exc)
+        assert "Failed to mock_method image" in str(exc)
         assert "connection refused" in str(exc)
     else:
         output = t.push_image(temp_image_name, insecure=True)
@@ -403,3 +405,61 @@ def test_retry_method(retry_times):
             retry(my_func, *my_args, retry=retry_times, **my_kwargs)
     else:
         retry(my_func, *my_args, retry=retry_times, **my_kwargs)
+
+
+@pytest.mark.parametrize('exc', [ProtocolError, APIError, False])
+@pytest.mark.parametrize('in_init', [True, False])
+@pytest.mark.parametrize('retry_times', [-1, 0, 1, 2, 3])
+def test_retry_generator(exc, in_init, retry_times):
+    def simplegen():
+        yield "log line"
+
+    my_args = ('some', 'new')
+    if not in_init:
+        my_kwargs = {'one': 'first', 'two': 'second', 'retry_times': retry_times}
+    else:
+        my_kwargs = {'one': 'first', 'two': 'second'}
+
+    if in_init:
+        t = DockerTasker(retry_times=retry_times)
+    else:
+        t = DockerTasker()
+
+    (flexmock(time)
+        .should_receive('sleep')
+        .and_return(None))
+
+    if not exc:
+        cr = CommandResult()
+        cr._error = "cmd_error"
+        cr._error_detail = {"message": "error_detail"}
+
+    if exc == APIError:
+        error_message = 'api_error'
+        response = flexmock(content=error_message, status_code=408)
+        (flexmock(atomic_reactor.util)
+            .should_receive('wait_for_command')
+            .times(retry_times + 1)
+            .and_raise(APIError, error_message, response))
+    elif exc == ProtocolError:
+        error_message = 'protocol_error'
+        (flexmock(atomic_reactor.util)
+            .should_receive('wait_for_command')
+            .times(retry_times + 1)
+            .and_raise(ProtocolError, error_message))
+    else:
+        (flexmock(atomic_reactor.util)
+            .should_receive('wait_for_command')
+            .times(retry_times + 1)
+            .and_return(cr))
+        error_message = 'cmd_error'
+
+    if retry_times >= 0:
+        with pytest.raises(RetryGeneratorException) as exc:
+            t.retry_generator(lambda *args, **kwargs: simplegen(),
+                              *my_args, **my_kwargs)
+
+        assert repr(error_message) in repr(exc.value)
+    else:
+        t.retry_generator(lambda *args, **kwargs: simplegen(),
+                          *my_args, **my_kwargs)
