@@ -43,7 +43,6 @@ class MockBuilder(object):
 
     def set_base_image(self, base_image):
         self.base_image = base_image
-        assert base_image == UNIQUE_ID
 
 
 @pytest.fixture(autouse=True)
@@ -149,6 +148,7 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
             tasker.remove_image(image)
         except:
             pass
+    assert workflow.builder.base_image == df_base
 
 
 def test_pull_base_wrong_registry():
