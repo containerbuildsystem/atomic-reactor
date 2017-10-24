@@ -101,5 +101,11 @@ class PullBaseImagePlugin(PreBuildPlugin):
             self.log.error("giving up trying to pull image")
             raise RuntimeError("too many attempts to pull and tag image")
 
+        # Make sure registry image is tagged with plain base image name
+        # as other plugins would use base_image to inspect it
+        response = self.tasker.tag_image(base_image_with_registry,
+                                         base_image)
+        self.workflow.pulled_base_images.add(response)
+
         self.workflow.builder.set_base_image(base_image.to_str())
         self.log.debug("image '%s' is available", pulled_base)
