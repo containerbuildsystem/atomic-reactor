@@ -312,7 +312,8 @@ CMD blabla"""
         "digest": DIGEST2,
         "version": "v2"
     }]
-    assert digests == expected or digests == reversed(expected)
+    assert all(digest in expected for digest in digests)
+    assert all(digest in digests for digest in expected)
 
     assert "plugins-metadata" in annotations
     assert "errors" in annotations["plugins-metadata"]
