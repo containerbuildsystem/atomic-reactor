@@ -101,6 +101,7 @@ class MockedClientSession(object):
         self.task_states = list(self.task_states)
         self.task_states.reverse()
         self.tag_task_state = self.task_states.pop()
+        self.getLoggedInUser = lambda: {'name': 'osbs'}
 
     def krb_login(self, principal=None, keytab=None, proxyuser=None):
         return True
@@ -688,6 +689,8 @@ class TestKojiImport(object):
     def test_koji_import_log_task_id(self, tmpdir, monkeypatch, os_env,
                                      caplog, koji_task_id, expect_success):
         session = MockedClientSession('')
+        session.getTaskInfo = lambda x: {'owner': 1234}
+        session.getUser = lambda x: {'name': 'dev1'}
         tasker, workflow = mock_environment(tmpdir,
                                             session=session,
                                             name='ns/name',
@@ -1250,6 +1253,7 @@ class TestKojiImport(object):
             'start_time',
             'end_time',
             'extra',          # optional but always supplied
+            'owner',
         ])
 
         assert build['name'] == component
@@ -1300,6 +1304,33 @@ class TestKojiImport(object):
             Hurray for bacon: \u2017
             line 2
         """)
+
+    def test_koji_import_owner_submitter(self, tmpdir, monkeypatch):
+        session = MockedClientSession('')
+        session.getTaskInfo = lambda x: {'owner': 1234}
+        session.getUser = lambda x: {'name': 'dev1'}
+        tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1')
+        runner = create_runner(tasker, workflow)
+
+        monkeypatch.setenv("BUILD", json.dumps({
+            'metadata': {
+                'creationTimestamp': '2015-07-27T09:24:00Z',
+                'namespace': NAMESPACE,
+                'name': BUILD_ID,
+                'labels': {
+                    'koji-task-id': 1234,
+                },
+            }
+        }))
+
+        runner.run()
+        metadata = session.metadata
+        assert metadata['build']['extra']['submitter'] == 'osbs'
+        assert metadata['build']['owner'] == 'dev1'
 
     @pytest.mark.parametrize('use_pulp', [False, True])
     def test_koji_import_pullspec(self, tmpdir, os_env, use_pulp):

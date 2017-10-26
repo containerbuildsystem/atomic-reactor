@@ -167,3 +167,15 @@ def tag_koji_build(session, build_id, target, poll_interval=5):
         raise RuntimeError('Task %s failed to tag koji build' % task_id)
 
     return build_tag
+
+
+def get_koji_task_owner(session, task_id, default=""):
+    if task_id:
+        try:
+            koji_task_info = session.getTaskInfo(task_id)
+            koji_task_owner = session.getUser(koji_task_info['owner'])
+        except:
+            koji_task_owner = default
+    else:
+        koji_task_owner = default
+    return koji_task_owner

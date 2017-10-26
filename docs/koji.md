@@ -50,6 +50,8 @@ Data which is placed here includes:
 - `build.extra.image.flatpak` (boolean): true if this image is a Flatpak
 - `build.extra.image.modules` (boolean): the [modules](https://docs.pagure.org/modularity/) that provide the packages for this image, resolved to `NAME-STREAM-VERSION`. This will include the resolved versions of the modules in `source_modules`, and the dependencies of those modules. (Currently only for Flatpaks)
 - `build.extra.image.source_modules` (boolean): the modules that were specified as input to the build process. (Currently only for Flatpaks)
+- `build.extra.submitter` (string): username that submitted the build via content generator API
+- `build.owner` (string or null): username that started the task
 
 The index map has these entries:
 
@@ -92,6 +94,7 @@ Example type-specific content generator metadata in context:
     "name": "package-name-docker",
     "version": "1.0.0",
     "release": "1",
+    "owner": "kojiadmin",
     "extra": {
       "image": {
         "autorebuild": false,
@@ -99,6 +102,7 @@ Example type-specific content generator metadata in context:
         "help": null,
         "parent_build_id": 123456
       },
+      "submitter": "osbs",
       "filesystem_koji_task_id": 123457,
       "container_koji_task_id": 123456
     },
