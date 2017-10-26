@@ -45,7 +45,8 @@ from atomic_reactor.util import (get_build_json, get_preferred_label,
                                  df_parser, ImageName, get_checksums, get_primary_images,
                                  get_manifest_media_type,
                                  get_digests_map_from_annotations)
-from atomic_reactor.koji_util import (create_koji_session, Output, KojiUploadLogger)
+from atomic_reactor.koji_util import (create_koji_session, Output, KojiUploadLogger,
+                                      get_koji_task_owner)
 from osbs.conf import Configuration
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
@@ -420,6 +421,12 @@ class KojiImportPlugin(ExitPlugin):
         if flatpak_source_info is not None:
             extra['image'].update(flatpak_source_info.koji_metadata())
 
+        if koji_task_id:
+            koji_task_owner = get_koji_task_owner(self.session, koji_task_id, default=None)['name']
+        else:
+            koji_task_owner = None
+        extra['submitter'] = self.session.getLoggedInUser()['name']
+
         self.set_help(extra, worker_metadatas)
         self.set_media_types(extra, worker_metadatas)
         self.remove_unavailable_manifest_digests(worker_metadatas)
@@ -433,6 +440,7 @@ class KojiImportPlugin(ExitPlugin):
             'start_time': start_time,
             'end_time': int(time.time()),
             'extra': extra,
+            'owner': koji_task_owner,
         }
 
         return build
@@ -527,7 +535,7 @@ class KojiImportPlugin(ExitPlugin):
             self.log.info("Not importing failed build to koji")
             return
 
-        session = self.login()
+        self.session = self.login()
 
         server_dir = get_koji_upload_dir(self.workflow)
 
@@ -536,14 +544,14 @@ class KojiImportPlugin(ExitPlugin):
         try:
             for output in output_files:
                 if output.file:
-                    self.upload_file(session, output, server_dir)
+                    self.upload_file(self.session, output, server_dir)
         finally:
             for output in output_files:
                 if output.file:
                     output.file.close()
 
         try:
-            build_info = session.CGImport(koji_metadata, server_dir)
+            build_info = self.session.CGImport(koji_metadata, server_dir)
         except Exception:
             self.log.debug("metadata: %r", koji_metadata)
             raise

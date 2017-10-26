@@ -18,7 +18,7 @@ from atomic_reactor.plugin import ExitPlugin, PluginFailedException
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
-from atomic_reactor.koji_util import create_koji_session
+from atomic_reactor.koji_util import create_koji_session, get_koji_task_owner
 from atomic_reactor.util import get_build_json
 
 
@@ -214,11 +214,7 @@ class SendMailPlugin(ExitPlugin):
             return '@'.join([obj['name'], self.email_domain])
 
     def _get_koji_submitter(self):
-        if not self.koji_task_id:
-            return ""
-
-        koji_task_info = self.session.getTaskInfo(self.koji_task_id)
-        koji_task_owner = self.session.getUser(koji_task_info['owner'])
+        koji_task_owner = get_koji_task_owner(self.session, self.koji_task_id)
         koji_task_owner_email = self._get_email_from_koji_obj(koji_task_owner)
         self.submitter = koji_task_owner_email
         return koji_task_owner_email
