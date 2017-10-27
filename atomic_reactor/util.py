@@ -721,7 +721,12 @@ class RegistrySession(object):
         return self._do(self.session.delete, relative_url, **kwargs)
 
 
-class ManifestDigest(dict):
+class HashableDict(dict):
+    def __hash__(self):
+        return hash(frozenset(self.items()))
+
+
+class ManifestDigest(HashableDict):
     """Wrapper for digests for a docker manifest."""
 
     content_type = {

@@ -242,22 +242,22 @@ class GroupManifestsPlugin(PostBuildPlugin):
                                               target_repo, target_repo, tag=image.tag)
         # Get the digest of the manifest list using one of the tags
         registry_image = self.workflow.tag_conf.unique_images[0]
-        _, digest, _, _ = self.get_manifest(session,
-                                            registry_image.to_str(registry=False, tag=False),
-                                            registry_image.tag)
+        _, digest_str, _, _ = self.get_manifest(session,
+                                                registry_image.to_str(registry=False, tag=False),
+                                                registry_image.tag)
 
         if list_type == MEDIA_TYPE_OCI_V1_INDEX:
-            digests = ManifestDigest(oci_index=digest)
+            digest = ManifestDigest(oci_index=digest_str)
         else:
-            digests = ManifestDigest(v2_list=digest)
+            digest = ManifestDigest(v2_list=digest_str)
 
         # And store the manifest list in the push_conf
         push_conf_registry = self.workflow.push_conf.add_docker_registry(session.registry,
                                                                          insecure=session.insecure)
         for image in self.workflow.tag_conf.images:
-            push_conf_registry.digests[image.tag] = digests
+            push_conf_registry.digests[image.tag] = digest
 
-        self.log.info("%s: Manifest list digest is %s", session.registry, digest)
+        self.log.info("%s: Manifest list digest is %s", session.registry, digest_str)
         return digest
 
     def tag_manifest_into_registry(self, session, worker_digest):
