@@ -23,7 +23,7 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf
-from atomic_reactor.util import ImageName, registry_hostname
+from atomic_reactor.util import ImageName, registry_hostname, ManifestDigest
 from atomic_reactor.plugins.post_group_manifests import GroupManifestsPlugin
 
 if MOCK:
@@ -466,7 +466,7 @@ def test_group_manifests(tmpdir, test_name,
 
     runner = PostBuildPluginsRunner(tasker, workflow, plugins_conf)
     if expected_exception is None:
-        runner.run()
+        results = runner.run()
 
         manifest_type, list_type = {
             'v2': (
@@ -545,6 +545,12 @@ def test_group_manifests(tmpdir, test_name,
                     verify_manifest_in_repository(target_registry, name,
                                                   source_manifest, 'x86_64',
                                                   tag)
+
+        # Check that plugin returns ManifestDigest object
+        plugin_result = results[GroupManifestsPlugin.key]
+        assert isinstance(plugin_result, list)
+        for digest in plugin_result:
+            assert isinstance(digest, ManifestDigest)
     else:
         with pytest.raises(PluginFailedException) as ex:
             runner.run()
