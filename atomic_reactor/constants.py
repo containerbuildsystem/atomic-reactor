@@ -101,6 +101,10 @@ HTTP_BACKOFF_FACTOR = 5
 HTTP_CLIENT_STATUS_RETRY = (408, 500, 502, 503, 504)
 # requests timeout in seconds
 HTTP_REQUEST_TIMEOUT = 600
+# max retries for git clone
+GIT_MAX_RETRIES = 3
+# how many seconds should wait before another try of git clone
+GIT_BACKOFF_FACTOR = 5
 
 
 # Media types

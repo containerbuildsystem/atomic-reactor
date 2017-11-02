@@ -16,6 +16,8 @@ import requests
 import responses
 from requests.exceptions import ConnectionError
 import six
+import subprocess
+import time
 
 from tempfile import mkdtemp
 from textwrap import dedent
@@ -38,7 +40,6 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  are_plugins_in_order, LabelFormatter,
                                  get_manifest_media_type,
                                  get_manifest_media_version,
-                                 get_retrying_requests_session,
                                  get_primary_images,
                                  get_image_upload_filename)
 from atomic_reactor import util
@@ -83,6 +84,13 @@ TEST_DATA = {
     "library/fedora@sha256:12345": ImageName(namespace="library", repo="fedora",
                                              tag="sha256:12345"),
 }
+
+
+class CustomTestException(Exception):
+    """
+    Custom Exception used to prematurely end function call
+    """
+    pass
 
 
 def test_image_name_parse():
@@ -876,3 +884,33 @@ def test_get_primary_images(tag_conf, tag_annotation, expected):
         assert primary_image.repo == template_image.repo
 
         assert primary_image.tag == expected[index]
+
+
+@pytest.mark.parametrize('retry_times', [0, 1, 2, 3])
+@pytest.mark.parametrize('raise_exc', [True, False])
+def test_clone_git_repo_retry(tmpdir, retry_times, raise_exc):
+    tmpdir_path = str(tmpdir.realpath())
+    (flexmock(time)
+        .should_receive('sleep')
+        .and_return(None))
+
+    if raise_exc:
+        (flexmock(subprocess)
+            .should_receive('check_output')
+            .times(retry_times + 1)
+            .and_raise(subprocess.CalledProcessError, 1, "git clone", output="error"))
+
+    else:
+        (flexmock(subprocess)
+            .should_receive('check_output')
+            .once()
+            .and_return(True))
+
+        (flexmock(subprocess)
+            .should_receive('check_call')
+            .once()
+            .and_raise(CustomTestException))
+
+    exception = subprocess.CalledProcessError if raise_exc else CustomTestException
+    with pytest.raises(exception):
+        clone_git_repo(DOCKERFILE_GIT, tmpdir_path, retry_times=retry_times)
