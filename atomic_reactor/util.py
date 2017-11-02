@@ -26,6 +26,7 @@ import uuid
 import yaml
 import codecs
 import string
+import time
 
 from six.moves.urllib.parse import urlparse
 
@@ -36,7 +37,7 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, FLATPAK_FILENAME, TOO
                                       HTTP_CLIENT_STATUS_RETRY, HTTP_REQUEST_TIMEOUT,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST, MEDIA_TYPE_OCI_V1,
-                                      MEDIA_TYPE_OCI_V1_INDEX)
+                                      MEDIA_TYPE_OCI_V1_INDEX, GIT_MAX_RETRIES, GIT_BACKOFF_FACTOR)
 
 from dockerfile_parse import DockerfileParser
 from pkg_resources import resource_stream
@@ -234,41 +235,42 @@ def wait_for_command(logs_generator):
     return cr
 
 
-def clone_git_repo(git_url, target_dir, commit=None):
+def clone_git_repo(git_url, target_dir, commit=None, retry_times=GIT_MAX_RETRIES):
     """
     clone provided git repo to target_dir, optionally checkout provided commit
 
     :param git_url: str, git repo to clone
     :param target_dir: str, filesystem path where the repo should be cloned
     :param commit: str, commit to checkout, SHA-1 or ref
+    :param retry_times: int, number of retries for git clone
     :return: str, commit ID of HEAD
     """
+    retry_delay = GIT_BACKOFF_FACTOR
+
     commit = commit or "master"
     logger.info("cloning git repo '%s'", git_url)
     logger.debug("url = '%s', dir = '%s', commit = '%s'",
                  git_url, target_dir, commit)
 
-    cmd = ["git", "clone", "-b", commit, "--depth", "1", git_url, quote(target_dir)]
-    logger.debug("doing a shallow clone '%s'", cmd)
-    try:
-        subprocess.check_call(cmd)
-    except subprocess.CalledProcessError as ex:
-        logger.warning(repr(ex))
-        # http://stackoverflow.com/questions/1911109/clone-a-specific-git-branch/4568323#4568323
-        # -b takes only refs, not SHA-1
-        cmd = ["git", "clone", "-b", commit, "--single-branch", git_url, quote(target_dir)]
-        logger.debug("cloning single branch '%s'", cmd)
+    cmd = ["git", "clone", git_url, quote(target_dir)]
+
+    logger.debug("cloning '%s'", cmd)
+    for counter in range(retry_times + 1):
         try:
-            subprocess.check_call(cmd)
-        except subprocess.CalledProcessError as ex:
-            logger.warning(repr(ex))
-            # let's try again with plain `git clone $url && git checkout`
-            cmd = ["git", "clone", git_url, quote(target_dir)]
-            logger.debug("cloning '%s'", cmd)
-            subprocess.check_call(cmd)
-            cmd = ["git", "reset", "--hard", commit]
-            logger.debug("checking out branch '%s'", cmd)
-            subprocess.check_call(cmd, cwd=target_dir)
+            # we are using check_output, even though we aren't using
+            # the return value, but we will get 'output' in exception
+            subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+            break
+        except subprocess.CalledProcessError as exc:
+            if counter != retry_times:
+                logger.info("retrying command '%s':\n '%s'", cmd, exc.output)
+                time.sleep(retry_delay * (2 ** counter))
+            else:
+                raise
+
+    cmd = ["git", "reset", "--hard", commit]
+    logger.debug("checking out branch '%s'", cmd)
+    subprocess.check_call(cmd, cwd=target_dir)
     cmd = ["git", "rev-parse", "HEAD"]
     logger.debug("getting SHA-1 of provided ref '%s'", cmd)
     commit_id = subprocess.check_output(cmd, cwd=target_dir)
