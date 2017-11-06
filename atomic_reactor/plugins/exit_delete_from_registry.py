@@ -13,6 +13,7 @@ import requests
 
 from atomic_reactor.plugin import ExitPlugin, PluginFailedException
 from atomic_reactor.util import RegistrySession, registry_hostname
+from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY
 from requests.exceptions import HTTPError, RetryError, Timeout
 
 
@@ -95,6 +96,17 @@ class DeleteFromRegistryPlugin(ExitPlugin):
 
         return deleted
 
+    def delete_manifest_lists(self, session, registry_noschema, deleted_digests):
+        manifest_list_digests = self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY)
+        if not manifest_list_digests:
+            return
+
+        for repo, digest in manifest_list_digests.items():
+            url = self.make_url(repo, digest.default)
+            manifest = self.make_manifest(registry_noschema, repo, digest.default)
+            self.request_delete(session, url, manifest)
+            deleted_digests.add(digest.default)
+
     def get_worker_digests(self):
         """
          If we are being called from an orchestrator build, collect the worker
@@ -125,6 +137,9 @@ class DeleteFromRegistryPlugin(ExitPlugin):
 
         if registry_noschema not in worker_digests:
             return False
+
+        # Remove manifest list first to avoid broken lists in case an error occurs
+        self.delete_manifest_lists(session, registry_noschema, deleted_digests)
 
         digests = worker_digests[registry_noschema]
         for digest in digests:

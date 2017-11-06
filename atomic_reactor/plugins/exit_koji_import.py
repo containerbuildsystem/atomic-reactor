@@ -302,8 +302,8 @@ class KojiImportPlugin(ExitPlugin):
             if not registries:
                 registries = self.workflow.push_conf.all_registries
             for registry in registries:
-                pullspec = "{0}/{1}@{2}".format(registry.uri, repo,
-                                                manifest_list_digests[0].v2_list)
+                manifest_list_digest = manifest_list_digests[repo]
+                pullspec = "{0}/{1}@{2}".format(registry.uri, repo, manifest_list_digest.default)
                 index['pull'] = [pullspec]
                 pullspec = "{0}/{1}:{2}".format(registry.uri, repo,
                                                 version_release)
@@ -311,14 +311,14 @@ class KojiImportPlugin(ExitPlugin):
 
                 # Store each digest with according media type
                 index['digests'] = {}
-                for version, digest in manifest_list_digests[0].items():
+                for version, digest in manifest_list_digest.items():
                     if digest:
                         media_type = get_manifest_media_type(version)
                         index['digests'][media_type] = digest
                 break
             extra['image']['index'] = index
-        # group_manifests returns None if didn't run, [] if group=False
-        elif manifest_list_digests == []:
+        # group_manifests returns None if didn't run, {} if group=False
+        else:
             for platform in worker_metadatas:
                 if platform == "x86_64":
                     for instance in worker_metadatas[platform]['output']:

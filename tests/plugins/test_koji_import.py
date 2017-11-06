@@ -997,7 +997,7 @@ class TestKojiImport(object):
                 'parent_id',
                 'id',
                 'repositories',
-                #  'tags',
+                'tags',
             ])
             if has_config:
                 expected_keys_set.add('config')
@@ -1627,7 +1627,7 @@ class TestKojiImport(object):
                     'crane.example.com/foo:tag',
                     'crane.example.com/foo@sha256:bar',
                 ]
-        workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = []
+        workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = {}
         orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
         if digest:
             build_info = BuildInfo(digests=[digest])
@@ -1651,11 +1651,11 @@ class TestKojiImport(object):
                 expected_digests = {expected_media_type: expected_digest_value}
                 assert output['extra']['docker']['digests'] == expected_digests
 
-    @pytest.mark.parametrize('digests', [
-        [],
-        [ManifestDigest(v2_list='sha256:e6593f3e')],
+    @pytest.mark.parametrize('digest', [
+        None,
+        ManifestDigest(v2_list='sha256:e6593f3e'),
     ])
-    def test_koji_import_set_manifest_list_info(self, tmpdir, os_env, digests):
+    def test_koji_import_set_manifest_list_info(self, tmpdir, os_env, digest):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
                                             name='ns/name',
@@ -1664,7 +1664,8 @@ class TestKojiImport(object):
                                             session=session,
                                             docker_registry=True,
                                             pulp_registries=1)
-        workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = digests
+        group_manifest_result = {'myproject/hello-world': digest} if digest else {}
+        workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = group_manifest_result
         orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
         orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = BuildInfo()
         runner = create_runner(tasker, workflow)
@@ -1690,14 +1691,14 @@ class TestKojiImport(object):
         else:
             raise RuntimeError("incorrect test data")
 
-        if digests:
+        if digest:
             assert 'index' in image.keys()
-            pullspec = "crane.example.com:5000/myproject/hello-world@{0}".format(digests[0].v2_list)
+            pullspec = "crane.example.com:5000/myproject/hello-world@{0}".format(digest.v2_list)
             expected_results['pull'] = [pullspec]
             pullspec = "crane.example.com:5000/myproject/hello-world:{0}".format(version_release)
             expected_results['pull'].append(pullspec)
             expected_results['digests'] = {
-                'application/vnd.docker.distribution.manifest.list.v2+json': digests[0].v2_list}
+                'application/vnd.docker.distribution.manifest.list.v2+json': digest.v2_list}
             assert image['index'] == expected_results
         else:
             assert 'index' not in image.keys()
@@ -1758,7 +1759,7 @@ class TestKojiImport(object):
                     'crane.example.com/foo@sha256:v2',
                 ]
 
-        list_digests = [ManifestDigest(v2_list='sha256:manifest-list')]
+        list_digests = {'myproject/hello-world': ManifestDigest(v2_list='sha256:manifest-list')}
         workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = list_digests
         orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
         orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = BuildInfo()
