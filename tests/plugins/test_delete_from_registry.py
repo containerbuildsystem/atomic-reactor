@@ -11,6 +11,7 @@ from __future__ import print_function, unicode_literals
 import pytest
 from flexmock import flexmock
 
+from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY
 from atomic_reactor.util import ImageName, ManifestDigest
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow, DockerRegistry
@@ -31,6 +32,7 @@ if MOCK:
 
 DIGEST1 = 'sha256:28b64a8b29fd2723703bb17acf907cd66898440270e536992b937899a4647414'
 DIGEST2 = 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
+DIGEST_LIST = 'sha256:deadbeef'
 
 
 class Y(object):
@@ -61,7 +63,12 @@ class X(object):
     {DOCKER0_REGISTRY: False, LOCALHOST_REGISTRY: True},
 ])
 @pytest.mark.parametrize("orchestrator", [True, False])
-def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir, orchestrator):
+@pytest.mark.parametrize("manifest_list_digests", [
+    {},
+    {'foo': ManifestDigest(v2_list=DIGEST_LIST)}
+])
+def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir, orchestrator,
+                                     manifest_list_digests):
     if MOCK:
         mock_docker()
         mock_get_retry_session()
@@ -114,11 +121,27 @@ def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir, orch
                 r.digests[tag] = ManifestDigest(v1='not-used', v2=dig)
             workflow.push_conf._registries['docker'].append(r)
 
+    group_manifest_digests = {}
     if orchestrator:
         build_annotations = {'digests': ann_digests}
         annotations = {'worker-builds': {'x86_64': build_annotations}}
         setattr(workflow, 'build_result', Y)
         setattr(workflow.build_result, 'annotations', annotations)
+
+        # group_manifest digest should be added only
+        # if there are worker builds and images are pushed to one registry
+        if len(req_registries) == 1 and len(saved_digests.keys()) == 1 and \
+           all(saved_digests.values()):
+            workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = manifest_list_digests
+            for ml_repo, ml_digest in manifest_list_digests.items():
+                for reg in req_registries:
+                    if reg in saved_digests:
+                        group_manifest_digests.setdefault(reg, {})
+                        group_manifest_digests[reg] = saved_digests[reg].copy()
+                        group_manifest_digests[reg][ml_repo] = ml_digest.default
+
+    result_digests = saved_digests.copy()
+    result_digests.update(group_manifest_digests)
 
     runner = ExitPluginsRunner(
         tasker,
@@ -132,7 +155,7 @@ def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir, orch
     )
 
     deleted_digests = set()
-    for reg, digests in saved_digests.items():
+    for reg, digests in result_digests.items():
         if reg not in req_registries:
             continue
 

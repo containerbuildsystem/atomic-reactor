@@ -548,8 +548,9 @@ def test_group_manifests(tmpdir, test_name,
 
         # Check that plugin returns ManifestDigest object
         plugin_result = results[GroupManifestsPlugin.key]
-        assert isinstance(plugin_result, list)
-        for digest in plugin_result:
+        assert isinstance(plugin_result, dict)
+
+        for repo, digest in plugin_result.items():
             assert isinstance(digest, ManifestDigest)
     else:
         with pytest.raises(PluginFailedException) as ex:
