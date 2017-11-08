@@ -150,7 +150,7 @@ def prepare(v1_image_ids={}):
     return tasker, workflow
 
 
-@pytest.mark.skipif(dockpulp is None,
+@pytest.mark.skipif(dockpulp is None or not hasattr(dockpulp, "imgutils"),
                     reason='dockpulp module not available')
 @pytest.mark.parametrize(("v1_image_ids", "should_raise"), [
     ({'x86_64': None, 'ppc64le': None}, False),
@@ -194,7 +194,7 @@ def test_pulp_tag_basic(tmpdir, monkeypatch, v1_image_ids, should_raise, caplog)
     assert results['pulp_tag'] == expected_results
 
 
-@pytest.mark.skipif(dockpulp is None,
+@pytest.mark.skipif(dockpulp is None or not hasattr(dockpulp, "imgutils"),
                     reason='dockpulp module not available')
 def test_pulp_tag_source_secret(tmpdir, monkeypatch, caplog):
     v1_image_ids = {'x86_64': None,
@@ -222,7 +222,7 @@ def test_pulp_tag_source_secret(tmpdir, monkeypatch, caplog):
     assert results['pulp_tag'] == expected_results
 
 
-@pytest.mark.skipif(dockpulp is None,
+@pytest.mark.skipif(dockpulp is None or not hasattr(dockpulp, "imgutils"),
                     reason='dockpulp module not available')
 def test_pulp_tag_service_account_secret(tmpdir, monkeypatch, caplog):
     v1_image_ids = {'x86_64': None,
