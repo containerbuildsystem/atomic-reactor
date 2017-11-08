@@ -47,7 +47,7 @@ def prepare():
     (flexmock(requests.Response, content=repocontent)
         .should_receive('raise_for_status')
         .and_return(None))
-    (flexmock(requests, get=lambda *_: requests.Response()))
+    (flexmock(requests.Session, get=lambda *_: requests.Response()))
     mock_get_retry_session()
 
     return tasker, workflow
