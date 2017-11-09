@@ -550,8 +550,15 @@ def test_group_manifests(tmpdir, test_name,
         plugin_result = results[GroupManifestsPlugin.key]
         assert isinstance(plugin_result, dict)
 
-        for repo, digest in plugin_result.items():
+        for _, digest in plugin_result.items():
             assert isinstance(digest, ManifestDigest)
+
+        if group:
+            # Check that plugin returns correct list of repos
+            actual_repos = sorted(plugin_result.keys())
+            expected_repos = sorted(set([x.get_repo() for x in workflow.tag_conf.primary_images]))
+            assert expected_repos == actual_repos
+
     else:
         with pytest.raises(PluginFailedException) as ex:
             runner.run()

@@ -258,7 +258,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
             push_conf_registry.digests[image.tag] = digest
 
         self.log.info("%s: Manifest list digest is %s", session.registry, digest_str)
-        return registry_image.repo, digest
+        return registry_image.get_repo(explicit_namespace=False), digest
 
     def tag_manifest_into_registry(self, session, worker_digest):
         """

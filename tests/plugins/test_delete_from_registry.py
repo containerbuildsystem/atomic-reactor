@@ -65,7 +65,7 @@ class X(object):
 @pytest.mark.parametrize("orchestrator", [True, False])
 @pytest.mark.parametrize("manifest_list_digests", [
     {},
-    {'foo': ManifestDigest(v2_list=DIGEST_LIST)}
+    {'foo/bar': ManifestDigest(v2_list=DIGEST_LIST)}
 ])
 def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir, orchestrator,
                                      manifest_list_digests):
