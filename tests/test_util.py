@@ -700,6 +700,17 @@ def test_get_manifest_digests_connection_error(tmpdir):
         get_manifest_digests(**kwargs)
 
 
+@pytest.mark.parametrize('namespace,repo,explicit,expected', [
+    ('foo', 'bar', False, 'foo/bar'),
+    ('foo', 'bar', True, 'foo/bar'),
+    (None, 'bar', False, 'bar'),
+    (None, 'bar', True, 'library/bar'),
+])
+def test_image_name_get_repo(namespace, repo, explicit, expected):
+    image = ImageName(namespace=namespace, repo=repo)
+    assert image.get_repo(explicit) == expected
+
+
 @pytest.mark.parametrize('v1,v2,v2_list,oci,oci_index,default', [
     ('v1-digest', 'v2-digest', None, None, None, 'v2-digest'),
     ('v1-digest', None, None, None, None, 'v1-digest'),

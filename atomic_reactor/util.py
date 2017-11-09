@@ -86,7 +86,7 @@ class ImageName(object):
         if self.repo is None:
             raise RuntimeError('No image repository specified')
 
-        result = self.repo
+        result = self.get_repo(explicit_namespace)
 
         if tag and self.tag and ':' in self.tag:
             result = '{0}@{1}'.format(result, self.tag)
@@ -95,14 +95,17 @@ class ImageName(object):
         elif tag and explicit_tag:
             result = '{0}:{1}'.format(result, 'latest')
 
+        if registry and self.registry:
+            result = '{0}/{1}'.format(self.registry, result)
+
+        return result
+
+    def get_repo(self, explicit_namespace=False):
+        result = self.repo
         if self.namespace:
             result = '{0}/{1}'.format(self.namespace, result)
         elif explicit_namespace:
             result = '{0}/{1}'.format('library', result)
-
-        if registry and self.registry:
-            result = '{0}/{1}'.format(self.registry, result)
-
         return result
 
     @property
