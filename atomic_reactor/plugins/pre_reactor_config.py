@@ -11,6 +11,7 @@ from atomic_reactor.util import read_yaml
 
 
 import os
+import six
 
 
 # Key used to store the config object in the plugin workspace
@@ -64,6 +65,7 @@ class ReactorConfigKeys(object):
 
     VERSION_KEY = 'version'
     CLUSTERS_KEY = 'clusters'
+    ODCS_KEY = 'odcs'
 
 
 class ReactorConfig(object):
@@ -91,6 +93,47 @@ class ReactorConfig(object):
 
     def get_enabled_clusters_for_platform(self, platform):
         return self.cluster_configs.get(platform, [])
+
+    def get_odcs_config(self):
+        odcs_config = self.conf.get('odcs')
+        if odcs_config:
+            odcs_config = ODCSConfig(**odcs_config)
+        return odcs_config
+
+
+class ODCSConfig(object):
+    """
+    Configuration for ODCS integration.
+    """
+
+    def __init__(self, signing_intents, default_signing_intent):
+        self.default_signing_intent = default_signing_intent
+
+        self.signing_intents = []
+        # Signing intents are listed in reverse restrictive order in configuration.
+        for restrictiveness, intent in enumerate(reversed(signing_intents)):
+            intent['restrictiveness'] = restrictiveness
+            self.signing_intents.append(intent)
+
+        # Verify default_signing_intent is valid
+        self.get_signing_intent_by_name(self.default_signing_intent)
+
+    def get_signing_intent_by_name(self, name):
+        for entry in self.signing_intents:
+            if entry['name'] == name:
+                return entry
+
+        raise ValueError('unknown signing intent name "{}"'.format(name))
+
+    def get_signing_intent_by_keys(self, keys):
+        if isinstance(keys, six.text_type):
+            keys = keys.split()
+        keys = set(keys)
+        for entry in self.signing_intents:
+            if set(entry['keys']) == keys:
+                return entry
+
+        raise ValueError('unknown signing intent keys "{}"'.format(keys))
 
 
 class ReactorConfigPlugin(PreBuildPlugin):

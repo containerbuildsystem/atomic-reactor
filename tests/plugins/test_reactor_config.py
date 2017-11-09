@@ -5,6 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+from __future__ import unicode_literals
 
 from jsonschema import ValidationError
 import io
@@ -273,3 +274,76 @@ class TestReactorConfigPlugin(object):
         enabled = conf.get_enabled_clusters_for_platform('platform')
         assert set([(x.name, x.max_concurrent_builds)
                     for x in enabled]) == set(clusters)
+
+    @pytest.mark.parametrize('default', (
+        'release',
+        'beta',
+        'unsigned',
+    ))
+    def test_odcs_config(self, tmpdir, default):
+        filename = str(tmpdir.join('config.yaml'))
+        with open(filename, 'w') as fp:
+            fp.write(dedent("""\
+                version: 1
+                odcs:
+                   signing_intents:
+                   - name: release
+                     keys: [R123]
+                   - name: beta
+                     keys: [R123, B456]
+                   - name: unsigned
+                     keys: []
+                   default_signing_intent: {default}
+                """.format(default=default)))
+
+        tasker, workflow = self.prepare()
+        plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
+        assert plugin.run() is None
+
+        odcs_config = get_config(workflow).get_odcs_config()
+
+        assert odcs_config.default_signing_intent == default
+
+        assert odcs_config.signing_intents == [
+            {'name': 'unsigned', 'keys': [], 'restrictiveness': 0},
+            {'name': 'beta', 'keys': ['R123', 'B456'], 'restrictiveness': 1},
+            {'name': 'release', 'keys': ['R123'], 'restrictiveness': 2},
+        ]
+
+        with pytest.raises(ValueError):
+            odcs_config.get_signing_intent_by_name('missing')
+
+        assert odcs_config.get_signing_intent_by_keys(['R123'])['name'] == 'release'
+        assert odcs_config.get_signing_intent_by_keys('R123')['name'] == 'release'
+        assert odcs_config.get_signing_intent_by_keys(['R123', 'B456'])['name'] == 'beta'
+        assert odcs_config.get_signing_intent_by_keys(['B456', 'R123'])['name'] == 'beta'
+        assert odcs_config.get_signing_intent_by_keys('B456 R123')['name'] == 'beta'
+        assert odcs_config.get_signing_intent_by_keys([])['name'] == 'unsigned'
+        assert odcs_config.get_signing_intent_by_keys('')['name'] == 'unsigned'
+
+        with pytest.raises(ValueError):
+            assert odcs_config.get_signing_intent_by_keys(['missing'])
+
+    def test_odcs_config_invalid_default_signing_intent(self, tmpdir):
+        filename = str(tmpdir.join('config.yaml'))
+        with open(filename, 'w') as fp:
+            fp.write(dedent("""\
+                version: 1
+                odcs:
+                   signing_intents:
+                   - name: release
+                     keys: [R123]
+                   - name: beta
+                     keys: [R123, B456]
+                   - name: unsigned
+                     keys: []
+                   default_signing_intent: spam
+                """))
+
+        tasker, workflow = self.prepare()
+        plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
+        assert plugin.run() is None
+
+        with pytest.raises(ValueError) as exc_info:
+            get_config(workflow).get_odcs_config()
+        assert 'unknown signing intent' in str(exc_info.value)
