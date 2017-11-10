@@ -164,7 +164,7 @@ class TestKojiParent(object):
 
         result = runner.run()
         if expect_result:
-            expected_result = {'parent-image-koji-build-id': KOJI_BUILD_ID}
+            expected_result = {'parent-image-koji-build': KOJI_BUILD}
         else:
             expected_result = None
 

@@ -1057,7 +1057,7 @@ class TestKojiImport(object):
         koji_parent_result = None
         if parent_id != 'NO-RESULT':
             koji_parent_result = {
-                'parent-image-koji-build-id': parent_id,
+                'parent-image-koji-build': {'id': parent_id},
             }
         workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = koji_parent_result
 
