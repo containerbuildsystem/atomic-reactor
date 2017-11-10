@@ -1516,7 +1516,7 @@ class TestKojiPromote(object):
 
         if parent_output:
             workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = \
-                {'parent-image-koji-build-id': parent_output}
+                {'parent-image-koji-build': {'id': parent_output}}
         else:
             workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = parent_output
 

@@ -112,4 +112,6 @@ class KojiParentPlugin(PreBuildPlugin):
             raise ValueError('Parent image Koji build NOT found!')
 
     def make_result(self):
-        return {'parent-image-koji-build-id': self._parent_image_build['id']}
+        return {
+            'parent-image-koji-build': self._parent_image_build,
+        }

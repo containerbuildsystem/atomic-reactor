@@ -519,7 +519,7 @@ class KojiPromotePlugin(ExitPlugin):
 
         # Append parent_build_id from koji parent
         parent_results = self.workflow.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY) or {}
-        parent_id = parent_results.get('parent-image-koji-build-id')
+        parent_id = parent_results.get('parent-image-koji-build', {}).get('id')
         if parent_id is not None:
             try:
                 parent_id = int(parent_id)
