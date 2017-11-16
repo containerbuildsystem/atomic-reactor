@@ -1,6 +1,5 @@
 flexmock
 ordereddict
 pytest
-six
 pytest-capturelog
 responses
