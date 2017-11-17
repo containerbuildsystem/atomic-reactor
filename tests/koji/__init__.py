@@ -36,3 +36,7 @@ class ClientSession(object):
 class PathInfo(object):
     def __init__(self, topdir=None):
         raise ImportError("No module named koji")
+
+
+class GenericError(Exception):
+    pass
