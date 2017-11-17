@@ -200,7 +200,7 @@ def test_push_image(temp_image_name, should_fail):
     if MOCK:
         mock_docker(push_should_fail=should_fail)
 
-    t = DockerTasker()
+    t = DockerTasker(retry_times=0)
     temp_image_name.registry = LOCALHOST_REGISTRY
     temp_image_name.tag = "1"
     t.tag_image(INPUT_IMAGE, temp_image_name)

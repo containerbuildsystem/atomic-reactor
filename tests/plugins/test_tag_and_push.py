@@ -111,7 +111,7 @@ def test_tag_and_push_plugin(
         flexmock(docker.APIClient, push=lambda iid, **kwargs: iter(logs),
                  login=lambda username, registry, dockercfg_path: {'Status': 'Login Succeeded'})
 
-    tasker = DockerTasker()
+    tasker = DockerTasker(retry_times=0)
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
     workflow.tag_conf.add_primary_image(image_name)
     setattr(workflow, 'builder', X)
