@@ -94,6 +94,10 @@ def mock_workflow(tmpdir):
     df = df_parser(df_path)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
 
+    build = '{"spec": {"strategy": {"customStrategy": {"from": \
+            {"name": "some_image:latest", "kind": "DockerImage"}}}}}'
+    flexmock(os, environ={'BUILD': build})
+
     return workflow
 
 
@@ -235,12 +239,11 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs, worker_build_image, lo
         'conf_section': 'worker_x86_64',
         'conf_file': tmpdir + '/osbs.conf',
     }
-    if worker_build_image:
-        expected_kwargs['build_image'] = worker_build_image
     # Update with config_kwargs last to ensure that, when set
     # always has precedence over worker_build_image param.
     if config_kwargs is not None:
         expected_kwargs.update(config_kwargs)
+    expected_kwargs['build_image'] = 'some_image:latest'
 
     (flexmock(Configuration).should_call('__init__').with_args(**expected_kwargs).once())
 
@@ -994,3 +997,66 @@ def test_orchestrate_override_build_kwarg(tmpdir):
 
     build_result = runner.run()
     assert not build_result.is_failed()
+
+
+@pytest.mark.parametrize(('build', 'exc'), [
+    ('{"spec": {"strategy": {"customStrategy": {"from": \
+     {"name": "osbs-buildroot:latest", "kind": "DockerImage"}}}}}',
+     None),
+    ('{"spec": {"strategy": {"customStrategy": {"from": {"name": "osbs-buildroot:latest"}}}}}',
+     'RuntimeError'),
+    ('{"spec": {"strategy": {"customStrategy": {"from": \
+     {"name": "osbs-buildroot:latest", "kind": "ImageStreamTag"}}}}}',
+     'RuntimeError'),
+    ('{"spec": {"strategy": {"customStrategy": {"from": \
+     {"name": "osbs-buildroot:latest", "kind": "wrong_kind"}}}}}',
+     'RuntimeError'),
+    ('{"spec": {}}',
+     'RuntimeError'),
+    ('{"spec": {"strategy": {}}}',
+     'RuntimeError'),
+    ('{"spec": {"strategy": {"customStrategy": {}}}}',
+     'RuntimeError'),
+    ('{"spec": {"strategy": {"customStrategy": {"from": {}}}}}',
+     'RuntimeError'),
+])
+def test_set_build_image(tmpdir, build, exc):
+    workflow = mock_workflow(tmpdir)
+    flexmock(os, environ={'BUILD': build})
+    expected_kwargs = {
+        'git_uri': SOURCE['uri'],
+        'git_ref': 'master',
+        'git_branch': 'master',
+        'user': 'bacon',
+        'is_auto': False,
+        'platform': 'x86_64',
+        'release': '4242',
+        'arrangement_version': 1
+    }
+    mock_osbs(worker_expect=expected_kwargs)
+    mock_reactor_config(tmpdir)
+
+    plugin_args = {
+        'platforms': ['x86_64'],
+        'build_kwargs': make_worker_build_kwargs(),
+        'worker_build_image': 'osbs-buildroot:latest',
+        'osbs_client_config': str(tmpdir),
+    }
+
+    runner = BuildStepPluginsRunner(
+        workflow.builder.tasker,
+        workflow,
+        [{
+            'name': OrchestrateBuildPlugin.key,
+            'args': plugin_args,
+        }]
+    )
+
+    if not exc:
+        runner.run()
+    else:
+        exc_str = "raised an exception: %s" % exc
+
+        with pytest.raises(PluginFailedException) as ex:
+            runner.run()
+        assert exc_str in str(ex)
