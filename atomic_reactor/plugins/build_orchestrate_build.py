@@ -27,7 +27,7 @@ from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import BuildStepPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_config
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
-from atomic_reactor.util import get_preferred_label, df_parser
+from atomic_reactor.util import get_preferred_label, df_parser, get_build_json
 from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
@@ -252,7 +252,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         :param build_kwargs: dict, keyword arguments for starting worker builds
         :param osbs_client_config: str, path to directory containing osbs.conf
         :param worker_build_image: str, the builder image to use for worker builds
-                                  (deprecated, use config_kwargs instead)
+                                  (not used, image is inherited from the orchestrator)
         :param config_kwargs: dict, keyword arguments to override worker configuration
         :param find_cluster_retry_delay: the delay in seconds to try again reaching a cluster
         :param failure_retry_delay: the delay in seconds to try again starting a build
@@ -272,8 +272,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         self.release = self.get_release()
 
         if worker_build_image:
-            self.log.warning('worker_build_image is deprecated, use config_kwargs instead')
-            self.config_kwargs.setdefault('build_image', worker_build_image)
+            self.log.warning('worker_build_image is deprecated')
 
         self.worker_builds = []
 
@@ -512,7 +511,24 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
                     ctx.try_again_later(self.failure_retry_delay)
                     # this will put the cluster in retry-wait when get_clusters runs
 
+    def set_build_image(self):
+        """
+        Overrides build_image for worker, to be same as in orchestrator build
+        """
+        spec = get_build_json().get("spec")
+        try:
+            build_name = spec['strategy']['customStrategy']['from']['name']
+            build_kind = spec['strategy']['customStrategy']['from']['kind']
+        except KeyError:
+            raise RuntimeError("Build object is malformed, failed to fetch buildroot image")
+
+        if build_kind == 'DockerImage':
+            self.config_kwargs['build_image'] = build_name
+        else:
+            raise RuntimeError("Build kind isn't 'DockerImage' but %s" % build_kind)
+
     def run(self):
+        self.set_build_image()
         platforms = self.get_platforms()
 
         thread_pool = ThreadPool(len(platforms))
