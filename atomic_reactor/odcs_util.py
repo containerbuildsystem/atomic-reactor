@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 class ODCSClient(object):
 
-    OIDC_TOKEN_HEADER = 'OIDC_access_token'
-    OIDC_CLAIM_SCOPE_HEADER = 'OIDC_CLAIM_scope'
+    OIDC_TOKEN_HEADER = 'Authorization'
+    OIDC_TOKEN_TYPE = 'Bearer'
 
     def __init__(self, url, insecure=False, token=None):
         if url.endswith('/'):
@@ -33,15 +33,8 @@ class ODCSClient(object):
     def _auth_headers(self):
         headers = {}
         if self.token:
-            headers[self.OIDC_TOKEN_HEADER] = self.token
-            headers[self.OIDC_CLAIM_SCOPE_HEADER] = (
-                'openid https://id.fedoraproject.org/scope/groups '
-                'https://pagure.io/odcs/new-compose '
-                'https://pagure.io/odcs/renew-compose '
-                'https://pagure.io/odcs/delete-compose')
-            # FIXME: passing the claim scope in the request doesn't make any sense,
-            #   because we're not to be trusted for what scopes we've claimed, but
-            #   match what the server wants.
+            headers[self.OIDC_TOKEN_HEADER] = '%s %s' % (self.OIDC_TOKEN_TYPE,
+                                                         self.token)
 
         return headers
 
