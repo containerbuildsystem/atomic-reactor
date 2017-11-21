@@ -115,7 +115,7 @@ def test_resolve_module_compose(tmpdir, docker_tasker, specify_version):
     mock_get_retry_session()
 
     def handle_composes_post(request):
-        assert request.headers['OIDC_access_token'] == 'green_eggs_and_ham'
+        assert request.headers['Authorization'] == 'Bearer green_eggs_and_ham'
 
         if isinstance(request.body, six.text_type):
             body = request.body
@@ -136,7 +136,7 @@ def test_resolve_module_compose(tmpdir, docker_tasker, specify_version):
     state = {'count': 1}
 
     def handle_composes_get(request):
-        assert request.headers['OIDC_access_token'] == 'green_eggs_and_ham'
+        assert request.headers['Authorization'] == 'Bearer green_eggs_and_ham'
 
         if state['count'] == 1:
             response_json = compose_json(1, 'generating')

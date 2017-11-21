@@ -60,7 +60,7 @@ def test_create_compose(tmpdir, source, source_type, packages, sigkeys):
     mock_get_retry_session()
 
     def handle_composes_post(request):
-        assert request.headers[ODCSClient.OIDC_TOKEN_HEADER] == odcs_token
+        assert request.headers[ODCSClient.OIDC_TOKEN_HEADER] == 'Bearer %s' % odcs_token
 
         if isinstance(request.body, six.text_type):
             body = request.body
@@ -97,7 +97,7 @@ def test_wait_for_compose(tmpdir, final_state_id, final_state_name, expect_exc):
     state = {'count': 1}
 
     def handle_composes_get(request):
-        assert request.headers['OIDC_access_token'] == 'green_eggs_and_ham'
+        assert request.headers['Authorization'] == 'Bearer green_eggs_and_ham'
 
         if state['count'] == 1:
             response_json = compose_json(1, 'generating')
@@ -131,7 +131,7 @@ def test_renew_compose(tmpdir):
     new_compose_id = COMPOSE_ID + 1
 
     def handle_composes_patch(request):
-        assert request.headers[ODCSClient.OIDC_TOKEN_HEADER] == odcs_token
+        assert request.headers[ODCSClient.OIDC_TOKEN_HEADER] == 'Bearer %s' % odcs_token
         return (200, {}, compose_json(0, 'generating', compose_id=new_compose_id))
 
     responses.add_callback(responses.PATCH, '{}composes/{}'.format(ODCS_URL, COMPOSE_ID),
