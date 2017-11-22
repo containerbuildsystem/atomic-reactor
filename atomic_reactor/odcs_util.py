@@ -20,23 +20,26 @@ class ODCSClient(object):
     OIDC_TOKEN_HEADER = 'Authorization'
     OIDC_TOKEN_TYPE = 'Bearer'
 
-    def __init__(self, url, insecure=False, token=None):
+    def __init__(self, url, insecure=False, token=None, cert=None):
         if url.endswith('/'):
             self.url = url
         else:
             self.url = url + '/'
-        self.insecure = insecure
-        self.token = token
+        self._setup_session(insecure=insecure, token=token, cert=cert)
+
+    def _setup_session(self, insecure, token, cert):
         # method_whitelist=False allows retrying non-idempotent methods like POST
-        self.session = get_retrying_requests_session(method_whitelist=False)
+        session = get_retrying_requests_session(method_whitelist=False)
 
-    def _auth_headers(self):
-        headers = {}
-        if self.token:
-            headers[self.OIDC_TOKEN_HEADER] = '%s %s' % (self.OIDC_TOKEN_TYPE,
-                                                         self.token)
+        session.verify = not insecure
 
-        return headers
+        if token:
+            session.headers[self.OIDC_TOKEN_HEADER] = '%s %s' % (self.OIDC_TOKEN_TYPE, token)
+
+        if cert:
+            session.cert = cert
+
+        self.session = session
 
     def start_compose(self, source_type, source, packages=None, sigkeys=None):
         """Start a new ODCS compose
@@ -70,8 +73,7 @@ class ODCSClient(object):
         logger.info("Starting compose for source_type={source_type}, source={source}"
                     .format(source_type=source_type, source=source))
         response = self.session.post('{}composes/'.format(self.url),
-                                     json=body,
-                                     headers=self._auth_headers())
+                                     json=body)
         response.raise_for_status()
 
         return response.json()
@@ -88,8 +90,7 @@ class ODCSClient(object):
         :return: dict, status of compose being renewed.
         """
         logger.info("Renewing compose %d", compose_id)
-        response = self.session.patch('{}composes/{}'.format(self.url, compose_id),
-                                      headers=self._auth_headers())
+        response = self.session.patch('{}composes/{}'.format(self.url, compose_id))
         response.raise_for_status()
         response_json = response.json()
         compose_id = response_json['id']
@@ -117,10 +118,9 @@ class ODCSClient(object):
         logger.debug("Getting compose information for information for compose_id={}"
                      .format(compose_id))
         url = '{}composes/{}'.format(self.url, compose_id)
-        headers = self._auth_headers()
         start_time = time.time()
         while True:
-            response = self.session.get(url, headers=headers)
+            response = self.session.get(url)
             response.raise_for_status()
             response_json = response.json()
 
