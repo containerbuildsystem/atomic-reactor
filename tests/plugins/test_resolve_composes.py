@@ -201,6 +201,44 @@ class TestResolveComposes(object):
         self.run_plugin_with_args(workflow, plugin_args,
                                   expect_error='cannot be used at the same time')
 
+    @pytest.mark.parametrize(('plugin_args', 'expected_kwargs'), (
+        ({
+            'odcs_insecure': True,
+        }, {'insecure': True}),
+
+        ({
+            'odcs_insecure': False,
+        }, {'insecure': False}),
+
+        ({
+            'odcs_openidc_secret_path': True,
+        }, {'token': 'the-token', 'insecure': False}),
+
+        ({
+            'odcs_ssl_secret_path': True,
+        }, {'cert': '<tbd-cert-path>', 'insecure': False}),
+
+        ({
+            'odcs_ssl_secret_path': 'non-existent-path',
+        }, {'insecure': False}),
+
+    ))
+    def test_odcs_session_creation(self, workflow, plugin_args, expected_kwargs):
+        if plugin_args.get('odcs_openidc_secret_path') is True:
+            workflow._tmpdir.join('token').write('the-token')
+            plugin_args['odcs_openidc_secret_path'] = str(workflow._tmpdir)
+
+        if plugin_args.get('odcs_ssl_secret_path') is True:
+            workflow._tmpdir.join('cert').write('the-cert')
+            plugin_args['odcs_ssl_secret_path'] = str(workflow._tmpdir)
+            expected_kwargs['cert'] = str(workflow._tmpdir.join('cert'))
+
+        (flexmock(ODCSClient)
+            .should_receive('__init__')
+            .with_args(ODCS_URL, **expected_kwargs))
+
+        self.run_plugin_with_args(workflow, plugin_args)
+
     @pytest.mark.parametrize(('plugin_args', 'ssl_login'), (
         ({
             'koji_target': KOJI_TARGET_NAME,

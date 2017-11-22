@@ -46,6 +46,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
                  odcs_url,
                  odcs_insecure=False,
                  odcs_openidc_secret_path=None,
+                 odcs_ssl_secret_path=None,
                  koji_target=None,
                  koji_hub=None,
                  koji_ssl_certs_dir=None,
@@ -59,6 +60,8 @@ class ResolveComposesPlugin(PreBuildPlugin):
         :param odcs_url: URL of ODCS (On Demand Compose Service)
         :param odcs_insecure: If True, don't check SSL certificates for `odcs_url`
         :param odcs_openidc_secret_path: directory to look in for a `token` file
+        :param odcs_ssl_secret_path: directory to look in for `cert` file - a PEM file
+                                     containing both cert and key
         :param koji_target: str, contains build tag to be used when requesting compose from "tag"
         :param koji_hub: str, koji hub (xmlrpc), required if koji_target is used
         :param koji_ssl_certs_dir: str, path to "cert", and "serverca"
@@ -81,6 +84,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self.odcs_url = odcs_url
         self.odcs_insecure = odcs_insecure
         self.odcs_openidc_secret_path = odcs_openidc_secret_path
+        self.odcs_ssl_secret_path = odcs_ssl_secret_path
         self.koji_target = koji_target
         self.koji_hub = koji_hub
         self.koji_ssl_certs_dir = koji_ssl_certs_dir
@@ -258,15 +262,18 @@ class ResolveComposesPlugin(PreBuildPlugin):
     @property
     def odcs_client(self):
         if not self._odcs_client:
+            client_kwargs = {'insecure': self.odcs_insecure}
             if self.odcs_openidc_secret_path:
                 token_path = os.path.join(self.odcs_openidc_secret_path, 'token')
                 with open(token_path, "r") as f:
-                    odcs_token = f.read().strip()
-            else:
-                odcs_token = None
+                    client_kwargs['token'] = f.read().strip()
 
-            self._odcs_client = ODCSClient(self.odcs_url, insecure=self.odcs_insecure,
-                                           token=odcs_token)
+            if self.odcs_ssl_secret_path:
+                cert_path = os.path.join(self.odcs_ssl_secret_path, 'cert')
+                if os.path.exists(cert_path):
+                    client_kwargs['cert'] = cert_path
+
+            self._odcs_client = ODCSClient(self.odcs_url, **client_kwargs)
 
         return self._odcs_client
 
