@@ -50,6 +50,10 @@ Data which is placed here includes:
 - `build.extra.image.flatpak` (boolean): true if this image is a Flatpak
 - `build.extra.image.modules` (boolean): the [modules](https://docs.pagure.org/modularity/) that provide the packages for this image, resolved to `NAME-STREAM-VERSION`. This will include the resolved versions of the modules in `source_modules`, and the dependencies of those modules. (Currently only for Flatpaks)
 - `build.extra.image.source_modules` (boolean): the modules that were specified as input to the build process. (Currently only for Flatpaks)
+- `build.extra.image.odcs` (map): information about ODCS
+- `build.extra.image.odcs.compose_ids` (int list): List of each ODCS compose used
+- `build.extra.image.odcs.signing_intent` (str): Final signing intent of the ODCS composes after adjusting for CLI parameter
+- `build.extra.image.odcs.signing_intent.overridden` (boolean): Whether or not the signing intent used is different than the one defined in container.yaml
 - `build.extra.submitter` (string): username that submitted the build via content generator API
 - `build.owner` (string or null): username that started the task
 

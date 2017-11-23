@@ -40,7 +40,8 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_PULP_SYNC_KEY,
                                       PLUGIN_FETCH_WORKER_METADATA_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY,
-                                      PLUGIN_KOJI_PARENT_KEY)
+                                      PLUGIN_KOJI_PARENT_KEY,
+                                      PLUGIN_RESOLVE_COMPOSES_KEY)
 from atomic_reactor.util import (get_build_json, get_preferred_label,
                                  df_parser, ImageName, get_checksums, get_primary_images,
                                  get_manifest_media_type,
@@ -427,6 +428,14 @@ class KojiImportPlugin(ExitPlugin):
         else:
             koji_task_owner = None
         extra['submitter'] = self.session.getLoggedInUser()['name']
+
+        resolve_comp_result = self.workflow.prebuild_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
+        if resolve_comp_result:
+            extra['image']['odcs'] = {
+                'compose_ids': [item['id'] for item in resolve_comp_result['composes']],
+                'signing_intent': resolve_comp_result['signing_intent'],
+                'signing_intent_overridden': resolve_comp_result['signing_intent_overridden'],
+            }
 
         self.set_help(extra, worker_metadatas)
         self.set_media_types(extra, worker_metadatas)

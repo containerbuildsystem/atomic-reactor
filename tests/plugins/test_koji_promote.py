@@ -29,7 +29,7 @@ except ImportError:
 
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
                                       PLUGIN_PULP_SYNC_KEY, PLUGIN_PULP_PULL_KEY,
-                                      PLUGIN_KOJI_PARENT_KEY)
+                                      PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY)
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.exit_koji_promote import (KojiUploadLogger,
                                                       KojiPromotePlugin)
@@ -1564,3 +1564,87 @@ class TestKojiPromote(object):
 
         assert 'parent_build_id' not in image.keys()
         assert PLUGIN_KOJI_PARENT_KEY not in workflow.prebuild_results
+
+    @pytest.mark.parametrize(('comp', 'sign_int', 'override'), [
+        ([{'id': 1}, {'id': 2}, {'id': 3}], "beta", True),
+        ([{'id': 2}, {'id': 3}, {'id': 4}], "release", True),
+        ([{'id': 3}, {'id': 4}, {'id': 5}], "beta", False),
+        ([{'id': 4}, {'id': 5}, {'id': 6}], "release", False),
+        (None, None, None)
+    ])
+    def test_odcs_metadata_koji(self, tmpdir, os_env, comp, sign_int, override):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            session=session)
+
+        resolve_comp_entry = False
+        if comp is not None and sign_int is not None and override is not None:
+            resolve_comp_entry = True
+
+            workflow.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {
+                'composes': comp,
+                'signing_intent': sign_int,
+                'signing_intent_overridden': override,
+            }
+        else:
+            workflow.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = None
+
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
+        assert 'image' in extra
+        image = extra['image']
+        assert isinstance(image, dict)
+
+        if resolve_comp_entry:
+            comp_ids = [item['id'] for item in comp]
+
+            assert 'odcs' in image
+            odcs = image['odcs']
+            assert isinstance(odcs, dict)
+            assert odcs['compose_ids'] == comp_ids
+            assert odcs['signing_intent'] == sign_int
+            assert odcs['signing_intent_overridden'] == override
+
+        else:
+            assert 'odcs' not in image
+
+    @pytest.mark.parametrize('resolve_run', [
+        True,
+        False,
+    ])
+    def test_odcs_metadata_koji_plugin_run(self, tmpdir, os_env, resolve_run):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            session=session)
+
+        if resolve_run:
+            workflow.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = None
+
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
+        assert 'image' in extra
+        image = extra['image']
+        assert isinstance(image, dict)
+        assert 'odcs' not in image
