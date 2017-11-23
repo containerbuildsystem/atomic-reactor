@@ -43,7 +43,8 @@ except ImportError:
 from atomic_reactor.constants import (PROG, PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_TAG_BUILD_KEY,
                                       PLUGIN_PULP_PULL_KEY,
-                                      PLUGIN_KOJI_PARENT_KEY)
+                                      PLUGIN_KOJI_PARENT_KEY,
+                                      PLUGIN_RESOLVE_COMPOSES_KEY)
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json, get_preferred_label,
                                  get_docker_architecture, df_parser,
@@ -548,6 +549,14 @@ class KojiPromotePlugin(ExitPlugin):
         flatpak_source_info = get_flatpak_source_info(self.workflow)
         if flatpak_source_info is not None:
             extra['image'].update(flatpak_source_info.koji_metadata())
+
+        resolve_comp_result = self.workflow.prebuild_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
+        if resolve_comp_result:
+            extra['image']['odcs'] = {
+                'compose_ids': [item['id'] for item in resolve_comp_result['composes']],
+                'signing_intent': resolve_comp_result['signing_intent'],
+                'signing_intent_overridden': resolve_comp_result['signing_intent_overridden'],
+            }
 
         build = {
             'name': component,

@@ -7,7 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 from __future__ import unicode_literals
 
-from atomic_reactor.constants import PLUGIN_KOJI_PARENT_KEY
+from atomic_reactor.constants import PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY
 from atomic_reactor.odcs_util import ODCSClient
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
@@ -37,7 +37,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
     and request ODCS to create a corresponding yum repository.
     """
 
-    key = 'resolve_composes'
+    key = PLUGIN_RESOLVE_COMPOSES_KEY
     is_allowed_to_fail = False
 
     REPO_CONFIG = 'container.yaml'
