@@ -201,7 +201,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         except AttributeError:
             commit_id = ""
 
-        base_image = self.workflow.builder.base_image
+        base_image = self.workflow.builder.original_base_image
         if base_image is not None:
             base_image_name = base_image.to_str()
             try:

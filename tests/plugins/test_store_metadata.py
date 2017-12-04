@@ -53,6 +53,7 @@ class X(object):
     source.dockerfile_path = None
     source.path = None
     base_image = ImageName(repo="qwe", tag="asd")
+    original_base_image = base_image.copy()
     # image = ImageName.parse("test-image:unique_tag_123")
 
 
@@ -62,6 +63,7 @@ class XBeforeDockerfile(object):
     source.dockerfile_path = None
     source.path = None
     base_image = None
+    original_base_image = None
 
     @property
     def df_path(self):
@@ -247,6 +249,7 @@ CMD blabla"""
     assert "base-image-id" in annotations
     assert is_string_type(annotations['base-image-id'])
     assert "base-image-name" in annotations
+    assert annotations["base-image-name"] == workflow.builder.original_base_image.to_str()
     assert is_string_type(annotations['base-image-name'])
     assert "image-id" in annotations
     assert is_string_type(annotations['image-id'])
