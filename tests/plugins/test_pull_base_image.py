@@ -105,7 +105,8 @@ def set_build_json(monkeypatch):
      # expected:
      [LOCALHOST_REGISTRY + "/library/library-only:latest"],
      # not expected:
-     [LOCALHOST_REGISTRY + "/library-only:latest"]),
+     ["library-only:latest",
+      LOCALHOST_REGISTRY + "/library-only:latest"]),
 ])
 def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected):
     if MOCK:
@@ -118,7 +119,6 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
 
     expected = set(expected)
     expected.add(UNIQUE_ID)
-    expected.add(df_base)
     all_images = set(expected).union(not_expected)
     for image in all_images:
         assert not tasker.image_exists(image)
@@ -179,7 +179,6 @@ def test_retry_pull_base_image(exc, failures, should_succeed):
         expectation = expectation.and_raise(exc('', MockResponse()))
 
     expectation.and_return('foo')
-    expectation.and_return('parent-image')
 
     runner = PreBuildPluginsRunner(
         tasker,
