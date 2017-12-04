@@ -91,13 +91,13 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
         # Use the OpenShift build name as the unique ID
         unique_id = get_build_json()['metadata']['name']
-        buildid_base_image = ImageName(repo=unique_id)
+        base_image = ImageName(repo=unique_id)
 
         for _ in range(20):
             try:
                 self.log.info("tagging pulled image")
                 response = self.tasker.tag_image(base_image_with_registry,
-                                                 buildid_base_image)
+                                                 base_image)
                 self.workflow.pulled_base_images.add(response)
                 break
             except docker.errors.NotFound:
