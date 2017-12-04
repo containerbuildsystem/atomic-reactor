@@ -91,6 +91,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
         # Use the OpenShift build name as the unique ID
         unique_id = get_build_json()['metadata']['name']
+        original_base_image = base_image.copy()
         base_image = ImageName(repo=unique_id)
 
         for _ in range(20):
@@ -113,4 +114,5 @@ class PullBaseImagePlugin(PreBuildPlugin):
             raise RuntimeError("too many attempts to pull and tag image")
 
         self.workflow.builder.set_base_image(base_image.to_str())
+        self.workflow.builder.original_base_image = ImageName.parse(original_base_image.to_str())
         self.log.debug("image '%s' is available", pulled_base)
