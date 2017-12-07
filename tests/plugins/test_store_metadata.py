@@ -63,7 +63,6 @@ class XBeforeDockerfile(object):
     source.dockerfile_path = None
     source.path = None
     base_image = None
-    original_base_image = None
 
     @property
     def df_path(self):
