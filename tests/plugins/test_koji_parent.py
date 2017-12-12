@@ -55,6 +55,14 @@ BASE_IMAGE_LABELS = {
     'release': '99',
 }
 
+BASE_IMAGE_LABELS_W_ALIASES = {
+    'com.redhat.component': 'base-image',
+    'BZComponent': 'base-image',
+    'version': '1.0',
+    'Version': '1.0',
+    'release': '99',
+    'Release': '99',
+}
 
 class MockInsideBuilder(object):
     def __init__(self):
@@ -145,10 +153,22 @@ class TestKojiParent(object):
         assert 'KeyError' in str(exc_info.value)
         assert 'Config' in str(exc_info.value)
 
-    @pytest.mark.parametrize('remove_label', ('com.redhat.component', 'version', 'release'))
-    def test_base_image_missing_labels(self, workflow, koji_session, remove_label):
-        del workflow.base_image_inspect[INSPECT_CONFIG]['Labels'][remove_label]
-        self.run_plugin_with_args(workflow, expect_result=False)
+    @pytest.mark.parametrize(('remove_labels', 'exp_result'), [
+        (['com.redhat.component'], True),
+        (['BZComponent'], True),
+        (['com.redhat.component', 'BZComponent'], False),
+        (['version'], True),
+        (['Version'], True),
+        (['version', 'Version'], False),
+        (['release'], True),
+        (['Release'], True),
+        (['release', 'Release'], False),
+    ])
+    def test_base_image_missing_labels(self, workflow, koji_session, remove_labels, exp_result):
+        workflow.base_image_inspect[INSPECT_CONFIG]['Labels'] = BASE_IMAGE_LABELS_W_ALIASES.copy()
+        for label in remove_labels:
+            del workflow.base_image_inspect[INSPECT_CONFIG]['Labels'][label]
+        self.run_plugin_with_args(workflow, expect_result=exp_result)
 
     def run_plugin_with_args(self, workflow, plugin_args=None, expect_result=True):
         plugin_args = plugin_args or {}
