@@ -14,7 +14,7 @@ fi
 CONTAINER_NAME="atomic-reactor-$OS-$OS_VERSION-py$PYTHON_VERSION"
 RUN="docker exec -ti $CONTAINER_NAME"
 if [[ $OS == "fedora" ]]; then
-  if [[ $OS_VERSION == 25 && $PYTHON_VERSION == 2 ]]; then PIP_PKG="python-pip"; else PIP_PKG="python$PYTHON_VERSION-pip"; fi
+  PIP_PKG="python$PYTHON_VERSION-pip"
   PIP="pip$PYTHON_VERSION"
   PKG="dnf"
   PKG_EXTRA="dnf-plugins-core desktop-file-utils flatpak ostree"
