@@ -11,6 +11,7 @@ from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.koji_util import create_koji_session
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import PLUGIN_KOJI_PARENT_KEY
+from osbs.utils import Labels
 
 import time
 
@@ -74,18 +75,26 @@ class KojiParentPlugin(PreBuildPlugin):
 
     def detect_parent_image_nvr(self):
         config = self.workflow.base_image_inspect[INSPECT_CONFIG]
-        labels = config['Labels'] or {}
+        labels = Labels(config['Labels'] or {})
 
-        label_names = 'com.redhat.component', 'version', 'release'
-        for label_name in label_names:
-            if label_name not in labels:
-                self._parent_image_nvr = None
-                self.log.info("Failed to find label '%s' in parent image. "
-                              "Not waiting for Koji build.", label_name)
-                return False
+        label_names = [Labels.LABEL_TYPE_COMPONENT, Labels.LABEL_TYPE_VERSION,
+                       Labels.LABEL_TYPE_RELEASE]
+        label_values = []
 
-        self._parent_image_nvr = '-'.join(
-            labels[label_name] for label_name in label_names)
+        for lbl_name in label_names:
+            try:
+                _, lbl_value = labels.get_name_and_value(lbl_name)
+                label_values.append(lbl_value)
+            except KeyError:
+                self.log.info("Failed to find label '%s' in parent image.",
+                              labels.get_name(lbl_name))
+
+        if len(label_values) != len(label_names):
+            self._parent_image_nvr = None
+            self.log.info("Not waiting for Koji build.")
+            return False
+
+        self._parent_image_nvr = '-'.join(label_values)
         return True
 
     def wait_for_parent_image_build(self):
