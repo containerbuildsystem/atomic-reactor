@@ -690,7 +690,7 @@ class Exit(ExitPlugin):
                             'watcher': Watcher(),
                         }
                         }]},
-     False,  # not fatal
+     True,  # is fatal
      True,   # logs error
      ),
 
