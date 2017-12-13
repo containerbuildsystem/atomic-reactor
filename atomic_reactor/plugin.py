@@ -204,7 +204,6 @@ class PluginsRunner(object):
                 logger.error(msg)
                 if keep_going:
                     continue
-
                 raise exc
 
             plugin_conf = plugin_request.get("args", {})
@@ -214,12 +213,9 @@ class PluginsRunner(object):
                 if plugin_request.get('required', True):
                     msg = ("no such plugin: '%s', did you set "
                            "the correct plugin type?") % plugin_name
-                    exc = None if keep_going else PluginFailedException(msg)
+                    exc = PluginFailedException(msg)
                     self.on_plugin_failed(plugin_name, exc)
                     logger.error(msg)
-                    if keep_going:
-                        continue
-
                     raise exc
                 else:
                     # This plugin is marked as not being required
