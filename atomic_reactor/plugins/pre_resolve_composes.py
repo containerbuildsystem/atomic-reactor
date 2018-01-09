@@ -295,6 +295,7 @@ class ComposeConfig(object):
     def __init__(self, data, odcs_config, koji_tag=None):
         data = data or {}
         self.packages = data.get('packages', [])
+        self.modules = data.get('modules', [])
         self.koji_tag = koji_tag
         self.odcs_config = odcs_config
 
@@ -311,20 +312,36 @@ class ComposeConfig(object):
     def render_request(self):
         self.validate_for_request()
 
-        # For now, only 'tag' source type is supported.
-        request = {
+        request = None
+        if self.packages:
+            request = self.render_packages_request()
+        else:
+            request = self.render_modules_request()
+
+        return request
+
+    def render_packages_request(self):
+        return {
             'source_type': 'tag',
             'source': self.koji_tag,
             'packages': self.packages,
             'sigkeys': self.signing_intent['keys']
         }
 
-        return request
+    def render_modules_request(self):
+        return {
+            'source_type': 'module',
+            'source': ' '.join(self.modules),
+            'sigkeys': self.signing_intent['keys']
+        }
 
     def validate_for_request(self):
         """Verify enough information is available for requesting compose."""
-        if not self.packages:
-            raise ValueError('List of packages cannot be empty.')
+        if not self.packages and not self.modules:
+            raise ValueError('List of packages or modules cannot be empty')
+
+        if self.packages and self.modules:
+            raise ValueError('Compose config cannot contain both packages and modules')
 
         if self.packages and not self.koji_tag:
             raise ValueError('koji_tag is required when packages are used')
