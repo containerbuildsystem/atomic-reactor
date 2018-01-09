@@ -101,7 +101,7 @@ class ODCSClient(object):
                          burst_retry=1,
                          burst_length=30,
                          slow_retry=10,
-                         timeout=300):
+                         timeout=1800):
         """Wait for compose request to finalize
 
         :param compose_id: int, compose ID to wait for
