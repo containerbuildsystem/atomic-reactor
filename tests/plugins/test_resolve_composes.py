@@ -196,6 +196,26 @@ class TestResolveComposes(object):
     def test_request_compose(self, workflow):
         self.run_plugin_with_args(workflow)
 
+    def test_request_compose_for_modules(self, workflow):
+        repo_config = dedent("""\
+            compose:
+                modules:
+                - spam
+                - bacon
+                - eggs
+            """)
+        mock_repo_config(workflow._tmpdir, repo_config)
+
+        (flexmock(ODCSClient)
+            .should_receive('start_compose')
+            .with_args(
+                source_type='module',
+                source='spam bacon eggs',
+                sigkeys=['R123'])
+            .and_return(ODCS_COMPOSE))
+
+        self.run_plugin_with_args(workflow)
+
     def test_signing_intent_and_compose_ids_mutex(self, workflow):
         plugin_args = {'compose_ids': [1, 2], 'signing_intent': 'unsigned'}
         self.run_plugin_with_args(workflow, plugin_args,
@@ -401,12 +421,28 @@ class TestResolveComposes(object):
         assert plugin_result['signing_intent'] == expected_intent
         assert plugin_result['composes'] == composes
 
-    def test_invalid_compose_request(self, workflow):
-        mock_repo_config(workflow._tmpdir, dedent("""\
+    @pytest.mark.parametrize(('config', 'error_message'), (
+        (dedent("""\
             compose:
                 packages: []
-            """))
-        self.run_plugin_with_args(workflow, expect_error='packages cannot be empty')
+            """), 'cannot be empty'),
+
+        (dedent("""\
+            compose:
+                modules: []
+            """), 'cannot be empty'),
+
+        (dedent("""\
+            compose:
+                packages:
+                - pkg1
+                modules:
+                - module1
+            """), 'cannot contain both'),
+    ))
+    def test_invalid_compose_request(self, workflow, config, error_message):
+        mock_repo_config(workflow._tmpdir, config)
+        self.run_plugin_with_args(workflow, expect_error=error_message)
 
     @pytest.mark.parametrize(('state_name', 'time_to_expire_delta', 'expect_renew'), (
         ('removed', timedelta(), True),
