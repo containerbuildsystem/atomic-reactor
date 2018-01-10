@@ -10,12 +10,12 @@ from __future__ import unicode_literals
 
 import json
 import os
+import sys
 
 try:
     import koji
 except ImportError:
     import inspect
-    import sys
 
     # Find our mocked koji module
     import tests.koji as koji
@@ -197,8 +197,7 @@ def mock_environment(tmpdir, session=None, name=None,
                      source=None, build_process_failed=False,
                      is_rebuild=True, docker_registry=True,
                      pulp_registries=0, pulp_supports_schema2=False,
-                     digest=None, digest_version=None,
-                     blocksize=None,
+                     registry_digests=None, blocksize=None,
                      task_states=None, additional_tags=None,
                      has_config=None,
                      logs_return_bytes=True):
@@ -267,13 +266,19 @@ def mock_environment(tmpdir, session=None, name=None,
         sync_result = {}
         for image in workflow.tag_conf.images:
             tag = image.to_str(registry=False)
-            digests = ManifestDigest(v1=fake_digest(image, 1),
-                                     v2=fake_digest(image, 2))
-            docker_reg.digests[tag] = digests
+            man_fake = ManifestDigest(v1=fake_digest(image, 1),
+                                      v2=fake_digest(image, 2))
+
+            if registry_digests:
+                man_digests = ManifestDigest(**registry_digests)
+            else:
+                man_digests = man_fake
+
+            docker_reg.digests[tag] = man_digests
             if pulp_registries:
-                sync_result[digests.v1] = {}
+                sync_result[man_fake.v1] = {}
                 if pulp_supports_schema2:
-                    sync_result[digests.v2] = {}
+                    sync_result[man_digests.v2] = {}
 
             if has_config:
                 docker_reg.config = {
@@ -293,11 +298,6 @@ def mock_environment(tmpdir, session=None, name=None,
                                                        'type': IMAGE_TYPE_DOCKER_ARCHIVE}])
 
     annotations = {}
-    if digest and digest_version:
-        annotations['digests'] = json.dumps([{
-            'digest': digest,
-            'version': digest_version
-        }])
 
     if build_process_failed:
         workflow.build_result = BuildResult(logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
@@ -755,7 +755,7 @@ class TestKojiPromote(object):
         assert is_string_type(osbs['builder_image_id'])
 
     def validate_output(self, output, metadata_only, has_config,
-                        expect_digest, expected_digest, expected_digest_version):
+                        expect_digest, expected_digests, docker_registry):
         if metadata_only:
             mdonly = set()
         else:
@@ -837,6 +837,8 @@ class TestKojiPromote(object):
             ])
             if has_config:
                 expected_keys_set.add('config')
+            if not docker_registry:
+                expected_keys_set.remove('digests')
             assert set(docker.keys()) == expected_keys_set
 
             assert is_string_type(docker['parent_id'])
@@ -885,10 +887,12 @@ class TestKojiPromote(object):
                 assert 'container_config' not in [x.lower() for x in config.keys()]
                 assert all(is_string_type(entry) for entry in config)
 
-            expected_digest_dict = {
-                get_manifest_media_type(expected_digest_version): expected_digest
-            }
-            assert docker['digests'] == expected_digest_dict
+            if docker_registry:
+                expected_digest_dict = {}
+                for version in expected_digests:
+                    med_type = get_manifest_media_type(version)
+                    expected_digest_dict[med_type] = expected_digests[version]
+                assert docker['digests'] == expected_digest_dict
 
     def test_koji_promote_import_fail(self, tmpdir, os_env, caplog):
         session = MockedClientSession('')
@@ -1034,8 +1038,7 @@ class TestKojiPromote(object):
                               'docker_registry',
                               'pulp_registries',
                               'pulp_supports_schema2',
-                              'digest',
-                              'digest_version',
+                              'registry_digests',
                               'metadata_only',
                               'blocksize',
                               'target'), [
@@ -1043,8 +1046,7 @@ class TestKojiPromote(object):
          False,
          1,
          False,
-         'sha256:1000000000000000000000000000000d',
-         'v1',
+         {'v1': 'sha256:1000000000000000000000000000001d'},
          False,
          None,
          'images-docker-candidate'),
@@ -1053,8 +1055,8 @@ class TestKojiPromote(object):
          True,
          2,
          False,
-         'sha256:1000000000000000000000000000000d',
-         'v2',
+         {'v1': 'sha256:1000000000000000000000000000001d',
+          'v2': 'sha256:2000000000000000000000000000001d'},
          False,
          10485760,
          None),
@@ -1063,8 +1065,7 @@ class TestKojiPromote(object):
          True,
          1,
          True,
-         'sha256:1000000000000000000000000000000d',
-         'v2',
+         {'v2': 'sha256:2000000000000000000000000000001d'},
          True,
          None,
          None),
@@ -1073,12 +1074,11 @@ class TestKojiPromote(object):
          True,
          0,
          False,
-         'sha256:1000000000000000000000000000000d',
-         'v2',
+         {'v1': 'sha256:1000000000000000000000000000001d',
+          'v2': 'sha256:2000000000000000000000000000001d'},
          False,
          10485760,
          None),
-
     ])
     @pytest.mark.parametrize(('has_config', 'is_autorebuild'), [
         (True,
@@ -1089,7 +1089,7 @@ class TestKojiPromote(object):
     @pytest.mark.parametrize('tag_later', (True, False))
     def test_koji_promote_success(self, tmpdir, apis, docker_registry,
                                   pulp_registries, pulp_supports_schema2,
-                                  digest, digest_version,
+                                  registry_digests,
                                   metadata_only, blocksize,
                                   target, os_env, has_config, is_autorebuild,
                                   tag_later):
@@ -1119,8 +1119,7 @@ class TestKojiPromote(object):
                                             docker_registry=docker_registry,
                                             pulp_registries=pulp_registries,
                                             pulp_supports_schema2=pulp_supports_schema2,
-                                            digest=digest,
-                                            digest_version=digest_version,
+                                            registry_digests=registry_digests,
                                             blocksize=blocksize,
                                             has_config=has_config)
         workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_autorebuild
@@ -1203,12 +1202,20 @@ class TestKojiPromote(object):
 
         if docker_registry:
             # v2 support
-            if PULP_SYNC_AVAILABLE and pulp_registries:
-                if pulp_supports_schema2:
-                    expect_digest = (1, 2)
+            if 'v1' in registry_digests and 'v2' in registry_digests:
+                if not pulp_registries:
+                    expect_digest = (2,)
                 else:
-                    expect_digest = (1,)
-            else:
+                    if pulp_supports_schema2:
+                        expect_digest = (1, 2)
+                    else:
+                        if sys.version_info.major > 2:
+                            expect_digest = (2,)
+                        else:
+                            expect_digest = (1,)
+            elif 'v1' in registry_digests:
+                expect_digest = (1,)
+            elif 'v2' in registry_digests:
                 expect_digest = (2,)
         else:
             # no v2 support
@@ -1217,8 +1224,7 @@ class TestKojiPromote(object):
         for output in output_files:
             self.validate_output(output, metadata_only, has_config,
                                  expect_digest=expect_digest,
-                                 expected_digest=digest,
-                                 expected_digest_version=digest_version)
+                                 expected_digests=registry_digests, docker_registry=docker_registry)
             buildroot_id = output['buildroot_id']
 
             # References one of the buildroots
@@ -1254,7 +1260,7 @@ class TestKojiPromote(object):
 
     @pytest.mark.parametrize(('primary', 'unique', 'invalid'), [
         (True, True, False),
-        (True, False, False),
+        (True, False, True),
         (False, True, False),
         (False, False, True),
     ])
