@@ -191,7 +191,7 @@ class DockerRegistry(Registry):
         :param insecure: bool
         """
         super(DockerRegistry, self).__init__(uri, insecure=insecure)
-        self.digests = {}  # maps tags (str) to their digest, if available
+        self.digests = {}  # maps a tag (str) to a ManifestDigest instance, if available
         self.config = None  # stores image config from the registry,
         # media type of the config is application/vnd.docker.container.image.v1+json
 

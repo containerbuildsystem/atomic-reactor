@@ -50,7 +50,7 @@ from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_docker_architecture, df_parser,
                                  are_plugins_in_order,
                                  get_image_upload_filename,
-                                 get_digests_map_from_annotations)
+                                 get_manifest_media_type)
 from atomic_reactor.koji_util import (create_koji_session, tag_koji_build,
                                       Output, KojiUploadLogger)
 from atomic_reactor.rpm_util import parse_rpm_output, rpm_qf_args
@@ -402,6 +402,21 @@ class KojiPromotePlugin(ExitPlugin):
 
         return output_images
 
+    def get_digests_with_types(self):
+        digests_with_types = {}
+        digests = {}
+        image = self.workflow.tag_conf.unique_images[0]
+        tag = image.to_str(registry=False)
+        for registry in self.workflow.push_conf.docker_registries:
+            if tag in registry.digests:
+                digests.update(registry.digests[tag])
+
+        for version in digests:
+            media_type = get_manifest_media_type(version)
+            digests_with_types[media_type] = digests[version]
+
+        return digests_with_types
+
     def get_output(self, buildroot_id):
         """
         Build the 'output' section of the metadata.
@@ -460,10 +475,10 @@ class KojiPromotePlugin(ExitPlugin):
                 },
             },
         })
-        annotations = self.workflow.build_result.annotations
-        if annotations and 'digests' in annotations:
-            digests = get_digests_map_from_annotations(annotations['digests'])
-            metadata['extra']['docker']['digests'] = digests
+
+        digests_with_types = self.get_digests_with_types()
+        if digests_with_types:
+            metadata['extra']['docker']['digests'] = digests_with_types
 
         if not config:
             del metadata['extra']['docker']['config']
