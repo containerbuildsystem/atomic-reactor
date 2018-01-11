@@ -57,13 +57,13 @@ class KojiTagBuildPlugin(ExitPlugin):
             raise RuntimeError('specify both koji_principal and koji_keytab '
                                'or neither')
 
-        self.kojihub = kojihub
+        self.kojihub = str(kojihub)
         self.koji_auth = {
-            "proxyuser": koji_proxy_user,
-            "ssl_certs_dir": koji_ssl_certs,
+            "proxyuser": str(koji_proxy_user) if koji_proxy_user else None,
+            "ssl_certs_dir": str(koji_ssl_certs) if koji_ssl_certs else None,
             # krbV python library throws an error if these are unicode
-            "krb_principal": str(koji_principal),
-            "krb_keytab": str(koji_keytab)
+            "krb_principal": str(koji_principal) if koji_principal else None,
+            "krb_keytab": str(koji_keytab) if koji_keytab else None
         }
 
         self.target = target
