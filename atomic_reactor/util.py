@@ -1125,3 +1125,19 @@ def get_primary_images(workflow):
             ImageName.parse(primary) for primary in
             workflow.build_result.annotations['repositories']['primary']]
     return primary_images
+
+
+def split_module_spec(module):
+    m = re.match(r'^(.*)-([^-]+)-(\d{14})$', module)
+    if not m:
+        m = re.match(r'^(.*)-([^-]+)$', module)
+        if not m:
+            raise RuntimeError(
+                'Module specification should be NAME-STREAM or NAME-STREAM-VERSION')
+
+    module_version = None
+    module_name = m.group(1)
+    module_stream = m.group(2)
+    if m.lastindex == 3:
+        module_version = m.group(3)
+    return module_name, module_stream, module_version

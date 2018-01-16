@@ -28,7 +28,8 @@ from atomic_reactor.plugin import BuildStepPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_config
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import get_preferred_label, df_parser, get_build_json
-from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY
+from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY,
+                                      REPO_CONTAINER_CONFIG)
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from osbs.conf import Configuration
@@ -232,7 +233,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     build_image from kwargs
     """
 
-    CONTAINER_FILENAME = 'container.yaml'
     UNREACHABLE_CLUSTER_LOAD = object()
 
     key = PLUGIN_BUILD_ORCHESTRATE_KEY
@@ -284,7 +284,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     def get_platforms(self):
         build_file_dir = self.workflow.source.get_build_file_path()[1]
         excluded_platforms = set()
-        container_path = os.path.join(build_file_dir, self.CONTAINER_FILENAME)
+        container_path = os.path.join(build_file_dir, REPO_CONTAINER_CONFIG)
         if os.path.exists(container_path):
             with open(container_path) as f:
                 data = yaml.load(f)

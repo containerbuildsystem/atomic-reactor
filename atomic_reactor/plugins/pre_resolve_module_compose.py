@@ -25,11 +25,14 @@ Example configuration:
 
 import os
 import re
+import yaml
 from modulemd import ModuleMetadata
 from pdc_client import PDCClient
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.odcs_util import ODCSClient
+from atomic_reactor.util import split_module_spec
+from atomic_reactor.constants import REPO_CONTAINER_CONFIG
 
 
 class ModuleInfo(object):
@@ -82,8 +85,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow,
-                 module_name, module_stream, module_version=None,
-                 compose_id=None,
+                 compose_ids=tuple(),
                  odcs_url=None, odcs_insecure=False,
                  odcs_openidc_secret_path=None,
                  pdc_url=None, pdc_insecure=False):
@@ -92,10 +94,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param module_name: Module name to look up in PDC
-        :param module_stream: Module stream to look up in PDC
-        :param module_version: Module version to look up in PDC (optional)
-        :param compose_id: ID of compose in ODCS (optional - will only be set for workers)
+        :param compose_ids: use the given compose_ids instead of requesting a new one
         :param odcs_url: URL of ODCS (On Demand Compose Service)
         :param odcs_insecure: If True, don't check SSL certificates for `odcs_url`
         :param odcs_openidc_secret_path: directory to look in for a `token` file (optional)
@@ -110,59 +109,40 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
             raise RuntimeError("pdc_url is required")
         if not odcs_url:
             raise RuntimeError("odcs_url is required")
-        self.module_name = module_name
-        self.module_stream = module_stream
 
-        if module_version is not None and re.match(r'^\d{14}$', module_version) is None:
-            raise RuntimeError("module_version should be 14 digits")
-        self.module_version = module_version
-
-        self.compose_id = compose_id
+        self.compose_ids = compose_ids
+        self.compose_id = None
         self.odcs_url = odcs_url
         self.odcs_insecure = odcs_insecure
         self.odcs_openidc_secret_path = odcs_openidc_secret_path
         self.pdc_url = pdc_url
         self.pdc_insecure = pdc_insecure
+        self.data = None
 
-    def _resolve_compose(self):
-        if self.odcs_openidc_secret_path:
-            token_path = os.path.join(self.odcs_openidc_secret_path, 'token')
-            with open(token_path, "r") as f:
-                odcs_token = f.read().strip()
-        else:
-            odcs_token = None
+    def read_configs_general(self):
+        workdir = self.workflow.source.get_build_file_path()[1]
+        file_path = os.path.join(workdir, REPO_CONTAINER_CONFIG)
+        if os.path.exists(file_path):
+            with open(file_path) as f:
+                self.data = (yaml.load(f) or {}).get('compose')
 
-        odcs_client = ODCSClient(self.odcs_url, insecure=self.odcs_insecure, token=odcs_token)
+        if not self.data or not self.compose_ids:
+            raise RuntimeError('"compose" config not set and compose_ids not given')
+
+    def _resolve_modules(self, compose_source):
+        resolved_modules = {}
         # The effect of develop=True is that requests to the PDC are made without authentication;
         # since we our interaction with the PDC is read-only, this is fine for our needs and
         # makes things simpler.
         pdc_client = PDCClient(server=self.pdc_url, ssl_verify=not self.pdc_insecure, develop=True)
 
-        fmt = '{n}-{s}' if self.module_version is None else '{n}-{s}-{v}'
-        source_spec = fmt.format(n=self.module_name, s=self.module_stream, v=self.module_version)
-
-        if self.compose_id is None:
-            self.compose_id = odcs_client.start_compose(source_type='module',
-                                                        source=source_spec)['id']
-
-        compose_info = odcs_client.wait_for_compose(self.compose_id)
-        if compose_info['state_name'] != "done":
-            raise RuntimeError("Compose cannot be retrieved, state='%s'" %
-                               compose_info['state_name'])
-
-        compose_source = compose_info['source']
-        self.log.info("Resolved list of modules: %s", compose_source)
-
-        resolved_modules = {}
-
         for module_spec in compose_source.strip().split():
-            m = re.match(r'^(.*)-([^-]+)-(\d{14})$', module_spec)
-            if not m:
+            try:
+                module_name, module_stream, module_version = split_module_spec(module_spec)
+                if not module_version:
+                    raise RuntimeError
+            except RuntimeError:
                 raise RuntimeError("Cannot parse resolved module in compose: %s" % module_spec)
-
-            module_name = m.group(1)
-            module_stream = m.group(2)
-            module_version = m.group(3)
 
             query = {
                 'variant_id': module_name,
@@ -186,11 +166,55 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
 
             resolved_modules[module_name] = ModuleInfo(module_name, module_stream, module_version,
                                                        mmd, rpms)
+        return resolved_modules
 
-        base_module = resolved_modules[self.module_name]
-        assert base_module.stream == self.module_stream
-        if self.module_version is not None:
-            assert base_module.version == self.module_version
+    def _resolve_compose(self):
+        if self.odcs_openidc_secret_path:
+            token_path = os.path.join(self.odcs_openidc_secret_path, 'token')
+            with open(token_path, "r") as f:
+                odcs_token = f.read().strip()
+        else:
+            odcs_token = None
+
+        odcs_client = ODCSClient(self.odcs_url, insecure=self.odcs_insecure, token=odcs_token)
+        self.read_configs_general()
+
+        modules = self.data.get('modules', [])
+
+        if not modules:
+            raise RuntimeError('"compose" config is missing "modules", required for Flatpak')
+
+        source_spec = modules[0]
+        if len(modules) > 1:
+            self.log.info("compose config contains multiple modules,"
+                          "using first module %s", source_spec)
+
+        module_name, module_stream, module_version = split_module_spec(source_spec)
+        self.log.info("Resolving module compose for name=%s, stream=%s, version=%s",
+                      module_name, module_stream, module_version)
+
+        if self.compose_ids:
+            self.compose_id = self.compose_ids[0]
+        if len(self.compose_ids) > 1:
+            self.log.info("Multiple compose_ids, using first compose %d", self.compose_id)
+
+        if self.compose_id is None:
+            self.compose_id = odcs_client.start_compose(source_type='module',
+                                                        source=source_spec)['id']
+
+        compose_info = odcs_client.wait_for_compose(self.compose_id)
+        if compose_info['state_name'] != "done":
+            raise RuntimeError("Compose cannot be retrieved, state='%s'" %
+                               compose_info['state_name'])
+
+        compose_source = compose_info['source']
+        self.log.info("Resolved list of modules: %s", compose_source)
+
+        resolved_modules = self._resolve_modules(compose_source)
+        base_module = resolved_modules[module_name]
+        assert base_module.stream == module_stream
+        if module_version is not None:
+            assert base_module.version == module_version
 
         return ComposeInfo(source_spec=source_spec,
                            compose_id=self.compose_id,
@@ -203,8 +227,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
         run the plugin
         """
 
-        self.log.info("Resolving module compose for name=%s, stream=%s, version=%s",
-                      self.module_name, self.module_stream, self.module_version)
+        self.log.info("Resolving module compose")
 
         compose_info = self._resolve_compose()
         set_compose_info(self.workflow, compose_info)

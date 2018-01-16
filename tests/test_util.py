@@ -41,7 +41,8 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_manifest_media_type,
                                  get_manifest_media_version,
                                  get_primary_images,
-                                 get_image_upload_filename)
+                                 get_image_upload_filename,
+                                 split_module_spec)
 from atomic_reactor import util
 from tests.constants import (DOCKERFILE_GIT, FLATPAK_GIT,
                              INPUT_IMAGE, MOCK, DOCKERFILE_SHA1, MOCK_SOURCE)
@@ -925,3 +926,18 @@ def test_clone_git_repo_retry(tmpdir, retry_times, raise_exc):
     exception = subprocess.CalledProcessError if raise_exc else CustomTestException
     with pytest.raises(exception):
         clone_git_repo(DOCKERFILE_GIT, tmpdir_path, retry_times=retry_times)
+
+
+@pytest.mark.parametrize(('module', 'should_raise', 'expected'), [
+    ('eog', True, None),
+    ('eog-f26', False, ('eog', 'f26', None)),
+    ('eog-f26-20170629213428', False, ('eog', 'f26', '20170629213428')),
+    ('a-b-c-20176291342855', False, ('a-b', 'c', '20176291342855')),
+    ('a-b-c-d', False, ('a-b-c', 'd', None)),
+])
+def test_split_module_spec(module, should_raise, expected):
+    if should_raise:
+        with pytest.raises(RuntimeError):
+            split_module_spec(module)
+    else:
+        assert split_module_spec(module) == expected
