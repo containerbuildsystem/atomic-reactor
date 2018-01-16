@@ -23,9 +23,10 @@ try:
 except ImportError:
     MODULEMD_AVAILABLE = False
 
-from atomic_reactor.plugin import PreBuildPluginsRunner
+from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.source import VcsInfo
-from atomic_reactor.util import ImageName
+from atomic_reactor.util import ImageName, split_module_spec
+from atomic_reactor.constants import REPO_CONTAINER_CONFIG
 
 from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
 from tests.fixtures import docker_tasker  # noqa
@@ -104,12 +105,33 @@ def compose_json(state, state_name):
 @responses.activate  # noqa - docker_tasker fixture
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,
                     reason="modulemd not available")
-@pytest.mark.parametrize('specify_version', [True, False])
-def test_resolve_module_compose(tmpdir, docker_tasker, specify_version):
+@pytest.mark.parametrize('compose_ids', (None, [], [84], [84, 2]))
+@pytest.mark.parametrize('modules', (
+    None,
+    [],
+    [MODULE_NS],
+    [MODULE_NSV],
+    [MODULE_NSV, 'mod_name2-mod_stream2-mod_version2'],
+    [MODULE_NS, 'mod_name2-mod_stream2-mod_version2'],
+    [MODULE_NSV, 'mod_name2-mod_stream2'],
+))
+def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules):
     secrets_path = os.path.join(str(tmpdir), "secret")
     os.mkdir(secrets_path)
     with open(os.path.join(secrets_path, "token"), "w") as f:
         f.write("green_eggs_and_ham")
+
+    module = None
+    data = "compose:\n"
+
+    if modules is not None:
+        data += "    modules:\n"
+        for mod in modules:
+            data += "    - {}\n".format(mod)
+    if modules:
+        module = modules[0]
+        mod_name, mod_stream, mod_version = split_module_spec(module)
+    tmpdir.join(REPO_CONTAINER_CONFIG).write(data)
 
     workflow = mock_workflow(tmpdir)
     mock_get_retry_session()
@@ -164,15 +186,12 @@ def test_resolve_module_compose(tmpdir, docker_tasker, specify_version):
                            callback=handle_unreleasedvariants)
 
     args = {
-        'module_name': 'eog',
-        'module_stream': 'f26',
         'base_image': "registry.fedoraproject.org/fedora:latest",
         'odcs_url': ODCS_URL,
         'odcs_openidc_secret_path': secrets_path,
-        'pdc_url': PDC_URL
+        'pdc_url': PDC_URL,
+        'compose_ids': compose_ids
     }
-    if specify_version:
-        args['module_version'] = MODULE_VERSION
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -183,12 +202,26 @@ def test_resolve_module_compose(tmpdir, docker_tasker, specify_version):
         }]
     )
 
-    runner.run()
+    if not compose_ids:
+        with pytest.raises(PluginFailedException) as exc_info:
+            runner.run()
+        assert 'config not set and compose_ids not given' in str(exc_info.value)
+    elif not modules:
+        if modules is None:
+            with pytest.raises(PluginFailedException) as exc_info:
+                runner.run()
+            assert 'config not set and compose_ids not given' in str(exc_info.value)
+        else:
+            with pytest.raises(PluginFailedException) as exc_info:
+                runner.run()
+            assert 'config is missing "modules", required for Flatpak' in str(exc_info.value)
+    else:
+        runner.run()
 
-    compose_info = get_compose_info(workflow)
+        compose_info = get_compose_info(workflow)
 
-    assert compose_info.compose_id == 84
-    assert compose_info.base_module.name == MODULE_NAME
-    assert compose_info.base_module.stream == MODULE_STREAM
-    assert compose_info.base_module.version == MODULE_VERSION
-    assert compose_info.base_module.mmd.summary == 'Eye of GNOME Application Module'
+        assert compose_info.compose_id == 84
+        assert compose_info.base_module.name == MODULE_NAME
+        assert compose_info.base_module.stream == MODULE_STREAM
+        assert compose_info.base_module.version == MODULE_VERSION
+        assert compose_info.base_module.mmd.summary == 'Eye of GNOME Application Module'

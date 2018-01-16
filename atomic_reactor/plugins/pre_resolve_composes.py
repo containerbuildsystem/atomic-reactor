@@ -7,7 +7,9 @@ of the BSD license. See the LICENSE file for details.
 """
 from __future__ import unicode_literals
 
-from atomic_reactor.constants import PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY
+from atomic_reactor.constants import (PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
+                                      REPO_CONTAINER_CONFIG)
+
 from atomic_reactor.odcs_util import ODCSClient
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
@@ -39,8 +41,6 @@ class ResolveComposesPlugin(PreBuildPlugin):
 
     key = PLUGIN_RESOLVE_COMPOSES_KEY
     is_allowed_to_fail = False
-
-    REPO_CONFIG = 'container.yaml'
 
     def __init__(self, tasker, workflow,
                  odcs_url,
@@ -134,7 +134,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
             raise SkipResolveComposesPlugin('ODCS config not found')
 
         workdir = self.workflow.source.get_build_file_path()[1]
-        file_path = os.path.join(workdir, self.REPO_CONFIG)
+        file_path = os.path.join(workdir, REPO_CONTAINER_CONFIG)
         data = None
         if os.path.exists(file_path):
             with open(file_path) as f:
