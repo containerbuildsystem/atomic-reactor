@@ -30,7 +30,7 @@ class X(object):
 
 
 class TestCheckRebuild(object):
-    def prepare(self, key, value, set_labels_args=None, set_labels_kwargs=None):
+    def prepare(self, key, value, update_labels_args=None, update_labels_kwargs=None):
         if MOCK:
             mock_docker()
         tasker = DockerTasker()
@@ -43,16 +43,16 @@ class TestCheckRebuild(object):
         setattr(workflow.builder.source, 'path', '/tmp')
         setattr(workflow.builder.source, 'dockerfile_path', None)
         expectation = (flexmock(OSBS)
-                       .should_receive('set_labels_on_build_config'))
-        if set_labels_args is not None:
-            if set_labels_kwargs is None:
-                set_labels_kwargs = {}
+                       .should_receive('update_labels_on_build_config'))
+        if update_labels_args is not None:
+            if update_labels_kwargs is None:
+                update_labels_kwargs = {}
 
-            expectation.with_args(*set_labels_args)
+            expectation.with_args(*update_labels_args)
 
         namespace = None
-        if set_labels_kwargs is not None:
-            namespace = set_labels_kwargs.get('namespace')
+        if update_labels_kwargs is not None:
+            namespace = update_labels_kwargs.get('namespace')
         (flexmock(osbs.conf).should_call('Configuration')
          .with_args(namespace=namespace, conf_file=None, verify_ssl=True, openshift_url="",
                     openshift_uri="", use_auth=True))
@@ -102,9 +102,9 @@ class TestCheckRebuild(object):
             namespace_dict["namespace"] = namespace
 
         workflow, runner = self.prepare(key, value,
-                                        set_labels_args=(buildconfig,
+                                        update_labels_args=(buildconfig,
                                                          {key: value}),
-                                        set_labels_kwargs=namespace_dict)
+                                        update_labels_kwargs=namespace_dict)
 
         build_json = {
             "metadata": {

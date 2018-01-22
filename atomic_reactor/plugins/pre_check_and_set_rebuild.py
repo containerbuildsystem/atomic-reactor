@@ -93,6 +93,6 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
                                       namespace=metadata.get('namespace', None))
             osbs = OSBS(osbs_conf, osbs_conf)
             labels = {self.label_key: self.label_value}
-            osbs.set_labels_on_build_config(buildconfig, labels)
+            osbs.update_labels_on_build_config(buildconfig, labels)
 
         return is_rebuild
