@@ -214,10 +214,6 @@ class PushConf(object):
         self._registries["docker"].append(r)
         return r
 
-    def add_docker_registries(self, registry_uris, insecure=False):
-        for registry_uri in registry_uris:
-            self.add_docker_registry(registry_uri, insecure=insecure)
-
     def remove_docker_registry(self, docker_registry):
         self._registries["docker"].remove(docker_registry)
 
