@@ -924,7 +924,7 @@ class TestKojiUpload(object):
                                             prefer_schema1_digest=prefer_schema1_digest,
                                             )
         runner = create_runner(tasker, workflow, blocksize=blocksize, target=target,
-                               prefer_schema1_digest=prefer_schema1_digest)
+                               prefer_schema1_digest=prefer_schema1_digest, platform=LOCAL_ARCH)
         runner.run()
 
         data = get_metadata(workflow, osbs)
