@@ -36,11 +36,17 @@ fi
 # Install dependencies
 $RUN $PKG install -y $PKG_EXTRA
 $RUN $BUILDDEP -y atomic-reactor.spec
-if [[ $OS != "fedora" ]]; then
+if [[ $OS == "fedora" ]]; then
+  # Remove python-docker-py because docker-squash will pull
+  # in the latest version from PyPI
+  $RUN $PKG remove -y python{,3}-docker{,-py}
+else
   # Install dependecies for test, as check is disabled for rhel
   $RUN yum install -y python-flexmock python-six \
-                      python-docker-py python-backports-lzma \
+                      python-backports-lzma \
+                      python-backports-ssl_match_hostname \
                       python-responses \
+                      PyYAML \
                       python-requests python-requests-kerberos # OSBS dependencies
 fi
 
@@ -49,6 +55,12 @@ $RUN $PKG install -y $PIP_PKG
 if [[ $PYTHON_VERSION == 3 && $OS_VERSION == rawhide ]]; then
   # https://fedoraproject.org/wiki/Changes/Making_sudo_pip_safe
   $RUN mkdir -p /usr/local/lib/python3.6/site-packages/
+fi
+
+if [[ $OS == centos && $OS_VERSION == 7 ]]; then
+  # Older versions of setuptools don't understand the environment
+  # markers used by docker-squash's requirements
+  $RUN $PIP install -U setuptools
 fi
 
 # Install other dependencies for tests
