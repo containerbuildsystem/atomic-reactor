@@ -223,13 +223,6 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         annotations = {
             "dockerfile": dockerfile_contents,
-
-            # We no longer store the 'docker build' logs as an annotation
-            "logs": '',
-
-            # We no longer store the rpm packages as an annotation
-            "rpm-packages": '',
-
             "repositories": json.dumps(self.get_repositories()),
             "commit_id": commit_id,
             "base-image-id": base_image_id,
