@@ -235,12 +235,6 @@ CMD blabla"""
     annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
     assert "dockerfile" in annotations
     assert is_string_type(annotations['dockerfile'])
-    assert "logs" in annotations
-    assert is_string_type(annotations['logs'])
-    assert annotations['logs'] == ''
-    assert "rpm-packages" in annotations
-    assert is_string_type(annotations['rpm-packages'])
-    assert annotations['rpm-packages'] == ''
     assert "repositories" in annotations
     assert is_string_type(annotations['repositories'])
     assert "commit_id" in annotations
@@ -437,8 +431,6 @@ CMD blabla"""
     assert StoreMetadataInOSv3Plugin.key in output
     annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
     assert "dockerfile" in annotations
-    assert "logs" in annotations
-    assert "rpm-packages" in annotations
     assert "repositories" in annotations
     assert "commit_id" in annotations
     assert "base-image-id" in annotations
@@ -446,10 +438,6 @@ CMD blabla"""
     assert "image-id" in annotations
     assert "metadata_fragment" in annotations
     assert "metadata_fragment_key" in annotations
-
-    # On rpmqa failure, rpm-packages should be empty
-    assert len(annotations["rpm-packages"]) == 0
-
     assert "plugins-metadata" in annotations
     assert "errors" in annotations["plugins-metadata"]
     assert "durations" in annotations["plugins-metadata"]
