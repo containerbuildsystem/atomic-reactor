@@ -10,17 +10,16 @@ from __future__ import print_function, unicode_literals
 
 import os
 import re
-import logging
 import warnings
 from collections import namedtuple
 
 try:
     import dockpulp
-    from dockpulp import setup_logger
+
 except (ImportError, SyntaxError):
     dockpulp = None
+    import logging
 
-logger = logging.getLogger(__name__)
 
 PulpRepo = namedtuple('PulpRepo', ['registry_id', 'tags'])
 
@@ -28,6 +27,20 @@ PulpRepo = namedtuple('PulpRepo', ['registry_id', 'tags'])
 # which may result in tenths of messages: very annoying
 # with "module", it just prints one warning -- this should balance security and UX
 warnings.filterwarnings("module")
+
+
+class PulpLogWrapper(object):
+    def __init__(self):
+        if dockpulp:
+            self.pulp_log = dockpulp.setup_logger(dockpulp.log)
+        else:
+            self.pulp_log = logging.getLogger(__name__)
+
+    def get_pulp_logger(self):
+        return self.pulp_log
+
+
+PulpLog = PulpLogWrapper()
 
 
 class PulpHandler(object):
@@ -45,9 +58,9 @@ class PulpHandler(object):
         self.username = username
         self.password = password
         self.p = None
+        logger = PulpLog.get_pulp_logger()
 
         if dockpulp_loglevel is not None:
-            logger = setup_logger(dockpulp.log)
             try:
                 logger.setLevel(dockpulp_loglevel)
             except (ValueError, TypeError) as ex:
