@@ -33,6 +33,7 @@ except ImportError:
 
 from atomic_reactor.plugins.post_pulp_sync import PulpSyncPlugin, get_manifests_in_pulp_repository
 from atomic_reactor.constants import PLUGIN_PULP_PUSH_KEY
+from atomic_reactor.pulp_util import PulpLogWrapper
 
 from flexmock import flexmock
 import json
@@ -458,20 +459,17 @@ class TestPostPulpSync(object):
                        .should_receive('setLevel')
                        .with_args(loglevel)
                        .once())
+
         if fail:
             expectation.and_raise(ValueError)
 
-        (flexmock(dockpulp)
-            .should_receive('setup_logger')
-            .and_return(logger)
-            .once())
+        flexmock(PulpLogWrapper).should_receive('get_pulp_logger').and_return(logger).once()
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow(['prod/myrepository']),
                                 pulp_registry_name='pulp',
                                 docker_registry='http://registry.example.com',
                                 dockpulp_loglevel=loglevel)
-
         plugin.run()
 
         errors = [record.getMessage() for record in caplog.records()

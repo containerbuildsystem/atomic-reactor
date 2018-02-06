@@ -53,6 +53,8 @@ from __future__ import print_function, unicode_literals
 from atomic_reactor.constants import PLUGIN_PULP_SYNC_KEY, PLUGIN_PULP_PUSH_KEY
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.util import ImageName, Dockercfg, are_plugins_in_order
+# import pulp_util to get the dockpulp.log set up once
+from atomic_reactor.pulp_util import PulpLog
 import dockpulp
 import os
 import re
@@ -117,9 +119,10 @@ class PulpSyncPlugin(PostBuildPlugin):
         self.registry_secret_path = registry_secret_path
         self.insecure_registry = insecure_registry
         self.pulp_repo_prefix = pulp_repo_prefix
+        logger = PulpLog.get_pulp_logger()
 
         if dockpulp_loglevel is not None:
-            logger = dockpulp.setup_logger(dockpulp.log)
+            self.log.info("attempting to set loglevel")
             try:
                 logger.setLevel(dockpulp_loglevel)
             except (ValueError, TypeError) as ex:
