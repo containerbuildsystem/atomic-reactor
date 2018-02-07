@@ -28,7 +28,7 @@ There are several build modes available:
  * executing build within current environment
 
 
-## Installation
+## Installation   
 
 ### for Fedora users
 
