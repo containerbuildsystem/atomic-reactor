@@ -136,6 +136,9 @@ def mock_reactor_config(tmpdir, data=None, default_si=DEFAULT_SIGNING_INTENT):
                - name: unsigned
                  keys: []
                default_signing_intent: {}
+               api_url: http://odcs.example.com
+               auth:
+                   ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
             """.format(default_si))
 
     tmpdir.join('config.yaml').write(data)

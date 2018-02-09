@@ -16,14 +16,35 @@ import pytest
 from textwrap import dedent
 import re
 import yaml
+import smtplib
 
+try:
+    import pdc_client
+    PDC_AVAILABLE = True
+except ImportError:
+    PDC_AVAILABLE = False
+
+import atomic_reactor
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.util import read_yaml
+import atomic_reactor.koji_util
+import atomic_reactor.pulp_util
+import atomic_reactor.odcs_util
+import osbs.conf
+import osbs.api
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        ReactorConfigPlugin,
-                                                       get_config)
-from tests.constants import TEST_IMAGE
+                                                       get_config, WORKSPACE_CONF_KEY,
+                                                       get_koji_session,
+                                                       get_pulp_session,
+                                                       get_odcs_session,
+                                                       get_smtp_session,
+                                                       get_pdc_session,
+                                                       get_openshift_session)
+from tests.constants import TEST_IMAGE, REACTOR_CONFIG_MAP
 from tests.docker_mock import mock_docker
+from tests.fixtures import reactor_config_map  # noqa
 from flexmock import flexmock
 
 
@@ -200,16 +221,21 @@ class TestReactorConfigPlugin(object):
             "Additional properties are not allowed ('extra' was unexpected)",
         ])
     ])
-    def test_bad_cluster_config(self, tmpdir, caplog, config, errors):
-        filename = os.path.join(str(tmpdir), 'config.yaml')
-        with open(filename, 'w') as fp:
-            fp.write(dedent(config))
+    def test_bad_cluster_config(self, tmpdir, caplog, reactor_config_map,
+                                config, errors):
+        if reactor_config_map:
+            os.environ['REACTOR_CONFIG'] = dedent(config)
+        else:
+            filename = os.path.join(str(tmpdir), 'config.yaml')
+            with open(filename, 'w') as fp:
+                fp.write(dedent(config))
         tasker, workflow = self.prepare()
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
 
         with caplog.atLevel(logging.ERROR), pytest.raises(ValidationError):
             plugin.run()
 
+        os.environ.pop('REACTOR_CONFIG', None)
         captured_errs = [x.message for x in caplog.records()]
         for error in errors:
             try:
@@ -262,13 +288,17 @@ class TestReactorConfigPlugin(object):
             ('two', 8),
         ]),
     ])
-    def test_good_cluster_config(self, tmpdir, config, clusters):
-        filename = os.path.join(str(tmpdir), 'config.yaml')
-        with open(filename, 'w') as fp:
-            fp.write(dedent(config))
+    def test_good_cluster_config(self, tmpdir, reactor_config_map, config, clusters):
+        if reactor_config_map and config:
+            os.environ['REACTOR_CONFIG'] = dedent(config)
+        else:
+            filename = os.path.join(str(tmpdir), 'config.yaml')
+            with open(filename, 'w') as fp:
+                fp.write(dedent(config))
         tasker, workflow = self.prepare()
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
         assert plugin.run() is None
+        os.environ.pop('REACTOR_CONFIG', None)
 
         conf = get_config(workflow)
         enabled = conf.get_enabled_clusters_for_platform('platform')
@@ -294,6 +324,9 @@ class TestReactorConfigPlugin(object):
                    - name: unsigned
                      keys: []
                    default_signing_intent: {default}
+                   api_url: http://odcs.example.com
+                   auth:
+                       ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
                 """.format(default=default)))
 
         tasker, workflow = self.prepare()
@@ -338,6 +371,9 @@ class TestReactorConfigPlugin(object):
                    - name: unsigned
                      keys: []
                    default_signing_intent: spam
+                   api_url: http://odcs.example.com
+                   auth:
+                       ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
                 """))
 
         tasker, workflow = self.prepare()
@@ -347,3 +383,583 @@ class TestReactorConfigPlugin(object):
         with pytest.raises(ValueError) as exc_info:
             get_config(workflow).get_odcs_config()
         assert 'unknown signing intent' in str(exc_info.value)
+
+    @pytest.mark.parametrize('method', [
+        'koji', 'pulp', 'odcs', 'smtp', 'pdc', 'arrangement_version',
+        'artifacts_allowed_domains', 'image_labels', 'image_equal_labels',
+        'openshift', 'group_manifests', 'platform_descriptors', 'prefer_schema1_digest',
+        'content_versions', 'registries', 'yum_proxy', 'source_registry', 'sources_command',
+        'required_secrets', 'worker_token_secrets', 'build_json_dir', 'clusters',
+    ])
+    def test_get_methods(self, method):
+        tasker, workflow = self.prepare()
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            yaml.safe_load(REACTOR_CONFIG_MAP)
+
+        method_name = 'get_' + method
+        real_method = getattr(atomic_reactor.plugins.pre_reactor_config, method_name)
+
+        output = real_method(workflow)
+        expected = yaml.safe_load(REACTOR_CONFIG_MAP)[method]
+        assert output == expected
+
+    @pytest.mark.parametrize(('config', 'raise_error'), [
+        ("""\
+          version: 1
+          koji:
+              hub_url: https://koji.example.com/hub
+              root_url: https://koji.example.com/root
+              auth:
+                  proxyuser: proxyuser
+                  krb_principal: krb_principal
+                  krb_keytab_path: /tmp/krb_keytab
+        """, False),
+
+        ("""\
+          version: 1
+          koji:
+              hub_url: https://koji.example.com/hub
+              root_url: https://koji.example.com/root
+              auth:
+                  proxyuser: proxyuser
+                  ssl_certs_dir: /var/certs
+        """, False),
+
+        ("""\
+          version: 1
+          koji:
+              hub_url: https://koji.example.com/hub
+              root_url: https://koji.example.com/root
+              auth:
+                  proxyuser: proxyuser
+        """, False),
+
+        ("""\
+          version: 1
+          koji:
+              hub_url: https://koji.example.com/hub
+              root_url: https://koji.example.com/root
+              auth:
+        """, True),
+
+        ("""\
+          version: 1
+          koji:
+              hub_url: https://koji.example.com/hub
+              root_url: https://koji.example.com/root
+              auth:
+                  proxyuser: proxyuser
+                  krb_principal: krb_principal
+                  krb_keytab_path: /tmp/krb_keytab
+                  ssl_certs_dir: /var/certs
+        """, True),
+
+        ("""\
+          version: 1
+          koji:
+              hub_url: https://koji.example.com/hub
+              root_url: https://koji.example.com/root
+              auth:
+                  proxyuser: proxyuser
+                  krb_keytab_path: /tmp/krb_keytab
+        """, True),
+
+        ("""\
+          version: 1
+          koji:
+              hub_url: https://koji.example.com/hub
+              root_url: https://koji.example.com/root
+              auth:
+                  proxyuser: proxyuser
+                  krb_principal: krb_principal
+        """, True),
+
+        ("""\
+          version: 1
+          koji:
+              hub_url: https://koji.example.com/hub
+              root_url: https://koji.example.com/root
+              auth:
+                  proxyuser: proxyuser
+                  krb_principal: krb_principal
+                  ssl_certs_dir: /var/certs
+        """, True),
+
+        ("""\
+          version: 1
+          koji:
+              hub_url: https://koji.example.com/hub
+              root_url: https://koji.example.com/root
+              auth:
+                  proxyuser: proxyuser
+                  krb_keytab_path: /tmp/krb_keytab
+                  ssl_certs_dir: /var/certs
+        """, True),
+    ])
+    def test_get_koji_session(self, config, raise_error):
+        tasker, workflow = self.prepare()
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+
+        if raise_error:
+            with pytest.raises(Exception):
+                read_yaml(config, 'schemas/config.json')
+            return
+        config_json = read_yaml(config, 'schemas/config.json')
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = config_json
+
+        auth_info = {
+            "proxyuser": config_json['koji']['auth'].get('proxyuser'),
+            "ssl_certs_dir": config_json['koji']['auth'].get('ssl_certs_dir'),
+            "krb_principal": config_json['koji']['auth'].get('krb_principal'),
+            "krb_keytab": config_json['koji']['auth'].get('krb_keytab_path')
+        }
+
+        (flexmock(atomic_reactor.koji_util)
+            .should_receive('create_koji_session')
+            .with_args(config_json['koji']['hub_url'], auth_info)
+            .once()
+            .and_return(True))
+
+        get_koji_session(workflow)
+
+    @pytest.mark.parametrize(('config', 'raise_error'), [
+        ("""\
+          version: 1
+          pulp:
+              name: my-pulp
+              auth:
+                  password: testpasswd
+                  username: testuser
+        """, False),
+
+        ("""\
+          version: 1
+          pulp:
+              name: my-pulp
+              auth:
+                  ssl_certs_dir: /var/certs
+        """, False),
+
+        ("""\
+          version: 1
+          pulp:
+              name: my-pulp
+              auth:
+                  ssl_certs_dir: /var/certs
+                  password: testpasswd
+                  username: testuser
+        """, True),
+
+
+        ("""\
+          version: 1
+          pulp:
+              name: my-pulp
+              auth:
+                  ssl_certs_dir: /var/certs
+                  password: testpasswd
+        """, True),
+
+        ("""\
+          version: 1
+          pulp:
+              name: my-pulp
+              auth:
+                  ssl_certs_dir: /var/certs
+                  username: testuser
+        """, True),
+
+        ("""\
+          version: 1
+          pulp:
+              name: my-pulp
+              auth:
+                  username: testuser
+        """, True),
+
+        ("""\
+          version: 1
+          pulp:
+              name: my-pulp
+              auth:
+                  password: testpasswd
+        """, True),
+    ])
+    def test_get_pulp_session(self, config, raise_error):
+        tasker, workflow = self.prepare()
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+
+        if raise_error:
+            with pytest.raises(Exception):
+                read_yaml(config, 'schemas/config.json')
+            return
+        config_json = read_yaml(config, 'schemas/config.json')
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = config_json
+
+        auth_info = {
+            "pulp_secret_path": config_json['pulp']['auth'].get('ssl_certs_dir'),
+            "username": config_json['pulp']['auth'].get('username'),
+            "password": config_json['pulp']['auth'].get('password'),
+            "dockpulp_loglevel": 1,
+        }
+
+        (flexmock(atomic_reactor.pulp_util.PulpHandler)
+            .should_receive('__init__')
+            .with_args(workflow, config_json['pulp']['name'], 'logger', **auth_info)
+            .once()
+            .and_return(None))
+
+        get_pulp_session(workflow, 'logger', 1)
+
+    @pytest.mark.parametrize(('config', 'raise_error'), [
+        ("""\
+          version: 1
+          odcs:
+              api_url: https://odcs.example.com/api/1
+              auth:
+                  ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
+              signing_intents:
+              - name: release
+                keys: [R123]
+              default_signing_intent: default
+        """, False),
+
+        ("""\
+          version: 1
+          odcs:
+              api_url: https://odcs.example.com/api/1
+              auth:
+                  ssl_certs_dir: nonexistent
+              signing_intents:
+              - name: release
+                keys: [R123]
+              default_signing_intent: default
+        """, False),
+
+        ("""\
+          version: 1
+          odcs:
+              api_url: https://odcs.example.com/api/1
+              auth:
+                  openidc_dir: /var/run/open_idc
+              signing_intents:
+              - name: release
+                keys: [R123]
+              default_signing_intent: default
+        """, False),
+
+        ("""\
+          version: 1
+          odcs:
+              api_url: https://odcs.example.com/api/1
+              auth:
+                  openidc_dir: /var/run/open_idc
+                  ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
+              signing_intents:
+              - name: release
+                keys: [R123]
+              default_signing_intent: default
+        """, True),
+
+        ("""\
+          version: 1
+          odcs:
+              api_url: https://odcs.example.com/api/1
+              auth:
+                  openidc_dir: /var/run/open_idc
+              signing_intents:
+              - name: release
+                keys: [R123]
+        """, True),
+
+        ("""\
+          version: 1
+          odcs:
+              api_url: https://odcs.example.com/api/1
+              auth:
+                  openidc_dir: /var/run/open_idc
+              default_signing_intent: default
+        """, True),
+
+        ("""\
+          version: 1
+          odcs:
+              auth:
+                  openidc_dir: /var/run/open_idc
+              signing_intents:
+              - name: release
+                keys: [R123]
+              default_signing_intent: default
+        """, True),
+    ])
+    def test_get_odcs_session(self, tmpdir, config, raise_error):
+        tasker, workflow = self.prepare()
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+
+        if raise_error:
+            with pytest.raises(Exception):
+                read_yaml(config, 'schemas/config.json')
+            return
+        config_json = read_yaml(config, 'schemas/config.json')
+
+        auth_info = {'insecure': config_json['odcs'].get('insecure', False)}
+        if 'openidc_dir' in config_json['odcs']['auth']:
+            config_json['odcs']['auth']['openidc_dir'] = str(tmpdir)
+            filename = str(tmpdir.join('token'))
+            with open(filename, 'w') as fp:
+                fp.write("my_token")
+            auth_info['token'] = "my_token"
+
+        ssl_dir_raise = False
+        if 'ssl_certs_dir' in config_json['odcs']['auth']:
+            if config_json['odcs']['auth']['ssl_certs_dir'] != "nonexistent":
+                config_json['odcs']['auth']['ssl_certs_dir'] = str(tmpdir)
+                filename = str(tmpdir.join('cert'))
+                with open(filename, 'w') as fp:
+                    fp.write("my_cert")
+                auth_info['cert'] = filename
+            else:
+                ssl_dir_raise = True
+
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = config_json
+
+        if not ssl_dir_raise:
+            (flexmock(atomic_reactor.odcs_util.ODCSClient)
+                .should_receive('__init__')
+                .with_args(config_json['odcs']['api_url'], **auth_info)
+                .once()
+                .and_return(None))
+
+            get_odcs_session((workflow))
+        else:
+            with pytest.raises(KeyError):
+                get_odcs_session((workflow))
+
+    @pytest.mark.parametrize(('config', 'raise_error'), [
+        ("""\
+          version: 1
+          smtp:
+              host: smtp.example.com
+              from_address: osbs@example.com
+        """, False),
+
+        ("""\
+          version: 1
+          smtp:
+              from_address: osbs@example.com
+        """, True),
+
+        ("""\
+          version: 1
+          smtp:
+              host: smtp.example.com
+        """, True),
+
+        ("""\
+          version: 1
+          smtp:
+        """, True),
+    ])
+    def test_get_smtp_session(self, config, raise_error):
+        tasker, workflow = self.prepare()
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+
+        if raise_error:
+            with pytest.raises(Exception):
+                read_yaml(config, 'schemas/config.json')
+            return
+        config_json = read_yaml(config, 'schemas/config.json')
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = config_json
+
+        (flexmock(smtplib.SMTP)
+            .should_receive('__init__')
+            .with_args(config_json['smtp']['host'])
+            .once()
+            .and_return(None))
+
+        get_smtp_session((workflow))
+
+    @pytest.mark.parametrize(('config', 'raise_error'), [
+        ("""\
+          version: 1
+          pdc:
+             api_url: https://pdc.example.com/rest_api/v1
+        """, False),
+
+        ("""\
+          version: 1
+          pdc:
+        """, True),
+    ])
+    def test_get_pdc_session(self, config, raise_error):
+        tasker, workflow = self.prepare()
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+
+        if raise_error:
+            with pytest.raises(Exception):
+                read_yaml(config, 'schemas/config.json')
+            return
+        config_json = read_yaml(config, 'schemas/config.json')
+
+        if not PDC_AVAILABLE:
+            return
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = config_json
+
+        auth_info = {
+            "server": config_json['pdc']['api_url'],
+            "ssl_verify": not config_json['pdc'].get('insecure', False),
+            "develop": True,
+        }
+
+        (flexmock(pdc_client.PDCClient)
+            .should_receive('__init__')
+            .with_args(**auth_info)
+            .once()
+            .and_return(None))
+
+        get_pdc_session((workflow))
+
+    @pytest.mark.parametrize('config_file', [
+        None, "/tmp/config_file",
+    ])
+    @pytest.mark.parametrize('build_json_dir', [
+        None, "/tmp/build_json_dir",
+    ])
+    @pytest.mark.parametrize(('config', 'raise_error'), [
+        ("""\
+          version: 1
+          openshift:
+              url: https://openshift.example.com
+              auth:
+                  ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
+        """, False),
+
+        ("""\
+          version: 1
+          openshift:
+              url: https://openshift.example.com
+        """, False),
+
+        ("""\
+          version: 1
+          openshift:
+              url: https://openshift.example.com
+              auth:
+                  krb_principal: principal
+                  krb_keytab_path: /var/keytab
+        """, False),
+
+        ("""\
+          version: 1
+          openshift:
+              url: https://openshift.example.com
+              auth:
+                  krb_principal: principal
+                  krb_keytab_path: /var/keytab
+                  krb_cache_path: /var/krb/cache
+        """, False),
+
+        ("""\
+          version: 1
+          openshift:
+              url: https://openshift.example.com
+              auth:
+                  enable: True
+        """, False),
+
+        ("""\
+          version: 1
+          openshift:
+              url: https://openshift.example.com
+              auth:
+                  krb_keytab_path: /var/keytab
+        """, True),
+
+        ("""\
+          version: 1
+          openshift:
+              url: https://openshift.example.com
+              auth:
+                  krb_principal: principal
+        """, True),
+
+        ("""\
+          version: 1
+          openshift:
+              auth:
+                  ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
+        """, True),
+
+        ("""\
+          version: 1
+          openshift:
+              auth:
+                  krb_principal: principal
+                  krb_keytab_path: /var/keytab
+        """, True),
+
+        ("""\
+          version: 1
+          openshift:
+              url: https://openshift.example.com
+              auth:
+        """, True),
+
+        ("""\
+          version: 1
+          openshift:
+              auth:
+                  ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
+        """, True),
+    ])
+    def test_get_openshift_session(self, config_file, build_json_dir, config, raise_error):
+        tasker, workflow = self.prepare()
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+
+        if build_json_dir:
+            config += "  build_json_dir: " + build_json_dir
+        if raise_error:
+            with pytest.raises(Exception):
+                read_yaml(config, 'schemas/config.json')
+            return
+        config_json = read_yaml(config, 'schemas/config.json')
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = config_json
+
+        auth_info = {
+            'openshift_url': config_json['openshift']['url'],
+            'verify_ssl': not config_json['openshift'].get('insecure', False),
+            'namespace': 'namespace',
+            'conf_section': None,
+            'cli_args': None,
+            'use_auth': False,
+        }
+        if build_json_dir:
+            auth_info['build_json_dir'] = build_json_dir
+
+        if config_json['openshift'].get('auth'):
+            if config_json['openshift']['auth'].get('krb_keytab_path'):
+                auth_info['kerberos_keytab'] =\
+                    config_json['openshift']['auth'].get('krb_keytab_path')
+            if config_json['openshift']['auth'].get('krb_principal'):
+                auth_info['kerberos_principal'] =\
+                    config_json['openshift']['auth'].get('krb_principal')
+            if config_json['openshift']['auth'].get('krb_cache_path'):
+                auth_info['kerberos_ccache'] =\
+                    config_json['openshift']['auth'].get('krb_cache_path')
+            if config_json['openshift']['auth'].get('ssl_certs_dir'):
+                auth_info['client_cert'] =\
+                    os.path.join(config_json['openshift']['auth'].get('ssl_certs_dir'), 'cert')
+                auth_info['client_key'] =\
+                    os.path.join(config_json['openshift']['auth'].get('ssl_certs_dir'), 'key')
+            auth_info['use_auth'] = config_json['openshift']['auth'].get('enable', False)
+
+        (flexmock(osbs.conf.Configuration)
+            .should_call('__init__')
+            .with_args(config_file=config_file, **auth_info)
+            .once())
+        (flexmock(osbs.api.OSBS)
+            .should_call('__init__')
+            .once())
+
+        get_openshift_session(workflow, 'namespace', conf_file=config_file)

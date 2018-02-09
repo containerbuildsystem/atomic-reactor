@@ -1037,10 +1037,16 @@ def are_plugins_in_order(plugins_conf, *plugins_names):
     return True
 
 
-def read_yaml(yaml_file_path, schema):
-    with open(yaml_file_path) as f:
-        data = yaml.safe_load(f)
+def read_yaml_from_file_path(file_path, schema):
+    with open(file_path) as f:
+        yaml_data = f.read()
+    return read_yaml(yaml_data, schema)
 
+
+def read_yaml(yaml_data, schema):
+    """
+    :param yaml_data: string, yaml content
+    """
     try:
         resource = resource_stream('atomic_reactor', schema)
         schema = codecs.getreader('utf-8')(resource)
@@ -1053,7 +1059,7 @@ def read_yaml(yaml_file_path, schema):
     except ValueError:
         logger.error('unable to decode JSON schema, cannot validate')
         raise
-
+    data = yaml.safe_load(yaml_data)
     validator = jsonschema.Draft4Validator(schema=schema)
     try:
         jsonschema.Draft4Validator.check_schema(schema)
