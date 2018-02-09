@@ -55,3 +55,8 @@ def docker_tasker():
     if MOCK:
         mock_docker()
     return DockerTasker(retry_times=0)
+
+
+@pytest.fixture(params=[True, False])
+def reactor_config_map(request):
+    return request.param

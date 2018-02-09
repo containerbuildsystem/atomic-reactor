@@ -39,6 +39,441 @@
         }
       },
       "additionalProperties": false
+    },
+    "koji": {
+        "description": "Koji instance",
+        "type": "object",
+        "properties": {
+            "hub_url": {
+                "description": "Koji hub's xmlrpc url",
+                "type": "string"
+            },
+            "root_url": {
+                "description": "Koji's root storage url",
+                "type": "string"
+            },
+            "auth": {
+                "description": "Authentication information",
+                "type": "object",
+                "anyOf": [
+                    {
+                        "properties": {
+                            "proxyuser": {"$ref": "#/definitions/proxyuser"},
+                            "ssl_certs_dir": {
+                                "description": "Path to directory with cert and ca files",
+                                "type": "string"
+                            }
+                        },
+                        "additionalProperties": false,
+                        "required": ["ssl_certs_dir"]
+                    },
+
+                    {
+                        "properties": {
+                            "proxyuser": {"$ref": "#/definitions/proxyuser"},
+                            "krb_cache_path": {
+                                "description": "Path to kerberos credential cache file",
+                                "type": "string"
+                            },
+                            "krb_principal": {
+                                "description": "Kerberos principal",
+                                "type": "string"
+                            },
+                            "krb_keytab_path": {
+                                "description": "Location of Kerberos keytab, e.g. FILE:<absolute_path>",
+                                "type": "string"
+                            }
+                        },
+                        "additionalProperties": false,
+                        "required": ["krb_principal", "krb_keytab_path"]
+                    },
+
+                    {
+                        "properties": {
+                            "proxyuser": {"$ref": "#/definitions/proxyuser"}
+                        },
+                        "additionalProperties": false
+                    }
+                ]
+            }
+        },
+        "additionalProperties": false,
+        "required": ["hub_url", "root_url", "auth"]
+    },
+    "pulp": {
+        "description": "Pulp registry instance",
+        "type": "object",
+        "properties": {
+            "name": {
+                "description": "Pulp registry name, specified in /etc/dockpulp.conf",
+                "type": "string"
+            },
+            "auth": {
+                "description": "Authentication information",
+                "type": "object",
+                "anyOf": [
+                    {
+                        "properties": {
+                            "ssl_certs_dir": {
+                                "description": "Path to directory with pulp.cer and pulp.key files",
+                                "type": "string"
+                            }
+                        },
+                        "required": ["ssl_certs_dir"],
+                        "additionalProperties": false
+                    },
+                    {
+                        "properties": {
+                            "username": {
+                                "description": "Pulp username",
+                                "type": "string"
+                            },
+                            "password": {
+                                "description": "Pulp password",
+                                "type": "string"
+                            }
+                        },
+                        "required": ["username", "password"],
+                        "additionalProperties": false
+                    }
+                ]
+            }
+        },
+        "additionalProperties": false,
+        "required": ["name", "auth"]
+    },
+    "odcs": {
+        "description": "OnDemand Compose Service (ODCS) instance",
+        "type": "object",
+        "properties": {
+            "api_url": {
+                "description": "ODCS api url, including api version",
+                "type": "string"
+            },
+            "insecure": {
+                "description": "Don't check SSL certificate for api_url",
+                "type": "boolean"
+            },
+            "auth": {
+                "description": "Authentication information",
+                "type": "object",
+                "anyOf": [
+                    {
+                        "properties": {
+                            "ssl_certs_dir": {
+                                "description": "Path to directory with cert file",
+                                "type": "string"
+                            }
+                        },
+                        "additionalProperties": false,
+                        "required": ["ssl_certs_dir"]
+                    },
+                    {
+                        "properties": {
+                            "openidc_dir": {
+                                "description": "Path to directory with token file",
+                                "type": "string"
+                            }
+                        },
+                        "additionalProperties": false,
+                        "required": ["openidc_dir"]
+                    }
+                ]
+            },
+            "signing_intents": {
+                "description": "List of signing intents",
+                "type": "array",
+                "items": {
+                    "properties": {
+                      "name": {
+                        "description": "signing intent name",
+                        "type": "string"
+                      },
+
+                      "keys": {
+                          "description": "signing intent keys",
+                          "type": "array",
+                          "items": {
+                              "type": "string"
+                          }
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["name", "keys"]
+                }
+            },
+            "default_signing_intent": {
+                "description": "Default signing intent",
+                "type": "string"
+            }
+        },
+        "additionalProperties": false,
+        "required": ["api_url", "auth", "signing_intents", "default_signing_intent"]
+    },
+    "smtp": {
+        "description": "SMTP notifications",
+        "type": "object",
+        "properties": {
+            "host": {
+                "description": "SMTP host server name",
+                "type": "string"
+            },
+            "from_address": {
+                "description": "From email address in notification email",
+                "type": "string"
+            },
+            "additional_addresses": {
+                "description": "Email addresses to always send notification email",
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "error_addresses": {
+                "description": "Email addresses to send notifications if no other email address can be resolved",
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "domain": {
+                "description": "Domain used when constructing email addresses",
+                "type": "string"
+            },
+            "send_to_submitter": {
+                "description": "Send email notification to Koji task submitter",
+                "type": "boolean"
+            },
+            "send_to_pkg_owner": {
+                "description": "Send email notification to Koji package owner",
+                "type": "boolean"
+            }
+        },
+        "additionalProperties": false,
+        "required": ["host", "from_address"]
+    },
+    "pdc": {
+        "description": "Product Definition Center (PDC) instance",
+        "type": "object",
+        "properties": {
+            "api_url": {
+                "description": "PDC api url, including api version",
+                "type": "string"
+            },
+            "insecure": {
+                "description": "Don't check SSL certificate for api_url",
+                "type": "boolean"
+            }
+        },
+        "additionalProperties": false,
+        "required": ["api_url"]
+    },
+    "arrangement_version": {
+        "description": "Arrangement version",
+        "type": "integer"
+    },
+    "artifacts_allowed_domains": {
+        "description": "Domains allowed to use when fetching artifacts by url",
+        "type": "array",
+        "items": {
+            "type": "string"
+        }
+    },
+    "image_labels": {
+        "description": "Labels to be applied to container image",
+        "type": "object",
+        "patternProperties": {
+            "^[\\w\\.-]+$": {"type": "string"}
+        },
+        "additionalProperties": false
+    },
+    "image_equal_labels": {
+        "description": "Labels that are expected to be equal in value",
+        "type": "array",
+        "items" : {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        }
+    },
+    "openshift": {
+        "description": "OpenShift instance running build",
+        "type": "object",
+        "properties": {
+            "url": {
+                "description": "OpenShift url",
+                "type": "string"
+            },
+            "insecure": {
+                "description": "Don't check SSL certificate for url",
+                "type": "boolean"
+            },
+            "auth": {
+                "description": "Authentication information",
+                "type": "object",
+                "anyOf": [
+                    {
+                        "properties": {
+                            "enable": {"$ref": "#/definitions/enable"},
+                            "krb_cache_path": {
+                                "description": "Path to kerberos credential cache file",
+                                "type": "string"
+                            },
+                            "krb_principal": {
+                                "description": "Kerberos principal",
+                                "type": "string"
+                            },
+                            "krb_keytab_path": {
+                                "description": "Location of Kerberos keytab, e.g. FILE:<absolute_path>",
+                                "type": "string"
+                            }
+                        },
+                        "additionalProperties": false,
+                        "required": ["krb_principal", "krb_keytab_path"]
+                    },
+
+                    {
+                        "properties": {
+                            "enable": {"$ref": "#/definitions/enable"},
+                            "ssl_certs_dir": {
+                                "description": "Path to directory with cert, key and ca files",
+                                "type": "string"
+                            }
+                        },
+                        "additionalProperties": false,
+                        "required": ["ssl_certs_dir"]
+                    },
+
+                    {
+                        "properties": {
+                            "enable": {"$ref": "#/definitions/enable"}
+                        },
+                        "additionalProperties": false
+                    }
+                ]
+            }
+        },
+        "additionalProperties": false,
+        "required": ["url"]
+    },
+    "group_manifests": {
+        "description": "Create manifest list, or image index, in container registry",
+        "type": "boolean"
+    },
+    "platform_descriptors": {
+        "description": "Definition of supported platforms",
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {
+                "platform": {
+                    "type": "string"
+                },
+                "architecture": {
+                    "type": "string"
+                },
+                "enable_v1": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "prefer_schema1_digest": {
+        "description": "schema 1 as preferred digest",
+        "type": "boolean"
+    },
+    "content_versions": {
+        "description": "Produce container image of given version",
+        "type": "array",
+        "items": {
+            "type": "string",
+            "enum": ["v1", "v2"]
+        }
+    },
+    "registries": {
+        "description": "Container registries to output images",
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "description": "Registry URI including version",
+                    "type": "string"
+                },
+                "insecure": {
+                    "description": "Don't check SSL certificate for url",
+                    "type": "boolean"
+                },
+                "auth": {
+                    "description": "Authentication information",
+                    "type": "object",
+                    "properties": {
+                        "cfg_path": {
+                            "description": "Path to directory  containing .dockercfg for registry auth",
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": ["cfg_path"]
+                }
+            },
+            "additionalProperties": false,
+            "required": ["url"]
+        }
+    },
+    "yum_proxy": {
+        "description": "Proxy to access yum repositories",
+        "type": "string"
+    },
+    "source_registry": {
+        "description": "Container registry to pull parent images",
+        "type": "object",
+        "properties": {
+            "url": {
+                "description": "Registry url",
+                "type": "string"
+            },
+            "insecure": {
+                "description": "Don't check SSL certificate for url",
+                "type": "boolean"
+            }
+        },
+        "additionalProperties": false,
+        "required": ["url"]
+    },
+    "sources_command": {
+        "description": "Command to retrieve artifacts in lookaside cache",
+        "type": "string"
+    },
+    "required_secrets": {
+        "description": "List of OpenShift secrets required by this configuration",
+        "type": "array",
+        "items": {
+            "type": "string"
+        }
+    },
+    "worker_token_secrets": {
+        "description": "List of OpenShift secrets for worker clusters authentication",
+        "type": "array",
+        "items": {
+            "type": "string"
+        }
+    },
+    "build_json_dir": {
+        "description": "Path to directory containing Json files templates for osbs-client lib",
+        "type": "string"
+    }
+  },
+  "definitions": {
+    "enable": {
+       "description": "Enable authentication",
+       "type": "boolean"
+    },
+    "proxyuser": {
+        "description": "Login as different user",
+        "type": "string"
     }
   },
   "required": ["version"]

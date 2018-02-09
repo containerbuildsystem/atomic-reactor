@@ -25,6 +25,7 @@ from flexmock import flexmock
 
 from collections import OrderedDict
 import docker
+import yaml
 from atomic_reactor.build import BuildResult
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR)
 from atomic_reactor.inner import DockerBuildWorkflow
@@ -42,10 +43,12 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_manifest_media_version,
                                  get_primary_images,
                                  get_image_upload_filename,
-                                 split_module_spec)
+                                 split_module_spec,
+                                 read_yaml, read_yaml_from_file_path)
 from atomic_reactor import util
 from tests.constants import (DOCKERFILE_GIT, FLATPAK_GIT,
-                             INPUT_IMAGE, MOCK, DOCKERFILE_SHA1, MOCK_SOURCE)
+                             INPUT_IMAGE, MOCK, DOCKERFILE_SHA1, MOCK_SOURCE,
+                             REACTOR_CONFIG_MAP)
 from atomic_reactor.constants import INSPECT_CONFIG
 
 from tests.util import requires_internet
@@ -944,3 +947,37 @@ def test_split_module_spec(module, should_raise, expected):
             split_module_spec(module)
     else:
         assert split_module_spec(module) == expected
+
+
+@pytest.mark.parametrize('from_file', [True, False])
+@pytest.mark.parametrize('config', [
+    ("""\
+      version: 1
+      clusters:
+        ignored:
+        - name: foo
+          max_concurrent_builds: 2
+        platform:
+        - name: one
+          max_concurrent_builds: 4
+        - name: two
+          max_concurrent_builds: 8
+          enabled: true
+        - name: three
+          max_concurrent_builds: 16
+          enabled: false
+    """),
+    REACTOR_CONFIG_MAP,
+])
+def test_read_yaml_file_or_yaml(tmpdir, from_file, config):
+    expected = yaml.safe_load(config)
+
+    if from_file:
+        config_path = os.path.join(str(tmpdir), 'config.yaml')
+        with open(config_path, 'w') as fp:
+            fp.write(config)
+        output = read_yaml_from_file_path(config_path, 'schemas/config.json')
+    else:
+        output = read_yaml(config, 'schemas/config.json')
+
+    assert output == expected
