@@ -35,6 +35,7 @@ RUN yum install -y python-django
 CMD blabla"""
 DF_CONTENT_LABELS = DF_CONTENT+'\nLABEL "name"="rainbow" "version"="123" "release"="1"'
 
+
 @pytest.mark.parametrize('df_content, req_labels, expected', [  # noqa
     (DF_CONTENT, None, PluginFailedException()),
     (DF_CONTENT_LABELS, None, None),

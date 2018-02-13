@@ -348,7 +348,6 @@ class KojiImportPlugin(ExitPlugin):
                                 digests = get_digests_map_from_annotations(annotations['digests'])
                                 instance['extra']['docker']['digests'] = digests
 
-
     def get_output_metadata(self, path, filename):
         """
         Describe a file by its metadata.

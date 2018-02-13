@@ -263,8 +263,8 @@ class KojiUploadPlugin(PostBuildPlugin):
         """
 
         build_logs = NamedTemporaryFile(prefix="buildstep-%s" % self.build_id,
-                                         suffix=".log",
-                                         mode='wb')
+                                        suffix=".log",
+                                        mode='wb')
         build_logs.write("\n".join(self.workflow.build_result.logs).encode('utf-8'))
         build_logs.flush()
         filename = "{platform}-build.log".format(platform=self.platform)

@@ -64,6 +64,7 @@ BASE_IMAGE_LABELS_W_ALIASES = {
     'Release': '99',
 }
 
+
 class MockInsideBuilder(object):
     def __init__(self):
         self.tasker = DockerTasker()

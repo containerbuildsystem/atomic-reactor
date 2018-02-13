@@ -8,8 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
-from time import sleep
-
 from osbs.api import OSBS
 from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException

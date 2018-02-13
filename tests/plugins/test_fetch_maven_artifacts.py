@@ -36,9 +36,10 @@ from atomic_reactor.plugins.pre_fetch_maven_artifacts import FetchMavenArtifacts
 from atomic_reactor.util import ImageName
 from tests.constants import MOCK_SOURCE, MOCK
 from tests.fixtures import docker_tasker  # noqa
+from textwrap import dedent
+
 if MOCK:
     from tests.retry_mock import mock_get_retry_session
-from textwrap import dedent
 
 KOJI_HUB = 'https://koji-hub.com'
 KOJI_ROOT = 'https://koji-root.com'

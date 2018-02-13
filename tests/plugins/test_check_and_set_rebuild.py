@@ -103,7 +103,7 @@ class TestCheckRebuild(object):
 
         workflow, runner = self.prepare(key, value,
                                         update_labels_args=(buildconfig,
-                                                         {key: value}),
+                                                            {key: value}),
                                         update_labels_kwargs=namespace_dict)
 
         build_json = {

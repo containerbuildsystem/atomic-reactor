@@ -29,6 +29,7 @@ class MockDocker(object):
     def history(self, name):
         return []
 
+
 class MockDockerTasker(object):
     def __init__(self):
         self.d = MockDocker()
