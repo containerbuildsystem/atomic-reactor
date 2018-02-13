@@ -10,9 +10,9 @@ from __future__ import unicode_literals
 
 from osbs.api import OSBS
 from osbs.conf import Configuration
-from osbs.exceptions import OsbsResponseException
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import get_build_json
+
 
 def is_rebuild(workflow):
     return (CheckAndSetRebuildPlugin.key in workflow.prebuild_results and

@@ -344,7 +344,6 @@ def mock_environment(tmpdir, session=None, name=None,
             'brew-pulp-docker:8888/{0}:latest'.format(name),
         ]
 
-
     if build_process_failed:
         workflow.build_result = BuildResult(logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
                                             fail_reason="not built")

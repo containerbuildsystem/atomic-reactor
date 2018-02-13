@@ -152,6 +152,7 @@ def test_required_plugin_failure(tmpdir, docker_tasker, runner_type, required):
     else:
         assert workflow.plugin_failed is required
 
+
 @pytest.mark.parametrize('success1', [True, False])  # noqa
 @pytest.mark.parametrize('success2', [True, False])
 def test_buildstep_phase_build_plugin(caplog, tmpdir, docker_tasker, success1, success2):

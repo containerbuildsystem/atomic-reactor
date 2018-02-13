@@ -10,14 +10,14 @@ from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
 from atomic_reactor.plugins.post_pulp_pull import PulpPullPlugin
 from atomic_reactor.inner import TagConf, PushConf
 from atomic_reactor.util import ImageName
-from tests.constants import MOCK
-if MOCK:
-    from tests.retry_mock import mock_get_retry_session
-
 from flexmock import flexmock
 import pytest
 import requests
 import json
+
+from tests.constants import MOCK
+if MOCK:
+    from tests.retry_mock import mock_get_retry_session
 
 DIGEST_V1 = 'sha256:7de72140ec27a911d3f88d60335f08d6530a4af136f7beab47797a196e840afd'
 DIGEST_V2 = 'sha256:85a7e3fb684787b86e64808c5b91d926afda9d6b35a0642a72d7a746452e71c1'

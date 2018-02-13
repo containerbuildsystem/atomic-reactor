@@ -40,7 +40,7 @@ PUSH_LOGS_1_10 = [
     {"status": "The push refers to a repository [localhost:5000/busybox]"},
     {"status": "Preparing", "progressDetail": {}, "id": "5f70bf18a086"},
     {"status": "Preparing", "progressDetail": {}, "id": "9508eff2c687"},
-    {"status": "Pushing", "progressDetail": {"current": 721920, "total": 1113436}, "progress":"[================================>                  ] 721.9 kB/1.113 MB", "id": "9508eff2c687"},  # noqa
+    {"status": "Pushing", "progressDetail": {"current": 721920, "total": 1113436}, "progress": "[================================>                  ] 721.9 kB/1.113 MB", "id": "9508eff2c687"},  # noqa
     {"status": "Pushing", "progressDetail": {"current": 1024}, "progress": "1.024 kB", "id": "5f70bf18a086"},  # noqa
     {"status": "Pushing", "progressDetail": {"current": 820224, "total": 1113436}, "progress": "[====================================>              ] 820.2 kB/1.113 MB", "id": "9508eff2c687"},  # noqa
     {"status": "Pushed", "progressDetail": {}, "id": "5f70bf18a086"},
@@ -50,7 +50,7 @@ PUSH_LOGS_1_10 = [
     {"status": "Pushed", "progressDetail": {}, "id": "9508eff2c687"},
     {"status": "Pushed", "progressDetail": {}, "id": "9508eff2c687"},
     {"status": "latest: digest: + DIGEST_LOG.encode('utf-8') + size: 1920"},
-    {"progressDetail":{ }, "aux": {"Tag": "latest", "Digest": " + DIGEST_LOG.encode('utf-8') + ", "Size": 1920}}]  # noqa
+    {"progressDetail": {}, "aux": {"Tag": "latest", "Digest": " + DIGEST_LOG.encode('utf-8') + ", "Size": 1920}}]  # noqa
 
 PUSH_LOGS_1_10_NOT_IN_STATUS = list(PUSH_LOGS_1_10)
 del PUSH_LOGS_1_10_NOT_IN_STATUS[-2]

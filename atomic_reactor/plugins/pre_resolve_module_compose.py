@@ -24,7 +24,6 @@ Example configuration:
 """
 
 import os
-import re
 import yaml
 from modulemd import ModuleMetadata
 from pdc_client import PDCClient
