@@ -12,11 +12,15 @@ from osbs.api import OSBS
 from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException
 
-from atomic_reactor.plugin import PostBuildPlugin
+from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
 from atomic_reactor.util import get_build_json, get_primary_images
 
 
-class ImportImagePlugin(PostBuildPlugin):
+# Note: We use multiple inheritance here only to make it explicit that
+# this plugin needs to act as both an exit plugin (since arrangement
+# version 6) and as a post-build plugin (arrangement version < 6). In
+# fact, ExitPlugin is a subclass of PostBuildPlugin.
+class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
     """
     Import image tags from external docker registry into Origin,
     creating an ImageStream if one does not already exist.
@@ -56,6 +60,11 @@ class ImportImagePlugin(PostBuildPlugin):
         self.imagestream = None
 
     def run(self):
+        # Only run if the build was successful
+        if self.workflow.build_process_failed:
+            self.log.info("Not importing failed build")
+            return
+
         self.setup_osbs_api()
         self.get_or_create_imagestream()
         self.process_tags()
