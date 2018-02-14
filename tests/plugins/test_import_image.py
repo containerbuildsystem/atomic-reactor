@@ -50,7 +50,7 @@ DEFAULT_TAGS_AMOUNT = 6
 
 
 def prepare(insecure_registry=None, namespace=None, primary_images_tag_conf=DEFAULT_TAGS_AMOUNT,
-            primary_images_annotations=DEFAULT_TAGS_AMOUNT):
+            primary_images_annotations=DEFAULT_TAGS_AMOUNT, build_process_failed=False):
     """
     Boiler-plate test set-up
     """
@@ -59,6 +59,7 @@ def prepare(insecure_registry=None, namespace=None, primary_images_tag_conf=DEFA
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     setattr(workflow, 'builder', X())
+    flexmock(workflow, build_process_failed=build_process_failed)
     setattr(workflow.builder, 'image_id', 'asd123')
     setattr(workflow.builder, 'source', X())
     setattr(workflow.builder.source, 'dockerfile_path', None)
@@ -220,37 +221,53 @@ def test_ensure_primary(monkeypatch, osbs_error, tag_conf, annotations, tag_pref
         runner.run()
 
 
+@pytest.mark.parametrize('build_process_failed', [True, False])
 @pytest.mark.parametrize(('namespace'), [
     ({}),
     ({'namespace': 'my_namespace'})
 ])
-def test_import_image(namespace, monkeypatch):
+def test_import_image(build_process_failed, namespace, monkeypatch):
     """
     Test importing tags for an existing ImageStream
     """
 
-    runner = prepare(namespace=namespace.get('namespace'))
+    runner = prepare(namespace=namespace.get('namespace'),
+                     build_process_failed=build_process_failed)
 
     build_json = {"metadata": {}}
     build_json["metadata"].update(namespace)
     monkeypatch.setenv("BUILD", json.dumps(build_json))
 
-    (flexmock(OSBS)
-     .should_receive('get_image_stream')
-     .once()
-     .with_args(TEST_IMAGESTREAM)
-     .and_return(ImageStreamResponse()))
-    (flexmock(OSBS)
-     .should_receive('create_image_stream')
-     .never())
-    (flexmock(OSBS)
-     .should_receive('ensure_image_stream_tag')
-     .times(DEFAULT_TAGS_AMOUNT))
-    (flexmock(OSBS)
-     .should_receive('import_image')
-     .once()
-     .with_args(TEST_IMAGESTREAM)
-     .and_return(True))
+    if build_process_failed:
+        (flexmock(ImportImagePlugin)
+         .should_receive('setup_osbs_api')
+         .never())
+        (flexmock(ImportImagePlugin)
+         .should_receive('get_or_create_imagestream')
+         .never())
+        (flexmock(ImportImagePlugin)
+         .should_receive('process_tags')
+         .never())
+        (flexmock(OSBS)
+         .should_receive('import_image')
+         .never())
+    else:
+        (flexmock(OSBS)
+         .should_receive('get_image_stream')
+         .once()
+         .with_args(TEST_IMAGESTREAM)
+         .and_return(ImageStreamResponse()))
+        (flexmock(OSBS)
+         .should_receive('create_image_stream')
+         .never())
+        (flexmock(OSBS)
+         .should_receive('ensure_image_stream_tag')
+         .times(DEFAULT_TAGS_AMOUNT))
+        (flexmock(OSBS)
+         .should_receive('import_image')
+         .once()
+         .with_args(TEST_IMAGESTREAM)
+         .and_return(True))
     runner.run()
 
 
