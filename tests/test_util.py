@@ -930,10 +930,13 @@ def test_clone_git_repo_retry(tmpdir, retry_times, raise_exc):
 
 @pytest.mark.parametrize(('module', 'should_raise', 'expected'), [
     ('eog', True, None),
+    ('eog:f26', False, ('eog', 'f26', None)),
     ('eog-f26', False, ('eog', 'f26', None)),
+    ('eog:f26:20170629213428', False, ('eog', 'f26', '20170629213428')),
     ('eog-f26-20170629213428', False, ('eog', 'f26', '20170629213428')),
     ('a-b-c-20176291342855', False, ('a-b', 'c', '20176291342855')),
     ('a-b-c-d', False, ('a-b-c', 'd', None)),
+    ('a:b:c:d', True, None),
 ])
 def test_split_module_spec(module, should_raise, expected):
     if should_raise:

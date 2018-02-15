@@ -1128,16 +1128,35 @@ def get_primary_images(workflow):
 
 
 def split_module_spec(module):
-    m = re.match(r'^(.*)-([^-]+)-(\d{14})$', module)
-    if not m:
-        m = re.match(r'^(.*)-([^-]+)$', module)
-        if not m:
-            raise RuntimeError(
-                'Module specification should be NAME-STREAM or NAME-STREAM-VERSION')
+    # Current module naming guidelines are at:
+    # https://docs.pagure.org/modularity/development/building-modules/naming-policy.html
+    # We simplify the possible NAME:STREAM:CONTEXT:ARCH/PROFILE and only care about
+    # NAME:STREAM or NAME:STREAM:VERSION. PROFILE is not needed, and ARCH is determined by
+    # the architecture. CONTEXT may become important in the future, but we ignore it
+    # for now.
+    #
+    # Previously the separator was '-' instead of ':', which required hardcoding the
+    # format of VERSION to distinguish between HYPHENATED-NAME-STREAM and NAME-STREAM-VERSION.
+    # We support the old format for compatibility.
+    #
+    PATTERNS = [
+        r'^([^:]+):([^:]+):([^:]+)$',
+        r'^([^:]+):([^:]+)$',
+        r'^(.+)-([^-]+)-(\d{14})$',
+        r'^(.+)-([^-]+)$'
+    ]
 
-    module_version = None
-    module_name = m.group(1)
-    module_stream = m.group(2)
-    if m.lastindex == 3:
-        module_version = m.group(3)
-    return module_name, module_stream, module_version
+    for pat in PATTERNS:
+        m = re.match(pat, module)
+        if m:
+            module_version = None
+            module_name = m.group(1)
+            module_stream = m.group(2)
+            if m.lastindex == 3:
+                module_version = m.group(3)
+            return module_name, module_stream, module_version
+
+    raise RuntimeError(
+        'Module specification should be NAME:STREAM or NAME:STREAM:VERSION. ' +
+        '(NAME-STREAM and NAME-STREAM-VERSION supported for compatibility.)'
+    )
