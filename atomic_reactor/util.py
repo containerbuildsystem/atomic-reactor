@@ -276,7 +276,7 @@ def clone_git_repo(git_url, target_dir, commit=None, retry_times=GIT_MAX_RETRIES
     subprocess.check_call(cmd, cwd=target_dir)
     cmd = ["git", "rev-parse", "HEAD"]
     logger.debug("getting SHA-1 of provided ref '%s'", cmd)
-    commit_id = subprocess.check_output(cmd, cwd=target_dir)
+    commit_id = subprocess.check_output(cmd, cwd=target_dir, universal_newlines=True)
     commit_id = commit_id.strip()
     logger.info("commit ID = %s", commit_id)
     return commit_id

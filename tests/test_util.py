@@ -153,7 +153,7 @@ def test_clone_git_repo_by_sha1(tmpdir):
     tmpdir_path = str(tmpdir.realpath())
     commit_id = clone_git_repo(DOCKERFILE_GIT, tmpdir_path, commit=DOCKERFILE_SHA1)
     assert commit_id is not None
-    assert six.text_type(commit_id, encoding="ascii") == six.text_type(DOCKERFILE_SHA1)
+    assert commit_id == DOCKERFILE_SHA1
     assert len(commit_id) == 40  # current git hashes are this long
     assert os.path.isdir(os.path.join(tmpdir_path, '.git'))
 
