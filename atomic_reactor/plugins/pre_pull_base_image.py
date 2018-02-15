@@ -37,20 +37,30 @@ class PullBaseImagePlugin(PreBuildPlugin):
         self.parent_registry = parent_registry
         self.parent_registry_insecure = parent_registry_insecure
 
+    def resolve_base_image(self, build_json):
+        spec = build_json.get("spec")
+        try:
+            image_id = spec['triggeredBy'][0]['imageChangeBuild']['imageID']
+        except (TypeError, KeyError, IndexError):
+            base_image = self.workflow.builder.base_image
+        else:
+            base_image = ImageName.parse(image_id)  # any exceptions will propagate
+
+        return base_image
+
     def run(self):
         """
         pull base image
         """
-        base_image = self.workflow.builder.base_image
-        if self.parent_registry is not None:
-            self.log.info("pulling base image '%s' from registry '%s'",
-                          base_image, self.parent_registry)
-        else:
-            self.log.info("pulling base image '%s'", base_image)
+        build_json = get_build_json()
+
+        base_image = self.resolve_base_image(build_json)
 
         base_image_with_registry = base_image.copy()
 
         if self.parent_registry:
+            self.log.info("pulling base image '%s' from registry '%s'",
+                          base_image, self.parent_registry)
             # registry in dockerfile doesn't match provided source registry
             if base_image.registry and base_image.registry != self.parent_registry:
                 self.log.error("registry in dockerfile doesn't match provided source registry, "
@@ -62,6 +72,8 @@ class PullBaseImagePlugin(PreBuildPlugin):
                     % (base_image.registry, self.parent_registry))
 
             base_image_with_registry.registry = self.parent_registry
+        else:
+            self.log.info("pulling base image '%s'", base_image)
 
         try:
             self.tasker.pull_image(base_image_with_registry,
@@ -90,7 +102,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
         # and removing images it pulled.
 
         # Use the OpenShift build name as the unique ID
-        unique_id = get_build_json()['metadata']['name']
+        unique_id = build_json['metadata']['name']
         original_base_image = base_image.copy()
         base_image = ImageName(repo=unique_id)
 
