@@ -157,6 +157,32 @@ def test_pull_base_wrong_registry():
         test_pull_base_image_plugin('localhost:1234', BASE_IMAGE_W_REGISTRY, [], [])
 
 
+def test_pull_base_base_parse():
+    flexmock(ImageName).should_receive('parse').and_raise(AttributeError)
+    with pytest.raises(AttributeError):
+        test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE, [BASE_IMAGE_W_REGISTRY],
+                                    [BASE_IMAGE_W_LIB_REG])
+
+
+def test_pull_base_change_override(monkeypatch):
+    monkeypatch.setenv("BUILD", json.dumps({
+        'metadata': {
+            'name': UNIQUE_ID,
+        },
+        'spec': {
+            'triggeredBy': [
+                {
+                    'imageChangeBuild': {
+                        'imageID': BASE_IMAGE
+                    }
+                },
+            ]
+        },
+    }))
+    test_pull_base_image_plugin(LOCALHOST_REGISTRY, 'invalid-image',
+                                [BASE_IMAGE_W_REGISTRY], [BASE_IMAGE_W_LIB_REG])
+
+
 @pytest.mark.parametrize(('exc', 'failures', 'should_succeed'), [
     (docker.errors.NotFound, 5, True),
     (docker.errors.NotFound, 25, False),
