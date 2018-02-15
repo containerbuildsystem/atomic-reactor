@@ -17,6 +17,7 @@ from atomic_reactor.pulp_util import PulpHandler
 from atomic_reactor.util import ImageName
 
 import pytest
+import copy
 from flexmock import flexmock
 from tests.constants import INPUT_IMAGE, SOURCE, MOCK
 if MOCK:
@@ -80,7 +81,7 @@ def prepare(testfile="test-image", check_repo_retval=0):
      .with_args(object, object))
     (flexmock(dockpulp.Pulp)
      .should_receive('getRepos')
-     .with_args(list, fields=list)
+     .with_args(list, fields=list, distributors=True)
      .and_return([
          {"id": "redhat-image-name1"},
          {"id": "redhat-prefix-image-name2"}
@@ -197,3 +198,59 @@ def test_get_pulp_instance():
     _, workflow = prepare(testfile)
     handler = PulpHandler(workflow, pulp_registry_name, log)
     assert handler.get_pulp_instance() == pulp_registry_name
+
+
+@pytest.mark.skipif(dockpulp is None,
+                    reason='dockpulp module not available')
+@pytest.mark.parametrize(("auto_publish"), [
+    (True),
+    (False),
+])
+@pytest.mark.parametrize(("unsupported"), [
+    (True),
+    (False)
+])
+def test_ensure_repos(auto_publish, unsupported):
+    dist_data = [
+          {
+            "repo_id": "redhat-myproject-hello-world",
+            "auto_publish": auto_publish,
+          }
+        ]
+    mock_get_data = [{"id": "redhat-myproject-hello-world"}]
+    data_with_dist = copy.deepcopy(mock_get_data)
+    data_with_dist[0]["distributors"] = dist_data
+
+    log = logging.getLogger("tests.test_pulp_util")
+    pulp_registry_name = 'registry.example.com'
+    testfile = 'foo'
+
+    _, workflow = prepare(testfile)
+
+    if unsupported:
+        (flexmock(dockpulp.Pulp)
+         .should_receive('getRepos')
+         .with_args(['redhat-myproject-hello-world'], fields=['id'], distributors=True)
+         .and_raise(TypeError)
+         .once())
+    else:
+        (flexmock(dockpulp.Pulp)
+         .should_receive('getRepos')
+         .with_args(['redhat-myproject-hello-world'], fields=['id'], distributors=True)
+         .and_return(data_with_dist)
+         .once())
+
+    (flexmock(dockpulp.Pulp)
+     .should_receive('getRepos')
+     .with_args(['redhat-myproject-hello-world'], fields=['id'])
+     .and_return(mock_get_data)
+     .times(1 if unsupported else 0))
+
+    (flexmock(dockpulp.Pulp)
+     .should_receive('updateRepo')
+     .with_args(data_with_dist[0], {'auto_publish': False})
+     .times(1 if auto_publish and not unsupported else 0))
+
+    image_names = [ImageName(repo="myproject-hello-world")]
+    handler = PulpHandler(workflow, pulp_registry_name, log)
+    handler.create_dockpulp_and_repos(image_names)

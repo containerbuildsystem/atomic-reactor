@@ -88,7 +88,7 @@ def prepare(v1_image_ids={}):
      .with_args(object, object))
     (flexmock(dockpulp.Pulp)
      .should_receive('getRepos')
-     .with_args(list, fields=list)
+     .with_args(list, fields=list, distributors=bool)
      .and_return([
          {"id": "redhat-image-name1"},
          {"id": "redhat-prefix-image-name2"}
