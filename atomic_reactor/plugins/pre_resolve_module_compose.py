@@ -125,8 +125,8 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
             with open(file_path) as f:
                 self.data = (yaml.load(f) or {}).get('compose')
 
-        if not self.data or not self.compose_ids:
-            raise RuntimeError('"compose" config not set and compose_ids not given')
+        if not self.data:
+            raise RuntimeError('"compose" config in container.yaml is required for Flatpaks')
 
     def _resolve_modules(self, compose_source):
         resolved_modules = {}
@@ -181,7 +181,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
         modules = self.data.get('modules', [])
 
         if not modules:
-            raise RuntimeError('"compose" config is missing "modules", required for Flatpak')
+            raise RuntimeError('"compose" config has no modules, a module is required for Flatpaks')
 
         source_spec = modules[0]
         if len(modules) > 1:
@@ -193,9 +193,9 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
                       module_name, module_stream, module_version)
 
         if self.compose_ids:
+            if len(self.compose_ids) > 1:
+                self.log.info("Multiple compose_ids, using first compose %d", self.compose_id)
             self.compose_id = self.compose_ids[0]
-        if len(self.compose_ids) > 1:
-            self.log.info("Multiple compose_ids, using first compose %d", self.compose_id)
 
         if self.compose_id is None:
             self.compose_id = odcs_client.start_compose(source_type='module',
