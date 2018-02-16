@@ -112,8 +112,6 @@ def compose_json(state, state_name):
     [MODULE_NS],
     [MODULE_NSV],
     [MODULE_NSV, 'mod_name2-mod_stream2-mod_version2'],
-    [MODULE_NS, 'mod_name2-mod_stream2-mod_version2'],
-    [MODULE_NSV, 'mod_name2-mod_stream2'],
 ))
 def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules):
     secrets_path = os.path.join(str(tmpdir), "secret")
@@ -121,17 +119,17 @@ def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules):
     with open(os.path.join(secrets_path, "token"), "w") as f:
         f.write("green_eggs_and_ham")
 
-    module = None
-    data = "compose:\n"
-
     if modules is not None:
+        data = "compose:\n"
         data += "    modules:\n"
         for mod in modules:
             data += "    - {}\n".format(mod)
+        tmpdir.join(REPO_CONTAINER_CONFIG).write(data)
+
+    module = None
     if modules:
         module = modules[0]
         mod_name, mod_stream, mod_version = split_module_spec(module)
-    tmpdir.join(REPO_CONTAINER_CONFIG).write(data)
 
     workflow = mock_workflow(tmpdir)
     mock_get_retry_session()
@@ -145,10 +143,7 @@ def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules):
             body = request.body.decode()
         body_json = json.loads(body)
         assert body_json['source']['type'] == 'module'
-        if specify_version:
-            assert body_json['source']['source'] == MODULE_NSV
-        else:
-            assert body_json['source']['source'] == MODULE_NS
+        assert body_json['source']['source'] == module
         return (200, {}, compose_json(0, 'wait'))
 
     responses.add_callback(responses.POST, ODCS_URL + '/composes/',
@@ -202,19 +197,14 @@ def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules):
         }]
     )
 
-    if not compose_ids:
+    if modules is None:
         with pytest.raises(PluginFailedException) as exc_info:
             runner.run()
-        assert 'config not set and compose_ids not given' in str(exc_info.value)
+        assert '"compose" config in container.yaml is required ' in str(exc_info.value)
     elif not modules:
-        if modules is None:
-            with pytest.raises(PluginFailedException) as exc_info:
-                runner.run()
-            assert 'config not set and compose_ids not given' in str(exc_info.value)
-        else:
-            with pytest.raises(PluginFailedException) as exc_info:
-                runner.run()
-            assert 'config is missing "modules", required for Flatpak' in str(exc_info.value)
+        with pytest.raises(PluginFailedException) as exc_info:
+            runner.run()
+        assert '"compose" config has no modules' in str(exc_info.value)
     else:
         runner.run()
 
