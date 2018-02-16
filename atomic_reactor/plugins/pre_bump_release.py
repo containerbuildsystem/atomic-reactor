@@ -9,9 +9,9 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import (get_all_label_keys, get_preferred_label_key,
-                                 get_preferred_label, df_parser)
+from atomic_reactor.util import df_parser
 from atomic_reactor.koji_util import create_koji_session
+from osbs.utils import Labels
 
 
 class BumpReleasePlugin(PreBuildPlugin):
@@ -109,20 +109,24 @@ class BumpReleasePlugin(PreBuildPlugin):
 
         parser = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
         dockerfile_labels = parser.labels
+        labels = Labels(dockerfile_labels)
 
-        release = get_preferred_label(dockerfile_labels, 'release')
-        if release is not None and not self.append:
-            self.log.debug("release set explicitly so not incrementing")
-            return
+        try:
+            _, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
+            if not self.append:
+                self.log.debug("release set explicitly so not incrementing")
+                return
+        except KeyError:
+            release = None
 
-        component_label = get_preferred_label_key(dockerfile_labels,
-                                                  'com.redhat.component')
+        component_label = labels.get_name(Labels.LABEL_TYPE_COMPONENT)
+
         try:
             component = dockerfile_labels[component_label]
         except KeyError:
             raise RuntimeError("missing label: {}".format(component_label))
 
-        version_label = get_preferred_label_key(dockerfile_labels, 'version')
+        version_label = labels.get_name(Labels.LABEL_TYPE_VERSION)
         try:
             version = dockerfile_labels[version_label]
         except KeyError:
@@ -135,17 +139,9 @@ class BumpReleasePlugin(PreBuildPlugin):
 
         # Always set preferred release label - other will be set if old-style
         # label is present
-        release_labels = get_all_label_keys('release')
-        preferred_release_label = get_preferred_label_key(dockerfile_labels,
-                                                          'release')
-        old_style_label = get_all_label_keys('com.redhat.component')[1]
-        release_labels_to_be_set = [preferred_release_label]
-        if old_style_label in dockerfile_labels.keys():
-            release_labels_to_be_set = release_labels
+        release_label = labels.LABEL_NAMES[Labels.LABEL_TYPE_RELEASE][0]
 
         # No release labels are set so set them
-        for release_label in release_labels_to_be_set:
-            self.log.info("setting %s=%s", release_label, next_release)
-
-            # Write the label back to the file (this is a property setter)
-            dockerfile_labels[release_label] = next_release
+        self.log.info("setting %s=%s", release_label, next_release)
+        # Write the label back to the file (this is a property setter)
+        dockerfile_labels[release_label] = next_release
