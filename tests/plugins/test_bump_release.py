@@ -180,11 +180,8 @@ class TestBumpRelease(object):
 
         parser = df_parser(plugin.workflow.builder.df_path, workflow=plugin.workflow)
         assert parser.labels['release'] == next_release['expected']
-        # Old-style spellings will be asserted only if other old-style labels are present
-        if 'BZComponent' not in parser.labels.keys():
-            assert 'Release' not in parser.labels
-        else:
-            assert parser.labels['Release'] == next_release['expected']
+        # Old-style spellings should not be asserted
+        assert 'Release' not in parser.labels
 
     @pytest.mark.parametrize('base_release,builds,expected', [
         ('42', [], '42.1'),
