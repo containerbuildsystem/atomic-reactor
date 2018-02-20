@@ -762,6 +762,8 @@ class TestKojiUpload(object):
             ])
             if has_config:
                 expected_keys_set.add('config')
+            if expect_digest:
+                expected_keys_set.add('digests')
             assert set(docker.keys()) == expected_keys_set
 
             assert is_string_type(docker['parent_id'])
@@ -792,6 +794,8 @@ class TestKojiUpload(object):
             if expect_digest:
                 digest_pullspec = image.to_str(tag=False) + '@' + fake_digest(image)
                 assert digest_pullspec in repositories_digest
+                digests = docker['digests']
+                assert isinstance(digests, dict)
 
             tags = docker['tags']
             assert isinstance(tags, list)
@@ -883,7 +887,7 @@ class TestKojiUpload(object):
          None),
 
         ('v2-only',
-         True,
+         False,
          1,
          None,
          None),
@@ -896,7 +900,7 @@ class TestKojiUpload(object):
 
     ])
     @pytest.mark.parametrize('has_config', (True, False))
-    @pytest.mark.parametrize('prefer_schema1_digest', (True, False))
+    @pytest.mark.parametrize('prefer_schema1_digest', (False, True))
     def test_koji_upload_success(self, tmpdir, apis, docker_registry,
                                  pulp_registries, blocksize, target,
                                  os_env, has_config, prefer_schema1_digest):
