@@ -20,7 +20,8 @@ from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.constants import PROG, PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json, get_docker_architecture,
-                                 get_image_upload_filename)
+                                 get_image_upload_filename,
+                                 get_manifest_media_type)
 from atomic_reactor.koji_util import create_koji_session
 from atomic_reactor.rpm_util import parse_rpm_output, rpm_qf_args
 from osbs.conf import Configuration
@@ -306,27 +307,6 @@ class KojiUploadPlugin(PostBuildPlugin):
 
         return metadata, output
 
-    def get_digests(self):
-        """
-        Returns a map of images to their digests
-        """
-
-        digests = {}  # repository -> digests
-        for registry in self.workflow.push_conf.docker_registries:
-            for image in self.workflow.tag_conf.images:
-                image_str = image.to_str()
-                if image_str in registry.digests:
-                    image_digests = registry.digests[image_str]
-                    if self.report_multiple_digests:
-                        digest_list = [digest for digest in (image_digests.v1,
-                                                             image_digests.v2)
-                                       if digest]
-                    else:
-                        digest_list = [self.select_digest(image_digests)]
-                    digests[image.to_str(registry=False)] = digest_list
-
-        return digests
-
     def select_digest(self, digests):
         digest = digests.default
 
@@ -340,33 +320,54 @@ class KojiUploadPlugin(PostBuildPlugin):
 
         return digest
 
-    def get_repositories(self, digests):
+    def get_repositories_and_digests(self):
         """
-        Build the repositories metadata
+        Returns a map of images to their repositories and a map of media types to each digest
 
-        :param digests: dict, image -> digests
+        it creates a map of images to digests, which is need to create the image->repository
+        map and uses the same loop structure as media_types->digest, but the image->digest
+        map isn't needed after we have the image->repository map and can be discarded.
         """
+        digests = {}  # image -> digests
+        typed_digests = {}  # media_type -> digests
+        for registry in self.workflow.push_conf.docker_registries:
+            for image in self.workflow.tag_conf.images:
+                image_str = image.to_str()
+                if image_str in registry.digests:
+                    image_digests = registry.digests[image_str]
+                    if self.report_multiple_digests:
+                        digest_list = [digest for digest in (image_digests.v1,
+                                                             image_digests.v2)
+                                       if digest]
+                    else:
+                        digest_list = [self.select_digest(image_digests)]
+                    digests[image.to_str(registry=False)] = digest_list
+                    for digest_version in image_digests.content_type:
+                        if digest_version not in image_digests:
+                            continue
+                        digest_type = get_manifest_media_type(digest_version)
+                        typed_digests[digest_type] = image_digests[digest_version]
+
         if self.workflow.push_conf.pulp_registries:
             # If pulp was used, only report pulp images
             registries = self.workflow.push_conf.pulp_registries
         else:
             # Otherwise report all the images we pushed
             registries = self.workflow.push_conf.all_registries
-
-        output_images = []
+        repositories = []
         for registry in registries:
             image = self.pullspec_image.copy()
             image.registry = registry.uri
             pullspec = image.to_str()
 
-            output_images.append(pullspec)
+            repositories.append(pullspec)
 
             digest_list = digests.get(image.to_str(registry=False), ())
             for digest in digest_list:
                 digest_pullspec = image.to_str(tag=False) + "@" + digest
-                output_images.append(digest_pullspec)
+                repositories.append(digest_pullspec)
 
-        return output_images
+        return repositories, typed_digests
 
     def get_output(self, buildroot_id):
         """
@@ -404,8 +405,7 @@ class KojiUploadPlugin(PostBuildPlugin):
         if config and 'container_config' in config:
             del config['container_config']
 
-        digests = self.get_digests()
-        repositories = self.get_repositories(digests)
+        repositories, typed_digests = self.get_repositories_and_digests()
         tags = set(image.tag for image in self.workflow.tag_conf.images)
         metadata, output = self.get_image_output()
 
@@ -423,13 +423,16 @@ class KojiUploadPlugin(PostBuildPlugin):
                     'repositories': repositories,
                     'layer_sizes': self.workflow.layer_sizes,
                     'tags': list(tags),
-                    'config': config
+                    'config': config,
+                    'digests': typed_digests
                 },
             },
         })
 
         if not config:
             del metadata['extra']['docker']['config']
+        if not typed_digests:
+            del metadata['extra']['docker']['digests']
 
         # Add the 'docker save' image to the output
         image = add_buildroot_id(output)
