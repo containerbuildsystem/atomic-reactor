@@ -14,7 +14,8 @@ import os
 from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME, IMAGE_TYPE_DOCKER_ARCHIVE
 from atomic_reactor.plugin import PrePublishPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
-from atomic_reactor.util import get_exported_image_metadata
+from atomic_reactor.util import get_exported_image_metadata, \
+        base_image_is_scratch
 from docker_squash.squash import Squash
 
 __all__ = ('PrePublishSquashPlugin', )
@@ -72,6 +73,10 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         self.image = self.workflow.builder.image_id
         self.tag = tag or str(self.workflow.builder.image)
         self.from_layer = from_layer
+
+        if base_image_is_scratch(self.workflow.builder.base_image.to_str()):
+            from_base = False
+
         if from_base and from_layer is None:
             try:
                 base_image_id = self.workflow.base_image_inspect['Id']

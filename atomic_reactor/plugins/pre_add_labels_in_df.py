@@ -59,7 +59,8 @@ from __future__ import unicode_literals
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import INSPECT_CONFIG
-from atomic_reactor.util import get_docker_architecture, df_parser, LabelFormatter
+from atomic_reactor.util import get_docker_architecture, df_parser, \
+                                LabelFormatter, base_image_is_scratch
 from osbs.utils import Labels
 import json
 import datetime
@@ -245,7 +246,8 @@ class AddLabelsPlugin(PreBuildPlugin):
 
         lines = dockerfile.lines
 
-        if re.match('^koji/image-build(:.*)?$', dockerfile.baseimage):
+        if (re.match('^koji/image-build(:.*)?$', dockerfile.baseimage) or
+                base_image_is_scratch(dockerfile.baseimage)):
             base_image_labels = {}
         else:
             try:

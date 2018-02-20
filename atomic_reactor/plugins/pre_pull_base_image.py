@@ -14,8 +14,8 @@ from __future__ import unicode_literals
 import docker
 
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import get_build_json, ImageName
 from atomic_reactor.core import RetryGeneratorException
+from atomic_reactor.util import get_build_json, ImageName, base_image_is_scratch
 
 
 class PullBaseImagePlugin(PreBuildPlugin):
@@ -55,6 +55,9 @@ class PullBaseImagePlugin(PreBuildPlugin):
         build_json = get_build_json()
 
         base_image = self.resolve_base_image(build_json)
+        if base_image_is_scratch(base_image.to_str()):
+            self.log.debug('base image is scratch, do not attempt to pull')
+            return
 
         base_image_with_registry = base_image.copy()
 
@@ -78,7 +81,6 @@ class PullBaseImagePlugin(PreBuildPlugin):
         try:
             self.tasker.pull_image(base_image_with_registry,
                                    insecure=self.parent_registry_insecure)
-
         except RetryGeneratorException as original_exc:
             if base_image_with_registry.namespace == 'library':
                 raise

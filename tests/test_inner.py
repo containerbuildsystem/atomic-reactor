@@ -98,13 +98,15 @@ class X(object):
 
 
 class MockInsideBuilder(object):
-    def __init__(self, failed=False, is_base_image=False):
+    def __init__(self, failed=False, is_base_image=False, base_image=None):
         if is_base_image:
             self.tasker = MockDockerTaskerBaseImage()
             self.base_image = ImageName(namespace='koji', repo='image-build')
         else:
             self.tasker = MockDockerTasker()
             self.base_image = ImageName(repo='Fedora', tag='22')
+        if base_image is not None:
+            self.base_image = base_image
         self.image_id = 'asd'
         self.image = 'image'
         self.failed = failed
@@ -402,6 +404,55 @@ def test_workflow_base_images():
     assert watch_exit.was_called()
     with pytest.raises(KeyError):
         assert workflow.base_image_inspect
+
+
+def test_workflow_scratch_base_image():
+    """
+    Test workflow for scratch base images.
+    """
+
+    flexmock(DockerfileParser, content='df_content')
+    this_file = inspect.getfile(PreWatched)
+    mock_docker()
+    fake_builder = MockInsideBuilder(base_image=ImageName(repo='scratch', tag='latest'))
+    flexmock(InsideBuilder).new_instances(fake_builder)
+    watch_pre = Watcher()
+    watch_prepub = Watcher()
+    watch_buildstep = Watcher()
+    watch_post = Watcher()
+    watch_exit = Watcher()
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+                                   prebuild_plugins=[{'name': 'pre_watched',
+                                                      'args': {
+                                                          'watcher': watch_pre
+                                                      }}],
+                                   buildstep_plugins=[{'name': 'buildstep_watched',
+                                                       'args': {
+                                                           'watcher': watch_buildstep
+                                                       }}],
+
+                                   prepublish_plugins=[{'name': 'prepub_watched',
+                                                        'args': {
+                                                            'watcher': watch_prepub,
+                                                        }}],
+                                   postbuild_plugins=[{'name': 'post_watched',
+                                                       'args': {
+                                                           'watcher': watch_post
+                                                       }}],
+                                   exit_plugins=[{'name': 'exit_watched',
+                                                  'args': {
+                                                      'watcher': watch_exit
+                                                  }}],
+                                   plugin_files=[this_file])
+
+    workflow.build_docker_image()
+
+    assert watch_pre.was_called()
+    assert watch_prepub.was_called()
+    assert watch_buildstep.was_called()
+    assert watch_post.was_called()
+    assert watch_exit.was_called()
+    assert workflow.base_image_inspect == {}
 
 
 class FakeLogger(object):

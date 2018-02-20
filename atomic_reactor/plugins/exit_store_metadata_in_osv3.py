@@ -26,7 +26,7 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY,
                                       MEDIA_TYPE_DOCKER_V1)
 from atomic_reactor.plugin import ExitPlugin
-from atomic_reactor.util import get_build_json
+from atomic_reactor.util import get_build_json, base_image_is_scratch
 
 
 class StoreMetadataInOSv3Plugin(ExitPlugin):
@@ -205,7 +205,12 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             base_image = self.workflow.builder.original_base_image
         else:
             base_image = self.workflow.builder.base_image
-        if base_image is not None:
+
+        if self.workflow.builder.base_image is not None:
+            is_real = not base_image_is_scratch(self.workflow.builder.base_image.to_str())
+        else:
+            is_real = True
+        if base_image is not None and is_real:
             base_image_name = base_image.to_str()
             try:
                 base_image_id = self.workflow.base_image_inspect['Id']

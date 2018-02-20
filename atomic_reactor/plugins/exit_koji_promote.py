@@ -49,6 +49,7 @@ from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json,
                                  get_docker_architecture, df_parser,
                                  are_plugins_in_order,
+                                 base_image_is_scratch,
                                  get_image_upload_filename,
                                  get_manifest_media_type)
 from atomic_reactor.koji_util import (create_koji_session, tag_koji_build,
@@ -307,6 +308,9 @@ class KojiPromotePlugin(ExitPlugin):
         Re-package the output of the rpmqa plugin into the format required
         for the metadata.
         """
+        if base_image_is_scratch(self.workflow.builder.base_image.to_str()):
+            self.log.debug("base image is scratch, return empty list of components")
+            return []
 
         output = self.workflow.image_components
         if output is None:
@@ -440,7 +444,11 @@ class KojiPromotePlugin(ExitPlugin):
 
         # Parent of squashed built image is base image
         image_id = self.workflow.builder.image_id
-        parent_id = self.workflow.base_image_inspect['Id']
+        if base_image_is_scratch(self.workflow.builder.base_image.to_str()):
+            self.log.debug("base image is scratch, setting empty parent id")
+            parent_id = ""
+        else:
+            parent_id = self.workflow.base_image_inspect['Id']
 
         # Read config from the registry using v2 schema 2 digest
         registries = self.workflow.push_conf.docker_registries

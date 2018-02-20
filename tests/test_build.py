@@ -67,6 +67,21 @@ def test_inspect_base_image(tmpdir, source_params):
 
 @requires_internet
 @with_all_sources
+def test_inspect_scratch_base_image(tmpdir, source_params):
+    if MOCK:
+        mock_docker()
+
+    source_params.update({'tmpdir': str(tmpdir)})
+    s = get_source_instance_for(source_params)
+    b = InsideBuilder(s, '')
+    b.set_base_image("scratch:latest")
+    built_inspect = b.inspect_base_image()
+
+    assert built_inspect == {}
+
+
+@requires_internet
+@with_all_sources
 @pytest.mark.parametrize(('image', 'will_raise'), [
     (
         "buildroot-fedora:latest",

@@ -1112,3 +1112,7 @@ def split_module_spec(module):
         'Module specification should be NAME:STREAM or NAME:STREAM:VERSION. ' +
         '(NAME-STREAM and NAME-STREAM-VERSION supported for compatibility.)'
     )
+
+
+def base_image_is_scratch(base_image_name):
+    return re.match('^scratch(:latest)?$', base_image_name)

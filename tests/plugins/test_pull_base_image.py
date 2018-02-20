@@ -57,7 +57,8 @@ def set_build_json(monkeypatch):
 
 
 @pytest.mark.parametrize(('parent_registry',
-                          'df_base',       # unique ID is always expected
+                          'df_base',      # the base image is always expected unless
+                                          # it's explicitly listed in 'not_expected'
                           'expected',      # additional expected images
                           'not_expected',  # additional images not expected
                           ), [
@@ -119,7 +120,8 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
     workflow.builder.base_image = ImageName.parse(df_base)
 
     expected = set(expected)
-    expected.add(UNIQUE_ID)
+    if df_base not in not_expected:
+        expected.add(UNIQUE_ID)
     all_images = set(expected).union(not_expected)
     for image in all_images:
         assert not tasker.image_exists(image)
@@ -271,3 +273,8 @@ def test_try_with_library_pull_base_image(library):
         runner.run()
 
     assert error_message in exc.value.args[0]
+
+
+def test_pull_scratch_base(caplog):
+    test_pull_base_image_plugin('localhost:5000', 'scratch:latest', [], ['scratch:latest'])
+    assert 'base image is scratch, do not attempt to pull' in caplog.text()
