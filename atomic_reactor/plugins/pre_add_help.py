@@ -24,7 +24,7 @@ from datetime import datetime as dt
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
-from atomic_reactor.util import get_preferred_label
+from osbs.utils import Labels
 
 DEFAULT_HELP_FILENAME = "help.md"
 
@@ -70,16 +70,19 @@ class AddHelpPlugin(PreBuildPlugin):
             return result
 
         dockerfile = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
-        labels = dockerfile.labels
+        labels = Labels(dockerfile.labels)
+        try:
+            _, name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)
+        except KeyError:
+            name = ''
+        maintainer = dockerfile.labels.get('maintainer', '')
 
         with open(help_path, 'r+') as help_file:
             lines = help_file.readlines()
 
             if not lines[0].startswith("% "):
-                lines.insert(0, "%% %s (1) Container Image Pages\n" %
-                             (get_preferred_label(labels, "name") or ""))
-                lines.insert(1, "%% %s\n" %
-                             (get_preferred_label(labels, "maintainer") or ""))
+                lines.insert(0, "%% %s (1) Container Image Pages\n" % name)
+                lines.insert(1, "%% %s\n" % maintainer)
                 lines.insert(2, "%% %s\n" % dt.fromtimestamp(atomic_reactor_start_time)
                              .strftime(format="%B %-d, %Y"))
 

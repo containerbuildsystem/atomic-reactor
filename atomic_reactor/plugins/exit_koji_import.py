@@ -42,7 +42,7 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY,
                                       PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY)
-from atomic_reactor.util import (get_build_json, get_preferred_label,
+from atomic_reactor.util import (get_build_json,
                                  df_parser, ImageName, get_checksums, get_primary_images,
                                  get_manifest_media_type,
                                  get_digests_map_from_annotations)
@@ -51,6 +51,7 @@ from atomic_reactor.koji_util import (create_koji_session, Output, KojiUploadLog
 from osbs.conf import Configuration
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
+from osbs.utils import Labels
 
 
 class KojiImportPlugin(ExitPlugin):
@@ -366,11 +367,10 @@ class KojiImportPlugin(ExitPlugin):
     def get_build(self, metadata, worker_metadatas):
         start_time = int(atomic_reactor_start_time)
 
-        labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels
-
-        component = get_preferred_label(labels, 'com.redhat.component')
-        version = get_preferred_label(labels, 'version')
-        release = get_preferred_label(labels, 'release')
+        labels = Labels(df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels)
+        _, component = labels.get_name_and_value(Labels.LABEL_TYPE_COMPONENT)
+        _, version = labels.get_name_and_value(Labels.LABEL_TYPE_VERSION)
+        _, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
 
         source = self.workflow.source
         if not isinstance(source, GitSource):

@@ -33,7 +33,7 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  LazyGit, figure_out_build_file,
                                  render_yum_repo, process_substitutions,
                                  get_checksums, print_version_of_tools,
-                                 get_version_of_tools, get_preferred_label_key,
+                                 get_version_of_tools,
                                  human_size, CommandResult,
                                  registry_hostname, Dockercfg, RegistrySession,
                                  get_manifest_digests, ManifestDigest,
@@ -279,19 +279,6 @@ def test_get_versions_of_tools():
 
 def test_print_versions_of_tools():
     print_version_of_tools()
-
-
-@pytest.mark.parametrize('labels, name, expected', [
-    ({'name': 'foo', 'Name': 'foo'}, 'name', 'name'),
-    ({'name': 'foo', 'Name': 'foo'}, 'Name', 'name'),
-    ({'name': 'foo'}, 'Name', 'name'),
-    ({'Name': 'foo'}, 'name', 'Name'),
-    ({}, 'Name', 'name'),
-    ({}, 'foobar', 'foobar')
-])
-def test_preferred_labels(labels, name, expected):
-    result = get_preferred_label_key(labels, name)
-    assert result == expected
 
 
 @pytest.mark.parametrize('size_input,expected', [

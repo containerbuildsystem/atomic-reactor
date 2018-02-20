@@ -543,60 +543,6 @@ def print_version_of_tools():
         logger.info("%s-%s at %s", tool["name"], tool["version"], tool["path"])
 
 
-# each tuple is sorted from most preferred to least
-_PREFERRED_LABELS = (
-    ('name', 'Name'),
-    ('version', 'Version'),
-    ('release', 'Release'),
-    ('architecture', 'Architecture'),
-    ('vendor', 'Vendor'),
-    ('authoritative-source', 'Authoritative_Registry'),
-    ('com.redhat.component', 'BZComponent'),
-    ('com.redhat.build-host', 'Build_Host'),
-)
-
-
-def get_all_label_keys(name):
-    """
-    Return the preference chain for the naming of a particular label.
-
-    :param name: string, label name to search for
-    :return: tuple, label names, most preferred first
-    """
-
-    for label_chain in _PREFERRED_LABELS:
-        if name in label_chain:
-            return label_chain
-    else:
-        # no variants known, return the name unchanged
-        return (name,)
-
-
-def get_preferred_label_key(labels, name):
-    """
-    We can have multiple variants of some labels (e.g. Version and version), sorted by preference.
-    This function returns the best label corresponding to "name" that is present in the "labels"
-    dictionary.
-
-    Returns unchanged name if we don't have it in the preference table. If name is in the table
-    but none of the variants are in the labels dict, returns the most-preferred label - the
-    assumption is that we're gonna raise an error later and the error message should contain
-    the preferred variant.
-    """
-    label_chain = get_all_label_keys(name)
-    for lbl in label_chain:
-        if lbl in labels:
-            return lbl
-
-    # none of the variants is in 'labels', return the best
-    return label_chain[0]
-
-
-def get_preferred_label(labels, name):
-    key = get_preferred_label_key(labels, name)
-    return labels.get(key)
-
-
 def get_build_json():
     try:
         return json.loads(os.environ["BUILD"])

@@ -11,7 +11,8 @@ import re
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.constants import INSPECT_CONFIG, TAG_NAME_REGEX
-from atomic_reactor.util import get_preferred_label_key, df_parser, LabelFormatter
+from atomic_reactor.util import df_parser, LabelFormatter
+from osbs.utils import Labels
 
 
 class TagFromConfigPlugin(PostBuildPlugin):
@@ -102,12 +103,11 @@ class TagFromConfigPlugin(PostBuildPlugin):
 
     def get_component_name(self):
         try:
-            name_label = str(get_preferred_label_key(self.labels, "name"))
-            name = self.labels[name_label]
+            labels = Labels(self.labels)
+            _, name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)
         except KeyError:
             self.log.error('Unable to determine component from "Labels"')
             raise
-
         return name
 
     def run(self):
