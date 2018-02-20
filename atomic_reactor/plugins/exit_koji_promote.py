@@ -46,7 +46,7 @@ from atomic_reactor.constants import (PROG, PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY)
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
-                                 get_build_json, get_preferred_label,
+                                 get_build_json,
                                  get_docker_architecture, df_parser,
                                  are_plugins_in_order,
                                  get_image_upload_filename,
@@ -57,6 +57,7 @@ from atomic_reactor.rpm_util import parse_rpm_output, rpm_qf_args
 from osbs.conf import Configuration
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
+from osbs.utils import Labels
 
 
 class KojiPromotePlugin(ExitPlugin):
@@ -492,11 +493,11 @@ class KojiPromotePlugin(ExitPlugin):
     def get_build(self, metadata):
         start_time = int(atomic_reactor_start_time)
 
-        labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels
+        labels = Labels(df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels)
 
-        component = get_preferred_label(labels, 'com.redhat.component')
-        version = get_preferred_label(labels, 'version')
-        release = get_preferred_label(labels, 'release')
+        _, component = labels.get_name_and_value(Labels.LABEL_TYPE_COMPONENT)
+        _, version = labels.get_name_and_value(Labels.LABEL_TYPE_VERSION)
+        _, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
 
         source = self.workflow.source
         if not isinstance(source, GitSource):

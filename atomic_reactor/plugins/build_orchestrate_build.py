@@ -27,13 +27,14 @@ from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import BuildStepPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_config
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
-from atomic_reactor.util import get_preferred_label, df_parser, get_build_json
+from atomic_reactor.util import df_parser, get_build_json
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       REPO_CONTAINER_CONFIG)
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from osbs.conf import Configuration
 from osbs.constants import BUILD_FINISHED_STATES
+from osbs.utils import Labels
 
 
 ClusterInfo = namedtuple('ClusterInfo', ('cluster', 'platform', 'osbs', 'load'))
@@ -344,8 +345,9 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         return ret
 
     def get_release(self):
-        labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels
-        return get_preferred_label(labels, 'release')
+        labels = Labels(df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels)
+        _, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
+        return release
 
     @staticmethod
     def get_koji_upload_dir():

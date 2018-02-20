@@ -8,7 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.constants import INSPECT_CONFIG
-from atomic_reactor.util import get_preferred_label
+from osbs.utils import Labels
 
 
 __all__ = ('TagByLabelsPlugin', )
@@ -44,16 +44,16 @@ class TagByLabelsPlugin(PostBuildPlugin):
                                "Have the build succeeded?")
         if "Labels" not in self.workflow.built_image_inspect[INSPECT_CONFIG]:
             raise RuntimeError("No labels specified.")
+        labels = Labels(self.workflow.built_image_inspect[INSPECT_CONFIG]['Labels'])
 
-        def get_label(label_name):
+        def get_label(labels, label_name):
             try:
-                return get_preferred_label(
-                    self.workflow.built_image_inspect[INSPECT_CONFIG]['Labels'],
-                    label_name)
+                _, value = labels.get_name_and_value(label_name)
+                return value
             except KeyError:
                 raise RuntimeError("Missing label '%s'." % label_name)
 
-        name = get_label("name")
+        name = get_label(labels, Labels.LABEL_TYPE_NAME)
 
         unique_tag = self.workflow.builder.image.tag
         n_unique = "%s:%s" % (name, unique_tag)
@@ -63,8 +63,8 @@ class TagByLabelsPlugin(PostBuildPlugin):
             self.log.debug('Skipping transient tags')
             return
 
-        version = get_label("version")
-        release = get_label("release")
+        version = get_label(labels, Labels.LABEL_TYPE_VERSION)
+        release = get_label(labels, Labels.LABEL_TYPE_RELEASE)
 
         nvr = "%s:%s-%s" % (name, version, release)
         nv = "%s:%s" % (name, version)

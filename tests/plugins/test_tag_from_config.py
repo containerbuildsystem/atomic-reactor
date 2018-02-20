@@ -108,7 +108,7 @@ def test_tag_from_config_plugin_generated(tmpdir, docker_tasker, tags, name,
 
 
 @pytest.mark.parametrize(('inspect', 'error'), [  # noqa
-    ({'Labels': {}}, "KeyError('name'"),
+    ({'Labels': {}}, "KeyError(<object"),
     ({}, "KeyError('Labels'"),
     (None, "RuntimeError('There is no inspect data"),
 ])

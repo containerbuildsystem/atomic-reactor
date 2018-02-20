@@ -40,7 +40,8 @@ import os
 import shutil
 from atomic_reactor.constants import DOCKERFILE_FILENAME
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import get_preferred_label, df_parser
+from atomic_reactor.util import df_parser
+from osbs.utils import Labels
 
 
 class AddDockerfilePlugin(PreBuildPlugin):
@@ -67,11 +68,12 @@ class AddDockerfilePlugin(PreBuildPlugin):
         self.use_final_dockerfile = use_final_dockerfile
 
         if nvr is None:
-            labels = df_parser(self.workflow.builder.df_path).labels
-            name = get_preferred_label(labels, 'name')
-            version = get_preferred_label(labels, 'version')
-            release = get_preferred_label(labels, 'release')
-            if name is None or version is None or release is None:
+            labels = Labels(df_parser(self.workflow.builder.df_path).labels)
+            try:
+                _, name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)
+                _, version = labels.get_name_and_value(Labels.LABEL_TYPE_VERSION)
+                _, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
+            except KeyError:
                 raise ValueError("You have to specify either nvr arg or name/version/release "
                                  "labels.")
             nvr = "{0}-{1}-{2}".format(name, version, release)
