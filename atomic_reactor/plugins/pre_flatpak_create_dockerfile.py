@@ -35,7 +35,10 @@ LABEL com.redhat.component="{name}"
 LABEL version="{stream}"
 LABEL release="{version}"
 
-RUN dnf -y --nogpgcheck --disablerepo=* --enablerepo=atomic-reactor-module-* \\
+RUN dnf -y --nogpgcheck \\
+    --disablerepo=* \\
+    --enablerepo=atomic-reactor-koji-plugin-* \\
+    --enablerepo=atomic-reactor-module-* \\
     --installroot=/var/tmp/flatpak-build install {packages}
 RUN rpm --root=/var/tmp/flatpak-build {rpm_qf_args} > /var/tmp/flatpak-build.rpm_qf
 COPY cleanup.sh /var/tmp/flatpak-build/tmp/
