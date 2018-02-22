@@ -32,7 +32,7 @@ from collections import namedtuple
 
 from six.moves.urllib.parse import urlparse
 
-from atomic_reactor.constants import (DOCKERFILE_FILENAME, FLATPAK_FILENAME, TOOLS_USED,
+from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG, TOOLS_USED,
                                       INSPECT_CONFIG,
                                       IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,
                                       HTTP_MAX_RETRIES, HTTP_BACKOFF_FACTOR,
@@ -143,7 +143,7 @@ class ImageName(object):
 
 def figure_out_build_file(absolute_path, local_path=None):
     """
-    try to figure out the build file (Dockerfile or flatpak.json) from provided
+    try to figure out the build file (Dockerfile or just a container.yaml) from provided
     path and optionally from relative local path this is meant to be used with
     git repo: absolute_path is path to git repo, local_path is path to dockerfile
     within git repo
@@ -155,7 +155,7 @@ def figure_out_build_file(absolute_path, local_path=None):
     logger.info("searching for dockerfile in '%s' (local path %s)", absolute_path, local_path)
     logger.debug("abs path = '%s', local path = '%s'", absolute_path, local_path)
     if local_path:
-        if local_path.endswith(DOCKERFILE_FILENAME) or local_path.endswith(FLATPAK_FILENAME):
+        if local_path.endswith(DOCKERFILE_FILENAME) or local_path.endswith(REPO_CONTAINER_CONFIG):
             git_build_file_dir = os.path.dirname(local_path)
             build_file_dir = os.path.abspath(os.path.join(absolute_path, git_build_file_dir))
         else:
@@ -164,16 +164,24 @@ def figure_out_build_file(absolute_path, local_path=None):
         build_file_dir = os.path.abspath(absolute_path)
     if not os.path.isdir(build_file_dir):
         raise IOError("Directory '%s' doesn't exist." % build_file_dir)
-    # Check for flatpak.json first because we do flatpak.json => Dockerfile generation
-    build_file_path = os.path.join(build_file_dir, FLATPAK_FILENAME)
-    if os.path.isfile(build_file_path):
-        logger.debug("flatpak.json found: '%s'", build_file_path)
-        return build_file_path, build_file_dir
     build_file_path = os.path.join(build_file_dir, DOCKERFILE_FILENAME)
     if os.path.isfile(build_file_path):
         logger.debug("Dockerfile found: '%s'", build_file_path)
         return build_file_path, build_file_dir
-    raise IOError("Dockerfile '%s' doesn't exist." % build_file_path)
+    build_file_path = os.path.join(build_file_dir, REPO_CONTAINER_CONFIG)
+    if os.path.isfile(build_file_path):
+        logger.debug("container.yaml found: '%s'", build_file_path)
+
+        # Without this check, there would be a confusing 'Dockerfile has not yet been generated'
+        # exception later.
+        with open(build_file_path) as f:
+            data = yaml.safe_load(f)
+            if data is None or 'flatpak' not in data:
+                raise RuntimeError("container.yaml found, but no accompanying Dockerfile")
+
+        return build_file_path, build_file_dir
+    raise IOError("Dockerfile '%s' doesn't exist." % os.path.join(build_file_dir,
+                                                                  DOCKERFILE_FILENAME))
 
 
 class CommandResult(object):

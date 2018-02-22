@@ -144,8 +144,9 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         self.df_dir = build_file_dir
         self._df_path = None
 
-        # If the build file isn't a Dockerfile, but say, a flatpak.json then a
-        # plugin needs to create the Dockerfile and set the base image
+        # If the Dockerfile will be entirely generated from the container.yaml
+        # (in the Flatpak case, say), then a plugin needs to create the Dockerfile
+        # and set the base image
         if build_file_path.endswith(DOCKERFILE_FILENAME):
             self.set_df_path(build_file_path)
 

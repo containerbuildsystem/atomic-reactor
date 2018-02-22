@@ -1513,7 +1513,7 @@ class TestKojiImport(object):
                                    modules,
                                    repo_url)
 
-        source = FlatpakSourceInfo(flatpak_json={}, compose=compose_info)
+        source = FlatpakSourceInfo(flatpak_yaml={}, compose=compose_info)
         set_flatpak_source_info(workflow, source)
 
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)

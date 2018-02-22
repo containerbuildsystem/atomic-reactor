@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import tarfile
 from textwrap import dedent
+import yaml
 
 
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
@@ -39,8 +40,8 @@ from atomic_reactor.util import ImageName
 from tests.constants import TEST_IMAGE
 from tests.fixtures import docker_tasker  # noqa
 from tests.flatpak import (
-    FLATPAK_APP_JSON, FLATPAK_APP_MODULEMD, FLATPAK_APP_RPMS, FLATPAK_APP_FINISH_ARGS,
-    FLATPAK_RUNTIME_JSON, FLATPAK_RUNTIME_MODULEMD
+    FLATPAK_APP_CONTAINER_YAML, FLATPAK_APP_MODULEMD, FLATPAK_APP_RPMS, FLATPAK_APP_FINISH_ARGS,
+    FLATPAK_RUNTIME_CONTAINER_YAML, FLATPAK_RUNTIME_MODULEMD
 )
 
 TEST_ARCH = 'x86_64'
@@ -108,7 +109,7 @@ APP_CONFIG = {
             'rpms': [],  # We don't use this currently
         },
     },
-    'flatpak_json': FLATPAK_APP_JSON,
+    'container_yaml': FLATPAK_APP_CONTAINER_YAML,
     'filesystem_contents': APP_FILESYSTEM_CONTENTS,
     'expected_contents': EXPECTED_APP_FLATPAK_CONTENTS,
     'expected_components': ['eog'],
@@ -351,7 +352,7 @@ RUNTIME_CONFIG = {
             'rpms': [],  # We don't use this currently
         },
     },
-    'flatpak_json': FLATPAK_RUNTIME_JSON,
+    'container_yaml': FLATPAK_RUNTIME_CONTAINER_YAML,
     'filesystem_contents': RUNTIME_FILESYSTEM_CONTENTS,
     'expected_contents': EXPECTED_RUNTIME_FLATPAK_CONTENTS,
     'expected_components': ['abattis-cantarell-fonts'],
@@ -775,7 +776,7 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
                                repo_url)
     set_compose_info(workflow, compose_info)
 
-    source = FlatpakSourceInfo(FLATPAK_APP_JSON,
+    source = FlatpakSourceInfo(yaml.safe_load(config['container_yaml'])['flatpak'],
                                compose_info)
     set_flatpak_source_info(workflow, source)
 

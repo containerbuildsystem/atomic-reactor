@@ -33,7 +33,7 @@ from atomic_reactor.constants import REPO_CONTAINER_CONFIG
 from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
 from tests.util import mocked_reactorconfig
 from tests.fixtures import docker_tasker, reactor_config_map  # noqa
-from tests.flatpak import FLATPAK_APP_JSON, FLATPAK_APP_MODULEMD, FLATPAK_APP_RPMS
+from tests.flatpak import FLATPAK_APP_MODULEMD, FLATPAK_APP_RPMS
 from tests.retry_mock import mock_get_retry_session
 
 
@@ -43,10 +43,10 @@ class MockSource(object):
         self.dockerfile_path = "./"
         self.path = tmpdir
 
-        self.flatpak_json_path = os.path.join(tmpdir, 'flatpak.json')
+        self.container_yaml_path = os.path.join(tmpdir, 'container.yaml')
 
     def get_build_file_path(self):
-        return self.flatpak_json_path, self.path
+        return self.container_yaml_path, self.path
 
     def get_vcs_info(self):
         return VcsInfo('git', FLATPAK_GIT, FLATPAK_SHA1)
@@ -70,9 +70,6 @@ def mock_workflow(tmpdir):
     setattr(workflow, 'builder', MockBuilder())
     workflow.builder.source = mock_source
     flexmock(workflow, source=mock_source)
-
-    with open(mock_source.flatpak_json_path, "w") as f:
-        f.write(json.dumps(FLATPAK_APP_JSON))
 
     setattr(workflow.builder, 'df_dir', str(tmpdir))
 
