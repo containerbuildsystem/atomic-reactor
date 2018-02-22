@@ -823,6 +823,8 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
             output = inspector.cat_file('/export/share/applications/org.gnome.eog.desktop')
             lines = output.split('\n')
             assert 'Icon=org.gnome.eog' in lines
+            metadata_lines = inspector.cat_file('/metadata').split('\n')
+            assert 'tags=Viewer' in metadata_lines
         else:  # runtime
             # Check that permissions have been normalized
             assert inspector.get_file_perms('/files/etc/shadow') == '-00644'
