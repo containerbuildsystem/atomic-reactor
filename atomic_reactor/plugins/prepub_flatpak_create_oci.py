@@ -39,7 +39,7 @@ def get_arch():
 # since our build step is just unpacking the filesystem we've already
 # created. This is a stub implementation of 'flatpak build-init' that
 # doesn't check for the SDK or use it to set up the build filesystem.
-def build_init(directory, appname, sdk, runtime, runtime_branch):
+def build_init(directory, appname, sdk, runtime, runtime_branch, tags=[]):
     if not os.path.isdir(directory):
         os.mkdir(directory)
     with open(os.path.join(directory, "metadata"), "w") as f:
@@ -53,6 +53,8 @@ def build_init(directory, appname, sdk, runtime, runtime_branch):
                                   runtime=runtime,
                                   runtime_branch=runtime_branch,
                                   arch=get_arch())))
+        if tags:
+            f.write("tags=" + ";".join(tags) + "\n")
     os.mkdir(os.path.join(directory, "files"))
 
 
@@ -435,7 +437,7 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         # See comment for build_init() for why we can't use 'flatpak build-init'
         # subprocess.check_call(['flatpak', 'build-init',
         #                        builddir, app_id, runtime_id, runtime_id, runtime_version])
-        build_init(builddir, app_id, runtime_id, runtime_id, runtime_version)
+        build_init(builddir, app_id, runtime_id, runtime_id, runtime_version, tags=info.get('tags', []))
 
         # with gzip'ed tarball, tar is several seconds faster than tarfile.extractall
         subprocess.check_call(['tar', 'xCfz', builddir, tarred_filesystem])
