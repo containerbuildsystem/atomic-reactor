@@ -72,7 +72,8 @@ flatpak:
     id: org.gnome.eog
     runtime: org.fedoraproject.Platform
     runtime-version: 28
-    command: eog
+    # Test overriding the automatic "first executable in /usr/bin'
+    command: eog2
     tags: ["Viewer"]
     finish-args: >
 """ + "".join("        {}\n".format(a) for a in FLATPAK_APP_FINISH_ARGS)
