@@ -448,6 +448,8 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         if 'finish-args' in info:
             # shlex.split(None) reads from standard input, so avoid that
             finish_args = shlex.split(info['finish-args'] or '')
+        if 'command' in info:
+            finish_args = ['--command', info['command']] + finish_args
 
         subprocess.check_call(['flatpak', 'build-finish'] + finish_args + [builddir])
         subprocess.check_call(['flatpak', 'build-export', repo, builddir])

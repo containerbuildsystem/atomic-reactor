@@ -447,8 +447,9 @@ class MockFlatpak:
         os.mkdir(os.path.join(directory, "files"))
 
     @staticmethod
-    def build_finish(directory):
-        pass
+    def build_finish(directory, command):
+        with open(os.path.join(directory, "metadata"), "a") as f:
+            f.write("command=" + command + "\n")
 
     @staticmethod
     def build_export(repo, directory):
@@ -485,7 +486,8 @@ COMMAND_PATTERNS = [
      MockFlatpak.build_bundle),
     (['flatpak', 'build-export', '@repo', '@directory'],
      MockFlatpak.build_export),
-    (['flatpak', 'build-finish'] + FLATPAK_APP_FINISH_ARGS + ['@directory'],
+    (['flatpak', 'build-finish', '--command', '@command'] +
+     FLATPAK_APP_FINISH_ARGS + ['@directory'],
      MockFlatpak.build_finish),
     (['flatpak', 'build-init', '@directory', '@appname', '@sdk', '@runtime', '@runtime_branch'],
      MockFlatpak.build_init),
@@ -825,6 +827,7 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
             assert 'Icon=org.gnome.eog' in lines
             metadata_lines = inspector.cat_file('/metadata').split('\n')
             assert 'tags=Viewer' in metadata_lines
+            assert 'command=eog2' in metadata_lines
         else:  # runtime
             # Check that permissions have been normalized
             assert inspector.get_file_perms('/files/etc/shadow') == '-00644'
