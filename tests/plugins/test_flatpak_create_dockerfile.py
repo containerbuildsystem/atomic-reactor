@@ -8,7 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 from flexmock import flexmock
 
-import json
 import responses
 import os
 import pytest
@@ -30,7 +29,7 @@ from atomic_reactor.util import ImageName
 
 from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
 from tests.fixtures import docker_tasker  # noqa
-from tests.flatpak import FLATPAK_APP_JSON, FLATPAK_APP_MODULEMD, FLATPAK_APP_RPMS
+from tests.flatpak import FLATPAK_APP_CONTAINER_YAML, FLATPAK_APP_MODULEMD, FLATPAK_APP_RPMS
 
 
 class MockSource(object):
@@ -39,10 +38,10 @@ class MockSource(object):
         self.dockerfile_path = "./"
         self.path = tmpdir
 
-        self.flatpak_json_path = os.path.join(tmpdir, 'flatpak.json')
+        self.container_yaml_path = os.path.join(tmpdir, 'container.yaml')
 
     def get_build_file_path(self):
-        return self.flatpak_json_path, self.path
+        return self.container_yaml_path, self.path
 
     def get_vcs_info(self):
         return VcsInfo('git', FLATPAK_GIT, FLATPAK_SHA1)
@@ -67,8 +66,8 @@ def mock_workflow(tmpdir):
     workflow.builder.source = mock_source
     flexmock(workflow, source=mock_source)
 
-    with open(mock_source.flatpak_json_path, "w") as f:
-        f.write(json.dumps(FLATPAK_APP_JSON))
+    with open(mock_source.container_yaml_path, "w") as f:
+        f.write(FLATPAK_APP_CONTAINER_YAML)
 
     setattr(workflow.builder, 'df_dir', str(tmpdir))
 

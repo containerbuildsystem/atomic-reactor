@@ -6,9 +6,9 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 
 
-Takes a flatpak.json from the git repository, and the module information
-looked up by pre_resolve_module_compose, and outputs
-a Dockerfile that will build a filesystem image for the module
+Combines the module information looked up by pre_resolve_module_compose,
+combines it with additional information from container.yaml, and
+generates a Dockerfile that will build a filesystem image for the module
 at /var/tmp/flatpak-build.
 
 Example configuration:
@@ -18,10 +18,10 @@ Example configuration:
 }
 """
 
-import json
 import os
+import yaml
 
-from atomic_reactor.constants import FLATPAK_FILENAME, DOCKERFILE_FILENAME, YUM_REPOS_DIR
+from atomic_reactor.constants import DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG, YUM_REPOS_DIR
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_resolve_module_compose import get_compose_info
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
@@ -47,8 +47,8 @@ RUN chroot /var/tmp/flatpak-build/ /bin/sh /tmp/cleanup.sh
 
 
 class FlatpakSourceInfo(object):
-    def __init__(self, flatpak_json, compose):
-        self.flatpak_json = flatpak_json
+    def __init__(self, flatpak_yaml, compose):
+        self.flatpak_yaml = flatpak_yaml
         self.compose = compose
 
         mmd = compose.base_module.mmd
@@ -98,16 +98,17 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
         self.base_image = base_image
 
     def _load_source(self):
-        flatpak_path = os.path.join(self.workflow.builder.df_dir, FLATPAK_FILENAME)
-        with open(flatpak_path, 'r') as fp:
-            flatpak_json = json.load(fp)
+        container_yaml_path = os.path.join(self.workflow.builder.df_dir, REPO_CONTAINER_CONFIG)
+        with open(container_yaml_path, 'r') as fp:
+            container_yaml = yaml.safe_load(fp)
+        flatpak_yaml = container_yaml['flatpak']
 
         compose_info = get_compose_info(self.workflow)
         if compose_info is None:
             raise RuntimeError(
                 "resolve_module_compose must be run before flatpak_create_dockerfile")
 
-        return FlatpakSourceInfo(flatpak_json, compose_info)
+        return FlatpakSourceInfo(flatpak_yaml, compose_info)
 
     def run(self):
         """
@@ -144,8 +145,9 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
 
         cleanupscript = os.path.join(self.workflow.builder.df_dir, "cleanup.sh")
         with open(cleanupscript, 'w') as f:
-            for line in source.flatpak_json.get('cleanup-commands', []):
-                f.write(line)
+            cleanup_commands = source.flatpak_yaml.get('cleanup-commands')
+            if cleanup_commands is not None:
+                f.write(cleanup_commands.rstrip())
                 f.write("\n")
         os.chmod(cleanupscript, 0o0755)
 

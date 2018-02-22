@@ -13,6 +13,7 @@ and turns it into a Flatpak application or runtime.
 import os
 from six.moves import configparser
 import re
+import shlex
 import shutil
 import subprocess
 import tarfile
@@ -371,7 +372,7 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         return app_components
 
     def _create_runtime_oci(self, tarred_filesystem, outfile):
-        info = self.source.flatpak_json
+        info = self.source.flatpak_yaml
 
         builddir = os.path.join(self.workflow.source.workdir, "build")
         os.mkdir(builddir)
@@ -420,7 +421,7 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         return runtime_ref
 
     def _create_app_oci(self, tarred_filesystem, outfile):
-        info = self.source.flatpak_json
+        info = self.source.flatpak_yaml
         app_id = info['id']
 
         runtime_id = info['runtime']
@@ -441,7 +442,12 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
 
         update_desktop_files(app_id, builddir)
 
-        subprocess.check_call(['flatpak', 'build-finish'] + info['finish-args'] + [builddir])
+        finish_args = []
+        if 'finish-args' in info:
+            # shlex.split(None) reads from standard input, so avoid that
+            finish_args = shlex.split(info['finish-args'] or '')
+
+        subprocess.check_call(['flatpak', 'build-finish'] + finish_args + [builddir])
         subprocess.check_call(['flatpak', 'build-export', repo, builddir])
 
         subprocess.check_call(['flatpak', 'build-bundle', repo, '--oci', outfile, app_id])

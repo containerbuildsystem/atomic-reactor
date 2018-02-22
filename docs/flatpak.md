@@ -66,45 +66,46 @@ These are mock'ed for 'make test' - 'make test' only requires binaries that are 
 
 Modules build in Fedora koji are currently not built into yum repositories, though this is [planned](https://pagure.io/odcs). To build a Flatpak against a module thus requires you to manually build a yum repository ([flatpak-module-tools] (https://pagure.io/flatpak-module-tools) contains `flatpak-module compose`), put it somewhere publically accessible by HTTP, and provide it as the `compose_url` argument to the `flatpak_create_dockerfile` plugin.
 
-### flatpak.json
+### container.yaml
 
-The flatpak.json file is inspired by the JSON manifest input to [flatpak builder](http://docs.flatpak.org/en/latest/flatpak-builder.html), but
-without the actual build instructions. The flaptak.json for a runtime and for a application are somewhat different.
+Building a flatpak requires additional information to be added to the container.yaml file. The necessary additions for a runtime and for a application are somewhat different.
 
 Runtime:
 
-```json
-{
-        "runtime": "org.fedoraproject.Platform",
-        "runtime-version": "26",
-        "sdk": "org.fedoraproject.Sdk",
-        "cleanup-commands": [ "touch -d @0 /usr/share/fonts",
-                              "touch -d @0 /usr/share/fonts/*",
-                              "fc-cache -fs"
-                            ]
-}
-
+```yaml
+compose:
+    modules:
+    - flatpak-runtime:f28
+flatpak:
+    runtime: org.fedoraproject.Platform
+    runtime-version: f28
+    sdk: org.fedoraproject.Sdk
+    cleanup-commands: >
+        touch -d @0 /usr/share/fonts
+        touch -d @0 /usr/share/fonts/*
+        fc-cache -fs
 ```
 
 Application:
 
-```json
-{
-        "id": "org.gnome.eog",
-        "version": "3.20.0-2.fc26",
-        "runtime": "org.fedoraproject.Platform",
-        "runtime-version": "26",
-        "sdk": "org.fedoraproject.Sdk",
-        "command": "eog",
-        "tags": ["Viewer"],
-        "finish-args": ["--filesystem=host",
-                        "--share=ipc",
-                        "--socket=x11",
-                        "--socket=wayland",
-                        "--socket=session-bus",
-                        "--filesystem=~/.config/dconf:ro",
-                        "--filesystem=xdg-run/dconf",
-                        "--talk-name=ca.desrt.dconf",
-                        "--env=DCONF_USER_CONFIG_DIR=.config/dconf"]
-}
+```yaml
+compose:
+    modules:
+    - eog:f28
+flatpak:
+    id: org.gnome.eog
+    runtime: org.fedoraproject.Platform
+    runtime-version: 28
+    command: eog
+    tags: ["Viewer"]
+    finish-args: >
+        --filesystem=host
+        --share=ipc
+        --socket=x11
+        --socket=wayland
+        --socket=session-bus
+        --filesystem=~/.config/dconf:ro
+        --filesystem=xdg-run/dconf
+        --talk-name=ca.desrt.dconf
+        --env=DCONF_USER_CONFIG_DIR=.config/dconf
 ```

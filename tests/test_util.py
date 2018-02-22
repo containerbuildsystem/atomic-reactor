@@ -48,8 +48,8 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  split_module_spec,
                                  read_yaml, read_yaml_from_file_path, OSBSLogs)
 from atomic_reactor import util
-from tests.constants import (DOCKERFILE_GIT, FLATPAK_GIT,
-                             INPUT_IMAGE, MOCK, DOCKERFILE_SHA1, MOCK_SOURCE,
+from tests.constants import (DOCKERFILE_GIT, DOCKERFILE_SHA1,
+                             INPUT_IMAGE, MOCK, MOCK_SOURCE,
                              REACTOR_CONFIG_MAP)
 from atomic_reactor.constants import INSPECT_CONFIG
 
@@ -163,18 +163,54 @@ def test_clone_git_repo_by_sha1(tmpdir):
     assert os.path.isdir(os.path.join(tmpdir_path, '.git'))
 
 
-@requires_internet
-@pytest.mark.parametrize('repository,expected_path', [
-    (DOCKERFILE_GIT, "Dockerfile"),
-    (FLATPAK_GIT, "flatpak.json"),
+BUILD_FILE_CONTENTS_DOCKER = {
+    "Dockerfile": "",
+    "container.yaml": "",
+    "subdir/Dockerfile": ""
+}
+
+BUILD_FILE_CONTENTS_FLATPAK = {
+    "container.yaml": "flatpak: {}\n",
+    "subdir/container.yaml": "flatpak: {}\n"
+}
+
+BUILD_FILE_CONTENTS_BROKEN = {
+    "dummy": "",
+    "subdir/container.yaml": ""
+}
+
+
+@pytest.mark.parametrize('contents,local_path,expected_path,expected_exception', [
+    (BUILD_FILE_CONTENTS_DOCKER, None, "Dockerfile", None),
+    (BUILD_FILE_CONTENTS_DOCKER, "subdir", "subdir/Dockerfile", None),
+    (BUILD_FILE_CONTENTS_DOCKER, "subdir/Dockerfile", "subdir/Dockerfile", None),
+    (BUILD_FILE_CONTENTS_FLATPAK, None, "container.yaml", None),
+    (BUILD_FILE_CONTENTS_FLATPAK, "subdir", "subdir/container.yaml", None),
+    (BUILD_FILE_CONTENTS_FLATPAK, "subdir/container.yaml", "subdir/container.yaml", None),
+    (BUILD_FILE_CONTENTS_BROKEN, None, None, "doesn't exist"),
+    (BUILD_FILE_CONTENTS_BROKEN, "subdir", None, "no accompanying Dockerfile"),
+    (BUILD_FILE_CONTENTS_BROKEN, "nonexist_subdir", None, "doesn't exist"),
 ])
-def test_figure_out_build_file(tmpdir, repository, expected_path):
+def test_figure_out_build_file(tmpdir, contents, local_path, expected_path, expected_exception):
     tmpdir_path = str(tmpdir.realpath())
-    clone_git_repo(repository, tmpdir_path)
-    path, dir = figure_out_build_file(tmpdir_path)
-    assert path == os.path.join(tmpdir_path, expected_path)
-    assert os.path.isfile(path)
-    assert os.path.isdir(dir)
+    for path, path_contents in contents.items():
+        fullpath = os.path.join(tmpdir_path, path)
+        d = os.path.dirname(fullpath)
+        if not os.path.exists(d):
+            os.makedirs(d)
+        with open(fullpath, "w") as f:
+            f.write(path_contents)
+
+    if expected_exception is None:
+        path, dir = figure_out_build_file(tmpdir_path, local_path=local_path)
+        assert path == os.path.join(tmpdir_path, expected_path)
+        assert os.path.isfile(path)
+        assert os.path.isdir(dir)
+    else:
+        with pytest.raises(Exception) as e:
+            figure_out_build_file(tmpdir_path, local_path=local_path)
+        print(e)
+        assert expected_exception in str(e)
 
 
 @requires_internet

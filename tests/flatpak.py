@@ -12,9 +12,8 @@ data:
   license:
     module: [MIT]
   dependencies:
-    buildrequires: {base-runtime: f26, common-build-dependencies: f26, flatpak-runtime: f26,
-      perl: f26, shared-userspace: f26}
-    requires: {flatpak-runtime: f26}
+    buildrequires: {flatpak-runtime: f28}
+    requires: {flatpak-runtime: f28}
   profiles:
     default:
       rpms: [eog]
@@ -65,16 +64,18 @@ FLATPAK_APP_FINISH_ARGS = [
     "--env=DCONF_USER_CONFIG_DIR=.config/dconf"
 ]
 
-FLATPAK_APP_JSON = {
-    "id": "org.gnome.eog",
-    "version": "3.20.0-2.fc26",
-    "runtime": "org.fedoraproject.Platform",
-    "runtime-version": "26",
-    "sdk": "org.fedoraproject.Sdk",
-    "command": "eog",
-    "tags": ["Viewer"],
-    "finish-args": FLATPAK_APP_FINISH_ARGS
-}
+FLATPAK_APP_CONTAINER_YAML = """
+compose:
+    modules:
+    - eog:f28
+flatpak:
+    id: org.gnome.eog
+    runtime: org.fedoraproject.Platform
+    runtime-version: 28
+    command: eog
+    tags: ["Viewer"]
+    finish-args: >
+""" + "".join("        {}\n".format(a) for a in FLATPAK_APP_FINISH_ARGS)
 
 FLATPAK_RUNTIME_MODULEMD = """
 document: modulemd
@@ -139,11 +140,16 @@ data:
     mbs: OMITTED
 """  # noqa
 
-FLATPAK_RUNTIME_JSON = {
-    "runtime": "org.fedoraproject.Platform",
-    "runtime-version": "26",
-    "sdk": "org.fedoraproject.Sdk",
-    "cleanup-commands": ["touch -d @0 /usr/share/fonts",
-                         "touch -d @0 /usr/share/fonts/*",
-                         "fc-cache -fs"]
-}
+FLATPAK_RUNTIME_CONTAINER_YAML = """
+compose:
+    modules:
+    - flatpak-runtime:f28
+flatpak:
+    runtime: org.fedoraproject.Platform
+    runtime-version: f28
+    sdk: org.fedoraproject.Sdk
+    cleanup-commands: >
+        touch -d @0 /usr/share/fonts
+        touch -d @0 /usr/share/fonts/*
+        fc-cache -fs
+"""
