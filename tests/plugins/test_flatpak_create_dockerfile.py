@@ -14,22 +14,17 @@ import pytest
 
 from atomic_reactor.inner import DockerBuildWorkflow
 try:
-    from atomic_reactor.plugins.pre_resolve_module_compose import (ComposeInfo,
-                                                                   ModuleInfo,
-                                                                   set_compose_info)
     from atomic_reactor.plugins.pre_flatpak_create_dockerfile import FlatpakCreateDockerfilePlugin
-    from modulemd import ModuleMetadata
-    MODULEMD_AVAILABLE = True
 except ImportError:
-    MODULEMD_AVAILABLE = False
+    pass
 
-from atomic_reactor.plugin import PreBuildPluginsRunner
+from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.util import ImageName
 
 from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
 from tests.fixtures import docker_tasker  # noqa
-from tests.flatpak import FLATPAK_APP_CONTAINER_YAML, FLATPAK_APP_MODULEMD, FLATPAK_APP_RPMS
+from tests.flatpak import MODULEMD_AVAILABLE, build_flatpak_test_configs, setup_flatpak_compose_info
 
 
 class MockSource(object):
@@ -59,7 +54,7 @@ class MockBuilder(object):
         self.df_path = path
 
 
-def mock_workflow(tmpdir):
+def mock_workflow(tmpdir, container_yaml):
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', MockBuilder())
@@ -67,45 +62,40 @@ def mock_workflow(tmpdir):
     flexmock(workflow, source=mock_source)
 
     with open(mock_source.container_yaml_path, "w") as f:
-        f.write(FLATPAK_APP_CONTAINER_YAML)
+        f.write(container_yaml)
 
     setattr(workflow.builder, 'df_dir', str(tmpdir))
 
     return workflow
 
 
-PDC_URL = 'https://pdc.fedoraproject.org/rest_api/v1'
-MODULE_NAME = 'eog'
-MODULE_STREAM = 'f26'
-
-ALL_VERSIONS_JSON = [{"variant_release": "20170629143459"},
-                     {"variant_release": "20170629213428"}]
-
-LATEST_VERSION = "20170629213428"
-LATEST_VERSION_JSON = [{"modulemd": FLATPAK_APP_MODULEMD}]
-
+CONFIGS = build_flatpak_test_configs()
 
 @responses.activate  # noqa - docker_tasker fixture
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,
                     reason='modulemd not available')
-def test_flatpak_create_dockerfile(tmpdir, docker_tasker):
-    workflow = mock_workflow(tmpdir)
+@pytest.mark.parametrize('config_name,breakage', [
+    ('app', None),
+    ('runtime', None),
+    ('runtime', 'branch_mismatch'),
+])
+def test_flatpak_create_dockerfile(tmpdir, docker_tasker, config_name, breakage):
+    config = CONFIGS[config_name]
+
+    workflow = mock_workflow(tmpdir, config['container_yaml'])
+
+    compose = setup_flatpak_compose_info(workflow, config)
+
+    if breakage == 'branch_mismatch':
+        compose.base_module.mmd.xmd['flatpak']['branch'] = 'MISMATCH'
+        expected_exception = "Mismatch for 'branch'"
+    else:
+        assert breakage is None
+        expected_exception = None
 
     args = {
         'base_image': "registry.fedoraproject.org/fedora:latest",
     }
-
-    mmd = ModuleMetadata()
-    mmd.loads(FLATPAK_APP_MODULEMD)
-
-    base_module = ModuleInfo(MODULE_NAME, MODULE_STREAM, LATEST_VERSION,
-                             mmd, FLATPAK_APP_RPMS)
-    repo_url = 'http://odcs.example/composes/latest-odcs-42-1/compose/Temporary/$basearch/os/'
-    compose_info = ComposeInfo(MODULE_STREAM + '-' + MODULE_STREAM,
-                               42, base_module,
-                               {'eog': base_module},
-                               repo_url)
-    set_compose_info(workflow, compose_info)
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -116,7 +106,12 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker):
         }]
     )
 
-    runner.run()
+    if expected_exception:
+        with pytest.raises(PluginFailedException) as ex:
+            runner.run()
+        assert expected_exception in str(ex)
+    else:
+        runner.run()
 
-    assert os.path.exists(workflow.builder.df_path)
-    assert os.path.exists(os.path.join(workflow.builder.df_dir, 'cleanup.sh'))
+        assert os.path.exists(workflow.builder.df_path)
+        assert os.path.exists(os.path.join(workflow.builder.df_dir, 'cleanup.sh'))

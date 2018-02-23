@@ -119,14 +119,35 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
 
         set_flatpak_source_info(self.workflow, source)
 
-        # Create the dockerfile
-
         if source.runtime:
             profile = 'runtime'
         else:
             profile = 'default'
 
         module_info = source.compose.base_module
+
+        # For a runtime, certain information is duplicated between the container.yaml
+        # and the modulemd, check that it matches
+        if source.runtime:
+            flatpak_yaml = source.flatpak_yaml
+            flatpak_xmd = module_info.mmd.xmd['flatpak']
+
+            def check(condition, what):
+                if not condition:
+                    raise RuntimeError(
+                        "Mismatch for {} betweeen module xmd and container.yaml".format(what))
+
+            check(flatpak_yaml['branch'] == flatpak_xmd['branch'], "'branch'")
+            check(profile in flatpak_xmd['runtimes'], 'profile name')
+
+            profile_xmd = flatpak_xmd['runtimes'][profile]
+
+            check(flatpak_yaml['id'] == profile_xmd['id'], "'id'")
+            check(flatpak_yaml.get('runtime', None) ==
+                  profile_xmd.get('runtime', None), "'runtime'")
+            check(flatpak_yaml.get('sdk', None) == profile_xmd.get('sdk', None), "'sdk'")
+
+        # Create the dockerfile
 
         packages = ' '.join(module_info.mmd.profiles[profile].rpms)
 

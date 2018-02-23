@@ -382,20 +382,24 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         repo = os.path.join(self.workflow.source.workdir, "repo")
         subprocess.check_call(['ostree', 'init', '--mode=archive-z2', '--repo', repo])
 
-        runtime_id = info['runtime']
-        runtime_version = info['runtime-version']
+        id_ = info['id']
+        runtime_id = info.get('runtime', id_)
+        sdk_id = info.get('sdk', id_)
+        branch = info['branch']
 
         args = {
+            'id': id_,
             'runtime_id': runtime_id,
+            'sdk_id': sdk_id,
             'arch': get_arch(),
-            'runtime_version': runtime_version
+            'branch': branch
         }
 
         METADATA_TEMPLATE = dedent("""\
             [Runtime]
-            name={runtime_id}
-            runtime={runtime_id}/{arch}/{runtime_version}
-            sdk={runtime_id}/{arch}/{runtime_version}
+            name={id}
+            runtime={runtime_id}/{arch}/{branch}
+            sdk={sdk_id}/{arch}/{branch}
 
             [Environment]
             LD_LIBRARY_PATH=/app/lib64:/app/lib
@@ -405,7 +409,7 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         with open(os.path.join(builddir, 'metadata'), 'w') as f:
             f.write(METADATA_TEMPLATE.format(**args))
 
-        runtime_ref = 'runtime/{runtime_id}/{arch}/{runtime_version}'.format(**args)
+        runtime_ref = 'runtime/{id}/{arch}/{branch}'.format(**args)
 
         subprocess.check_call(['ostree', 'commit',
                                '--repo', repo, '--owner-uid=0',
@@ -418,26 +422,34 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
 
         subprocess.check_call(['flatpak', 'build-bundle', repo,
                                '--oci', '--runtime',
-                               outfile, runtime_id, runtime_version])
+                               outfile, id_, branch])
 
         return runtime_ref
+
+    def _find_runtime_info(self):
+        runtime_module, _ = self._identify_app_source_modules()
+        runtime_id = runtime_module.mmd.xmd['flatpak']['runtimes']['runtime']['id']
+        sdk_id = runtime_module.mmd.xmd['flatpak']['runtimes']['runtime'].get('sdk', runtime_id)
+        runtime_version = runtime_module.mmd.xmd['flatpak']['branch']
+
+        return runtime_id, sdk_id, runtime_version
 
     def _create_app_oci(self, tarred_filesystem, outfile):
         info = self.source.flatpak_yaml
         app_id = info['id']
-
-        runtime_id = info['runtime']
-        runtime_version = info['runtime-version']
+        app_branch = info.get('branch', 'master')
 
         builddir = os.path.join(self.workflow.source.workdir, "build")
         os.mkdir(builddir)
 
         repo = os.path.join(self.workflow.source.workdir, "repo")
 
+        runtime_id, sdk_id, runtime_version = self._find_runtime_info()
+
         # See comment for build_init() for why we can't use 'flatpak build-init'
         # subprocess.check_call(['flatpak', 'build-init',
         #                        builddir, app_id, runtime_id, runtime_id, runtime_version])
-        build_init(builddir, app_id, runtime_id, runtime_id, runtime_version, tags=info.get('tags', []))
+        build_init(builddir, app_id, sdk_id, runtime_id, runtime_version, tags=info.get('tags', []))
 
         # with gzip'ed tarball, tar is several seconds faster than tarfile.extractall
         subprocess.check_call(['tar', 'xCfz', builddir, tarred_filesystem])
@@ -452,11 +464,14 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
             finish_args = ['--command', info['command']] + finish_args
 
         subprocess.check_call(['flatpak', 'build-finish'] + finish_args + [builddir])
-        subprocess.check_call(['flatpak', 'build-export', repo, builddir])
+        subprocess.check_call(['flatpak', 'build-export', repo, builddir, app_branch])
 
-        subprocess.check_call(['flatpak', 'build-bundle', repo, '--oci', outfile, app_id])
+        subprocess.check_call(['flatpak', 'build-bundle', repo, '--oci',
+                               outfile, app_id, app_branch])
 
-        app_ref = 'app/{app_id}/{arch}/master'.format(app_id=app_id, arch=get_arch())
+        app_ref = 'app/{app_id}/{arch}/{branch}'.format(app_id=app_id,
+                                                        arch=get_arch(),
+                                                        branch=app_branch)
 
         return app_ref
 
