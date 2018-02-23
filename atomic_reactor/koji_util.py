@@ -9,7 +9,6 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function
 
 
-from collections import namedtuple
 import koji
 import logging
 import os
@@ -17,9 +16,7 @@ import time
 
 from atomic_reactor.constants import DEFAULT_DOWNLOAD_BLOCK_SIZE
 
-
 logger = logging.getLogger(__name__)
-Output = namedtuple('Output', ['file', 'metadata'])
 
 
 class KojiUploadLogger(object):

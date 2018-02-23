@@ -1,5 +1,6 @@
 import os
 import smtplib
+from collections import namedtuple
 
 from flexmock import flexmock
 import pytest
@@ -29,6 +30,8 @@ from atomic_reactor.plugins.exit_sendmail import SendMailPlugin
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 from atomic_reactor import util
+from osbs.api import OSBS
+from osbs.exceptions import OsbsException
 from smtplib import SMTPException
 
 MS, MF = SendMailPlugin.MANUAL_SUCCESS, SendMailPlugin.MANUAL_FAIL
@@ -49,6 +52,8 @@ MOCK_KOJI_SUBMITTER_NAME = "baz"
 MOCK_KOJI_SUBMITTER_EMAIL = "baz@bar.com"
 MOCK_KOJI_SUBMITTER_GENERATED = "@".join([MOCK_KOJI_SUBMITTER_NAME, MOCK_EMAIL_DOMAIN])
 MOCK_ADDITIONAL_EMAIL = "spam@bar.com"
+
+LogEntry = namedtuple('LogEntry', ['platform', 'line'])
 
 
 class MockedClientSession(object):
@@ -207,12 +212,14 @@ class TestSendMailPlugin(object):
             exit_results = {
                 KojiPromotePlugin.key: MOCK_KOJI_BUILD_ID
             }
+            prebuild_results = {}
 
         monkeypatch.setenv("BUILD", json.dumps({
             'metadata': {
                 'labels': {
                     'koji-task-id': MOCK_KOJI_TASK_ID,
                 },
+                'name': {},
             }
         }))
 
@@ -222,6 +229,12 @@ class TestSendMailPlugin(object):
             (flexmock(pathinfo)
                 .should_receive('work')
                 .and_raise(RuntimeError, "xyz"))
+
+        fake_logs = [LogEntry(None, 'orchestrator'),
+                     LogEntry(None, 'orchestrator line 2'),
+                     LogEntry('x86_64', 'Hurray for bacon: \u2017'),
+                     LogEntry('x86_64', 'line 2')]
+        flexmock(OSBS).should_receive('get_orchestrator_build_logs').and_return(fake_logs)
 
         flexmock(koji, ClientSession=lambda hub, opts: session, PathInfo=pathinfo)
         kwargs = {
@@ -239,7 +252,14 @@ class TestSendMailPlugin(object):
         }
         p = SendMailPlugin(None, WF(), **kwargs)
         assert p.koji_root == 'https://koji'
-        subject, body = p._render_mail(autorebuild, False, auto_cancel, manual_cancel)
+        subject, body, fail_logs = p._render_mail(autorebuild, False, auto_cancel, manual_cancel)
+
+        # full logs are only generated on a failed autorebuild
+        if not autorebuild or auto_cancel or manual_cancel:
+            assert not fail_logs
+        else:
+            assert fail_logs
+
         # Submitter is updated in _get_receivers_list
         try:
             p._get_receivers_list()
@@ -247,7 +267,7 @@ class TestSendMailPlugin(object):
             pass
 
         if to_koji_submitter:
-            subject, body = p._render_mail(autorebuild, False, auto_cancel, manual_cancel)
+            subject, body, _ = p._render_mail(autorebuild, False, auto_cancel, manual_cancel)
 
         status = 'Canceled' if auto_cancel or manual_cancel else 'Failed'
 
@@ -272,6 +292,64 @@ class TestSendMailPlugin(object):
 
         assert subject == exp_subject
         assert body == '\n'.join(exp_body)
+
+        subject, body, success_logs = p._render_mail(autorebuild, True, auto_cancel, manual_cancel)
+        # full logs are never generated on success
+        assert not success_logs
+
+    @pytest.mark.parametrize('error_type', [
+        TypeError,
+        OsbsException, 'unable to get build logs from OSBS',
+    ])
+    def test_failed_logs(self, monkeypatch, error_type):
+        # just test a random combination of the method inputs and hope it's ok for other
+        #   combinations
+        class TagConf(object):
+            unique_images = []
+
+        class WF(object):
+            image = util.ImageName.parse('foo/bar:baz')
+            openshift_build_selflink = '/builds/blablabla'
+            build_process_failed = True
+            autorebuild_canceled = False
+            build_canceled = False
+            tag_conf = TagConf()
+            exit_results = {
+                KojiPromotePlugin.key: MOCK_KOJI_BUILD_ID
+            }
+            prebuild_results = {}
+
+        monkeypatch.setenv("BUILD", json.dumps({
+            'metadata': {
+                'labels': {
+                    'koji-task-id': MOCK_KOJI_TASK_ID,
+                },
+                'name': {},
+            }
+        }))
+
+        session = MockedClientSession('', has_kerberos=True)
+        pathinfo = MockedPathInfo('https://koji')
+
+        flexmock(OSBS).should_receive('get_orchestrator_build_logs').and_raise(error_type)
+
+        flexmock(koji, ClientSession=lambda hub, opts: session, PathInfo=pathinfo)
+        kwargs = {
+            'url': 'https://something.com',
+            'smtp_host': 'smtp.bar.com',
+            'from_address': 'foo@bar.com',
+            'to_koji_submitter': True,
+            'to_koji_pkgowner': False,
+            'koji_hub': '',
+            'koji_root': 'https://koji/',
+            'koji_proxyuser': None,
+            'koji_ssl_certs_dir': '/certs',
+            'koji_krb_principal': None,
+            'koji_krb_keytab': None
+        }
+        p = SendMailPlugin(None, WF(), **kwargs)
+        subject, body, fail_logs = p._render_mail(True, False, False, False)
+        assert not fail_logs
 
     @pytest.mark.parametrize(
         'has_koji_config, has_addit_address, to_koji_submitter, to_koji_pkgowner, expected_receivers', [  # noqa
@@ -309,12 +387,14 @@ class TestSendMailPlugin(object):
                 exit_results = {
                     KojiPromotePlugin.key: MOCK_KOJI_BUILD_ID,
                 }
+            prebuild_results = {}
 
         monkeypatch.setenv("BUILD", json.dumps({
             'metadata': {
                 'labels': {
                     'koji-task-id': MOCK_KOJI_TASK_ID,
                 },
+                'name': {},
             }
         }))
 
@@ -369,6 +449,7 @@ class TestSendMailPlugin(object):
                 'labels': {
                     'koji-task-id': MOCK_KOJI_TASK_ID,
                 },
+                'name': {},
             }
         }))
 
@@ -432,6 +513,7 @@ class TestSendMailPlugin(object):
                 'labels': {
                     'koji-task-id': koji_task_id,
                 },
+                'name': {},
             }
         }))
 
@@ -522,10 +604,59 @@ class TestSendMailPlugin(object):
                            send_on=[AF])
 
         (flexmock(p).should_receive('_should_send')
+         .with_args(True, False, False, False).and_return(True))
+        flexmock(p).should_receive('_get_receivers_list').and_return(receivers)
+        flexmock(p).should_receive('_fetch_log_files').and_return(None)
+        flexmock(p).should_receive('_send_mail').with_args(receivers,
+                                                           six.text_type, six.text_type, None)
+
+        p.run()
+
+    def test_run_ok_and_send(self, monkeypatch):
+        class TagConf(object):
+            unique_images = []
+
+        class WF(object):
+            autorebuild_canceled = False
+            build_canceled = False
+            prebuild_results = {CheckAndSetRebuildPlugin.key: True}
+            image = util.ImageName.parse('repo/name')
+            build_process_failed = True
+            tag_conf = TagConf()
+            exit_results = {}
+
+        class SMTP(object):
+            def sendmail(self, from_addr, to, msg):
+                pass
+
+            def quit(self):
+                pass
+
+        monkeypatch.setenv("BUILD", json.dumps({
+            'metadata': {
+                'labels': {
+                    'koji-task-id': MOCK_KOJI_TASK_ID,
+                },
+                'name': {},
+            }
+        }))
+
+        receivers = ['foo@bar.com', 'x@y.com']
+        fake_logs = [LogEntry(None, 'orchestrator'),
+                     LogEntry(None, 'orchestrator line 2'),
+                     LogEntry('x86_64', 'Hurray for bacon: \u2017'),
+                     LogEntry('x86_64', 'line 2')]
+        p = SendMailPlugin(None, WF(),
+                           from_address='foo@bar.com', smtp_host='smtp.spam.com',
+                           send_on=[AF])
+
+        (flexmock(p).should_receive('_should_send')
             .with_args(True, False, False, False).and_return(True))
         flexmock(p).should_receive('_get_receivers_list').and_return(receivers)
-        flexmock(p).should_receive('_send_mail').with_args(receivers, six.text_type, six.text_type)
+        flexmock(OSBS).should_receive('get_orchestrator_build_logs').and_return(fake_logs)
 
+        smtp_inst = SMTP()
+        flexmock(smtplib).should_receive('SMTP').and_return(smtp_inst)
         p.run()
 
     def test_run_fails_to_obtain_receivers(self):
@@ -549,8 +680,9 @@ class TestSendMailPlugin(object):
         (flexmock(p).should_receive('_should_send')
             .with_args(True, False, False, False).and_return(True))
         flexmock(p).should_receive('_get_receivers_list').and_raise(RuntimeError())
-        flexmock(p).should_receive('_send_mail').with_args(error_addresses, six.text_type,
-                                                           six.text_type)
+        flexmock(p).should_receive('_fetch_log_files').and_return(None)
+        flexmock(p).should_receive('_send_mail').with_args(error_addresses,
+                                                           six.text_type, six.text_type, None)
 
         p.run()
 

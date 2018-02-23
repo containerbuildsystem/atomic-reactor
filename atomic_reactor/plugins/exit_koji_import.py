@@ -42,11 +42,11 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY,
                                       PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY)
-from atomic_reactor.util import (get_build_json,
+from atomic_reactor.util import (Output, get_build_json,
                                  df_parser, ImageName, get_primary_images,
                                  get_manifest_media_type,
                                  get_digests_map_from_annotations)
-from atomic_reactor.koji_util import (create_koji_session, Output, KojiUploadLogger,
+from atomic_reactor.koji_util import (create_koji_session, KojiUploadLogger,
                                       get_koji_task_owner)
 from osbs.conf import Configuration
 from osbs.api import OSBS

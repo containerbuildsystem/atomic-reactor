@@ -7,6 +7,9 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 import smtplib
 import socket
 try:
@@ -19,7 +22,10 @@ from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 from atomic_reactor.koji_util import create_koji_session, get_koji_task_owner
-from atomic_reactor.util import get_build_json
+from atomic_reactor.util import get_build_json, OSBSLogs
+
+from osbs.conf import Configuration
+from osbs.api import OSBS
 
 
 class SendMailPlugin(ExitPlugin):
@@ -69,7 +75,9 @@ class SendMailPlugin(ExitPlugin):
                  koji_krb_principal=None,
                  koji_krb_keytab=None,
                  to_koji_submitter=False,
-                 to_koji_pkgowner=False):
+                 to_koji_pkgowner=False,
+                 use_auth=None,
+                 verify_ssl=None):
         """
         constructor
 
@@ -114,6 +122,8 @@ class SendMailPlugin(ExitPlugin):
         self.to_koji_submitter = to_koji_submitter
         self.to_koji_pkgowner = to_koji_pkgowner
         self.submitter = self.DEFAULT_SUBMITTER
+        self.use_auth = use_auth
+        self.verify_ssl = verify_ssl
 
         try:
             metadata = get_build_json().get("metadata", {})
@@ -141,6 +151,20 @@ class SendMailPlugin(ExitPlugin):
             self.session = None
         else:
             self.log.info("Koji connection established")
+
+    def _fetch_log_files(self):
+        try:
+            namespace = get_build_json()['metadata']['namespace']
+        except KeyError:
+            namespace = None
+        osbs_conf = Configuration(conf_file=None, openshift_uri=self.url,
+                                  use_auth=self.use_auth, verify_ssl=self.verify_ssl,
+                                  namespace=namespace)
+        osbs = OSBS(osbs_conf, osbs_conf)
+        build_id = get_build_json()['metadata']['name'] or {}
+        osbs_logs = OSBSLogs(self.log)
+
+        return osbs_logs.get_log_files(osbs, build_id)
 
     def _should_send(self, rebuild, success, auto_canceled, manual_canceled):
         """Return True if any state in `self.send_on` meets given conditions, thus meaning
@@ -185,11 +209,30 @@ class SendMailPlugin(ExitPlugin):
             'user': '<autorebuild>' if rebuild else self.submitter,
             'logs': url
         }
-        return (subject_template % formatting_dict, body_template % formatting_dict)
 
-    def _send_mail(self, receivers_list, subject, body):
-        """Actually sends the mail with `subject` and `body` to all members of `receivers_list`."""
-        msg = MIMEText(body)
+        log_files = None
+        if rebuild and endstate == 'Failed':
+            log_files = self._fetch_log_files()
+
+        return (subject_template % formatting_dict, body_template % formatting_dict, log_files)
+
+    def _send_mail(self, receivers_list, subject, body, log_files=None):
+        """Actually sends the mail with `subject` and `body` and optionanl log_file attachements
+        to all members of `receivers_list`."""
+        if log_files:
+            msg = MIMEMultipart()
+            msg.attach(MIMEText(body))
+            for entry in log_files:
+                log_mime = MIMEBase('application', "octet-stream")
+                log_file = entry[0]  # Output.file
+                log_file.seek(0)
+                log_mime.set_payload(log_file.read())
+                encoders.encode_base64(log_mime)
+                log_mime.add_header('Content-Disposition',
+                                    'attachment; filename="{}"'.format(entry[1]['filename']))
+                msg.attach(log_mime)
+        else:
+            msg = MIMEText(body)
         msg['Subject'] = subject
         msg['From'] = self.from_address
         msg['To'] = ', '.join([x.strip() for x in receivers_list])
@@ -304,7 +347,7 @@ class SendMailPlugin(ExitPlugin):
             except RuntimeError as e:
                 self.log.error('couldn\'t get list of receivers, sending error message ...')
                 # Render the body although the receivers cannot be fetched for error message
-                _, expected_body = self._render_mail(
+                _, expected_body, _ = self._render_mail(
                     rebuild, success, auto_canceled, manual_canceled)
                 body = '\n'.join([
                     'Failed to get contact for %s, error: %s' % (str(self.workflow.image), str(e)),
@@ -316,7 +359,8 @@ class SendMailPlugin(ExitPlugin):
                 ])
                 receivers = self.error_addresses
             self.log.info('sending notification to %s ...', receivers)
-            subject, body = self._render_mail(rebuild, success, auto_canceled, manual_canceled)
-            self._send_mail(receivers, subject, body)
+            subject, body, full_logs = self._render_mail(rebuild, success,
+                                                         auto_canceled, manual_canceled)
+            self._send_mail(receivers, subject, body, full_logs)
         else:
             self.log.info('conditions for sending notification not met, doing nothing')
