@@ -45,14 +45,14 @@ from atomic_reactor.constants import (PROG, PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_PULP_PULL_KEY,
                                       PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY)
-from atomic_reactor.util import (get_version_of_tools, get_checksums,
+from atomic_reactor.util import (Output, get_version_of_tools, get_checksums,
                                  get_build_json,
                                  get_docker_architecture, df_parser,
                                  are_plugins_in_order,
                                  get_image_upload_filename,
                                  get_manifest_media_type)
 from atomic_reactor.koji_util import (create_koji_session, tag_koji_build,
-                                      Output, KojiUploadLogger)
+                                      KojiUploadLogger)
 from atomic_reactor.rpm_util import parse_rpm_output, rpm_qf_args
 from osbs.conf import Configuration
 from osbs.api import OSBS

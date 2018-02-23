@@ -982,17 +982,19 @@ def test_osbs_logs_get_log_files(tmpdir):
                     LogEntry('x86_64', 'line 2')]
             return logs
 
-    x86_metadata = {
-        'checksum': 'c2487bf0142ea344df8b36990b0186be',
-        'checksum_type': 'md5',
-        'filename': 'x86_64.log',
-        'filesize': 29
-    }
-    orchestrator_metadata = {
-        'checksum': 'ac9ed4cc35a9a77264ca3a0fb81be117',
-        'checksum_type': 'md5',
-        'filename': 'orchestrator.log',
-        'filesize': 13
+    metadata = {
+        'x86_64.log': {
+            'checksum': 'c2487bf0142ea344df8b36990b0186be',
+            'checksum_type': 'md5',
+            'filename': 'x86_64.log',
+            'filesize': 29
+        },
+        'orchestrator.log': {
+            'checksum': 'ac9ed4cc35a9a77264ca3a0fb81be117',
+            'checksum_type': 'md5',
+            'filename': 'orchestrator.log',
+            'filesize': 13
+        }
     }
 
     logger = flexmock()
@@ -1000,5 +1002,5 @@ def test_osbs_logs_get_log_files(tmpdir):
     osbs_logs = OSBSLogs(logger)
     osbs = OSBS()
     output = osbs_logs.get_log_files(osbs, 1)
-    assert output[0][1] == x86_metadata
-    assert output[1][1] == orchestrator_metadata
+    for entry in output:
+        assert entry[1] == metadata[entry[1]['filename']]

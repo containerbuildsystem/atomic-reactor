@@ -27,6 +27,7 @@ import yaml
 import codecs
 import string
 import time
+from collections import namedtuple
 
 from six.moves.urllib.parse import urlparse
 
@@ -47,7 +48,7 @@ from requests.utils import guess_json_utf
 
 from osbs.exceptions import OsbsException
 from tempfile import NamedTemporaryFile
-from atomic_reactor.koji_util import Output
+Output = namedtuple('Output', ['file', 'metadata'])
 
 logger = logging.getLogger(__name__)
 
