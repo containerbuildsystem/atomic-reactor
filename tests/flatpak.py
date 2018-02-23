@@ -83,8 +83,7 @@ compose:
     - eog:f28
 flatpak:
     id: org.gnome.eog
-    runtime: org.fedoraproject.Platform
-    runtime-version: 28
+    branch: stable
     # Test overriding the automatic "first executable in /usr/bin'
     command: eog2
     tags: ["Viewer"]
@@ -96,7 +95,7 @@ document: modulemd
 version: 1
 data:
   name: flatpak-runtime
-  stream: f26
+  stream: f28
   version: 20170701152209
   summary: Flatpak Runtime
   description: Libraries and data files shared between applications
@@ -109,8 +108,8 @@ data:
       libnotify, adwaita-icon-theme, libgcab1, libxkbcommon, libappstream-glib, python3-cairo,
       gnome-desktop3, libepoxy, hunspell, libgusb, glib2, enchant, at-spi2-atk]
   dependencies:
-    buildrequires: {bootstrap: f26, shared-userspace: f26}
-    requires: {base-runtime: f26, shared-userspace: f26}
+    buildrequires: {platform: f28}
+    requires: {platform: f28}
   license:
     module: [MIT]
   profiles:
@@ -151,6 +150,17 @@ data:
   components:
     rpms: {}
   xmd:
+    flatpak:
+      # This gives information about how to map this module into Flatpak terms
+      # this is used when building application modules against this module.
+      branch: f28
+      runtimes: # Keys are profile names
+        runtime:
+          id: org.fedoraproject.Platform
+          sdk: org.fedoraproject.Sdk
+        sdk:
+          id: org.fedoraproject.Sdk
+          runtime: org.fedoraproject.Platform
     mbs: OMITTED
 """  # noqa
 
@@ -159,8 +169,8 @@ compose:
     modules:
     - flatpak-runtime:f28
 flatpak:
-    runtime: org.fedoraproject.Platform
-    runtime-version: f28
+    id: org.fedoraproject.Platform
+    branch: f28
     sdk: org.fedoraproject.Sdk
     cleanup-commands: >
         touch -d @0 /usr/share/fonts

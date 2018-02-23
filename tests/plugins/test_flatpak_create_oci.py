@@ -417,11 +417,11 @@ class MockFlatpak:
             f.write("command=" + command + "\n")
 
     @staticmethod
-    def build_export(repo, directory):
+    def build_export(repo, directory, branch):
         cp = configparser.RawConfigParser()
         cp.read(os.path.join(directory, "metadata"))
         appname = cp.get('Application', 'name')
-        ref = os.path.join('app', appname, TEST_ARCH, 'master')
+        ref = os.path.join('app', appname, TEST_ARCH, branch)
 
         dest = os.path.join(repo, ref)
         filesdir = os.path.join(directory, "files")
@@ -447,9 +447,9 @@ COMMAND_PATTERNS = [
       '--oci', '--runtime', '@filename', '@name', '@branch'],
      MockFlatpak.build_bundle, {'runtime': True}),
     (['flatpak', 'build-bundle', '@repo',
-      '--oci', '@filename', '@name'],
+      '--oci', '@filename', '@name', '@branch'],
      MockFlatpak.build_bundle),
-    (['flatpak', 'build-export', '@repo', '@directory'],
+    (['flatpak', 'build-export', '@repo', '@directory', '@branch'],
      MockFlatpak.build_export),
     (['flatpak', 'build-finish', '--command', '@command'] +
      FLATPAK_APP_FINISH_ARGS + ['@directory'],
@@ -765,15 +765,25 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
         for n in config['unexpected_components']:
             assert n not in components
 
+        metadata_lines = inspector.cat_file('/metadata').split('\n')
+        assert any(re.match(r'runtime=org.fedoraproject.Platform/.*/f28$', l)
+                   for l in metadata_lines)
+        assert any(re.match(r'sdk=org.fedoraproject.Sdk/.*/f28$', l)
+                   for l in metadata_lines)
+
         if config_name == 'app':
             # Check that the desktop file was rewritten
             output = inspector.cat_file('/export/share/applications/org.gnome.eog.desktop')
             lines = output.split('\n')
             assert 'Icon=org.gnome.eog' in lines
-            metadata_lines = inspector.cat_file('/metadata').split('\n')
+
+            assert 'name=org.gnome.eog' in metadata_lines
             assert 'tags=Viewer' in metadata_lines
             assert 'command=eog2' in metadata_lines
         else:  # runtime
+            metadata_lines = inspector.cat_file('/metadata').split('\n')
+            assert 'name=org.fedoraproject.Platform' in metadata_lines
+
             # Check that permissions have been normalized
             assert inspector.get_file_perms('/files/etc/shadow') == '-00644'
             assert inspector.get_file_perms('/files/bin/mount') == '-00755'
