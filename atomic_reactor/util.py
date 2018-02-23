@@ -1129,11 +1129,34 @@ def get_primary_images(workflow):
     return primary_images
 
 
+class ModuleSpec(object):
+    def __init__(self, name, stream, version=None, profile=None):
+        self.name = name
+        self.stream = stream
+        self.version = version
+        self.profile = profile
+
+    def to_str(self, include_profile=True):
+        result = self.name + ':' + self.stream
+        if self.version:
+            result += ':' + self.version
+        if include_profile and self.profile:
+            result += '/' + self.profile
+
+        return result
+
+    def __repr__(self):
+        return "ModuleSpec({})".format(self.to_str())
+
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+
+
 def split_module_spec(module):
     # Current module naming guidelines are at:
     # https://docs.pagure.org/modularity/development/building-modules/naming-policy.html
     # We simplify the possible NAME:STREAM:CONTEXT:ARCH/PROFILE and only care about
-    # NAME:STREAM or NAME:STREAM:VERSION. PROFILE is not needed, and ARCH is determined by
+    # NAME:STREAM or NAME:STREAM:VERSION with optional PROFILE. ARCH is determined by
     # the architecture. CONTEXT may become important in the future, but we ignore it
     # for now.
     #
@@ -1142,24 +1165,31 @@ def split_module_spec(module):
     # We support the old format for compatibility.
     #
     PATTERNS = [
-        r'^([^:]+):([^:]+):([^:]+)$',
-        r'^([^:]+):([^:]+)$',
-        r'^(.+)-([^-]+)-(\d{14})$',
-        r'^(.+)-([^-]+)$'
+        (r'^([^:/]+):([^:/]+):([^:/]+)(?:/([^:/]+))?$', 3, 4),
+        (r'^([^:/]+):([^:/]+)(?:/([^:/]+))?$', None, 3),
+        (r'^(.+)-([^-]+)-(\d{14})$', 3, None),
+        (r'^(.+)-([^-]+)$', None, None)
     ]
 
-    for pat in PATTERNS:
+    for pat, version_index, profile_index in PATTERNS:
         m = re.match(pat, module)
         if m:
-            module_version = None
-            module_name = m.group(1)
-            module_stream = m.group(2)
-            if m.lastindex == 3:
-                module_version = m.group(3)
-            return module_name, module_stream, module_version
+            name = m.group(1)
+            stream = m.group(2)
+            version = None
+            if version_index is not None:
+                version = m.group(version_index)
+            else:
+                version = None
+            if profile_index is not None:
+                profile = m.group(profile_index)
+            else:
+                profile = None
+
+            return ModuleSpec(name, stream, version, profile)
 
     raise RuntimeError(
-        'Module specification should be NAME:STREAM or NAME:STREAM:VERSION. ' +
+        'Module specification should be NAME:STREAM[/PROFILE] or NAME:STREAM:VERSION[/PROFILE]. ' +
         '(NAME-STREAM and NAME-STREAM-VERSION supported for compatibility.)'
     )
 

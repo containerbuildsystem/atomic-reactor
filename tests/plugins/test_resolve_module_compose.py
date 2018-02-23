@@ -27,7 +27,7 @@ from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY)
 from atomic_reactor.source import VcsInfo
-from atomic_reactor.util import ImageName, split_module_spec
+from atomic_reactor.util import ImageName
 from atomic_reactor.constants import REPO_CONTAINER_CONFIG
 
 from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
@@ -130,7 +130,6 @@ def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules,  # 
     module = None
     if modules:
         module = modules[0]
-        mod_name, mod_stream, mod_version = split_module_spec(module)
 
     workflow = mock_workflow(tmpdir)
     mock_get_retry_session()

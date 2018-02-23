@@ -324,9 +324,30 @@ RUNTIME_CONFIG = {
     'unexpected_components': [],
 }
 
+SDK_MANIFEST_CONTENTS = """gcc;7.3.1;2.fc27;x86_64;(none);54142500;sigmd5;1517331292;sigpgp;siggpg
+"""
+
+SDK_FILESYSTEM_CONTENTS = {
+    ROOT + '/usr/bin/gcc': 'SOME_BINARY',
+    '/var/tmp/flatpak-build.rpm_qf': SDK_MANIFEST_CONTENTS,
+}
+
+EXPECTED_SDK_FLATPAK_CONTENTS = [
+    '/files/bin/gcc',
+    '/metadata'
+]
+
+SDK_CONFIG = {
+    'filesystem_contents': SDK_FILESYSTEM_CONTENTS,
+    'expected_contents': EXPECTED_SDK_FLATPAK_CONTENTS,
+    'expected_components': ['gcc'],
+    'unexpected_components': [],
+}
+
 CONFIGS = build_flatpak_test_configs({
     'app': APP_CONFIG,
     'runtime': RUNTIME_CONFIG,
+    'sdk': SDK_CONFIG,
 })
 
 
@@ -617,6 +638,7 @@ class MockInspector(object):
     ('runtime', None),
     ('runtime', 'stray_component'),
     ('runtime', 'missing_component'),
+    ('sdk', None)
 ])
 @pytest.mark.parametrize('mock_flatpak', (False, True))
 def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_flatpak):
@@ -780,11 +802,12 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
             assert 'name=org.gnome.eog' in metadata_lines
             assert 'tags=Viewer' in metadata_lines
             assert 'command=eog2' in metadata_lines
-        else:  # runtime
-            metadata_lines = inspector.cat_file('/metadata').split('\n')
-            assert 'name=org.fedoraproject.Platform' in metadata_lines
-
+        elif config_name == 'runtime':  # runtime
             # Check that permissions have been normalized
             assert inspector.get_file_perms('/files/etc/shadow') == '-00644'
             assert inspector.get_file_perms('/files/bin/mount') == '-00755'
             assert inspector.get_file_perms('/files/share/foo') == 'd00755'
+
+            assert 'name=org.fedoraproject.Platform' in metadata_lines
+        else:  # SDK
+            assert 'name=org.fedoraproject.Sdk' in metadata_lines

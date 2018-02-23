@@ -26,7 +26,7 @@ from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_resolve_module_compose import get_compose_info
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.rpm_util import rpm_qf_args
-from atomic_reactor.util import render_yum_repo
+from atomic_reactor.util import render_yum_repo, split_module_spec
 
 DOCKERFILE_TEMPLATE = '''FROM {base_image}
 
@@ -52,7 +52,19 @@ class FlatpakSourceInfo(object):
         self.compose = compose
 
         mmd = compose.base_module.mmd
+        # A runtime module must have a 'runtime' profile, but can have other
+        # profiles for SDKs, minimal runtimes, etc.
         self.runtime = 'runtime' in mmd.profiles
+
+        module_spec = split_module_spec(compose.source_spec)
+        if module_spec.profile:
+            self.profile = module_spec.profile
+        elif self.runtime:
+            self.profile = 'runtime'
+        else:
+            self.profile = 'default'
+
+        assert self.profile in mmd.profiles
 
     def koji_metadata(self):
         metadata = self.compose.koji_metadata()
@@ -119,11 +131,6 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
 
         set_flatpak_source_info(self.workflow, source)
 
-        if source.runtime:
-            profile = 'runtime'
-        else:
-            profile = 'default'
-
         module_info = source.compose.base_module
 
         # For a runtime, certain information is duplicated between the container.yaml
@@ -138,9 +145,9 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
                         "Mismatch for {} betweeen module xmd and container.yaml".format(what))
 
             check(flatpak_yaml['branch'] == flatpak_xmd['branch'], "'branch'")
-            check(profile in flatpak_xmd['runtimes'], 'profile name')
+            check(source.profile in flatpak_xmd['runtimes'], 'profile name')
 
-            profile_xmd = flatpak_xmd['runtimes'][profile]
+            profile_xmd = flatpak_xmd['runtimes'][source.profile]
 
             check(flatpak_yaml['id'] == profile_xmd['id'], "'id'")
             check(flatpak_yaml.get('runtime', None) ==
@@ -149,7 +156,7 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
 
         # Create the dockerfile
 
-        packages = ' '.join(module_info.mmd.profiles[profile].rpms)
+        packages = ' '.join(module_info.mmd.profiles[source.profile].rpms)
 
         df_path = os.path.join(self.workflow.builder.df_dir, DOCKERFILE_FILENAME)
         with open(df_path, 'w') as fp:
