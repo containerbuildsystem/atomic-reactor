@@ -141,7 +141,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
         data = None
         if os.path.exists(file_path):
             with open(file_path) as f:
-                data = (yaml.load(f) or {}).get('compose')
+                data = (yaml.safe_load(f) or {}).get('compose')
 
         if not data and not self.compose_ids:
             raise SkipResolveComposesPlugin('"compose" config not set and compose_ids not given')
