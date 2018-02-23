@@ -45,6 +45,10 @@ from pkg_resources import resource_stream
 from importlib import import_module
 from requests.utils import guess_json_utf
 
+from osbs.exceptions import OsbsException
+from tempfile import NamedTemporaryFile
+from atomic_reactor.koji_util import Output
+
 logger = logging.getLogger(__name__)
 
 
@@ -1112,3 +1116,62 @@ def split_module_spec(module):
         'Module specification should be NAME:STREAM or NAME:STREAM:VERSION. ' +
         '(NAME-STREAM and NAME-STREAM-VERSION supported for compatibility.)'
     )
+
+
+class OSBSLogs(object):
+    def __init__(self, log):
+        self.log = log
+
+    def get_log_metadata(self, path, filename):
+        """
+        Describe a file by its metadata.
+
+        :return: dict
+        """
+
+        checksums = get_checksums(path, ['md5'])
+        metadata = {'filename': filename,
+                    'filesize': os.path.getsize(path),
+                    'checksum': checksums['md5sum'],
+                    'checksum_type': 'md5'}
+
+        return metadata
+
+    def get_log_files(self, osbs, build_id):
+        """
+        Build list of log files
+
+        :return: list, of log files
+        """
+
+        logs = None
+        output = []
+
+        # Collect logs from server
+        try:
+            logs = osbs.get_orchestrator_build_logs(build_id)
+        except OsbsException as ex:
+            self.log.error("unable to get build logs: %r", ex)
+            return output
+        except TypeError:
+            # Older osbs-client has no get_orchestrator_build_logs
+            self.log.error("OSBS client does not support get_orchestrator_build_logs")
+            return output
+
+        platform_logs = {}
+        for entry in logs:
+            platform = entry.platform
+            if platform not in platform_logs:
+                filename = 'orchestrator' if platform is None else platform
+                platform_logs[platform] = NamedTemporaryFile(prefix="%s-%s" %
+                                                             (build_id, filename),
+                                                             suffix=".log", mode='r+b')
+            platform_logs[platform].write((entry.line + '\n').encode('utf-8'))
+
+        for platform, logfile in platform_logs.items():
+            logfile.flush()
+            filename = 'orchestrator' if platform is None else platform
+            metadata = self.get_log_metadata(logfile.name, "%s.log" % filename)
+            output.append(Output(file=logfile, metadata=metadata))
+
+        return output
