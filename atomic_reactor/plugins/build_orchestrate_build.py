@@ -399,7 +399,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         container_path = os.path.join(build_file_dir, REPO_CONTAINER_CONFIG)
         if os.path.exists(container_path):
             with open(container_path) as f:
-                data = yaml.load(f)
+                data = yaml.safe_load(f)
                 if data is None or 'platforms' not in data or data['platforms'] is None:
                     return self.platforms
                 excluded_platforms = set(self.make_list(data['platforms'].get('not', [])))

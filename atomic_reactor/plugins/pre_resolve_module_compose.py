@@ -130,7 +130,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
         file_path = os.path.join(workdir, REPO_CONTAINER_CONFIG)
         if os.path.exists(file_path):
             with open(file_path) as f:
-                self.data = (yaml.load(f) or {}).get('compose')
+                self.data = (yaml.safe_load(f) or {}).get('compose')
 
         if not self.data:
             raise RuntimeError('"compose" config in container.yaml is required for Flatpaks')
