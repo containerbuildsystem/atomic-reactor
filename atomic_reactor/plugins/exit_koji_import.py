@@ -11,7 +11,6 @@ from __future__ import unicode_literals
 import json
 import os
 import time
-from tempfile import NamedTemporaryFile
 
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import ExitPlugin
@@ -20,6 +19,7 @@ from atomic_reactor.plugins.build_orchestrate_build import (get_worker_build_inf
                                                             get_koji_upload_dir)
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
+from atomic_reactor.util import OSBSLogs
 
 try:
     from atomic_reactor.plugins.pre_flatpak_create_dockerfile import get_flatpak_source_info
@@ -43,14 +43,13 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY)
 from atomic_reactor.util import (get_build_json,
-                                 df_parser, ImageName, get_checksums, get_primary_images,
+                                 df_parser, ImageName, get_primary_images,
                                  get_manifest_media_type,
                                  get_digests_map_from_annotations)
 from atomic_reactor.koji_util import (create_koji_session, Output, KojiUploadLogger,
                                       get_koji_task_owner)
 from osbs.conf import Configuration
 from osbs.api import OSBS
-from osbs.exceptions import OsbsException
 from osbs.utils import Labels
 
 
@@ -184,45 +183,6 @@ class KojiImportPlugin(ExitPlugin):
 
         return buildroots
 
-    def get_logs(self):
-        """
-        Build list of log files
-
-        :return: list, of log files
-        """
-
-        logs = None
-        output = []
-
-        # Collect logs from server
-        try:
-            logs = self.osbs.get_orchestrator_build_logs(self.build_id)
-        except OsbsException as ex:
-            self.log.error("unable to get build logs: %r", ex)
-            return output
-        except TypeError:
-            # Older osbs-client has no get_orchestrator_build_logs
-            self.log.error("OSBS client does not support get_orchestrator_build_logs")
-            return output
-
-        platform_logs = {}
-        for entry in logs:
-            platform = entry.platform
-            if platform not in platform_logs:
-                filename = 'orchestrator' if platform is None else platform
-                platform_logs[platform] = NamedTemporaryFile(prefix="%s-%s" %
-                                                             (self.build_id, filename),
-                                                             suffix=".log", mode='wb')
-            platform_logs[platform].write((entry.line + '\n').encode('utf-8'))
-
-        for platform, logfile in platform_logs.items():
-            logfile.flush()
-            filename = 'orchestrator' if platform is None else platform
-            metadata = self.get_output_metadata(logfile.name, "%s.log" % filename)
-            output.append(Output(file=logfile, metadata=metadata))
-
-        return output
-
     def set_help(self, extra, worker_metadatas):
         all_annotations = [get_worker_build_info(self.workflow, platform).build.get_annotations()
                            for platform in worker_metadatas]
@@ -349,21 +309,6 @@ class KojiImportPlugin(ExitPlugin):
                                 digests = get_digests_map_from_annotations(annotations['digests'])
                                 instance['extra']['docker']['digests'] = digests
 
-    def get_output_metadata(self, path, filename):
-        """
-        Describe a file by its metadata.
-
-        :return: dict
-        """
-
-        checksums = get_checksums(path, ['md5'])
-        metadata = {'filename': filename,
-                    'filesize': os.path.getsize(path),
-                    'checksum': checksums['md5sum'],
-                    'checksum_type': 'md5'}
-
-        return metadata
-
     def get_build(self, metadata, worker_metadatas):
         start_time = int(atomic_reactor_start_time)
 
@@ -479,8 +424,9 @@ class KojiImportPlugin(ExitPlugin):
         buildroot = self.get_buildroot(worker_metadatas)
         buildroot_id = buildroot[0]['id']
         output = self.get_output(worker_metadatas)
+        osbs_logs = OSBSLogs(self.log)
         output_files = [add_log_type(add_buildroot_id(md, buildroot_id))
-                        for md in self.get_logs()]
+                        for md in osbs_logs.get_log_files(self.osbs, self.build_id)]
         output.extend([of.metadata for of in output_files])
 
         koji_metadata = {

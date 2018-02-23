@@ -18,6 +18,7 @@ from requests.exceptions import ConnectionError
 import six
 import subprocess
 import time
+from collections import namedtuple
 
 from tempfile import mkdtemp
 from textwrap import dedent
@@ -44,7 +45,7 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_primary_images,
                                  get_image_upload_filename,
                                  split_module_spec,
-                                 read_yaml, read_yaml_from_file_path)
+                                 read_yaml, read_yaml_from_file_path, OSBSLogs)
 from atomic_reactor import util
 from tests.constants import (DOCKERFILE_GIT, FLATPAK_GIT,
                              INPUT_IMAGE, MOCK, DOCKERFILE_SHA1, MOCK_SOURCE,
@@ -968,3 +969,36 @@ def test_read_yaml_file_or_yaml(tmpdir, from_file, config):
         output = read_yaml(config, 'schemas/config.json')
 
     assert output == expected
+
+
+LogEntry = namedtuple('LogEntry', ['platform', 'line'])
+
+
+def test_osbs_logs_get_log_files(tmpdir):
+    class OSBS(object):
+        def get_orchestrator_build_logs(self, build_id):
+            logs = [LogEntry(None, 'orchestrator'),
+                    LogEntry('x86_64', 'Hurray for bacon: \u2017'),
+                    LogEntry('x86_64', 'line 2')]
+            return logs
+
+    x86_metadata = {
+        'checksum': 'c2487bf0142ea344df8b36990b0186be',
+        'checksum_type': 'md5',
+        'filename': 'x86_64.log',
+        'filesize': 29
+    }
+    orchestrator_metadata = {
+        'checksum': 'ac9ed4cc35a9a77264ca3a0fb81be117',
+        'checksum_type': 'md5',
+        'filename': 'orchestrator.log',
+        'filesize': 13
+    }
+
+    logger = flexmock()
+    flexmock(logger).should_receive('error')
+    osbs_logs = OSBSLogs(logger)
+    osbs = OSBS()
+    output = osbs_logs.get_log_files(osbs, 1)
+    assert output[0][1] == x86_metadata
+    assert output[1][1] == orchestrator_metadata
