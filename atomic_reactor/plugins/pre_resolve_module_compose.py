@@ -144,16 +144,16 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
 
         for module_spec in compose_source.strip().split():
             try:
-                module_name, module_stream, module_version = split_module_spec(module_spec)
-                if not module_version:
+                module = split_module_spec(module_spec)
+                if not module.version:
                     raise RuntimeError
             except RuntimeError:
                 raise RuntimeError("Cannot parse resolved module in compose: %s" % module_spec)
 
             query = {
-                'variant_id': module_name,
-                'variant_version': module_stream,
-                'variant_release': module_version,
+                'variant_id': module.name,
+                'variant_version': module.stream,
+                'variant_release': module.version,
                 'active': True,
             }
 
@@ -170,7 +170,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
             mmd.loads(retval[0]['modulemd'])
             rpms = set(retval[0]['rpms'])
 
-            resolved_modules[module_name] = ModuleInfo(module_name, module_stream, module_version,
+            resolved_modules[module.name] = ModuleInfo(module.name, module.stream, module.version,
                                                        mmd, rpms)
         return resolved_modules
 
@@ -188,9 +188,11 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
             self.log.info("compose config contains multiple modules,"
                           "using first module %s", source_spec)
 
-        module_name, module_stream, module_version = split_module_spec(source_spec)
+        module = split_module_spec(source_spec)
         self.log.info("Resolving module compose for name=%s, stream=%s, version=%s",
-                      module_name, module_stream, module_version)
+                      module.name, module.stream, module.version)
+
+        noprofile_spec = module.to_str(include_profile=False)
 
         if self.compose_ids:
             if len(self.compose_ids) > 1:
@@ -199,7 +201,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
 
         if self.compose_id is None:
             self.compose_id = odcs_client.start_compose(source_type='module',
-                                                        source=source_spec)['id']
+                                                        source=noprofile_spec)['id']
 
         compose_info = odcs_client.wait_for_compose(self.compose_id)
         if compose_info['state_name'] != "done":
@@ -210,10 +212,10 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
         self.log.info("Resolved list of modules: %s", compose_source)
 
         resolved_modules = self._resolve_modules(compose_source)
-        base_module = resolved_modules[module_name]
-        assert base_module.stream == module_stream
-        if module_version is not None:
-            assert base_module.version == module_version
+        base_module = resolved_modules[module.name]
+        assert base_module.stream == module.stream
+        if module.version is not None:
+            assert base_module.version == module.version
 
         return ComposeInfo(source_spec=source_spec,
                            compose_id=self.compose_id,

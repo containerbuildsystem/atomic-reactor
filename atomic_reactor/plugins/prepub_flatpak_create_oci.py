@@ -278,7 +278,7 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
 
     def _check_runtime_manifest(self, components):
         # For a runtime, we want to make sure that the set of RPMs that was installed
-        # into the filesystem is *exactly* the set that is listed in the 'runtime'
+        # into the filesystem is *exactly* the set that is listed in the runtime
         # profile. Requiring the full listed set of RPMs to be listed makes it
         # easier to catch unintentional changes in the package list that might break
         # applications depending on the runtime. It also simplifies the checking we
@@ -288,7 +288,7 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         base_module = self.source.compose.base_module
 
         component_names = {c['name'] for c in components}
-        expected_component_names = set(base_module.mmd.profiles['runtime'].rpms)
+        expected_component_names = set(base_module.mmd.profiles[self.source.profile].rpms)
 
         if component_names != expected_component_names:
             missing = expected_component_names - component_names

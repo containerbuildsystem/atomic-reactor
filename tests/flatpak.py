@@ -147,6 +147,8 @@ data:
         libutempter, adwaita-icon-theme, ncurses-libs, libidn2, system-python-libs,
         libffi, libXdamage, libglvnd-egl, libXft, cups-libs, ustr, libcom_err, libappstream-glib,
         gnome-desktop3, gdk-pixbuf2-modules, libsepol, filesystem, gzip, mpfr]
+    sdk:
+      rpms: [gcc]
   components:
     rpms: {}
   xmd:
@@ -172,6 +174,20 @@ flatpak:
     id: org.fedoraproject.Platform
     branch: f28
     sdk: org.fedoraproject.Sdk
+    cleanup-commands: >
+        touch -d @0 /usr/share/fonts
+        touch -d @0 /usr/share/fonts/*
+        fc-cache -fs
+"""
+
+FLATPAK_SDK_CONTAINER_YAML = """
+compose:
+    modules:
+    - flatpak-runtime:f28/sdk
+flatpak:
+    id: org.fedoraproject.Sdk
+    branch: f28
+    runtime: org.fedoraproject.Platform
     cleanup-commands: >
         touch -d @0 /usr/share/fonts
         touch -d @0 /usr/share/fonts/*
@@ -210,11 +226,26 @@ RUNTIME_CONFIG = {
     'container_yaml': FLATPAK_RUNTIME_CONTAINER_YAML,
 }
 
+SDK_CONFIG = {
+    'base_module': 'flatpak-runtime',
+    'profile': 'sdk',
+    'modules': {
+        'flatpak-runtime': {
+            'stream': 'f26',
+            'version': '20170629185228',
+            'metadata': FLATPAK_RUNTIME_MODULEMD,
+            'rpms': [],  # We don't use this currently
+        },
+    },
+    'container_yaml': FLATPAK_SDK_CONTAINER_YAML,
+}
+
 
 def build_flatpak_test_configs(extensions={}):
     configs = {
         'app': APP_CONFIG,
         'runtime': RUNTIME_CONFIG,
+        'sdk': SDK_CONFIG,
     }
 
     for key, config in extensions.items():

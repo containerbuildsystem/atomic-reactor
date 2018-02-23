@@ -45,7 +45,7 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_manifest_media_version,
                                  get_primary_images,
                                  get_image_upload_filename,
-                                 split_module_spec,
+                                 split_module_spec, ModuleSpec,
                                  read_yaml, read_yaml_from_file_path, OSBSLogs)
 from atomic_reactor import util
 from tests.constants import (DOCKERFILE_GIT, DOCKERFILE_SHA1,
@@ -964,12 +964,15 @@ def test_clone_git_repo_retry(tmpdir, retry_times, raise_exc):
 
 @pytest.mark.parametrize(('module', 'should_raise', 'expected'), [
     ('eog', True, None),
-    ('eog:f26', False, ('eog', 'f26', None)),
-    ('eog-f26', False, ('eog', 'f26', None)),
-    ('eog:f26:20170629213428', False, ('eog', 'f26', '20170629213428')),
-    ('eog-f26-20170629213428', False, ('eog', 'f26', '20170629213428')),
-    ('a-b-c-20176291342855', False, ('a-b', 'c', '20176291342855')),
-    ('a-b-c-d', False, ('a-b-c', 'd', None)),
+    ('eog:f26', False, ModuleSpec('eog', 'f26')),
+    ('eog:f26/default', False, ModuleSpec('eog', 'f26', profile='default')),
+    ('eog-f26', False, ModuleSpec('eog', 'f26')),
+    ('eog:f26:20170629213428', False, ModuleSpec('eog', 'f26', '20170629213428')),
+    ('eog:f26:20170629213428/default', False,
+     ModuleSpec('eog', 'f26', '20170629213428', profile='default')),
+    ('eog-f26-20170629213428', False, ModuleSpec('eog', 'f26', '20170629213428')),
+    ('a-b-c-20176291342855', False, ModuleSpec('a-b', 'c', '20176291342855')),
+    ('a-b-c-d', False, ModuleSpec('a-b-c', 'd')),
     ('a:b:c:d', True, None),
 ])
 def test_split_module_spec(module, should_raise, expected):
@@ -978,6 +981,18 @@ def test_split_module_spec(module, should_raise, expected):
             split_module_spec(module)
     else:
         assert split_module_spec(module) == expected
+
+
+@pytest.mark.parametrize(('as_str', 'as_str_no_profile'), [
+    ('a:b', 'a:b'),
+    ('a:b/p', 'a:b'),
+    ('a:b:c', 'a:b:c'),
+    ('a:b:c/p', 'a:b:c'),
+])
+def test_module_spec_to_str(as_str, as_str_no_profile):
+    spec = split_module_spec(as_str)
+    assert spec.to_str() == as_str
+    assert spec.to_str(include_profile=False) == as_str_no_profile
 
 
 @pytest.mark.parametrize('from_file', [True, False])
