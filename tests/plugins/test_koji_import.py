@@ -60,16 +60,7 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
 from tests.constants import SOURCE, MOCK
 from tests.util import mocked_reactorconfig
 from tests.fixtures import reactor_config_map  # noqa
-
-try:
-    from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (FlatpakSourceInfo,
-                                                                      set_flatpak_source_info)
-    from atomic_reactor.plugins.pre_resolve_module_compose import (ModuleInfo,
-                                                                   ComposeInfo)
-    from modulemd import ModuleMetadata
-    MODULEMD_AVAILABLE = True
-except ImportError:
-    MODULEMD_AVAILABLE = False
+from tests.flatpak import MODULEMD_AVAILABLE, setup_flatpak_source_info
 
 from flexmock import flexmock
 import pytest
@@ -1493,28 +1484,7 @@ class TestKojiImport(object):
                                             release='1',
                                             session=session)
 
-        modules = {
-            'eog': ModuleInfo(name='eog',
-                              stream='f26',
-                              version='20170629213428',
-                              mmd=ModuleMetadata(),
-                              rpms=[]),
-            'flatpak-runtime': ModuleInfo(name='flatpak-runtime',
-                                          stream='f26',
-                                          version='20170701152209',
-                                          mmd=ModuleMetadata(),
-                                          rpms=[]),
-        }
-        base_module = modules['eog']
-
-        repo_url = 'http://odcs.example/composes/latest-odcs-42-1/compose/Temporary/$basearch/os/'
-        compose_info = ComposeInfo(base_module.name + '-' + base_module.stream,
-                                   42, base_module,
-                                   modules,
-                                   repo_url)
-
-        source = FlatpakSourceInfo(flatpak_yaml={}, compose=compose_info)
-        set_flatpak_source_info(workflow, source)
+        setup_flatpak_source_info(workflow)
 
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
         runner.run()
@@ -1533,7 +1503,7 @@ class TestKojiImport(object):
         assert image.get('flatpak') is True
         assert image.get('modules') == ['eog-f26-20170629213428',
                                         'flatpak-runtime-f26-20170701152209']
-        assert image.get('source_modules') == ['eog-f26']
+        assert image.get('source_modules') == ['eog:f26']
 
     @pytest.mark.parametrize(('config', 'expected'), [
         ({'pulp_push': False,

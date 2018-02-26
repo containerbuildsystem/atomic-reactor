@@ -16,7 +16,6 @@ import shutil
 import subprocess
 import tarfile
 from textwrap import dedent
-import yaml
 
 
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
@@ -25,24 +24,16 @@ from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
 
 try:
     from atomic_reactor.plugins.prepub_flatpak_create_oci import FlatpakCreateOciPlugin
-    from atomic_reactor.plugins.pre_resolve_module_compose import (ModuleInfo,
-                                                                   ComposeInfo,
-                                                                   set_compose_info)
-    from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (FlatpakSourceInfo,
-                                                                      set_flatpak_source_info)
     from modulemd import ModuleMetadata
-    MODULEMD_AVAILABLE = True
 except ImportError:
-    MODULEMD_AVAILABLE = False
+    pass
 
 from atomic_reactor.util import ImageName
 
 from tests.constants import TEST_IMAGE
 from tests.fixtures import docker_tasker  # noqa
-from tests.flatpak import (
-    FLATPAK_APP_CONTAINER_YAML, FLATPAK_APP_MODULEMD, FLATPAK_APP_RPMS, FLATPAK_APP_FINISH_ARGS,
-    FLATPAK_RUNTIME_CONTAINER_YAML, FLATPAK_RUNTIME_MODULEMD
-)
+from tests.flatpak import (MODULEMD_AVAILABLE, FLATPAK_APP_FINISH_ARGS,
+                           setup_flatpak_source_info, build_flatpak_test_configs)
 
 TEST_ARCH = 'x86_64'
 
@@ -94,22 +85,6 @@ EXPECTED_APP_FLATPAK_CONTENTS = [
 ]
 
 APP_CONFIG = {
-    'base_module': 'eog',
-    'modules': {
-        'eog': {
-            'stream': 'f26',
-            'version': '20170629213428',
-            'metadata': FLATPAK_APP_MODULEMD,
-            'rpms': FLATPAK_APP_RPMS,
-        },
-        'flatpak-runtime': {
-            'stream': 'f26',
-            'version': '20170629185228',
-            'metadata': FLATPAK_RUNTIME_MODULEMD,
-            'rpms': [],  # We don't use this currently
-        },
-    },
-    'container_yaml': FLATPAK_APP_CONTAINER_YAML,
     'filesystem_contents': APP_FILESYSTEM_CONTENTS,
     'expected_contents': EXPECTED_APP_FLATPAK_CONTENTS,
     'expected_components': ['eog'],
@@ -343,26 +318,16 @@ EXPECTED_RUNTIME_FLATPAK_CONTENTS = [
 ]
 
 RUNTIME_CONFIG = {
-    'base_module': 'flatpak-runtime',
-    'modules': {
-        'flatpak-runtime': {
-            'stream': 'f26',
-            'version': '20170629185228',
-            'metadata': FLATPAK_RUNTIME_MODULEMD,
-            'rpms': [],  # We don't use this currently
-        },
-    },
-    'container_yaml': FLATPAK_RUNTIME_CONTAINER_YAML,
     'filesystem_contents': RUNTIME_FILESYSTEM_CONTENTS,
     'expected_contents': EXPECTED_RUNTIME_FLATPAK_CONTENTS,
     'expected_components': ['abattis-cantarell-fonts'],
     'unexpected_components': [],
 }
 
-CONFIGS = {
+CONFIGS = build_flatpak_test_configs({
     'app': APP_CONFIG,
-    'runtime': RUNTIME_CONFIG
-}
+    'runtime': RUNTIME_CONFIG,
+})
 
 
 class MockSource(object):
@@ -760,27 +725,7 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
      .should_receive('remove_container')
      .with_args(CONTAINER_ID))
 
-    modules = {}
-    for name, module_config in config['modules'].items():
-        mmd = ModuleMetadata()
-        mmd.loads(module_config['metadata'])
-        modules[name] = ModuleInfo(name,
-                                   module_config['stream'],
-                                   module_config['version'],
-                                   mmd,
-                                   module_config['rpms'])
-    base_module = modules[config['base_module']]
-
-    repo_url = 'http://odcs.example/composes/latest-odcs-42-1/compose/Temporary/$basearch/os/'
-    compose_info = ComposeInfo(base_module.name + '-' + base_module.stream,
-                               42, base_module,
-                               modules,
-                               repo_url)
-    set_compose_info(workflow, compose_info)
-
-    source = FlatpakSourceInfo(yaml.safe_load(config['container_yaml'])['flatpak'],
-                               compose_info)
-    set_flatpak_source_info(workflow, source)
+    setup_flatpak_source_info(workflow, config)
 
     runner = PrePublishPluginsRunner(
         docker_tasker,
