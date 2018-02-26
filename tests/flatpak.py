@@ -1,3 +1,16 @@
+import yaml
+
+try:
+    from atomic_reactor.plugins.pre_resolve_module_compose import (ModuleInfo,
+                                                                   ComposeInfo,
+                                                                   set_compose_info)
+    from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (FlatpakSourceInfo,
+                                                                      set_flatpak_source_info)
+    from modulemd import ModuleMetadata
+    MODULEMD_AVAILABLE = True
+except ImportError:
+    MODULEMD_AVAILABLE = False
+
 FLATPAK_APP_MODULEMD = """
 document: modulemd
 version: 1
@@ -154,3 +167,86 @@ flatpak:
         touch -d @0 /usr/share/fonts/*
         fc-cache -fs
 """
+
+APP_CONFIG = {
+    'base_module': 'eog',
+    'modules': {
+        'eog': {
+            'stream': 'f26',
+            'version': '20170629213428',
+            'metadata': FLATPAK_APP_MODULEMD,
+            'rpms': FLATPAK_APP_RPMS,
+        },
+        'flatpak-runtime': {
+            'stream': 'f26',
+            'version': '20170701152209',
+            'metadata': FLATPAK_RUNTIME_MODULEMD,
+            'rpms': [],  # We don't use this currently
+        },
+    },
+    'container_yaml': FLATPAK_APP_CONTAINER_YAML,
+}
+
+RUNTIME_CONFIG = {
+    'base_module': 'flatpak-runtime',
+    'modules': {
+        'flatpak-runtime': {
+            'stream': 'f26',
+            'version': '20170629185228',
+            'metadata': FLATPAK_RUNTIME_MODULEMD,
+            'rpms': [],  # We don't use this currently
+        },
+    },
+    'container_yaml': FLATPAK_RUNTIME_CONTAINER_YAML,
+}
+
+
+def build_flatpak_test_configs(extensions={}):
+    configs = {
+        'app': APP_CONFIG,
+        'runtime': RUNTIME_CONFIG,
+    }
+
+    for key, config in extensions.items():
+        configs[key].update(config)
+
+    return configs
+
+
+def setup_flatpak_compose_info(workflow, config=APP_CONFIG):
+    modules = {}
+    for name, module_config in config['modules'].items():
+        mmd = ModuleMetadata()
+        mmd.loads(module_config['metadata'])
+        modules[name] = ModuleInfo(name,
+                                   module_config['stream'],
+                                   module_config['version'],
+                                   mmd,
+                                   module_config['rpms'])
+
+    repo_url = 'http://odcs.example/composes/latest-odcs-42-1/compose/Temporary/$basearch/os/'
+
+    base_module = modules[config['base_module']]
+    source_spec = base_module.name + ':' + base_module.stream
+
+    if 'profile' in config:
+        source_spec += '/' + config['profile']
+
+    compose = ComposeInfo(source_spec,
+                          42, base_module,
+                          modules,
+                          repo_url)
+    set_compose_info(workflow, compose)
+
+    return compose
+
+
+def setup_flatpak_source_info(workflow, config=APP_CONFIG):
+    compose = setup_flatpak_compose_info(workflow, config)
+
+    flatpak_yaml = yaml.safe_load(config['container_yaml'])['flatpak']
+
+    source = FlatpakSourceInfo(flatpak_yaml, compose)
+    set_flatpak_source_info(workflow, source)
+
+    return source
