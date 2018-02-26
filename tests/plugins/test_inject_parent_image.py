@@ -31,9 +31,13 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_inject_parent_image import InjectParentImage
 from atomic_reactor.plugins.exit_remove_built_image import GarbageCollectionPlugin
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY)
 from atomic_reactor.util import ImageName
 from flexmock import flexmock
 from tests.constants import MOCK, MOCK_SOURCE
+from tests.util import mocked_reactorconfig
+from tests.fixtures import reactor_config_map  # noqa
 from osbs.utils import graceful_chain_del
 
 import copy
@@ -119,32 +123,36 @@ def koji_session(koji_build_id=KOJI_BUILD_ID, koji_build_info=USE_DEFAULT_KOJI_B
     # Aways expect build ID to be used, even when NVR is given.
     flexmock(session).should_receive('listArchives').with_args(KOJI_BUILD_ID).and_return(archives)
     flexmock(koji).should_receive('ClientSession').and_return(session)
+    flexmock(session).should_receive('krb_login').and_return(True)
     return session
 
 
 class TestKojiParent(object):
 
-    def test_parent_image_injected(self, workflow, koji_session):
+    def test_parent_image_injected(self, workflow, koji_session, reactor_config_map):  # noqa
         previous_parent_image = workflow.builder.base_image
-        self.run_plugin_with_args(workflow)
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
         assert str(previous_parent_image) != str(workflow.builder.base_image)
 
     @pytest.mark.parametrize('koji_build', (KOJI_BUILD_ID, KOJI_BUILD_NVR, str(KOJI_BUILD_ID)))
-    def test_koji_build_identifier(self, workflow, koji_build):
+    def test_koji_build_identifier(self, workflow, koji_build, reactor_config_map):
         koji_session(koji_build_id=koji_build)
-        self.run_plugin_with_args(workflow, plugin_args={'koji_parent_build': koji_build})
+        self.run_plugin_with_args(workflow, plugin_args={'koji_parent_build': koji_build},
+                                  reactor_config_map=reactor_config_map)
 
-    def test_unknown_koji_build(self, workflow, koji_session):
+    def test_unknown_koji_build(self, workflow, koji_session, reactor_config_map):  # noqa
         unknown_build = KOJI_BUILD_ID + 1
         with pytest.raises(PluginFailedException) as exc_info:
-            self.run_plugin_with_args(workflow, plugin_args={'koji_parent_build': unknown_build})
+            self.run_plugin_with_args(workflow, plugin_args={'koji_parent_build': unknown_build},
+                                      reactor_config_map=reactor_config_map)
         assert '{}, not found'.format(unknown_build) in str(exc_info)
 
     @pytest.mark.parametrize(('repositories', 'selected'), (
         ([':26-3', '@sha256:12345'], '@sha256:12345'),
         ([':26-3', ':26-spam'], ':26-3'),
     ))
-    def test_repository_from_koji_build(self, workflow, repositories, selected):
+    def test_repository_from_koji_build(self, workflow, repositories, selected,
+                                        reactor_config_map):
         # Populate archives to ensure koji build takes precedence
         archives = [
             {'id': 1, 'extra': {'docker': {'repositories': [
@@ -159,14 +167,14 @@ class TestKojiParent(object):
         ]}}}
 
         koji_session(archives=archives, koji_build_info=koji_build_info)
-        self.run_plugin_with_args(workflow)
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
         assert str(workflow.builder.base_image) == repo_template.format(selected)
 
     @pytest.mark.parametrize(('repositories', 'selected'), (
         ([':26-3', '@sha256:12345'], '@sha256:12345'),
         ([':26-3', ':26-spam'], ':26-3'),
     ))
-    def test_repository_selection(self, workflow, repositories, selected):
+    def test_repository_selection(self, workflow, repositories, selected, reactor_config_map):
         repo_template = 'spam.com/fedora{}'
         archives = [
             {'id': 1, 'extra': {'docker': {'repositories': [
@@ -175,7 +183,7 @@ class TestKojiParent(object):
         ]
 
         koji_session(archives=archives)
-        self.run_plugin_with_args(workflow)
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
         assert str(workflow.builder.base_image) == repo_template.format(selected)
 
     @pytest.mark.parametrize(('repository', 'is_valid'), (
@@ -183,7 +191,8 @@ class TestKojiParent(object):
         ('rawhide/fedora', False),
         ('centos', False),
     ))
-    def test_new_parent_image_validation(self, workflow, repository, is_valid):
+    def test_new_parent_image_validation(self, workflow, repository, is_valid,
+                                         reactor_config_map):
         archives = [
             {'id': 1, 'extra': {'docker': {'repositories': [
                 'spam.com/{}@sha256:12345'.format(repository),
@@ -192,13 +201,13 @@ class TestKojiParent(object):
 
         koji_session(archives=archives)
         if is_valid:
-            self.run_plugin_with_args(workflow)
+            self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
         else:
             with pytest.raises(PluginFailedException) as exc_info:
-                self.run_plugin_with_args(workflow)
+                self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
             assert 'differs from repository for existing parent image' in str(exc_info.value)
 
-    def test_koji_ssl_certs_used(self, tmpdir, workflow, koji_session):
+    def test_koji_ssl_certs_used(self, tmpdir, workflow, koji_session, reactor_config_map):  # noqa
         serverca = tmpdir.join('serverca')
         serverca.write('spam')
         expected_ssl_login_args = {
@@ -212,30 +221,42 @@ class TestKojiParent(object):
             .and_return(True)
             .once())
         plugin_args = {'koji_ssl_certs_dir': str(tmpdir)}
-        self.run_plugin_with_args(workflow, plugin_args)
+        self.run_plugin_with_args(workflow, plugin_args, reactor_config_map=reactor_config_map)
 
-    def test_no_archives(self, workflow):
+    def test_no_archives(self, workflow, reactor_config_map):  # noqa
         koji_session(archives=[])
         with pytest.raises(PluginFailedException) as exc_info:
-            self.run_plugin_with_args(workflow)
+            self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
         assert 'A suitable archive' in str(exc_info.value)
         assert 'not found' in str(exc_info.value)
 
-    def test_no_repositories(self, workflow):
+    def test_no_repositories(self, workflow, reactor_config_map):  # noqa
         archives = copy.deepcopy(ARCHIVES)
         for archive in archives:
             graceful_chain_del(archive, 'extra', 'docker', 'repositories')
 
         koji_session(archives=archives)
         with pytest.raises(PluginFailedException) as exc_info:
-            self.run_plugin_with_args(workflow)
+            self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
         assert 'A suitable archive' in str(exc_info.value)
         assert 'not found' in str(exc_info.value)
 
-    def run_plugin_with_args(self, workflow, plugin_args=None):
+    def run_plugin_with_args(self, workflow, plugin_args=None, reactor_config_map=False):  # noqa
         plugin_args = plugin_args or {}
         plugin_args.setdefault('koji_parent_build', KOJI_BUILD_ID)
         plugin_args.setdefault('koji_hub', KOJI_HUB)
+
+        if reactor_config_map:
+            koji_map = {
+                'hub_url': KOJI_HUB,
+                'root_url': '',
+                'auth': {}}
+            if 'koji_ssl_certs_dir' in plugin_args:
+                koji_map['auth']['ssl_certs_dir'] = plugin_args['koji_ssl_certs_dir']
+            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig({'version': 1,
+                                      'koji': koji_map})
 
         runner = PreBuildPluginsRunner(
             workflow.builder.tasker,

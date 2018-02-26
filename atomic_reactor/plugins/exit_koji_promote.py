@@ -25,6 +25,7 @@ from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
+from atomic_reactor.plugins.pre_reactor_config import get_openshift_session, get_koji_session
 
 try:
     from atomic_reactor.plugins.pre_flatpak_create_dockerfile import get_flatpak_source_info
@@ -51,11 +52,8 @@ from atomic_reactor.util import (Output, get_version_of_tools, get_checksums,
                                  are_plugins_in_order,
                                  get_image_upload_filename,
                                  get_manifest_media_type)
-from atomic_reactor.koji_util import (create_koji_session, tag_koji_build,
-                                      KojiUploadLogger)
+from atomic_reactor.koji_util import (tag_koji_build, KojiUploadLogger)
 from atomic_reactor.rpm_util import parse_rpm_output, rpm_qf_args
-from osbs.conf import Configuration
-from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from osbs.utils import Labels
 
@@ -89,7 +87,7 @@ class KojiPromotePlugin(ExitPlugin):
     key = PLUGIN_KOJI_PROMOTE_PLUGIN_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, kojihub, url,
+    def __init__(self, tasker, workflow, kojihub=None, url=None,
                  verify_ssl=True, use_auth=True,
                  koji_ssl_certs=None, koji_proxy_user=None,
                  koji_principal=None, koji_keytab=None,
@@ -115,23 +113,28 @@ class KojiPromotePlugin(ExitPlugin):
         """
         super(KojiPromotePlugin, self).__init__(tasker, workflow)
 
-        self.kojihub = kojihub
-        self.koji_ssl_certs = koji_ssl_certs
-        self.koji_proxy_user = koji_proxy_user
+        self.koji_fallback = {
+            'hub_url': kojihub,
+            'auth': {
+                'proxyuser': koji_proxy_user,
+                'ssl_certs_dir': koji_ssl_certs,
+                'krb_principal': str(koji_principal),
+                'krb_keytab_path': str(koji_keytab)
+            }
+        }
 
-        self.koji_principal = koji_principal
-        self.koji_keytab = koji_keytab
+        self.openshift_fallback = {
+            'url': url,
+            'insecure': not verify_ssl,
+            'auth': {'enable': use_auth}
+        }
 
         self.metadata_only = metadata_only
         self.blocksize = blocksize
         self.target = target
         self.poll_interval = poll_interval
 
-        self.namespace = get_build_json().get('metadata', {}).get('namespace', None)
-        osbs_conf = Configuration(conf_file=None, openshift_uri=url,
-                                  use_auth=use_auth, verify_ssl=verify_ssl,
-                                  namespace=self.namespace)
-        self.osbs = OSBS(osbs_conf, osbs_conf)
+        self.osbs = get_openshift_session(self.workflow, self.openshift_fallback)
         self.build_id = None
         self.pullspec_image = None
 
@@ -665,32 +668,10 @@ class KojiPromotePlugin(ExitPlugin):
         unique_fragment = '%r.%s' % (time.time(), random_chars)
         return os.path.join(dir_prefix, unique_fragment)
 
-    def login(self):
-        """
-        Log in to koji
-
-        :return: koji.ClientSession instance, logged in
-        """
-
-        # krbV python library throws an error if these are unicode
-        auth_info = {
-            "proxyuser": self.koji_proxy_user,
-            "ssl_certs_dir": self.koji_ssl_certs,
-            "krb_principal": str(self.koji_principal),
-            "krb_keytab": str(self.koji_keytab)
-        }
-        return create_koji_session(str(self.kojihub), auth_info)
-
     def run(self):
         """
         Run the plugin.
         """
-
-        if ((self.koji_principal and not self.koji_keytab) or
-                (self.koji_keytab and not self.koji_principal)):
-            raise RuntimeError("specify both koji_principal and koji_keytab "
-                               "or neither")
-
         # Only run if the build was successful
         if self.workflow.build_process_failed:
             self.log.info("Not promoting failed build to koji")
@@ -699,7 +680,7 @@ class KojiPromotePlugin(ExitPlugin):
         koji_metadata, output_files = self.get_metadata()
 
         try:
-            session = self.login()
+            session = get_koji_session(self.workflow, self.koji_fallback)
             server_dir = self.get_upload_server_dir()
             for output in output_files:
                 if output.file:

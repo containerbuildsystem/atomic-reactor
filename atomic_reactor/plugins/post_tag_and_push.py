@@ -13,7 +13,8 @@ import subprocess
 from atomic_reactor.constants import IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
-from atomic_reactor.util import get_manifest_digests, get_config_from_registry, Dockercfg
+from atomic_reactor.plugins.pre_reactor_config import get_registries
+from atomic_reactor.util import (get_manifest_digests, get_config_from_registry, Dockercfg)
 
 
 __all__ = ('TagAndPushPlugin', )
@@ -27,7 +28,7 @@ class TagAndPushPlugin(PostBuildPlugin):
     key = "tag_and_push"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, registries):
+    def __init__(self, tasker, workflow, registries=None):
         """
         constructor
 
@@ -44,7 +45,7 @@ class TagAndPushPlugin(PostBuildPlugin):
         # call parent constructor
         super(TagAndPushPlugin, self).__init__(tasker, workflow)
 
-        self.registries = deepcopy(registries)
+        self.registries = get_registries(self.workflow, deepcopy(registries or {}))
 
     def need_skopeo_push(self):
         if len(self.workflow.exported_image_sequence) > 0:

@@ -24,12 +24,15 @@ except ImportError:
     MODULEMD_AVAILABLE = False
 
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY)
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.util import ImageName, split_module_spec
 from atomic_reactor.constants import REPO_CONTAINER_CONFIG
 
 from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
-from tests.fixtures import docker_tasker  # noqa
+from tests.util import mocked_reactorconfig
+from tests.fixtures import docker_tasker, reactor_config_map  # noqa
 from tests.flatpak import FLATPAK_APP_JSON, FLATPAK_APP_MODULEMD, FLATPAK_APP_RPMS
 from tests.retry_mock import mock_get_retry_session
 
@@ -113,7 +116,8 @@ def compose_json(state, state_name):
     [MODULE_NSV],
     [MODULE_NSV, 'mod_name2-mod_stream2-mod_version2'],
 ))
-def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules):
+def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules,  # noqa
+                                reactor_config_map):
     secrets_path = os.path.join(str(tmpdir), "secret")
     os.mkdir(secrets_path)
     with open(os.path.join(secrets_path, "token"), "w") as f:
@@ -187,6 +191,14 @@ def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules):
         'pdc_url': PDC_URL,
         'compose_ids': compose_ids
     }
+
+    if reactor_config_map:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1,
+                                  'odcs': {'api_url': ODCS_URL,
+                                           'auth': {'openidc_dir': secrets_path}},
+                                  'pdc': {'api_url': PDC_URL}})
 
     runner = PreBuildPluginsRunner(
         docker_tasker,

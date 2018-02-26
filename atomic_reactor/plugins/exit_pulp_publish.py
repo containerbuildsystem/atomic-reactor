@@ -42,16 +42,16 @@ from __future__ import print_function, unicode_literals
 
 from atomic_reactor.constants import PLUGIN_PULP_PUBLISH_KEY
 from atomic_reactor.plugins.build_orchestrate_build import get_worker_build_info
+from atomic_reactor.plugins.pre_reactor_config import get_pulp_session
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import ImageName
-from atomic_reactor.pulp_util import PulpHandler
 
 
 class PulpPublishPlugin(ExitPlugin):
     key = PLUGIN_PULP_PUBLISH_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, pulp_registry_name,
+    def __init__(self, tasker, workflow, pulp_registry_name=None,
                  pulp_secret_path=None, username=None, password=None,
                  dockpulp_loglevel=None):
         """
@@ -68,10 +68,16 @@ class PulpPublishPlugin(ExitPlugin):
         # call parent constructor
         super(PulpPublishPlugin, self).__init__(tasker, workflow)
         self.workflow = workflow
-        self.pulp_handler = PulpHandler(self.workflow, pulp_registry_name, self.log,
-                                        pulp_secret_path=pulp_secret_path,
-                                        username=username, password=password,
-                                        dockpulp_loglevel=dockpulp_loglevel)
+        self.pulp_fallback = {
+            'name': pulp_registry_name,
+            'loglevel': dockpulp_loglevel,
+            'auth': {
+                'ssl_certs_dir': pulp_secret_path,
+                'username': username,
+                'password': password
+            }
+        }
+        self.pulp_handler = get_pulp_session(self.workflow, self.log, self.pulp_fallback)
 
     def publish_to_crane(self, repo_prefix="redhat-"):
         image_names = self.workflow.tag_conf.images[:]

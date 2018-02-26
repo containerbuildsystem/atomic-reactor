@@ -14,8 +14,9 @@ import os
 
 from atomic_reactor import util
 from atomic_reactor.constants import DEFAULT_DOWNLOAD_BLOCK_SIZE
-from atomic_reactor.koji_util import create_koji_session
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.plugins.pre_reactor_config import (get_koji_session, get_koji,
+                                                       get_artifacts_allowed_domains)
 from collections import namedtuple
 
 try:
@@ -73,7 +74,7 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
 
     DOWNLOAD_DIR = 'artifacts'
 
-    def __init__(self, tasker, workflow, koji_hub, koji_root,
+    def __init__(self, tasker, workflow, koji_hub=None, koji_root=None,
                  koji_proxyuser=None, koji_ssl_certs_dir=None,
                  koji_krb_principal=None, koji_krb_keytab=None,
                  allowed_domains=None):
@@ -90,21 +91,22 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
                allowed to be used when fetching artifacts by URL (case insensitive)
         """
         super(FetchMavenArtifactsPlugin, self).__init__(tasker, workflow)
-        koji_auth = {
-            'proxyuser': koji_proxyuser,
-            'ssl_certs_dir': koji_ssl_certs_dir,
-            'krb_principal': koji_krb_principal,
-            'krb_keytab': koji_krb_keytab,
+
+        self.koji_fallback = {
+            'hub_url': koji_hub,
+            'root_url': koji_root,
+            'auth': {
+                'proxyuser': koji_proxyuser,
+                'ssl_certs_dir': koji_ssl_certs_dir,
+                'krb_principal': str(koji_krb_principal),
+                'krb_keytab_path': str(koji_krb_keytab)
+            }
         }
-        # Remove empty values from auth dict to avoid login when not needed
-        koji_auth = {k: v for k, v in koji_auth.items() if v}
-        self.koji_info = {
-            'hub': koji_hub,
-            'root': koji_root,
-            'auth': koji_auth or None
-        }
-        self.path_info = koji.PathInfo(topdir=self.koji_info['root'])
-        self.allowed_domains = set(domain.lower() for domain in allowed_domains or [])
+        self.path_info =\
+            koji.PathInfo(topdir=get_koji(self.workflow, self.koji_fallback)['root_url'])
+
+        all_allowed_domains = get_artifacts_allowed_domains(self.workflow, allowed_domains or [])
+        self.allowed_domains = set(domain.lower() for domain in all_allowed_domains or [])
         self.workdir = self.workflow.source.get_build_file_path()[1]
         self.session = None
 
@@ -220,7 +222,7 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
                         .format(algo, checksum.hexdigest(), download.checksums[algo]))
 
     def run(self):
-        self.session = create_koji_session(self.koji_info['hub'], self.koji_info.get('auth'))
+        self.session = get_koji_session(self.workflow, self.koji_fallback)
 
         nvr_requests = self.read_nvr_requests()
         url_requests = self.read_url_requests()

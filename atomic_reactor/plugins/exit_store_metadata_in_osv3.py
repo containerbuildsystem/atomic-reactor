@@ -10,13 +10,12 @@ from __future__ import unicode_literals
 import json
 import os
 
-from osbs.api import OSBS
-from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException
 from osbs.utils import graceful_chain_get
 
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.post_pulp_pull import PulpPullPlugin
+from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
 from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
@@ -33,7 +32,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
     key = "store_metadata_in_osv3"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, url, verify_ssl=True, use_auth=True):
+    def __init__(self, tasker, workflow, url=None, verify_ssl=True, use_auth=True):
         """
         constructor
 
@@ -44,9 +43,11 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         """
         # call parent constructor
         super(StoreMetadataInOSv3Plugin, self).__init__(tasker, workflow)
-        self.url = url
-        self.verify_ssl = verify_ssl
-        self.use_auth = use_auth
+        self.openshift_fallback = {
+            'url': url,
+            'insecure': not verify_ssl,
+            'auth': {'enable': use_auth}
+        }
 
     def get_result(self, result):
         if isinstance(result, Exception):
@@ -187,14 +188,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             self.log.error("malformed build json")
             return
         self.log.info("build id = %s", build_id)
-
-        # initial setup will use host based auth: apache will be set to accept everything
-        # from specific IP and will set specific X-Remote-User for such requests
-        # FIXME: remove `openshift_uri` once osbs-client is released
-        osbs_conf = Configuration(conf_file=None, openshift_uri=self.url, openshift_url=self.url,
-                                  use_auth=self.use_auth, verify_ssl=self.verify_ssl,
-                                  namespace=metadata.get('namespace', None))
-        osbs = OSBS(osbs_conf, osbs_conf)
+        osbs = get_openshift_session(self.workflow, self.openshift_fallback)
 
         try:
             commit_id = self.workflow.source.commit_id

@@ -25,7 +25,14 @@ import copy
 
 from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import BuildStepPlugin
-from atomic_reactor.plugins.pre_reactor_config import get_config
+from atomic_reactor.plugins.pre_reactor_config import (get_config,
+                                                       get_arrangement_version, get_koji,
+                                                       get_odcs, get_pdc, get_pulp,
+                                                       get_prefer_schema1_digest, get_smtp,
+                                                       get_source_registry, get_sources_command,
+                                                       get_artifacts_allowed_domains,
+                                                       get_yum_proxy, get_image_equal_labels,
+                                                       get_content_versions)
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import df_parser, get_build_json
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY,
@@ -265,6 +272,10 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         self.build_kwargs = build_kwargs
         self.osbs_client_config = osbs_client_config
         self.config_kwargs = config_kwargs or {}
+
+        self.adjust_build_kwargs()
+        self.adjust_config_kwargs()
+
         self.find_cluster_retry_delay = find_cluster_retry_delay
         self.failure_retry_delay = failure_retry_delay
         self.max_cluster_fails = max_cluster_fails
@@ -276,6 +287,106 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             self.log.warning('worker_build_image is deprecated')
 
         self.worker_builds = []
+        self.namespace = get_build_json().get('metadata', {}).get('namespace', None)
+
+    def adjust_config_kwargs(self):
+        koji_fallback = {
+            'hub_url': self.config_kwargs.get('koji_hub'),
+            'root_url': self.config_kwargs.get('koji_root')
+        }
+        koji_map = get_koji(self.workflow, koji_fallback)
+        self.config_kwargs['koji_hub'] = koji_map['hub_url']
+        self.config_kwargs['koji_root'] = koji_map['root_url']
+
+        odcs_fallback = {
+            'api_url': self.config_kwargs.get('odcs_url'),
+            'insecure': self.config_kwargs.get('odcs_insecure')
+        }
+        odcs_map = get_odcs(self.workflow, odcs_fallback)
+        self.config_kwargs['odcs_url'] = odcs_map['api_url']
+        self.config_kwargs['odcs_insecure'] = odcs_map.get('insecure', False)
+
+        pdc_fallback = {
+            'api_url': self.config_kwargs.get('pdc_url'),
+            'insecure': self.config_kwargs.get('pdc_insecure')
+        }
+        pdc_map = get_pdc(self.workflow, pdc_fallback)
+        self.config_kwargs['pdc_url'] = pdc_map['api_url']
+        self.config_kwargs['pdc_insecure'] = pdc_map.get('insecure', False)
+
+        pulp_fallback = {'name': self.config_kwargs.get('pulp_registry_name')}
+        pulp_map = get_pulp(self.workflow, pulp_fallback)
+        self.config_kwargs['pulp_registry_name'] = pulp_map['name']
+
+        smtp_fallback = {
+            'host': self.config_kwargs.get('smtp_host'),
+            'from_address': self.config_kwargs.get('smtp_from'),
+            'domain': self.config_kwargs.get('smtp_email_domain'),
+            'send_to_submitter': self.config_kwargs.get('smtp_to_submitter'),
+            'send_to_pkg_owner': self.config_kwargs.get('smtp_to_pkgowner')
+        }
+        additional_addresses = self.config_kwargs.get('smtp_error_addresses')
+        error_addresses = self.config_kwargs.get('smtp_additional_addresses')
+
+        smtp_fallback['additional_addresses'] =\
+            additional_addresses.split(',') if additional_addresses else ()
+        smtp_fallback['error_addresses'] = error_addresses.split(',') if error_addresses else ()
+
+        smtp_map = get_smtp(self.workflow, smtp_fallback)
+        self.config_kwargs['smtp_additional_addresses'] =\
+            ','.join(smtp_map.get('additional_addresses', ()))
+        self.config_kwargs['smtp_email_domain'] = smtp_map.get('domain')
+        self.config_kwargs['smtp_error_addresses'] = ','.join(smtp_map.get('error_addresses', ()))
+        self.config_kwargs['smtp_from'] = smtp_map['from_address']
+        self.config_kwargs['smtp_host'] = smtp_map['host']
+        self.config_kwargs['smtp_to_pkgowner'] = smtp_map.get('send_to_pkg_owner', False)
+        self.config_kwargs['smtp_to_submitter'] = smtp_map.get('send_to_submitter', False)
+
+        source_reg = self.config_kwargs.get('source_registry_uri')
+        self.config_kwargs['source_registry_uri'] =\
+            get_source_registry(self.workflow, {
+                'uri': source_reg.get('uri') if source_reg else None})
+
+        artifacts = self.config_kwargs.get('artifacts_allowed_domains')
+        self.config_kwargs['artifacts_allowed_domains'] =\
+            ','.join(get_artifacts_allowed_domains(
+                self.workflow, artifacts.split(',') if artifacts else ()))
+
+        equal_labels_fallback = []
+        equal_labels_str = self.config_kwargs.get('equal_labels')
+
+        if equal_labels_str:
+            label_groups = [x.strip() for x in equal_labels_str.split(',')]
+
+            for label_group in label_groups:
+                equal_labels_fallback.append([label.strip() for label in label_group.split(':')])
+
+        equal_labels = get_image_equal_labels(self.workflow, equal_labels_fallback)
+        if equal_labels:
+            equal_labels_sets = []
+            for equal_set in equal_labels:
+                equal_labels_sets.append(':'.join(equal_set))
+            equal_labels_string = ','.join(equal_labels_sets)
+            self.config_kwargs['equal_labels'] = equal_labels_string
+
+        self.config_kwargs['prefer_schema1_digest'] =\
+            get_prefer_schema1_digest(self.workflow,
+                                      self.config_kwargs.get('prefer_schema1_digest'))
+
+        registry_api_ver = self.config_kwargs.get('registry_api_versions')
+        self.config_kwargs['registry_api_versions'] =\
+            ','.join(get_content_versions(self.workflow,
+                                          registry_api_ver.split(',') if registry_api_ver else ()))
+
+        self.config_kwargs['yum_proxy'] =\
+            get_yum_proxy(self.workflow, self.config_kwargs.get('yum_proxy'))
+
+        self.config_kwargs['sources_command'] =\
+            get_sources_command(self.workflow, self.config_kwargs.get('sources_command'))
+
+    def adjust_build_kwargs(self):
+        self.build_kwargs['arrangement_version'] =\
+            get_arrangement_version(self.workflow, self.build_kwargs['arrangement_version'])
 
     def make_list(self, value):
         if not isinstance(value, list):
@@ -303,14 +414,17 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         with osbs.retries_disabled():
             return len(osbs.list_builds(field_selector=field_selector))
 
+    def _get_openshift_session(self, kwargs):
+        conf = Configuration(**kwargs)
+        return OSBS(conf, conf)
+
     def get_cluster_info(self, cluster, platform):
         kwargs = deepcopy(self.config_kwargs)
         kwargs['conf_section'] = cluster.name
         if self.osbs_client_config:
             kwargs['conf_file'] = os.path.join(self.osbs_client_config, 'osbs.conf')
 
-        conf = Configuration(**kwargs)
-        osbs = OSBS(conf, conf)
+        osbs = self._get_openshift_session(kwargs)
 
         current_builds = self.get_current_builds(osbs)
 

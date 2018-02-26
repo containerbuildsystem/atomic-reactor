@@ -10,8 +10,8 @@ from __future__ import print_function, unicode_literals
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import get_worker_build_info
+from atomic_reactor.plugins.pre_reactor_config import get_pulp_session
 from atomic_reactor.constants import PLUGIN_PULP_TAG_KEY
-from atomic_reactor.pulp_util import PulpHandler
 
 
 class PulpTagPlugin(PostBuildPlugin):
@@ -24,7 +24,7 @@ class PulpTagPlugin(PostBuildPlugin):
     key = PLUGIN_PULP_TAG_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, pulp_registry_name, pulp_secret_path=None,
+    def __init__(self, tasker, workflow, pulp_registry_name=None, pulp_secret_path=None,
                  username=None, password=None, dockpulp_loglevel=None):
         """
         constructor
@@ -39,18 +39,20 @@ class PulpTagPlugin(PostBuildPlugin):
         """
         # call parent constructor
         super(PulpTagPlugin, self).__init__(tasker, workflow)
-        self.pulp_registry_name = pulp_registry_name
-        self.pulp_secret_path = pulp_secret_path
-        self.username = username
-        self.password = password
 
-        self.dockpulp_loglevel = dockpulp_loglevel
+        self.pulp_fallback = {
+            'name': pulp_registry_name,
+            'loglevel': dockpulp_loglevel,
+            'auth': {
+                'ssl_certs_dir': pulp_secret_path,
+                'username': username,
+                'password': password
+            }
+        }
 
     def set_v1_tags(self, v1_image_id):
         image_names = self.workflow.tag_conf.images[:]
-        handler = PulpHandler(self.workflow, self.pulp_registry_name, self.log,
-                              pulp_secret_path=self.pulp_secret_path, username=self.username,
-                              password=self.password, dockpulp_loglevel=self.dockpulp_loglevel)
+        handler = get_pulp_session(self.workflow, self.log, self.pulp_fallback)
 
         pulp_repos = handler.create_dockpulp_and_repos(image_names)
         repo_tags = {}

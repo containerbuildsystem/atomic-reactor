@@ -15,6 +15,8 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.util import ImageName
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY)
 try:
     if sys.version_info.major > 2:
         # importing dockpulp in Python 3 causes SyntaxError
@@ -30,6 +32,8 @@ import subprocess
 import pytest
 from flexmock import flexmock
 from tests.constants import INPUT_IMAGE, SOURCE, MOCK
+from tests.fixtures import reactor_config_map  # noqa
+from tests.util import mocked_reactorconfig
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -127,7 +131,8 @@ def prepare(check_repo_retval=0, existing_layers=[],
     ([], True, True),                  # all subprocess.check_call will fail
 ])
 def test_pulp_dedup_layers(
-        tmpdir, existing_layers, should_raise, monkeypatch, subprocess_exceptions):
+        tmpdir, existing_layers, should_raise, monkeypatch, subprocess_exceptions,
+        reactor_config_map):
     tasker, workflow = prepare(
         check_repo_retval=0,
         existing_layers=existing_layers,
@@ -143,6 +148,11 @@ def test_pulp_dedup_layers(
         'args': {
             'pulp_registry_name': 'test'
         }}])
+
+    if reactor_config_map:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1, 'pulp': {'name': 'test', 'auth': {}}})
 
     runner.run()
     assert PulpPushPlugin.key is not None
@@ -162,7 +172,8 @@ def test_pulp_dedup_layers(
     (1, True),
     (0, False),
 ])
-def test_pulp_source_secret(tmpdir, check_repo_retval, should_raise, monkeypatch):
+def test_pulp_source_secret(tmpdir, check_repo_retval, should_raise, monkeypatch,
+                            reactor_config_map):
     tasker, workflow = prepare(check_repo_retval=check_repo_retval)
     monkeypatch.setenv('SOURCE_SECRET_PATH', str(tmpdir))
     with open(os.path.join(str(tmpdir), "pulp.cer"), "wt") as cer:
@@ -175,6 +186,12 @@ def test_pulp_source_secret(tmpdir, check_repo_retval, should_raise, monkeypatch
         'args': {
             'pulp_registry_name': 'test'
         }}])
+
+    if reactor_config_map:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1, 'pulp': {'name': 'test',
+                                                         'auth': {'ssl_certs_dir': str(tmpdir)}}})
 
     if should_raise:
         with pytest.raises(Exception):
@@ -193,7 +210,7 @@ def test_pulp_source_secret(tmpdir, check_repo_retval, should_raise, monkeypatch
 
 @pytest.mark.skipif(dockpulp is None,
                     reason='dockpulp module not available')
-def test_pulp_service_account_secret(tmpdir, monkeypatch):
+def test_pulp_service_account_secret(tmpdir, monkeypatch, reactor_config_map):
     tasker, workflow = prepare()
     monkeypatch.setenv('SOURCE_SECRET_PATH', str(tmpdir) + "/not-used")
     with open(os.path.join(str(tmpdir), "pulp.cer"), "wt") as cer:
@@ -207,6 +224,13 @@ def test_pulp_service_account_secret(tmpdir, monkeypatch):
             'pulp_registry_name': 'test',
             'pulp_secret_path': str(tmpdir),
         }}])
+
+    if reactor_config_map:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1,
+                                  'pulp': {'name': 'test',
+                                           'auth': {'ssl_certs_dir': str(tmpdir)}}})
 
     runner.run()
     _, crane_images = workflow.postbuild_results[PulpPushPlugin.key]
@@ -225,7 +249,7 @@ def test_pulp_service_account_secret(tmpdir, monkeypatch):
     ('pulp_sync', 'foo', False, False),
 ])
 def test_pulp_publish_only_without_sync(before_name, after_name, publish,
-                                        should_publish, caplog):
+                                        should_publish, caplog, reactor_config_map):
     conf = [
         {
             'name': before_name,
@@ -252,6 +276,12 @@ def test_pulp_publish_only_without_sync(before_name, after_name, publish,
 
     tasker, workflow = prepare(conf=conf)
     plugin = PulpPushPlugin(tasker, workflow, 'pulp_registry_name', publish=publish)
+
+    if reactor_config_map:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1,
+                                  'pulp': {'name': 'pulp_registry_name', 'auth': {}}})
 
     expectation = flexmock(dockpulp.Pulp).should_receive('crane')
     if should_publish:

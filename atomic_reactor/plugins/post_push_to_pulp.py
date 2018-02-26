@@ -48,14 +48,14 @@ import subprocess
 from atomic_reactor.constants import PLUGIN_PULP_SYNC_KEY, PLUGIN_PULP_PUSH_KEY
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.util import ImageName, are_plugins_in_order
-from atomic_reactor.pulp_util import PulpHandler
+from atomic_reactor.plugins.pre_reactor_config import get_pulp_session
 
 
 class PulpPushPlugin(PostBuildPlugin):
     key = PLUGIN_PULP_PUSH_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, pulp_registry_name, load_squashed_image=None,
+    def __init__(self, tasker, workflow, pulp_registry_name=None, load_squashed_image=None,
                  load_exported_image=None, image_names=None, pulp_secret_path=None,
                  username=None, password=None, dockpulp_loglevel=None, publish=True):
         """
@@ -75,7 +75,16 @@ class PulpPushPlugin(PostBuildPlugin):
         """
         # call parent constructor
         super(PulpPushPlugin, self).__init__(tasker, workflow)
-        self.pulp_registry_name = pulp_registry_name
+
+        self.pulp_fallback = {
+            'name': pulp_registry_name,
+            'loglevel': dockpulp_loglevel,
+            'auth': {
+                'ssl_certs_dir': pulp_secret_path,
+                'username': username,
+                'password': password
+            }
+        }
         self.image_names = image_names
         if load_squashed_image is not None and load_exported_image is not None and \
                 (load_squashed_image != load_exported_image):
@@ -85,18 +94,11 @@ class PulpPushPlugin(PostBuildPlugin):
             self.log.warning('load_squashed_image argument is obsolete and will be '
                              'removed in a future version; please use load_exported_image instead')
         self.load_exported_image = load_exported_image or load_squashed_image or False
-        self.pulp_secret_path = pulp_secret_path
-        self.username = username
-        self.password = password
 
         self.publish = publish and not are_plugins_in_order(self.workflow.postbuild_plugins_conf,
                                                             self.key, PLUGIN_PULP_SYNC_KEY)
 
-        self.dockpulp_loglevel = dockpulp_loglevel
-        self.pulp_handler = PulpHandler(self.workflow, self.pulp_registry_name, self.log,
-                                        pulp_secret_path=self.pulp_secret_path,
-                                        username=self.username, password=self.password,
-                                        dockpulp_loglevel=self.dockpulp_loglevel)
+        self.pulp_handler = get_pulp_session(self.workflow, self.log, self.pulp_fallback)
 
     def push_tar(self, filename, image_names=None, repo_prefix="redhat-"):
         # Find out how to tag this image.

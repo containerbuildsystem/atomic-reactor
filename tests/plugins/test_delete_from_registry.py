@@ -18,7 +18,11 @@ from atomic_reactor.inner import DockerBuildWorkflow, DockerRegistry
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.exit_delete_from_registry import DeleteFromRegistryPlugin
 from atomic_reactor.plugins.build_orchestrate_build import OrchestrateBuildPlugin
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY)
 from tests.constants import LOCALHOST_REGISTRY, DOCKER0_REGISTRY, MOCK, TEST_IMAGE, INPUT_IMAGE
+from tests.util import mocked_reactorconfig
+from tests.fixtures import reactor_config_map  # noqa
 
 from tempfile import mkdtemp
 import os
@@ -68,7 +72,7 @@ class X(object):
     {'foo/bar': ManifestDigest(v2_list=DIGEST_LIST)}
 ])
 def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir, orchestrator,
-                                     manifest_list_digests):
+                                     manifest_list_digests, reactor_config_map):
     if MOCK:
         mock_docker()
         mock_get_retry_session()
@@ -89,7 +93,9 @@ def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir, orch
     setattr(workflow, 'builder', X)
 
     args_registries = {}
+    config_map_regiestries = []
     for reg, use_secret in req_registries.items():
+        cm_reg = {'url': reg}
         if use_secret:
             temp_dir = mkdtemp(dir=str(tmpdir))
             with open(os.path.join(temp_dir, ".dockercfg"), "w+") as dockerconfig:
@@ -101,8 +107,10 @@ def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir, orch
                 dockerconfig.write(json.dumps(dockerconfig_contents))
                 dockerconfig.flush()
                 args_registries[reg] = {'secret': temp_dir}
+                cm_reg['auth'] = {'cfg_path': temp_dir}
         else:
             args_registries[reg] = {}
+        config_map_regiestries.append(cm_reg)
 
     for reg, digests in saved_digests.items():
         if orchestrator:
@@ -143,6 +151,11 @@ def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir, orch
     result_digests = saved_digests.copy()
     result_digests.update(group_manifest_digests)
 
+    if reactor_config_map:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1, 'registries': config_map_regiestries})
+
     runner = ExitPluginsRunner(
         tasker,
         workflow,
@@ -179,7 +192,7 @@ def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir, orch
                                          requests.codes.NOT_FOUND,
                                          requests.codes.METHOD_NOT_ALLOWED,
                                          520])
-def test_delete_from_registry_failures(tmpdir, status_code):
+def test_delete_from_registry_failures(tmpdir, status_code, reactor_config_map):
     if MOCK:
         mock_docker()
         mock_get_retry_session()
@@ -192,7 +205,9 @@ def test_delete_from_registry_failures(tmpdir, status_code):
     setattr(workflow, 'builder', X)
 
     args_registries = {}
+    config_map_regiestries = []
     for reg, use_secret in req_registries.items():
+        cm_reg = {'url': reg}
         if use_secret:
             temp_dir = mkdtemp(dir=str(tmpdir))
             with open(os.path.join(temp_dir, ".dockercfg"), "w+") as dockerconfig:
@@ -204,14 +219,21 @@ def test_delete_from_registry_failures(tmpdir, status_code):
                 dockerconfig.write(json.dumps(dockerconfig_contents))
                 dockerconfig.flush()
                 args_registries[reg] = {'secret': temp_dir}
+                cm_reg['auth'] = {'cfg_path': temp_dir}
         else:
             args_registries[reg] = {}
+    config_map_regiestries.append(cm_reg)
 
     for reg, digests in saved_digests.items():
         r = DockerRegistry(reg)
         for tag, dig in digests.items():
             r.digests[tag] = ManifestDigest(v1='not-used', v2=dig)
         workflow.push_conf._registries['docker'].append(r)
+
+    if reactor_config_map:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1, 'registries': config_map_regiestries})
 
     runner = ExitPluginsRunner(
         tasker,

@@ -55,6 +55,7 @@ from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.util import ImageName, Dockercfg, are_plugins_in_order
 # import pulp_util to get the dockpulp.log set up once
 from atomic_reactor.pulp_util import PulpLog
+from atomic_reactor.plugins.pre_reactor_config import get_pulp
 import dockpulp
 import os
 import re
@@ -85,8 +86,8 @@ class PulpSyncPlugin(PostBuildPlugin):
     KEY = 'pulp.key'
 
     def __init__(self, tasker, workflow,
-                 pulp_registry_name,
-                 docker_registry,
+                 pulp_registry_name=None,
+                 docker_registry=None,
                  delete_from_registry=False,
                  pulp_secret_path=None,
                  registry_secret_path=None,
@@ -113,21 +114,32 @@ class PulpSyncPlugin(PostBuildPlugin):
         """
         # call parent constructor
         super(PulpSyncPlugin, self).__init__(tasker, workflow)
-        self.pulp_registry_name = pulp_registry_name
+
+        self.pulp_fallback = {
+            'name': pulp_registry_name,
+            'loglevel': dockpulp_loglevel,
+            'auth': {
+                'ssl_certs_dir': pulp_secret_path,
+            }
+        }
+        pulp = get_pulp(self.workflow, self.pulp_fallback)
+        self.pulp_registry_name = pulp['name']
+        self.pulp_secret_path = pulp['auth'].get('ssl_certs_dir')
+
         self.docker_registry = docker_registry
-        self.pulp_secret_path = pulp_secret_path
         self.registry_secret_path = registry_secret_path
         self.insecure_registry = insecure_registry
         self.pulp_repo_prefix = pulp_repo_prefix
         logger = PulpLog.get_pulp_logger()
 
-        if dockpulp_loglevel is not None:
+        loglevel = pulp.get('loglevel')
+        if loglevel is not None:
             self.log.info("attempting to set loglevel")
             try:
-                logger.setLevel(dockpulp_loglevel)
+                logger.setLevel(loglevel)
             except (ValueError, TypeError) as ex:
                 self.log.error("Can't set provided log level %r: %r",
-                               dockpulp_loglevel, ex)
+                               loglevel, ex)
 
         if delete_from_registry:
             self.log.error("will not delete from registry as instructed: "

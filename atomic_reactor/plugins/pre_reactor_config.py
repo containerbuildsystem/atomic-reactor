@@ -7,8 +7,8 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import read_yaml, read_yaml_from_file_path
-
+from atomic_reactor.util import read_yaml, read_yaml_from_file_path, get_build_json
+from osbs.utils import RegistryURI
 
 import os
 import six
@@ -16,6 +16,7 @@ import six
 
 # Key used to store the config object in the plugin workspace
 WORKSPACE_CONF_KEY = 'reactor_config'
+NO_FALLBACK = object()
 
 
 def get_config(workflow):
@@ -37,45 +38,63 @@ def get_config(workflow):
         return conf
 
 
-def get_koji(workflow):
-    return get_config(workflow)['koji']
+def get_value(workflow, name, fallback):
+    try:
+        return get_config(workflow).conf[name]
+    except KeyError:
+        if fallback != NO_FALLBACK:
+            return fallback
+        raise
 
 
-def get_koji_session(workflow):
-    config = get_koji(workflow)
+def get_koji(workflow, fallback=NO_FALLBACK):
+    koji_map = get_value(workflow, 'koji', fallback)
+
+    if 'auth' in koji_map:
+        krb_principal = koji_map['auth'].get('krb_principal')
+        krb_keytab = koji_map['auth'].get('krb_keytab_path')
+        if bool(krb_principal) != bool(krb_keytab):
+            raise RuntimeError("specify both koji_principal and koji_keytab or neither")
+
+    return koji_map
+
+
+def get_koji_session(workflow, fallback):
+    config = get_koji(workflow, fallback)
 
     from atomic_reactor.koji_util import create_koji_session
+
     auth_info = {
         "proxyuser": config['auth'].get('proxyuser'),
         "ssl_certs_dir": config['auth'].get('ssl_certs_dir'),
         "krb_principal": config['auth'].get('krb_principal'),
         "krb_keytab": config['auth'].get('krb_keytab_path')
     }
+
     return create_koji_session(config['hub_url'], auth_info)
 
 
-def get_pulp(workflow):
-    return get_config(workflow)['pulp']
+def get_pulp(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'pulp', fallback)
 
 
-def get_pulp_session(workflow, logger, loglevel):
-    config = get_pulp(workflow)
+def get_pulp_session(workflow, logger, fallback):
+    config = get_pulp(workflow, fallback)
 
     from atomic_reactor.pulp_util import PulpHandler
     return PulpHandler(workflow, config['name'], logger,
                        pulp_secret_path=config['auth'].get('ssl_certs_dir'),
                        username=config['auth'].get('username'),
                        password=config['auth'].get('password'),
-                       dockpulp_loglevel=loglevel)
+                       dockpulp_loglevel=config.get('loglevel'))
 
 
-def get_odcs(workflow):
-    return get_config(workflow)['odcs']
+def get_odcs(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'odcs', fallback)
 
 
-def get_odcs_session(workflow):
-    config = get_odcs(workflow)
-
+def get_odcs_session(workflow, fallback):
+    config = get_odcs(workflow, fallback)
     from atomic_reactor.odcs_util import ODCSClient
 
     client_kwargs = {'insecure': config.get('insecure', False)}
@@ -97,69 +116,64 @@ def get_odcs_session(workflow):
     return ODCSClient(config['api_url'], **client_kwargs)
 
 
-def get_smtp(workflow):
-    return get_config(workflow)['smtp']
+def get_smtp(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'smtp', fallback)
 
 
-def get_smtp_session(workflow):
-    config = get_smtp(workflow)
+def get_smtp_session(workflow, fallback):
+    config = get_smtp(workflow, fallback)
 
     import smtplib
     return smtplib.SMTP(config['host'])
 
 
-def get_pdc(workflow):
-    return get_config(workflow)['pdc']
+def get_pdc(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'pdc', fallback)
 
 
-def get_pdc_session(workflow):
-    config = get_pdc(workflow)
+def get_pdc_session(workflow, fallback):
+    config = get_pdc(workflow, fallback)
 
     from pdc_client import PDCClient
     return PDCClient(server=config['api_url'], ssl_verify=not config.get('insecure', False),
                      develop=True)
 
 
-def get_arrangement_version(workflow):
-    return get_config(workflow)['arrangement_version']
+def get_arrangement_version(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'arrangement_version', fallback)
 
 
-def get_artifacts_allowed_domains(workflow):
-    return get_config(workflow)['artifacts_allowed_domains']
+def get_artifacts_allowed_domains(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'artifacts_allowed_domains', fallback)
 
 
-def get_image_labels(workflow):
-    return get_config(workflow)['image_labels']
+def get_image_labels(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'image_labels', fallback)
 
 
-def get_image_equal_labels(workflow):
-    return get_config(workflow)['image_equal_labels']
+def get_image_equal_labels(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'image_equal_labels', fallback)
 
 
-def get_openshift(workflow):
-    return get_config(workflow)['openshift']
+def get_openshift(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'openshift', fallback)
 
 
-def get_openshift_session(workflow, namespace, conf_file=None):
-    config = get_openshift(workflow)
+def get_openshift_session(workflow, fallback, build_json_dir_fallback=None):
+    config = get_openshift(workflow, fallback)
+    namespace = get_build_json().get('metadata', {}).get('namespace', None)
 
     from osbs.api import OSBS
     from osbs.conf import Configuration
 
     config_kwargs = {
-        'config_file': conf_file,
-        'openshift_url': config['url'],
         'verify_ssl': not config.get('insecure', False),
         'namespace': namespace,
-        'conf_section': None,
-        'cli_args': None,
         'use_auth': False,
+        'conf_file': None,
+        'openshift_url': config['url'],
     }
-
-    try:
-        config_kwargs['build_json_dir'] = get_build_json_dir(workflow)
-    except KeyError:
-        pass
+    config_kwargs['build_json_dir'] = get_build_json_dir(workflow, build_json_dir_fallback)
 
     if config.get('auth'):
         krb_keytab_path = config['auth'].get('krb_keytab_path')
@@ -181,52 +195,80 @@ def get_openshift_session(workflow, namespace, conf_file=None):
     return OSBS(osbs_conf, osbs_conf)
 
 
-def get_group_manifests(workflow):
-    return get_config(workflow)['group_manifests']
+def get_group_manifests(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'group_manifests', fallback)
 
 
-def get_platform_descriptors(workflow):
-    return get_config(workflow)['platform_descriptors']
+def get_platform_descriptors(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'platform_descriptors', fallback)
 
 
-def get_prefer_schema1_digest(workflow):
-    return get_config(workflow)['prefer_schema1_digest']
+def get_prefer_schema1_digest(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'prefer_schema1_digest', fallback)
 
 
-def get_content_versions(workflow):
-    return get_config(workflow)['content_versions']
+def get_content_versions(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'content_versions', fallback)
 
 
-def get_registries(workflow):
-    return get_config(workflow)['registries']
+def get_registries(workflow, fallback=NO_FALLBACK):
+    try:
+        all_registries = get_config(workflow).conf['registries']
+    except KeyError:
+        if fallback != NO_FALLBACK:
+            return fallback
+        raise
+
+    registries_cm = {}
+    for registry in all_registries:
+        reguri = RegistryURI(registry.get('url'))
+        regdict = {}
+        regdict['version'] = reguri.version
+        if registry.get('auth'):
+            regdict['secret'] = registry['auth']['cfg_path']
+        regdict['insecure'] = registry.get('insecure', False)
+
+        registries_cm[reguri.docker_uri] = regdict
+
+    return registries_cm
 
 
-def get_yum_proxy(workflow):
-    return get_config(workflow)['yum_proxy']
+def get_yum_proxy(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'yum_proxy', fallback)
 
 
-def get_source_registry(workflow):
-    return get_config(workflow)['source_registry']
+def get_source_registry(workflow, fallback=NO_FALLBACK):
+    try:
+        source_registry = get_config(workflow).conf['source_registry']
+    except KeyError:
+        if fallback != NO_FALLBACK:
+            return fallback
+        raise
+
+    return {
+        'uri': RegistryURI(source_registry['url']),
+        'insecure': source_registry.get('insecure', False)
+    }
 
 
-def get_sources_command(workflow):
-    return get_config(workflow)['sources_command']
+def get_sources_command(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'sources_command', fallback)
 
 
-def get_required_secrets(workflow):
-    return get_config(workflow)['required_secrets']
+def get_required_secrets(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'required_secrets', fallback)
 
 
-def get_worker_token_secrets(workflow):
-    return get_config(workflow)['worker_token_secrets']
+def get_worker_token_secrets(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'worker_token_secrets', fallback)
 
 
-def get_build_json_dir(workflow):
-    return get_config(workflow)['build_json_dir']
+def get_build_json_dir(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'build_json_dir', fallback)
 
 
-def get_clusters(workflow):
-    return get_config(workflow)['clusters']
+def get_clusters(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'clusters', fallback)
 
 
 class ClusterConfig(object):
@@ -287,12 +329,15 @@ class ReactorConfig(object):
         return self.cluster_configs.get(platform, [])
 
     def get_odcs_config(self):
-        odcs_config = self.conf.get('odcs')
-        if odcs_config:
-            odcs_config.pop('auth', None)
-            odcs_config.pop('api_url', None)
-            odcs_config.pop('insecure', None)
-            odcs_config = ODCSConfig(**odcs_config)
+        whole_odcs_config = self.conf.get('odcs')
+        odcs_config = None
+
+        if whole_odcs_config:
+            odcs_config_kwargs = {}
+            odcs_config_kwargs['signing_intents'] = whole_odcs_config['signing_intents']
+            odcs_config_kwargs['default_signing_intent'] =\
+                whole_odcs_config['default_signing_intent']
+            odcs_config = ODCSConfig(**odcs_config_kwargs)
         return odcs_config
 
 

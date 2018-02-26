@@ -8,9 +8,9 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function, unicode_literals
 
 from atomic_reactor.constants import INSPECT_CONFIG
-from atomic_reactor.koji_util import create_koji_session
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import PLUGIN_KOJI_PARENT_KEY
+from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 from osbs.utils import Labels
 
 import time
@@ -39,7 +39,7 @@ class KojiParentPlugin(PreBuildPlugin):
     key = PLUGIN_KOJI_PARENT_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, koji_hub, koji_ssl_certs_dir=None,
+    def __init__(self, tasker, workflow, koji_hub=None, koji_ssl_certs_dir=None,
                  poll_interval=DEFAULT_POLL_INTERVAL, poll_timeout=DEFAULT_POLL_TIMEOUT):
         """
         :param tasker: DockerTasker instance
@@ -52,12 +52,11 @@ class KojiParentPlugin(PreBuildPlugin):
         """
         super(KojiParentPlugin, self).__init__(tasker, workflow)
 
-        koji_auth_info = None
-        if koji_ssl_certs_dir:
-            koji_auth_info = {
-                'ssl_certs_dir': koji_ssl_certs_dir,
-            }
-        self.koji_session = create_koji_session(koji_hub, koji_auth_info)
+        self.koji_fallback = {
+            'hub_url': koji_hub,
+            'auth': {'ssl_certs_dir': koji_ssl_certs_dir}
+        }
+        self.koji_session = get_koji_session(self.workflow, self.koji_fallback)
 
         self.poll_interval = poll_interval
         self.poll_timeout = poll_timeout

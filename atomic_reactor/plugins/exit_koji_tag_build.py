@@ -9,10 +9,11 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 from atomic_reactor.constants import PLUGIN_KOJI_TAG_BUILD_KEY
-from atomic_reactor.koji_util import create_koji_session, tag_koji_build
+from atomic_reactor.koji_util import tag_koji_build
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
+from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 
 
 class KojiTagBuildPlugin(ExitPlugin):
@@ -53,17 +54,14 @@ class KojiTagBuildPlugin(ExitPlugin):
         """
         super(KojiTagBuildPlugin, self).__init__(tasker, workflow)
 
-        if bool(koji_principal) != bool(koji_keytab):
-            raise RuntimeError('specify both koji_principal and koji_keytab '
-                               'or neither')
-
-        self.kojihub = kojihub
-        self.koji_auth = {
-            "proxyuser": koji_proxy_user,
-            "ssl_certs_dir": koji_ssl_certs,
-            # krbV python library throws an error if these are unicode
-            "krb_principal": str(koji_principal),
-            "krb_keytab": str(koji_keytab)
+        self.koji_fallback = {
+            'hub_url': kojihub,
+            'auth': {
+                'proxyuser': koji_proxy_user,
+                'ssl_certs_dir': koji_ssl_certs,
+                'krb_principal': str(koji_principal),
+                'krb_keytab_path': str(koji_keytab)
+            }
         }
 
         self.target = target
@@ -85,7 +83,7 @@ class KojiTagBuildPlugin(ExitPlugin):
                               KojiPromotePlugin.key)
                 return
 
-        session = create_koji_session(self.kojihub, self.koji_auth)
+        session = get_koji_session(self.workflow, self.koji_fallback)
         build_tag = tag_koji_build(session, build_id, self.target,
                                    poll_interval=self.poll_interval)
 

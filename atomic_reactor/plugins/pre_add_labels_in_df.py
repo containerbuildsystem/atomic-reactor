@@ -59,7 +59,8 @@ from __future__ import unicode_literals
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import INSPECT_CONFIG
-from atomic_reactor.util import get_docker_architecture, df_parser, LabelFormatter
+from atomic_reactor.util import (get_docker_architecture, df_parser, LabelFormatter)
+from atomic_reactor.plugins.pre_reactor_config import get_image_equal_labels, get_image_labels
 from osbs.utils import Labels
 import json
 import datetime
@@ -70,7 +71,7 @@ class AddLabelsPlugin(PreBuildPlugin):
     key = "add_labels_in_dockerfile"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, labels, dont_overwrite=None,
+    def __init__(self, tasker, workflow, labels=None, dont_overwrite=None,
                  auto_labels=("build-date",
                               "architecture",
                               "vcs-type",
@@ -101,17 +102,21 @@ class AddLabelsPlugin(PreBuildPlugin):
         """
         # call parent constructor
         super(AddLabelsPlugin, self).__init__(tasker, workflow)
-        if isinstance(labels, str):
-            labels = json.loads(labels)
-        if not isinstance(labels, dict):
+
+        self.labels = get_image_labels(self.workflow, labels)
+
+        if isinstance(self.labels, str):
+            self.labels = json.loads(self.labels)
+        if not isinstance(self.labels, dict):
             raise RuntimeError("labels have to be dict")
-        self.labels = labels
+
         self.dont_overwrite = dont_overwrite or ()
         self.dont_overwrite_if_in_dockerfile = dont_overwrite_if_in_dockerfile
         self.aliases = aliases or Labels.get_new_names_by_old()
         self.auto_labels = auto_labels or ()
         self.info_url_format = info_url_format
-        self.equal_labels = equal_labels or []
+
+        self.equal_labels = get_image_equal_labels(self.workflow, equal_labels or [])
         if not isinstance(self.equal_labels, list):
             raise RuntimeError("equal_labels have to be list")
 

@@ -19,6 +19,11 @@ from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.util import ImageName, CommandResult
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY)
+from osbs.utils import RegistryURI
+from tests.util import mocked_reactorconfig
+from tests.fixtures import reactor_config_map  # noqa
 from tests.constants import MOCK, MOCK_SOURCE, LOCALHOST_REGISTRY
 
 if MOCK:
@@ -109,7 +114,8 @@ def set_build_json(monkeypatch):
      ["library-only:latest",
       LOCALHOST_REGISTRY + "/library-only:latest"]),
 ])
-def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected):
+def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected,
+                                reactor_config_map):
     if MOCK:
         mock_docker(remember_images=True)
 
@@ -124,14 +130,30 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
     for image in all_images:
         assert not tasker.image_exists(image)
 
+    if reactor_config_map:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1,
+                                  'source_registry': {'url': parent_registry,
+                                                      'insecure': True}})
+
+    par_reg = None
+    if parent_registry:
+        par_reg = RegistryURI(parent_registry)
     runner = PreBuildPluginsRunner(
         tasker,
         workflow,
         [{
             'name': PullBaseImagePlugin.key,
-            'args': {'parent_registry': parent_registry, 'parent_registry_insecure': True}
+            'args': {'parent_registry': par_reg,
+                     'parent_registry_insecure': True}
         }]
     )
+
+    if parent_registry is None and reactor_config_map:
+        with pytest.raises(PluginFailedException):
+            runner.run()
+        return
 
     runner.run()
 
@@ -152,19 +174,21 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
             pass
 
 
-def test_pull_base_wrong_registry():
+def test_pull_base_wrong_registry(reactor_config_map):  # noqa
     with pytest.raises(PluginFailedException):
-        test_pull_base_image_plugin('localhost:1234', BASE_IMAGE_W_REGISTRY, [], [])
+        test_pull_base_image_plugin('localhost:1234', BASE_IMAGE_W_REGISTRY, [], [],
+                                    reactor_config_map=reactor_config_map)
 
 
-def test_pull_base_base_parse():
+def test_pull_base_base_parse(reactor_config_map):  # noqa
     flexmock(ImageName).should_receive('parse').and_raise(AttributeError)
     with pytest.raises(AttributeError):
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE, [BASE_IMAGE_W_REGISTRY],
-                                    [BASE_IMAGE_W_LIB_REG])
+                                    [BASE_IMAGE_W_LIB_REG],
+                                    reactor_config_map=reactor_config_map)
 
 
-def test_pull_base_change_override(monkeypatch):
+def test_pull_base_change_override(monkeypatch, reactor_config_map):  # noqa
     monkeypatch.setenv("BUILD", json.dumps({
         'metadata': {
             'name': UNIQUE_ID,
@@ -180,7 +204,8 @@ def test_pull_base_change_override(monkeypatch):
         },
     }))
     test_pull_base_image_plugin(LOCALHOST_REGISTRY, 'invalid-image',
-                                [BASE_IMAGE_W_REGISTRY], [BASE_IMAGE_W_LIB_REG])
+                                [BASE_IMAGE_W_REGISTRY], [BASE_IMAGE_W_LIB_REG],
+                                reactor_config_map=reactor_config_map)
 
 
 @pytest.mark.parametrize(('exc', 'failures', 'should_succeed'), [
@@ -188,7 +213,7 @@ def test_pull_base_change_override(monkeypatch):
     (docker.errors.NotFound, 25, False),
     (RuntimeError, 1, False),
 ])
-def test_retry_pull_base_image(exc, failures, should_succeed):
+def test_retry_pull_base_image(exc, failures, should_succeed, reactor_config_map):
     if MOCK:
         mock_docker(remember_images=True)
 
@@ -206,12 +231,19 @@ def test_retry_pull_base_image(exc, failures, should_succeed):
 
     expectation.and_return('foo')
 
+    if reactor_config_map:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1,
+                                  'source_registry': {'url': 'registry.example.com',
+                                                      'insecure': True}})
+
     runner = PreBuildPluginsRunner(
         tasker,
         workflow,
         [{
             'name': PullBaseImagePlugin.key,
-            'args': {'parent_registry': 'registry.example.com',
+            'args': {'parent_registry': RegistryURI('registry.example.com'),
                      'parent_registry_insecure': True},
         }],
     )
@@ -224,7 +256,7 @@ def test_retry_pull_base_image(exc, failures, should_succeed):
 
 
 @pytest.mark.parametrize('library', [True, False])
-def test_try_with_library_pull_base_image(library):
+def test_try_with_library_pull_base_image(library, reactor_config_map):
     if MOCK:
         mock_docker(remember_images=True)
 
@@ -257,12 +289,19 @@ def test_try_with_library_pull_base_image(library):
 
     error_message = 'registry.example.com/' + base_image
 
+    if reactor_config_map:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1,
+                                  'source_registry': {'url': 'registry.example.com',
+                                                      'insecure': True}})
+
     runner = PreBuildPluginsRunner(
         tasker,
         workflow,
         [{
             'name': PullBaseImagePlugin.key,
-            'args': {'parent_registry': 'registry.example.com',
+            'args': {'parent_registry': RegistryURI('registry.example.com'),
                      'parent_registry_insecure': True},
         }],
     )

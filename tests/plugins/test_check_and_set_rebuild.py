@@ -14,6 +14,8 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_check_and_set_rebuild import (is_rebuild,
                                                               CheckAndSetRebuildPlugin)
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY)
 from atomic_reactor.util import ImageName
 import json
 from osbs.api import OSBS
@@ -21,6 +23,8 @@ import osbs.conf
 from osbs.exceptions import OsbsResponseException
 from flexmock import flexmock
 from tests.constants import SOURCE, MOCK
+from tests.util import mocked_reactorconfig
+from tests.fixtures import docker_tasker, reactor_config_map  # noqa
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -30,7 +34,8 @@ class X(object):
 
 
 class TestCheckRebuild(object):
-    def prepare(self, key, value, update_labels_args=None, update_labels_kwargs=None):
+    def prepare(self, key, value, update_labels_args=None, update_labels_kwargs=None,
+                reactor_config_map=False):
         if MOCK:
             mock_docker()
         tasker = DockerTasker()
@@ -55,7 +60,16 @@ class TestCheckRebuild(object):
             namespace = update_labels_kwargs.get('namespace')
         (flexmock(osbs.conf).should_call('Configuration')
          .with_args(namespace=namespace, conf_file=None, verify_ssl=True, openshift_url="",
-                    openshift_uri="", use_auth=True))
+                    use_auth=True, build_json_dir=None))
+
+        if reactor_config_map:
+            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig({'version': 1,
+                                      'openshift': {
+                                          'url': '',
+                                          'insecure': False,
+                                          'auth': {'enable': True}}})
 
         runner = PreBuildPluginsRunner(tasker, workflow, [
             {
@@ -69,8 +83,9 @@ class TestCheckRebuild(object):
         ])
         return workflow, runner
 
-    def test_check_rebuild_no_build_json(self, monkeypatch):
-        workflow, runner = self.prepare('is_autorebuild', 'true')
+    def test_check_rebuild_no_build_json(self, monkeypatch, reactor_config_map):
+        workflow, runner = self.prepare('is_autorebuild', 'true',
+                                        reactor_config_map=reactor_config_map)
         monkeypatch.delenv('BUILD', raising=False)
 
         with pytest.raises(PluginFailedException):
@@ -79,7 +94,7 @@ class TestCheckRebuild(object):
     def test_check_no_buildconfig(self, monkeypatch):
         key = 'is_autorebuild'
         value = 'true'
-        workflow, runner = self.prepare(key, value)
+        workflow, runner = self.prepare(key, value, reactor_config_map=reactor_config_map)
         monkeypatch.setenv("BUILD", json.dumps({
             "metadata": {
                 "labels": {
@@ -93,7 +108,7 @@ class TestCheckRebuild(object):
             runner.run()
 
     @pytest.mark.parametrize(('namespace'), [None, 'my_namespace'])
-    def test_check_is_not_rebuild(self, namespace, monkeypatch):
+    def test_check_is_not_rebuild(self, namespace, monkeypatch, reactor_config_map):
         key = 'is_autorebuild'
         value = 'true'
         buildconfig = "buildconfig1"
@@ -104,7 +119,8 @@ class TestCheckRebuild(object):
         workflow, runner = self.prepare(key, value,
                                         update_labels_args=(buildconfig,
                                                             {key: value}),
-                                        update_labels_kwargs=namespace_dict)
+                                        update_labels_kwargs=namespace_dict,
+                                        reactor_config_map=reactor_config_map)
 
         build_json = {
             "metadata": {
@@ -121,10 +137,10 @@ class TestCheckRebuild(object):
         assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] is False
         assert not is_rebuild(workflow)
 
-    def test_check_is_rebuild(self, monkeypatch):
+    def test_check_is_rebuild(self, monkeypatch, reactor_config_map):
         key = 'is_autorebuild'
         value = 'true'
-        workflow, runner = self.prepare(key, value)
+        workflow, runner = self.prepare(key, value, reactor_config_map=reactor_config_map)
 
         monkeypatch.setenv("BUILD", json.dumps({
             "metadata": {

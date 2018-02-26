@@ -29,7 +29,8 @@ import os
 from atomic_reactor.constants import DEFAULT_DOWNLOAD_BLOCK_SIZE, PLUGIN_ADD_FILESYSTEM_KEY
 from atomic_reactor.plugin import PreBuildPlugin, BuildCanceledException
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
-from atomic_reactor.koji_util import create_koji_session, TaskWatcher, stream_task_output
+from atomic_reactor.plugins.pre_reactor_config import get_koji_session
+from atomic_reactor.koji_util import TaskWatcher, stream_task_output
 from atomic_reactor.util import get_retrying_requests_session
 from atomic_reactor import util
 
@@ -76,7 +77,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         create_docker_metadata = False
         ''')
 
-    def __init__(self, tasker, workflow, koji_hub,
+    def __init__(self, tasker, workflow, koji_hub=None,
                  koji_proxyuser=None, koji_ssl_certs_dir=None,
                  koji_krb_principal=None, koji_krb_keytab=None,
                  from_task_id=None, poll_interval=5,
@@ -104,13 +105,17 @@ class AddFilesystemPlugin(PreBuildPlugin):
         """
         # call parent constructor
         super(AddFilesystemPlugin, self).__init__(tasker, workflow)
-        self.koji_hub = koji_hub
-        self.koji_auth_info = {
-            'proxyuser': koji_proxyuser,
-            'ssl_certs_dir': koji_ssl_certs_dir,
-            'krb_principal': koji_krb_principal,
-            'krb_keytab': koji_krb_keytab,
+
+        self.koji_fallback = {
+            'hub_url': koji_hub,
+            'auth': {
+                'proxyuser': koji_proxyuser,
+                'ssl_certs_dir': koji_ssl_certs_dir,
+                'krb_principal': str(koji_krb_principal),
+                'krb_keytab_path': str(koji_krb_keytab)
+            }
         }
+
         self.from_task_id = from_task_id
         self.poll_interval = poll_interval
         self.blocksize = blocksize
@@ -330,7 +335,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         if not image_build_conf or image_build_conf == 'latest':
             image_build_conf = 'image-build.conf'
 
-        self.session = create_koji_session(self.koji_hub, self.koji_auth_info)
+        self.session = get_koji_session(self.workflow, self.koji_fallback)
 
         task_id, filesystem_regex = self.run_image_task(image_build_conf)
 

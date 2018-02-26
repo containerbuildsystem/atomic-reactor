@@ -8,9 +8,9 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function, unicode_literals
 
 from atomic_reactor.build import ImageName
-from atomic_reactor.koji_util import create_koji_session
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
+from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 from osbs.utils import graceful_chain_get
 
 
@@ -38,7 +38,7 @@ class InjectParentImage(PreBuildPlugin):
     key = 'inject_parent_image'
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, koji_parent_build, koji_hub, koji_ssl_certs_dir=None):
+    def __init__(self, tasker, workflow, koji_parent_build, koji_hub=None, koji_ssl_certs_dir=None):
         """
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
@@ -49,13 +49,13 @@ class InjectParentImage(PreBuildPlugin):
         """
         super(InjectParentImage, self).__init__(tasker, workflow)
 
-        koji_auth_info = None
-        if koji_ssl_certs_dir:
-            koji_auth_info = {
+        self.koji_fallback = {
+            'hub_url': koji_hub,
+            'auth': {
                 'ssl_certs_dir': koji_ssl_certs_dir,
             }
-        self.koji_session = create_koji_session(koji_hub, koji_auth_info)
-
+        }
+        self.koji_session = get_koji_session(self.workflow, self.koji_fallback)
         try:
             self.koji_parent_build = int(koji_parent_build)
         except ValueError:

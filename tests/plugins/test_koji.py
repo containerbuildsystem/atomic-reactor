@@ -26,10 +26,14 @@ except ImportError:
     import koji as koji
 
 from atomic_reactor.plugins.pre_koji import KojiPlugin
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY)
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.util import ImageName
+from tests.util import mocked_reactorconfig
+from tests.fixtures import reactor_config_map  # noqa
 from flexmock import flexmock
 import pytest
 from tests.constants import SOURCE, MOCK
@@ -88,6 +92,9 @@ class MockedClientSession(object):
         self.ca_path = ca
         self.cert_path = cert
         self.serverca_path = serverca
+        return True
+
+    def krb_login(self, *args, **kwargs):
         return True
 
 
@@ -183,7 +190,7 @@ class TestKoji(object):
     def test_koji_plugin(self,
                          target, expect_success,
                          tmpdir, root, koji_ssl_certs,
-                         expected_string, expected_file, proxy):
+                         expected_string, expected_file, proxy, reactor_config_map):
         tasker, workflow = prepare()
         args = {
             'target': target,
@@ -196,6 +203,19 @@ class TestKoji(object):
             args['koji_ssl_certs_dir'] = str(tmpdir)
             tmpdir.join('cert').write('cert')
             tmpdir.join('serverca').write('serverca')
+
+        if reactor_config_map:
+            koji_map = {
+                'hub_url': '',
+                'root_url': root,
+                'auth': {}}
+            if koji_ssl_certs:
+                koji_map['auth']['ssl_certs_dir'] = str(tmpdir)
+            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig({'version': 1,
+                                      'koji': koji_map,
+                                      'yum_proxy': proxy})
 
         runner = PreBuildPluginsRunner(tasker, workflow, [{
             'name': KojiPlugin.key,

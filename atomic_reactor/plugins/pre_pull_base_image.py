@@ -16,6 +16,7 @@ import docker
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import get_build_json, ImageName
 from atomic_reactor.core import RetryGeneratorException
+from atomic_reactor.plugins.pre_reactor_config import get_source_registry
 
 
 class PullBaseImagePlugin(PreBuildPlugin):
@@ -34,8 +35,15 @@ class PullBaseImagePlugin(PreBuildPlugin):
         # call parent constructor
         super(PullBaseImagePlugin, self).__init__(tasker, workflow)
 
-        self.parent_registry = parent_registry
-        self.parent_registry_insecure = parent_registry_insecure
+        source_registry = get_source_registry(self.workflow, {
+            'uri': parent_registry, 'insecure': parent_registry_insecure})
+
+        if source_registry.get('uri'):
+            self.parent_registry = source_registry['uri'].docker_uri
+            self.parent_registry_insecure = source_registry['insecure']
+        else:
+            self.parent_registry = None
+            self.parent_registry_insecure = False
 
     def resolve_base_image(self, build_json):
         spec = build_json.get("spec")

@@ -17,6 +17,7 @@ from textwrap import dedent
 import re
 import yaml
 import smtplib
+from copy import deepcopy
 
 try:
     import pdc_client
@@ -33,6 +34,7 @@ import atomic_reactor.pulp_util
 import atomic_reactor.odcs_util
 import osbs.conf
 import osbs.api
+from osbs.utils import RegistryURI
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        ReactorConfigPlugin,
                                                        get_config, WORKSPACE_CONF_KEY,
@@ -44,6 +46,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        get_openshift_session)
 from tests.constants import TEST_IMAGE, REACTOR_CONFIG_MAP
 from tests.docker_mock import mock_docker
+from tests.util import mocked_reactorconfig
 from tests.fixtures import reactor_config_map  # noqa
 from flexmock import flexmock
 
@@ -384,6 +387,7 @@ class TestReactorConfigPlugin(object):
             get_config(workflow).get_odcs_config()
         assert 'unknown signing intent' in str(exc_info.value)
 
+    @pytest.mark.parametrize('fallback', (True, False, None))
     @pytest.mark.parametrize('method', [
         'koji', 'pulp', 'odcs', 'smtp', 'pdc', 'arrangement_version',
         'artifacts_allowed_domains', 'image_labels', 'image_equal_labels',
@@ -391,19 +395,64 @@ class TestReactorConfigPlugin(object):
         'content_versions', 'registries', 'yum_proxy', 'source_registry', 'sources_command',
         'required_secrets', 'worker_token_secrets', 'build_json_dir', 'clusters',
     ])
-    def test_get_methods(self, method):
+    def test_get_methods(self, fallback, method):
         tasker, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            yaml.safe_load(REACTOR_CONFIG_MAP)
+        if fallback is False:
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig(yaml.safe_load(REACTOR_CONFIG_MAP))
+        else:
+            if fallback:
+                fall_source = mocked_reactorconfig(yaml.safe_load(REACTOR_CONFIG_MAP))
+            else:
+                fall_source = mocked_reactorconfig(yaml.safe_load("version: 1"))
 
         method_name = 'get_' + method
         real_method = getattr(atomic_reactor.plugins.pre_reactor_config, method_name)
 
-        output = real_method(workflow)
+        if fallback is True:
+            output = real_method(workflow, fall_source.conf[method])
+        else:
+            if fallback is False:
+                output = real_method(workflow)
+            else:
+                with pytest.raises(KeyError):
+                    real_method(workflow)
+                return
+
         expected = yaml.safe_load(REACTOR_CONFIG_MAP)[method]
+
+        if method == 'registries':
+            registries_cm = {}
+            for registry in expected:
+                reguri = RegistryURI(registry.get('url'))
+                regdict = {}
+                regdict['version'] = reguri.version
+                if registry.get('auth'):
+                    regdict['secret'] = registry['auth']['cfg_path']
+                regdict['insecure'] = registry.get('insecure', False)
+
+                registries_cm[reguri.docker_uri] = regdict
+
+            if fallback:
+                output = real_method(workflow, registries_cm)
+            assert output == registries_cm
+            return
+
+        if method == 'source_registry':
+            expect = {
+                'uri': RegistryURI(expected['url']),
+                'insecure': expected.get('insecure', False)
+            }
+            if fallback:
+                output = real_method(workflow, expect)
+            assert output['insecure'] == expect['insecure']
+            assert output['uri'].uri == expect['uri'].uri
+            return
+
         assert output == expected
 
+    @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize(('config', 'raise_error'), [
         ("""\
           version: 1
@@ -497,7 +546,7 @@ class TestReactorConfigPlugin(object):
                   ssl_certs_dir: /var/certs
         """, True),
     ])
-    def test_get_koji_session(self, config, raise_error):
+    def test_get_koji_session(self, fallback, config, raise_error):
         tasker, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
@@ -506,7 +555,6 @@ class TestReactorConfigPlugin(object):
                 read_yaml(config, 'schemas/config.json')
             return
         config_json = read_yaml(config, 'schemas/config.json')
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = config_json
 
         auth_info = {
             "proxyuser": config_json['koji']['auth'].get('proxyuser'),
@@ -515,14 +563,23 @@ class TestReactorConfigPlugin(object):
             "krb_keytab": config_json['koji']['auth'].get('krb_keytab_path')
         }
 
+        fallback_map = {}
+        if fallback:
+            fallback_map = {'auth': deepcopy(auth_info), 'hub_url': config_json['koji']['hub_url']}
+            fallback_map['auth']['krb_keytab_path'] = fallback_map['auth'].pop('krb_keytab')
+        else:
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = \
+                mocked_reactorconfig(config_json)
+
         (flexmock(atomic_reactor.koji_util)
             .should_receive('create_koji_session')
             .with_args(config_json['koji']['hub_url'], auth_info)
             .once()
             .and_return(True))
 
-        get_koji_session(workflow)
+        get_koji_session(workflow, fallback_map)
 
+    @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize(('config', 'raise_error'), [
         ("""\
           version: 1
@@ -586,7 +643,7 @@ class TestReactorConfigPlugin(object):
                   password: testpasswd
         """, True),
     ])
-    def test_get_pulp_session(self, config, raise_error):
+    def test_get_pulp_session(self, fallback, config, raise_error):
         tasker, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
@@ -595,14 +652,21 @@ class TestReactorConfigPlugin(object):
                 read_yaml(config, 'schemas/config.json')
             return
         config_json = read_yaml(config, 'schemas/config.json')
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = config_json
 
         auth_info = {
             "pulp_secret_path": config_json['pulp']['auth'].get('ssl_certs_dir'),
             "username": config_json['pulp']['auth'].get('username'),
             "password": config_json['pulp']['auth'].get('password'),
-            "dockpulp_loglevel": 1,
+            "dockpulp_loglevel": None
         }
+
+        fallback_map = {}
+        if fallback:
+            fallback_map = {'auth': deepcopy(auth_info), 'name': config_json['pulp']['name']}
+            fallback_map['auth']['ssl_certs_dir'] = fallback_map['auth'].pop('pulp_secret_path')
+        else:
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig(config_json)
 
         (flexmock(atomic_reactor.pulp_util.PulpHandler)
             .should_receive('__init__')
@@ -610,8 +674,9 @@ class TestReactorConfigPlugin(object):
             .once()
             .and_return(None))
 
-        get_pulp_session(workflow, 'logger', 1)
+        get_pulp_session(workflow, 'logger', fallback_map)
 
+    @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize(('config', 'raise_error'), [
         ("""\
           version: 1
@@ -693,7 +758,7 @@ class TestReactorConfigPlugin(object):
               default_signing_intent: default
         """, True),
     ])
-    def test_get_odcs_session(self, tmpdir, config, raise_error):
+    def test_get_odcs_session(self, tmpdir, fallback, config, raise_error):
         tasker, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
@@ -722,7 +787,15 @@ class TestReactorConfigPlugin(object):
             else:
                 ssl_dir_raise = True
 
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = config_json
+        fallback_map = {}
+        if fallback:
+            fallback_map = {'auth': deepcopy(auth_info),
+                            'api_url': config_json['odcs']['api_url']}
+            fallback_map['auth']['ssl_certs_dir'] = config_json['odcs']['auth'].get('ssl_certs_dir')
+            fallback_map['auth']['openidc_dir'] = config_json['odcs']['auth'].get('openidc_dir')
+        else:
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig(config_json)
 
         if not ssl_dir_raise:
             (flexmock(atomic_reactor.odcs_util.ODCSClient)
@@ -731,11 +804,12 @@ class TestReactorConfigPlugin(object):
                 .once()
                 .and_return(None))
 
-            get_odcs_session((workflow))
+            get_odcs_session(workflow, fallback_map)
         else:
             with pytest.raises(KeyError):
-                get_odcs_session((workflow))
+                get_odcs_session(workflow, fallback_map)
 
+    @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize(('config', 'raise_error'), [
         ("""\
           version: 1
@@ -761,7 +835,7 @@ class TestReactorConfigPlugin(object):
           smtp:
         """, True),
     ])
-    def test_get_smtp_session(self, config, raise_error):
+    def test_get_smtp_session(self, fallback, config, raise_error):
         tasker, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
@@ -770,7 +844,13 @@ class TestReactorConfigPlugin(object):
                 read_yaml(config, 'schemas/config.json')
             return
         config_json = read_yaml(config, 'schemas/config.json')
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = config_json
+
+        fallback_map = {}
+        if fallback:
+            fallback_map['host'] = config_json['smtp']['host']
+        else:
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig(config_json)
 
         (flexmock(smtplib.SMTP)
             .should_receive('__init__')
@@ -778,8 +858,9 @@ class TestReactorConfigPlugin(object):
             .once()
             .and_return(None))
 
-        get_smtp_session((workflow))
+        get_smtp_session(workflow, fallback_map)
 
+    @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize(('config', 'raise_error'), [
         ("""\
           version: 1
@@ -792,7 +873,7 @@ class TestReactorConfigPlugin(object):
           pdc:
         """, True),
     ])
-    def test_get_pdc_session(self, config, raise_error):
+    def test_get_pdc_session(self, fallback, config, raise_error):
         tasker, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
@@ -804,7 +885,6 @@ class TestReactorConfigPlugin(object):
 
         if not PDC_AVAILABLE:
             return
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = config_json
 
         auth_info = {
             "server": config_json['pdc']['api_url'],
@@ -812,17 +892,23 @@ class TestReactorConfigPlugin(object):
             "develop": True,
         }
 
+        fallback_map = {}
+        if fallback:
+            fallback_map['api_url'] = config_json['pdc']['api_url']
+            fallback_map['insecure'] = config_json['pdc'].get('insecure', False)
+        else:
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig(config_json)
+
         (flexmock(pdc_client.PDCClient)
             .should_receive('__init__')
             .with_args(**auth_info)
             .once()
             .and_return(None))
 
-        get_pdc_session((workflow))
+        get_pdc_session(workflow, fallback_map)
 
-    @pytest.mark.parametrize('config_file', [
-        None, "/tmp/config_file",
-    ])
+    @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize('build_json_dir', [
         None, "/tmp/build_json_dir",
     ])
@@ -913,7 +999,7 @@ class TestReactorConfigPlugin(object):
                   ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
         """, True),
     ])
-    def test_get_openshift_session(self, config_file, build_json_dir, config, raise_error):
+    def test_get_openshift_session(self, fallback, build_json_dir, config, raise_error):
         tasker, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
@@ -924,19 +1010,15 @@ class TestReactorConfigPlugin(object):
                 read_yaml(config, 'schemas/config.json')
             return
         config_json = read_yaml(config, 'schemas/config.json')
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = config_json
 
         auth_info = {
             'openshift_url': config_json['openshift']['url'],
             'verify_ssl': not config_json['openshift'].get('insecure', False),
-            'namespace': 'namespace',
-            'conf_section': None,
-            'cli_args': None,
             'use_auth': False,
+            'conf_file': None,
+            'namespace': 'namespace',
+            'build_json_dir': build_json_dir
         }
-        if build_json_dir:
-            auth_info['build_json_dir'] = build_json_dir
-
         if config_json['openshift'].get('auth'):
             if config_json['openshift']['auth'].get('krb_keytab_path'):
                 auth_info['kerberos_keytab'] =\
@@ -954,12 +1036,37 @@ class TestReactorConfigPlugin(object):
                     os.path.join(config_json['openshift']['auth'].get('ssl_certs_dir'), 'key')
             auth_info['use_auth'] = config_json['openshift']['auth'].get('enable', False)
 
+        fallback_map = {}
+        fallback_build_json = None
+        if fallback:
+            fallback_build_json = build_json_dir
+
+            fallback_map = {'url': config_json['openshift']['url'],
+                            'insecure': config_json['openshift'].get('insecure', False)}
+            if config_json['openshift'].get('auth'):
+                fallback_map['auth'] = {}
+                fallback_map['auth']['krb_keytab_path'] =\
+                    config_json['openshift']['auth'].get('krb_keytab_path')
+                fallback_map['auth']['krb_principal'] =\
+                    config_json['openshift']['auth'].get('krb_principal')
+
+                fallback_map['auth']['enable'] =\
+                    config_json['openshift']['auth'].get('enable', False)
+                fallback_map['auth']['krb_cache_path'] =\
+                    config_json['openshift']['auth'].get('krb_cache_path')
+                fallback_map['auth']['ssl_certs_dir'] =\
+                    config_json['openshift']['auth'].get('ssl_certs_dir')
+        else:
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig(config_json)
+
         (flexmock(osbs.conf.Configuration)
             .should_call('__init__')
-            .with_args(config_file=config_file, **auth_info)
+            .with_args(**auth_info)
             .once())
         (flexmock(osbs.api.OSBS)
             .should_call('__init__')
             .once())
+        flexmock(os, environ={'BUILD': '{"metadata": {"namespace": "namespace"}}'})
 
-        get_openshift_session(workflow, 'namespace', conf_file=config_file)
+        get_openshift_session(workflow, fallback_map, fallback_build_json)
