@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function, unicode_literals
 
 import hashlib
+from itertools import chain
 import json
 import jsonschema
 import os
@@ -759,9 +760,67 @@ def query_registry(registry_session, image, digest=None, version='v1', is_blob=F
     logger.debug("query_registry: querying {}, headers: {}".format(url, headers))
 
     response = registry_session.get(url, headers=headers)
+    for r in chain(response.history, [response]):
+        logger.debug("query_registry: [%s] %s", r.status_code, r.url)
+
+    logger.debug("query_registry: response headers: %s", response.headers)
     response.raise_for_status()
 
     return response
+
+
+def guess_manifest_media_type(content):
+    """
+    Guess the media type for the given manifest content
+
+    :param content: JSON content of manifest (bytes)
+    :return: media type (str), or None if unable to guess
+    """
+    encoding = guess_json_utf(content)
+    try:
+        manifest = json.loads(content.decode(encoding))
+    except (ValueError,           # Not valid JSON
+            TypeError,            # Not an object
+            UnicodeDecodeError):  # Unable to decode the bytes
+        logger.exception("Unable to decode JSON")
+        logger.debug("response content (%s): %r", encoding, content)
+        return None
+
+    try:
+        return manifest['mediaType']
+    except KeyError:
+        # no mediaType key
+        if manifest.get('schemaVersion') == 1:
+            return get_manifest_media_type('v1')
+
+        logger.warning("no mediaType or schemaVersion=1 in manifest, keys: %s",
+                       manifest.keys())
+
+
+def manifest_is_media_type(response, media_type):
+    """
+    Attempt to confirm the returned manifest is of a given media type
+
+    :param response: a requests.Response
+    :param media_type: media_type (str), or None to confirm
+        the media type cannot be guessed
+    """
+    try:
+        received_media_type = response.headers['Content-Type']
+    except KeyError:
+        # Guess media type from content
+        logger.debug("No Content-Type header; inspecting content")
+        received_media_type = guess_manifest_media_type(response.content)
+        logger.debug("guessed media type: %s", received_media_type)
+
+    if received_media_type is None:
+        return media_type is None
+
+    # Only compare prefix as response may use +prettyjws suffix
+    # which is the case for signed manifest
+    response_h_prefix = received_media_type.rsplit('+', 1)[0]
+    request_h_prefix = media_type.rsplit('+', 1)[0]
+    return response_h_prefix == request_h_prefix
 
 
 def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
@@ -818,41 +877,19 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
             # media type
             elif (ex.response.status_code == requests.codes.not_found or
                   ex.response.status_code == requests.codes.not_acceptable):
+                logger.debug("skipping version %s due to status code %s",
+                             version, ex.response.status_code)
                 continue
             else:
                 raise
 
-        received_media_type = None
-        try:
-            received_media_type = response.headers['Content-Type']
-        except KeyError:
-            # Guess content_type from contents
-            try:
-                encoding = guess_json_utf(response.content)
-                manifest = json.loads(response.content.decode(encoding))
-                received_media_type = manifest['mediaType']
-            except (ValueError,  # not valid JSON
-                    KeyError) as ex:  # no mediaType key
-                logger.warning("Unable to fetch media type: neither Content-Type header "
-                               "nor mediaType in output was found")
-
-        if not received_media_type:
+        if not manifest_is_media_type(response, media_type):
+            logger.error("content does not match expected media type")
             continue
-
-        # Only compare prefix as response may use +prettyjws suffix
-        # which is the case for signed manifest
-        response_h_prefix = received_media_type.rsplit('+', 1)[0]
-        request_h_prefix = media_type.rsplit('+', 1)[0]
-        if response_h_prefix != request_h_prefix:
-            logger.debug('request headers: %s', headers)
-            logger.debug('response headers: %s', response.headers)
-            logger.warning('Received media type %s mismatches the expected %s',
-                           received_media_type, media_type)
-            continue
+        logger.debug("content matches expected media type")
 
         # set it to truthy value so that koji_import would know pulp supports these digests
         digests[version] = True
-        logger.debug('Received media type %s', received_media_type)
 
         if not response.headers.get('Docker-Content-Digest'):
             logger.warning('Unable to fetch digest for %s, no Docker-Content-Digest header',

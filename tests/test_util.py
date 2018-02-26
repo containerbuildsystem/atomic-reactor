@@ -40,6 +40,7 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_manifest_digests, ManifestDigest,
                                  get_build_json, is_scratch_build, df_parser,
                                  are_plugins_in_order, LabelFormatter,
+                                 guess_manifest_media_type,
                                  get_manifest_media_type,
                                  get_manifest_media_version,
                                  get_primary_images,
@@ -391,6 +392,23 @@ def test_get_manifest_media_type_unknown():
         assert get_manifest_media_type('no_such_version')
 
 
+@pytest.mark.parametrize(('content', 'media_type'), [
+    (b'{', None),
+    (b'{}', None),
+    (b'{"\xff', None),
+    (b'{"schemaVersion": 1}',
+     'application/vnd.docker.distribution.manifest.v1+json'),
+    (b'{"schemaVersion": 2}',
+     None),
+    (b'{"mediaType": "application/vnd.docker.distribution.manifest.v2+json"}',
+     'application/vnd.docker.distribution.manifest.v2+json'),
+    (b'{"mediaType": "application/vnd.oci.image.manifest.v1"}',
+     'application/vnd.oci.image.manifest.v1'),
+])
+def test_guess_manifest_media_type(content, media_type):
+    assert guess_manifest_media_type(content) == media_type
+
+
 @pytest.mark.parametrize('insecure', [
     True,
     False,
@@ -624,15 +642,7 @@ def test_get_manifest_digests_missing(tmpdir, has_content_type_header, has_conte
         .should_receive('get')
         .replace_with(custom_get))
 
-    if manifest_type == 'v1' and not has_content_type_header:
-        # v1 manifests don't have a mediaType field, so we can't fall back
-        # to looking at the returned manifest to detect the type.
-        with pytest.raises(RuntimeError):
-            get_manifest_digests(**kwargs)
-        return
-    else:
-        actual_digests = get_manifest_digests(**kwargs)
-
+    actual_digests = get_manifest_digests(**kwargs)
     if manifest_type == 'v1':
         if has_content_digest:
             assert actual_digests.v1 == 'v1-digest'
@@ -643,13 +653,10 @@ def test_get_manifest_digests_missing(tmpdir, has_content_type_header, has_conte
         assert actual_digests.oci_index is None
     elif manifest_type == 'v2':
         if can_convert_v2_v1:
-            if has_content_type_header:
-                if has_content_digest:
-                    assert actual_digests.v1 == 'v1-converted-digest'
-                else:
-                    assert actual_digests.v1 is True
-            else:  # don't even know the response is v1 without Content-Type
-                assert actual_digests.v1 is None
+            if has_content_digest:
+                assert actual_digests.v1 == 'v1-converted-digest'
+            else:
+                assert actual_digests.v1 is True
         else:
             assert actual_digests.v1 is None
         if has_content_digest:
