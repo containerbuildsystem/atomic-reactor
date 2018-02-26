@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 import os
+from copy import deepcopy
 
 try:
     import koji as koji
@@ -34,12 +35,15 @@ from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins import pre_check_and_set_rebuild
 from atomic_reactor.plugins.build_orchestrate_build import (WORKSPACE_KEY_OVERRIDE_KWARGS,
                                                             OrchestrateBuildPlugin)
-from atomic_reactor.plugins.pre_reactor_config import ReactorConfigPlugin
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY)
 from atomic_reactor.plugins.pre_resolve_composes import ResolveComposesPlugin, ODCS_DATETIME_FORMAT
-from atomic_reactor.util import ImageName
+from atomic_reactor.util import ImageName, read_yaml
 from datetime import datetime, timedelta
 from flexmock import flexmock
 from tests.constants import MOCK, MOCK_SOURCE
+from tests.util import mocked_reactorconfig
+from tests.fixtures import reactor_config_map  # noqa
 from textwrap import dedent
 
 import logging
@@ -107,7 +111,7 @@ def workflow(tmpdir):
 
     flexmock(workflow, base_image_inspect={})
 
-    mock_reactor_config(tmpdir)
+    mock_reactor_config(workflow, tmpdir)
     mock_repo_config(tmpdir)
     mock_odcs_request()
     workflow._koji_session = mock_koji_session()
@@ -123,7 +127,7 @@ class MockSource(object):
         return self.dockerfile_path, self.path
 
 
-def mock_reactor_config(tmpdir, data=None, default_si=DEFAULT_SIGNING_INTENT):
+def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_INTENT):
     if data is None:
         data = dedent("""\
             version: 1
@@ -136,12 +140,19 @@ def mock_reactor_config(tmpdir, data=None, default_si=DEFAULT_SIGNING_INTENT):
                - name: unsigned
                  keys: []
                default_signing_intent: {}
-               api_url: http://odcs.example.com
+               api_url: {}
                auth:
-                   ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
-            """.format(default_si))
+                   ssl_certs_dir: {}
+            """.format(default_si, ODCS_URL, tmpdir))
 
-    tmpdir.join('config.yaml').write(data)
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+
+    config = {}
+    if data:
+        tmpdir.join('cert').write('')
+        config = read_yaml(data, 'schemas/config.json')
+    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+        mocked_reactorconfig(config)
 
 
 def mock_repo_config(tmpdir, data=None, signing_intent=None):
@@ -190,16 +201,19 @@ def mock_koji_session():
     (flexmock(koji_session)
         .should_receive('getBuildTarget')
         .replace_with(mock_get_build_target))
+    (flexmock(koji_session)
+        .should_receive('krb_login')
+        .and_return(True))
 
     return koji_session
 
 
 class TestResolveComposes(object):
 
-    def test_request_compose(self, workflow):
-        self.run_plugin_with_args(workflow)
+    def test_request_compose(self, workflow, reactor_config_map):  # noqa
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
-    def test_request_compose_for_modules(self, workflow):
+    def test_request_compose_for_modules(self, workflow, reactor_config_map):  # noqa
         repo_config = dedent("""\
             compose:
                 modules:
@@ -217,12 +231,13 @@ class TestResolveComposes(object):
                 sigkeys=['R123'])
             .and_return(ODCS_COMPOSE))
 
-        self.run_plugin_with_args(workflow)
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
-    def test_signing_intent_and_compose_ids_mutex(self, workflow):
+    def test_signing_intent_and_compose_ids_mutex(self, workflow, reactor_config_map):  # noqa
         plugin_args = {'compose_ids': [1, 2], 'signing_intent': 'unsigned'}
         self.run_plugin_with_args(workflow, plugin_args,
-                                  expect_error='cannot be used at the same time')
+                                  expect_error='cannot be used at the same time',
+                                  reactor_config_map=reactor_config_map)
 
     @pytest.mark.parametrize(('plugin_args', 'expected_kwargs'), (
         ({
@@ -246,21 +261,48 @@ class TestResolveComposes(object):
         }, {'insecure': False}),
 
     ))
-    def test_odcs_session_creation(self, workflow, plugin_args, expected_kwargs):
-        if plugin_args.get('odcs_openidc_secret_path') is True:
-            workflow._tmpdir.join('token').write('the-token')
-            plugin_args['odcs_openidc_secret_path'] = str(workflow._tmpdir)
+    def test_odcs_session_creation(self, tmpdir, workflow, reactor_config_map,  # noqa
+                                   plugin_args, expected_kwargs):
+        plug_args = deepcopy(plugin_args)
+        exp_kwargs = deepcopy(expected_kwargs)
+        mock_reactor_config(workflow, tmpdir)
+        has_ssl_path = False
+        has_open_path = False
 
-        if plugin_args.get('odcs_ssl_secret_path') is True:
+        if plug_args.get('odcs_openidc_secret_path') is True:
+            has_open_path = True
+            workflow._tmpdir.join('token').write('the-token')
+            plug_args['odcs_openidc_secret_path'] = str(workflow._tmpdir)
+
+        if plug_args.get('odcs_ssl_secret_path') is True:
+            has_ssl_path = True
             workflow._tmpdir.join('cert').write('the-cert')
-            plugin_args['odcs_ssl_secret_path'] = str(workflow._tmpdir)
-            expected_kwargs['cert'] = str(workflow._tmpdir.join('cert'))
+            plug_args['odcs_ssl_secret_path'] = str(workflow._tmpdir)
+            exp_kwargs['cert'] = str(workflow._tmpdir.join('cert'))
+
+        reac_conf = workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY].conf
+        if reactor_config_map:
+            exp_kwargs['insecure'] = False
+            if 'token' in exp_kwargs:
+                reac_conf['odcs']['auth'].pop('ssl_certs_dir')
+                reac_conf['odcs']['auth']['openidc_dir'] = str(workflow._tmpdir)
+            else:
+                exp_kwargs['cert'] = os.path.join(reac_conf['odcs']['auth']['ssl_certs_dir'],
+                                                  'cert')
+        else:
+            if has_ssl_path:
+                reac_conf['odcs']['auth']['ssl_certs_dir'] = str(workflow._tmpdir)
+            else:
+                reac_conf['odcs']['auth'].pop('ssl_certs_dir')
+            if has_open_path:
+                reac_conf['odcs']['auth']['openidc_dir'] = str(workflow._tmpdir)
+            reac_conf['odcs']['insecure'] = plugin_args.get('odcs_insecure', False)
 
         (flexmock(ODCSClient)
             .should_receive('__init__')
-            .with_args(ODCS_URL, **expected_kwargs))
+            .with_args(ODCS_URL, **exp_kwargs))
 
-        self.run_plugin_with_args(workflow, plugin_args)
+        self.run_plugin_with_args(workflow, plug_args, reactor_config_map=reactor_config_map)
 
     @pytest.mark.parametrize(('plugin_args', 'ssl_login'), (
         ({
@@ -274,7 +316,7 @@ class TestResolveComposes(object):
             'koji_hub': KOJI_BUILD_ID,
         }, False),
     ))
-    def test_koji_session_creation(self, workflow, plugin_args, ssl_login):
+    def test_koji_session_creation(self, workflow, plugin_args, ssl_login, reactor_config_map):  # noqa
         koji_session = workflow._koji_session
 
         (flexmock(koji_session)
@@ -288,7 +330,7 @@ class TestResolveComposes(object):
             .with_args(plugin_args['koji_target'], strict=True)
             .and_return(KOJI_TARGET))
 
-        self.run_plugin_with_args(workflow, plugin_args)
+        self.run_plugin_with_args(workflow, plugin_args, reactor_config_map=reactor_config_map)
 
     def test_koji_hub_requirement(self, workflow):
         plugin_args = {'koji_target': 'test-target', 'koji_hub': None}
@@ -331,10 +373,11 @@ class TestResolveComposes(object):
 
     ))
     @pytest.mark.parametrize('use_compose_id', (False, True))
-    def test_adjust_signing_intent(self, workflow, default_si, config_si, arg_si, parent_si,
-                                   expected_si, overridden, use_compose_id):
+    def test_adjust_signing_intent(self, tmpdir, workflow, default_si, config_si, arg_si,  # noqa
+                                   parent_si, expected_si, overridden, use_compose_id,
+                                   reactor_config_map):
 
-        mock_reactor_config(workflow._tmpdir, default_si=default_si)
+        mock_reactor_config(workflow, tmpdir, default_si=default_si)
         mock_repo_config(workflow._tmpdir, signing_intent=config_si)
 
         sigkeys = SIGNING_INTENTS[expected_si]
@@ -384,7 +427,8 @@ class TestResolveComposes(object):
         if arg_compose_ids:
             plugin_args['compose_ids'] = arg_compose_ids
 
-        plugin_result = self.run_plugin_with_args(workflow, plugin_args)
+        plugin_result = self.run_plugin_with_args(workflow, plugin_args,
+                                                  reactor_config_map=reactor_config_map)
         expected_result = {
             'signing_intent': expected_si,
             'signing_intent_overridden': overridden,
@@ -398,7 +442,8 @@ class TestResolveComposes(object):
         (('release', 'release'), 'release'),
         (('unsigned', 'release'), 'unsigned'),
     ))
-    def test_signing_intent_multiple_composes(self, workflow, composes_intent, expected_intent):
+    def test_signing_intent_multiple_composes(self, workflow, composes_intent, expected_intent,  # noqa
+                                              reactor_config_map):
         composes = []
 
         for compose_id, signing_intent in enumerate(composes_intent):
@@ -419,7 +464,8 @@ class TestResolveComposes(object):
             .never())
 
         plugin_args = {'compose_ids': [item['id'] for item in composes]}
-        plugin_result = self.run_plugin_with_args(workflow, plugin_args)
+        plugin_result = self.run_plugin_with_args(workflow, plugin_args,
+                                                  reactor_config_map=reactor_config_map)
 
         assert plugin_result['signing_intent'] == expected_intent
         assert plugin_result['composes'] == composes
@@ -443,9 +489,11 @@ class TestResolveComposes(object):
                 - module1
             """), 'cannot contain both'),
     ))
-    def test_invalid_compose_request(self, workflow, config, error_message):
+    def test_invalid_compose_request(self, workflow, config, error_message,  # noqa
+                                     reactor_config_map):
         mock_repo_config(workflow._tmpdir, config)
-        self.run_plugin_with_args(workflow, expect_error=error_message)
+        self.run_plugin_with_args(workflow, expect_error=error_message,
+                                  reactor_config_map=reactor_config_map)
 
     @pytest.mark.parametrize(('state_name', 'time_to_expire_delta', 'expect_renew'), (
         ('removed', timedelta(), True),
@@ -455,7 +503,8 @@ class TestResolveComposes(object):
         ('done', timedelta(minutes=118), True),
         ('done', timedelta(hours=3), False),
     ))
-    def test_renew_compose(self, workflow, state_name, time_to_expire_delta, expect_renew):
+    def test_renew_compose(self, workflow, state_name, time_to_expire_delta, expect_renew,  # noqa
+                           reactor_config_map):
         old_odcs_compose = ODCS_COMPOSE.copy()
         time_to_expire = (ODCS_COMPOSE_TIME_TO_EXPIRE -
                           ODCS_COMPOSE_SECONDS_TO_LIVE +
@@ -496,18 +545,19 @@ class TestResolveComposes(object):
             'compose_ids': [old_odcs_compose['id']],
             'minimum_time_to_expire': timedelta(hours=2).total_seconds(),
         }
-        plugin_result = self.run_plugin_with_args(workflow, plugin_args)
+        plugin_result = self.run_plugin_with_args(workflow, plugin_args,
+                                                  reactor_config_map=reactor_config_map)
 
         if expect_renew:
             assert plugin_result['composes'] == [new_odcs_compose]
         else:
             assert plugin_result['composes'] == [old_odcs_compose]
 
-    def test_inject_yum_repos_from_new_compose(self, workflow):
-        self.run_plugin_with_args(workflow)
+    def test_inject_yum_repos_from_new_compose(self, workflow, reactor_config_map):  # noqa
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
         assert self.get_override_yum_repourls(workflow) == [ODCS_COMPOSE_REPOFILE]
 
-    def test_inject_yum_repos_from_existing_composes(self, workflow):
+    def test_inject_yum_repos_from_existing_composes(self, workflow, reactor_config_map):  # noqa
         compose_ids = []
         expected_yum_repourls = []
 
@@ -530,37 +580,38 @@ class TestResolveComposes(object):
             .never())
 
         plugin_args = {'compose_ids': compose_ids}
-        self.run_plugin_with_args(workflow, plugin_args)
+        self.run_plugin_with_args(workflow, plugin_args, reactor_config_map=reactor_config_map)
 
         assert self.get_override_yum_repourls(workflow) == expected_yum_repourls
 
-    def test_abort_when_odcs_config_missing(self, caplog, workflow):
+    def test_abort_when_odcs_config_missing(self, tmpdir, caplog, workflow, reactor_config_map):  # noqa
         # Clear out default reactor config
-        mock_reactor_config(workflow._tmpdir, '')
+        mock_reactor_config(workflow, tmpdir, data='')
         with caplog.atLevel(logging.INFO):
-            self.run_plugin_with_args(workflow)
+            self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
         msg = 'Aborting plugin execution: ODCS config not found'
         assert msg in (x.message for x in caplog.records())
 
-    def test_abort_when_compose_config_missing(self, caplog, workflow):
+    def test_abort_when_compose_config_missing(self, caplog, workflow, reactor_config_map):  # noqa
         # Clear out default git repo config
         mock_repo_config(workflow._tmpdir, '')
         # Ensure no compose_ids are passed to plugin
         plugin_args = {'compose_ids': tuple()}
         with caplog.atLevel(logging.INFO):
-            self.run_plugin_with_args(workflow, plugin_args)
+            self.run_plugin_with_args(workflow, plugin_args, reactor_config_map=reactor_config_map)
 
         msg = 'Aborting plugin execution: "compose" config not set and compose_ids not given'
         assert msg in (x.message for x in caplog.records())
 
-    def test_invalid_koji_build_target(self, workflow):
+    def test_invalid_koji_build_target(self, workflow, reactor_config_map):  # noqa
         plugin_args = {
             'koji_hub': KOJI_HUB,
             'koji_target': 'spam',
         }
         expect_error = 'No matching build target found'
-        self.run_plugin_with_args(workflow, plugin_args, expect_error=expect_error)
+        self.run_plugin_with_args(workflow, plugin_args, expect_error=expect_error,
+                                  reactor_config_map=reactor_config_map)
 
     @pytest.mark.parametrize(('plugin_args', 'msg'), (
         ({'signing_intent': 'spam'},
@@ -569,25 +620,32 @@ class TestResolveComposes(object):
         ({'compose_ids': [1, 2, 3]},
          'Autorebuild detected: Ignoring compose_ids plugin parameter'),
     ))
-    def test_parameters_ignored_for_autorebuild(self, caplog, workflow, plugin_args, msg):
+    def test_parameters_ignored_for_autorebuild(self, caplog, workflow, plugin_args, msg,  # noqa
+                                                reactor_config_map):
         flexmock(pre_check_and_set_rebuild).should_receive('is_rebuild').and_return(True)
         with caplog.atLevel(logging.INFO):
-            self.run_plugin_with_args(workflow, plugin_args)
+            self.run_plugin_with_args(workflow, plugin_args,
+                                      reactor_config_map=reactor_config_map)
 
         assert msg in (x.message for x in caplog.records())
 
     def run_plugin_with_args(self, workflow, plugin_args=None, expect_result=None,
-                             expect_error=None):
+                             expect_error=None, reactor_config_map=False):
         plugin_args = plugin_args or {}
         plugin_args.setdefault('odcs_url', ODCS_URL)
         plugin_args.setdefault('koji_target', KOJI_TARGET_NAME)
         plugin_args.setdefault('koji_hub', KOJI_HUB)
+        reactor_conf = workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY].conf
+
+        if reactor_config_map:
+            reactor_conf['koji'] = {'hub_url': KOJI_HUB, 'root_url': '', 'auth': {}}
+            if 'koji_ssl_certs_dir' in plugin_args:
+                reactor_conf['koji']['auth']['ssl_certs_dir'] = plugin_args['koji_ssl_certs_dir']
 
         runner = PreBuildPluginsRunner(
             workflow.builder.tasker,
             workflow,
             [
-                {'name': ReactorConfigPlugin.key, 'args': {'config_path': str(workflow._tmpdir)}},
                 {'name': ResolveComposesPlugin.key, 'args': plugin_args},
             ]
         )

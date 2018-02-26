@@ -133,6 +133,7 @@ registries:
 
 source_registry:
     url: https://registry.private.example.com
+    insecure: True
 
 sources_command: "fedpkg sources"
 

@@ -14,14 +14,17 @@ it for all existing image tags.
 from __future__ import unicode_literals
 import json
 import requests
+from copy import deepcopy
 
 from atomic_reactor.plugin import PostBuildPlugin, PluginFailedException
+from atomic_reactor.plugins.pre_reactor_config import (get_group_manifests,
+                                                       get_platform_descriptors,
+                                                       get_registries)
 from atomic_reactor.util import (RegistrySession, registry_hostname, ManifestDigest,
                                  get_manifest_media_type)
 from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST, MEDIA_TYPE_OCI_V1,
                                       MEDIA_TYPE_OCI_V1_INDEX)
-
 
 # The plugin requires that the worker builds have already pushed their images into
 # each registry that we want the final tags to end up in. There is code here to
@@ -41,7 +44,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
         MEDIA_TYPE_OCI_V1_INDEX
     ]
 
-    def __init__(self, tasker, workflow, registries, group=True, goarch=None):
+    def __init__(self, tasker, workflow, registries=None, group=True, goarch=None):
         """
         constructor
 
@@ -58,9 +61,22 @@ class GroupManifestsPlugin(PostBuildPlugin):
         """
         # call parent constructor
         super(GroupManifestsPlugin, self).__init__(tasker, workflow)
-        self.group = group
-        self.goarch = goarch or {}
-        self.registries = registries
+
+        self.group = get_group_manifests(self.workflow, group)
+
+        plat_des_fallback = []
+        for platform in goarch:
+            plat_dic = {'platform': platform,
+                        'architecture': goarch[platform]}
+            plat_des_fallback.append(plat_dic)
+
+        platform_descriptors = get_platform_descriptors(self.workflow, plat_des_fallback)
+        goarch_from_pd = {}
+        for platform in platform_descriptors:
+            goarch_from_pd[platform['platform']] = platform['architecture']
+        self.goarch = goarch_from_pd
+
+        self.registries = get_registries(self.workflow, deepcopy(registries or {}))
         self.worker_registries = {}
 
     def get_manifest(self, session, repository, ref):

@@ -10,8 +10,8 @@ from __future__ import unicode_literals
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
-from atomic_reactor.koji_util import create_koji_session
 from osbs.utils import Labels
+from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 
 
 class BumpReleasePlugin(PreBuildPlugin):
@@ -26,7 +26,8 @@ class BumpReleasePlugin(PreBuildPlugin):
     # The target parameter is no longer used by this plugin. It's
     # left as an optional parameter to allow a graceful transition
     # in osbs-client.
-    def __init__(self, tasker, workflow, hub, target=None, koji_ssl_certs_dir=None, append=False):
+    def __init__(self, tasker, workflow, hub=None, target=None, koji_ssl_certs_dir=None,
+                 append=False):
         """
         constructor
 
@@ -42,14 +43,15 @@ class BumpReleasePlugin(PreBuildPlugin):
         """
         # call parent constructor
         super(BumpReleasePlugin, self).__init__(tasker, workflow)
-        koji_auth_info = None
-        if koji_ssl_certs_dir:
-            koji_auth_info = {
+
+        self.koji_fallback = {
+            'hub_url': hub,
+            'auth': {
                 'ssl_certs_dir': koji_ssl_certs_dir,
             }
-        self.xmlrpc = create_koji_session(hub, koji_auth_info)
-
+        }
         self.append = append
+        self.xmlrpc = get_koji_session(self.workflow, self.koji_fallback)
 
     def get_patched_release(self, original_release, increment=False):
         # Split the original release by dots, make sure there at least 3 items in parts list

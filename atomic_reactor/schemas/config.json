@@ -108,6 +108,10 @@
                 "description": "Pulp registry name, specified in /etc/dockpulp.conf",
                 "type": "string"
             },
+            "loglevel": {
+                "description": "Log level",
+                "type": "string"
+            },
             "auth": {
                 "description": "Authentication information",
                 "type": "object",

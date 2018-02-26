@@ -8,10 +8,9 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
-from osbs.api import OSBS
-from osbs.conf import Configuration
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import get_build_json
+from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
 
 
 def is_rebuild(workflow):
@@ -49,7 +48,7 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
     is_allowed_to_fail = False  # We really want to stop the process
 
     def __init__(self, tasker, workflow, label_key, label_value,
-                 url, verify_ssl=True, use_auth=True):
+                 url=None, verify_ssl=True, use_auth=True):
         """
         constructor
 
@@ -65,15 +64,16 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
         super(CheckAndSetRebuildPlugin, self).__init__(tasker, workflow)
         self.label_key = label_key
         self.label_value = label_value
-        self.url = url
-        self.verify_ssl = verify_ssl
-        self.use_auth = use_auth
+        self.openshift_fallback = {
+            'url': url,
+            'insecure': not verify_ssl,
+            'auth': {'enable': use_auth}
+        }
 
     def run(self):
         """
         run the plugin
         """
-
         metadata = get_build_json().get("metadata", {})
         labels = metadata.get("labels", {})
         buildconfig = labels["buildconfig"]
@@ -84,14 +84,7 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
             # Update the BuildConfig metadata so the next Build
             # instantiated from it is detected as being an automated
             # rebuild
-
-            # FIXME: remove `openshift_uri` once osbs-client is released
-            osbs_conf = Configuration(conf_file=None, openshift_uri=self.url,
-                                      openshift_url=self.url,
-                                      use_auth=self.use_auth,
-                                      verify_ssl=self.verify_ssl,
-                                      namespace=metadata.get('namespace', None))
-            osbs = OSBS(osbs_conf, osbs_conf)
+            osbs = get_openshift_session(self.workflow, self.openshift_fallback)
             labels = {self.label_key: self.label_value}
             osbs.update_labels_on_build_config(buildconfig, labels)
 

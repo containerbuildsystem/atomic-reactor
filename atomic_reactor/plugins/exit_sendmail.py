@@ -21,11 +21,11 @@ from atomic_reactor.plugin import ExitPlugin, PluginFailedException
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
-from atomic_reactor.koji_util import create_koji_session, get_koji_task_owner
+from atomic_reactor.plugins.pre_reactor_config import (get_smtp_session, get_koji_session,
+                                                       get_smtp, get_koji, get_openshift,
+                                                       get_openshift_session)
+from atomic_reactor.koji_util import get_koji_task_owner
 from atomic_reactor.util import get_build_json, OSBSLogs
-
-from osbs.conf import Configuration
-from osbs.api import OSBS
 
 
 class SendMailPlugin(ExitPlugin):
@@ -62,7 +62,7 @@ class SendMailPlugin(ExitPlugin):
                           AUTO_SUCCESS, AUTO_FAIL, AUTO_CANCELED])
 
     def __init__(self, tasker, workflow,
-                 smtp_host, from_address,
+                 smtp_host=None, from_address=None,
                  send_on=(AUTO_CANCELED, AUTO_FAIL, MANUAL_SUCCESS, MANUAL_FAIL),
                  url=None,
                  error_addresses=(),
@@ -103,27 +103,48 @@ class SendMailPlugin(ExitPlugin):
         :param to_koji_pkgowner: bool, send messages to koji package owners
         """
         super(SendMailPlugin, self).__init__(tasker, workflow)
-        self.send_on = set(send_on)
-        self.url = url
-        self.additional_addresses = list(additional_addresses)
-        self.smtp_host = smtp_host
-        self.from_address = from_address
-        self.error_addresses = list(error_addresses)
-        self.email_domain = email_domain
-        self.koji_hub = koji_hub
-        # Make sure koji_root doesn't end with a slash for a prettier link
-        self.koji_root = koji_root[:-1] if koji_root and koji_root[-1] == '/' else koji_root
-        self.koji_auth_info = {
-            'proxyuser': koji_proxyuser,
-            'ssl_certs_dir': koji_ssl_certs_dir,
-            'krb_principal': koji_krb_principal,
-            'krb_keytab': koji_krb_keytab,
-        }
-        self.to_koji_submitter = to_koji_submitter
-        self.to_koji_pkgowner = to_koji_pkgowner
         self.submitter = self.DEFAULT_SUBMITTER
-        self.use_auth = use_auth
-        self.verify_ssl = verify_ssl
+        self.send_on = set(send_on)
+
+        self.smtp_fallback = {
+            'host': smtp_host,
+            'from_address': from_address,
+            'additional_addresses': list(additional_addresses),
+            'error_addresses': list(error_addresses),
+            'domain': email_domain,
+            'send_to_submitter': to_koji_submitter,
+            'send_to_pkg_owner': to_koji_pkgowner
+        }
+        smtp = get_smtp(self.workflow, self.smtp_fallback)
+        self.additional_addresses = smtp.get('additional_addresses', ())
+        self.from_address = smtp['from_address']
+        self.error_addresses = smtp.get('error_addresses', ())
+        self.email_domain = smtp.get('domain')
+        self.to_koji_submitter = smtp.get('send_to_submitter', False)
+        self.to_koji_pkgowner = smtp.get('send_to_pkg_owner', False)
+
+        self.koji_fallback = {
+            'hub_url': koji_hub,
+            'root_url': koji_root,
+            'auth': {
+                'proxyuser': koji_proxyuser,
+                'ssl_certs_dir': koji_ssl_certs_dir,
+                'krb_principal': str(koji_krb_principal),
+                'krb_keytab_path': str(koji_krb_keytab)
+            }
+        }
+
+        self.koji_root = get_koji(self.workflow, self.koji_fallback)['root_url']
+        # Make sure koji_root doesn't end with a slash for a prettier link
+        if self.koji_root and self.koji_root[-1] == '/':
+            self.koji_root = self.koji_root[:-1]
+
+        self.openshift_fallback = {
+            'url': url,
+            'insecure': not verify_ssl,
+            'auth': {'enable': use_auth}
+        }
+        self.url = get_openshift(self.workflow, self.openshift_fallback)['url']
 
         try:
             metadata = get_build_json().get("metadata", {})
@@ -145,23 +166,17 @@ class SendMailPlugin(ExitPlugin):
             self.log.info("Koji build ID: %s", self.koji_build_id)
 
         self.session = None
-        if self.koji_hub:
+        if get_koji(self.workflow, self.koji_fallback)['hub_url']:
             try:
-                self.session = create_koji_session(self.koji_hub, self.koji_auth_info)
+                self.session = get_koji_session(self.workflow, self.koji_fallback)
             except Exception:
                 self.log.exception("Failed to connect to koji")
+                self.session = None
             else:
                 self.log.info("Koji connection established")
 
     def _fetch_log_files(self):
-        try:
-            namespace = get_build_json()['metadata']['namespace']
-        except KeyError:
-            namespace = None
-        osbs_conf = Configuration(conf_file=None, openshift_uri=self.url,
-                                  use_auth=self.use_auth, verify_ssl=self.verify_ssl,
-                                  namespace=namespace)
-        osbs = OSBS(osbs_conf, osbs_conf)
+        osbs = get_openshift_session(self.workflow, self.openshift_fallback)
         build_id = get_build_json()['metadata']['name'] or {}
         osbs_logs = OSBSLogs(self.log)
 
@@ -245,7 +260,7 @@ class SendMailPlugin(ExitPlugin):
 
         s = None
         try:
-            s = smtplib.SMTP(self.smtp_host)
+            s = get_smtp_session(self.workflow, self.smtp_fallback)
             s.sendmail(self.from_address, receivers_list, msg.as_string())
         except (socket.gaierror, smtplib.SMTPException):
             self.log.error('Error communicating with SMTP server')

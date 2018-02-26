@@ -31,8 +31,12 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_koji_parent import KojiParentPlugin
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY)
 from atomic_reactor.util import ImageName
 from flexmock import flexmock
+from tests.util import mocked_reactorconfig
+from tests.fixtures import reactor_config_map  # noqa
 from tests.constants import MOCK, MOCK_SOURCE
 
 import pytest
@@ -99,16 +103,17 @@ def workflow():
 def koji_session():
     session = flexmock()
     flexmock(session).should_receive('getBuild').with_args(KOJI_BUILD_NVR).and_return(KOJI_BUILD)
+    flexmock(session).should_receive('krb_login').and_return(True)
     flexmock(koji).should_receive('ClientSession').and_return(session)
     return session
 
 
 class TestKojiParent(object):
 
-    def test_koji_build_found(self, workflow, koji_session):
-        self.run_plugin_with_args(workflow)
+    def test_koji_build_found(self, workflow, koji_session, reactor_config_map):  # noqa
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
-    def test_koji_build_retry(self, workflow, koji_session):
+    def test_koji_build_retry(self, workflow, koji_session, reactor_config_map):  # noqa
         (flexmock(koji_session)
             .should_receive('getBuild')
             .with_args(KOJI_BUILD_NVR)
@@ -119,9 +124,9 @@ class TestKojiParent(object):
             .and_return(KOJI_BUILD)
             .times(5))
 
-        self.run_plugin_with_args(workflow)
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
-    def test_koji_ssl_certs_used(self, tmpdir, workflow, koji_session):
+    def test_koji_ssl_certs_used(self, tmpdir, workflow, koji_session, reactor_config_map):  # noqa
         serverca = tmpdir.join('serverca')
         serverca.write('spam')
         expected_ssl_login_args = {
@@ -135,22 +140,23 @@ class TestKojiParent(object):
             .and_return(True)
             .once())
         plugin_args = {'koji_ssl_certs_dir': str(tmpdir)}
-        self.run_plugin_with_args(workflow, plugin_args)
+        self.run_plugin_with_args(workflow, plugin_args, reactor_config_map=reactor_config_map)
 
-    def test_koji_build_not_found(self, workflow, koji_session):
+    def test_koji_build_not_found(self, workflow, koji_session, reactor_config_map):  # noqa
         (flexmock(koji_session)
             .should_receive('getBuild')
             .with_args(KOJI_BUILD_NVR)
             .and_return(None))
 
         with pytest.raises(PluginFailedException) as exc_info:
-            self.run_plugin_with_args(workflow, {'poll_timeout': 0.01})
+            self.run_plugin_with_args(workflow, {'poll_timeout': 0.01},
+                                      reactor_config_map=reactor_config_map)
         assert 'build NOT found' in str(exc_info.value)
 
-    def test_base_image_not_inspected(self, workflow, koji_session):
+    def test_base_image_not_inspected(self, workflow, koji_session, reactor_config_map):  # noqa
         del workflow.base_image_inspect[INSPECT_CONFIG]
         with pytest.raises(PluginFailedException) as exc_info:
-            self.run_plugin_with_args(workflow)
+            self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
         assert 'KeyError' in str(exc_info.value)
         assert 'Config' in str(exc_info.value)
 
@@ -165,17 +171,34 @@ class TestKojiParent(object):
         (['Release'], True),
         (['release', 'Release'], False),
     ])
-    def test_base_image_missing_labels(self, workflow, koji_session, remove_labels, exp_result):
+    def test_base_image_missing_labels(self, workflow, koji_session, remove_labels, exp_result,
+                                       reactor_config_map):
         workflow.base_image_inspect[INSPECT_CONFIG]['Labels'] = BASE_IMAGE_LABELS_W_ALIASES.copy()
         for label in remove_labels:
             del workflow.base_image_inspect[INSPECT_CONFIG]['Labels'][label]
-        self.run_plugin_with_args(workflow, expect_result=exp_result)
+        self.run_plugin_with_args(workflow, expect_result=exp_result,
+                                  reactor_config_map=reactor_config_map)
 
-    def run_plugin_with_args(self, workflow, plugin_args=None, expect_result=True):
+    def run_plugin_with_args(self, workflow, plugin_args=None, expect_result=True,  # noqa
+                             reactor_config_map=False):
         plugin_args = plugin_args or {}
         plugin_args.setdefault('koji_hub', KOJI_HUB)
         plugin_args.setdefault('poll_interval', 0.01)
         plugin_args.setdefault('poll_timeout', 1)
+
+        if reactor_config_map:
+
+            koji_map = {
+                'hub_url': KOJI_HUB,
+                'root_url': '',
+                'auth': {}
+            }
+            if 'koji_ssl_certs_dir' in plugin_args:
+                koji_map['auth']['ssl_certs_dir'] = plugin_args['koji_ssl_certs_dir']
+            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig({'version': 1,
+                                      'koji': koji_map})
 
         runner = PreBuildPluginsRunner(
             workflow.builder.tasker,

@@ -13,14 +13,15 @@ import koji
 from atomic_reactor.constants import YUM_REPOS_DIR
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import render_yum_repo
-from atomic_reactor.koji_util import create_koji_session
+from atomic_reactor.plugins.pre_reactor_config import get_koji_session, get_yum_proxy
 
 
 class KojiPlugin(PreBuildPlugin):
     key = "koji"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, target, hub, root, proxy=None, koji_ssl_certs_dir=None):
+    def __init__(self, tasker, workflow, target, hub=None, root=None, proxy=None,
+                 koji_ssl_certs_dir=None):
         """
         constructor
 
@@ -36,14 +37,17 @@ class KojiPlugin(PreBuildPlugin):
         # call parent constructor
         super(KojiPlugin, self).__init__(tasker, workflow)
         self.target = target
-        koji_auth_info = None
-        if koji_ssl_certs_dir:
-            koji_auth_info = {
-                'ssl_certs_dir': koji_ssl_certs_dir,
+
+        self.koji_fallback = {
+            'hub_url': hub,
+            'auth': {
+                'ssl_certs_dir': koji_ssl_certs_dir
             }
-        self.xmlrpc = create_koji_session(hub, koji_auth_info)
+        }
+
+        self.xmlrpc = get_koji_session(self.workflow, self.koji_fallback)
         self.pathinfo = koji.PathInfo(topdir=root)
-        self.proxy = proxy
+        self.proxy = get_yum_proxy(self.workflow, proxy)
 
     def run(self):
         """

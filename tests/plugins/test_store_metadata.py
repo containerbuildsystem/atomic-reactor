@@ -31,12 +31,14 @@ from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.post_pulp_pull import PulpPullPlugin
 from atomic_reactor.plugins.build_orchestrate_build import OrchestrateBuildPlugin
-
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY)
 from atomic_reactor.util import ImageName, LazyGit, ManifestDigest, df_parser
 import pytest
 from tests.constants import LOCALHOST_REGISTRY, DOCKER0_REGISTRY, TEST_IMAGE, INPUT_IMAGE
-from tests.util import is_string_type
+from tests.util import is_string_type, mocked_reactorconfig
+from tests.fixtures import reactor_config_map  # noqa
 
 DIGEST1 = "sha256:1da9b9e1c6bf6ab40f1627d76e2ad58e9b2be14351ef4ff1ed3eb4a156138189"
 DIGEST2 = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
@@ -69,7 +71,8 @@ class XBeforeDockerfile(object):
         raise AttributeError("Dockerfile has not yet been generated")
 
 
-def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=False):
+def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=False,  # noqa
+            reactor_config_map=False):
     if pulp_registries is None:
         pulp_registries = (
             ("test", LOCALHOST_REGISTRY),
@@ -94,15 +97,32 @@ def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=Fals
         ''')
     flexmock(OSBS, set_annotations_on_build=set_annotations_on_build)
     flexmock(OSBS, update_labels_on_build=update_labels_on_build)
-    (flexmock(osbs.conf)
-     .should_call("Configuration")
-     .with_args(namespace="namespace", conf_file=None, verify_ssl=True,
-                openshift_url="http://example.com/", openshift_uri="http://example.com/",
-                use_auth=True))
+    config_kwargs = {
+        'namespace': 'namespace',
+        'verify_ssl': True,
+        'openshift_url': 'http://example.com/',
+        'use_auth': True,
+        'conf_file': None,
+        'build_json_dir': None
+    }
+    (flexmock(osbs.conf.Configuration)
+     .should_call("__init__")
+     .with_args(**config_kwargs))
+
     flexmock(os)
     os.should_receive("environ").and_return(new_environ)
 
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, "test-image")
+
+    if reactor_config_map:
+        openshift_map = {
+            'url': 'http://example.com/',
+            'insecure': False,
+            'auth': {'enable': True},
+        }
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1, 'openshift': openshift_map})
 
     for name, crane_uri in pulp_registries:
         workflow.push_conf.add_pulp_registry(name, crane_uri)
@@ -172,9 +192,10 @@ def test_metadata_plugin(tmpdir, br_annotations, expected_br_annotations,
                          br_labels, expected_br_labels, koji,
                          help_results, expected_help_results,
                          pulp_push_results, expected_pulp_push_results,
-                         pulp_pull_results, expected_pulp_pull_results):
+                         pulp_pull_results, expected_pulp_pull_results,
+                         reactor_config_map):
     initial_timestamp = datetime.now()
-    workflow = prepare()
+    workflow = prepare(reactor_config_map=reactor_config_map)
     df_content = """
 FROM fedora
 RUN yum install -y python-django
@@ -360,8 +381,8 @@ CMD blabla"""
     },
     {}
 ))
-def test_koji_filesystem_label(res):
-    workflow = prepare()
+def test_koji_filesystem_label(res, reactor_config_map):
+    workflow = prepare(reactor_config_map=reactor_config_map)
     workflow.prebuild_results = {
         PLUGIN_ADD_FILESYSTEM_KEY: res
     }
@@ -385,9 +406,9 @@ def test_koji_filesystem_label(res):
         assert 'filesystem-koji-task-id' not in labels
 
 
-def test_metadata_plugin_rpmqa_failure(tmpdir):
+def test_metadata_plugin_rpmqa_failure(tmpdir, reactor_config_map):  # noqa
     initial_timestamp = datetime.now()
-    workflow = prepare()
+    workflow = prepare(reactor_config_map=reactor_config_map)
     df_content = """
 FROM fedora
 RUN yum install -y python-django
@@ -450,10 +471,10 @@ CMD blabla"""
 
 @pytest.mark.parametrize('koji_plugin', (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                          PLUGIN_KOJI_PROMOTE_PLUGIN_KEY))
-def test_labels_metadata_plugin(tmpdir, koji_plugin):
+def test_labels_metadata_plugin(tmpdir, koji_plugin, reactor_config_map):
 
     koji_build_id = 1234
-    workflow = prepare()
+    workflow = prepare(reactor_config_map=reactor_config_map)
     df_content = """
 FROM fedora
 RUN yum install -y python-django
@@ -486,8 +507,8 @@ CMD blabla"""
     assert int(labels["koji-build-id"]) == koji_build_id
 
 
-def test_missing_koji_build_id(tmpdir):
-    workflow = prepare()
+def test_missing_koji_build_id(tmpdir, reactor_config_map):  # noqa
+    workflow = prepare(reactor_config_map=reactor_config_map)
     workflow.exit_results = {}
     df_content = """
 FROM fedora
@@ -515,8 +536,8 @@ CMD blabla"""
     assert "koji-build-id" not in labels
 
 
-def test_exit_before_dockerfile_created(tmpdir):
-    workflow = prepare(before_dockerfile=True)
+def test_exit_before_dockerfile_created(tmpdir, reactor_config_map):  # noqa
+    workflow = prepare(before_dockerfile=True, reactor_config_map=reactor_config_map)
     workflow.exit_results = {}
     workflow.builder = XBeforeDockerfile()
     workflow.builder.df_dir = str(tmpdir)
@@ -539,8 +560,8 @@ def test_exit_before_dockerfile_created(tmpdir):
     assert annotations["dockerfile"] == ""
 
 
-def test_store_metadata_fail_update_annotations(tmpdir, caplog):
-    workflow = prepare()
+def test_store_metadata_fail_update_annotations(tmpdir, caplog, reactor_config_map):  # noqa
+    workflow = prepare(reactor_config_map=reactor_config_map)
     workflow.exit_results = {}
     df_content = """
 FROM fedora
@@ -572,8 +593,8 @@ CMD blabla"""
 
 @pytest.mark.parametrize('koji_plugin', (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                          PLUGIN_KOJI_PROMOTE_PLUGIN_KEY))
-def test_store_metadata_fail_update_labels(tmpdir, caplog, koji_plugin):
-    workflow = prepare()
+def test_store_metadata_fail_update_labels(tmpdir, caplog, koji_plugin, reactor_config_map):
+    workflow = prepare(reactor_config_map=reactor_config_map)
 
     workflow.exit_results = {
         koji_plugin: 1234,
@@ -626,9 +647,10 @@ def test_store_metadata_fail_update_labels(tmpdir, caplog, koji_plugin):
     ],
 ])
 def test_filter_repositories(tmpdir, pulp_registries, docker_registries,
-                             prefixes):
+                             prefixes, reactor_config_map):
     workflow = prepare(pulp_registries=pulp_registries,
-                       docker_registries=docker_registries)
+                       docker_registries=docker_registries,
+                       reactor_config_map=reactor_config_map)
     df_content = """
 FROM fedora
 RUN yum install -y python-django
@@ -689,9 +711,10 @@ CMD blabla"""
       'unique': ['docker:9999/namespace/image:asd123']}),
 ])
 def test_filter_nonpulp_repositories(tmpdir, pulp_registries, docker_registries,
-                                     is_orchestrator, expected):
+                                     is_orchestrator, expected, reactor_config_map):
     workflow = prepare(pulp_registries=pulp_registries,
-                       docker_registries=docker_registries)
+                       docker_registries=docker_registries,
+                       reactor_config_map=reactor_config_map)
     df_content = """
 FROM fedora
 RUN yum install -y python-django
@@ -726,8 +749,8 @@ CMD blabla"""
     (['foo'], True),
     (None, False),
 ))
-def test_arrangementv4_repositories(tmpdir, group_manifests, restore):
-    workflow = prepare()
+def test_arrangementv4_repositories(tmpdir, group_manifests, restore, reactor_config_map):
+    workflow = prepare(reactor_config_map=reactor_config_map)
     df_content = """
 FROM fedora
 RUN yum install -y python-django

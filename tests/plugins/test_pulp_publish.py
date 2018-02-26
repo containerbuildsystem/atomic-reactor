@@ -16,6 +16,8 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
                                                             WORKSPACE_KEY_BUILD_INFO)
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY)
 from atomic_reactor.util import ImageName
 from atomic_reactor.plugins.exit_pulp_publish import PulpPublishPlugin
 try:
@@ -30,6 +32,8 @@ except (ImportError):
 import pytest
 from flexmock import flexmock
 from tests.constants import INPUT_IMAGE, SOURCE, MOCK
+from tests.util import mocked_reactorconfig
+from tests.fixtures import reactor_config_map  # noqa
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -139,8 +143,13 @@ def prepare(success=True, v1_image_ids={}):
 
 @pytest.mark.skipif(dockpulp is None,
                     reason='dockpulp module not available')
-def test_pulp_publish_success(caplog):
+def test_pulp_publish_success(caplog, reactor_config_map):
     tasker, workflow = prepare(success=True)
+    if reactor_config_map:
+        pulp_map = {'name': 'pulp_registry_name', 'auth': {}}
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1, 'pulp': pulp_map})
     plugin = PulpPublishPlugin(tasker, workflow, 'pulp_registry_name')
 
     (flexmock(dockpulp.Pulp).should_receive('crane')
@@ -171,10 +180,16 @@ def test_pulp_publish_success(caplog):
     ({'x86_64': None, 'ppc64le': 'ppc64le_v1_image_id'}, True),
 ])
 def test_pulp_publish_delete(worker_builds_created, v1_image_ids,
-                             expected, caplog):
+                             expected, caplog, reactor_config_map):
     tasker, workflow = prepare(success=False, v1_image_ids=v1_image_ids)
     if not worker_builds_created:
         workflow.build_result = BuildResult(fail_reason="not built")
+
+    if reactor_config_map:
+        pulp_map = {'name': 'pulp_registry_name', 'auth': {}}
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1, 'pulp': pulp_map})
 
     plugin = PulpPublishPlugin(tasker, workflow, 'pulp_registry_name')
     msg = "removing ppc64le_v1_image_id from"

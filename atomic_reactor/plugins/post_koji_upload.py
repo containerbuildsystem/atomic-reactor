@@ -17,15 +17,15 @@ import copy
 from atomic_reactor import __version__ as atomic_reactor_version
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
+from atomic_reactor.plugins.pre_reactor_config import (get_openshift_session,
+                                                       get_prefer_schema1_digest,
+                                                       get_koji_session)
 from atomic_reactor.constants import PROG, PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json, get_docker_architecture,
                                  get_image_upload_filename,
                                  get_manifest_media_type)
-from atomic_reactor.koji_util import create_koji_session
 from atomic_reactor.rpm_util import parse_rpm_output, rpm_qf_args
-from osbs.conf import Configuration
-from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 
 # An output file and its metadata
@@ -108,25 +108,30 @@ class KojiUploadPlugin(PostBuildPlugin):
         """
         super(KojiUploadPlugin, self).__init__(tasker, workflow)
 
-        self.kojihub = kojihub
-        self.koji_ssl_certs_dir = koji_ssl_certs_dir
-        self.koji_proxy_user = koji_proxy_user
+        self.koji_fallback = {
+            'hub_url': kojihub,
+            'auth': {
+                'proxyuser': koji_proxy_user,
+                'ssl_certs_dir': koji_ssl_certs_dir,
+                'krb_principal': str(koji_principal),
+                'krb_keytab_path': str(koji_keytab)
+            }
+        }
 
-        self.koji_principal = koji_principal
-        self.koji_keytab = koji_keytab
+        self.openshift_fallback = {
+            'url': url,
+            'insecure': not verify_ssl,
+            'auth': {'enable': use_auth}
+        }
 
         self.blocksize = blocksize
         self.build_json_dir = build_json_dir
         self.koji_upload_dir = koji_upload_dir
-        self.prefer_schema1_digest = prefer_schema1_digest
+        self.prefer_schema1_digest = get_prefer_schema1_digest(self.workflow, prefer_schema1_digest)
         self.report_multiple_digests = report_multiple_digests
 
-        self.namespace = get_build_json().get('metadata', {}).get('namespace', None)
-        osbs_conf = Configuration(conf_file=None, openshift_uri=url,
-                                  use_auth=use_auth, verify_ssl=verify_ssl,
-                                  build_json_dir=self.build_json_dir,
-                                  namespace=self.namespace)
-        self.osbs = OSBS(osbs_conf, osbs_conf)
+        self.osbs = get_openshift_session(self.workflow, self.openshift_fallback,
+                                          build_json_dir_fallback=self.build_json_dir)
         self.build_id = None
         self.pullspec_image = None
         self.platform = platform
@@ -501,32 +506,10 @@ class KojiUploadPlugin(PostBuildPlugin):
         self.log.debug("uploaded %r", path)
         return path
 
-    def login(self):
-        """
-        Log in to koji
-
-        :return: koji.ClientSession instance, logged in
-        """
-
-        # krbV python library throws an error if these are unicode
-        auth_info = {
-            "proxyuser": self.koji_proxy_user,
-            "ssl_certs_dir": self.koji_ssl_certs_dir,
-            "krb_principal": str(self.koji_principal),
-            "krb_keytab": str(self.koji_keytab)
-        }
-        return create_koji_session(str(self.kojihub), auth_info)
-
     def run(self):
         """
         Run the plugin.
         """
-
-        if ((self.koji_principal and not self.koji_keytab) or
-                (self.koji_keytab and not self.koji_principal)):
-            raise RuntimeError("specify both koji_principal and koji_keytab "
-                               "or neither")
-
         # Only run if the build was successful
         if self.workflow.build_process_failed:
             self.log.info("Not promoting failed build to koji")
@@ -535,7 +518,7 @@ class KojiUploadPlugin(PostBuildPlugin):
         koji_metadata, output_files = self.get_metadata()
 
         try:
-            session = self.login()
+            session = get_koji_session(self.workflow, self.koji_fallback)
             for output in output_files:
                 if output.file:
                     self.upload_file(session, output, self.koji_upload_dir)

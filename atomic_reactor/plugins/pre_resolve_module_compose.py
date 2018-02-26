@@ -26,12 +26,12 @@ Example configuration:
 import os
 import yaml
 from modulemd import ModuleMetadata
-from pdc_client import PDCClient
 
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.odcs_util import ODCSClient
 from atomic_reactor.util import split_module_spec
 from atomic_reactor.constants import REPO_CONTAINER_CONFIG
+from atomic_reactor.plugins.pre_reactor_config import (get_pdc_session, get_odcs_session,
+                                                       get_pdc, get_odcs)
 
 
 class ModuleInfo(object):
@@ -104,18 +104,25 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
         # call parent constructor
         super(ResolveModuleComposePlugin, self).__init__(tasker, workflow)
 
-        if not pdc_url:
-            raise RuntimeError("pdc_url is required")
-        if not odcs_url:
-            raise RuntimeError("odcs_url is required")
-
         self.compose_ids = compose_ids
         self.compose_id = None
-        self.odcs_url = odcs_url
-        self.odcs_insecure = odcs_insecure
-        self.odcs_openidc_secret_path = odcs_openidc_secret_path
-        self.pdc_url = pdc_url
-        self.pdc_insecure = pdc_insecure
+
+        self.odcs_fallback = {
+            'api_url': odcs_url,
+            'insecure': odcs_insecure,
+            'auth': {
+                'openidc_dir': odcs_openidc_secret_path
+            }
+        }
+        if not get_odcs(self.workflow, self.odcs_fallback)['api_url']:
+            raise RuntimeError("odcs_url is required")
+
+        self.pdc_fallback = {
+            'api_url': pdc_url,
+            'insecure': pdc_insecure
+        }
+        if not get_pdc(self.workflow, self.pdc_fallback)['api_url']:
+            raise RuntimeError("pdc_url is required")
         self.data = None
 
     def read_configs_general(self):
@@ -133,7 +140,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
         # The effect of develop=True is that requests to the PDC are made without authentication;
         # since we our interaction with the PDC is read-only, this is fine for our needs and
         # makes things simpler.
-        pdc_client = PDCClient(server=self.pdc_url, ssl_verify=not self.pdc_insecure, develop=True)
+        pdc_client = get_pdc_session(self.workflow, self.pdc_fallback)
 
         for module_spec in compose_source.strip().split():
             try:
@@ -168,14 +175,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
         return resolved_modules
 
     def _resolve_compose(self):
-        if self.odcs_openidc_secret_path:
-            token_path = os.path.join(self.odcs_openidc_secret_path, 'token')
-            with open(token_path, "r") as f:
-                odcs_token = f.read().strip()
-        else:
-            odcs_token = None
-
-        odcs_client = ODCSClient(self.odcs_url, insecure=self.odcs_insecure, token=odcs_token)
+        odcs_client = get_odcs_session(self.workflow, self.odcs_fallback)
         self.read_configs_general()
 
         modules = self.data.get('modules', [])

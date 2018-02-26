@@ -32,8 +32,12 @@ except ImportError:
     import dockpulp
 
 from atomic_reactor.plugins.post_pulp_sync import PulpSyncPlugin, get_manifests_in_pulp_repository
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY)
 from atomic_reactor.constants import PLUGIN_PULP_PUSH_KEY
 from atomic_reactor.pulp_util import PulpLogWrapper
+from tests.fixtures import reactor_config_map  # noqa
+from tests.util import mocked_reactorconfig
 
 from flexmock import flexmock
 import json
@@ -107,7 +111,7 @@ class TestPostPulpSync(object):
     def test_pulp_repo_prefix(self,
                               get_prefix,
                               pulp_repo_prefix,
-                              expected_prefix):
+                              expected_prefix, reactor_config_map):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
         prefixed_pulp_repoid = '{}prod-myrepository'.format(expected_prefix)
@@ -115,6 +119,12 @@ class TestPostPulpSync(object):
         kwargs = {}
         if pulp_repo_prefix:
             kwargs['pulp_repo_prefix'] = pulp_repo_prefix
+
+        if reactor_config_map:
+            self.workflow.plugin_workspace = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig({'version': 1, 'pulp': {'name': env}})
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
@@ -159,11 +169,17 @@ class TestPostPulpSync(object):
 
         plugin.run()
 
-    def test_auth_none(self):
+    def test_auth_none(self, reactor_config_map):  # noqa
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
         env = 'pulp'
+
+        if reactor_config_map:
+            self.workflow.plugin_workspace = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig({'version': 1, 'pulp': {'name': env}})
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
@@ -204,7 +220,7 @@ class TestPostPulpSync(object):
 
     @pytest.mark.parametrize('cer_exists', [True, False])
     @pytest.mark.parametrize('key_exists', [True, False])
-    def test_pulp_auth(self, tmpdir, cer_exists, key_exists):
+    def test_pulp_auth(self, tmpdir, cer_exists, key_exists, reactor_config_map):
         pulp_secret_path = str(tmpdir)
         cer = pulp_secret_path + '/pulp.cer'
         key = pulp_secret_path + '/pulp.key'
@@ -218,6 +234,13 @@ class TestPostPulpSync(object):
         docker_repository = 'prod/myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
         env = 'pulp'
+
+        if reactor_config_map:
+            self.workflow.plugin_workspace = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig({'version': 1, 'pulp': {'name': env}})
+
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
                                 pulp_registry_name=env,
@@ -278,13 +301,19 @@ class TestPostPulpSync(object):
         None,
         '{"invalid-json',
     ])
-    def test_dockercfg_missing_or_invalid(self, tmpdir, content):
+    def test_dockercfg_missing_or_invalid(self, tmpdir, content, reactor_config_map):
         env = 'pulp'
 
         if content is not None:
             registry_secret = os.path.join(str(tmpdir), '.dockercfg')
             with open(registry_secret, 'w') as fp:
                 fp.write(content)
+
+        if reactor_config_map:
+            self.workflow.plugin_workspace = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig({'version': 1, 'pulp': {'name': env}})
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow(['repo']),
@@ -301,7 +330,7 @@ class TestPostPulpSync(object):
         with pytest.raises(RuntimeError):
             plugin.run()
 
-    def test_dockercfg_registry_not_present(self, tmpdir):
+    def test_dockercfg_registry_not_present(self, tmpdir, reactor_config_map):  # noqa
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
@@ -318,6 +347,12 @@ class TestPostPulpSync(object):
 
         with open(registry_secret, 'w') as fp:
             json.dump(dockercfg, fp)
+
+        if reactor_config_map:
+            self.workflow.plugin_workspace = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig({'version': 1, 'pulp': {'name': env}})
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
@@ -347,7 +382,7 @@ class TestPostPulpSync(object):
         plugin.run()
 
     @pytest.mark.parametrize('scheme', ['http', 'https'])
-    def test_dockercfg(self, tmpdir, scheme):
+    def test_dockercfg(self, tmpdir, scheme, reactor_config_map):
         docker_registry = '{}://registry.example.com'.format(scheme)
         docker_repository = 'prod/myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
@@ -366,6 +401,12 @@ class TestPostPulpSync(object):
 
         with open(registry_secret, 'w') as fp:
             json.dump(dockercfg, fp)
+
+        if reactor_config_map:
+            self.workflow.plugin_workspace = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig({'version': 1, 'pulp': {'name': env}})
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
@@ -401,11 +442,18 @@ class TestPostPulpSync(object):
         (True, False),
         (False, True),
     ])
-    def test_insecure_registry(self, insecure_registry, ssl_validation):
+    def test_insecure_registry(self, insecure_registry, ssl_validation, reactor_config_map):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
         env = 'pulp'
+
+        if reactor_config_map:
+            self.workflow.plugin_workspace = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig({'version': 1, 'pulp': {'name': env}})
+
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
                                 pulp_registry_name=env,
@@ -440,7 +488,7 @@ class TestPostPulpSync(object):
         plugin.run()
 
     @pytest.mark.parametrize('fail', [False, True])
-    def test_dockpulp_loglevel(self, fail, caplog):
+    def test_dockpulp_loglevel(self, fail, caplog, reactor_config_map):
         loglevel = 3
 
         mockpulp = MockPulp()
@@ -465,6 +513,12 @@ class TestPostPulpSync(object):
 
         flexmock(PulpLogWrapper).should_receive('get_pulp_logger').and_return(logger).once()
 
+        if reactor_config_map:
+            self.workflow.plugin_workspace = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig({'version': 1, 'pulp': {'name': 'pulp'}})
+
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow(['prod/myrepository']),
                                 pulp_registry_name='pulp',
@@ -481,7 +535,7 @@ class TestPostPulpSync(object):
             assert not errors
 
     @pytest.mark.parametrize('already_exists', [False, True])
-    def test_store_registry(self, already_exists):
+    def test_store_registry(self, already_exists, reactor_config_map):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
@@ -522,6 +576,14 @@ class TestPostPulpSync(object):
             workflow.push_conf.add_pulp_registry(env, mockpulp.registry,
                                                  server_side_sync=False)
 
+        if reactor_config_map:
+            workflow.plugin_workspace = {}
+            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig({'version': 1,
+                                      'pulp': {'name': env,
+                                               'auth': {'user': '', 'password': ''}}})
+
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=workflow,
                                 pulp_registry_name=env,
@@ -532,7 +594,7 @@ class TestPostPulpSync(object):
         plugin.run()
         assert len(workflow.push_conf.pulp_registries) == 1
 
-    def test_delete_not_implemented(self, caplog):
+    def test_delete_not_implemented(self, caplog, reactor_config_map):  # noqa
         """
         Should log an error (but not raise an exception) when
         delete_from_registry is True.
@@ -548,12 +610,18 @@ class TestPostPulpSync(object):
             .should_receive('syncRepo')
             .and_return(([], [])))
         flexmock(dockpulp).should_receive('Pulp').and_return(mockpulp)
+
+        if reactor_config_map:
+            self.workflow.plugin_workspace = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig({'version': 1, 'pulp': {'name': 'pulp'}})
+
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow(['prod/myrepository']),
                                 pulp_registry_name='pulp',
                                 docker_registry='http://registry.example.com',
                                 delete_from_registry=True)
-
         plugin.run()
 
         errors = [record.getMessage() for record in caplog.records()
@@ -562,15 +630,23 @@ class TestPostPulpSync(object):
         assert [message for message in errors
                 if 'not implemented' in message]
 
-    def test_create_missing_repo(self):
+    def test_create_missing_repo(self, reactor_config_map):  # noqa
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
         env = 'pulp'
+
+        if reactor_config_map:
+            self.workflow.plugin_workspace = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig({'version': 1, 'pulp': {'name': env}})
+
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
                                 pulp_registry_name=env,
                                 docker_registry=docker_registry)
+
         mockpulp = MockPulp()
         (flexmock(mockpulp)
             .should_receive('getRepos')
@@ -612,7 +688,7 @@ class TestPostPulpSync(object):
         (False, False, False),
         (False, True, False),
     ])
-    def test_publish(self, publish, has_pulp_push, should_publish, caplog):
+    def test_publish(self, publish, has_pulp_push, should_publish, caplog, reactor_config_map):
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
@@ -674,10 +750,17 @@ class TestPostPulpSync(object):
         if publish is not None:
             kwargs['publish'] = publish
 
+        if reactor_config_map:
+            workflow.plugin_workspace = {}
+            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig({'version': 1,
+                                      'pulp': {'name': env,
+                                               'auth': {'user': '', 'password': ''}}})
+
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=workflow,
                                 **kwargs)
-
         plugin.run()
         log_messages = [l.getMessage() for l in caplog.records()]
 
@@ -688,7 +771,7 @@ class TestPostPulpSync(object):
             else:
                 assert expected_log not in log_messages
 
-    def test_workspace_updated(self):
+    def test_workspace_updated(self, reactor_config_map):  # noqa
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
         prefixed_pulp_repoid = 'redhat-prod-myrepository'
@@ -731,10 +814,17 @@ class TestPostPulpSync(object):
             'docker_registry': docker_registry,
         }
 
+        if reactor_config_map:
+            workflow.plugin_workspace = {}
+            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig({'version': 1,
+                                      'pulp': {'name': env,
+                                               'auth': {'user': '', 'password': ''}}})
+
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=workflow,
                                 **kwargs)
-
         plugin.run()
 
         manifests = get_manifests_in_pulp_repository(workflow)

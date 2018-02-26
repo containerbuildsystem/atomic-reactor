@@ -8,13 +8,11 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
-from osbs.api import OSBS
-from osbs.conf import Configuration
 from osbs.exceptions import OsbsResponseException
 
 from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
-from atomic_reactor.util import get_build_json, get_primary_images
-
+from atomic_reactor.util import get_primary_images
+from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
 
 # Note: We use multiple inheritance here only to make it explicit that
 # this plugin needs to act as both an exit plugin (since arrangement
@@ -30,7 +28,7 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, imagestream, docker_image_repo,
-                 url, build_json_dir, verify_ssl=True, use_auth=True,
+                 url=None, build_json_dir=None, verify_ssl=True, use_auth=True,
                  insecure_registry=None):
         """
         constructor
@@ -50,10 +48,13 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
         super(ImportImagePlugin, self).__init__(tasker, workflow)
         self.imagestream_name = imagestream
         self.docker_image_repo = docker_image_repo
-        self.url = url
+
+        self.openshift_fallback = {
+            'url': url,
+            'insecure': not verify_ssl,
+            'auth': {'enable': use_auth}
+        }
         self.build_json_dir = build_json_dir
-        self.verify_ssl = verify_ssl
-        self.use_auth = use_auth
         self.insecure_registry = insecure_registry
 
         self.osbs = None
@@ -65,20 +66,11 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
             self.log.info("Not importing failed build")
             return
 
-        self.setup_osbs_api()
+        self.osbs = get_openshift_session(self.workflow, self.openshift_fallback,
+                                          build_json_dir_fallback=self.build_json_dir)
         self.get_or_create_imagestream()
         self.process_tags()
         self.osbs.import_image(self.imagestream_name)
-
-    def setup_osbs_api(self):
-        metadata = get_build_json().get("metadata", {})
-        osbs_conf = Configuration(conf_file=None,
-                                  openshift_url=self.url,
-                                  use_auth=self.use_auth,
-                                  verify_ssl=self.verify_ssl,
-                                  build_json_dir=self.build_json_dir,
-                                  namespace=metadata.get('namespace', None))
-        self.osbs = OSBS(osbs_conf, osbs_conf)
 
     def get_or_create_imagestream(self):
         try:

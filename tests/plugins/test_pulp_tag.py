@@ -19,7 +19,11 @@ from atomic_reactor.util import ImageName
 from atomic_reactor.build import BuildResult
 from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
                                                             WORKSPACE_KEY_BUILD_INFO)
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY)
 from atomic_reactor.constants import PLUGIN_PULP_TAG_KEY
+from tests.fixtures import reactor_config_map  # noqa
+from tests.util import mocked_reactorconfig
 
 try:
     if sys.version_info.major > 2:
@@ -157,7 +161,8 @@ def prepare(v1_image_ids={}):
     ({'x86_64': None, 'ppc64le': 'ppc64le_v1_image_id'}, False),
     ({'x86_64': 'ppc64le_v1_image_id', 'ppc64le': 'ppc64le_v1_image_id'}, True),
 ])
-def test_pulp_tag_basic(tmpdir, monkeypatch, v1_image_ids, should_raise, caplog):
+def test_pulp_tag_basic(tmpdir, monkeypatch, v1_image_ids, should_raise, caplog,
+                        reactor_config_map):
     tasker, workflow = prepare(v1_image_ids)
     monkeypatch.setenv('SOURCE_SECRET_PATH', str(tmpdir))
     with open(os.path.join(str(tmpdir), "pulp.cer"), "wt") as cer:
@@ -171,6 +176,11 @@ def test_pulp_tag_basic(tmpdir, monkeypatch, v1_image_ids, should_raise, caplog)
             'pulp_registry_name': 'test'
         }}])
 
+    if reactor_config_map:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1, 'pulp': {'name': 'test',
+                                                         'auth': {'ssl_certs_dir': str(tmpdir)}}})
     if should_raise:
         with pytest.raises(PluginFailedException):
             runner.run()
@@ -196,7 +206,7 @@ def test_pulp_tag_basic(tmpdir, monkeypatch, v1_image_ids, should_raise, caplog)
 
 @pytest.mark.skipif(dockpulp is None or not hasattr(dockpulp, "imgutils"),
                     reason='dockpulp module not available')
-def test_pulp_tag_source_secret(tmpdir, monkeypatch, caplog):
+def test_pulp_tag_source_secret(tmpdir, monkeypatch, caplog, reactor_config_map):
     v1_image_ids = {'x86_64': None,
                     'ppc64le': 'ppc64le_v1_image_id'}
     msg = "tagging v1-image-id ppc64le_v1_image_id for platform ppc64le"
@@ -217,6 +227,12 @@ def test_pulp_tag_source_secret(tmpdir, monkeypatch, caplog):
             'pulp_registry_name': 'test'
         }}])
 
+    if reactor_config_map:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1, 'pulp': {'name': 'test',
+                                                         'auth': {'ssl_certs_dir': str(tmpdir)}}})
+
     results = runner.run()
     assert msg in caplog.text()
     assert results['pulp_tag'] == expected_results
@@ -224,7 +240,7 @@ def test_pulp_tag_source_secret(tmpdir, monkeypatch, caplog):
 
 @pytest.mark.skipif(dockpulp is None or not hasattr(dockpulp, "imgutils"),
                     reason='dockpulp module not available')
-def test_pulp_tag_service_account_secret(tmpdir, monkeypatch, caplog):
+def test_pulp_tag_service_account_secret(tmpdir, monkeypatch, caplog, reactor_config_map):
     v1_image_ids = {'x86_64': None,
                     'ppc64le': 'ppc64le_v1_image_id'}
     msg = "tagging v1-image-id ppc64le_v1_image_id for platform ppc64le"
@@ -245,6 +261,13 @@ def test_pulp_tag_service_account_secret(tmpdir, monkeypatch, caplog):
             'pulp_registry_name': 'test',
             'pulp_secret_path': str(tmpdir),
         }}])
+
+    if reactor_config_map:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1,
+                                  'pulp': {'name': 'test',
+                                           'auth': {'ssl_certs_dir': str(tmpdir)}}})
 
     results = runner.run()
     assert msg in caplog.text()

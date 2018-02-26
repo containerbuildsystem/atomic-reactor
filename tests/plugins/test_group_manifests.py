@@ -25,6 +25,10 @@ from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf
 from atomic_reactor.util import ImageName, registry_hostname, ManifestDigest
 from atomic_reactor.plugins.post_group_manifests import GroupManifestsPlugin
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY)
+from tests.util import mocked_reactorconfig
+from tests.fixtures import reactor_config_map  # noqa
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -416,7 +420,7 @@ OTHER_V2 = 'registry.example.com:5001'
 @responses.activate  # noqa
 def test_group_manifests(tmpdir, test_name,
                          schema_version, group, foreign_layers, registries, workers,
-                         expected_exception):
+                         expected_exception, reactor_config_map):
     if MOCK:
         mock_docker()
 
@@ -463,6 +467,38 @@ def test_group_manifests(tmpdir, test_name,
                                                      foreign_layers=foreign_layers)
     tasker, workflow = mock_environment(tmpdir, primary_images=test_images,
                                         annotations=annotations)
+
+    if reactor_config_map:
+        registries_list = []
+
+        for docker_uri in registry_conf:
+            reg_ver = registry_conf[docker_uri]['version']
+            reg_secret = None
+            if 'secret' in registry_conf[docker_uri]:
+                reg_secret = registry_conf[docker_uri]['secret']
+
+            new_reg = {}
+            if reg_secret:
+                new_reg['auth'] = {'cfg_path': reg_secret}
+            else:
+                new_reg['auth'] = {'cfg_path': str(temp_dir)}
+            new_reg['url'] = 'https://' + docker_uri + '/' + reg_ver
+
+            registries_list.append(new_reg)
+
+        platform_descriptors_list = []
+        for platform in goarch:
+            new_plat = {
+                'platform': platform,
+                'architecture': goarch[platform],
+            }
+            platform_descriptors_list.append(new_plat)
+
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1, 'group_manifests': group,
+                                  'registries': registries_list,
+                                  'platform_descriptors': platform_descriptors_list})
 
     runner = PostBuildPluginsRunner(tasker, workflow, plugins_conf)
     if expected_exception is None:

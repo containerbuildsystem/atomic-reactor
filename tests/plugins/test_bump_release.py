@@ -27,9 +27,24 @@ except ImportError:
     import koji as koji
 
 from atomic_reactor.plugins.pre_bump_release import BumpReleasePlugin
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY)
 from atomic_reactor.util import df_parser
+from tests.util import mocked_reactorconfig
+from tests.fixtures import docker_tasker, reactor_config_map  # noqa
 from flexmock import flexmock
 import pytest
+
+
+class MockedClientSessionGeneral(object):
+    def __init__(self, hub, opts=None):
+        pass
+
+    def getBuild(self, build_info):
+        return None
+
+    def krb_login(self, *args, **kwargs):
+        return True
 
 
 class TestBumpRelease(object):
@@ -38,12 +53,14 @@ class TestBumpRelease(object):
                 labels=None,
                 include_target=True,
                 certs=False,
-                append=False):
+                append=False,
+                reactor_config_map=False):
         if labels is None:
             labels = {}
 
         workflow = flexmock()
         setattr(workflow, 'builder', flexmock())
+        setattr(workflow, 'plugin_workspace', {})
 
         df = tmpdir.join('Dockerfile')
         df.write('FROM base\n')
@@ -56,6 +73,11 @@ class TestBumpRelease(object):
             'workflow': workflow,
             'hub': ''
         }
+        koji_map = {
+            'hub_url': '',
+            'root_url': '',
+            'auth': {}
+        }
         if include_target:
             kwargs['target'] = 'foo'
         if append:
@@ -64,12 +86,20 @@ class TestBumpRelease(object):
             tmpdir.join('cert').write('cert')
             tmpdir.join('serverca').write('serverca')
             kwargs['koji_ssl_certs_dir'] = str(tmpdir)
+            koji_map['auth']['ssl_certs_dir'] = str(tmpdir)
+
+        if reactor_config_map:
+            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                mocked_reactorconfig({'version': 1, 'koji': koji_map})
+
         plugin = BumpReleasePlugin(**kwargs)
         return plugin
 
-    def test_component_missing(self, tmpdir):
-        flexmock(koji, ClientSession=lambda hub, opts=None: None)
-        plugin = self.prepare(tmpdir)
+    def test_component_missing(self, tmpdir, reactor_config_map):  # noqa
+        session = MockedClientSessionGeneral('')
+        flexmock(koji, ClientSession=session)
+        plugin = self.prepare(tmpdir, reactor_config_map=reactor_config_map)
         with pytest.raises(RuntimeError):
             plugin.run()
 
@@ -77,9 +107,12 @@ class TestBumpRelease(object):
          'release',
          'Release',
     ])
-    def test_release_label_already_set(self, tmpdir, caplog, release_label):
-        flexmock(koji, ClientSession=lambda hub, opts=None: None)
-        plugin = self.prepare(tmpdir, labels={release_label: '1'})
+    def test_release_label_already_set(self, tmpdir, caplog, release_label,
+                                       reactor_config_map):
+        session = MockedClientSessionGeneral('')
+        flexmock(koji, ClientSession=session)
+        plugin = self.prepare(tmpdir, labels={release_label: '1'},
+                              reactor_config_map=reactor_config_map)
         plugin.run()
         assert 'not incrementing' in caplog.text()
 
@@ -90,9 +123,10 @@ class TestBumpRelease(object):
         {'Version': 'version'},
         {},
     ])
-    def test_missing_labels(self, tmpdir, caplog, labels):
-        flexmock(koji, ClientSession=lambda hub, opts=None: None)
-        plugin = self.prepare(tmpdir, labels=labels)
+    def test_missing_labels(self, tmpdir, caplog, labels, reactor_config_map):
+        session = MockedClientSessionGeneral('')
+        flexmock(koji, ClientSession=session)
+        plugin = self.prepare(tmpdir, labels=labels, reactor_config_map=reactor_config_map)
         with pytest.raises(RuntimeError) as exc:
             plugin.run()
         assert 'missing label' in str(exc)
@@ -134,7 +168,7 @@ class TestBumpRelease(object):
          'expected': '22.fc25'},
     ])
     def test_increment(self, tmpdir, component, version, next_release,
-                       include_target):
+                       include_target, reactor_config_map):
 
         class MockedClientSession(object):
             def __init__(self, hub, opts=None):
@@ -159,6 +193,9 @@ class TestBumpRelease(object):
                 self.serverca_path = serverca
                 return True
 
+            def krb_login(self, *args, **kwargs):
+                return True
+
         session = MockedClientSession('')
         flexmock(koji, ClientSession=session)
 
@@ -168,7 +205,8 @@ class TestBumpRelease(object):
 
         plugin = self.prepare(tmpdir, labels=labels,
                               include_target=include_target,
-                              certs=True)
+                              certs=True,
+                              reactor_config_map=reactor_config_map)
         plugin.run()
 
         for file_path, expected in [(session.cert_path, 'cert'),
@@ -193,7 +231,7 @@ class TestBumpRelease(object):
         (None, ['1.1'], '1.2'),
         (None, ['1.1', '1.2'], '1.3'),
     ])
-    def test_append(self, tmpdir, base_release, builds, expected):
+    def test_append(self, tmpdir, base_release, builds, expected, reactor_config_map):
 
         class MockedClientSession(object):
             def __init__(self, hub, opts=None):
@@ -203,6 +241,9 @@ class TestBumpRelease(object):
                 if build_info['release'] in builds:
                     return True
                 return None
+
+            def krb_login(self, *args, **kwargs):
+                return True
 
         session = MockedClientSession('')
         flexmock(koji, ClientSession=session)
@@ -215,7 +256,7 @@ class TestBumpRelease(object):
             labels['release'] = base_release
 
         plugin = self.prepare(tmpdir, labels=labels,
-                              append=True)
+                              append=True, reactor_config_map=reactor_config_map)
         plugin.run()
 
         parser = df_parser(plugin.workflow.builder.df_path, workflow=plugin.workflow)

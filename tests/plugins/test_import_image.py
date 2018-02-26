@@ -15,7 +15,11 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.util import ImageName
 from atomic_reactor.plugins.post_import_image import ImportImagePlugin
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY)
 from atomic_reactor.build import BuildResult
+from atomic_reactor.plugins import pre_reactor_config
+from tests.util import mocked_reactorconfig
 
 import osbs.conf
 from osbs.api import OSBS
@@ -23,6 +27,7 @@ from osbs.exceptions import OsbsResponseException
 from flexmock import flexmock
 import pytest
 from tests.constants import INPUT_IMAGE, SOURCE, MOCK
+from tests.fixtures import reactor_config_map  # noqa
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -50,7 +55,8 @@ DEFAULT_TAGS_AMOUNT = 6
 
 
 def prepare(insecure_registry=None, namespace=None, primary_images_tag_conf=DEFAULT_TAGS_AMOUNT,
-            primary_images_annotations=DEFAULT_TAGS_AMOUNT, build_process_failed=False):
+            primary_images_annotations=DEFAULT_TAGS_AMOUNT, build_process_failed=False,
+            reactor_config_map=False):
     """
     Boiler-plate test set-up
     """
@@ -92,30 +98,40 @@ def prepare(insecure_registry=None, namespace=None, primary_images_tag_conf=DEFA
     expectation = flexmock(osbs.conf).should_receive('Configuration').and_return(fake_conf)
     if namespace:
         expectation.with_args(conf_file=None, namespace=namespace,
-                              verify_ssl=False, openshift_url="",
-                              use_auth=False, build_json_dir="")
+                              verify_ssl=False, openshift_url="/",
+                              use_auth=False, build_json_dir="/var/json_dir")
 
     runner = PostBuildPluginsRunner(tasker, workflow, [{
         'name': ImportImagePlugin.key,
         'args': {
             'imagestream': TEST_IMAGESTREAM,
             'docker_image_repo': TEST_REPO,
-            'url': '',
-            'build_json_dir': "",
+            'url': '/',
+            'build_json_dir': "/var/json_dir",
             'verify_ssl': False,
             'use_auth': False,
             'insecure_registry': insecure_registry,
         }}])
 
+    if reactor_config_map:
+        openshift_map = {
+            'url': '/',
+            'auth': {'enable': False},
+            'insecure': True,
+        }
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1, 'openshift': openshift_map,
+                                  'build_json_dir': "/var/json_dir"})
     return runner
 
 
-def test_bad_setup(monkeypatch):
+def test_bad_setup(monkeypatch, reactor_config_map):  # noqa
     """
     Try all the early-fail paths.
     """
 
-    runner = prepare()
+    runner = prepare(reactor_config_map=reactor_config_map)
 
     (flexmock(OSBS)
      .should_receive('get_image_stream')
@@ -135,12 +151,13 @@ def test_bad_setup(monkeypatch):
 
 @pytest.mark.parametrize(('insecure_registry'), [None, False, True])
 @pytest.mark.parametrize(('namespace'), [None, 'my_namespace'])
-def test_create_image(insecure_registry, namespace, monkeypatch):
+def test_create_image(insecure_registry, namespace, monkeypatch, reactor_config_map):
     """
     Test that an ImageStream is created if not found
     """
 
-    runner = prepare(insecure_registry=insecure_registry, namespace=namespace)
+    runner = prepare(insecure_registry=insecure_registry, namespace=namespace,
+                     reactor_config_map=reactor_config_map)
 
     kwargs = {}
     build_json = {"metadata": {}}
@@ -178,12 +195,14 @@ def test_create_image(insecure_registry, namespace, monkeypatch):
     (0, DEFAULT_TAGS_AMOUNT, 'annotation_'),
 ))
 @pytest.mark.parametrize(('osbs_error'), [True, False])
-def test_ensure_primary(monkeypatch, osbs_error, tag_conf, annotations, tag_prefix):
+def test_ensure_primary(monkeypatch, osbs_error, tag_conf, annotations, tag_prefix,
+                        reactor_config_map):
     """
     Test that primary image tags are ensured
     """
 
-    runner = prepare(primary_images_annotations=annotations, primary_images_tag_conf=tag_conf)
+    runner = prepare(primary_images_annotations=annotations, primary_images_tag_conf=tag_conf,
+                     reactor_config_map=reactor_config_map)
 
     monkeypatch.setenv("BUILD", json.dumps({
         "metadata": {}
@@ -226,21 +245,22 @@ def test_ensure_primary(monkeypatch, osbs_error, tag_conf, annotations, tag_pref
     ({}),
     ({'namespace': 'my_namespace'})
 ])
-def test_import_image(build_process_failed, namespace, monkeypatch):
+def test_import_image(build_process_failed, namespace, monkeypatch, reactor_config_map):
     """
     Test importing tags for an existing ImageStream
     """
 
     runner = prepare(namespace=namespace.get('namespace'),
-                     build_process_failed=build_process_failed)
+                     build_process_failed=build_process_failed,
+                     reactor_config_map=reactor_config_map)
 
     build_json = {"metadata": {}}
     build_json["metadata"].update(namespace)
     monkeypatch.setenv("BUILD", json.dumps(build_json))
 
     if build_process_failed:
-        (flexmock(ImportImagePlugin)
-         .should_receive('setup_osbs_api')
+        (flexmock(pre_reactor_config)
+         .should_receive('get_openshift_session')
          .never())
         (flexmock(ImportImagePlugin)
          .should_receive('get_or_create_imagestream')
@@ -271,12 +291,12 @@ def test_import_image(build_process_failed, namespace, monkeypatch):
     runner.run()
 
 
-def test_exception_during_create(monkeypatch):
+def test_exception_during_create(monkeypatch, reactor_config_map):  # noqa
     """
     The plugin should fail if the ImageStream creation fails.
     """
 
-    runner = prepare()
+    runner = prepare(reactor_config_map=reactor_config_map)
     monkeypatch.setenv("BUILD", json.dumps({
         "metadata": {}
     }))
@@ -297,12 +317,12 @@ def test_exception_during_create(monkeypatch):
         runner.run()
 
 
-def test_exception_during_import(monkeypatch):
+def test_exception_during_import(monkeypatch, reactor_config_map):  # noqa
     """
     The plugin should fail if image import fails.
     """
 
-    runner = prepare()
+    runner = prepare(reactor_config_map=reactor_config_map)
     monkeypatch.setenv("BUILD", json.dumps({
         "metadata": {}
     }))

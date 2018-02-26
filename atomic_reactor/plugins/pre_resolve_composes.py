@@ -14,19 +14,12 @@ import yaml
 from atomic_reactor.constants import (PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
                                       REPO_CONTAINER_CONFIG)
 
-from atomic_reactor.odcs_util import ODCSClient
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
-from atomic_reactor.plugins.pre_reactor_config import get_config
-
-try:
-    from atomic_reactor.koji_util import create_koji_session
-except ImportError:
-    # koji module is only required in some cases.
-    def create_koji_session(*args, **kwargs):
-        raise RuntimeError('Missing koji module')
-
+from atomic_reactor.plugins.pre_reactor_config import (get_config,
+                                                       get_odcs_session,
+                                                       get_koji_session, get_koji)
 
 ODCS_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 MINIMUM_TIME_TO_EXPIRE = timedelta(hours=2).total_seconds()
@@ -43,7 +36,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow,
-                 odcs_url,
+                 odcs_url=None,
                  odcs_insecure=False,
                  odcs_openidc_secret_path=None,
                  odcs_ssl_secret_path=None,
@@ -76,18 +69,28 @@ class ResolveComposesPlugin(PreBuildPlugin):
         if signing_intent and compose_ids:
             raise ValueError('signing_intent and compose_ids cannot be used at the same time')
 
-        if koji_target and not koji_hub:
-            raise ValueError('koji_hub is required when koji_target is used')
-
         self.signing_intent = signing_intent
         self.compose_ids = compose_ids
-        self.odcs_url = odcs_url
-        self.odcs_insecure = odcs_insecure
-        self.odcs_openidc_secret_path = odcs_openidc_secret_path
-        self.odcs_ssl_secret_path = odcs_ssl_secret_path
+        self.odcs_fallback = {
+            'api_url': odcs_url,
+            'insecure': odcs_insecure,
+            'auth': {
+                'ssl_certs_dir': odcs_ssl_secret_path,
+                'openidc_dir': odcs_openidc_secret_path
+            }
+        }
+
         self.koji_target = koji_target
-        self.koji_hub = koji_hub
-        self.koji_ssl_certs_dir = koji_ssl_certs_dir
+        self.koji_fallback = {
+            'hub_url': koji_hub,
+            'auth': {
+                'ssl_certs_dir': koji_ssl_certs_dir
+            }
+        }
+        if koji_target:
+            if not get_koji(self.workflow, self.koji_fallback)['hub_url']:
+                raise ValueError('koji_hub is required when koji_target is used')
+
         self.minimum_time_to_expire = minimum_time_to_expire
 
         self._koji_session = None
@@ -262,31 +265,14 @@ class ResolveComposesPlugin(PreBuildPlugin):
     @property
     def odcs_client(self):
         if not self._odcs_client:
-            client_kwargs = {'insecure': self.odcs_insecure}
-            if self.odcs_openidc_secret_path:
-                token_path = os.path.join(self.odcs_openidc_secret_path, 'token')
-                with open(token_path, "r") as f:
-                    client_kwargs['token'] = f.read().strip()
-
-            if self.odcs_ssl_secret_path:
-                cert_path = os.path.join(self.odcs_ssl_secret_path, 'cert')
-                if os.path.exists(cert_path):
-                    client_kwargs['cert'] = cert_path
-
-            self._odcs_client = ODCSClient(self.odcs_url, **client_kwargs)
+            self._odcs_client = get_odcs_session(self.workflow, self.odcs_fallback)
 
         return self._odcs_client
 
     @property
     def koji_session(self):
         if not self._koji_session:
-            koji_auth_info = None
-            if self.koji_ssl_certs_dir:
-                koji_auth_info = {
-                    'ssl_certs_dir': self.koji_ssl_certs_dir,
-                }
-            self._koji_session = create_koji_session(self.koji_hub, koji_auth_info)
-
+            self._koji_session = get_koji_session(self.workflow, self.koji_fallback)
         return self._koji_session
 
 

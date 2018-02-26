@@ -17,7 +17,9 @@ from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlug
                                                             get_worker_build_info,
                                                             get_koji_upload_dir,
                                                             override_build_kwarg)
-from atomic_reactor.plugins.pre_reactor_config import ReactorConfig
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
+                                                       ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY)
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY
@@ -28,6 +30,8 @@ from osbs.conf import Configuration
 from osbs.build.build_response import BuildResponse
 from osbs.exceptions import OsbsException
 from tests.constants import MOCK_SOURCE, TEST_IMAGE, INPUT_IMAGE, SOURCE
+from tests.util import mocked_reactorconfig
+from tests.fixtures import reactor_config_map  # noqa
 from tests.docker_mock import mock_docker
 from textwrap import dedent
 from copy import deepcopy
@@ -203,6 +207,8 @@ def make_worker_build_kwargs(**overrides):
     {},
     {'build_image': 'osbs-buildroot:latest'},
     {'build_image': 'osbs-buildroot:latest', 'sources_command': 'fedpkg source'},
+    {'build_image': 'osbs-buildroot:latest',
+     'equal_labels': 'label1:label2,label3:label4'},
 ])
 @pytest.mark.parametrize('worker_build_image', [
     'fedora:latest',
@@ -212,10 +218,10 @@ def make_worker_build_kwargs(**overrides):
     True,
     False
 ])
-def test_orchestrate_build(tmpdir, caplog, config_kwargs, worker_build_image, logs_return_bytes):
+def test_orchestrate_build(tmpdir, caplog, config_kwargs,
+                           worker_build_image, logs_return_bytes, reactor_config_map):
     workflow = mock_workflow(tmpdir)
     mock_osbs(logs_return_bytes=logs_return_bytes)
-    mock_reactor_config(tmpdir)
     plugin_args = {
         'platforms': ['x86_64'],
         'build_kwargs': make_worker_build_kwargs(),
@@ -226,6 +232,124 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs, worker_build_image, lo
     if config_kwargs is not None:
         plugin_args['config_kwargs'] = config_kwargs
 
+    expected_kwargs = {
+        'conf_section': str('worker_x86_64'),
+        'conf_file': str(tmpdir) + '/osbs.conf',
+        'sources_command': None,
+    }
+    if config_kwargs:
+        expected_kwargs['sources_command'] = config_kwargs.get('sources_command')
+        if 'equal_labels' in config_kwargs:
+            expected_kwargs['equal_labels'] = config_kwargs.get('equal_labels')
+
+    clusters = {
+        'x86_64': [
+            {
+                'name': 'worker_x86_64',
+                'max_concurrent_builds': 3,
+                'enabled': True
+            }
+        ],
+        'ppc64le': [
+            {
+                'name': 'worker_ppc64le',
+                'max_concurrent_builds': 3,
+                'enabled': True
+            }
+        ]
+    }
+    if reactor_config_map:
+        reactor_dict = {'version': 1, 'arrangement_version': 1}
+        if config_kwargs and 'sources_command' in config_kwargs:
+            reactor_dict['sources_command'] = 'fedpkg source'
+
+        expected_kwargs['source_registry_uri'] = {'uri': None}
+        reactor_dict['koji'] = {
+            'hub_url': '/',
+            'root_url': ''}
+        expected_kwargs['koji_hub'] = reactor_dict['koji']['hub_url']
+        expected_kwargs['koji_root'] = reactor_dict['koji']['root_url']
+        reactor_dict['odcs'] = {'api_url': 'odcs_url'}
+        expected_kwargs['odcs_insecure'] = False
+        expected_kwargs['odcs_url'] = reactor_dict['odcs']['api_url']
+        reactor_dict['pdc'] = {'api_url': 'pdc_url'}
+        expected_kwargs['pdc_url'] = reactor_dict['pdc']['api_url']
+        expected_kwargs['pdc_insecure'] = False
+        reactor_dict['pulp'] = {'name': 'pulp_name'}
+        expected_kwargs['pulp_registry_name'] = reactor_dict['pulp']['name']
+        reactor_dict['prefer_schema1_digest'] = False
+        expected_kwargs['prefer_schema1_digest'] = reactor_dict['prefer_schema1_digest']
+        reactor_dict['smtp'] = {
+            'from_address': 'from',
+            'host': 'smtp host'}
+        expected_kwargs['smtp_host'] = reactor_dict['smtp']['host']
+        expected_kwargs['smtp_from'] = reactor_dict['smtp']['from_address']
+        expected_kwargs['smtp_email_domain'] = None
+        expected_kwargs['smtp_additional_addresses'] = ""
+        expected_kwargs['smtp_error_addresses'] = ""
+        expected_kwargs['smtp_to_submitter'] = False
+        expected_kwargs['smtp_to_pkgowner'] = False
+        reactor_dict['artifacts_allowed_domains'] = ('domain1', 'domain2')
+        expected_kwargs['artifacts_allowed_domains'] =\
+            ','.join(reactor_dict['artifacts_allowed_domains'])
+        reactor_dict['yum_proxy'] = 'yum proxy'
+        expected_kwargs['yum_proxy'] = reactor_dict['yum_proxy']
+        reactor_dict['content_versions'] = ['v2']
+        expected_kwargs['registry_api_versions'] = 'v2'
+
+        if config_kwargs and 'equal_labels' in config_kwargs:
+            expected_kwargs['equal_labels'] = config_kwargs['equal_labels']
+
+            label_groups = [x.strip() for x in config_kwargs['equal_labels'].split(',')]
+
+            equal_labels = []
+            for label_group in label_groups:
+                equal_labels.append([label.strip() for label in label_group.split(':')])
+
+            reactor_dict['image_equal_labels'] = equal_labels
+
+        reactor_dict['clusters'] = clusters
+        reactor_dict['platform_descriptors'] = [{'platform': 'x86_64',
+                                                 'architecture': 'amd64'}]
+
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig(reactor_dict)
+    else:
+        reactor_dict = {'version': 1, 'clusters': clusters}
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig(reactor_dict)
+
+        expected_kwargs['smtp_host'] = None
+        expected_kwargs['odcs_insecure'] = None
+        expected_kwargs['koji_hub'] = None
+        expected_kwargs['smtp_email_domain'] = None
+        expected_kwargs['smtp_from'] = None
+        expected_kwargs['registry_api_versions'] = ''
+        expected_kwargs['source_registry_uri'] = {'uri': None}
+        expected_kwargs['yum_proxy'] = None
+        expected_kwargs['pdc_url'] = None
+        expected_kwargs['odcs_url'] = None
+        expected_kwargs['smtp_additional_addresses'] = ''
+        expected_kwargs['koji_root'] = None
+        expected_kwargs['smtp_error_addresses'] = ''
+        expected_kwargs['smtp_to_submitter'] = None
+        expected_kwargs['artifacts_allowed_domains'] = ''
+        expected_kwargs['smtp_to_pkgowner'] = None
+        expected_kwargs['pdc_insecure'] = None
+        expected_kwargs['prefer_schema1_digest'] = None
+        expected_kwargs['pulp_registry_name'] = None
+
+    with open(os.path.join(str(tmpdir), 'osbs.conf'), 'w') as f:
+        for platform, plat_clusters in clusters.items():
+            for cluster in plat_clusters:
+                f.write(dedent("""\
+                    [{name}]
+                    openshift_url = https://{name}.com/
+                    namespace = {name}_namespace
+                    """.format(name=cluster['name'])))
+
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
         workflow,
@@ -235,10 +359,6 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs, worker_build_image, lo
         }]
     )
 
-    expected_kwargs = {
-        'conf_section': 'worker_x86_64',
-        'conf_file': tmpdir + '/osbs.conf',
-    }
     # Update with config_kwargs last to ensure that, when set
     # always has precedence over worker_build_image param.
     if config_kwargs is not None:
@@ -246,7 +366,6 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs, worker_build_image, lo
     expected_kwargs['build_image'] = 'some_image:latest'
 
     (flexmock(Configuration).should_call('__init__').with_args(**expected_kwargs).once())
-
     build_result = runner.run()
     assert not build_result.is_failed()
 

@@ -14,8 +14,12 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY)
 from atomic_reactor.util import ImageName, ManifestDigest, get_exported_image_metadata
 from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE, MOCK, DOCKER0_REGISTRY
+from tests.fixtures import reactor_config_map  # noqa
+from tests.util import mocked_reactorconfig
 
 import json
 import logging
@@ -104,7 +108,8 @@ class X(object):
     (TEST_IMAGE, PUSH_ERROR_LOGS, True, False),
 ])
 def test_tag_and_push_plugin(
-        tmpdir, monkeypatch, image_name, logs, should_raise, has_config, use_secret):
+        tmpdir, monkeypatch, image_name, logs, should_raise, has_config, use_secret,
+        reactor_config_map):
 
     if MOCK:
         mock_docker()
@@ -251,6 +256,15 @@ def test_tag_and_push_plugin(
         .should_receive('request')
         .replace_with(custom_get))
 
+    if reactor_config_map:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1, 'registries': [{
+                'url': LOCALHOST_REGISTRY,
+                'insecure': True,
+                'auth': {'cfg_path': secret_path},
+            }]})
+
     runner = PostBuildPluginsRunner(
         tasker,
         workflow,
@@ -302,7 +316,7 @@ def test_tag_and_push_plugin(
     True,
 ])
 def test_tag_and_push_plugin_oci(
-        tmpdir, monkeypatch, use_secret, fail_push, caplog):
+        tmpdir, monkeypatch, use_secret, fail_push, caplog, reactor_config_map):
 
     # For now, we don't want to require having a skopeo and an OCI-supporting
     # registry in the test environment
@@ -467,6 +481,15 @@ def test_tag_and_push_plugin_oci(
     (flexmock(requests.Session)
         .should_receive('request')
         .replace_with(custom_get))
+
+    if reactor_config_map:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            mocked_reactorconfig({'version': 1, 'registries': [{
+                'url': LOCALHOST_REGISTRY,
+                'insecure': True,
+                'auth': {'cfg_path': secret_path},
+            }]})
 
     runner = PostBuildPluginsRunner(
         tasker,

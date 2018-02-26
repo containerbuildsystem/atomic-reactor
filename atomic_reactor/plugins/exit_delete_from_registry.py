@@ -13,6 +13,7 @@ import requests
 
 from atomic_reactor.plugin import ExitPlugin, PluginFailedException
 from atomic_reactor.util import RegistrySession, registry_hostname
+from atomic_reactor.plugins.pre_reactor_config import get_registries
 from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY
 from requests.exceptions import HTTPError, RetryError, Timeout
 
@@ -25,7 +26,7 @@ class DeleteFromRegistryPlugin(ExitPlugin):
     key = "delete_from_registry"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, registries):
+    def __init__(self, tasker, workflow, registries=None):
         """
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
@@ -37,7 +38,7 @@ class DeleteFromRegistryPlugin(ExitPlugin):
         """
         super(DeleteFromRegistryPlugin, self).__init__(tasker, workflow)
 
-        self.registries = deepcopy(registries)
+        self.registries = get_registries(self.workflow, deepcopy(registries or {}))
 
     def request_delete(self, session, url, manifest):
         try:
