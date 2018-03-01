@@ -1,86 +1,59 @@
 ## Building Flatpaks
 
-In addition to building docker images from Dockerfiles, atomic-reactor can also build Flatpak OCI images for both runtimes and applications. A Flatpak OCI image is defined by two things: by a flatpak.json file that contains metadata data about how to build the Flaptak, and a [module](https://docs.pagure.org/modularity/docs.html) containing the RPMs to build into the Flatpak.
+In addition to building docker images from Dockerfiles, atomic-reactor can also build Flatpak OCI images for both runtimes and applications. A Flatpak OCI image is defined by two things: by a [module](https://docs.pagure.org/modularity/docs.html) containing the RPMs to build into the Flatpak, and by information included in a `container.yaml` file.
 
-### Example build.json
+Building Flatpaks requires, in addition to a Koji installation:
 
-```json
-{
-    "source": {
-        "provider": "git",
-        "uri": "git://pkgs.fedoraproject.org/modules/flatpak-runtime"
-    },
-    "image": "org.fedoraproject.platform",
-    "prebuild_plugins": [
-        { "name": "flatpak_create_dockerfile",
-          "args": {
-              "module_name": "flatpak-runtime",
-              "module_stream": "f26",
-              "odcs_url": "https://odcs.fedoraproject.org/odcs/1",
-              "odcs_insecure": false,
-              "pdc_url": "https://pdc.fedoraproject.org/rest_api/v1",
-              "pdc_insecure": false,
-          }
-        },
-        { "name": "flatpak_create_dockerfile",
-          "args": {
-              "base_image": "registry.fedoraproject.org/fedora:26"
-          }
-        },
-        { "name": "pull_base_image",
-          "args": {
-              "parent_registry": "registry.fedoraproject.org"
-          }
-        },
-        { "name": "inject_yum_repo",
-          "args": {}
-        }
-    ],
-    "prepublish_plugins": [
-        { "name": "flatpak_create_oci" }
-    ],
-    "postbuild_plugins": [
-        { "name": "tag_and_push",
-                "args": {
-                        "registries":
-                                { "localhost:5000":
-                                  "insecure": true
-                                }
-                        }
-        }
-    ]
-}
+ * A [MBS (module-build-service)](https://pagure.io/fm-orchestrator/) instance set up to build modules in Koji
+ * A [PDC (product definition center)](https://github.com/product-definition-center/product-definition-center) instance to store information about the built modules
+ * An [ODCS (on demand compose service)](https://pagure.io/odcs/) instance to create repositories for the build modules
 
-```
+A modified version of osbs-box for testing Flatpak building can be found at:
 
-### Dependencies
+  https://github.com/owtaylor/osbs-box
 
-To build flatpaks that actually run currently requires:
-
-* A version of the docker registry [modified to support OCI Images](https://github.com/docker/distribution/pull/2076)
-* A version of Skopeo modified to [support pushing OCI images to the docker registry without conversion](https://github.com/projectatomic/skopeo/issues/369)
-
-These are mock'ed for 'make test' - 'make test' only requires binaries that are part of Fedora 26.
-
-### compose URL
-
-Modules build in Fedora koji are currently not built into yum repositories, though this is [planned](https://pagure.io/odcs). To build a Flatpak against a module thus requires you to manually build a yum repository ([flatpak-module-tools] (https://pagure.io/flatpak-module-tools) contains `flatpak-module compose`), put it somewhere publically accessible by HTTP, and provide it as the `compose_url` argument to the `flatpak_create_dockerfile` plugin.
+It sets up everything other than the MBS instance, and contains scripts to create fake module builds for an [example runtime](https://github.com/owtaylor/minimal-runtime), and an [example application](https://github.com/owtaylor/banner).
 
 ### container.yaml
 
-Building a flatpak requires additional information to be added to the container.yaml file. The necessary additions for a runtime and for a application are somewhat different.
+To build a flatpak, you need a `container.yaml`. The `compose` section, should have:
+
+``` yaml
+compose:
+    modules:
+    - MODULE_NAME:MODULE_STREAM[/PROFILE]
+```
+
+where `PROFILE` defaults to `runtime` for runtimes and `default` for applications. Specifying a
+different profile is useful to build additional runtimes from the same module content - for
+example, building both a normal runtime and an SDK.
+
+The `flatpak` section of container.yaml contains extra information needed to create the flatpak:
+
+**id**: (required) The ID of the application or runtime
+
+**branch**: (required) The branch of the application or runtime. In many cases, this will match the stream name of the module.
+
+**cleanup-commands**: (optional, runtime only). A shell script that is run after installing all packages.
+
+**command**: (optional, application only). The name of the executable to run to start the application. If not specified, defaults to the first executable found in /usr/bin.
+
+**tags**: (optional, application only). Tags to add to the Flatpak metadata for searching.
+
+**finish-args**: (optional, application only). Arguments to `flatpak build-finish`. (see the flatpak-build-finish man page.) This is a string split on whitespace with shell style quoting.
+
+### container.yaml examples
 
 Runtime:
 
 ```yaml
 compose:
     modules:
-    - flatpak-runtime:f28
+    - flatpak-runtime:f28/runtime
 flatpak:
-    runtime: org.fedoraproject.Platform
-    runtime-version: f28
-    sdk: org.fedoraproject.Sdk
-    cleanup-commands: >
+    id: org.fedoraproject.Platform
+    branch: f28
+    cleanup-commands: |
         touch -d @0 /usr/share/fonts
         touch -d @0 /usr/share/fonts/*
         fc-cache -fs
@@ -94,8 +67,7 @@ compose:
     - eog:f28
 flatpak:
     id: org.gnome.eog
-    runtime: org.fedoraproject.Platform
-    runtime-version: 28
+    branch: stable
     command: eog
     tags: ["Viewer"]
     finish-args: >
