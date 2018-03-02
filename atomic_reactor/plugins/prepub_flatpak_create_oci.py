@@ -300,46 +300,16 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
 
         return components
 
-    def _identify_app_source_modules(self):
-        modules = self.source.compose.modules
-        base_module = self.source.compose.base_module
-
-        # Identify the module for the Flatpak runtime that this app runs against
-        runtime_module = None
-        for key in base_module.mmd.buildrequires.keys():
-            try:
-                module = modules[key]
-                if 'runtime' in module.mmd.profiles:
-                    runtime_module = module
-                    break
-            except KeyError:
-                pass
-
-        if runtime_module is None:
-            raise RuntimeError("Failed to identify runtime module in the buildrequires for {}"
-                               .format(base_module.name))
-
-        # Identify all modules that were build against the Flatpak runtime,
-        # and thus were built with prefix=/app. This is primarily the app module
-        # but might contain modules shared between multiple flatpaks as well.
-        app_modules = [m for m in modules.values() if runtime_module.name in m.mmd.buildrequires]
-
-        assert base_module in app_modules
-
-        return runtime_module, app_modules
-
     def _check_app_manifest(self, components):
         # For an application, we want to make sure that each RPM that was installed
         # into the filesystem is *either* an RPM that is part of the 'runtime'
         # profile of the base runtime, or from a module that was built with
         # flatpak-rpm-macros in the install root and, thus, prefix=/app.
 
-        runtime_module, app_modules = self._identify_app_source_modules()
-
         app_components = []
         stray_components = []
 
-        runtime_rpms = runtime_module.mmd.profiles['runtime'].rpms
+        runtime_rpms = self.source.runtime_module.mmd.profiles['runtime'].rpms
         for component in components:
             # Is it from the runtime?
             if component['name'] in runtime_rpms:
@@ -356,7 +326,7 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
                     "{name}-0:{version}-{release}.{arch}.rpm".format(**component)
 
             found_in_app = False
-            for app_module in app_modules:
+            for app_module in self.source.app_modules:
                 if component_filename in app_module.rpms:
                     found_in_app = True
                     break
@@ -427,7 +397,8 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         return runtime_ref
 
     def _find_runtime_info(self):
-        runtime_module, _ = self._identify_app_source_modules()
+        runtime_module = self.source.runtime_module
+
         runtime_id = runtime_module.mmd.xmd['flatpak']['runtimes']['runtime']['id']
         sdk_id = runtime_module.mmd.xmd['flatpak']['runtimes']['runtime'].get('sdk', runtime_id)
         runtime_version = runtime_module.mmd.xmd['flatpak']['branch']

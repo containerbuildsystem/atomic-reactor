@@ -114,4 +114,13 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker, config_name, breakage)
         runner.run()
 
         assert os.path.exists(workflow.builder.df_path)
+
+        includepkgs_path = os.path.join(workflow.builder.df_dir, 'atomic-reactor-includepkgs')
+        assert os.path.exists(includepkgs_path)
+        with open(includepkgs_path) as f:
+            includepkgs = f.read()
+            assert 'librsvg2' in includepkgs
+            if config_name == 'app':
+                assert 'eog-0:3.24.1-1.module_7b96ed10.x86_64' in includepkgs
+
         assert os.path.exists(os.path.join(workflow.builder.df_dir, 'cleanup.sh'))
