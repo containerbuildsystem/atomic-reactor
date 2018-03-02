@@ -168,6 +168,8 @@ class TestSendMailPlugin(object):
         p = SendMailPlugin(None, WF(), **kwargs)
         assert p._should_send(rebuild, success, auto_canceled, manual_canceled) == expected
 
+    @pytest.mark.parametrize('success', (True, False))
+    @pytest.mark.parametrize('koji_integration', (True, False))
     @pytest.mark.parametrize(('autorebuild', 'auto_cancel', 'manual_cancel',
                               'to_koji_submitter', 'has_koji_logs'), [
         (True, False, False, True, True),
@@ -195,10 +197,9 @@ class TestSendMailPlugin(object):
         (False, True, False, False, False),
         (False, False, True, False, False),
     ])
-    def test_render_mail(self, monkeypatch, autorebuild, auto_cancel, manual_cancel,
-                         to_koji_submitter, has_koji_logs):
-        # just test a random combination of the method inputs and hope it's ok for other
-        #   combinations
+    def test_render_mail(self, monkeypatch, autorebuild, auto_cancel,
+                         manual_cancel, to_koji_submitter, has_koji_logs,
+                         koji_integration, success):
         class TagConf(object):
             unique_images = []
 
@@ -243,7 +244,7 @@ class TestSendMailPlugin(object):
             'from_address': 'foo@bar.com',
             'to_koji_submitter': to_koji_submitter,
             'to_koji_pkgowner': False,
-            'koji_hub': '',
+            'koji_hub': '/' if koji_integration else None,
             'koji_root': 'https://koji/',
             'koji_proxyuser': None,
             'koji_ssl_certs_dir': '/certs',
@@ -251,25 +252,28 @@ class TestSendMailPlugin(object):
             'koji_krb_keytab': None
         }
         p = SendMailPlugin(None, WF(), **kwargs)
-        assert p.koji_root == 'https://koji'
-        subject, body, fail_logs = p._render_mail(autorebuild, False, auto_cancel, manual_cancel)
-
-        # full logs are only generated on a failed autorebuild
-        if not autorebuild or auto_cancel or manual_cancel:
-            assert not fail_logs
-        else:
-            assert fail_logs
 
         # Submitter is updated in _get_receivers_list
         try:
             p._get_receivers_list()
-        except Exception:
-            pass
+        except RuntimeError as ex:
+            # Only valid exception is a RuntimeError when there are no
+            # recipients available
+            assert str(ex) == 'No recipients found'
 
-        if to_koji_submitter:
-            subject, body, _ = p._render_mail(autorebuild, False, auto_cancel, manual_cancel)
+        subject, body, logs = p._render_mail(autorebuild, success,
+                                             auto_cancel, manual_cancel)
 
-        status = 'Canceled' if auto_cancel or manual_cancel else 'Failed'
+        if auto_cancel or manual_cancel:
+            status = 'Canceled'
+            assert not logs
+        elif success:
+            status = 'Succeeded'
+            assert not logs
+        else:
+            status = 'Failed'
+            # Full logs are only generated on a failed autorebuild
+            assert autorebuild == bool(logs)
 
         exp_subject = '%s building image foo/bar:baz' % status
         exp_body = [
@@ -280,7 +284,7 @@ class TestSendMailPlugin(object):
         ]
         if autorebuild:
             exp_body[2] += '<autorebuild>'
-        elif to_koji_submitter:
+        elif koji_integration and to_koji_submitter:
             exp_body[2] += MOCK_KOJI_SUBMITTER_EMAIL
         else:
             exp_body[2] += SendMailPlugin.DEFAULT_SUBMITTER
@@ -292,10 +296,6 @@ class TestSendMailPlugin(object):
 
         assert subject == exp_subject
         assert body == '\n'.join(exp_body)
-
-        subject, body, success_logs = p._render_mail(autorebuild, True, auto_cancel, manual_cancel)
-        # full logs are never generated on success
-        assert not success_logs
 
     @pytest.mark.parametrize('error_type', [
         TypeError,
@@ -340,7 +340,7 @@ class TestSendMailPlugin(object):
             'from_address': 'foo@bar.com',
             'to_koji_submitter': True,
             'to_koji_pkgowner': False,
-            'koji_hub': '',
+            'koji_hub': '/',
             'koji_root': 'https://koji/',
             'koji_proxyuser': None,
             'koji_ssl_certs_dir': '/certs',
@@ -413,7 +413,7 @@ class TestSendMailPlugin(object):
             kwargs['additional_addresses'] = [MOCK_ADDITIONAL_EMAIL]
 
         if has_koji_config:
-            kwargs['koji_hub'] = ''
+            kwargs['koji_hub'] = '/'
             kwargs['koji_proxyuser'] = None
             kwargs['koji_ssl_certs_dir'] = '/certs'
             kwargs['koji_krb_principal'] = None
@@ -463,7 +463,7 @@ class TestSendMailPlugin(object):
             'to_koji_submitter': True,
             'to_koji_pkgowner': True,
             'email_domain': MOCK_EMAIL_DOMAIN,
-            'koji_hub': '',
+            'koji_hub': '/',
             'koji_proxyuser': None,
             'koji_ssl_certs_dir': '/certs',
             'koji_krb_principal': None,
@@ -540,7 +540,7 @@ class TestSendMailPlugin(object):
             'from_address': 'foo@bar.com',
             'to_koji_submitter': True,
             'to_koji_pkgowner': True,
-            'koji_hub': '',
+            'koji_hub': '/',
             'koji_proxyuser': None,
             'koji_ssl_certs_dir': '/certs',
             'koji_krb_principal': None,

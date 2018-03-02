@@ -144,13 +144,14 @@ class SendMailPlugin(ExitPlugin):
         else:
             self.log.info("Koji build ID: %s", self.koji_build_id)
 
-        try:
-            self.session = create_koji_session(self.koji_hub, self.koji_auth_info)
-        except Exception:
-            self.log.exception("Failed to connect to koji")
-            self.session = None
-        else:
-            self.log.info("Koji connection established")
+        self.session = None
+        if self.koji_hub:
+            try:
+                self.session = create_koji_session(self.koji_hub, self.koji_auth_info)
+            except Exception:
+                self.log.exception("Failed to connect to koji")
+            else:
+                self.log.info("Koji connection established")
 
     def _fetch_log_files(self):
         try:
@@ -322,7 +323,7 @@ class SendMailPlugin(ExitPlugin):
         receivers_list = [x for x in receivers_list if x]
 
         if not receivers_list:
-            raise RuntimeError("No recepients found")
+            raise RuntimeError("No recipients found")
 
         return receivers_list
 
