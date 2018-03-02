@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015, 2018 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -193,8 +193,13 @@ class SendMailPlugin(ExitPlugin):
             'Image: %(image)s',
             'Status: %(endstate)s',
             'Submitted by: %(user)s',
-            'Logs: %(logs)s',
         ])
+
+        # Failed autorebuilds include logs as attachments.
+        # Koji integration stores logs in successful Koji Builds.
+        # Don't include logs in these cases.
+        if not ((rebuild and not success) or (self.session and success)):
+            body_template += '\nLogs: %(logs)s'
 
         endstate = None
         if auto_canceled or manual_canceled:
