@@ -633,11 +633,8 @@ class MockInspector(object):
                     reason="modulemd not available")
 @pytest.mark.parametrize('config_name, breakage', [
     ('app', None),
-    ('app', 'stray_component'),
     ('app', 'no_runtime'),
     ('runtime', None),
-    ('runtime', 'stray_component'),
-    ('runtime', 'missing_component'),
     ('sdk', None)
 ])
 @pytest.mark.parametrize('mock_flatpak', (False, True))
@@ -697,20 +694,7 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
         if mode is not None:
             os.chmod(fullpath, int(mode, 8))
 
-    if breakage == 'stray_component':
-        fullpath = os.path.join(filesystem_dir, 'var/tmp/flatpak-build.rpm_qf')
-        with open(fullpath, 'a') as f:
-            f.write("bad-rpm;1.2.3;1.fc26;x86_64;0;42;sigmd5;0;42;1491914281;sigpgp;siggpg\n")
-        expected_exception = 'bad-rpm'
-    elif breakage == 'missing_component':
-        fullpath = os.path.join(filesystem_dir, 'var/tmp/flatpak-build.rpm_qf')
-        with open(fullpath, 'r') as f:
-            with open(fullpath + '.tmp', 'w') as g:
-                f.readline()
-                g.write(f.read())
-        os.rename(fullpath + '.tmp', fullpath)
-        expected_exception = 'Installed set of packages does not match runtime profile'
-    elif breakage == 'no_runtime':
+    if breakage == 'no_runtime':
         mmd = ModuleMetadata()
 
         # Copy the parts of the config we are going to change
