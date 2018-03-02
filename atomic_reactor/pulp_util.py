@@ -176,6 +176,12 @@ class PulpHandler(object):
     def copy(self, repo_id, layer):
         self.p.copy(repo_id, layer)
 
+    def copy_v1_layers(self, repo_id, layers):
+        pulp_filter = {'unit': {
+            '$or': [{'image_id': layer} for layer in layers]
+        }}
+        self.p.copy_filters(repo_id, filters=pulp_filter, v1=True, v2=False)
+
     def update_repo(self, repo_id, tag):
         self.p.updateRepo(repo_id, tag)
 
