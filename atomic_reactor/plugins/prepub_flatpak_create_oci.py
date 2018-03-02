@@ -276,72 +276,10 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
 
         return parse_rpm_output(lines)
 
-    def _check_runtime_manifest(self, components):
-        # For a runtime, we want to make sure that the set of RPMs that was installed
-        # into the filesystem is *exactly* the set that is listed in the runtime
-        # profile. Requiring the full listed set of RPMs to be listed makes it
-        # easier to catch unintentional changes in the package list that might break
-        # applications depending on the runtime. It also simplifies the checking we
-        # do for application flatpaks, since we can simply look at the runtime
-        # modulemd to find out what packages are present in the runtime.
-
-        base_module = self.source.compose.base_module
-
-        component_names = {c['name'] for c in components}
-        expected_component_names = set(base_module.mmd.profiles[self.source.profile].rpms)
-
-        if component_names != expected_component_names:
-            missing = expected_component_names - component_names
-            extra = component_names - expected_component_names
-            raise RuntimeError("Installed set of packages does not match runtime profile:\n"
-                               "\tmissing: {}\n\textra: {}"
-                               .format(" ".join(sorted(missing)),
-                                       " ".join(sorted(extra))))
-
-        return components
-
-    def _check_app_manifest(self, components):
-        # For an application, we want to make sure that each RPM that was installed
-        # into the filesystem is *either* an RPM that is part of the 'runtime'
-        # profile of the base runtime, or from a module that was built with
-        # flatpak-rpm-macros in the install root and, thus, prefix=/app.
-
-        app_components = []
-        stray_components = []
-
+    def _filter_app_manifest(self, components):
         runtime_rpms = self.source.runtime_module.mmd.profiles['runtime'].rpms
-        for component in components:
-            # Is it from the runtime?
-            if component['name'] in runtime_rpms:
-                continue
 
-            # If it's not from the runtime, check that the specific package
-            # version was built in one of the app modules
-            if component['epoch'] is not None:
-                component_filename = \
-                    "{name}-{epoch}:{version}-{release}.{arch}.rpm".format(**component)
-            else:
-                # The PDC data has the misapprehension that epoch 0 is the same as no epoch
-                component_filename = \
-                    "{name}-0:{version}-{release}.{arch}.rpm".format(**component)
-
-            found_in_app = False
-            for app_module in self.source.app_modules:
-                if component_filename in app_module.rpms:
-                    found_in_app = True
-                    break
-
-            if found_in_app:
-                app_components.append(component)
-                continue
-
-            stray_components.append(component_filename)
-
-        if len(stray_components) > 0:
-            raise RuntimeError("Found installed packages not from the runtime or application: {}"
-                               .format(" ".join(stray_components)))
-
-        return app_components
+        return [c for c in components if c['name'] not in runtime_rpms]
 
     def _create_runtime_oci(self, tarred_filesystem, outfile):
         info = self.source.flatpak_yaml
@@ -457,9 +395,9 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
 
         all_components = self._get_components(manifest)
         if self.source.runtime:
-            image_components = self._check_runtime_manifest(all_components)
+            image_components = all_components
         else:
-            image_components = self._check_app_manifest(all_components)
+            image_components = self._filter_app_manifest(all_components)
 
         self.log.info("Components:\n%s",
                       "\n".join("        {name}-{epoch}:{version}-{release}.{arch}.rpm"
