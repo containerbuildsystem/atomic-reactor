@@ -35,7 +35,9 @@ LABEL com.redhat.component="{name}"
 LABEL version="{stream}"
 LABEL release="{version}"
 
-RUN dnf -y --nogpgcheck \\
+ADD atomic-reactor-includepkgs /tmp/
+RUN cat /tmp/atomic-reactor-includepkgs >> /etc/dnf/dnf.conf && \\
+    dnf -y --nogpgcheck \\
     --disablerepo=* \\
     --enablerepo=atomic-reactor-koji-plugin-* \\
     --enablerepo=atomic-reactor-module-* \\
@@ -65,6 +67,33 @@ class FlatpakSourceInfo(object):
             self.profile = 'default'
 
         assert self.profile in mmd.profiles
+
+    # The module for the Flatpak runtime that this app runs against
+    @property
+    def runtime_module(self):
+        assert not self.runtime
+        compose = self.compose
+
+        for key in compose.base_module.mmd.buildrequires.keys():
+            try:
+                module = compose.modules[key]
+                if 'runtime' in module.mmd.profiles:
+                    return module
+            except KeyError:
+                pass
+
+        raise RuntimeError("Failed to identify runtime module in the buildrequires for {}"
+                           .format(compose.base_module.name))
+
+    # All modules that were build against the Flatpak runtime,
+    # and thus were built with prefix=/app. This is primarily the app module
+    # but might contain modules shared between multiple flatpaks as well.
+    @property
+    def app_modules(self):
+        runtime_module = self.runtime_module
+
+        return [m for m in self.compose.modules.values()
+                if runtime_module.name in m.mmd.buildrequires]
 
     def koji_metadata(self):
         metadata = self.compose.koji_metadata()
@@ -168,6 +197,44 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
                                                 rpm_qf_args=rpm_qf_args()))
 
         self.workflow.builder.set_df_path(df_path)
+
+        # For a runtime, we want to make sure that the set of RPMs that is installed
+        # into the filesystem is *exactly* the set that is listed in the runtime
+        # profile. Requiring the full listed set of RPMs to be listed makes it
+        # easier to catch unintentional changes in the package list that might break
+        # applications depending on the runtime. It also simplifies the checking we
+        # do for application flatpaks, since we can simply look at the runtime
+        # modulemd to find out what packages are present in the runtime.
+        #
+        # For an application, we want to make sure that each RPM that is installed
+        # into the filesystem is *either* an RPM that is part of the 'runtime'
+        # profile of the base runtime, or from a module that was built with
+        # flatpak-rpm-macros in the install root and, thus, prefix=/app.
+        #
+        # We achieve this by restricting the set of available packages in the dnf
+        # configuration to just the ones that we want.
+        #
+        # The advantage of doing this upfront, rather than just checking after the
+        # fact is that this makes sure that when a application is being installed,
+        # we don't get a different package to satisfy a dependency than the one
+        # in the runtime - e.g. aajohan-comfortaa-fonts to satisfy font(:lang=en)
+        # because it's alphabetically first.
+
+        if not source.runtime:
+            runtime_module = source.runtime_module
+            available_packages = sorted(runtime_module.mmd.profiles['runtime'].rpms)
+
+            for m in source.app_modules:
+                # Strip off the '.rpm' suffix from the filename to get something
+                # that DNF can parse.
+                available_packages.extend(x[:-4] for x in m.rpms)
+        else:
+            base_module = source.compose.base_module
+            available_packages = sorted(base_module.mmd.profiles['runtime'].rpms)
+
+        includepkgs_path = os.path.join(self.workflow.builder.df_dir, 'atomic-reactor-includepkgs')
+        with open(includepkgs_path, 'w') as f:
+            f.write('includepkgs = ' + ','.join(available_packages) + '\n')
 
         # Create the cleanup script
 
