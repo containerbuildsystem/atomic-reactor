@@ -200,6 +200,18 @@ class TestSendMailPlugin(object):
     def test_render_mail(self, monkeypatch, autorebuild, auto_cancel,
                          manual_cancel, to_koji_submitter, has_koji_logs,
                          koji_integration, success):
+        log_url_cases = {
+            # (koji_integration,autorebuild,success)
+            (False, False, False): True,
+            (False, False, True): True,
+            (False, True, False): False,  # Included as attachment
+            (False, True, True): True,
+            (True, False, False): True,
+            (True, False, True): False,   # Logs in Koji Build
+            (True, True, False): False,   # Included as attachment
+            (True, True, True): False,    # Logs in Koji Build
+        }
+
         class TagConf(object):
             unique_images = []
 
@@ -280,7 +292,6 @@ class TestSendMailPlugin(object):
             'Image: foo/bar:baz',
             'Status: ' + status,
             'Submitted by: ',
-            'Logs: '
         ]
         if autorebuild:
             exp_body[2] += '<autorebuild>'
@@ -289,10 +300,12 @@ class TestSendMailPlugin(object):
         else:
             exp_body[2] += SendMailPlugin.DEFAULT_SUBMITTER
 
-        if has_koji_logs:
-            exp_body[3] += "https://koji/work/tasks/12345"
-        else:
-            exp_body[3] += "https://something.com/builds/blablabla/log"
+        if log_url_cases[(koji_integration, autorebuild, success)]:
+            if has_koji_logs:
+                exp_body.append("Logs: https://koji/work/tasks/12345")
+            else:
+                exp_body.append("Logs: "
+                                "https://something.com/builds/blablabla/log")
 
         assert subject == exp_subject
         assert body == '\n'.join(exp_body)
