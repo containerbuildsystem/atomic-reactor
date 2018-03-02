@@ -147,8 +147,7 @@ class PulpPushPlugin(PostBuildPlugin):
                 self.pulp_handler.upload(filename)
 
         for repo_id, pulp_repo in pulp_repos.items():
-            for layer in layers:
-                self.pulp_handler.copy(repo_id, layer)
+            self.pulp_handler.copy_v1_layers(repo_id, layers)
             self.pulp_handler.update_repo(repo_id, {"tag": "%s:%s" % (",".join(pulp_repo.tags),
                                                                       top_layer)})
 
