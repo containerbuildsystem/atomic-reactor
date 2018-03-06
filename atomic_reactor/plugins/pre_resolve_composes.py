@@ -7,6 +7,10 @@ of the BSD license. See the LICENSE file for details.
 """
 from __future__ import unicode_literals
 
+from datetime import datetime, timedelta
+import os
+import yaml
+
 from atomic_reactor.constants import (PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
                                       REPO_CONTAINER_CONFIG)
 
@@ -15,7 +19,6 @@ from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.pre_reactor_config import get_config
-from datetime import datetime, timedelta
 
 try:
     from atomic_reactor.koji_util import create_koji_session
@@ -23,9 +26,6 @@ except ImportError:
     # koji module is only required in some cases.
     def create_koji_session(*args, **kwargs):
         raise RuntimeError('Missing koji module')
-
-import os
-import yaml
 
 
 ODCS_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
@@ -177,7 +177,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
 
         current_signing_intent = self.compose_config.signing_intent
 
-        # Calculate the least restrictive signinig intent
+        # Calculate the least restrictive signing intent
         new_signing_intent = min(self._parent_signing_intent, current_signing_intent,
                                  key=lambda x: x['restrictiveness'])
 
@@ -240,7 +240,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
         if self._parent_signing_intent:
             all_signing_intents.append(self._parent_signing_intent)
 
-        # Calculate the least restrictive signinig intent
+        # Calculate the least restrictive signing intent
         signing_intent = min(all_signing_intents, key=lambda x: x['restrictiveness'])
 
         self.log.info('Signing intent for build is %s', signing_intent['name'])
@@ -325,14 +325,14 @@ class ComposeConfig(object):
             'source_type': 'tag',
             'source': self.koji_tag,
             'packages': self.packages,
-            'sigkeys': self.signing_intent['keys']
+            'sigkeys': self.signing_intent['keys'],
         }
 
     def render_modules_request(self):
         return {
             'source_type': 'module',
             'source': ' '.join(self.modules),
-            'sigkeys': self.signing_intent['keys']
+            'sigkeys': self.signing_intent['keys'],
         }
 
     def validate_for_request(self):
