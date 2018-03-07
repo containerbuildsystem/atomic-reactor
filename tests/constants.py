@@ -114,6 +114,7 @@ openshift:
         enable: True
         ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
     insecure: True
+    build_json_dir: /usr/share/osbs/
 
 group_manifests: False
 
@@ -146,8 +147,6 @@ required_secrets:
 worker_token_secrets:
 - x86-64-worker-1
 - x86-64-worker-2
-
-build_json_dir: /usr/share/osbs/
 
 prefer_schema1_digest: True
 

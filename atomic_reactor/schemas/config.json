@@ -313,6 +313,10 @@
                 "description": "Don't check SSL certificate for url",
                 "type": "boolean"
             },
+            "build_json_dir": {
+                "description": "Path to directory containing Json files templates for osbs-client lib",
+                "type": "string"
+            },
             "auth": {
                 "description": "Authentication information",
                 "type": "object",
@@ -464,10 +468,6 @@
         "items": {
             "type": "string"
         }
-    },
-    "build_json_dir": {
-        "description": "Path to directory containing Json files templates for osbs-client lib",
-        "type": "string"
     }
   },
   "definitions": {

@@ -393,7 +393,7 @@ class TestReactorConfigPlugin(object):
         'artifacts_allowed_domains', 'image_labels', 'image_equal_labels',
         'openshift', 'group_manifests', 'platform_descriptors', 'prefer_schema1_digest',
         'content_versions', 'registries', 'yum_proxy', 'source_registry', 'sources_command',
-        'required_secrets', 'worker_token_secrets', 'build_json_dir', 'clusters',
+        'required_secrets', 'worker_token_secrets', 'clusters',
     ])
     def test_get_methods(self, fallback, method):
         tasker, workflow = self.prepare()
@@ -1004,7 +1004,8 @@ class TestReactorConfigPlugin(object):
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
         if build_json_dir:
-            config += "  build_json_dir: " + build_json_dir
+            config += "      build_json_dir: " + build_json_dir
+
         if raise_error:
             with pytest.raises(Exception):
                 read_yaml(config, 'schemas/config.json')
@@ -1037,12 +1038,10 @@ class TestReactorConfigPlugin(object):
             auth_info['use_auth'] = config_json['openshift']['auth'].get('enable', False)
 
         fallback_map = {}
-        fallback_build_json = None
         if fallback:
-            fallback_build_json = build_json_dir
-
             fallback_map = {'url': config_json['openshift']['url'],
-                            'insecure': config_json['openshift'].get('insecure', False)}
+                            'insecure': config_json['openshift'].get('insecure', False),
+                            'build_json_dir': build_json_dir}
             if config_json['openshift'].get('auth'):
                 fallback_map['auth'] = {}
                 fallback_map['auth']['krb_keytab_path'] =\
@@ -1069,4 +1068,4 @@ class TestReactorConfigPlugin(object):
             .once())
         flexmock(os, environ={'BUILD': '{"metadata": {"namespace": "namespace"}}'})
 
-        get_openshift_session(workflow, fallback_map, fallback_build_json)
+        get_openshift_session(workflow, fallback_map)
