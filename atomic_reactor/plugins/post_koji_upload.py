@@ -121,17 +121,16 @@ class KojiUploadPlugin(PostBuildPlugin):
         self.openshift_fallback = {
             'url': url,
             'insecure': not verify_ssl,
-            'auth': {'enable': use_auth}
+            'auth': {'enable': use_auth},
+            'build_json_dir': build_json_dir
         }
 
         self.blocksize = blocksize
-        self.build_json_dir = build_json_dir
         self.koji_upload_dir = koji_upload_dir
         self.prefer_schema1_digest = get_prefer_schema1_digest(self.workflow, prefer_schema1_digest)
         self.report_multiple_digests = report_multiple_digests
 
-        self.osbs = get_openshift_session(self.workflow, self.openshift_fallback,
-                                          build_json_dir_fallback=self.build_json_dir)
+        self.osbs = get_openshift_session(self.workflow, self.openshift_fallback)
         self.build_id = None
         self.pullspec_image = None
         self.platform = platform

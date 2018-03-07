@@ -159,7 +159,7 @@ def get_openshift(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'openshift', fallback)
 
 
-def get_openshift_session(workflow, fallback, build_json_dir_fallback=None):
+def get_openshift_session(workflow, fallback):
     config = get_openshift(workflow, fallback)
     namespace = get_build_json().get('metadata', {}).get('namespace', None)
 
@@ -172,8 +172,8 @@ def get_openshift_session(workflow, fallback, build_json_dir_fallback=None):
         'use_auth': False,
         'conf_file': None,
         'openshift_url': config['url'],
+        'build_json_dir': config.get('build_json_dir')
     }
-    config_kwargs['build_json_dir'] = get_build_json_dir(workflow, build_json_dir_fallback)
 
     if config.get('auth'):
         krb_keytab_path = config['auth'].get('krb_keytab_path')
@@ -261,10 +261,6 @@ def get_required_secrets(workflow, fallback=NO_FALLBACK):
 
 def get_worker_token_secrets(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'worker_token_secrets', fallback)
-
-
-def get_build_json_dir(workflow, fallback=NO_FALLBACK):
-    return get_value(workflow, 'build_json_dir', fallback)
 
 
 def get_clusters(workflow, fallback=NO_FALLBACK):

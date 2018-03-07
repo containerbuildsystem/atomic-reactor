@@ -118,11 +118,11 @@ def prepare(insecure_registry=None, namespace=None, primary_images_tag_conf=DEFA
             'url': '/',
             'auth': {'enable': False},
             'insecure': True,
+            'build_json_dir': '/var/json_dir',
         }
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1, 'openshift': openshift_map,
-                                  'build_json_dir': "/var/json_dir"})
+            mocked_reactorconfig({'version': 1, 'openshift': openshift_map})
     return runner
 
 

@@ -52,9 +52,9 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
         self.openshift_fallback = {
             'url': url,
             'insecure': not verify_ssl,
-            'auth': {'enable': use_auth}
+            'auth': {'enable': use_auth},
+            'build_json_dir': build_json_dir
         }
-        self.build_json_dir = build_json_dir
         self.insecure_registry = insecure_registry
 
         self.osbs = None
@@ -66,8 +66,7 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
             self.log.info("Not importing failed build")
             return
 
-        self.osbs = get_openshift_session(self.workflow, self.openshift_fallback,
-                                          build_json_dir_fallback=self.build_json_dir)
+        self.osbs = get_openshift_session(self.workflow, self.openshift_fallback)
         self.get_or_create_imagestream()
         self.process_tags()
         self.osbs.import_image(self.imagestream_name)

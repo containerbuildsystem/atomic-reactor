@@ -353,8 +353,7 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
     }
     full_conf = {
         'version': 1,
-        'build_json_dir': '',
-        'openshift': {'url': '/'},
+        'openshift': {'url': '/', 'build_json_dir': ''},
     }
     koji_map = {
         'hub_url': '',
