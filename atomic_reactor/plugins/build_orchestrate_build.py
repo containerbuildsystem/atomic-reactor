@@ -275,6 +275,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         self.adjust_build_kwargs()
         self.adjust_config_kwargs()
+        self.reactor_config = get_config(self.workflow)
 
         self.find_cluster_retry_delay = find_cluster_retry_delay
         self.failure_retry_delay = failure_retry_delay
@@ -420,6 +421,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
     def get_cluster_info(self, cluster, platform):
         kwargs = deepcopy(self.config_kwargs)
+        if not self.reactor_config.is_default():
+            kwargs['reactor_config_override'] = self.reactor_config.conf
         kwargs['conf_section'] = cluster.name
         if self.osbs_client_config:
             kwargs['conf_file'] = os.path.join(self.osbs_client_config, 'osbs.conf')
@@ -590,8 +593,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     def select_and_start_cluster(self, platform):
         ''' Choose a cluster and start a build on it '''
 
-        config = get_config(self.workflow)
-        clusters = config.get_enabled_clusters_for_platform(platform)
+        clusters = self.reactor_config.get_enabled_clusters_for_platform(platform)
 
         if not clusters:
             raise UnknownPlatformException('No clusters found for platform {}!'

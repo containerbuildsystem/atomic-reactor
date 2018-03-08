@@ -34,10 +34,10 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_fetch_maven_artifacts import FetchMavenArtifactsPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.util import ImageName
 from tests.constants import MOCK_SOURCE, MOCK
-from tests.util import mocked_reactorconfig
 from tests.fixtures import docker_tasker, reactor_config_map  # noqa
 from textwrap import dedent
 
@@ -374,7 +374,7 @@ def make_and_store_reactor_config_map(workflow, additional=None):
         reactor_map.update(additional)
 
     workflow.plugin_workspace[ReactorConfigPlugin.key] = {
-        WORKSPACE_CONF_KEY: mocked_reactorconfig(reactor_map)
+        WORKSPACE_CONF_KEY: ReactorConfig(reactor_map)
     }
 
 

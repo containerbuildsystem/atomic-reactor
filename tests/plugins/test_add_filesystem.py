@@ -36,14 +36,14 @@ from atomic_reactor.plugin import (
     PreBuildPluginsRunner, PluginFailedException, BuildCanceledException)
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY
 from atomic_reactor import koji_util, util
 from tests.constants import (MOCK_SOURCE, DOCKERFILE_GIT, DOCKERFILE_SHA1,
                              MOCK, IMPORTED_IMAGE_ID)
-from tests.util import mocked_reactorconfig
 from tests.fixtures import docker_tasker, reactor_config_map  # noqa
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -217,7 +217,7 @@ def make_and_store_reactor_config_map(workflow, additional_koji=None):
         reactor_map['koji'].update(additional_koji)
 
     workflow.plugin_workspace[ReactorConfigPlugin.key] = {
-        WORKSPACE_CONF_KEY: mocked_reactorconfig(reactor_map)
+        WORKSPACE_CONF_KEY: ReactorConfig(reactor_map)
     }
 
 

@@ -30,7 +30,6 @@ from osbs.conf import Configuration
 from osbs.build.build_response import BuildResponse
 from osbs.exceptions import OsbsException
 from tests.constants import MOCK_SOURCE, TEST_IMAGE, INPUT_IMAGE, SOURCE
-from tests.util import mocked_reactorconfig
 from tests.fixtures import reactor_config_map  # noqa
 from tests.docker_mock import mock_docker
 from textwrap import dedent
@@ -105,8 +104,8 @@ def mock_workflow(tmpdir):
     return workflow
 
 
-def mock_reactor_config(tmpdir, clusters=None):
-    if not clusters:
+def mock_reactor_config(tmpdir, clusters=None, empty=False):
+    if not clusters and not empty:
         clusters = {
             'x86_64': [
                 {
@@ -314,12 +313,12 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
 
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig(reactor_dict)
+            ReactorConfig(reactor_dict)
     else:
         reactor_dict = {'version': 1, 'clusters': clusters}
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig(reactor_dict)
+            ReactorConfig(reactor_dict)
 
         expected_kwargs['smtp_host'] = None
         expected_kwargs['odcs_insecure'] = None
@@ -364,6 +363,7 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
     if config_kwargs is not None:
         expected_kwargs.update(config_kwargs)
     expected_kwargs['build_image'] = 'some_image:latest'
+    expected_kwargs['reactor_config_override'] = reactor_dict
 
     (flexmock(Configuration).should_call('__init__').with_args(**expected_kwargs).once())
     build_result = runner.run()
@@ -777,10 +777,14 @@ def test_orchestrate_build_exclude_platforms(tmpdir, platforms, platform_exclude
     assert set(annotations['worker-builds'].keys()) == set(result)
 
 
-def test_orchestrate_build_unknown_platform(tmpdir):
+def test_orchestrate_build_unknown_platform(tmpdir, reactor_config_map):  # noqa
     workflow = mock_workflow(tmpdir)
     mock_osbs()
-    mock_reactor_config(tmpdir)
+    if reactor_config_map:
+        mock_reactor_config(tmpdir)
+    else:
+        mock_reactor_config(tmpdir, clusters={}, empty=True)
+
 
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
@@ -800,8 +804,15 @@ def test_orchestrate_build_unknown_platform(tmpdir):
 
     with pytest.raises(PluginFailedException) as exc:
         runner.run()
-    assert "'No clusters found for platform spam!'" in str(exc)
-
+    if reactor_config_map:
+        assert "'No clusters found for platform spam!'" in str(exc)
+    else:
+        count = 0
+        if "'No clusters found for platform x86_64!'" in str(exc):
+            count += 1
+        if "'No clusters found for platform spam!'" in str(exc):
+            count += 1
+        assert count > 0
 
 def test_orchestrate_build_failed_create(tmpdir):
     workflow = mock_workflow(tmpdir)

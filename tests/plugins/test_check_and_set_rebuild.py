@@ -15,14 +15,14 @@ from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_check_and_set_rebuild import (is_rebuild,
                                                               CheckAndSetRebuildPlugin)
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.util import ImageName
 import json
 from osbs.api import OSBS
 import osbs.conf
 from flexmock import flexmock
 from tests.constants import SOURCE, MOCK
-from tests.util import mocked_reactorconfig
 from tests.fixtures import docker_tasker, reactor_config_map  # noqa
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -64,11 +64,11 @@ class TestCheckRebuild(object):
         if reactor_config_map:
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1,
-                                      'openshift': {
-                                          'url': '',
-                                          'insecure': False,
-                                          'auth': {'enable': True}}})
+                ReactorConfig({'version': 1,
+                               'openshift': {
+                                   'url': '',
+                                   'insecure': False,
+                                   'auth': {'enable': True}}})
 
         runner = PreBuildPluginsRunner(tasker, workflow, [
             {

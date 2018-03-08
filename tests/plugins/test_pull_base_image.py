@@ -20,9 +20,9 @@ from atomic_reactor.util import ImageName, CommandResult
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from osbs.utils import RegistryURI
-from tests.util import mocked_reactorconfig
 from tests.fixtures import reactor_config_map  # noqa
 from tests.constants import MOCK, MOCK_SOURCE, LOCALHOST_REGISTRY
 
@@ -133,9 +133,9 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
     if reactor_config_map:
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1,
-                                  'source_registry': {'url': parent_registry,
-                                                      'insecure': True}})
+            ReactorConfig({'version': 1,
+                           'source_registry': {'url': parent_registry,
+                                               'insecure': True}})
 
     par_reg = None
     if parent_registry:
@@ -234,9 +234,9 @@ def test_retry_pull_base_image(exc, failures, should_succeed, reactor_config_map
     if reactor_config_map:
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1,
-                                  'source_registry': {'url': 'registry.example.com',
-                                                      'insecure': True}})
+            ReactorConfig({'version': 1,
+                           'source_registry': {'url': 'registry.example.com',
+                                               'insecure': True}})
 
     runner = PreBuildPluginsRunner(
         tasker,
@@ -292,9 +292,9 @@ def test_try_with_library_pull_base_image(library, reactor_config_map):
     if reactor_config_map:
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1,
-                                  'source_registry': {'url': 'registry.example.com',
-                                                      'insecure': True}})
+            ReactorConfig({'version': 1,
+                           'source_registry': {'url': 'registry.example.com',
+                                               'insecure': True}})
 
     runner = PreBuildPluginsRunner(
         tasker,

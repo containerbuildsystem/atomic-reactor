@@ -336,6 +336,9 @@ class ReactorConfig(object):
             odcs_config = ODCSConfig(**odcs_config_kwargs)
         return odcs_config
 
+    def is_default(self):
+        return self.conf == self.DEFAULT_CONFIG
+
 
 class ODCSConfig(object):
     """

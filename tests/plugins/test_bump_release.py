@@ -28,9 +28,9 @@ except ImportError:
 
 from atomic_reactor.plugins.pre_bump_release import BumpReleasePlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.util import df_parser
-from tests.util import mocked_reactorconfig
 from tests.fixtures import docker_tasker, reactor_config_map  # noqa
 from flexmock import flexmock
 import pytest
@@ -91,7 +91,7 @@ class TestBumpRelease(object):
         if reactor_config_map:
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'koji': koji_map})
+                ReactorConfig({'version': 1, 'koji': koji_map})
 
         plugin = BumpReleasePlugin(**kwargs)
         return plugin

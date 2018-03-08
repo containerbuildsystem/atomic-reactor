@@ -13,7 +13,8 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.constants import INSPECT_CONFIG
@@ -26,7 +27,6 @@ import pytest
 from copy import deepcopy
 from flexmock import flexmock
 from tests.constants import MOCK_SOURCE, DOCKERFILE_GIT, DOCKERFILE_SHA1, MOCK
-from tests.util import mocked_reactorconfig
 from tests.fixtures import docker_tasker, reactor_config_map  # noqa
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -151,7 +151,7 @@ def make_and_store_reactor_config_map(workflow, additional=None):
         reactor_map.update(additional)
 
     workflow.plugin_workspace[ReactorConfigPlugin.key] = {
-        WORKSPACE_CONF_KEY: mocked_reactorconfig(reactor_map)
+        WORKSPACE_CONF_KEY: ReactorConfig(reactor_map)
     }
 
 

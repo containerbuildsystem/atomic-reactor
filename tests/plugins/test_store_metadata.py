@@ -33,11 +33,12 @@ from atomic_reactor.plugins.post_pulp_pull import PulpPullPlugin
 from atomic_reactor.plugins.build_orchestrate_build import OrchestrateBuildPlugin
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.util import ImageName, LazyGit, ManifestDigest, df_parser
 import pytest
 from tests.constants import LOCALHOST_REGISTRY, DOCKER0_REGISTRY, TEST_IMAGE, INPUT_IMAGE
-from tests.util import is_string_type, mocked_reactorconfig
+from tests.util import is_string_type
 from tests.fixtures import reactor_config_map  # noqa
 
 DIGEST1 = "sha256:1da9b9e1c6bf6ab40f1627d76e2ad58e9b2be14351ef4ff1ed3eb4a156138189"
@@ -122,7 +123,7 @@ def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=Fals
         }
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1, 'openshift': openshift_map})
+            ReactorConfig({'version': 1, 'openshift': openshift_map})
 
     for name, crane_uri in pulp_registries:
         workflow.push_conf.add_pulp_registry(name, crane_uri)

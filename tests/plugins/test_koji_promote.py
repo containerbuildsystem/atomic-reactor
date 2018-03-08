@@ -38,7 +38,8 @@ from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildP
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
 from atomic_reactor.util import ImageName, ManifestDigest, get_manifest_media_type
@@ -46,7 +47,6 @@ from atomic_reactor.rpm_util import parse_rpm_output
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.build import BuildResult
 from tests.constants import SOURCE, MOCK
-from tests.util import mocked_reactorconfig
 from tests.fixtures import reactor_config_map  # noqa
 from tests.flatpak import MODULEMD_AVAILABLE, setup_flatpak_source_info
 
@@ -369,7 +369,7 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
     if reactor_config_map:
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1, 'koji': koji_map})
+            ReactorConfig({'version': 1, 'koji': koji_map})
 
     if target and tag_later:
         plugins_conf.append({'name': KojiTagBuildPlugin.key,
