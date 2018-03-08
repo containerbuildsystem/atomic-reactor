@@ -30,11 +30,11 @@ from atomic_reactor.plugins.exit_sendmail import SendMailPlugin
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor import util
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
-from tests.util import mocked_reactorconfig
 from tests.fixtures import reactor_config_map  # noqa
 from smtplib import SMTPException
 
@@ -136,7 +136,7 @@ class TestSendMailPlugin(object):
             }
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'smtp': smtp_map})
+                ReactorConfig({'version': 1, 'smtp': smtp_map})
 
         p = SendMailPlugin(None, workflow,
                            smtp_host='smtp.bar.com', from_address='foo@bar.com',
@@ -191,7 +191,7 @@ class TestSendMailPlugin(object):
             }
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'smtp': smtp_map})
+                ReactorConfig({'version': 1, 'smtp': smtp_map})
 
         p = SendMailPlugin(None, workflow, **kwargs)
         assert p._should_send(rebuild, success, auto_canceled, manual_canceled) == expected
@@ -239,6 +239,7 @@ class TestSendMailPlugin(object):
             (True, True, False): False,   # Included as attachment
             (True, True, True): False,    # Logs in Koji Build
         }
+
         class TagConf(object):
             unique_images = []
 
@@ -313,18 +314,10 @@ class TestSendMailPlugin(object):
             }
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'smtp': smtp_map, 'koji': koji_map,
-                                      'openshift': openshift_map})
+                ReactorConfig({'version': 1, 'smtp': smtp_map, 'koji': koji_map,
+                               'openshift': openshift_map})
 
         p = SendMailPlugin(None, workflow, **kwargs)
-        assert p.koji_root == 'https://koji'
-        subject, body, fail_logs = p._render_mail(autorebuild, False, auto_cancel, manual_cancel)
-
-        # full logs are only generated on a failed autorebuild
-        if not autorebuild or auto_cancel or manual_cancel:
-            assert not fail_logs
-        else:
-            assert fail_logs
 
         # Submitter is updated in _get_receivers_list
         try:
@@ -369,7 +362,6 @@ class TestSendMailPlugin(object):
                                 "https://something.com/builds/blablabla/log")
 
         assert subject == exp_subject
-
         assert body == '\n'.join(exp_body)
 
     @pytest.mark.parametrize('error_type', [
@@ -439,10 +431,10 @@ class TestSendMailPlugin(object):
             }
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1,
-                                      'openshift': {'url': 'https://something.com'},
-                                      'smtp': smtp_map,
-                                      'koji': koji_map})
+                ReactorConfig({'version': 1,
+                               'openshift': {'url': 'https://something.com'},
+                               'smtp': smtp_map,
+                               'koji': koji_map})
 
         p = SendMailPlugin(None, workflow, **kwargs)
         subject, body, fail_logs = p._render_mail(True, False, False, False)
@@ -538,14 +530,14 @@ class TestSendMailPlugin(object):
             openshift_map = {'url': 'https://something.com'}
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             full_config = {
-                'vertion': 1,
+                'version': 1,
                 'smtp': smtp_map,
                 'openshift': openshift_map,
             }
             if koji_map:
                 full_config['koji'] = koji_map
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig(full_config)
+                ReactorConfig(full_config)
 
         p = SendMailPlugin(None, workflow, **kwargs)
 
@@ -619,8 +611,8 @@ class TestSendMailPlugin(object):
             }
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'smtp': smtp_map, 'koji': koji_map,
-                                      'openshift': openshift_map})
+                ReactorConfig({'version': 1, 'smtp': smtp_map, 'koji': koji_map,
+                               'openshift': openshift_map})
 
         p = SendMailPlugin(None, workflow, **kwargs)
         receivers = p._get_receivers_list()
@@ -723,15 +715,14 @@ class TestSendMailPlugin(object):
             }
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'smtp': smtp_map, 'koji': koji_map,
-                                      'openshift': openshift_map})
+                ReactorConfig({'version': 1, 'smtp': smtp_map, 'koji': koji_map,
+                               'openshift': openshift_map})
 
+        p = SendMailPlugin(None, workflow, **kwargs)
         if not expected_receivers:
             with pytest.raises(RuntimeError):
-                p = SendMailPlugin(None, workflow, **kwargs)
                 p._get_receivers_list()
         else:
-            p = SendMailPlugin(None, workflow, **kwargs)
             receivers = p._get_receivers_list()
             assert sorted(receivers) == sorted(expected_receivers)
 
@@ -749,7 +740,7 @@ class TestSendMailPlugin(object):
             }
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'smtp': smtp_map})
+                ReactorConfig({'version': 1, 'smtp': smtp_map})
 
         p = SendMailPlugin(None, workflow, from_address='foo@bar.com', smtp_host='smtp.spam.com')
 
@@ -799,7 +790,7 @@ class TestSendMailPlugin(object):
             }
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'smtp': smtp_map})
+                ReactorConfig({'version': 1, 'smtp': smtp_map})
 
         p = SendMailPlugin(None, workflow,
                            from_address='foo@bar.com', smtp_host='smtp.spam.com',
@@ -852,7 +843,7 @@ class TestSendMailPlugin(object):
             }
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'smtp': smtp_map})
+                ReactorConfig({'version': 1, 'smtp': smtp_map})
 
         receivers = ['foo@bar.com', 'x@y.com']
         fake_logs = [LogEntry(None, 'orchestrator'),
@@ -896,7 +887,7 @@ class TestSendMailPlugin(object):
             }
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'smtp': smtp_map})
+                ReactorConfig({'version': 1, 'smtp': smtp_map})
 
         p = SendMailPlugin(None, workflow,
                            from_address='foo@bar.com', smtp_host='smtp.spam.com',
@@ -929,7 +920,7 @@ class TestSendMailPlugin(object):
             }
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'smtp': smtp_map})
+                ReactorConfig({'version': 1, 'smtp': smtp_map})
 
         p = SendMailPlugin(None, workflow,
                            from_address='foo@bar.com', smtp_host='smtp.spam.com',

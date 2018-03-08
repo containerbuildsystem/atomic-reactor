@@ -36,13 +36,12 @@ from atomic_reactor.plugins import pre_check_and_set_rebuild
 from atomic_reactor.plugins.build_orchestrate_build import (WORKSPACE_KEY_OVERRIDE_KWARGS,
                                                             OrchestrateBuildPlugin)
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY, ReactorConfig)
 from atomic_reactor.plugins.pre_resolve_composes import ResolveComposesPlugin, ODCS_DATETIME_FORMAT
 from atomic_reactor.util import ImageName, read_yaml
 from datetime import datetime, timedelta
 from flexmock import flexmock
 from tests.constants import MOCK, MOCK_SOURCE
-from tests.util import mocked_reactorconfig
 from tests.fixtures import reactor_config_map  # noqa
 from textwrap import dedent
 
@@ -151,8 +150,7 @@ def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_
     if data:
         tmpdir.join('cert').write('')
         config = read_yaml(data, 'schemas/config.json')
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-        mocked_reactorconfig(config)
+    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = ReactorConfig(config)
 
 
 def mock_repo_config(tmpdir, data=None, signing_intent=None):
@@ -635,12 +633,15 @@ class TestResolveComposes(object):
         plugin_args.setdefault('odcs_url', ODCS_URL)
         plugin_args.setdefault('koji_target', KOJI_TARGET_NAME)
         plugin_args.setdefault('koji_hub', KOJI_HUB)
-        reactor_conf = workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY].conf
+        reactor_conf =\
+            deepcopy(workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY].conf)
 
         if reactor_config_map:
             reactor_conf['koji'] = {'hub_url': KOJI_HUB, 'root_url': '', 'auth': {}}
             if 'koji_ssl_certs_dir' in plugin_args:
                 reactor_conf['koji']['auth']['ssl_certs_dir'] = plugin_args['koji_ssl_certs_dir']
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                ReactorConfig(reactor_conf)
 
         runner = PreBuildPluginsRunner(
             workflow.builder.tasker,

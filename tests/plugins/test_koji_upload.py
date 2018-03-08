@@ -34,7 +34,8 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.post_koji_upload import (KojiUploadLogger,
                                                      KojiUploadPlugin)
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
@@ -43,7 +44,6 @@ from atomic_reactor.rpm_util import parse_rpm_output
 from atomic_reactor.source import GitSource
 from atomic_reactor.build import BuildResult
 from tests.constants import SOURCE, MOCK
-from tests.util import mocked_reactorconfig
 from tests.fixtures import reactor_config_map  # noqa
 
 from flexmock import flexmock
@@ -394,7 +394,7 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
         full_conf['koji'] = koji_map
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig(full_conf)
+            ReactorConfig(full_conf)
 
     plugins_conf = [
         {'name': KojiUploadPlugin.key, 'args': args},

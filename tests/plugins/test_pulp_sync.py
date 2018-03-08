@@ -33,11 +33,11 @@ except ImportError:
 
 from atomic_reactor.plugins.post_pulp_sync import PulpSyncPlugin, get_manifests_in_pulp_repository
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.constants import PLUGIN_PULP_PUSH_KEY
 from atomic_reactor.pulp_util import PulpLogWrapper
 from tests.fixtures import reactor_config_map  # noqa
-from tests.util import mocked_reactorconfig
 
 from flexmock import flexmock
 import json
@@ -124,7 +124,7 @@ class TestPostPulpSync(object):
             self.workflow.plugin_workspace = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'pulp': {'name': env}})
+                ReactorConfig({'version': 1, 'pulp': {'name': env}})
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
@@ -179,7 +179,7 @@ class TestPostPulpSync(object):
             self.workflow.plugin_workspace = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'pulp': {'name': env}})
+                ReactorConfig({'version': 1, 'pulp': {'name': env}})
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
@@ -239,7 +239,7 @@ class TestPostPulpSync(object):
             self.workflow.plugin_workspace = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'pulp': {'name': env}})
+                ReactorConfig({'version': 1, 'pulp': {'name': env}})
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
@@ -313,7 +313,7 @@ class TestPostPulpSync(object):
             self.workflow.plugin_workspace = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'pulp': {'name': env}})
+                ReactorConfig({'version': 1, 'pulp': {'name': env}})
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow(['repo']),
@@ -352,7 +352,7 @@ class TestPostPulpSync(object):
             self.workflow.plugin_workspace = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'pulp': {'name': env}})
+                ReactorConfig({'version': 1, 'pulp': {'name': env}})
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
@@ -406,7 +406,7 @@ class TestPostPulpSync(object):
             self.workflow.plugin_workspace = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'pulp': {'name': env}})
+                ReactorConfig({'version': 1, 'pulp': {'name': env}})
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
@@ -452,7 +452,7 @@ class TestPostPulpSync(object):
             self.workflow.plugin_workspace = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'pulp': {'name': env}})
+                ReactorConfig({'version': 1, 'pulp': {'name': env}})
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
@@ -517,7 +517,7 @@ class TestPostPulpSync(object):
             self.workflow.plugin_workspace = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'pulp': {'name': 'pulp'}})
+                ReactorConfig({'version': 1, 'pulp': {'name': 'pulp'}})
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow(['prod/myrepository']),
@@ -580,9 +580,9 @@ class TestPostPulpSync(object):
             workflow.plugin_workspace = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1,
-                                      'pulp': {'name': env,
-                                               'auth': {'user': '', 'password': ''}}})
+                ReactorConfig({'version': 1,
+                               'pulp': {'name': env,
+                                        'auth': {'user': '', 'password': ''}}})
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=workflow,
@@ -615,7 +615,7 @@ class TestPostPulpSync(object):
             self.workflow.plugin_workspace = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'pulp': {'name': 'pulp'}})
+                ReactorConfig({'version': 1, 'pulp': {'name': 'pulp'}})
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow(['prod/myrepository']),
@@ -640,7 +640,7 @@ class TestPostPulpSync(object):
             self.workflow.plugin_workspace = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1, 'pulp': {'name': env}})
+                ReactorConfig({'version': 1, 'pulp': {'name': env}})
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=self.workflow([docker_repository]),
@@ -754,9 +754,9 @@ class TestPostPulpSync(object):
             workflow.plugin_workspace = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1,
-                                      'pulp': {'name': env,
-                                               'auth': {'user': '', 'password': ''}}})
+                ReactorConfig({'version': 1,
+                               'pulp': {'name': env,
+                                        'auth': {'user': '', 'password': ''}}})
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=workflow,
@@ -818,9 +818,9 @@ class TestPostPulpSync(object):
             workflow.plugin_workspace = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1,
-                                      'pulp': {'name': env,
-                                               'auth': {'user': '', 'password': ''}}})
+                ReactorConfig({'version': 1,
+                               'pulp': {'name': env,
+                                        'auth': {'user': '', 'password': ''}}})
 
         plugin = PulpSyncPlugin(tasker=None,
                                 workflow=workflow,

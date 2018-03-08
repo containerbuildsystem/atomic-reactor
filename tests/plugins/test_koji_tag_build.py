@@ -31,13 +31,13 @@ from atomic_reactor.plugins.exit_koji_tag_build import KojiTagBuildPlugin
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import ImageName
 from atomic_reactor.build import BuildResult
 from tests.constants import SOURCE, MOCK
-from tests.util import mocked_reactorconfig
 from tests.fixtures import reactor_config_map  # noqa
 
 from flexmock import flexmock
@@ -160,7 +160,7 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
     if reactor_config_map:
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1, 'koji': koji_map})
+            ReactorConfig({'version': 1, 'koji': koji_map})
 
     runner = ExitPluginsRunner(tasker, workflow,
                                [

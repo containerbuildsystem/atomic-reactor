@@ -16,7 +16,8 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.util import ImageName
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 try:
     if sys.version_info.major > 2:
         # importing dockpulp in Python 3 causes SyntaxError
@@ -33,7 +34,6 @@ import pytest
 from flexmock import flexmock
 from tests.constants import INPUT_IMAGE, SOURCE, MOCK
 from tests.fixtures import reactor_config_map  # noqa
-from tests.util import mocked_reactorconfig
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -152,7 +152,7 @@ def test_pulp_dedup_layers(
     if reactor_config_map:
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1, 'pulp': {'name': 'test', 'auth': {}}})
+            ReactorConfig({'version': 1, 'pulp': {'name': 'test', 'auth': {}}})
 
     runner.run()
     assert PulpPushPlugin.key is not None
@@ -190,8 +190,8 @@ def test_pulp_source_secret(tmpdir, check_repo_retval, should_raise, monkeypatch
     if reactor_config_map:
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1, 'pulp': {'name': 'test',
-                                                         'auth': {'ssl_certs_dir': str(tmpdir)}}})
+            ReactorConfig({'version': 1, 'pulp': {'name': 'test',
+                                                  'auth': {'ssl_certs_dir': str(tmpdir)}}})
 
     if should_raise:
         with pytest.raises(Exception):
@@ -228,9 +228,9 @@ def test_pulp_service_account_secret(tmpdir, monkeypatch, reactor_config_map):
     if reactor_config_map:
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1,
-                                  'pulp': {'name': 'test',
-                                           'auth': {'ssl_certs_dir': str(tmpdir)}}})
+            ReactorConfig({'version': 1,
+                           'pulp': {'name': 'test',
+                                    'auth': {'ssl_certs_dir': str(tmpdir)}}})
 
     runner.run()
     _, crane_images = workflow.postbuild_results[PulpPushPlugin.key]
@@ -280,8 +280,8 @@ def test_pulp_publish_only_without_sync(before_name, after_name, publish,
     if reactor_config_map:
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1,
-                                  'pulp': {'name': 'pulp_registry_name', 'auth': {}}})
+            ReactorConfig({'version': 1,
+                           'pulp': {'name': 'pulp_registry_name', 'auth': {}}})
 
     expectation = flexmock(dockpulp.Pulp).should_receive('crane')
     if should_publish:

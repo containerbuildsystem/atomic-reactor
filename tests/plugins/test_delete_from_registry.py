@@ -19,9 +19,9 @@ from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.exit_delete_from_registry import DeleteFromRegistryPlugin
 from atomic_reactor.plugins.build_orchestrate_build import OrchestrateBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from tests.constants import LOCALHOST_REGISTRY, DOCKER0_REGISTRY, MOCK, TEST_IMAGE, INPUT_IMAGE
-from tests.util import mocked_reactorconfig
 from tests.fixtures import reactor_config_map  # noqa
 
 from tempfile import mkdtemp
@@ -154,7 +154,7 @@ def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir, orch
     if reactor_config_map:
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1, 'registries': config_map_regiestries})
+            ReactorConfig({'version': 1, 'registries': config_map_regiestries})
 
     runner = ExitPluginsRunner(
         tasker,
@@ -233,7 +233,7 @@ def test_delete_from_registry_failures(tmpdir, status_code, reactor_config_map):
     if reactor_config_map:
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1, 'registries': config_map_regiestries})
+            ReactorConfig({'version': 1, 'registries': config_map_regiestries})
 
     runner = ExitPluginsRunner(
         tasker,

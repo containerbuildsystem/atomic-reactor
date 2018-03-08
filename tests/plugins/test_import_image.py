@@ -16,10 +16,10 @@ from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.util import ImageName
 from atomic_reactor.plugins.post_import_image import ImportImagePlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.build import BuildResult
 from atomic_reactor.plugins import pre_reactor_config
-from tests.util import mocked_reactorconfig
 
 import osbs.conf
 from osbs.api import OSBS
@@ -122,7 +122,7 @@ def prepare(insecure_registry=None, namespace=None, primary_images_tag_conf=DEFA
         }
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1, 'openshift': openshift_map})
+            ReactorConfig({'version': 1, 'openshift': openshift_map})
     return runner
 
 

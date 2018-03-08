@@ -46,7 +46,6 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        get_openshift_session)
 from tests.constants import TEST_IMAGE, REACTOR_CONFIG_MAP
 from tests.docker_mock import mock_docker
-from tests.util import mocked_reactorconfig
 from tests.fixtures import reactor_config_map  # noqa
 from flexmock import flexmock
 
@@ -399,13 +398,13 @@ class TestReactorConfigPlugin(object):
         tasker, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         if fallback is False:
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig(yaml.safe_load(REACTOR_CONFIG_MAP))
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = \
+                 ReactorConfig(yaml.safe_load(REACTOR_CONFIG_MAP))
         else:
             if fallback:
-                fall_source = mocked_reactorconfig(yaml.safe_load(REACTOR_CONFIG_MAP))
+                fall_source = ReactorConfig(yaml.safe_load(REACTOR_CONFIG_MAP))
             else:
-                fall_source = mocked_reactorconfig(yaml.safe_load("version: 1"))
+                fall_source = ReactorConfig(yaml.safe_load("version: 1"))
 
         method_name = 'get_' + method
         real_method = getattr(atomic_reactor.plugins.pre_reactor_config, method_name)
@@ -569,7 +568,7 @@ class TestReactorConfigPlugin(object):
             fallback_map['auth']['krb_keytab_path'] = fallback_map['auth'].pop('krb_keytab')
         else:
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = \
-                mocked_reactorconfig(config_json)
+                ReactorConfig(config_json)
 
         (flexmock(atomic_reactor.koji_util)
             .should_receive('create_koji_session')
@@ -666,7 +665,7 @@ class TestReactorConfigPlugin(object):
             fallback_map['auth']['ssl_certs_dir'] = fallback_map['auth'].pop('pulp_secret_path')
         else:
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig(config_json)
+                ReactorConfig(config_json)
 
         (flexmock(atomic_reactor.pulp_util.PulpHandler)
             .should_receive('__init__')
@@ -795,7 +794,7 @@ class TestReactorConfigPlugin(object):
             fallback_map['auth']['openidc_dir'] = config_json['odcs']['auth'].get('openidc_dir')
         else:
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig(config_json)
+                ReactorConfig(config_json)
 
         if not ssl_dir_raise:
             (flexmock(atomic_reactor.odcs_util.ODCSClient)
@@ -850,7 +849,7 @@ class TestReactorConfigPlugin(object):
             fallback_map['host'] = config_json['smtp']['host']
         else:
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig(config_json)
+                ReactorConfig(config_json)
 
         (flexmock(smtplib.SMTP)
             .should_receive('__init__')
@@ -898,7 +897,7 @@ class TestReactorConfigPlugin(object):
             fallback_map['insecure'] = config_json['pdc'].get('insecure', False)
         else:
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig(config_json)
+                ReactorConfig(config_json)
 
         (flexmock(pdc_client.PDCClient)
             .should_receive('__init__')
@@ -1057,7 +1056,7 @@ class TestReactorConfigPlugin(object):
                     config_json['openshift']['auth'].get('ssl_certs_dir')
         else:
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig(config_json)
+                ReactorConfig(config_json)
 
         (flexmock(osbs.conf.Configuration)
             .should_call('__init__')

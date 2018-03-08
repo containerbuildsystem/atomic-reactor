@@ -20,10 +20,10 @@ from atomic_reactor.build import BuildResult
 from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
                                                             WORKSPACE_KEY_BUILD_INFO)
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.constants import PLUGIN_PULP_TAG_KEY
 from tests.fixtures import reactor_config_map  # noqa
-from tests.util import mocked_reactorconfig
 
 try:
     if sys.version_info.major > 2:
@@ -179,8 +179,8 @@ def test_pulp_tag_basic(tmpdir, monkeypatch, v1_image_ids, should_raise, caplog,
     if reactor_config_map:
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1, 'pulp': {'name': 'test',
-                                                         'auth': {'ssl_certs_dir': str(tmpdir)}}})
+            ReactorConfig({'version': 1, 'pulp': {'name': 'test',
+                                                  'auth': {'ssl_certs_dir': str(tmpdir)}}})
     if should_raise:
         with pytest.raises(PluginFailedException):
             runner.run()
@@ -230,8 +230,8 @@ def test_pulp_tag_source_secret(tmpdir, monkeypatch, caplog, reactor_config_map)
     if reactor_config_map:
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1, 'pulp': {'name': 'test',
-                                                         'auth': {'ssl_certs_dir': str(tmpdir)}}})
+            ReactorConfig({'version': 1, 'pulp': {'name': 'test',
+                                                  'auth': {'ssl_certs_dir': str(tmpdir)}}})
 
     results = runner.run()
     assert msg in caplog.text()
@@ -265,9 +265,9 @@ def test_pulp_tag_service_account_secret(tmpdir, monkeypatch, caplog, reactor_co
     if reactor_config_map:
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1,
-                                  'pulp': {'name': 'test',
-                                           'auth': {'ssl_certs_dir': str(tmpdir)}}})
+            ReactorConfig({'version': 1,
+                           'pulp': {'name': 'test',
+                                    'auth': {'ssl_certs_dir': str(tmpdir)}}})
 
     results = runner.run()
     assert msg in caplog.text()

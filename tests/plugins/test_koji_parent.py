@@ -32,10 +32,10 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_koji_parent import KojiParentPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.util import ImageName
 from flexmock import flexmock
-from tests.util import mocked_reactorconfig
 from tests.fixtures import reactor_config_map  # noqa
 from tests.constants import MOCK, MOCK_SOURCE
 
@@ -197,8 +197,7 @@ class TestKojiParent(object):
                 koji_map['auth']['ssl_certs_dir'] = plugin_args['koji_ssl_certs_dir']
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1,
-                                      'koji': koji_map})
+                ReactorConfig({'version': 1, 'koji': koji_map})
 
         runner = PreBuildPluginsRunner(
             workflow.builder.tasker,

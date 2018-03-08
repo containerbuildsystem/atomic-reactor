@@ -15,11 +15,11 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.util import ImageName, ManifestDigest, get_exported_image_metadata
 from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE, MOCK, DOCKER0_REGISTRY
 from tests.fixtures import reactor_config_map  # noqa
-from tests.util import mocked_reactorconfig
 
 import json
 import logging
@@ -259,7 +259,7 @@ def test_tag_and_push_plugin(
     if reactor_config_map:
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1, 'registries': [{
+            ReactorConfig({'version': 1, 'registries': [{
                 'url': LOCALHOST_REGISTRY,
                 'insecure': True,
                 'auth': {'cfg_path': secret_path},
@@ -485,7 +485,7 @@ def test_tag_and_push_plugin_oci(
     if reactor_config_map:
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1, 'registries': [{
+            ReactorConfig({'version': 1, 'registries': [{
                 'url': LOCALHOST_REGISTRY,
                 'insecure': True,
                 'auth': {'cfg_path': secret_path},

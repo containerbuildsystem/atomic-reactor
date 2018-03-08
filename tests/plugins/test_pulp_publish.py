@@ -17,7 +17,8 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
                                                             WORKSPACE_KEY_BUILD_INFO)
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.util import ImageName
 from atomic_reactor.plugins.exit_pulp_publish import PulpPublishPlugin
 try:
@@ -32,7 +33,6 @@ except (ImportError):
 import pytest
 from flexmock import flexmock
 from tests.constants import INPUT_IMAGE, SOURCE, MOCK
-from tests.util import mocked_reactorconfig
 from tests.fixtures import reactor_config_map  # noqa
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -149,7 +149,7 @@ def test_pulp_publish_success(caplog, reactor_config_map):
         pulp_map = {'name': 'pulp_registry_name', 'auth': {}}
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1, 'pulp': pulp_map})
+            ReactorConfig({'version': 1, 'pulp': pulp_map})
     plugin = PulpPublishPlugin(tasker, workflow, 'pulp_registry_name')
 
     (flexmock(dockpulp.Pulp).should_receive('crane')
@@ -189,7 +189,7 @@ def test_pulp_publish_delete(worker_builds_created, v1_image_ids,
         pulp_map = {'name': 'pulp_registry_name', 'auth': {}}
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1, 'pulp': pulp_map})
+            ReactorConfig({'version': 1, 'pulp': pulp_map})
 
     plugin = PulpPublishPlugin(tasker, workflow, 'pulp_registry_name')
     msg = "removing ppc64le_v1_image_id from"

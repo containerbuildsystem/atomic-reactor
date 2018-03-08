@@ -27,12 +27,12 @@ except ImportError:
 
 from atomic_reactor.plugins.pre_koji import KojiPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.util import ImageName
-from tests.util import mocked_reactorconfig
 from tests.fixtures import reactor_config_map  # noqa
 from flexmock import flexmock
 import pytest
@@ -213,9 +213,9 @@ class TestKoji(object):
                 koji_map['auth']['ssl_certs_dir'] = str(tmpdir)
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                mocked_reactorconfig({'version': 1,
-                                      'koji': koji_map,
-                                      'yum_proxy': proxy})
+                ReactorConfig({'version': 1,
+                               'koji': koji_map,
+                               'yum_proxy': proxy})
 
         runner = PreBuildPluginsRunner(tasker, workflow, [{
             'name': KojiPlugin.key,

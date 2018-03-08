@@ -26,8 +26,8 @@ from atomic_reactor.inner import DockerBuildWorkflow, TagConf
 from atomic_reactor.util import ImageName, registry_hostname, ManifestDigest
 from atomic_reactor.plugins.post_group_manifests import GroupManifestsPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
-from tests.util import mocked_reactorconfig
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from tests.fixtures import reactor_config_map  # noqa
 
 if MOCK:
@@ -496,9 +496,9 @@ def test_group_manifests(tmpdir, test_name,
 
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            mocked_reactorconfig({'version': 1, 'group_manifests': group,
-                                  'registries': registries_list,
-                                  'platform_descriptors': platform_descriptors_list})
+            ReactorConfig({'version': 1, 'group_manifests': group,
+                           'registries': registries_list,
+                           'platform_descriptors': platform_descriptors_list})
 
     runner = PostBuildPluginsRunner(tasker, workflow, plugins_conf)
     if expected_exception is None:
