@@ -9,8 +9,12 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function, unicode_literals
 import os
 import json
+import types
+from textwrap import dedent
 
 from atomic_reactor.plugins.input_osv3 import OSv3InputPlugin
+from osbs.api import OSBS
+from tests.constants import REACTOR_CONFIG_MAP
 
 import pytest
 from flexmock import flexmock
@@ -51,8 +55,24 @@ def test_sets_selflink(build, expected):
     assert plugin.run()['openshift_build_selflink'] == expected
 
 
-@pytest.mark.parametrize('plugins_variable', ['ATOMIC_REACTOR_PLUGINS', 'DOCK_PLUGINS'])
-def test_plugins_variable(plugins_variable):
+def enable_plugins_configuration(plugins_json):
+    # flexmock won't mock a non-existent method, so add it if necessary
+    try:
+        getattr(OSBS, 'render_plugins_configuration')
+    except AttributeError:
+        setattr(OSBS, 'render_plugins_configuration',
+                types.MethodType(lambda x: x, 'render_plugins_configuration'))
+    (flexmock(OSBS)
+        .should_receive('render_plugins_configuration')
+        .and_return(json.dumps(plugins_json)))
+
+
+@pytest.mark.parametrize(('plugins_variable', 'valid'), [
+    ('ATOMIC_REACTOR_PLUGINS', True),
+    ('USER_PARAMS', True),
+    ('DOCK_PLUGINS', False),
+])
+def test_plugins_variable(plugins_variable, valid):
     plugins_json = {
         'postbuild_plugins': [],
     }
@@ -65,10 +85,24 @@ def test_plugins_variable(plugins_variable):
         'OUTPUT_REGISTRY': 'localhost:5000',
         plugins_variable: json.dumps(plugins_json),
     }
+
+    if plugins_variable == 'USER_PARAMS':
+        mock_env['REACTOR_CONFIG'] = REACTOR_CONFIG_MAP
+        enable_plugins_configuration(plugins_json)
+        mock_env.update({
+            plugins_variable: json.dumps({
+                'build_json_dir': 'inputs',
+            }),
+        })
+
     flexmock(os, environ=mock_env)
 
     plugin = OSv3InputPlugin()
-    assert plugin.run()['postbuild_plugins'] is not None
+    if valid:
+        assert plugin.run()['postbuild_plugins'] is not None
+    else:
+        with pytest.raises(RuntimeError):
+            plugin.run()
 
 
 def test_remove_dockerfile_content():
@@ -104,4 +138,162 @@ def test_remove_dockerfile_content():
         {
             'name': 'after',
         },
+    ]
+
+
+def test_remove_everything():
+    plugins_json = {
+        'build_json_dir': 'inputs',
+        'prebuild_plugins': [
+            {'name': 'before', },
+            {'name': 'bump_release', },
+            {'name': 'fetch_maven_artifacts', },
+            {'name': 'distgit_fetch_artefacts', },
+            {'name': 'dockerfile_content', },
+            {'name': 'inject_parent_image', },
+            {'name': 'koji_parent', },
+            {'name': 'resolve_composes', },
+            {'name': 'after', },
+        ],
+        'postbuild_plugins': [
+            {'name': 'before', },
+            {'name': 'koji_upload', },
+            {'name': 'pulp_pull', },
+            {'name': 'pulp_push', },
+            {'name': 'pulp_sync', },
+            {'name': 'pulp_tag', },
+            {'name': 'after', },
+        ],
+        'exit_plugins': [
+            {'name': 'before', },
+            {'name': 'delete_from_registry', },
+            {'name': 'koji_import', },
+            {'name': 'koji_promote', },
+            {'name': 'koji_tag_build', },
+            {'name': 'pulp_publish', },
+            {'name': 'pulp_pull', },
+            {'name': 'sendmail', },
+            {'name': 'after', },
+        ]
+    }
+    minimal_config = dedent("""\
+        version: 1
+    """)
+
+    mock_env = {
+        'BUILD': '{}',
+        'SOURCE_URI': 'https://github.com/foo/bar.git',
+        'SOURCE_REF': 'master',
+        'OUTPUT_IMAGE': 'asdf:fdsa',
+        'OUTPUT_REGISTRY': 'localhost:5000',
+        'USER_PARAMS': json.dumps(plugins_json),
+        'REACTOR_CONFIG': minimal_config
+    }
+    flexmock(os, environ=mock_env)
+    enable_plugins_configuration(plugins_json)
+
+    plugin = OSv3InputPlugin()
+    plugins = plugin.run()
+    for phase in ('prebuild_plugins', 'postbuild_plugins', 'exit_plugins'):
+        assert plugins[phase] == [
+            {'name': 'before', },
+            {'name': 'after', },
+        ]
+
+
+def test_remove_v1_pulp_and_exit_delete():
+    plugins_json = {
+        'build_json_dir': 'inputs',
+        'postbuild_plugins': [
+            {'name': 'before', },
+            {'name': 'pulp_push', },
+            {'name': 'after', },
+        ],
+        'exit_plugins': [
+            {'name': 'before', },
+            {'name': 'delete_from_registry', },
+            {'name': 'after', },
+        ],
+    }
+    minimal_config = dedent("""\
+        version: 1
+        pulp:
+            name: my-pulp
+            auth:
+                password: testpasswd
+                username: testuser
+        registries:
+        - url: https://container-registry.example.com/v2
+        auth:
+            cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
+        source_registry:
+            url: https://container-registry.example.com/v2
+            insecure: True
+    """)
+
+    mock_env = {
+        'BUILD': '{}',
+        'SOURCE_URI': 'https://github.com/foo/bar.git',
+        'SOURCE_REF': 'master',
+        'OUTPUT_IMAGE': 'asdf:fdsa',
+        'OUTPUT_REGISTRY': 'localhost:5000',
+        'USER_PARAMS': json.dumps(plugins_json),
+        'REACTOR_CONFIG': minimal_config
+    }
+    flexmock(os, environ=mock_env)
+    enable_plugins_configuration(plugins_json)
+
+    plugin = OSv3InputPlugin()
+    plugins = plugin.run()
+    for phase in ('postbuild_plugins', 'exit_plugins'):
+        assert plugins[phase] == [
+            {'name': 'before', },
+            {'name': 'after', },
+        ]
+
+
+def test_remove_v2_pulp():
+    plugins_json = {
+        'build_json_dir': 'inputs',
+        'postbuild_plugins': [
+            {'name': 'before', },
+            {'name': 'pulp_sync', },
+            {'name': 'after', },
+        ],
+        'exit_plugins': [
+            {'name': 'before', },
+            {'name': 'delete_from_registry', },
+            {'name': 'after', },
+        ],
+    }
+    minimal_config = dedent("""\
+        version: 1
+        pulp:
+            name: my-pulp
+            auth:
+                password: testpasswd
+                username: testuser
+        registries:
+        - url: https://container-registry.example.com/v1
+        auth:
+            cfg_path: /var/run/secrets/atomic-reactor/v1-registry-dockercfg
+    """)
+
+    mock_env = {
+        'BUILD': '{}',
+        'SOURCE_URI': 'https://github.com/foo/bar.git',
+        'SOURCE_REF': 'master',
+        'OUTPUT_IMAGE': 'asdf:fdsa',
+        'OUTPUT_REGISTRY': 'localhost:5000',
+        'USER_PARAMS': json.dumps(plugins_json),
+        'REACTOR_CONFIG': minimal_config
+    }
+    flexmock(os, environ=mock_env)
+    enable_plugins_configuration(plugins_json)
+
+    plugin = OSv3InputPlugin()
+    plugins = plugin.run()
+    assert plugins['postbuild_plugins'] == [
+        {'name': 'before', },
+        {'name': 'after', },
     ]
