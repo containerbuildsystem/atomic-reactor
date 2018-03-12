@@ -671,4 +671,5 @@ class TestResolveComposes(object):
         return (workflow.plugin_workspace
                 .get(OrchestrateBuildPlugin.key, {})
                 .get(WORKSPACE_KEY_OVERRIDE_KWARGS, {})
+                .get(None, {})
                 .get('yum_repourls'))

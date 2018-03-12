@@ -69,15 +69,17 @@ def get_koji_upload_dir(workflow):
     return workspace[WORKSPACE_KEY_UPLOAD_DIR]
 
 
-def override_build_kwarg(workflow, k, v):
+def override_build_kwarg(workflow, k, v, platform=None):
     """
     Override a build-kwarg for all worker builds
     """
     key = OrchestrateBuildPlugin.key
+    # Use None to indicate an override for all platforms
 
     workspace = workflow.plugin_workspace.setdefault(key, {})
     override_kwargs = workspace.setdefault(WORKSPACE_KEY_OVERRIDE_KWARGS, {})
-    override_kwargs[k] = v
+    override_kwargs.setdefault(platform, {})
+    override_kwargs[platform][k] = v
 
 
 class UnknownPlatformException(Exception):
@@ -558,7 +560,14 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         try:
             kwargs = self.get_worker_build_kwargs(self.release, cluster_info.platform,
                                                   self.koji_upload_dir, self.fs_task_id)
-            kwargs.update(override_kwargs)
+            # Set overrides for all platforms
+            if None in override_kwargs:
+                kwargs.update(override_kwargs[None])
+            # Set overrides for each platform, overriding any set for all platforms
+            if cluster_info.platform in override_kwargs:
+                self.log.debug("%s - overriding with %s", cluster_info.platform,
+                               override_kwargs[cluster_info.platform])
+                kwargs.update(override_kwargs[cluster_info.platform])
             with cluster_info.osbs.retries_disabled():
                 build = cluster_info.osbs.create_worker_build(**kwargs)
         except OsbsException:

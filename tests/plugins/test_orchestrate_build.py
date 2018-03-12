@@ -1092,7 +1092,12 @@ def test_orchestrate_build_worker_build_kwargs(tmpdir, caplog, is_auto):
     assert not build_result.is_failed()
 
 
-def test_orchestrate_override_build_kwarg(tmpdir):
+@pytest.mark.parametrize('overrides', [
+    {None: '4242'},
+    {'x86_64': '4242'},
+    {'x86_64': '4242', None: '1111'},
+])
+def test_orchestrate_override_build_kwarg(tmpdir, overrides):
     workflow = mock_workflow(tmpdir)
     expected_kwargs = {
         'git_uri': SOURCE['uri'],
@@ -1114,7 +1119,8 @@ def test_orchestrate_override_build_kwarg(tmpdir):
         'osbs_client_config': str(tmpdir),
     }
 
-    override_build_kwarg(workflow, 'release', '4242')
+    for platform, value in overrides.items():
+        override_build_kwarg(workflow, 'release', value, platform)
 
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
