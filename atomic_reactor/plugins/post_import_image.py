@@ -14,6 +14,7 @@ from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
 from atomic_reactor.util import get_primary_images
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
 
+
 # Note: We use multiple inheritance here only to make it explicit that
 # this plugin needs to act as both an exit plugin (since arrangement
 # version 6) and as a post-build plugin (arrangement version < 6). In

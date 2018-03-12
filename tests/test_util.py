@@ -15,7 +15,6 @@ import pytest
 import requests
 import responses
 from requests.exceptions import ConnectionError
-import six
 import subprocess
 import time
 from collections import namedtuple

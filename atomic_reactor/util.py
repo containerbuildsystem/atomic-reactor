@@ -858,12 +858,9 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
     saved_not_found = None
     for version in versions:
         media_type = get_manifest_media_type(version)
-        headers = {'Accept': media_type}
 
         try:
-            response = query_registry(
-                registry_session, image, digest=None,
-                version=version)
+            response = query_registry(registry_session, image, digest=None, version=version)
             all_not_found = False
         except (HTTPError, RetryError, Timeout) as ex:
             if ex.response.status_code == requests.codes.not_found:

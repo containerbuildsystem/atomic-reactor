@@ -239,6 +239,7 @@ class TestSendMailPlugin(object):
             (True, True, False): False,   # Included as attachment
             (True, True, True): False,    # Logs in Koji Build
         }
+
         class TagConf(object):
             unique_images = []
 

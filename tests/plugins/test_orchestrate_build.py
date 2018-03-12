@@ -1038,7 +1038,7 @@ def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
             assert 'Could not find appropriate cluster for worker build.' \
                 in build_result.fail_reason
         elif fail_at == 'build_canceled':
-            assert 'BuildCanceledException()' in str(exc)
+            assert 'BuildCanceledException()' in str(exc)  # noqa F821
 
 
 @pytest.mark.parametrize('is_auto', [

@@ -398,7 +398,6 @@ class ReactorConfigPlugin(PreBuildPlugin):
         self.basename = basename
         self.reactor_config_map = os.environ.get('REACTOR_CONFIG', None)
 
-
     def run(self):
         """
         Run the plugin

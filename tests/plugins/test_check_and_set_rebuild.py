@@ -20,7 +20,6 @@ from atomic_reactor.util import ImageName
 import json
 from osbs.api import OSBS
 import osbs.conf
-from osbs.exceptions import OsbsResponseException
 from flexmock import flexmock
 from tests.constants import SOURCE, MOCK
 from tests.util import mocked_reactorconfig

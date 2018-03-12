@@ -611,7 +611,7 @@ def test_dont_overwrite_distribution_scope(tmpdir, docker_tasker, parent_scope,
         wf_args["dont_overwrite_if_in_dockerfile"] = ("distribution-scope",)
 
     if reactor_config_map:
-       make_and_store_reactor_config_map( workflow,
+        make_and_store_reactor_config_map(workflow,
                                           {'image_labels': {"distribution-scope": "restricted"}})
 
     runner = PreBuildPluginsRunner(
@@ -654,7 +654,7 @@ def test_url_label(tmpdir, docker_tasker, caplog, url_format, info_url, reactor_
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
 
     if reactor_config_map:
-        make_and_store_reactor_config_map( workflow, {'image_labels': plugin_labels})
+        make_and_store_reactor_config_map(workflow, {'image_labels': plugin_labels})
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -715,7 +715,7 @@ def test_add_labels_plugin_explicit(tmpdir, docker_tasker, auto_label, labels_do
     prov_labels[auto_label] = 'explicit_value'
 
     if reactor_config_map:
-        make_and_store_reactor_config_map( workflow, {'image_labels': prov_labels})
+        make_and_store_reactor_config_map(workflow, {'image_labels': prov_labels})
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -756,7 +756,7 @@ def test_add_labels_base_image(tmpdir, docker_tasker, parent, should_fail,
     prov_labels = {'release': '5'}
 
     if reactor_config_map:
-        make_and_store_reactor_config_map( workflow, {'image_labels': prov_labels})
+        make_and_store_reactor_config_map(workflow, {'image_labels': prov_labels})
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -830,7 +830,7 @@ def test_release_label(tmpdir, docker_tasker, caplog,
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
 
     if reactor_config_map:
-        make_and_store_reactor_config_map( workflow, {'image_labels': plugin_labels})
+        make_and_store_reactor_config_map(workflow, {'image_labels': plugin_labels})
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
