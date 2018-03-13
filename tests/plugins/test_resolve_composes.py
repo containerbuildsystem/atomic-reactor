@@ -70,6 +70,8 @@ ODCS_COMPOSE_REPO = 'https://odcs.fedoraproject.org/composes/latest-odcs-1-1/com
 ODCS_COMPOSE_REPOFILE = ODCS_COMPOSE_REPO + '/odcs-1.repo'
 ODCS_COMPOSE_SECONDS_TO_LIVE = timedelta(hours=24)
 ODCS_COMPOSE_TIME_TO_EXPIRE = datetime.utcnow() + ODCS_COMPOSE_SECONDS_TO_LIVE
+ODCS_COMPOSE_DEFAULT_ARCH = 'x86_64'
+ODCS_COMPOSE_ARCHES = [ODCS_COMPOSE_DEFAULT_ARCH]
 ODCS_COMPOSE = {
     'id': ODCS_COMPOSE_ID,
     'result_repo': ODCS_COMPOSE_REPO,
@@ -78,7 +80,8 @@ ODCS_COMPOSE = {
     'source_type': 'tag',
     'sigkeys': '',
     'state_name': 'done',
-    'time_to_expire': ODCS_COMPOSE_TIME_TO_EXPIRE.strftime(ODCS_DATETIME_FORMAT)
+    'arches': ODCS_COMPOSE_ARCHES,
+    'time_to_expire': ODCS_COMPOSE_TIME_TO_EXPIRE.strftime(ODCS_DATETIME_FORMAT),
 }
 
 SIGNING_INTENTS = {
@@ -103,7 +106,14 @@ class MockInsideBuilder(object):
 def workflow(tmpdir):
     if MOCK:
         mock_docker()
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+
+    buildstep_plugin = [{
+        'name': OrchestrateBuildPlugin.key,
+        'args': {
+            'platforms': ODCS_COMPOSE_ARCHES
+        },
+    }]
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image', buildstep_plugins=buildstep_plugin, )
     workflow.builder = MockInsideBuilder(tmpdir)
     workflow.source = workflow.builder.source
     workflow._tmpdir = tmpdir
@@ -174,6 +184,7 @@ def mock_odcs_request():
         .with_args(
             source_type='tag',
             source=KOJI_TAG_NAME,
+            arches=ODCS_COMPOSE_ARCHES,
             packages=['spam', 'bacon', 'eggs'],
             sigkeys=['R123'])
         .and_return(ODCS_COMPOSE))
@@ -398,6 +409,7 @@ class TestResolveComposes(object):
                 source_type='tag',
                 source=KOJI_TAG_NAME,
                 packages=['spam', 'bacon', 'eggs'],
+                arches=['x86_64'],
                 sigkeys=sigkeys)
             .and_return(odcs_compose))
 
@@ -627,8 +639,46 @@ class TestResolveComposes(object):
 
         assert msg in (x.message for x in caplog.records())
 
+    @pytest.mark.parametrize('platforms', (  # noqa
+        None,
+        ['ham', ],
+        ['ham', 'eggs']
+    ))
+    def test_multiple_arches(self, workflow, reactor_config_map, platforms):  # noqa
+        workflow.buildstep_plugins_conf[0]['args']['platforms'] = platforms
+        composes = []
+
+        compose_id = 'test'
+        compose = ODCS_COMPOSE.copy()
+        compose['id'] = compose_id
+        compose['arches'] = platforms
+
+        (flexmock(ODCSClient)
+            .should_receive('start_compose')
+            .and_return(compose))
+
+        (flexmock(ODCSClient)
+            .should_receive('wait_for_compose')
+            .with_args(compose_id)
+            .and_return(compose))
+
+        composes.append(compose)
+
+        plugin_args = {'compose_ids': [item['id'] for item in composes]}
+        plugin_result = self.run_plugin_with_args(workflow, plugin_args,
+                                                  reactor_config_map=reactor_config_map,
+                                                  platforms=platforms)
+
+        assert plugin_result['composes'] == composes
+        if platforms:
+            for compose in composes:
+                assert compose['arches'].sort() == platforms.sort()
+        else:
+            assert compose['arches'] is None
+
     def run_plugin_with_args(self, workflow, plugin_args=None, expect_result=None,
-                             expect_error=None, reactor_config_map=False):
+                             expect_error=None, reactor_config_map=False,
+                             platforms=ODCS_COMPOSE_ARCHES):
         plugin_args = plugin_args or {}
         plugin_args.setdefault('odcs_url', ODCS_URL)
         plugin_args.setdefault('koji_target', KOJI_TARGET_NAME)
@@ -659,7 +709,11 @@ class TestResolveComposes(object):
 
         results = runner.run()[ResolveComposesPlugin.key]
         if results:
-            assert len(self.get_override_yum_repourls(workflow)) > 0
+            if platforms is not None:
+                for platform in platforms:
+                    assert len(self.get_override_yum_repourls(workflow, platform)) > 0
+            else:
+                assert len(self.get_override_yum_repourls(workflow, None)) > 0
             assert set(results.keys()) == set(['signing_intent', 'signing_intent_overridden',
                                                'composes'])
         else:
@@ -667,9 +721,9 @@ class TestResolveComposes(object):
             assert results is None
         return results
 
-    def get_override_yum_repourls(self, workflow):
+    def get_override_yum_repourls(self, workflow, arch=ODCS_COMPOSE_DEFAULT_ARCH):
         return (workflow.plugin_workspace
                 .get(OrchestrateBuildPlugin.key, {})
                 .get(WORKSPACE_KEY_OVERRIDE_KWARGS, {})
-                .get(None, {})
+                .get(arch, {})
                 .get('yum_repourls'))

@@ -12,7 +12,7 @@ import os
 import yaml
 
 from atomic_reactor.constants import (PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
-                                      REPO_CONTAINER_CONFIG)
+                                      REPO_CONTAINER_CONFIG, PLUGIN_BUILD_ORCHESTRATE_KEY)
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
@@ -131,6 +131,12 @@ class ResolveComposesPlugin(PreBuildPlugin):
             self.log.info('Autorebuild detected: Ignoring compose_ids plugin parameter')
             self.compose_ids = tuple()
 
+    def get_arches(self):
+        # This will be replaced by a plugin soon but this will do for now
+        for plugin in self.workflow.buildstep_plugins_conf:
+            if plugin['name'] == PLUGIN_BUILD_ORCHESTRATE_KEY:
+                return plugin['args']['platforms']
+
     def read_configs(self):
         self.odcs_config = get_config(self.workflow).get_odcs_config()
         if not self.odcs_config:
@@ -146,7 +152,9 @@ class ResolveComposesPlugin(PreBuildPlugin):
         if not data and not self.compose_ids:
             raise SkipResolveComposesPlugin('"compose" config not set and compose_ids not given')
 
-        self.compose_config = ComposeConfig(data, self.odcs_config)
+        arches = self.get_arches()
+
+        self.compose_config = ComposeConfig(data, self.odcs_config, arches=arches)
 
     def adjust_compose_config(self):
         if self.signing_intent:
@@ -250,8 +258,19 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self.compose_config.set_signing_intent(signing_intent['name'])
 
     def forward_composes(self):
-        yum_repourls = [compose_info['result_repofile'] for compose_info in self.composes_info]
-        override_build_kwarg(self.workflow, 'yum_repourls', yum_repourls)
+        repos_by_arch = {}
+        # set overrides by arch if arches are available
+        for compose_info in self.composes_info:
+            for arch in compose_info.get('arches') or []:
+                repos_by_arch.setdefault(arch, [])
+                repos_by_arch[arch].append(compose_info['result_repofile'])
+
+        for arch in repos_by_arch:
+            override_build_kwarg(self.workflow, 'yum_repourls', repos_by_arch[arch], arch)
+        # set generic overrrides otherwise
+        else:
+            yum_repourls = [compose_info['result_repofile'] for compose_info in self.composes_info]
+            override_build_kwarg(self.workflow, 'yum_repourls', yum_repourls, None)
 
     def make_result(self):
         result = {
@@ -278,12 +297,13 @@ class ResolveComposesPlugin(PreBuildPlugin):
 
 class ComposeConfig(object):
 
-    def __init__(self, data, odcs_config, koji_tag=None):
+    def __init__(self, data, odcs_config, koji_tag=None, arches=None):
         data = data or {}
         self.packages = data.get('packages', [])
         self.modules = data.get('modules', [])
         self.koji_tag = koji_tag
         self.odcs_config = odcs_config
+        self.arches = arches
 
         signing_intent_name = data.get('signing_intent', self.odcs_config.default_signing_intent)
         self.set_signing_intent(signing_intent_name)
@@ -307,12 +327,15 @@ class ComposeConfig(object):
         return request
 
     def render_packages_request(self):
-        return {
+        request = {
             'source_type': 'tag',
             'source': self.koji_tag,
             'packages': self.packages,
             'sigkeys': self.signing_intent['keys'],
         }
+        if self.arches:
+            request['arches'] = self.arches
+        return request
 
     def render_modules_request(self):
         return {
