@@ -41,7 +41,7 @@ class ODCSClient(object):
 
         self.session = session
 
-    def start_compose(self, source_type, source, packages=None, sigkeys=None):
+    def start_compose(self, source_type, source, packages=None, sigkeys=None, arches=None):
         """Start a new ODCS compose
 
         :param source_type: str, the type of compose to request (tag, module, pulp)
@@ -55,6 +55,8 @@ class ODCSClient(object):
                          relevant when source_type "tag" is used.
         :param sigkeys: list<str>, IDs of signature keys. Only packages signed by one of
                         these keys will be included in a compose.
+        :param arches: list<str>, List of additional Koji arches to build this compose for.
+                        By default, the compose is built only for "x86_64" arch.
 
         :return: dict, status of compose being created by request.
         """
@@ -69,6 +71,9 @@ class ODCSClient(object):
 
         if sigkeys is not None:
             body['source']['sigkeys'] = sigkeys
+
+        if arches is not None:
+            body['source']['arches'] = arches
 
         logger.info("Starting compose for source_type={source_type}, source={source}"
                     .format(source_type=source_type, source=source))
