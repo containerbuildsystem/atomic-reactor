@@ -81,7 +81,7 @@ The docker map has these entries:
 
 - `id` (string): the image ID -- for Docker 1.10 and higher this is a content-aware image ID
 - `parent_id` (string): the image ID of the parent image
-- `repositories` (string list): docker pull specifications for the name:version-release image in the docker registry (or in Crane, if Pulp/Crane integration is used), by tag and by digests (there may be multiple digests, e.g. v2 schema 1 and v2 schema 2)
+- `repositories` (string list): docker pull specifications for the image in the docker registry (or in Crane, if Pulp/Crane integration is used), by tag and by digests (there may be multiple digests, e.g. v2 schema 1 and v2 schema 2)
 - `config` (map): the [v2 schema 2 'config' object](https://docs.docker.com/registry/spec/manifest-v2-2/#image-manifest-field-descriptions) but with the 'container_config' entry removed
 - `tags` (string list): the image tags (i.e. the part after the ":") applied to this image when it was tagged and pushed
 - `layer_sizes` (map list): the image layer uncompressed sizes, the oldest layer first (the size information comes from docker history command)
