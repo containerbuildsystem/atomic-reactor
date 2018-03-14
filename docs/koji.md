@@ -61,7 +61,7 @@ The index map has these entries:
 
 - `pull` (str list): docker pull specifications for the manifest list, by tag and by digest
 - `tags` (str list): tags applied to the manifest list when it was created
-- `digests` (map): a map of media type (such as “application/vnd.docker.distribution.manifest.v2+json”) to manifest digest (a string usually starting “sha256:”), for each grouped object; note that this will include manifest lists but not image manifests
+- `digests` (map): a map of media type (such as “application/vnd.docker.distribution.manifest.list.v2+json”) to manifest digest (a string usually starting “sha256:”), for each grouped object; note that this will include manifest lists but not image manifests
 
 # Type-specific buildroot metadata:
 
