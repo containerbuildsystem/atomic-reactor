@@ -17,6 +17,7 @@ from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import get_build_json, ImageName
 from atomic_reactor.core import RetryGeneratorException
 from atomic_reactor.plugins.pre_reactor_config import get_source_registry
+from osbs.utils import RegistryURI
 
 
 class PullBaseImagePlugin(PreBuildPlugin):
@@ -36,7 +37,8 @@ class PullBaseImagePlugin(PreBuildPlugin):
         super(PullBaseImagePlugin, self).__init__(tasker, workflow)
 
         source_registry = get_source_registry(self.workflow, {
-            'uri': parent_registry, 'insecure': parent_registry_insecure})
+            'uri': RegistryURI(parent_registry) if parent_registry else None,
+            'insecure': parent_registry_insecure})
 
         if source_registry.get('uri'):
             self.parent_registry = source_registry['uri'].docker_uri

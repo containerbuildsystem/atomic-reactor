@@ -41,7 +41,7 @@ from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from osbs.conf import Configuration
 from osbs.constants import BUILD_FINISHED_STATES
-from osbs.utils import Labels
+from osbs.utils import Labels, RegistryURI
 
 
 ClusterInfo = namedtuple('ClusterInfo', ('cluster', 'platform', 'osbs', 'load'))
@@ -346,9 +346,9 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         self.config_kwargs['smtp_to_submitter'] = smtp_map.get('send_to_submitter', False)
 
         source_reg = self.config_kwargs.get('source_registry_uri')
-        self.config_kwargs['source_registry_uri'] =\
-            get_source_registry(self.workflow, {
-                'uri': source_reg.get('uri') if source_reg else None})
+        souce_registry = get_source_registry(self.workflow, {
+            'uri': RegistryURI(source_reg) if source_reg else None})['uri']
+        self.config_kwargs['source_registry_uri'] = souce_registry.uri if souce_registry else None
 
         artifacts = self.config_kwargs.get('artifacts_allowed_domains')
         self.config_kwargs['artifacts_allowed_domains'] =\

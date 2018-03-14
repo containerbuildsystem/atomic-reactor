@@ -262,7 +262,7 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
         if config_kwargs and 'sources_command' in config_kwargs:
             reactor_dict['sources_command'] = 'fedpkg source'
 
-        expected_kwargs['source_registry_uri'] = {'uri': None}
+        expected_kwargs['source_registry_uri'] = None
         reactor_dict['koji'] = {
             'hub_url': '/',
             'root_url': ''}
@@ -326,7 +326,7 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
         expected_kwargs['smtp_email_domain'] = None
         expected_kwargs['smtp_from'] = None
         expected_kwargs['registry_api_versions'] = ''
-        expected_kwargs['source_registry_uri'] = {'uri': None}
+        expected_kwargs['source_registry_uri'] = None
         expected_kwargs['yum_proxy'] = None
         expected_kwargs['pdc_url'] = None
         expected_kwargs['odcs_url'] = None
