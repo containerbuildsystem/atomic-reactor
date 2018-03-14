@@ -137,15 +137,12 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
                            'source_registry': {'url': parent_registry,
                                                'insecure': True}})
 
-    par_reg = None
-    if parent_registry:
-        par_reg = RegistryURI(parent_registry)
     runner = PreBuildPluginsRunner(
         tasker,
         workflow,
         [{
             'name': PullBaseImagePlugin.key,
-            'args': {'parent_registry': par_reg,
+            'args': {'parent_registry': parent_registry,
                      'parent_registry_insecure': True}
         }]
     )
@@ -243,7 +240,7 @@ def test_retry_pull_base_image(exc, failures, should_succeed, reactor_config_map
         workflow,
         [{
             'name': PullBaseImagePlugin.key,
-            'args': {'parent_registry': RegistryURI('registry.example.com'),
+            'args': {'parent_registry': 'registry.example.com',
                      'parent_registry_insecure': True},
         }],
     )
@@ -301,7 +298,7 @@ def test_try_with_library_pull_base_image(library, reactor_config_map):
         workflow,
         [{
             'name': PullBaseImagePlugin.key,
-            'args': {'parent_registry': RegistryURI('registry.example.com'),
+            'args': {'parent_registry': 'registry.example.com',
                      'parent_registry_insecure': True},
         }],
     )
