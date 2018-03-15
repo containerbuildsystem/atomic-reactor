@@ -425,6 +425,10 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         kwargs = deepcopy(self.config_kwargs)
         if not self.reactor_config.is_default():
             kwargs['reactor_config_override'] = self.reactor_config.conf
+            self.log.debug("reactor config isn't default, setting reactor_config_override : %s"
+                           % self.reactor_config.conf)
+        else:
+            self.log.debug('reactor config is default, not setting reactor_config_override')
         kwargs['conf_section'] = cluster.name
         if self.osbs_client_config:
             kwargs['conf_file'] = os.path.join(self.osbs_client_config, 'osbs.conf')

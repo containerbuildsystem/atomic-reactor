@@ -418,4 +418,6 @@ class ReactorConfigPlugin(PreBuildPlugin):
         reactor_conf = ReactorConfig(conf)
         workspace = self.workflow.plugin_workspace.get(self.key, {})
         workspace[WORKSPACE_CONF_KEY] = reactor_conf
+
+        self.log.info("reading config content %s", reactor_conf.conf)
         self.workflow.plugin_workspace[self.key] = workspace
