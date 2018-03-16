@@ -423,12 +423,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
     def get_cluster_info(self, cluster, platform):
         kwargs = deepcopy(self.config_kwargs)
-        if not self.reactor_config.is_default():
-            kwargs['reactor_config_override'] = self.reactor_config.conf
-            self.log.debug("reactor config isn't default, setting reactor_config_override : %s"
-                           % self.reactor_config.conf)
-        else:
-            self.log.debug('reactor config is default, not setting reactor_config_override')
         kwargs['conf_section'] = cluster.name
         if self.osbs_client_config:
             kwargs['conf_file'] = os.path.join(self.osbs_client_config, 'osbs.conf')
@@ -497,6 +491,9 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         build_kwargs['is_auto'] = is_rebuild(self.workflow)
         if task_id:
             build_kwargs['filesystem_koji_task_id'] = task_id
+
+        if not self.reactor_config.is_default():
+            build_kwargs['reactor_config_override'] = self.reactor_config.conf
 
         return build_kwargs
 
