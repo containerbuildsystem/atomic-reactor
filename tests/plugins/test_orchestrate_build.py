@@ -120,7 +120,8 @@ def mock_reactor_config(tmpdir, clusters=None, empty=False):
                 }
             ]
         }
-    conf = ReactorConfig({'version': 1, 'clusters': clusters})
+    conf_json = {'version': 1, 'clusters': clusters}
+    conf = ReactorConfig(conf_json)
     (flexmock(pre_reactor_config)
         .should_receive('get_config')
         .and_return(conf))
@@ -133,6 +134,7 @@ def mock_reactor_config(tmpdir, clusters=None, empty=False):
                     openshift_url = https://{name}.com/
                     namespace = {name}_namespace
                     """.format(name=cluster['name'])))
+    return conf_json
 
 
 def mock_osbs(current_builds=2, worker_builds=1, logs_return_bytes=False, worker_expect=None):
@@ -363,7 +365,6 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
     if config_kwargs is not None:
         expected_kwargs.update(config_kwargs)
     expected_kwargs['build_image'] = 'some_image:latest'
-    expected_kwargs['reactor_config_override'] = reactor_dict
 
     (flexmock(Configuration).should_call('__init__').with_args(**expected_kwargs).once())
     build_result = runner.run()
@@ -1068,8 +1069,9 @@ def test_orchestrate_build_worker_build_kwargs(tmpdir, caplog, is_auto):
         'release': '10',
         'arrangement_version': 1
     }
+    reactor_config_override = mock_reactor_config(tmpdir)
+    expected_kwargs.update({'reactor_config_override': reactor_config_override})
     mock_osbs(worker_expect=expected_kwargs)
-    mock_reactor_config(tmpdir)
 
     plugin_args = {
         'platforms': ['x86_64'],
@@ -1109,8 +1111,9 @@ def test_orchestrate_override_build_kwarg(tmpdir, overrides):
         'release': '4242',
         'arrangement_version': 1
     }
+    reactor_config_override = mock_reactor_config(tmpdir)
+    expected_kwargs.update({'reactor_config_override': reactor_config_override})
     mock_osbs(worker_expect=expected_kwargs)
-    mock_reactor_config(tmpdir)
 
     plugin_args = {
         'platforms': ['x86_64'],
