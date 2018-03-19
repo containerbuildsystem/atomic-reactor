@@ -16,6 +16,7 @@ discover the image ID Docker will give it.
 from __future__ import unicode_literals
 
 from atomic_reactor.constants import (PLUGIN_PULP_PUSH_KEY, PLUGIN_PULP_SYNC_KEY,
+                                      PLUGIN_GROUP_MANIFESTS_KEY,
                                       MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_SCHEMA1,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
@@ -62,6 +63,7 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
         self.insecure = insecure
         self.secret = secret
         self.expect_v2schema2 = expect_v2schema2
+        self.expect_v2schema2list = False  # automatically set in run()
 
     def retry_if_not_found(self, func, *args, **kwargs):
         start = time()
@@ -89,10 +91,12 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
                         # OK, really give up now.
                         raise
             else:
-                if not self.expect_v2schema2 or digests.v2:
+                if self.expect_v2schema2 and not digests.v2:
+                    self.log.warn("Expected schema 2 manifest")
+                elif self.expect_v2schema2list and not digests.v2_list:
+                    self.log.warn("Expected schema 2 manifest list")
+                else:
                     return digests
-                elif self.expect_v2schema2:
-                    self.log.warn("Expected schema 2 manifest, but only schema 1 found")
 
             if time() - start > self.timeout:
                 raise CraneTimeoutError("{} seconds exceeded"
@@ -107,6 +111,11 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
             self.log.info("Not running for failed build")
             self.workflow.builder.image_id = None
             return []
+
+        # Decide whether we expect v2schema2list based on whether
+        # group_manifests grouped any manifests
+        if self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY):
+            self.expect_v2schema2list = True
 
         # Work out the name of the image to pull
         assert self.workflow.tag_conf.unique_images  # must be set
