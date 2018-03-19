@@ -6,14 +6,18 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY
 from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
-from atomic_reactor.plugins.post_pulp_pull import PulpPullPlugin
+from atomic_reactor.plugins.post_pulp_pull import (PulpPullPlugin,
+                                                   CraneTimeoutError)
 from atomic_reactor.inner import TagConf, PushConf
 from atomic_reactor.util import ImageName
 from flexmock import flexmock
 import pytest
 import requests
 import json
+import responses
+import re
 
 from tests.constants import MOCK
 if MOCK:
@@ -41,7 +45,8 @@ class TestPostPulpPull(object):
     EXPECTED_IMAGE = ImageName.parse('%s/%s' % (CRANE_URI, TEST_UNIQUE_IMAGE))
     EXPECTED_PULLSPEC = EXPECTED_IMAGE.to_str()
 
-    def workflow(self, push=True, sync=True, build_process_failed=False):
+    def workflow(self, push=True, sync=True, build_process_failed=False,
+                 postbuild_results=None):
         tag_conf = TagConf()
         tag_conf.add_unique_image(self.TEST_UNIQUE_IMAGE)
         push_conf = PushConf()
@@ -57,7 +62,8 @@ class TestPostPulpPull(object):
                         push_conf=push_conf,
                         builder=builder,
                         build_process_failed=build_process_failed,
-                        plugin_workspace={})
+                        plugin_workspace={},
+                        postbuild_results=postbuild_results or {})
 
     media_type_v1 = 'application/vnd.docker.distribution.manifest.v1+json'
     media_type_v2 = 'application/vnd.docker.distribution.manifest.v2+json'
@@ -430,3 +436,36 @@ class TestPostPulpPull(object):
                                 expect_v2schema2=True)
 
         plugin.run()
+
+    @responses.activate
+    @pytest.mark.parametrize(('group', 'has_v2list', 'expect_success'), [
+        (False, False, True),
+        (False, True, True),
+        (True, False, False),
+        (True, True, True),
+    ])
+    def test_expectations(self, group, has_v2list, expect_success):
+        def get_manifest(request):
+            media_types = request.headers.get('Accept', '').split(',')
+            content_type = media_types[0]
+            v2_content_type = 'application/vnd.docker.distribution.manifest.list.v2+json'
+            if (not has_v2list) and v2_content_type in media_types:
+                content_type = 'application/vnd.docker.distribution.manifest.v2+json'
+
+            return (200, {'Content-Type': content_type}, '{}')
+
+        url = re.compile(r'.*//crane.example.com/v2/.*/manifests/.*')
+        responses.add_callback(responses.GET, url, callback=get_manifest)
+        digests = {'digest': None} if group else {}
+        workflow = self.workflow(postbuild_results={
+            PLUGIN_GROUP_MANIFESTS_KEY: digests,
+        })
+        workflow.postbuild_plugins_conf = [{'name': 'pulp_sync'}]
+        tasker = MockerTasker()
+        plugin = PulpPullPlugin(tasker, workflow, timeout=0.2,
+                                retry_delay=0.1, expect_v2schema2=True)
+        if expect_success:
+            plugin.run()
+        else:
+            with pytest.raises(CraneTimeoutError):
+                plugin.run()
