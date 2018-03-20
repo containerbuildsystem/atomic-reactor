@@ -10,9 +10,11 @@ from __future__ import unicode_literals
 from datetime import datetime, timedelta
 import os
 import yaml
+from collections import defaultdict
 
 from atomic_reactor.constants import (PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
-                                      REPO_CONTAINER_CONFIG, PLUGIN_BUILD_ORCHESTRATE_KEY)
+                                      REPO_CONTAINER_CONFIG, REPO_CONTENT_SETS_CONFIG,
+                                      PLUGIN_BUILD_ORCHESTRATE_KEY)
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
@@ -152,9 +154,15 @@ class ResolveComposesPlugin(PreBuildPlugin):
         if not data and not self.compose_ids:
             raise SkipResolveComposesPlugin('"compose" config not set and compose_ids not given')
 
+        file_path = os.path.join(workdir, REPO_CONTENT_SETS_CONFIG)
+        pulp_data = None
+        if os.path.exists(file_path):
+            with open(file_path) as f:
+                pulp_data = yaml.safe_load(f) or {}
+
         arches = self.get_arches()
 
-        self.compose_config = ComposeConfig(data, self.odcs_config, arches=arches)
+        self.compose_config = ComposeConfig(data, pulp_data, self.odcs_config, arches=arches)
 
     def adjust_compose_config(self):
         if self.signing_intent:
@@ -204,9 +212,10 @@ class ResolveComposesPlugin(PreBuildPlugin):
 
         self.compose_config.validate_for_request()
 
-        compose_request = self.compose_config.render_request()
-        compose_info = self.odcs_client.start_compose(**compose_request)
-        self.compose_ids = [compose_info['id'], ]
+        self.compose_ids = []
+        for compose_request in self.compose_config.render_requests():
+            compose_info = self.odcs_client.start_compose(**compose_request)
+            self.compose_ids.append(compose_info['id'])
 
     def wait_for_composes(self):
         self.log.debug('Waiting for ODCS composes to be available: %s', self.compose_ids)
@@ -258,19 +267,32 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self.compose_config.set_signing_intent(signing_intent['name'])
 
     def forward_composes(self):
-        repos_by_arch = {}
+        repos_by_arch = defaultdict(list)
         # set overrides by arch if arches are available
         for compose_info in self.composes_info:
-            for arch in compose_info.get('arches') or []:
-                repos_by_arch.setdefault(arch, [])
-                repos_by_arch[arch].append(compose_info['result_repofile'])
+            result_repofile = compose_info['result_repofile']
+            try:
+                arches = compose_info['arches']
+            except KeyError:
+                repos_by_arch[None].append(result_repofile)
+            else:
+                for arch in arches.split():
+                    repos_by_arch[arch].append(result_repofile)
 
-        for arch in repos_by_arch:
-            override_build_kwarg(self.workflow, 'yum_repourls', repos_by_arch[arch], arch)
-        # set generic overrrides otherwise
+        # we should almost never have a None entry, but if we do, we need to merge
+        # it with all other repos.
+        try:
+            noarch_repos = repos_by_arch.pop(None)
+        except KeyError:
+            pass
         else:
-            yum_repourls = [compose_info['result_repofile'] for compose_info in self.composes_info]
-            override_build_kwarg(self.workflow, 'yum_repourls', yum_repourls, None)
+            for repos in repos_by_arch.values():
+                repos.extend(noarch_repos)
+        for arch, repofiles in repos_by_arch.items():
+            override_build_kwarg(self.workflow, 'yum_repourls', repofiles, arch)
+        # Only set the None override if there are no other repos
+        if not repos_by_arch:
+            override_build_kwarg(self.workflow, 'yum_repourls', noarch_repos, None)
 
     def make_result(self):
         result = {
@@ -297,10 +319,13 @@ class ResolveComposesPlugin(PreBuildPlugin):
 
 class ComposeConfig(object):
 
-    def __init__(self, data, odcs_config, koji_tag=None, arches=None):
+    def __init__(self, data, pulp_data, odcs_config, koji_tag=None, arches=None):
         data = data or {}
         self.packages = data.get('packages', [])
         self.modules = data.get('modules', [])
+        self.pulp = {}
+        if data.get('pulp_repos'):
+            self.pulp = pulp_data or {}
         self.koji_tag = koji_tag
         self.odcs_config = odcs_config
         self.arches = arches
@@ -315,16 +340,19 @@ class ComposeConfig(object):
     def has_signing_intent_changed(self):
         return self.signing_intent['name'] != self._original_signing_intent_name
 
-    def render_request(self):
+    def render_requests(self):
         self.validate_for_request()
 
-        request = None
+        requests = []
         if self.packages:
-            request = self.render_packages_request()
+            requests.append(self.render_packages_request())
         else:
-            request = self.render_modules_request()
+            requests.append(self.render_modules_request())
 
-        return request
+        for arch in self.pulp:
+            requests.append(self.render_pulp_request(arch))
+
+        return requests
 
     def render_packages_request(self):
         request = {
@@ -342,6 +370,14 @@ class ComposeConfig(object):
             'source_type': 'module',
             'source': ' '.join(self.modules),
             'sigkeys': self.signing_intent['keys'],
+        }
+
+    def render_pulp_request(self, arch):
+        return {
+            'source_type': 'pulp',
+            'source': ' '.join(self.pulp.get(arch, [])),
+            'sigkeys': [],
+            'arches': [arch]
         }
 
     def validate_for_request(self):

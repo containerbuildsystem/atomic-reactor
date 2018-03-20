@@ -71,7 +71,7 @@ ODCS_COMPOSE_REPOFILE = ODCS_COMPOSE_REPO + '/odcs-1.repo'
 ODCS_COMPOSE_SECONDS_TO_LIVE = timedelta(hours=24)
 ODCS_COMPOSE_TIME_TO_EXPIRE = datetime.utcnow() + ODCS_COMPOSE_SECONDS_TO_LIVE
 ODCS_COMPOSE_DEFAULT_ARCH = 'x86_64'
-ODCS_COMPOSE_ARCHES = [ODCS_COMPOSE_DEFAULT_ARCH]
+ODCS_COMPOSE_DEFAULT_ARCH_LIST = [ODCS_COMPOSE_DEFAULT_ARCH]
 ODCS_COMPOSE = {
     'id': ODCS_COMPOSE_ID,
     'result_repo': ODCS_COMPOSE_REPO,
@@ -80,7 +80,7 @@ ODCS_COMPOSE = {
     'source_type': 'tag',
     'sigkeys': '',
     'state_name': 'done',
-    'arches': ODCS_COMPOSE_ARCHES,
+    'arches': ODCS_COMPOSE_DEFAULT_ARCH,
     'time_to_expire': ODCS_COMPOSE_TIME_TO_EXPIRE.strftime(ODCS_DATETIME_FORMAT),
 }
 
@@ -110,7 +110,7 @@ def workflow(tmpdir):
     buildstep_plugin = [{
         'name': OrchestrateBuildPlugin.key,
         'args': {
-            'platforms': ODCS_COMPOSE_ARCHES
+            'platforms': ODCS_COMPOSE_DEFAULT_ARCH_LIST
         },
     }]
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image', buildstep_plugins=buildstep_plugin, )
@@ -178,13 +178,25 @@ def mock_repo_config(tmpdir, data=None, signing_intent=None):
     tmpdir.join('container.yaml').write(data)
 
 
+def mock_content_sets_config(tmpdir, data=None):
+    if data is None:
+        data = dedent("""\
+            x86_64:
+            - pulp-spam
+            - pulp-bacon
+            - pulp-eggs
+        """)
+
+    tmpdir.join('content_sets.yaml').write(data)
+
+
 def mock_odcs_request():
     (flexmock(ODCSClient)
         .should_receive('start_compose')
         .with_args(
             source_type='tag',
             source=KOJI_TAG_NAME,
-            arches=ODCS_COMPOSE_ARCHES,
+            arches=ODCS_COMPOSE_DEFAULT_ARCH_LIST,
             packages=['spam', 'bacon', 'eggs'],
             sigkeys=['R123'])
         .and_return(ODCS_COMPOSE))
@@ -239,6 +251,115 @@ class TestResolveComposes(object):
                 source='spam bacon eggs',
                 sigkeys=['R123'])
             .and_return(ODCS_COMPOSE))
+
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
+
+    @pytest.mark.parametrize(('pulp_arches', 'arches'), (  # noqa
+        (None, None),
+        (['x86_64'], None),
+        (['x86_64'], ['x86_64']),
+        (['x86_64', 'ppce64le'], ['x86_64', 'ppce64le']),
+        (['x86_64', 'ppce64le', 'arm64'], ['x86_64', 'ppce64le', 'arm64']),
+        (['x86_64', 'ppce64le', 'arm64'], None),
+    ))
+    def test_request_pulp_and_multiarch(self, workflow, reactor_config_map, pulp_arches, arches):
+        content_set = ''
+        pulp_composes = {}
+        base_repos = ['spam', 'bacon', 'eggs']
+        pulp_id = ODCS_COMPOSE_ID
+        for arch in pulp_arches or []:
+            pulp_id += 1
+            pulp_repos = []
+            content_set += """\n    {0}:""".format(arch)
+            for repo in base_repos:
+                pulp_repo = repo + '-' + arch
+                pulp_repos.append(pulp_repo)
+                content_set += """\n    - {0}""".format(pulp_repo)
+            source = ' '.join(pulp_repos)
+
+            pulp_compose = {
+                'id': pulp_id,
+                'result_repo': ODCS_COMPOSE_REPO,
+                'result_repofile': ODCS_COMPOSE_REPO + '/pulp_compose-' + arch,
+                'source': source,
+                'source_type': 'pulp',
+                'sigkeys': '',
+                'state_name': 'done',
+                'arches': arch,
+                'time_to_expire': ODCS_COMPOSE_TIME_TO_EXPIRE.strftime(ODCS_DATETIME_FORMAT),
+            }
+            pulp_composes[arch] = pulp_compose
+            (flexmock(ODCSClient)
+                .should_receive('start_compose')
+                .with_args(source_type='pulp', source=source, arches=[arch], sigkeys=[])
+                .and_return(pulp_composes[arch]).once())
+            (flexmock(ODCSClient)
+                .should_receive('wait_for_compose')
+                .with_args(pulp_id)
+                .and_return(pulp_composes[arch]).once())
+
+        mock_content_sets_config(workflow._tmpdir, content_set)
+
+        repo_config = dedent("""\
+            compose:
+                pulp_repos: true
+                packages:
+                - spam
+                - bacon
+                - eggs
+            """)
+        mock_repo_config(workflow._tmpdir, repo_config)
+        workflow.buildstep_plugins_conf[0]['args']['platforms'] = arches
+        tag_compose = deepcopy(ODCS_COMPOSE)
+        if arches:
+            tag_compose['arches'] = ' '.join(arches)
+            (flexmock(ODCSClient)
+                .should_receive('start_compose')
+                .with_args(source_type='tag', source=KOJI_TAG_NAME, arches=arches,
+                           packages=['spam', 'bacon', 'eggs'], sigkeys=['R123'])
+                .and_return(tag_compose).once())
+        else:
+            tag_compose.pop('arches')
+            (flexmock(ODCSClient)
+                .should_receive('start_compose')
+                .with_args(source_type='tag', source=KOJI_TAG_NAME,
+                           packages=['spam', 'bacon', 'eggs'], sigkeys=['R123'])
+                .and_return(tag_compose).once())
+
+        (flexmock(ODCSClient)
+            .should_receive('wait_for_compose')
+            .with_args(ODCS_COMPOSE_ID)
+            .and_return(tag_compose).once())
+
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
+                                  platforms=pulp_arches, is_pulp=pulp_arches)
+
+    def test_request_compose_for_pulp_no_container(self, workflow, reactor_config_map):  # noqa
+        (flexmock(ODCSClient)
+            .should_receive('start_compose')
+            .with_args(
+                source_type='pulp',
+                source='pulp is no good here',
+                arches=['x86_64'],
+                sigkeys=[])
+            .never())
+        (flexmock(ODCSClient)
+            .should_receive('wait_for_compose')
+            .with_args(85)
+            .never())
+
+        mock_content_sets_config(workflow._tmpdir, '')
+
+        repo_config = dedent("""\
+            compose:
+                pulp_repos: true
+                packages:
+                - spam
+                - bacon
+                - eggs
+            """)
+        mock_repo_config(workflow._tmpdir, repo_config)
+        mock_odcs_request()
 
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
@@ -409,7 +530,7 @@ class TestResolveComposes(object):
                 source_type='tag',
                 source=KOJI_TAG_NAME,
                 packages=['spam', 'bacon', 'eggs'],
-                arches=['x86_64'],
+                arches=ODCS_COMPOSE_DEFAULT_ARCH_LIST,
                 sigkeys=sigkeys)
             .and_return(odcs_compose))
 
@@ -639,46 +760,9 @@ class TestResolveComposes(object):
 
         assert msg in (x.message for x in caplog.records())
 
-    @pytest.mark.parametrize('platforms', (  # noqa
-        None,
-        ['ham', ],
-        ['ham', 'eggs']
-    ))
-    def test_multiple_arches(self, workflow, reactor_config_map, platforms):  # noqa
-        workflow.buildstep_plugins_conf[0]['args']['platforms'] = platforms
-        composes = []
-
-        compose_id = 'test'
-        compose = ODCS_COMPOSE.copy()
-        compose['id'] = compose_id
-        compose['arches'] = platforms
-
-        (flexmock(ODCSClient)
-            .should_receive('start_compose')
-            .and_return(compose))
-
-        (flexmock(ODCSClient)
-            .should_receive('wait_for_compose')
-            .with_args(compose_id)
-            .and_return(compose))
-
-        composes.append(compose)
-
-        plugin_args = {'compose_ids': [item['id'] for item in composes]}
-        plugin_result = self.run_plugin_with_args(workflow, plugin_args,
-                                                  reactor_config_map=reactor_config_map,
-                                                  platforms=platforms)
-
-        assert plugin_result['composes'] == composes
-        if platforms:
-            for compose in composes:
-                assert compose['arches'].sort() == platforms.sort()
-        else:
-            assert compose['arches'] is None
-
-    def run_plugin_with_args(self, workflow, plugin_args=None, expect_result=None,
+    def run_plugin_with_args(self, workflow, plugin_args=None,  # noqa
                              expect_error=None, reactor_config_map=False,
-                             platforms=ODCS_COMPOSE_ARCHES):
+                             platforms=ODCS_COMPOSE_DEFAULT_ARCH_LIST, is_pulp=None):
         plugin_args = plugin_args or {}
         plugin_args.setdefault('odcs_url', ODCS_URL)
         plugin_args.setdefault('koji_target', KOJI_TARGET_NAME)
@@ -709,11 +793,18 @@ class TestResolveComposes(object):
 
         results = runner.run()[ResolveComposesPlugin.key]
         if results:
-            if platforms is not None:
-                for platform in platforms:
-                    assert len(self.get_override_yum_repourls(workflow, platform)) > 0
+            for platform in platforms or []:
+                yum_repourls = self.get_override_yum_repourls(workflow, platform)
+                # Koji tag compose is present in each one
+                assert ODCS_COMPOSE['result_repofile'] in yum_repourls
+                if is_pulp:
+                    pulp_repo = ODCS_COMPOSE_REPO + '/pulp_compose-' + platform
+                    assert pulp_repo in yum_repourls
+            yum_repourls = self.get_override_yum_repourls(workflow, None)
+            if platforms:
+                assert yum_repourls is None
             else:
-                assert len(self.get_override_yum_repourls(workflow, None)) > 0
+                assert ODCS_COMPOSE['result_repofile'] in yum_repourls
             assert set(results.keys()) == set(['signing_intent', 'signing_intent_overridden',
                                                'composes'])
         else:
