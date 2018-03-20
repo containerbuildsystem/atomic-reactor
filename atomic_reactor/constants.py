@@ -116,3 +116,4 @@ MEDIA_TYPE_OCI_V1 = "application/vnd.oci.image.manifest.v1+json"
 MEDIA_TYPE_OCI_V1_INDEX = "application/vnd.oci.image.index.v1+json"
 
 REPO_CONTAINER_CONFIG = 'container.yaml'
+REPO_CONTENT_SETS_CONFIG = 'content_sets.yaml'
