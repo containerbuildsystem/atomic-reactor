@@ -86,7 +86,7 @@ ODCS_COMPOSE = {
 
 SIGNING_INTENTS = {
     'release': ['R123'],
-    'beta': ['R123', 'B456'],
+    'beta': ['R123', 'B456', 'B457'],
     'unsigned': [],
 }
 
@@ -145,7 +145,7 @@ def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_
                - name: release
                  keys: ['R123']
                - name: beta
-                 keys: ['R123', 'B456']
+                 keys: ['R123', 'B456', 'B457']
                - name: unsigned
                  keys: []
                default_signing_intent: {}
@@ -160,6 +160,7 @@ def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_
     if data:
         tmpdir.join('cert').write('')
         config = read_yaml(data, 'schemas/config.json')
+
     workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = ReactorConfig(config)
 
 
@@ -254,15 +255,17 @@ class TestResolveComposes(object):
 
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
-    @pytest.mark.parametrize(('pulp_arches', 'arches'), (  # noqa
-        (None, None),
-        (['x86_64'], None),
-        (['x86_64'], ['x86_64']),
-        (['x86_64', 'ppce64le'], ['x86_64', 'ppce64le']),
-        (['x86_64', 'ppce64le', 'arm64'], ['x86_64', 'ppce64le', 'arm64']),
-        (['x86_64', 'ppce64le', 'arm64'], None),
+    @pytest.mark.parametrize(('pulp_arches', 'arches', 'signing_intent', 'expected_intent'), (  # noqa
+        (None, None, 'unsigned', 'unsigned'),
+        (['x86_64'], None, 'release', 'beta'),
+        (['x86_64'], ['x86_64'], 'release', 'beta'),
+        (['x86_64', 'ppce64le'], ['x86_64', 'ppce64le'], 'release', 'beta'),
+        (['x86_64', 'ppce64le', 'arm64'], ['x86_64', 'ppce64le', 'arm64'], 'beta', 'beta'),
+        (['x86_64', 'ppce64le', 'arm64'], ['x86_64', 'ppce64le', 'arm64'], 'unsigned', 'unsigned'),
+        (['x86_64', 'ppce64le', 'arm64'], None, 'beta', 'beta'),
     ))
-    def test_request_pulp_and_multiarch(self, workflow, reactor_config_map, pulp_arches, arches):
+    def test_request_pulp_and_multiarch(self, workflow, reactor_config_map, pulp_arches, arches,
+                                        signing_intent, expected_intent):
         content_set = ''
         pulp_composes = {}
         base_repos = ['spam', 'bacon', 'eggs']
@@ -283,7 +286,7 @@ class TestResolveComposes(object):
                 'result_repofile': ODCS_COMPOSE_REPO + '/pulp_compose-' + arch,
                 'source': source,
                 'source_type': 'pulp',
-                'sigkeys': '',
+                'sigkeys': "B457",
                 'state_name': 'done',
                 'arches': arch,
                 'time_to_expire': ODCS_COMPOSE_TIME_TO_EXPIRE.strftime(ODCS_DATETIME_FORMAT),
@@ -307,23 +310,27 @@ class TestResolveComposes(object):
                 - spam
                 - bacon
                 - eggs
-            """)
+                signing_intent: {0}
+            """.format(signing_intent))
         mock_repo_config(workflow._tmpdir, repo_config)
         workflow.buildstep_plugins_conf[0]['args']['platforms'] = arches
         tag_compose = deepcopy(ODCS_COMPOSE)
+
+        sig_keys = SIGNING_INTENTS[signing_intent]
+        tag_compose['sigkeys'] = ' '.join(sig_keys)
         if arches:
             tag_compose['arches'] = ' '.join(arches)
             (flexmock(ODCSClient)
                 .should_receive('start_compose')
                 .with_args(source_type='tag', source=KOJI_TAG_NAME, arches=arches,
-                           packages=['spam', 'bacon', 'eggs'], sigkeys=['R123'])
+                           packages=['spam', 'bacon', 'eggs'], sigkeys=sig_keys)
                 .and_return(tag_compose).once())
         else:
             tag_compose.pop('arches')
             (flexmock(ODCSClient)
                 .should_receive('start_compose')
                 .with_args(source_type='tag', source=KOJI_TAG_NAME,
-                           packages=['spam', 'bacon', 'eggs'], sigkeys=['R123'])
+                           packages=['spam', 'bacon', 'eggs'], sigkeys=sig_keys)
                 .and_return(tag_compose).once())
 
         (flexmock(ODCSClient)
@@ -331,8 +338,10 @@ class TestResolveComposes(object):
             .with_args(ODCS_COMPOSE_ID)
             .and_return(tag_compose).once())
 
-        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
-                                  platforms=pulp_arches, is_pulp=pulp_arches)
+        plugin_result = self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
+                                                  platforms=pulp_arches, is_pulp=pulp_arches)
+
+        assert plugin_result['signing_intent'] == expected_intent
 
     def test_request_compose_for_pulp_no_container(self, workflow, reactor_config_map):  # noqa
         (flexmock(ODCSClient)
