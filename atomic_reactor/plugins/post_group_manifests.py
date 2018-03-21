@@ -65,9 +65,9 @@ class GroupManifestsPlugin(PostBuildPlugin):
         self.group = get_group_manifests(self.workflow, group)
 
         plat_des_fallback = []
-        for platform in goarch:
+        for platform, architecture in (goarch or {}).items():
             plat_dic = {'platform': platform,
-                        'architecture': goarch[platform]}
+                        'architecture': architecture}
             plat_des_fallback.append(plat_dic)
 
         platform_descriptors = get_platform_descriptors(self.workflow, plat_des_fallback)

@@ -20,8 +20,10 @@ from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlug
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY)
+import atomic_reactor.plugins.pre_reactor_config
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.util import ImageName, df_parser
+import atomic_reactor.util
 from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY
 from flexmock import flexmock
 from multiprocessing.pool import AsyncResult
@@ -29,6 +31,7 @@ from osbs.api import OSBS
 from osbs.conf import Configuration
 from osbs.build.build_response import BuildResponse
 from osbs.exceptions import OsbsException
+from osbs.core import Openshift
 from tests.constants import MOCK_SOURCE, TEST_IMAGE, INPUT_IMAGE, SOURCE
 from tests.fixtures import reactor_config_map  # noqa
 from tests.docker_mock import mock_docker
@@ -40,6 +43,15 @@ import os
 import pytest
 import time
 import yaml
+import platform
+
+
+manifest_list = {
+    'manifests': [
+        {'platform': {'architecture': 'amd64'}, 'digest': 'sha256:123456'},
+        {'platform': {'architecture': 'ppc64le'}, 'digest': 'sha256:123456'},
+    ]
+}
 
 
 class MockSource(object):
@@ -78,6 +90,19 @@ class MockInsideBuilder(object):
         pass
 
 
+class fake_imagestream_tag(object):
+    def __init__(self, json_cont):
+        self.json_cont = json_cont
+
+    def json(self):
+        return self.json_cont
+
+
+class fake_manifest_list(object):
+    def __init__(self, json_cont):
+        self.content = json_cont
+
+
 def mock_workflow(tmpdir):
     workflow = DockerBuildWorkflow(MOCK_SOURCE, TEST_IMAGE)
     builder = MockInsideBuilder()
@@ -97,9 +122,17 @@ def mock_workflow(tmpdir):
     df = df_parser(df_path)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
 
-    build = '{"spec": {"strategy": {"customStrategy": {"from": \
-            {"name": "some_image:latest", "kind": "DockerImage"}}}}}'
-    flexmock(os, environ={'BUILD': build})
+    build = {
+        "spec": {
+            "strategy": {
+                "customStrategy": {
+                    "from": {"name": "registry/some_image@sha256:123456",
+                             "kind": "DockerImage"}}}},
+        "metadata": {
+            "annotations": {
+                "from": json.dumps({"name": "registry/some_image:latest",
+                                    "kind": "DockerImage"})}}}
+    flexmock(os, environ={'BUILD': json.dumps(build)})
 
     return workflow
 
@@ -135,6 +168,12 @@ def mock_reactor_config(tmpdir, clusters=None, empty=False):
                     namespace = {name}_namespace
                     """.format(name=cluster['name'])))
     return conf_json
+
+
+def mock_manifest_list():
+    (flexmock(atomic_reactor.util)
+     .should_receive('get_manifest_list')
+     .and_return(fake_manifest_list(manifest_list)))
 
 
 def mock_osbs(current_builds=2, worker_builds=1, logs_return_bytes=False, worker_expect=None):
@@ -351,6 +390,8 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
                     namespace = {name}_namespace
                     """.format(name=cluster['name'])))
 
+    goarch = {'x86_64': 'amd64'}
+    plugin_args['goarch'] = goarch
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
         workflow,
@@ -364,7 +405,11 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
     # always has precedence over worker_build_image param.
     if config_kwargs is not None:
         expected_kwargs.update(config_kwargs)
-    expected_kwargs['build_image'] = 'some_image:latest'
+    expected_kwargs['build_image'] = 'registry/some_image@sha256:123456'
+
+    (flexmock(atomic_reactor.plugins.pre_reactor_config)
+     .should_receive('get_openshift_session')
+     .and_return(None))
 
     (flexmock(Configuration).should_call('__init__').with_args(**expected_kwargs).once())
     build_result = runner.run()
@@ -407,6 +452,7 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
 def test_orchestrate_build_annotations_and_labels(tmpdir, metadata_fragment):
     workflow = mock_workflow(tmpdir)
     mock_osbs()
+    mock_manifest_list()
 
     md = {
         'metadata_fragment': 'configmap/spam-md',
@@ -448,7 +494,8 @@ def test_orchestrate_build_annotations_and_labels(tmpdir, metadata_fragment):
                 'build_kwargs': make_worker_build_kwargs(),
                 'osbs_client_config': str(tmpdir),
                 'max_cluster_fails': 2,
-                'unreachable_cluster_retry_delay': .1
+                'unreachable_cluster_retry_delay': .1,
+                'goarch': {'x86_64': 'amd64'},
             }
         }]
     )
@@ -519,6 +566,7 @@ def test_orchestrate_build_annotations_and_labels(tmpdir, metadata_fragment):
 def test_orchestrate_choose_cluster_retry(tmpdir):
 
     mock_osbs()
+    mock_manifest_list()
 
     (flexmock(OSBS).should_receive('list_builds')
         .and_raise(OsbsException)
@@ -548,7 +596,8 @@ def test_orchestrate_choose_cluster_retry(tmpdir):
                 'build_kwargs': make_worker_build_kwargs(),
                 'osbs_client_config': str(tmpdir),
                 'find_cluster_retry_delay': .1,
-                'max_cluster_fails': 2
+                'max_cluster_fails': 2,
+                'goarch': {'x86_64': 'amd64'},
             }
         }]
     )
@@ -558,6 +607,7 @@ def test_orchestrate_choose_cluster_retry(tmpdir):
 
 def test_orchestrate_choose_cluster_retry_timeout(tmpdir):
 
+    mock_manifest_list()
     (flexmock(OSBS).should_receive('list_builds')
         .and_raise(OsbsException)
         .and_raise(OsbsException)
@@ -586,7 +636,8 @@ def test_orchestrate_choose_cluster_retry_timeout(tmpdir):
                 'build_kwargs': make_worker_build_kwargs(),
                 'osbs_client_config': str(tmpdir),
                 'find_cluster_retry_delay': .1,
-                'max_cluster_fails': 2
+                'max_cluster_fails': 2,
+                'goarch': {'x86_64': 'amd64'},
             }
         }]
     )
@@ -600,6 +651,7 @@ def test_orchestrate_choose_cluster_retry_timeout(tmpdir):
 def test_orchestrate_build_cancelation(tmpdir):
     workflow = mock_workflow(tmpdir)
     mock_osbs()
+    mock_manifest_list()
     mock_reactor_config(tmpdir)
 
     runner = BuildStepPluginsRunner(
@@ -611,6 +663,7 @@ def test_orchestrate_build_cancelation(tmpdir):
                 'platforms': ['x86_64'],
                 'build_kwargs': make_worker_build_kwargs(),
                 'osbs_client_config': str(tmpdir),
+                'goarch': {'x86_64': 'amd64'},
             }
         }]
     )
@@ -668,6 +721,7 @@ def test_orchestrate_build_choose_clusters(tmpdir, clusters_x86_64,
                                            clusters_ppc64le):
     workflow = mock_workflow(tmpdir)
     mock_osbs()  # Current builds is a constant 2
+    mock_manifest_list()
 
     mock_reactor_config(tmpdir, {
         'x86_64': [
@@ -689,6 +743,7 @@ def test_orchestrate_build_choose_clusters(tmpdir, clusters_x86_64,
                 'platforms': ['x86_64', 'ppc64le'],
                 'build_kwargs': make_worker_build_kwargs(),
                 'osbs_client_config': str(tmpdir),
+                'goarch': {'x86_64': 'amd64'},
             }
         }]
     )
@@ -703,22 +758,23 @@ def test_orchestrate_build_choose_clusters(tmpdir, clusters_x86_64,
 
 
 @pytest.mark.parametrize(('platforms', 'platform_exclude', 'platform_only', 'result'), [
-    (['x86_64', 'powerpc64le'], '', 'powerpc64le', ['powerpc64le']),
-    (['x86_64', 'spam', 'bacon', 'toast', 'powerpc64le'], ['spam', 'bacon', 'eggs', 'toast'], '',
-     ['x86_64', 'powerpc64le']),
-    (['powerpc64le', 'spam', 'bacon', 'toast'], ['spam', 'bacon', 'eggs', 'toast'], 'powerpc64le',
-     ['powerpc64le']),
-    (['x86_64', 'bacon', 'toast'], 'toast', ['x86_64', 'powerpc64le'], ['x86_64']),
+    (['x86_64', 'ppc64le'], '', 'ppc64le', ['ppc64le']),
+    (['x86_64', 'spam', 'bacon', 'toast', 'ppc64le'], ['spam', 'bacon', 'eggs', 'toast'], '',
+     ['x86_64', 'ppc64le']),
+    (['ppc64le', 'spam', 'bacon', 'toast'], ['spam', 'bacon', 'eggs', 'toast'], 'ppc64le',
+     ['ppc64le']),
+    (['x86_64', 'bacon', 'toast'], 'toast', ['x86_64', 'ppc64le'], ['x86_64']),
     (['x86_64', 'toast'], 'toast', 'x86_64', ['x86_64']),
     (['x86_64', 'spam', 'bacon', 'toast'], ['spam', 'bacon', 'eggs', 'toast'], ['x86_64',
-                                                                                'powerpc64le'],
+                                                                                'ppc64le'],
      ['x86_64']),
-    (['x86_64', 'powerpc64le'], '', '', ['x86_64', 'powerpc64le'])
+    (['x86_64', 'ppc64le'], '', '', ['x86_64', 'ppc64le'])
 ])
 def test_orchestrate_build_exclude_platforms(tmpdir, platforms, platform_exclude, platform_only,
                                              result):
     workflow = mock_workflow(tmpdir)
     mock_osbs()
+    mock_manifest_list()
 
     reactor_config = {
         'x86_64': [
@@ -727,7 +783,7 @@ def test_orchestrate_build_exclude_platforms(tmpdir, platforms, platform_exclude
                 'max_concurrent_builds': 3
             }
         ],
-        'powerpc64le': [
+        'ppc64le': [
             {
                 'name': 'worker02',
                 'max_concurrent_builds': 3
@@ -767,6 +823,7 @@ def test_orchestrate_build_exclude_platforms(tmpdir, platforms, platform_exclude
                 'platforms': platforms,
                 'build_kwargs': make_worker_build_kwargs(),
                 'osbs_client_config': str(tmpdir),
+                'goarch': {'x86_64': 'amd64'},
             }
         }]
     )
@@ -781,6 +838,7 @@ def test_orchestrate_build_exclude_platforms(tmpdir, platforms, platform_exclude
 def test_orchestrate_build_unknown_platform(tmpdir, reactor_config_map):  # noqa
     workflow = mock_workflow(tmpdir)
     mock_osbs()
+    mock_manifest_list()
     if reactor_config_map:
         mock_reactor_config(tmpdir)
     else:
@@ -799,6 +857,7 @@ def test_orchestrate_build_unknown_platform(tmpdir, reactor_config_map):  # noqa
                 'platforms': ['x86_64', 'spam'],
                 'build_kwargs': make_worker_build_kwargs(),
                 'osbs_client_config': str(tmpdir),
+                'goarch': {'x86_64': 'amd64'},
             }
         }]
     )
@@ -818,6 +877,7 @@ def test_orchestrate_build_unknown_platform(tmpdir, reactor_config_map):  # noqa
 def test_orchestrate_build_failed_create(tmpdir):
     workflow = mock_workflow(tmpdir)
     mock_osbs()
+    mock_manifest_list()
 
     def mock_create_worker_build(**kwargs):
         if kwargs['platform'] == 'ppc64le':
@@ -826,6 +886,7 @@ def test_orchestrate_build_failed_create(tmpdir):
     (flexmock(OSBS)
      .should_receive('create_worker_build')
      .replace_with(mock_create_worker_build))
+
     fail_reason = 'build not started'
     annotation_keys = set(['x86_64'])
 
@@ -841,7 +902,8 @@ def test_orchestrate_build_failed_create(tmpdir):
                 'build_kwargs': make_worker_build_kwargs(),
                 'osbs_client_config': str(tmpdir),
                 'find_cluster_retry_delay': .1,
-                'failure_retry_delay': .1
+                'failure_retry_delay': .1,
+                'goarch': {'x86_64': 'amd64'},
             }
         }]
     )
@@ -921,6 +983,7 @@ def test_orchestrate_build_failed_waiting(tmpdir,
     (flexmock(OSBS)
      .should_receive('wait_for_build_to_finish')
      .replace_with(mock_wait_for_build_to_finish))
+    mock_manifest_list()
 
     cancel_build_expectation = flexmock(OSBS).should_receive('cancel_build')
     if cancel_fails:
@@ -945,6 +1008,7 @@ def test_orchestrate_build_failed_waiting(tmpdir,
                 'platforms': ['x86_64', 'ppc64le'],
                 'build_kwargs': make_worker_build_kwargs(),
                 'osbs_client_config': str(tmpdir),
+                'goarch': {'x86_64': 'amd64'},
             }
         }]
     )
@@ -1138,48 +1202,245 @@ def test_orchestrate_override_build_kwarg(tmpdir, overrides):
     assert not build_result.is_failed()
 
 
-@pytest.mark.parametrize(('build', 'exc'), [
-    ('{"spec": {"strategy": {"customStrategy": {"from": \
-     {"name": "osbs-buildroot:latest", "kind": "DockerImage"}}}}}',
-     None),
-    ('{"spec": {"strategy": {"customStrategy": {"from": {"name": "osbs-buildroot:latest"}}}}}',
-     'RuntimeError'),
-    ('{"spec": {"strategy": {"customStrategy": {"from": \
-     {"name": "osbs-buildroot:latest", "kind": "ImageStreamTag"}}}}}',
-     'RuntimeError'),
-    ('{"spec": {"strategy": {"customStrategy": {"from": \
-     {"name": "osbs-buildroot:latest", "kind": "wrong_kind"}}}}}',
-     'RuntimeError'),
-    ('{"spec": {}}',
-     'RuntimeError'),
-    ('{"spec": {"strategy": {}}}',
-     'RuntimeError'),
-    ('{"spec": {"strategy": {"customStrategy": {}}}}',
-     'RuntimeError'),
-    ('{"spec": {"strategy": {"customStrategy": {"from": {}}}}}',
-     'RuntimeError'),
+@pytest.mark.parametrize(('build', 'exc_str', 'bc', 'bc_cont', 'ims', 'ims_cont',
+                          'ml', 'ml_cont'), [
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name_wrong": "osbs-buildroot:latest",
+                         "kind": "DockerImage"}}}}},
+     "Build object is malformed, failed to fetch buildroot image",
+     None, None, None, None, None, None),
+
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "osbs-buildroot:latest",
+                         "kind_wrong": "DockerImage"}}}}},
+     "Build object is malformed, failed to fetch buildroot image",
+     None, None, None, None, None, None),
+
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "osbs-buildroot:latest",
+                         "kind": "wrong_kind"}}}}},
+     "Build kind isn't 'DockerImage' but",
+     None, None, None, None, None, None),
+
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "osbs-buildroot:latest",
+                         "kind": "DockerImage"}}}},
+        "status": {
+            "config": {"kind": "wrong"}}},
+     "Build config type isn't BuildConfig :",
+     None, None, None, None, None, None),
+
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "osbs-buildroot:latest",
+                         "kind": "DockerImage"}}}},
+        "metadata": {"annotations": {}}},
+     "Build wasn't created from BuildConfig and neither has 'from'" +
+     " annotation, which is needed for specified arch",
+     None, None, None, None, None, None),
+
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "osbs-buildroot:latest",
+                         "kind": "DockerImage"}}}},
+        "metadata": {
+            "annotations": {
+                "from": json.dumps({"kind": "wrong"})}}},
+     "Build annotation has unknown 'kind'",
+     None, None, None, None, None, None),
+
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "osbs-buildroot:latest",
+                         "kind": "DockerImage"}}}},
+        "metadata": {
+            "annotations": {
+                "from": json.dumps({"kind": "DockerImage",
+                                    "name": "image@sha256:123456"})}}},
+     "Buildroot image doesn't have tag, which is needed for specified arch",
+     None, None, None, None, None, None),
+
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "osbs-buildroot:latest",
+                         "kind": "DockerImage"}}}},
+        "status": {
+            "config": {"kind": "BuildConfig",
+                       "name": "wrong build config"}}},
+     "Build config not found :",
+     False, None, None, None, None, None),
+
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "osbs-buildroot:latest",
+                         "kind": "DockerImage"}}}},
+        "status": {
+            "config": {"kind": "BuildConfig",
+                       "name": "build config"}}},
+     "BuildConfig object is malformed",
+     True, {"spec": {"strategy": {"customStrategy": {}}}}, None, None,
+     None, None),
+
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "osbs-buildroot:latest",
+                         "kind": "DockerImage"}}}},
+        "status": {
+            "config": {"kind": "BuildConfig", "name": "build config"}}},
+     "BuildConfig object has unknown 'kind'",
+     True, {"spec": {"strategy": {"customStrategy": {"from": {"kind": "wrong_kind"}}}}},
+     None, None, None, None),
+
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "osbs-buildroot:latest",
+                         "kind": "DockerImage"}}}},
+        "status": {
+            "config": {"kind": "BuildConfig",
+                       "name": "build config"}}},
+     "ImageStreamTag not found",
+     True, {"spec": {"strategy": {"customStrategy": {"from": {"kind": "ImageStreamTag",
+                                                              "name": "wrong_ims"}}}}},
+     False, None, None, None),
+
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "osbs-buildroot:latest",
+                         "kind": "DockerImage"}}}},
+        "status": {
+            "config": {"kind": "BuildConfig",
+                       "name": "build config"}}},
+     "ImageStreamTag is malformed",
+     True, {"spec": {"strategy": {"customStrategy": {"from": {"kind": "ImageStreamTag",
+                                                              "name": "ims"}}}}},
+     True, {"image": {}}, None, None),
+
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "osbs-buildroot:latest",
+                         "kind": "DockerImage"}}}},
+        "status": {
+            "config": {"kind": "BuildConfig",
+                       "name": "build config"}}},
+     "Image in imageStreamTag 'ims' is missing Labels",
+     True, {"spec": {"strategy": {"customStrategy": {"from": {"kind": "ImageStreamTag",
+                                                              "name": "ims"}}}}},
+     True, {"image": {"dockerImageReference": "some@sha256:12345",
+                      "dockerImageMetadata": {"Config": {}}}},
+     None, None),
+
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "osbs-buildroot:latest",
+                         "kind": "DockerImage"}}}},
+        "metadata": {
+            "annotations": {
+                "from": json.dumps({"kind": "DockerImage",
+                                    "name": "registry/image:tag"})}}},
+     "Buildroot image tag isn't manifest list, which is needed for specified arch",
+     None, None, None, None, False, None),
+
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "osbs-buildroot:latest",
+                         "kind": "DockerImage"}}}},
+        "metadata": {
+            "annotations": {
+                "from": json.dumps({"kind": "DockerImage",
+                                    "name": "registry/image:tag"})}}},
+     "Platform for orchestrator 'x86_64' isn't in manifest list",
+     None, None, None, None, True, {"manifests": [{"platform": {"architecture": "ppc64le"},
+                                                   "digest": "some_image"}]}),
+
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "osbs-buildroot:latest",
+                         "kind": "DockerImage"}}}},
+        "metadata": {
+            "annotations": {
+                "from": json.dumps({"kind": "DockerImage",
+                                    "name": "registry/image:tag"})}}},
+     "Orchestrator is using image 'osbs-buildroot:latest' which isn't in manifest list",
+     None, None, None, None, True, {"manifests": [{"platform": {"architecture": "amd64"},
+                                                   "digest": "some_image"}]}),
+
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "registry/image@osbs-buildroot:latest",
+                         "kind": "DockerImage"}}}},
+        "metadata": {
+            "annotations": {
+                "from": json.dumps({"kind": "DockerImage",
+                                    "name": "registry/image:tag"})}}},
+     "build_image for platform 'ppc64le' not available",
+     None, None, None, None, True, {"manifests": [{"platform": {"architecture": "amd64"},
+                                                   "digest": "osbs-buildroot:latest"}]}),
 ])
-def test_set_build_image(tmpdir, build, exc):
+def test_set_build_image_raises(tmpdir, build, exc_str, bc, bc_cont, ims, ims_cont, ml, ml_cont):
+    build = json.dumps(build)
     workflow = mock_workflow(tmpdir)
+
+    orchestrator_default_platform = 'x86_64'
+    (flexmock(platform)
+     .should_receive('processor')
+     .and_return(orchestrator_default_platform))
+
     flexmock(os, environ={'BUILD': build})
-    expected_kwargs = {
-        'git_uri': SOURCE['uri'],
-        'git_ref': 'master',
-        'git_branch': 'master',
-        'user': 'bacon',
-        'is_auto': False,
-        'platform': 'x86_64',
-        'release': '4242',
-        'arrangement_version': 1
-    }
-    mock_osbs(worker_expect=expected_kwargs)
+    mock_osbs()
     mock_reactor_config(tmpdir)
 
+    if bc is False:
+        (flexmock(Openshift)
+         .should_receive('get_build_config')
+         .and_raise(OsbsException))
+    if bc is True:
+        (flexmock(Openshift)
+         .should_receive('get_build_config')
+         .and_return(bc_cont))
+    if ims is False:
+        (flexmock(Openshift)
+         .should_receive('get_image_stream_tag')
+         .and_raise(OsbsException))
+    if ims is True:
+        (flexmock(Openshift)
+         .should_receive('get_image_stream_tag')
+         .and_return(fake_imagestream_tag(ims_cont)))
+    if ml is False:
+        (flexmock(atomic_reactor.util)
+         .should_receive('get_manifest_list')
+         .and_return(None))
+    if ml is True:
+        (flexmock(atomic_reactor.util)
+         .should_receive('get_manifest_list')
+         .and_return(fake_manifest_list(ml_cont)))
+
     plugin_args = {
-        'platforms': ['x86_64'],
+        'platforms': ['x86_64', 'ppc64le'],
         'build_kwargs': make_worker_build_kwargs(),
         'worker_build_image': 'osbs-buildroot:latest',
         'osbs_client_config': str(tmpdir),
+        'goarch': {'x86_64': 'amd64'},
     }
 
     runner = BuildStepPluginsRunner(
@@ -1191,11 +1452,123 @@ def test_set_build_image(tmpdir, build, exc):
         }]
     )
 
-    if not exc:
+    with pytest.raises(PluginFailedException) as ex:
         runner.run()
-    else:
-        exc_str = "raised an exception: %s" % exc
+    assert "raised an exception: RuntimeError" in str(ex)
+    assert exc_str in str(ex)
 
-        with pytest.raises(PluginFailedException) as ex:
-            runner.run()
-        assert exc_str in str(ex)
+
+@pytest.mark.parametrize(('build', 'bc', 'bc_cont', 'ims', 'ims_cont',
+                          'ml', 'ml_cont', 'platforms'), [
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "osbs-buildroot:latest",
+                         "kind": "DockerImage"}}}}},
+     None, None, None, None, None, None, ['x86_64']),
+
+
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "registry/osbs-buildroot@sha256:12345",
+                         "kind": "DockerImage"}}}},
+      "metadata": {
+          "annotations": {
+              "from": json.dumps({"kind": "ImageStreamTag",
+                                  "name": "image_stream_tag"})}}},
+     None, None, True,
+     {"image": {"dockerImageReference": "registry/osbs-buildroot:ims"}},
+     True,
+     {"manifests": [{"platform": {"architecture": "ppc64le"},
+                     "digest": "sha256:987654321"},
+                    {"platform": {"architecture": "amd64"},
+                     "digest": "sha256:12345"}]},
+     ['ppc64le', 'x86_64']),
+
+
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "registry/osbs-buildroot@sha256:12345",
+                         "kind": "DockerImage"}}}},
+      "metadata": {
+          "annotations": {
+              "from": json.dumps({"kind": "ImageStreamTag",
+                                  "name": "image_stream_tag"})}}},
+     None, None, True,
+     {"image": {"dockerImageReference": "registry/osbs-buildroot@sha256:12345",
+                "dockerImageMetadata": {
+                    "Config": {
+                        "Labels": {"release": "1", "version": "1.0"}}}}},
+     True,
+     {"manifests": [{"platform": {"architecture": "ppc64le"},
+                     "digest": "sha256:987654321"},
+                    {"platform": {"architecture": "amd64"},
+                     "digest": "sha256:12345"}]},
+     ['ppc64le', 'x86_64']),
+
+
+    ({"spec": {
+        "strategy": {
+            "customStrategy": {
+                "from": {"name": "registry/osbs-buildroot@sha256:12345",
+                         "kind": "DockerImage"}}}},
+      "status": {
+          "config": {"kind": "BuildConfig",
+                     "name": "build config"}}},
+     True,
+     {"spec": {"strategy": {"customStrategy": {"from": {"kind": "DockerImage",
+                                                        "name": "registry/osbs-buildroot:bc"}}}}},
+     False, None, True,
+     {"manifests": [{"platform": {"architecture": "ppc64le"},
+                     "digest": "sha256:987654321"},
+                    {"platform": {"architecture": "amd64"},
+                     "digest": "sha256:12345"}]},
+     ['ppc64le', 'x86_64']),
+])
+def test_set_build_image_works(tmpdir, build, bc, bc_cont, ims, ims_cont, ml, ml_cont,
+                               platforms):
+    build = json.dumps(build)
+    workflow = mock_workflow(tmpdir)
+
+    orchestrator_default_platform = 'x86_64'
+    (flexmock(platform)
+     .should_receive('processor')
+     .and_return(orchestrator_default_platform))
+
+    flexmock(os, environ={'BUILD': build})
+    mock_osbs()
+    mock_reactor_config(tmpdir)
+
+    if bc is True:
+        (flexmock(Openshift)
+         .should_receive('get_build_config')
+         .and_return(bc_cont))
+    if ims is True:
+        (flexmock(Openshift)
+         .should_receive('get_image_stream_tag')
+         .and_return(fake_imagestream_tag(ims_cont)))
+    if ml is True:
+        (flexmock(atomic_reactor.util)
+         .should_receive('get_manifest_list')
+         .and_return(fake_manifest_list(ml_cont)))
+
+    plugin_args = {
+        'platforms': platforms,
+        'build_kwargs': make_worker_build_kwargs(),
+        'worker_build_image': 'osbs-buildroot:latest',
+        'osbs_client_config': str(tmpdir),
+        'goarch': {'x86_64': 'amd64'},
+    }
+
+    runner = BuildStepPluginsRunner(
+        workflow.builder.tasker,
+        workflow,
+        [{
+            'name': OrchestrateBuildPlugin.key,
+            'args': plugin_args,
+        }]
+    )
+
+    runner.run()

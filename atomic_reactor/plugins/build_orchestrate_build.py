@@ -22,6 +22,7 @@ import logging
 from datetime import timedelta
 import datetime as dt
 import copy
+import platform
 
 from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import BuildStepPlugin
@@ -32,9 +33,10 @@ from atomic_reactor.plugins.pre_reactor_config import (get_config,
                                                        get_source_registry, get_sources_command,
                                                        get_artifacts_allowed_domains,
                                                        get_yum_proxy, get_image_equal_labels,
-                                                       get_content_versions)
+                                                       get_content_versions, get_openshift_session,
+                                                       get_platform_descriptors)
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
-from atomic_reactor.util import df_parser, get_build_json
+from atomic_reactor.util import df_parser, get_build_json, get_manifest_list, ImageName
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       REPO_CONTAINER_CONFIG)
 from osbs.api import OSBS
@@ -88,6 +90,10 @@ class UnknownPlatformException(Exception):
 
 class AllClustersFailedException(Exception):
     """ Each cluster has reached max_cluster_fails """
+
+
+class UnknownKindException(Exception):
+    """ Build image from contains unknown kind """
 
 
 class ClusterRetryContext(object):
@@ -252,7 +258,9 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
                  config_kwargs=None,
                  find_cluster_retry_delay=FIND_CLUSTER_RETRY_DELAY,
                  failure_retry_delay=FAILURE_RETRY_DELAY,
-                 max_cluster_fails=MAX_CLUSTER_FAILS):
+                 max_cluster_fails=MAX_CLUSTER_FAILS,
+                 url=None, verify_ssl=True, use_auth=True,
+                 goarch=None):
         """
         constructor
 
@@ -268,6 +276,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         :param failure_retry_delay: the delay in seconds to try again starting a build
         :param max_cluster_fails: the maximum number of times a cluster can fail before being
                                   ignored
+        :param goarch: dict, keys are platform, values are go language platform names
         """
         super(OrchestrateBuildPlugin, self).__init__(tasker, workflow)
         self.platforms = set(platforms)
@@ -286,11 +295,25 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         self.fs_task_id = self.get_fs_task_id()
         self.release = self.get_release()
 
+        self.plat_des_fallback = []
+        for plat, architecture in (goarch or {}).items():
+            plat_dic = {'platform': plat,
+                        'architecture': architecture}
+            self.plat_des_fallback.append(plat_dic)
+
+        self.openshift_fallback = {
+            'url': url,
+            'insecure': not verify_ssl,
+            'auth': {'enable': use_auth}
+        }
+
         if worker_build_image:
             self.log.warning('worker_build_image is deprecated')
 
         self.worker_builds = []
         self.namespace = get_build_json().get('metadata', {}).get('namespace', None)
+        self.build_image_digests = {}  # by platform
+        self._openshift_session = None
 
     def adjust_config_kwargs(self):
         koji_fallback = {
@@ -426,6 +449,11 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         kwargs['conf_section'] = cluster.name
         if self.osbs_client_config:
             kwargs['conf_file'] = os.path.join(self.osbs_client_config, 'osbs.conf')
+
+        if platform in self.build_image_digests:
+            kwargs['build_image'] = self.build_image_digests[platform]
+        else:
+            raise RuntimeError("build_image for platform '%s' not available" % platform)
 
         osbs = self._get_openshift_session(kwargs)
 
@@ -639,10 +667,14 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
                     ctx.try_again_later(self.failure_retry_delay)
                     # this will put the cluster in retry-wait when get_clusters runs
 
-    def set_build_image(self):
-        """
-        Overrides build_image for worker, to be same as in orchestrator build
-        """
+    @property
+    def openshift_session(self):
+        if not self._openshift_session:
+            self._openshift_session = get_openshift_session(self.workflow, self.openshift_fallback)
+
+        return self._openshift_session
+
+    def get_current_buildimage(self):
         spec = get_build_json().get("spec")
         try:
             build_name = spec['strategy']['customStrategy']['from']['name']
@@ -651,13 +683,168 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             raise RuntimeError("Build object is malformed, failed to fetch buildroot image")
 
         if build_kind == 'DockerImage':
-            self.config_kwargs['build_image'] = build_name
+            return build_name
         else:
             raise RuntimeError("Build kind isn't 'DockerImage' but %s" % build_kind)
 
+    def process_image_from(self, image_from):
+        build_image = None
+        imagestream = None
+
+        if image_from['kind'] == 'DockerImage':
+            build_image = image_from['name']
+        elif image_from['kind'] == 'ImageStreamTag':
+            imagestream = image_from['name']
+        else:
+            raise UnknownKindException
+
+        return build_image, imagestream
+
+    def check_manifest_list(self, build_image, orchestrator_platform, platforms,
+                            current_buildimage):
+        registry_name, image = build_image.split('/', 1)
+        repo, tag = image.rsplit(':', 1)
+
+        registry = ImageName(registry=registry_name, repo=repo, tag=tag)
+        manifest_list = get_manifest_list(registry, registry_name, insecure=True)
+
+        # we don't have manifest list, but we want to build on different platforms
+        if not manifest_list:
+            raise RuntimeError("Buildroot image tag isn't manifest list,"
+                               " which is needed for specified arch")
+        arch_digests = {}
+        image_name = build_image.rsplit(':', 1)[0]
+
+        for manifest in manifest_list.content['manifests']:
+            arch = manifest['platform']['architecture']
+            arch_digests[arch] = image_name + '@' + manifest['digest']
+
+        platform_descriptors = get_platform_descriptors(self.workflow,
+                                                        self.plat_des_fallback)
+        plat_by_arch = {plat['architecture']: plat['platform']
+                        for plat in platform_descriptors}
+        for arch in arch_digests:
+            if arch not in plat_by_arch:
+                plat_by_arch[arch] = arch
+
+        self.build_image_digests = {plat_by_arch[arch]: arch_digests[arch]
+                                    for arch in arch_digests}
+
+        # orchestrator platform is in manifest list
+        if orchestrator_platform in self.build_image_digests:
+            if self.build_image_digests[orchestrator_platform] != current_buildimage:
+                raise RuntimeError("Orchestrator is using image '%s' which isn't"
+                                   " in manifest list" % current_buildimage)
+
+        else:
+            raise RuntimeError("Platform for orchestrator '%s' isn't in manifest list"
+                               % orchestrator_platform)
+
+    def get_image_info_from_buildconfig(self):
+        status = get_build_json().get("status", {})
+
+        if 'config' not in status:
+            return None, None
+
+        config = status['config']
+        if config['kind'] == 'BuildConfig':
+            build_config_name = config['name']
+        else:
+            raise RuntimeError("Build config type isn't BuildConfig : %s" % config['kind'])
+
+        try:
+            build_config = self.openshift_session.os.get_build_config(build_config_name)
+        except OsbsException:
+            raise RuntimeError("Build config not found : %s" % build_config_name)
+
+        try:
+            build_from = build_config['spec']['strategy']['customStrategy']['from']
+        except KeyError:
+            raise RuntimeError("BuildConfig object is malformed")
+
+        try:
+            return self.process_image_from(build_from)
+        except UnknownKindException:
+            raise RuntimeError("BuildConfig object has unknown 'kind' %s" % build_from['kind'])
+
+    def get_image_info_from_annotations(self):
+        annotations = get_build_json().get("metadata", {}).get('annotations', {})
+        if 'from' in annotations:
+            scratch_from = json.loads(annotations['from'])
+
+            try:
+                return self.process_image_from(scratch_from)
+            except UnknownKindException:
+                raise RuntimeError("Build annotation has unknown 'kind' %s" %
+                                   scratch_from['kind'])
+        else:
+            raise RuntimeError("Build wasn't created from BuildConfig and neither"
+                               " has 'from' annotation, which is needed for specified arch")
+
+    def get_build_image_from_imagestream(self, imagestream):
+        try:
+            tag = self.openshift_session.get_image_stream_tag(imagestream).json()
+        except OsbsException:
+            raise RuntimeError("ImageStreamTag not found %s" % imagestream)
+
+        try:
+            tag_image = tag['image']['dockerImageReference']
+        except KeyError:
+            raise RuntimeError("ImageStreamTag is malformed %s" % imagestream)
+
+        if '@sha256:' in tag_image:
+            try:
+                labels = tag['image']['dockerImageMetadata']['Config']['Labels']
+            except KeyError:
+                raise RuntimeError("Image in imageStreamTag '%s' is missing Labels" %
+                                   imagestream)
+
+            release = labels['release']
+            version = labels['version']
+            docker_tag = "%s-%s" % (version, release)
+            return tag_image[:tag_image.find('@sha256')] + ':' + docker_tag
+        else:
+            return tag_image
+
+    def set_build_image(self, platforms):
+        """
+        Overrides build_image for worker, to be same as in orchestrator build
+        """
+        current_platform = platform.processor()
+        orchestrator_platform = current_platform or 'x86_64'
+        current_buildimage = self.get_current_buildimage()
+
+        # orchestrator platform is same as platform on which we want to built on,
+        # so we can use the same image
+        if platforms == set([orchestrator_platform]):
+            self.build_image_digests[orchestrator_platform] = current_buildimage
+            return
+
+        # BuildConfig exists
+        build_image, imagestream = self.get_image_info_from_buildconfig()
+        if not (build_image or imagestream):
+            # get image build from build metadata, which is set for direct builds
+            # this is explicitly set by osbs-client, it isn't default OpenShift behaviour
+            build_image, imagestream = self.get_image_info_from_annotations()
+
+        # if imageStream is used
+        if imagestream:
+            build_image = self.get_build_image_from_imagestream(imagestream)
+
+        # we have build_image with sha, but we need tag to check for manifest list,
+        # as we want to build on different platforms
+        if build_image and '@sha256:' in build_image:
+            raise RuntimeError("Buildroot image doesn't have tag,"
+                               " which is needed for specified arch")
+
+        # we have build_image with tag, so we can check for manifest list
+        if build_image:
+            self.check_manifest_list(build_image, orchestrator_platform,
+                                     platforms, current_buildimage)
+
     def run(self):
-        self.set_build_image()
         platforms = self.get_platforms()
+        self.set_build_image(platforms)
 
         thread_pool = ThreadPool(len(platforms))
         result = thread_pool.map_async(self.select_and_start_cluster, platforms)
