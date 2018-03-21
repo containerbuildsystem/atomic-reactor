@@ -13,7 +13,6 @@ from osbs.utils import RegistryURI
 import os
 import six
 
-
 # Key used to store the config object in the plugin workspace
 WORKSPACE_CONF_KEY = 'reactor_config'
 NO_FALLBACK = object()
@@ -368,8 +367,9 @@ class ODCSConfig(object):
         if isinstance(keys, six.text_type):
             keys = keys.split()
         keys = set(keys)
-        for entry in self.signing_intents:
-            if set(entry['keys']) == keys:
+        for entry in reversed(self.signing_intents):
+            keys_set = set(entry['keys'])
+            if (keys and keys_set >= keys) or keys == keys_set:
                 return entry
 
         raise ValueError('unknown signing intent keys "{}"'.format(keys))
