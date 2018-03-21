@@ -320,9 +320,9 @@ class TestReactorConfigPlugin(object):
                 odcs:
                    signing_intents:
                    - name: release
-                     keys: [R123]
+                     keys: [R123, R234]
                    - name: beta
-                     keys: [R123, B456]
+                     keys: [R123, B456, B457]
                    - name: unsigned
                      keys: []
                    default_signing_intent: {default}
@@ -339,25 +339,36 @@ class TestReactorConfigPlugin(object):
 
         assert odcs_config.default_signing_intent == default
 
+        unsigned_intent = {'name': 'unsigned', 'keys': [], 'restrictiveness': 0}
+        beta_intent = {'name': 'beta', 'keys': ['R123', 'B456', 'B457'], 'restrictiveness': 1}
+        release_intent = {'name': 'release', 'keys': ['R123', 'R234'], 'restrictiveness': 2}
         assert odcs_config.signing_intents == [
-            {'name': 'unsigned', 'keys': [], 'restrictiveness': 0},
-            {'name': 'beta', 'keys': ['R123', 'B456'], 'restrictiveness': 1},
-            {'name': 'release', 'keys': ['R123'], 'restrictiveness': 2},
+            unsigned_intent, beta_intent, release_intent
         ]
+        assert odcs_config.get_signing_intent_by_name('release') == release_intent
+        assert odcs_config.get_signing_intent_by_name('beta') == beta_intent
+        assert odcs_config.get_signing_intent_by_name('unsigned') == unsigned_intent
 
         with pytest.raises(ValueError):
             odcs_config.get_signing_intent_by_name('missing')
 
+        assert odcs_config.get_signing_intent_by_keys(['R123', 'R234'])['name'] == 'release'
+        assert odcs_config.get_signing_intent_by_keys('R123 R234')['name'] == 'release'
         assert odcs_config.get_signing_intent_by_keys(['R123'])['name'] == 'release'
         assert odcs_config.get_signing_intent_by_keys('R123')['name'] == 'release'
         assert odcs_config.get_signing_intent_by_keys(['R123', 'B456'])['name'] == 'beta'
         assert odcs_config.get_signing_intent_by_keys(['B456', 'R123'])['name'] == 'beta'
         assert odcs_config.get_signing_intent_by_keys('B456 R123')['name'] == 'beta'
+        assert odcs_config.get_signing_intent_by_keys('R123 B456 ')['name'] == 'beta'
+        assert odcs_config.get_signing_intent_by_keys(['B456'])['name'] == 'beta'
+        assert odcs_config.get_signing_intent_by_keys('B456')['name'] == 'beta'
         assert odcs_config.get_signing_intent_by_keys([])['name'] == 'unsigned'
         assert odcs_config.get_signing_intent_by_keys('')['name'] == 'unsigned'
 
         with pytest.raises(ValueError):
             assert odcs_config.get_signing_intent_by_keys(['missing'])
+        with pytest.raises(ValueError):
+            assert odcs_config.get_signing_intent_by_keys(['R123', 'R234', 'B457'])
 
     def test_odcs_config_invalid_default_signing_intent(self, tmpdir):
         filename = str(tmpdir.join('config.yaml'))
