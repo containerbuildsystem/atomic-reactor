@@ -37,6 +37,7 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  human_size, CommandResult,
                                  registry_hostname, Dockercfg, RegistrySession,
                                  get_manifest_digests, ManifestDigest,
+                                 get_manifest_list,
                                  get_build_json, is_scratch_build, df_parser,
                                  are_plugins_in_order, LabelFormatter,
                                  guess_manifest_media_type,
@@ -1061,3 +1062,87 @@ def test_osbs_logs_get_log_files(tmpdir):
     output = osbs_logs.get_log_files(osbs, 1)
     for entry in output:
         assert entry[1] == metadata[entry[1]['filename']]
+
+
+@pytest.mark.parametrize('insecure', [
+    True,
+    False,
+])
+@pytest.mark.parametrize('creds', [
+    ('user1', 'pass'),
+    (None, 'pass'),
+    ('user1', None),
+    None,
+])
+@pytest.mark.parametrize('image,registry,path', [
+    ('not-used.com/spam:latest', 'localhost.com',
+     '/v2/spam/manifests/latest'),
+
+    ('not-used.com/food/spam:latest', 'http://localhost.com',
+     '/v2/food/spam/manifests/latest'),
+
+    ('not-used.com/spam', 'https://localhost.com',
+     '/v2/spam/manifests/latest'),
+])
+@responses.activate
+def test_get_manifest_list(tmpdir, image, registry, insecure, creds, path):
+    kwargs = {}
+
+    image = ImageName.parse(image)
+    kwargs['image'] = image
+
+    if creds:
+        temp_dir = mkdtemp(dir=str(tmpdir))
+        with open(os.path.join(temp_dir, '.dockercfg'), 'w+') as dockerconfig:
+            dockerconfig.write(json.dumps({
+                registry: {
+                    'username': creds[0], 'password': creds[1]
+                }
+            }))
+        kwargs['dockercfg_path'] = temp_dir
+
+    kwargs['registry'] = registry
+
+    if insecure is not None:
+        kwargs['insecure'] = insecure
+
+    def request_callback(request, all_headers=True):
+        if creds and creds[0] and creds[1]:
+            assert request.headers['Authorization']
+
+        media_type = request.headers['Accept']
+        if media_type.endswith('list.v2+json'):
+            digest = 'v2_list-digest'
+        elif media_type.endswith('v2+json'):
+            digest = 'v2-digest'
+        elif media_type.endswith('v1+json'):
+            digest = 'v1-digest'
+        else:
+            raise ValueError('Unexpected media type {}'.format(media_type))
+
+        media_type_prefix = media_type.split('+')[0]
+        if all_headers:
+            headers = {
+                'Content-Type': '{}+jsonish'.format(media_type_prefix),
+            }
+            if not media_type.endswith('list.v2+json'):
+                headers['Docker-Content-Digest'] = digest
+        else:
+            headers = {}
+        return (200, headers, '')
+
+    if registry.startswith('http'):
+        url = registry + path
+    else:
+        # In the insecure case, we should try the https URL, and when that produces
+        # an error, fall back to http
+        if insecure:
+            https_url = 'https://' + registry + path
+            responses.add(responses.GET, https_url, body=ConnectionError())
+            url = 'http://' + registry + path
+        else:
+            url = 'https://' + registry + path
+    responses.add_callback(responses.GET, url, callback=request_callback)
+
+    manifest_list = get_manifest_list(**kwargs)
+    assert manifest_list
