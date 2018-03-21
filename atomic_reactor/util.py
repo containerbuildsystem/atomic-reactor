@@ -831,6 +831,41 @@ def manifest_is_media_type(response, media_type):
     return response_h_prefix == request_h_prefix
 
 
+def get_manifest(image, registry_session, version):
+    saved_not_found = None
+    media_type = get_manifest_media_type(version)
+    try:
+        response = query_registry(registry_session, image, digest=None, version=version)
+    except (HTTPError, RetryError, Timeout) as ex:
+        if ex.response.status_code == requests.codes.not_found:
+            saved_not_found = ex
+        # If the registry has a v2 manifest that can't be converted into a v1
+        # manifest, the registry fails with status=400 (BAD_REQUEST), and an error code of
+        # MANIFEST_INVALID. Note that if the registry has v2 manifest and
+        # you ask for an OCI manifest, the registry will try to convert the
+        # v2 manifest into a v1 manifest as the default type, so the same
+        # thing occurs.
+        if version != 'v2' and ex.response.status_code == requests.codes.bad_request:
+            logger.warning('Unable to fetch digest for %s, got error %s',
+                           media_type, ex.response.status_code)
+            return None, saved_not_found
+        # Returned if the manifest could not be retrieved for the given
+        # media type
+        elif (ex.response.status_code == requests.codes.not_found or
+              ex.response.status_code == requests.codes.not_acceptable):
+            logger.debug("skipping version %s due to status code %s",
+                         version, ex.response.status_code)
+            return None, saved_not_found
+        else:
+            raise
+
+    if not manifest_is_media_type(response, media_type):
+        logger.error("content does not match expected media type")
+        return None, saved_not_found
+    logger.debug("content matches expected media type")
+    return response, saved_not_found
+
+
 def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
                          versions=('v1', 'v2', 'v2_list', 'oci', 'oci_index'), require_digest=True):
     """Return manifest digest for image.
@@ -858,41 +893,13 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
     saved_not_found = None
     for version in versions:
         media_type = get_manifest_media_type(version)
+        response, saved_not_found = get_manifest(image, registry_session, version)
 
-        try:
-            response = query_registry(registry_session, image, digest=None, version=version)
+        if saved_not_found is None:
             all_not_found = False
-        except (HTTPError, RetryError, Timeout) as ex:
-            if ex.response.status_code == requests.codes.not_found:
-                saved_not_found = ex
-            else:
-                all_not_found = False
 
-            # If the registry has a v2 manifest that can't be converted into a v1
-            # manifest, the registry fails with status=400 (BAD_REQUEST), and an error code of
-            # MANIFEST_INVALID. Note that if the registry has v2 manifest and
-            # you ask for an OCI manifest, the registry will try to convert the
-            # v2 manifest into a v1 manifest as the default type, so the same
-            # thing occurs.
-            if version != 'v2' and ex.response.status_code == requests.codes.bad_request:
-                logger.warning('Unable to fetch digest for %s, got error %s',
-                               media_type, ex.response.status_code)
-                continue
-            # Returned if the manifest could not be retrieved for the given
-            # media type
-            elif (ex.response.status_code == requests.codes.not_found or
-                  ex.response.status_code == requests.codes.not_acceptable):
-                logger.debug("skipping version %s due to status code %s",
-                             version, ex.response.status_code)
-                continue
-            else:
-                raise
-
-        if not manifest_is_media_type(response, media_type):
-            logger.error("content does not match expected media type")
+        if not response:
             continue
-        logger.debug("content matches expected media type")
-
         # set it to truthy value so that koji_import would know pulp supports these digests
         digests[version] = True
 
@@ -914,6 +921,23 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
             raise RuntimeError('No digests found for {}'.format(image))
 
     return ManifestDigest(**digests)
+
+
+def get_manifest_list(image, registry, insecure=False, dockercfg_path=None):
+    """Return manifest list for image.
+
+    :param image: ImageName, the remote image to inspect
+    :param registry: str, URI for registry, if URI schema is not provided,
+                          https:// will be used
+    :param insecure: bool, when True registry's cert is not verified
+    :param dockercfg_path: str, dirname of .dockercfg location
+
+    :return: response, or None, with manifest list
+    """
+    version = 'v2_list'
+    registry_session = RegistrySession(registry, insecure=insecure, dockercfg_path=dockercfg_path)
+    response, _ = get_manifest(image, registry_session, version)
+    return response
 
 
 def get_config_from_registry(image, registry, digest, insecure=False,
