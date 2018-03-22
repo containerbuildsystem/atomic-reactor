@@ -40,6 +40,10 @@
       },
       "additionalProperties": false
     },
+    "clusters_client_config_dir": {
+      "description": "Path to directory with osbs.conf for communicating with workers",
+      "type": "string"
+    },
     "koji": {
         "description": "Koji instance",
         "type": "object",

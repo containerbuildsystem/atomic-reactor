@@ -43,7 +43,9 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        get_odcs_session,
                                                        get_smtp_session,
                                                        get_pdc_session,
-                                                       get_openshift_session)
+                                                       get_openshift_session,
+                                                       get_clusters_client_config_path,
+                                                       NO_FALLBACK)
 from tests.constants import TEST_IMAGE, REACTOR_CONFIG_MAP
 from tests.docker_mock import mock_docker
 from tests.fixtures import reactor_config_map  # noqa
@@ -137,7 +139,7 @@ class TestReactorConfigPlugin(object):
         captured_errs = [x.message for x in caplog.records()]
         assert any("cannot validate" in x for x in captured_errs)
 
-    @pytest.mark.parametrize(('config', 'errors'), [
+    @pytest.mark.parametrize(('config', 'errors'), [  # noqa:F811
         ("""\
           clusters:
             foo:
@@ -257,7 +259,7 @@ class TestReactorConfigPlugin(object):
         with pytest.raises(ValueError):
             plugin.run()
 
-    @pytest.mark.parametrize(('config', 'clusters'), [
+    @pytest.mark.parametrize(('config', 'clusters'), [  # noqa:F811
         # Empty config
         ("", []),
 
@@ -306,6 +308,35 @@ class TestReactorConfigPlugin(object):
         enabled = conf.get_enabled_clusters_for_platform('platform')
         assert set([(x.name, x.max_concurrent_builds)
                     for x in enabled]) == set(clusters)
+
+    @pytest.mark.parametrize(('extra_config', 'fallback', 'error'), [  # noqa:F811
+        ('clusters_client_config_dir: /the/path', None, None),
+        ('clusters_client_config_dir: /the/path', '/unused/path', None),
+        (None, '/the/path', None),
+        (None, NO_FALLBACK, KeyError),
+    ])
+    def test_cluster_client_config_path(self, tmpdir, reactor_config_map, extra_config, fallback,
+                                        error):
+        config = 'version: 1'
+        if extra_config:
+            config += '\n' + extra_config
+        if reactor_config_map and config:
+            os.environ['REACTOR_CONFIG'] = config
+        else:
+            filename = os.path.join(str(tmpdir), 'config.yaml')
+            with open(filename, 'w') as fp:
+                fp.write(config)
+        tasker, workflow = self.prepare()
+        plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
+        assert plugin.run() is None
+        os.environ.pop('REACTOR_CONFIG', None)
+
+        if error:
+            with pytest.raises(error):
+                get_clusters_client_config_path(workflow, fallback)
+        else:
+            path = get_clusters_client_config_path(workflow, fallback)
+            assert path == '/the/path/osbs.conf'
 
     @pytest.mark.parametrize('default', (
         'release',
