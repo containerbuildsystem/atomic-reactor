@@ -266,6 +266,11 @@ def get_clusters(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'clusters', fallback)
 
 
+def get_clusters_client_config_path(workflow, fallback=NO_FALLBACK):
+    client_config_dir = get_value(workflow, 'clusters_client_config_dir', fallback)
+    return os.path.join(client_config_dir, 'osbs.conf')
+
+
 class ClusterConfig(object):
     """
     Configuration relating to a particular cluster

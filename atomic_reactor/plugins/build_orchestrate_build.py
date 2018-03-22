@@ -34,7 +34,8 @@ from atomic_reactor.plugins.pre_reactor_config import (get_config,
                                                        get_artifacts_allowed_domains,
                                                        get_yum_proxy, get_image_equal_labels,
                                                        get_content_versions, get_openshift_session,
-                                                       get_platform_descriptors)
+                                                       get_platform_descriptors,
+                                                       get_clusters_client_config_path)
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import df_parser, get_build_json, get_manifest_list, ImageName
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY,
@@ -281,7 +282,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         super(OrchestrateBuildPlugin, self).__init__(tasker, workflow)
         self.platforms = set(platforms)
         self.build_kwargs = build_kwargs
-        self.osbs_client_config = osbs_client_config
+        self.osbs_client_config_fallback = osbs_client_config
         self.config_kwargs = config_kwargs or {}
 
         self.adjust_build_kwargs()
@@ -447,8 +448,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     def get_cluster_info(self, cluster, platform):
         kwargs = deepcopy(self.config_kwargs)
         kwargs['conf_section'] = cluster.name
-        if self.osbs_client_config:
-            kwargs['conf_file'] = os.path.join(self.osbs_client_config, 'osbs.conf')
+        kwargs['conf_file'] = get_clusters_client_config_path(self.workflow,
+                                                              self.osbs_client_config_fallback)
 
         if platform in self.build_image_digests:
             kwargs['build_image'] = self.build_image_digests[platform]

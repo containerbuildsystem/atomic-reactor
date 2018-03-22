@@ -340,6 +340,9 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
         reactor_dict['content_versions'] = ['v2']
         expected_kwargs['registry_api_versions'] = 'v2'
 
+        # Move client config from plugin args to reactor config
+        reactor_dict['clusters_client_config_dir'] = plugin_args.pop('osbs_client_config')
+
         if config_kwargs and 'equal_labels' in config_kwargs:
             expected_kwargs['equal_labels'] = config_kwargs['equal_labels']
 
