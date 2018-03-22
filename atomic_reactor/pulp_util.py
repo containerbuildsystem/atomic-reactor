@@ -137,7 +137,7 @@ class PulpHandler(object):
                         do_update = True
                         break
             if do_update:
-                self.p.updateRepo(repo, {'auto_publish': False})
+                self.p.updateRepo(repo["id"], {'auto_publish': False})
 
     def get_tar_metadata(self, tarfile):
         metadata = dockpulp.imgutils.get_metadata(tarfile)

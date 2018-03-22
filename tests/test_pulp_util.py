@@ -248,7 +248,7 @@ def test_ensure_repos(auto_publish, unsupported):
 
     (flexmock(dockpulp.Pulp)
      .should_receive('updateRepo')
-     .with_args(data_with_dist[0], {'auto_publish': False})
+     .with_args(data_with_dist[0]["id"], {'auto_publish': False})
      .times(1 if auto_publish and not unsupported else 0))
 
     image_names = [ImageName(repo="myproject-hello-world")]
