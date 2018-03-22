@@ -1377,13 +1377,14 @@ def test_orchestrate_override_build_kwarg(tmpdir, overrides):
     ({"spec": {
         "strategy": {
             "customStrategy": {
-                "from": {"name": "osbs-buildroot:latest",
+                "from": {"name": "osbs-buildroot@sha256:1949494494",
                          "kind": "DockerImage"}}}},
         "metadata": {
             "annotations": {
                 "from": json.dumps({"kind": "DockerImage",
                                     "name": "registry/image:tag"})}}},
-     "Orchestrator is using image 'osbs-buildroot:latest' which isn't in manifest list",
+     "Orchestrator is using image digest 'osbs-buildroot@sha256:1949494494' " +
+     "which isn't in manifest list",
      None, None, None, None, True, {"manifests": [{"platform": {"architecture": "amd64"},
                                                    "digest": "some_image"}]}),
 
