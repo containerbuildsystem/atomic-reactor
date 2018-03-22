@@ -114,12 +114,9 @@ class PulpHandler(object):
             # Tell dockpulp.
             self.p.set_certs(cer, key)
 
-    def _ensure_repos(self, pulp_repos, repo_prefix):
+    def _create_missing_repos(self, pulp_repos, repo_prefix):
         repos = pulp_repos.keys()
-        try:
-            found_repos = self.p.getRepos(repos, fields=["id"], distributors=True)
-        except TypeError:
-            found_repos = self.p.getRepos(repos, fields=["id"])
+        found_repos = self.p.getRepos(repos, fields=["id"])
         found_repo_ids = [repo["id"] for repo in found_repos]
 
         missing_repos = set(repos) - set(found_repo_ids)
@@ -128,16 +125,6 @@ class PulpHandler(object):
             self.p.createRepo(repo, None,
                               registry_id=pulp_repos[repo].registry_id,
                               prefix_with=repo_prefix)
-
-        for repo in found_repos:
-            do_update = False
-            if 'distributors' in repo:
-                for d in repo["distributors"]:
-                    if d["auto_publish"]:
-                        do_update = True
-                        break
-            if do_update:
-                self.p.updateRepo(repo, {'auto_publish': False})
 
     def get_tar_metadata(self, tarfile):
         metadata = dockpulp.imgutils.get_metadata(tarfile)
@@ -176,7 +163,7 @@ class PulpHandler(object):
                     tags=[tag]
                 )
 
-        self._ensure_repos(pulp_repos, repo_prefix)
+        self._create_missing_repos(pulp_repos, repo_prefix)
 
         return pulp_repos
 
