@@ -732,14 +732,14 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
                                     for arch in arch_digests}
 
         # orchestrator platform is in manifest list
-        if orchestrator_platform in self.build_image_digests:
-            if self.build_image_digests[orchestrator_platform] != current_buildimage:
-                raise RuntimeError("Orchestrator is using image '%s' which isn't"
-                                   " in manifest list" % current_buildimage)
-
-        else:
+        if orchestrator_platform not in self.build_image_digests:
             raise RuntimeError("Platform for orchestrator '%s' isn't in manifest list"
                                % orchestrator_platform)
+
+        if ('@sha256:' in current_buildimage and
+                self.build_image_digests[orchestrator_platform] != current_buildimage):
+            raise RuntimeError("Orchestrator is using image digest '%s' which isn't"
+                               " in manifest list" % current_buildimage)
 
     def get_image_info_from_buildconfig(self):
         status = get_build_json().get("status", {})
