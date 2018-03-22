@@ -282,7 +282,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         if PLUGIN_GROUP_MANIFESTS_KEY in self.workflow.postbuild_results:
             annotations['repositories'] = json.dumps(self.get_repositories())
         try:
-            osbs.set_annotations_on_build(build_id, annotations)
+            osbs.update_annotations_on_build(build_id, annotations)
         except OsbsResponseException:
             self.log.debug("annotations: %r", annotations)
             raise
