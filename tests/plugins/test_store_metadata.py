@@ -82,7 +82,7 @@ def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=Fals
     if docker_registries is None:
         docker_registries = (DOCKER0_REGISTRY,)
 
-    def set_annotations_on_build(build_id, annotations):
+    def update_annotations_on_build(build_id, annotations):
         pass
 
     def update_labels_on_build(build_id, labels):
@@ -96,7 +96,7 @@ def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=Fals
           }
         }
         ''')
-    flexmock(OSBS, set_annotations_on_build=set_annotations_on_build)
+    flexmock(OSBS, update_annotations_on_build=update_annotations_on_build)
     flexmock(OSBS, update_labels_on_build=update_labels_on_build)
     config_kwargs = {
         'namespace': 'namespace',
@@ -585,7 +585,7 @@ CMD blabla"""
         }]
     )
     (flexmock(OSBS)
-        .should_receive('set_annotations_on_build')
+        .should_receive('update_annotations_on_build')
         .and_raise(OsbsResponseException('/', 'failed', 0)))
     with pytest.raises(PluginFailedException):
         runner.run()
