@@ -715,7 +715,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         arch_digests = {}
         image_name = build_image.rsplit(':', 1)[0]
 
-        for manifest in manifest_list.content['manifests']:
+        manifest_list_dict = manifest_list.json()
+        for manifest in manifest_list_dict['manifests']:
             arch = manifest['platform']['architecture']
             arch_digests[arch] = image_name + '@' + manifest['digest']
 

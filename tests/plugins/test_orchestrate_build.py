@@ -102,6 +102,9 @@ class fake_manifest_list(object):
     def __init__(self, json_cont):
         self.content = json_cont
 
+    def json(self):
+        return self.content
+
 
 def mock_workflow(tmpdir):
     workflow = DockerBuildWorkflow(MOCK_SOURCE, TEST_IMAGE)
