@@ -1579,3 +1579,33 @@ def test_set_build_image_works(tmpdir, build, bc, bc_cont, ims, ims_cont, ml, ml
     )
 
     runner.run()
+
+
+def test_no_platforms(tmpdir):
+    workflow = mock_workflow(tmpdir)
+    mock_osbs()
+    mock_reactor_config(tmpdir)
+
+    (flexmock(OrchestrateBuildPlugin)
+     .should_receive('set_build_image')
+     .never())
+
+    plugin_args = {
+        'platforms': [],
+        'build_kwargs': make_worker_build_kwargs(),
+        'worker_build_image': 'osbs-buildroot:latest',
+        'osbs_client_config': str(tmpdir),
+        'goarch': {'x86_64': 'amd64'},
+    }
+
+    runner = BuildStepPluginsRunner(
+        workflow.builder.tasker,
+        workflow,
+        [{
+            'name': OrchestrateBuildPlugin.key,
+            'args': plugin_args,
+        }]
+    )
+    with pytest.raises(PluginFailedException) as exc:
+        runner.run()
+    assert 'No enabled platform to build on' in str(exc)

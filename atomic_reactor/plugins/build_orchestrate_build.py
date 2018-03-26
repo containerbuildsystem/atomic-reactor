@@ -846,6 +846,9 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
     def run(self):
         platforms = self.get_platforms()
+
+        if not platforms:
+            raise RuntimeError("No enabled platform to build on")
         self.set_build_image(platforms)
 
         thread_pool = ThreadPool(len(platforms))
