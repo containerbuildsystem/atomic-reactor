@@ -71,6 +71,7 @@ def mock_workflow(tmpdir, container_yaml):
 
 CONFIGS = build_flatpak_test_configs()
 
+
 @responses.activate  # noqa - docker_tasker fixture
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,
                     reason='modulemd not available')

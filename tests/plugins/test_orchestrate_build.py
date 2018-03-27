@@ -163,7 +163,7 @@ def mock_reactor_config(tmpdir, clusters=None, empty=False):
         .and_return(conf))
 
     with open(os.path.join(str(tmpdir), 'osbs.conf'), 'w') as f:
-        for platform, plat_clusters in clusters.items():
+        for plat, plat_clusters in clusters.items():
             for cluster in plat_clusters:
                 f.write(dedent("""\
                     [{name}]
@@ -388,7 +388,7 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
         expected_kwargs['pulp_registry_name'] = None
 
     with open(os.path.join(str(tmpdir), 'osbs.conf'), 'w') as f:
-        for platform, plat_clusters in clusters.items():
+        for plat, plat_clusters in clusters.items():
             for cluster in plat_clusters:
                 f.write(dedent("""\
                     [{name}]
@@ -759,8 +759,8 @@ def test_orchestrate_build_choose_clusters(tmpdir, clusters_x86_64,
 
     annotations = build_result.annotations
     assert set(annotations['worker-builds'].keys()) == set(['x86_64', 'ppc64le'])
-    for platform, plat_annotations in annotations['worker-builds'].items():
-        assert plat_annotations['build']['cluster-url'] == 'https://chosen_{}.com/'.format(platform)
+    for plat, plat_annotations in annotations['worker-builds'].items():
+        assert plat_annotations['build']['cluster-url'] == 'https://chosen_{}.com/'.format(plat)
 
 
 @pytest.mark.parametrize(('platforms', 'platform_exclude', 'platform_only', 'result'), [
@@ -850,7 +850,6 @@ def test_orchestrate_build_unknown_platform(tmpdir, reactor_config_map):  # noqa
     else:
         mock_reactor_config(tmpdir, clusters={}, empty=True)
 
-
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
         workflow,
@@ -879,6 +878,7 @@ def test_orchestrate_build_unknown_platform(tmpdir, reactor_config_map):  # noqa
         if "'No clusters found for platform spam!'" in str(exc):
             count += 1
         assert count > 0
+
 
 def test_orchestrate_build_failed_create(tmpdir):
     workflow = mock_workflow(tmpdir)
@@ -1192,8 +1192,8 @@ def test_orchestrate_override_build_kwarg(tmpdir, overrides):
         'osbs_client_config': str(tmpdir),
     }
 
-    for platform, value in overrides.items():
-        override_build_kwarg(workflow, 'release', value, platform)
+    for plat, value in overrides.items():
+        override_build_kwarg(workflow, 'release', value, plat)
 
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
