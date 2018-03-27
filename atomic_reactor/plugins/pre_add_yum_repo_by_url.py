@@ -94,7 +94,7 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
     key = "add_yum_repo_by_url"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, repourls, inject_proxy=None):
+    def __init__(self, tasker, workflow, repourls=None, inject_proxy=None):
         """
         constructor
 
@@ -105,7 +105,7 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
         """
         # call parent constructor
         super(AddYumRepoByUrlPlugin, self).__init__(tasker, workflow)
-        self.repourls = repourls
+        self.repourls = repourls or []
         self.inject_proxy = inject_proxy
 
     def run(self):

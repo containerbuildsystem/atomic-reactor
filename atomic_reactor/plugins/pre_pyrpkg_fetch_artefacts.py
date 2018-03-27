@@ -14,13 +14,14 @@ import os
 import subprocess
 
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.plugins.pre_reactor_config import get_sources_command
 
 
 class DistgitFetchArtefactsPlugin(PreBuildPlugin):
     key = "distgit_fetch_artefacts"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, command):
+    def __init__(self, tasker, workflow, command=None):
         """
         constructor
 
@@ -31,7 +32,7 @@ class DistgitFetchArtefactsPlugin(PreBuildPlugin):
         """
         # call parent constructor
         super(DistgitFetchArtefactsPlugin, self).__init__(tasker, workflow)
-        self.command = command
+        self.command = get_sources_command(workflow, command)
 
     def run(self):
         """

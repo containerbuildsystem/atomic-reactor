@@ -1139,8 +1139,15 @@ def test_orchestrate_build_worker_build_kwargs(tmpdir, caplog, is_auto):
         'release': '10',
         'arrangement_version': 1
     }
+
     reactor_config_override = mock_reactor_config(tmpdir)
-    expected_kwargs.update({'reactor_config_override': reactor_config_override})
+    reactor_config_override['openshift'] = {
+        'auth': {'enable': None},
+        'build_json_dir': None,
+        'insecure': False,
+        'url': 'https://worker_x86_64.com/'
+    }
+    expected_kwargs['reactor_config_override'] = reactor_config_override
     mock_osbs(worker_expect=expected_kwargs)
 
     plugin_args = {
@@ -1182,7 +1189,13 @@ def test_orchestrate_override_build_kwarg(tmpdir, overrides):
         'arrangement_version': 1
     }
     reactor_config_override = mock_reactor_config(tmpdir)
-    expected_kwargs.update({'reactor_config_override': reactor_config_override})
+    reactor_config_override['openshift'] = {
+        'auth': {'enable': None},
+        'build_json_dir': None,
+        'insecure': False,
+        'url': 'https://worker_x86_64.com/'
+    }
+    expected_kwargs['reactor_config_override'] = reactor_config_override
     mock_osbs(worker_expect=expected_kwargs)
 
     plugin_args = {
