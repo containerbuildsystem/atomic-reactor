@@ -509,7 +509,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         return os.path.join(dir_prefix, unique_fragment)
 
     def get_worker_build_kwargs(self, release, platform, koji_upload_dir,
-                                task_id):
+                                task_id, worker_openshift):
         build_kwargs = deepcopy(self.build_kwargs)
 
         build_kwargs.pop('architecture', None)
@@ -522,7 +522,10 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             build_kwargs['filesystem_koji_task_id'] = task_id
 
         if not self.reactor_config.is_default():
-            build_kwargs['reactor_config_override'] = self.reactor_config.conf
+            worker_reactor_conf = deepcopy(self.reactor_config.conf)
+            worker_reactor_conf['openshift'] = worker_openshift
+            worker_reactor_conf.pop('worker_token_secrets', None)
+            build_kwargs['reactor_config_override'] = worker_reactor_conf
 
         return build_kwargs
 
@@ -588,8 +591,17 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         build = None
 
         try:
+            worker_openshift = {
+                'url': cluster_info.osbs.build_conf.get_openshift_base_uri(),
+                'build_json_dir': cluster_info.osbs.build_conf.get_builder_build_json_store(),
+                'insecure': not cluster_info.osbs.build_conf.get_verify_ssl(),
+                'auth': {
+                    'enable': cluster_info.osbs.build_conf.get_use_auth(),
+                }
+            }
             kwargs = self.get_worker_build_kwargs(self.release, cluster_info.platform,
-                                                  self.koji_upload_dir, self.fs_task_id)
+                                                  self.koji_upload_dir, self.fs_task_id,
+                                                  worker_openshift)
             # Set overrides for all platforms
             if None in override_kwargs:
                 kwargs.update(override_kwargs[None])

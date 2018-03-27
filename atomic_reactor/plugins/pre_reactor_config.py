@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+from copy import deepcopy
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import read_yaml, read_yaml_from_file_path, get_build_json
 from osbs.utils import RegistryURI
@@ -39,7 +40,9 @@ def get_config(workflow):
 
 def get_value(workflow, name, fallback):
     try:
-        return get_config(workflow).conf[name]
+        # make a deep copy to prevent plugins from changing the value for other plugins
+        value = deepcopy(get_config(workflow).conf[name])
+        return value
     except KeyError:
         if fallback != NO_FALLBACK:
             return fallback
@@ -332,7 +335,7 @@ class ReactorConfig(object):
     DEFAULT_CONFIG = {ReactorConfigKeys.VERSION_KEY: 1}
 
     def __init__(self, config=None):
-        self.conf = config or self.DEFAULT_CONFIG
+        self.conf = deepcopy(config or self.DEFAULT_CONFIG)
 
         version = self.conf[ReactorConfigKeys.VERSION_KEY]
         if version != 1:
@@ -351,7 +354,7 @@ class ReactorConfig(object):
         return self.cluster_configs.get(platform, [])
 
     def get_odcs_config(self):
-        whole_odcs_config = self.conf.get('odcs')
+        whole_odcs_config = deepcopy(self.conf.get('odcs'))
         odcs_config = None
 
         if whole_odcs_config:
