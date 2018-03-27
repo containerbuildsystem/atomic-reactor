@@ -232,6 +232,28 @@ def get_registries(workflow, fallback=NO_FALLBACK):
     return registries_cm
 
 
+def get_docker_registry(workflow, fallback=NO_FALLBACK):
+    try:
+        all_registries = get_config(workflow).conf['registries']
+    except KeyError:
+        if fallback != NO_FALLBACK:
+            return fallback
+        raise
+
+    for registry in all_registries:
+        reguri = RegistryURI(registry.get('url'))
+        if reguri.version == 'v2':
+            regdict = {
+                'url': reguri.uri,
+                'insecure': registry.get('insecure', False)
+            }
+            if registry.get('auth'):
+                regdict['secret'] = registry['auth']['cfg_path']
+            return regdict
+
+    raise RuntimeError("Expected V2 registry but none in REACTOR_CONFIG")
+
+
 def get_yum_proxy(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'yum_proxy', fallback)
 

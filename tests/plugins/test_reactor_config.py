@@ -45,6 +45,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        get_pdc_session,
                                                        get_openshift_session,
                                                        get_clusters_client_config_path,
+                                                       get_docker_registry,
                                                        NO_FALLBACK)
 from tests.constants import TEST_IMAGE, REACTOR_CONFIG_MAP
 from tests.docker_mock import mock_docker
@@ -59,6 +60,79 @@ class TestReactorConfigPlugin(object):
         workflow = DockerBuildWorkflow({'provider': 'git', 'uri': 'asd'},
                                        TEST_IMAGE)
         return tasker, workflow
+
+    @pytest.mark.parametrize(('fallback'), [
+        False,
+        True
+    ])
+    @pytest.mark.parametrize(('config', 'valid'), [
+        ("""\
+            version: 1
+            registries:
+            - url: https://container-registry.example.com/v2
+              auth:
+                  cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
+         """,
+         True),
+        ("""\
+            version: 1
+            registries:
+            - url: https://old-container-registry.example.com/v1
+              auth:
+                  cfg_path: /var/run/secrets/atomic-reactor/v1-registry-dockercfg
+            - url: https://container-registry.example.com/v2
+              auth:
+                  cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
+         """,
+         True),
+        ("""\
+            version: 1
+            registries:
+            - url: https://old-container-registry.example.com/v1
+              auth:
+                  cfg_path: /var/run/secrets/atomic-reactor/v1-registry-dockercfg
+         """,
+         False),
+    ])
+    def test_get_docker_registry(self, config, fallback, valid):
+        tasker, workflow = self.prepare()
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+
+        config_json = read_yaml(config, 'schemas/config.json')
+
+        docker_reg = {
+            'version': 'v2',
+            'insecure': False,
+            'secret': '/var/run/secrets/atomic-reactor/v2-registry-dockercfg',
+            'url': 'https://container-registry.example.com/v2',
+        }
+
+        if fallback:
+            if valid:
+                docker_fallback = docker_reg
+                expected = docker_reg
+            else:
+                docker_fallback = NO_FALLBACK
+        else:
+            docker_fallback = {}
+            expected = {
+                'url': 'https://container-registry.example.com',
+                'insecure': False,
+                'secret': '/var/run/secrets/atomic-reactor/v2-registry-dockercfg'
+            }
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                ReactorConfig(config_json)
+
+        if valid:
+            docker_registry = get_docker_registry(workflow, docker_fallback)
+            assert docker_registry == expected
+        else:
+            if fallback:
+                with pytest.raises(KeyError):
+                    get_docker_registry(workflow, docker_fallback)
+            else:
+                with pytest.raises(RuntimeError):
+                    get_docker_registry(workflow, docker_fallback)
 
     def test_no_config(self):
         tasker, workflow = self.prepare()

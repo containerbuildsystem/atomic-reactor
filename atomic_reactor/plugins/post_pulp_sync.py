@@ -55,7 +55,7 @@ from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.util import ImageName, Dockercfg, are_plugins_in_order
 # import pulp_util to get the dockpulp.log set up once
 from atomic_reactor.pulp_util import PulpLog
-from atomic_reactor.plugins.pre_reactor_config import get_pulp
+from atomic_reactor.plugins.pre_reactor_config import get_pulp, get_docker_registry
 import dockpulp
 import os
 import re
@@ -126,9 +126,16 @@ class PulpSyncPlugin(PostBuildPlugin):
         self.pulp_registry_name = pulp['name']
         self.pulp_secret_path = pulp['auth'].get('ssl_certs_dir')
 
-        self.docker_registry = docker_registry
-        self.registry_secret_path = registry_secret_path
-        self.insecure_registry = insecure_registry
+        docker_fallback = {
+            'version': 'v2',
+            'insecure': insecure_registry,
+            'secret': registry_secret_path,
+            'url': docker_registry,
+        }
+        docker_reg = get_docker_registry(self.workflow, docker_fallback)
+        self.docker_registry = docker_reg['url']
+        self.registry_secret_path = docker_reg['secret']
+        self.insecure_registry = docker_reg['insecure']
         self.pulp_repo_prefix = pulp_repo_prefix
         logger = PulpLog.get_pulp_logger()
 
