@@ -46,7 +46,8 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_primary_images,
                                  get_image_upload_filename,
                                  split_module_spec, ModuleSpec,
-                                 read_yaml, read_yaml_from_file_path, OSBSLogs)
+                                 read_yaml, read_yaml_from_file_path, OSBSLogs,
+                                 get_platforms_in_limits)
 from atomic_reactor import util
 from tests.constants import (DOCKERFILE_GIT, DOCKERFILE_SHA1,
                              INPUT_IMAGE, MOCK, MOCK_SOURCE,
@@ -1146,3 +1147,66 @@ def test_get_manifest_list(tmpdir, image, registry, insecure, creds, path):
 
     manifest_list = get_manifest_list(**kwargs)
     assert manifest_list
+
+
+@pytest.mark.parametrize(('valid'), [
+    True,
+    False
+])
+@pytest.mark.parametrize(('platforms', 'platform_exclude', 'platform_only', 'result'), [
+    (['x86_64', 'ppc64le'], '', 'ppc64le', ['ppc64le']),
+    (['x86_64', 'spam', 'bacon', 'toast', 'ppc64le'], ['spam', 'bacon', 'eggs', 'toast'], '',
+     ['x86_64', 'ppc64le']),
+    (['ppc64le', 'spam', 'bacon', 'toast'], ['spam', 'bacon', 'eggs', 'toast'], 'ppc64le',
+     ['ppc64le']),
+    (['x86_64', 'bacon', 'toast'], 'toast', ['x86_64', 'ppc64le'], ['x86_64']),
+    (['x86_64', 'toast'], 'toast', 'x86_64', ['x86_64']),
+    (['x86_64', 'spam', 'bacon', 'toast'], ['spam', 'bacon', 'eggs', 'toast'], ['x86_64',
+                                                                                'ppc64le'],
+     ['x86_64']),
+    (['x86_64', 'ppc64le'], '', '', ['x86_64', 'ppc64le']),
+    (['x86_64', 'ppc64le'], 'x86_64', 'x86_64', []),
+])
+def test_get_platforms_in_limits(tmpdir, platforms, platform_exclude, platform_only, result,
+                                 valid, caplog):
+    class MockSource(object):
+        def __init__(self, build_dir):
+            self.build_dir = build_dir
+
+        def get_build_file_path(self):
+            return self.build_dir, self.build_dir
+
+    class MockWorkflow(object):
+        def __init__(self, build_dir):
+            self.source = MockSource(build_dir)
+
+    platforms_dict = {}
+    if platform_exclude:
+        platforms_dict['platforms'] = {}
+        platforms_dict['platforms']['not'] = platform_exclude
+        if not isinstance(platform_exclude, list):
+            platform_exclude = [platform_exclude]
+    if platform_only:
+        if 'platforms' not in platforms_dict:
+            platforms_dict['platforms'] = {}
+        platforms_dict['platforms']['only'] = platform_only
+        if not isinstance(platform_only, list):
+            platform_only = [platform_only]
+
+    with open(os.path.join(str(tmpdir), 'container.yaml'), 'w') as f:
+        f.write(yaml.safe_dump(platforms_dict))
+        f.flush()
+    if valid and platforms:
+        workflow = MockWorkflow(str(tmpdir))
+        final_platforms = get_platforms_in_limits(workflow, platforms)
+        if platform_exclude and platform_exclude == platform_only:
+            assert 'only and not platforms are the same' in caplog.text()
+        assert final_platforms == set(result)
+    elif valid:
+        workflow = MockWorkflow(str(tmpdir))
+        final_platforms = get_platforms_in_limits(workflow, platforms)
+        assert final_platforms is None
+    else:
+        workflow = MockWorkflow('bad_dir')
+        final_platforms = get_platforms_in_limits(workflow, platforms)
+        assert final_platforms == set(platforms)
