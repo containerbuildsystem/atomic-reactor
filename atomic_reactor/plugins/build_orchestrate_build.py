@@ -11,7 +11,6 @@ from collections import namedtuple
 from copy import deepcopy
 from multiprocessing.pool import ThreadPool
 
-import yaml
 import json
 import os
 from operator import attrgetter
@@ -37,7 +36,8 @@ from atomic_reactor.plugins.pre_reactor_config import (get_config,
                                                        get_platform_descriptors,
                                                        get_clusters_client_config_path)
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
-from atomic_reactor.util import df_parser, get_build_json, get_manifest_list, ImageName
+from atomic_reactor.util import (df_parser, get_build_json, get_manifest_list, ImageName,
+                                 get_platforms_in_limits)
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       REPO_CONTAINER_CONFIG)
 from osbs.api import OSBS
@@ -415,25 +415,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         self.build_kwargs['arrangement_version'] =\
             get_arrangement_version(self.workflow, self.build_kwargs['arrangement_version'])
 
-    def make_list(self, value):
-        if not isinstance(value, list):
-            value = [value]
-        return value
-
     def get_platforms(self):
-        build_file_dir = self.workflow.source.get_build_file_path()[1]
-        excluded_platforms = set()
-        container_path = os.path.join(build_file_dir, REPO_CONTAINER_CONFIG)
-        if os.path.exists(container_path):
-            with open(container_path) as f:
-                data = yaml.safe_load(f)
-                if data is None or 'platforms' not in data or data['platforms'] is None:
-                    return self.platforms
-                excluded_platforms = set(self.make_list(data['platforms'].get('not', [])))
-                only_platforms = set(self.make_list(data['platforms'].get('only', [])))
-                if only_platforms:
-                    self.platforms = self.platforms & only_platforms
-        return self.platforms - excluded_platforms
+        return get_platforms_in_limits(self.workflow, self.platforms)
 
     def get_current_builds(self, osbs):
         field_selector = ','.join(['status!={status}'.format(status=status.capitalize())
@@ -857,7 +840,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
                                      platforms, current_buildimage)
 
     def run(self):
-        platforms = self.get_platforms()
+        self.platforms = self.get_platforms()
+        platforms = self.platforms
 
         if not platforms:
             raise RuntimeError("No enabled platform to build on")
