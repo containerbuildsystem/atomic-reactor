@@ -13,7 +13,9 @@ import flexmock
 import json
 import pytest
 import atomic_reactor
+import atomic_reactor.util
 
+from atomic_reactor.constants import PLUGIN_BUILD_ORCHESTRATE_KEY
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.util import ImageName, CommandResult
@@ -115,12 +117,16 @@ def set_build_json(monkeypatch):
       LOCALHOST_REGISTRY + "/library-only:latest"]),
 ])
 def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected,
-                                reactor_config_map):
+                                reactor_config_map, workflow_callback=None):
     if MOCK:
         mock_docker(remember_images=True)
 
     tasker = DockerTasker(retry_times=0)
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    buildstep_plugin = [{
+        'name': PLUGIN_BUILD_ORCHESTRATE_KEY,
+        'args': {'platforms': ['x86_64']},
+    }]
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image', buildstep_plugins=buildstep_plugin,)
     workflow.builder = MockBuilder()
     workflow.builder.base_image = ImageName.parse(df_base)
 
@@ -136,6 +142,9 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
             ReactorConfig({'version': 1,
                            'source_registry': {'url': parent_registry,
                                                'insecure': True}})
+
+    if workflow_callback:
+        workflow = workflow_callback(workflow)
 
     runner = PreBuildPluginsRunner(
         tasker,
@@ -307,3 +316,123 @@ def test_try_with_library_pull_base_image(library, reactor_config_map):
         runner.run()
 
     assert error_message in exc.value.args[0]
+
+
+class TestValidateBaseImage(object):
+
+    def test_manifest_list_verified(self, caplog):
+        log_message = 'manifest list for all required platforms'
+        test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+                                    [], [], reactor_config_map=True,
+                                    workflow_callback=self.prepare)
+        assert log_message in caplog.text()
+
+    def test_expected_platforms_unknown(self, caplog):
+
+        def workflow_callback(workflow):
+            self.prepare(workflow)
+            del workflow.buildstep_plugins_conf[0]
+            return workflow
+
+        log_message = 'expected platforms are unknown'
+        test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+                                    [], [], reactor_config_map=True,
+                                    workflow_callback=workflow_callback)
+        assert log_message in caplog.text()
+
+    def test_single_platform_build(self, caplog):
+
+        def workflow_callback(workflow):
+            workflow = self.prepare(workflow)
+            workflow.buildstep_plugins_conf[0]['args']['platforms'] = ['x86_64']
+            return workflow
+
+        log_message = 'single platform build'
+        test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+                                    [], [], reactor_config_map=True,
+                                    workflow_callback=workflow_callback)
+        assert log_message in caplog.text()
+
+    def test_registry_undefined(self, caplog):
+        def workflow_callback(workflow):
+            workflow = self.prepare(workflow)
+            reactor_config = workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY]
+            del reactor_config.conf['source_registry']
+            return workflow
+
+        log_message = 'base image registry is not defined'
+        test_pull_base_image_plugin('', BASE_IMAGE,
+                                    [], [], reactor_config_map=True,
+                                    workflow_callback=workflow_callback)
+        assert log_message in caplog.text()
+
+    def test_platform_descriptors_undefined(self, caplog):
+        def workflow_callback(workflow):
+            workflow = self.prepare(workflow)
+            reactor_config = workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY]
+            del reactor_config.conf['platform_descriptors']
+            return workflow
+
+        log_message = 'platform descriptors are not defined'
+        test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+                                    [], [], reactor_config_map=True,
+                                    workflow_callback=workflow_callback)
+        assert log_message in caplog.text()
+
+    def test_manifest_list_with_no_response(self, caplog):
+        def workflow_callback(workflow):
+            workflow = self.prepare(workflow)
+            (flexmock(atomic_reactor.util)
+             .should_receive('get_manifest_list')
+             .and_return(None))
+            return workflow
+
+        with pytest.raises(PluginFailedException) as exc_info:
+            test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+                                        [], [], reactor_config_map=True,
+                                        workflow_callback=workflow_callback)
+        assert 'Unable to fetch manifest list' in str(exc_info.value)
+
+    def test_manifest_list_missing_arches(self):
+        def workflow_callback(workflow):
+            workflow = self.prepare(workflow)
+            manifest_list = {
+                'manifests': [
+                    {'platform': {'architecture': 'amd64'}, 'digest': 'sha256:123456'},
+                ]
+            }
+            (flexmock(atomic_reactor.util)
+             .should_receive('get_manifest_list')
+             .and_return(flexmock(json=lambda: manifest_list)))
+            return workflow
+
+        with pytest.raises(PluginFailedException) as exc_info:
+            test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+                                        [], [], reactor_config_map=True,
+                                        workflow_callback=workflow_callback)
+        assert 'Missing arches in manifest list' in str(exc_info.value)
+
+    def prepare(self, workflow):
+        # Setup expected platforms
+        workflow.buildstep_plugins_conf[0]['args']['platforms'] = ['x86_64', 'ppc64le']
+
+        # Setup platform descriptors
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({
+                'version': 1,
+                'source_registry': {'url': 'registry.example.com', 'insecure': True},
+                'platform_descriptors': [{'platform': 'x86_64', 'architecture': 'amd64'}],
+            })
+
+        # Setup multi-arch manifest list
+        manifest_list = {
+            'manifests': [
+                {'platform': {'architecture': 'amd64'}, 'digest': 'sha256:123456'},
+                {'platform': {'architecture': 'ppc64le'}, 'digest': 'sha256:654321'},
+            ]
+        }
+        (flexmock(atomic_reactor.util)
+         .should_receive('get_manifest_list')
+         .and_return(flexmock(json=lambda: manifest_list)))
+
+        return workflow
