@@ -230,12 +230,12 @@ class TestSendMailPlugin(object):
                          koji_integration, success, reactor_config_map):
         log_url_cases = {
             # (koji_integration,autorebuild,success)
-            (False, False, False): True,
-            (False, False, True): True,
+            (False, False, False): False,
+            (False, False, True): False,
             (False, True, False): False,  # Included as attachment
-            (False, True, True): True,
+            (False, True, True): False,
             (True, False, False): True,
-            (True, False, True): False,   # Logs in Koji Build
+            (True, False, True): True,
             (True, True, False): False,   # Included as attachment
             (True, True, True): False,    # Logs in Koji Build
         }

@@ -213,7 +213,7 @@ class SendMailPlugin(ExitPlugin):
         # Failed autorebuilds include logs as attachments.
         # Koji integration stores logs in successful Koji Builds.
         # Don't include logs in these cases.
-        if not ((rebuild and not success) or (self.session and success)):
+        if self.session and not rebuild:
             body_template += '\nLogs: %(logs)s'
 
         endstate = None
