@@ -1272,3 +1272,10 @@ class OSBSLogs(object):
             output.append(Output(file=logfile, metadata=metadata))
 
         return output
+
+
+# As defined in pyhton docs example for format_map:
+#   https://docs.python.org/3/library/stdtypes.html#str.format_map
+class DefaultKeyDict(dict):
+    def __missing__(self, key):
+        return key

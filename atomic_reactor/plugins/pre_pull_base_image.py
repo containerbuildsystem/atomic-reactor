@@ -14,9 +14,10 @@ from __future__ import unicode_literals
 import docker
 
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import get_build_json, ImageName
+from atomic_reactor.util import get_build_json, get_manifest_list, ImageName, DefaultKeyDict
+from atomic_reactor.constants import PLUGIN_BUILD_ORCHESTRATE_KEY
 from atomic_reactor.core import RetryGeneratorException
-from atomic_reactor.plugins.pre_reactor_config import get_source_registry
+from atomic_reactor.plugins.pre_reactor_config import get_source_registry, get_platform_descriptors
 from osbs.utils import RegistryURI
 
 
@@ -85,6 +86,8 @@ class PullBaseImagePlugin(PreBuildPlugin):
         else:
             self.log.info("pulling base image '%s'", base_image)
 
+        self.validate_platforms_in_base_image(base_image_with_registry)
+
         try:
             self.tasker.pull_image(base_image_with_registry,
                                    insecure=self.parent_registry_insecure)
@@ -138,3 +141,55 @@ class PullBaseImagePlugin(PreBuildPlugin):
         self.workflow.builder.set_base_image(base_image.to_str())
         self.workflow.builder.original_base_image = ImageName.parse(original_base_image.to_str())
         self.log.debug("image '%s' is available", pulled_base)
+
+    def validate_platforms_in_base_image(self, base_image):
+        expected_platforms = self.get_expected_platforms()
+        if not expected_platforms:
+            self.log.info('Skipping validation of available platforms '
+                          'because expected platforms are unknown')
+            return
+        if len(expected_platforms) == 1:
+            self.log.info('Skipping validation of available platforms for base image '
+                          'because this is a single platform build')
+            return
+
+        if not base_image.registry:
+            self.log.info('Cannot validate available platforms for base image '
+                          'because base image registry is not defined')
+            return
+
+        try:
+            platform_descriptors = get_platform_descriptors(self.workflow)
+        except KeyError:
+            self.log.info('Cannot validate available platforms for base image '
+                          'because platform descriptors are not defined')
+            return
+
+        manifest_list = get_manifest_list(base_image, base_image.registry,
+                                          insecure=self.parent_registry_insecure)
+        if not manifest_list:
+            raise RuntimeError('Unable to fetch manifest list for base image')
+
+        all_manifests = manifest_list.json()['manifests']
+        manifest_list_arches = set(
+            manifest['platform']['architecture'] for manifest in all_manifests)
+
+        platform_to_arch = DefaultKeyDict(
+            (descriptor['platform'], descriptor['architecture'])
+            for descriptor in platform_descriptors)
+
+        expected_arches = set(
+            platform_to_arch[platform] for platform in expected_platforms)
+
+        self.log.info('Manifest list arches: %s, expected arches: %s',
+                      manifest_list_arches, expected_arches)
+        assert manifest_list_arches >= expected_arches, \
+            'Missing arches in manifest list for base image'
+
+        self.log.info('Base image is a manifest list for all required platforms')
+
+    def get_expected_platforms(self):
+        # This will be replaced by a plugin soon but this will do for now
+        for plugin in self.workflow.buildstep_plugins_conf or []:
+            if plugin['name'] == PLUGIN_BUILD_ORCHESTRATE_KEY:
+                return plugin['args']['platforms']
