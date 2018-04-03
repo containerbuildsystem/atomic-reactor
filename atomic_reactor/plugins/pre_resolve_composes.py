@@ -14,7 +14,8 @@ from collections import defaultdict
 
 from atomic_reactor.constants import (PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
                                       REPO_CONTAINER_CONFIG, REPO_CONTENT_SETS_CONFIG,
-                                      PLUGIN_BUILD_ORCHESTRATE_KEY)
+                                      PLUGIN_BUILD_ORCHESTRATE_KEY,
+                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
@@ -134,7 +135,11 @@ class ResolveComposesPlugin(PreBuildPlugin):
             self.compose_ids = tuple()
 
     def get_arches(self):
-        # This will be replaced by a plugin soon but this will do for now
+        platforms = self.workflow.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+        if platforms:
+            return [platform for platform in platforms]
+
+        # Fallback to build_orchestrate_build args if check_and_set_platforms didn't run
         for plugin in self.workflow.buildstep_plugins_conf:
             if plugin['name'] == PLUGIN_BUILD_ORCHESTRATE_KEY:
                 return plugin['args']['platforms']

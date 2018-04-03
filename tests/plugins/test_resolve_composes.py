@@ -27,7 +27,7 @@ except ImportError:
     del koji
     import koji as koji
 
-from atomic_reactor.constants import PLUGIN_KOJI_PARENT_KEY
+from atomic_reactor.constants import PLUGIN_KOJI_PARENT_KEY, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.odcs_util import ODCSClient
@@ -117,6 +117,8 @@ def workflow(tmpdir):
     workflow.builder = MockInsideBuilder(tmpdir)
     workflow.source = workflow.builder.source
     workflow._tmpdir = tmpdir
+    workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(
+                                                                    ODCS_COMPOSE_DEFAULT_ARCH_LIST)
 
     flexmock(workflow, base_image_inspect={})
 
@@ -252,6 +254,10 @@ class TestResolveComposes(object):
         workflow.buildstep_plugins_conf[0]['args']['platforms'] = arches
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
+    def test_request_compose_fallback(self, workflow, reactor_config_map):  # noqa
+        del workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
+
     def test_request_compose_for_modules(self, workflow, reactor_config_map):  # noqa
         repo_config = dedent("""\
             compose:
@@ -330,6 +336,7 @@ class TestResolveComposes(object):
                 signing_intent: {0}
             """.format(signing_intent))
         mock_repo_config(workflow._tmpdir, repo_config)
+        del workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
         workflow.buildstep_plugins_conf[0]['args']['platforms'] = arches
         tag_compose = deepcopy(ODCS_COMPOSE)
 
