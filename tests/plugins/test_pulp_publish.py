@@ -46,10 +46,12 @@ class X(object):
 
 
 class BuildInfo(object):
-    def __init__(self, v1_image_id=None):
+    def __init__(self, v1_image_id=None, unset_annotations=False):
         annotations = {'meta': 'test'}
         if v1_image_id:
             annotations['v1-image-id'] = v1_image_id
+        if unset_annotations:
+            annotations = None
 
         self.build = BuildResponse({'metadata': {'annotations': annotations}})
 
@@ -115,8 +117,9 @@ def prepare(success=True, v1_image_ids={}):
                 },
                 'metadata_fragment': 'configmap/build-1-ppc64le-md',
                 'metadata_fragment_key': 'metadata.json',
-            }
-        }
+            },
+            'bogus': {},
+        },
     }
 
     if success:
@@ -127,6 +130,7 @@ def prepare(success=True, v1_image_ids={}):
     build_info = {}
     build_info['x86_64'] = BuildInfo()
     build_info['ppc64le'] = BuildInfo()
+    build_info['bogus'] = BuildInfo(unset_annotations=True)  # OSBS-5262
 
     for platform, v1_image_id in v1_image_ids.items():
         build_info[platform] = BuildInfo(v1_image_id)

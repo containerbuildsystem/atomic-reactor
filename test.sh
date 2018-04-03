@@ -94,3 +94,6 @@ if [[ $OS != "fedora" ]]; then $RUN $PIP install -U setuptools; fi
 
 # Run tests
 $RUN pytest -vv tests --cov atomic_reactor "$@"
+
+echo "To run tests again:"
+echo "$RUN pytest -vv tests --cov atomic_reactor "
