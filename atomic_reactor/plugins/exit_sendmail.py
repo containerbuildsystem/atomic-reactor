@@ -12,6 +12,7 @@ from email.mime.base import MIMEBase
 from email import encoders
 import smtplib
 import socket
+import json
 try:
     from urlparse import urljoin
 except ImportError:
@@ -21,11 +22,12 @@ from atomic_reactor.plugin import ExitPlugin, PluginFailedException
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
+from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
 from atomic_reactor.plugins.pre_reactor_config import (get_smtp_session, get_koji_session,
                                                        get_smtp, get_koji, get_openshift,
                                                        get_openshift_session, get_koji_path_info)
 from atomic_reactor.koji_util import get_koji_task_owner
-from atomic_reactor.util import get_build_json, OSBSLogs
+from atomic_reactor.util import get_build_json, OSBSLogs, ImageName
 
 
 class SendMailPlugin(ExitPlugin):
@@ -196,11 +198,32 @@ class SendMailPlugin(ExitPlugin):
             should_send |= should_send_mapping[state]
         return should_send
 
+    def _get_image_name_and_repos(self):
+
+        repos = []
+        stored_data = self.workflow.exit_results.get(StoreMetadataInOSv3Plugin.key)
+        if not stored_data or 'annotations' not in stored_data:
+            raise ValueError('Stored Metadata not found')
+
+        repo_data = json.loads(stored_data['annotations']['repositories'])
+
+        repos.extend(repo_data.get('unique', []))
+        repos.extend(repo_data.get('primary', []))
+
+        if not repos:
+            raise ValueError('Repositories not found in stored Metadata')
+
+        image_name_obj = ImageName.parse(repos[0])
+        image_name = image_name_obj.get_repo()
+
+        return (image_name, repos)
+
     def _render_mail(self, rebuild, success, auto_canceled, manual_canceled):
         """Render and return subject and body of the mail to send."""
-        subject_template = '%(endstate)s building image %(image)s'
+        subject_template = '%(endstate)s building image %(image_name)s'
         body_template = '\n'.join([
-            'Image: %(image)s',
+            'Image Name: %(image_name)s',
+            'Repositories: %(repositories)s',
             'Status: %(endstate)s',
             'Submitted by: %(user)s',
         ])
@@ -219,8 +242,15 @@ class SendMailPlugin(ExitPlugin):
 
         url = self._get_logs_url()
 
+        image_name, repos = self._get_image_name_and_repos()
+
+        repositories = ''
+        for repo in repos:
+            repositories += '\n    ' + repo
+
         formatting_dict = {
-            'image': self.workflow.image,
+            'repositories': repositories,
+            'image_name': image_name,
             'endstate': endstate,
             'user': '<autorebuild>' if rebuild else self.submitter,
             'logs': url

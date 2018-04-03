@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 import os
 import smtplib
 from collections import namedtuple
@@ -27,6 +28,7 @@ except ImportError:
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.plugins.exit_sendmail import SendMailPlugin
+from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
@@ -122,6 +124,21 @@ class MockedPathInfo(object):
         return "tasks/%s" % task_id
 
 
+DEFAULT_ANNOTATIONS = {
+    'repositories': {
+        'unique': ['foo/bar:baz'],
+        'primary': ['foo/bar:spam'],
+    }
+}
+
+
+def mock_store_metadata_results(workflow, annotations=DEFAULT_ANNOTATIONS):
+    result = {}
+    if annotations:
+        result['annotations'] = {key: json.dumps(value) for key, value in annotations.items()}
+    workflow.exit_results[StoreMetadataInOSv3Plugin.key] = result
+
+
 class TestSendMailPlugin(object):
     def test_fails_with_unknown_states(self, reactor_config_map):  # noqa
         class WF(object):
@@ -197,6 +214,13 @@ class TestSendMailPlugin(object):
         assert p._should_send(rebuild, success, auto_canceled, manual_canceled) == expected
 
     @pytest.mark.parametrize('success', (True, False))
+    @pytest.mark.parametrize(('has_store_metadata_results', 'annotations', 'has_repositories',
+                              'expect_error'), [
+        (True, True, True, False),
+        (True, True, False, True),
+        (True, False, False, True),
+        (False, False, False, True)
+    ])
     @pytest.mark.parametrize('koji_integration', (True, False))
     @pytest.mark.parametrize(('autorebuild', 'auto_cancel', 'manual_cancel',
                               'to_koji_submitter', 'has_koji_logs'), [
@@ -227,7 +251,9 @@ class TestSendMailPlugin(object):
     ])
     def test_render_mail(self, monkeypatch, autorebuild, auto_cancel,
                          manual_cancel, to_koji_submitter, has_koji_logs,
-                         koji_integration, success, reactor_config_map):
+                         koji_integration, success, reactor_config_map,
+                         has_store_metadata_results, annotations, has_repositories,
+                         expect_error):
         log_url_cases = {
             # (koji_integration,autorebuild,success)
             (False, False, False): False,
@@ -294,6 +320,15 @@ class TestSendMailPlugin(object):
         }
 
         workflow = WF()
+        if has_store_metadata_results:
+            if annotations:
+                if has_repositories:
+                    mock_store_metadata_results(workflow)
+                else:
+                    mock_store_metadata_results(workflow, {'repositories': {}})
+            else:
+                mock_store_metadata_results(workflow, None)
+
         if reactor_config_map:
             openshift_map = {'url': 'https://something.com'}
             koji_map = {
@@ -327,6 +362,11 @@ class TestSendMailPlugin(object):
             # recipients available
             assert str(ex) == 'No recipients found'
 
+        if expect_error:
+            with pytest.raises(ValueError):
+                p._render_mail(autorebuild, success, auto_cancel, manual_cancel)
+            return
+
         subject, body, logs = p._render_mail(autorebuild, success,
                                              auto_cancel, manual_cancel)
 
@@ -341,18 +381,21 @@ class TestSendMailPlugin(object):
             # Full logs are only generated on a failed autorebuild
             assert autorebuild == bool(logs)
 
-        exp_subject = '%s building image foo/bar:baz' % status
+        exp_subject = '%s building image foo/bar' % status
         exp_body = [
-            'Image: foo/bar:baz',
+            'Image Name: foo/bar',
+            'Repositories: ',
+            '    foo/bar:baz',
+            '    foo/bar:spam',
             'Status: ' + status,
             'Submitted by: ',
         ]
         if autorebuild:
-            exp_body[2] += '<autorebuild>'
+            exp_body[-1] += '<autorebuild>'
         elif koji_integration and to_koji_submitter:
-            exp_body[2] += MOCK_KOJI_SUBMITTER_EMAIL
+            exp_body[-1] += MOCK_KOJI_SUBMITTER_EMAIL
         else:
-            exp_body[2] += SendMailPlugin.DEFAULT_SUBMITTER
+            exp_body[-1] += SendMailPlugin.DEFAULT_SUBMITTER
 
         if log_url_cases[(koji_integration, autorebuild, success)]:
             if has_koji_logs:
@@ -417,6 +460,8 @@ class TestSendMailPlugin(object):
         }
 
         workflow = WF()
+        mock_store_metadata_results(workflow)
+
         if reactor_config_map:
             smtp_map = {
                 'from_address': 'foo@bar.com',
@@ -783,6 +828,8 @@ class TestSendMailPlugin(object):
         receivers = ['foo@bar.com', 'x@y.com']
 
         workflow = WF()
+        mock_store_metadata_results(workflow)
+
         if reactor_config_map:
             smtp_map = {
                 'from_address': 'foo@bar.com',
@@ -858,6 +905,9 @@ class TestSendMailPlugin(object):
             .with_args(True, False, False, False).and_return(True))
         flexmock(p).should_receive('_get_receivers_list').and_return(receivers)
         flexmock(OSBS).should_receive('get_orchestrator_build_logs').and_return(fake_logs)
+        flexmock(p).should_receive('_get_image_name_and_repos').and_return(('foobar',
+                                                                           ['foo/bar:baz',
+                                                                            'foo/bar:spam']))
 
         smtp_inst = SMTP()
         flexmock(smtplib).should_receive('SMTP').and_return(smtp_inst)
@@ -879,6 +929,8 @@ class TestSendMailPlugin(object):
 
         error_addresses = ['error@address.com']
         workflow = WF()
+        mock_store_metadata_results(workflow)
+
         if reactor_config_map:
             smtp_map = {
                 'from_address': 'foo@bar.com',
@@ -897,6 +949,9 @@ class TestSendMailPlugin(object):
             .with_args(True, False, False, False).and_return(True))
         flexmock(p).should_receive('_get_receivers_list').and_raise(RuntimeError())
         flexmock(p).should_receive('_fetch_log_files').and_return(None)
+        flexmock(p).should_receive('_get_image_name_and_repos').and_return(('foobar',
+                                                                           ['foo/bar:baz',
+                                                                            'foo/bar:spam']))
         flexmock(p).should_receive('_send_mail').with_args(error_addresses,
                                                            six.text_type, six.text_type, None)
 
