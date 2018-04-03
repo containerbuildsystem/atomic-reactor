@@ -111,7 +111,7 @@ class PulpPublishPlugin(ExitPlugin):
 
         for platform in worker_builds:
             build_info = get_worker_build_info(self.workflow, platform)
-            annotations = build_info.build.get_annotations()
+            annotations = build_info.build.get_annotations() or {}
             v1_image_id = annotations.get('v1-image-id')
             if v1_image_id:
                 image_names = self.workflow.tag_conf.images
