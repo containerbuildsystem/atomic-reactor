@@ -20,11 +20,10 @@ from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlug
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY)
-import atomic_reactor.plugins.pre_reactor_config
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.util import ImageName, df_parser
 import atomic_reactor.util
-from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY
+from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from flexmock import flexmock
 from multiprocessing.pool import AsyncResult
 from osbs.api import OSBS
@@ -816,6 +815,64 @@ def test_orchestrate_build_exclude_platforms(tmpdir, platforms, platform_exclude
     with open(os.path.join(str(tmpdir), 'container.yaml'), 'w') as f:
         f.write(yaml.safe_dump(platforms_dict))
         f.flush()
+
+    runner = BuildStepPluginsRunner(
+        workflow.builder.tasker,
+        workflow,
+        [{
+            'name': OrchestrateBuildPlugin.key,
+            'args': {
+                # Explicitly leaving off 'eggs' platform to
+                # ensure no errors occur when unknown platform
+                # is provided in container.yaml file.
+                'platforms': platforms,
+                'build_kwargs': make_worker_build_kwargs(),
+                'osbs_client_config': str(tmpdir),
+                'goarch': {'x86_64': 'amd64'},
+            }
+        }]
+    )
+
+    build_result = runner.run()
+    assert not build_result.is_failed()
+
+    annotations = build_result.annotations
+    assert set(annotations['worker-builds'].keys()) == set(result)
+
+
+@pytest.mark.parametrize(('platforms', 'plugin_results', 'result'), [
+    (['x86_64', 'ppc64le'], ['ppc64le'], ['ppc64le']),
+    (['x86_64', 'spam', 'bacon', 'toast', 'ppc64le'], ['x86_64', 'ppc64le'],
+     ['x86_64', 'ppc64le']),
+    (['x86_64', 'ppc64le'], None, ['x86_64', 'ppc64le'])
+])
+def test_orchestrate_build_exclude_platforms_from_plugin(tmpdir, platforms, plugin_results, result):
+    workflow = mock_workflow(tmpdir)
+    mock_osbs()
+    mock_manifest_list()
+
+    reactor_config = {}
+    reactor_config = {
+        'x86_64': [
+            {
+                'name': 'worker01',
+                'max_concurrent_builds': 3
+            }
+        ],
+        'ppc64le': [
+            {
+                'name': 'worker02',
+                'max_concurrent_builds': 3
+            }
+        ]
+    }
+
+    mock_reactor_config(tmpdir, reactor_config)
+
+    if plugin_results:
+        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(plugin_results)
+    else:
+        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = None
 
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
