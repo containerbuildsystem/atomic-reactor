@@ -39,7 +39,7 @@ from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import (df_parser, get_build_json, get_manifest_list, ImageName,
                                  get_platforms_in_limits)
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY,
-                                      REPO_CONTAINER_CONFIG)
+                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from osbs.conf import Configuration
@@ -416,6 +416,12 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             get_arrangement_version(self.workflow, self.build_kwargs['arrangement_version'])
 
     def get_platforms(self):
+        koji_platforms = self.workflow.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+        if koji_platforms:
+            return koji_platforms
+
+        # if check_and_set_platforms didn't run, or didn't get any platforms from koji
+        # determine platforms from USER_PARAMS platforms parameter
         return get_platforms_in_limits(self.workflow, self.platforms)
 
     def get_current_builds(self, osbs):
@@ -841,14 +847,13 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
     def run(self):
         self.platforms = self.get_platforms()
-        platforms = self.platforms
 
-        if not platforms:
+        if not self.platforms:
             raise RuntimeError("No enabled platform to build on")
-        self.set_build_image(platforms)
+        self.set_build_image(self.platforms)
 
-        thread_pool = ThreadPool(len(platforms))
-        result = thread_pool.map_async(self.select_and_start_cluster, platforms)
+        thread_pool = ThreadPool(len(self.platforms))
+        result = thread_pool.map_async(self.select_and_start_cluster, self.platforms)
 
         try:
             result.get()
