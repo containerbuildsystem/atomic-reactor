@@ -15,7 +15,8 @@ import docker
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import get_build_json, get_manifest_list, ImageName, DefaultKeyDict
-from atomic_reactor.constants import PLUGIN_BUILD_ORCHESTRATE_KEY
+from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
+                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
 from atomic_reactor.core import RetryGeneratorException
 from atomic_reactor.plugins.pre_reactor_config import get_source_registry, get_platform_descriptors
 from osbs.utils import RegistryURI
@@ -25,7 +26,8 @@ class PullBaseImagePlugin(PreBuildPlugin):
     key = "pull_base_image"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, parent_registry=None, parent_registry_insecure=False):
+    def __init__(self, tasker, workflow, parent_registry=None, parent_registry_insecure=False,
+                 check_platforms=False):
         """
         constructor
 
@@ -37,6 +39,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
         # call parent constructor
         super(PullBaseImagePlugin, self).__init__(tasker, workflow)
 
+        self.check_platforms = check_platforms
         source_registry = get_source_registry(self.workflow, {
             'uri': RegistryURI(parent_registry) if parent_registry else None,
             'insecure': parent_registry_insecure})
@@ -86,7 +89,8 @@ class PullBaseImagePlugin(PreBuildPlugin):
         else:
             self.log.info("pulling base image '%s'", base_image)
 
-        self.validate_platforms_in_base_image(base_image_with_registry)
+        if self.check_platforms:
+            self.validate_platforms_in_base_image(base_image_with_registry)
 
         try:
             self.tasker.pull_image(base_image_with_registry,
@@ -189,7 +193,10 @@ class PullBaseImagePlugin(PreBuildPlugin):
         self.log.info('Base image is a manifest list for all required platforms')
 
     def get_expected_platforms(self):
-        # This will be replaced by a plugin soon but this will do for now
+        platforms = self.workflow.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+        if platforms:
+            return platforms
+
         for plugin in self.workflow.buildstep_plugins_conf or []:
             if plugin['name'] == PLUGIN_BUILD_ORCHESTRATE_KEY:
                 return plugin['args']['platforms']

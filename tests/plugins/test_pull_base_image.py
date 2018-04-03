@@ -15,7 +15,8 @@ import pytest
 import atomic_reactor
 import atomic_reactor.util
 
-from atomic_reactor.constants import PLUGIN_BUILD_ORCHESTRATE_KEY
+from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
+                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.util import ImageName, CommandResult
@@ -24,7 +25,6 @@ from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from osbs.utils import RegistryURI
 from tests.fixtures import reactor_config_map  # noqa
 from tests.constants import MOCK, MOCK_SOURCE, LOCALHOST_REGISTRY
 
@@ -117,7 +117,8 @@ def set_build_json(monkeypatch):
       LOCALHOST_REGISTRY + "/library-only:latest"]),
 ])
 def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected,
-                                reactor_config_map, workflow_callback=None):
+                                reactor_config_map, workflow_callback=None,
+                                check_platforms=False):
     if MOCK:
         mock_docker(remember_images=True)
 
@@ -152,7 +153,8 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
         [{
             'name': PullBaseImagePlugin.key,
             'args': {'parent_registry': parent_registry,
-                     'parent_registry_insecure': True}
+                     'parent_registry_insecure': True,
+                     'check_platforms': check_platforms}
         }]
     )
 
@@ -324,33 +326,51 @@ class TestValidateBaseImage(object):
         log_message = 'manifest list for all required platforms'
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
                                     [], [], reactor_config_map=True,
-                                    workflow_callback=self.prepare)
+                                    workflow_callback=self.prepare,
+                                    check_platforms=True)
+        assert log_message in caplog.text()
+
+    def test_manifest_list_fallback_to_orchestrate_build_args(self, caplog):
+
+        def workflow_callback(workflow):
+            self.prepare(workflow)
+            del workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
+            return workflow
+
+        log_message = 'manifest list for all required platforms'
+        test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+                                    [], [], reactor_config_map=True,
+                                    workflow_callback=workflow_callback,
+                                    check_platforms=True)
         assert log_message in caplog.text()
 
     def test_expected_platforms_unknown(self, caplog):
 
         def workflow_callback(workflow):
             self.prepare(workflow)
+            del workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
             del workflow.buildstep_plugins_conf[0]
             return workflow
 
         log_message = 'expected platforms are unknown'
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
                                     [], [], reactor_config_map=True,
-                                    workflow_callback=workflow_callback)
+                                    workflow_callback=workflow_callback,
+                                    check_platforms=True)
         assert log_message in caplog.text()
 
     def test_single_platform_build(self, caplog):
 
         def workflow_callback(workflow):
             workflow = self.prepare(workflow)
-            workflow.buildstep_plugins_conf[0]['args']['platforms'] = ['x86_64']
+            workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(['x86_64'])
             return workflow
 
         log_message = 'single platform build'
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
                                     [], [], reactor_config_map=True,
-                                    workflow_callback=workflow_callback)
+                                    workflow_callback=workflow_callback,
+                                    check_platforms=True)
         assert log_message in caplog.text()
 
     def test_registry_undefined(self, caplog):
@@ -363,7 +383,8 @@ class TestValidateBaseImage(object):
         log_message = 'base image registry is not defined'
         test_pull_base_image_plugin('', BASE_IMAGE,
                                     [], [], reactor_config_map=True,
-                                    workflow_callback=workflow_callback)
+                                    workflow_callback=workflow_callback,
+                                    check_platforms=True)
         assert log_message in caplog.text()
 
     def test_platform_descriptors_undefined(self, caplog):
@@ -376,7 +397,8 @@ class TestValidateBaseImage(object):
         log_message = 'platform descriptors are not defined'
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
                                     [], [], reactor_config_map=True,
-                                    workflow_callback=workflow_callback)
+                                    workflow_callback=workflow_callback,
+                                    check_platforms=True)
         assert log_message in caplog.text()
 
     def test_manifest_list_with_no_response(self, caplog):
@@ -390,7 +412,8 @@ class TestValidateBaseImage(object):
         with pytest.raises(PluginFailedException) as exc_info:
             test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
                                         [], [], reactor_config_map=True,
-                                        workflow_callback=workflow_callback)
+                                        workflow_callback=workflow_callback,
+                                        check_platforms=True)
         assert 'Unable to fetch manifest list' in str(exc_info.value)
 
     def test_manifest_list_missing_arches(self):
@@ -409,12 +432,14 @@ class TestValidateBaseImage(object):
         with pytest.raises(PluginFailedException) as exc_info:
             test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
                                         [], [], reactor_config_map=True,
-                                        workflow_callback=workflow_callback)
+                                        workflow_callback=workflow_callback,
+                                        check_platforms=True)
         assert 'Missing arches in manifest list' in str(exc_info.value)
 
     def prepare(self, workflow):
         # Setup expected platforms
         workflow.buildstep_plugins_conf[0]['args']['platforms'] = ['x86_64', 'ppc64le']
+        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(['x86_64', 'ppc64le'])
 
         # Setup platform descriptors
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
