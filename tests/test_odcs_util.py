@@ -99,7 +99,7 @@ def test_create_compose(odcs_client, source, source_type, packages, sigkeys, arc
         assert body_json['source']['source'] == source
         assert body_json['source'].get('packages') == packages
         assert body_json['source'].get('sigkeys') == sigkeys
-        assert body_json['source'].get('arches') == arches
+        assert body_json.get('arches') == arches
         return (200, {}, compose_json(0, 'wait', source_type=source_type, source=source))
 
     responses.add_callback(responses.POST, '{}composes/'.format(ODCS_URL),
