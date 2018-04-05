@@ -75,8 +75,7 @@ class ODCSClient(object):
         if arches is not None:
             body['source']['arches'] = arches
 
-        logger.info("Starting compose for source_type={source_type}, source={source}"
-                    .format(source_type=source_type, source=source))
+        logger.info("Starting compose: %s", body)
         response = self.session.post('{}composes/'.format(self.url),
                                      json=body)
         response.raise_for_status()
