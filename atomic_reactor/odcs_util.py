@@ -73,7 +73,7 @@ class ODCSClient(object):
             body['source']['sigkeys'] = sigkeys
 
         if arches is not None:
-            body['source']['arches'] = arches
+            body['arches'] = arches
 
         logger.info("Starting compose: %s", body)
         response = self.session.post('{}composes/'.format(self.url),
