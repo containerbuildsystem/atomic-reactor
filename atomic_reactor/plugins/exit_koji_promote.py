@@ -52,7 +52,7 @@ from atomic_reactor.util import (Output, get_version_of_tools, get_checksums,
                                  are_plugins_in_order,
                                  get_image_upload_filename,
                                  get_manifest_media_type)
-from atomic_reactor.koji_util import (tag_koji_build, KojiUploadLogger)
+from atomic_reactor.koji_util import (tag_koji_build, KojiUploadLogger, get_koji_task_owner)
 from atomic_reactor.rpm_util import parse_rpm_output, rpm_qf_args
 from osbs.exceptions import OsbsException
 from osbs.utils import Labels
@@ -506,14 +506,19 @@ class KojiPromotePlugin(ExitPlugin):
         if not isinstance(source, GitSource):
             raise RuntimeError('git source required')
 
-        extra = {'image': {'autorebuild': is_rebuild(self.workflow)}}
+        extra = {
+            'image': {'autorebuild': is_rebuild(self.workflow)},
+            'submitter': self.koji_session.getLoggedInUser().get('name'),
+        }
 
+        koji_task_owner = None
         koji_task_id = metadata.get('labels', {}).get('koji-task-id')
         if koji_task_id is not None:
             self.log.info("build configuration created by Koji Task ID %s",
                           koji_task_id)
             try:
-                extra['container_koji_task_id'] = int(koji_task_id)
+                extra['container_koji_task_id'] = koji_task_id = int(koji_task_id)
+                koji_task_owner = get_koji_task_owner(self.koji_session, koji_task_id).get('name')
             except ValueError:
                 self.log.error("invalid task ID %r", koji_task_id, exc_info=1)
 
@@ -585,6 +590,7 @@ class KojiPromotePlugin(ExitPlugin):
             'start_time': start_time,
             'end_time': int(time.time()),
             'extra': extra,
+            'owner': koji_task_owner,
         }
 
         if self.metadata_only:
@@ -677,21 +683,21 @@ class KojiPromotePlugin(ExitPlugin):
             self.log.info("Not promoting failed build to koji")
             return
 
+        self.koji_session = get_koji_session(self.workflow, self.koji_fallback)
         koji_metadata, output_files = self.get_metadata()
 
         try:
-            session = get_koji_session(self.workflow, self.koji_fallback)
             server_dir = self.get_upload_server_dir()
             for output in output_files:
                 if output.file:
-                    self.upload_file(session, output, server_dir)
+                    self.upload_file(self.koji_session, output, server_dir)
         finally:
             for output in output_files:
                 if output.file:
                     output.file.close()
 
         try:
-            build_info = session.CGImport(koji_metadata, server_dir)
+            build_info = self.koji_session.CGImport(koji_metadata, server_dir)
         except Exception:
             self.log.debug("metadata: %r", koji_metadata)
             raise
@@ -707,7 +713,7 @@ class KojiPromotePlugin(ExitPlugin):
                                          PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                          PLUGIN_KOJI_TAG_BUILD_KEY)
         if not tag_later and build_id is not None and self.target is not None:
-            tag_koji_build(session, build_id, self.target,
+            tag_koji_build(self.koji_session, build_id, self.target,
                            poll_interval=self.poll_interval)
 
         return build_id

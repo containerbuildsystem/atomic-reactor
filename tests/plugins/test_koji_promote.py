@@ -67,6 +67,7 @@ from six import string_types
 
 NAMESPACE = 'mynamespace'
 BUILD_ID = 'build-1'
+SUBMITTER = 'osbs'
 
 
 class X(object):
@@ -90,6 +91,8 @@ class MockedClientSession(object):
         self.task_states = list(self.task_states)
         self.task_states.reverse()
         self.tag_task_state = self.task_states.pop()
+        self.getLoggedInUser = lambda: {'name': SUBMITTER}
+        self.getUser = lambda *_: {'name': None}
 
     def krb_login(self, principal=None, keytab=None, proxyuser=None):
         return True
@@ -1184,6 +1187,7 @@ class TestKojiPromote(object):
             'source',
             'start_time',
             'end_time',
+            'owner',
             'extra',          # optional but always supplied
             'metadata_only',  # only when True
         ]) - mdonly
@@ -1569,6 +1573,34 @@ class TestKojiPromote(object):
 
         assert 'parent_build_id' not in image.keys()
         assert PLUGIN_KOJI_PARENT_KEY not in workflow.prebuild_results
+
+    def test_koji_promote_owner_submitter(self, tmpdir, monkeypatch):
+        (taskId, userId, userName) = (1234, 5432, 'dev1')
+        session = flexmock(MockedClientSession(''))
+        session.should_receive('getTaskInfo').once().with_args(taskId).and_return({'owner': userId})
+        session.should_receive('getUser').once().with_args(userId).and_return({'name': userName})
+        tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1')
+        runner = create_runner(tasker, workflow)
+
+        monkeypatch.setenv("BUILD", json.dumps({
+            'metadata': {
+                'creationTimestamp': '2015-07-27T09:24:00Z',
+                'namespace': NAMESPACE,
+                'name': BUILD_ID,
+                'labels': {
+                    'koji-task-id': taskId,
+                },
+            }
+        }))
+
+        runner.run()
+        metadata = session.metadata
+        assert metadata['build']['owner'] == userName
+        assert metadata['build']['extra']['submitter'] == SUBMITTER
 
     @pytest.mark.parametrize(('comp', 'sign_int', 'override'), [
         ([{'id': 1}, {'id': 2}, {'id': 3}], "beta", True),

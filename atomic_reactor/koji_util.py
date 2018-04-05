@@ -166,12 +166,14 @@ def tag_koji_build(session, build_id, target, poll_interval=5):
     return build_tag
 
 
-def get_koji_task_owner(session, task_id, default=""):
+def get_koji_task_owner(session, task_id, default=None):
+    default = {} if default is None else default
     if task_id:
         try:
             koji_task_info = session.getTaskInfo(task_id)
             koji_task_owner = session.getUser(koji_task_info['owner'])
-        except:
+        except Exception:
+            logger.exception('Unable to get Koji task owner')
             koji_task_owner = default
     else:
         koji_task_owner = default
