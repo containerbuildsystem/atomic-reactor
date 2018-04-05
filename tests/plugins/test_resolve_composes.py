@@ -235,6 +235,23 @@ class TestResolveComposes(object):
     def test_request_compose(self, workflow, reactor_config_map):  # noqa
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
+    @pytest.mark.parametrize('arches', (  # noqa
+        ['x86_64', 'ppc64le'],
+        ['x86_64'],
+    ))
+    def test_request_compose_for_multiarch_tag(self, workflow, reactor_config_map, arches):
+        (flexmock(ODCSClient)
+            .should_receive('start_compose')
+            .with_args(
+                source_type='tag',
+                source='test-tag',
+                packages=['spam', 'bacon', 'eggs'],
+                sigkeys=['R123'],
+                arches=arches)
+            .and_return(ODCS_COMPOSE))
+        workflow.buildstep_plugins_conf[0]['args']['platforms'] = arches
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
+
     def test_request_compose_for_modules(self, workflow, reactor_config_map):  # noqa
         repo_config = dedent("""\
             compose:
