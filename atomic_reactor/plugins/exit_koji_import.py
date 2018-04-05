@@ -371,10 +371,7 @@ class KojiImportPlugin(ExitPlugin):
         if flatpak_source_info is not None:
             extra['image'].update(flatpak_source_info.koji_metadata())
 
-        if koji_task_id:
-            koji_task_owner = get_koji_task_owner(self.session, koji_task_id, default=None)['name']
-        else:
-            koji_task_owner = None
+        koji_task_owner = get_koji_task_owner(self.session, koji_task_id).get('name')
         extra['submitter'] = self.session.getLoggedInUser()['name']
 
         resolve_comp_result = self.workflow.prebuild_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
