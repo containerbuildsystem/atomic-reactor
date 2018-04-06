@@ -12,6 +12,11 @@ from atomic_reactor.plugins.post_pulp_pull import (PulpPullPlugin,
                                                    CraneTimeoutError)
 from atomic_reactor.inner import TagConf, PushConf
 from atomic_reactor.util import ImageName
+from atomic_reactor.pulp_util import PulpHandler
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
+                                                       ReactorConfigPlugin,
+                                                       ReactorConfigKeys,
+                                                       WORKSPACE_CONF_KEY)
 from flexmock import flexmock
 import pytest
 import requests
@@ -46,7 +51,8 @@ class TestPostPulpPull(object):
     EXPECTED_PULLSPEC = EXPECTED_IMAGE.to_str()
 
     def workflow(self, push=True, sync=True, build_process_failed=False,
-                 postbuild_results=None):
+                 postbuild_results=None, secret=None, insecure=False,
+                 expectv2schema2=False):
         tag_conf = TagConf()
         tag_conf.add_unique_image(self.TEST_UNIQUE_IMAGE)
         push_conf = PushConf()
@@ -56,13 +62,34 @@ class TestPostPulpPull(object):
             push_conf.add_pulp_registry('pulp', crane_uri=self.CRANE_URI, server_side_sync=True)
 
         mock_get_retry_session()
+
+        conf = {
+            ReactorConfigKeys.VERSION_KEY: 1,
+            'pulp': {
+                'name': 'mockpulp',
+                'auth': {
+                    'username': 'user',
+                    'password': 'passwd',
+                },
+            },
+            'prefer_schema1_digest': not expectv2schema2
+        }
+        plugin_workspace = {
+            ReactorConfigPlugin.key: {
+                WORKSPACE_CONF_KEY: ReactorConfig(conf)
+            }
+        }
         builder = flexmock()
         setattr(builder, 'image_id', 'sha256:(old)')
+
+        flexmock(PulpHandler).should_receive('get_secret').and_return(secret)
+        flexmock(PulpHandler).should_receive('get_insecure').and_return(insecure)
+
         return flexmock(tag_conf=tag_conf,
                         push_conf=push_conf,
                         builder=builder,
                         build_process_failed=build_process_failed,
-                        plugin_workspace={},
+                        plugin_workspace=plugin_workspace,
                         postbuild_results=postbuild_results or {})
 
     media_type_v1 = 'application/vnd.docker.distribution.manifest.v1+json'
@@ -196,7 +223,7 @@ class TestPostPulpPull(object):
     ])
     def test_pull_first_time(self, no_headers, broken_response, insecure, schema_version,
                              pulp_plugin, expected_version):
-        workflow = self.workflow()
+        workflow = self.workflow(insecure=insecure)
         tasker = MockerTasker()
 
         test_id = 'sha256:(new)'
