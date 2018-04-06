@@ -392,6 +392,9 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
 
     if reactor_config_map:
         full_conf['koji'] = koji_map
+        del args['kojihub']
+        del args['url']
+        del args['build_json_dir']
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
             ReactorConfig(full_conf)

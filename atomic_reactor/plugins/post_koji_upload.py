@@ -78,8 +78,8 @@ class KojiUploadPlugin(PostBuildPlugin):
     key = PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, kojihub, url, build_json_dir,
-                 koji_upload_dir, verify_ssl=True, use_auth=True,
+    def __init__(self, tasker, workflow, koji_upload_dir, kojihub=None, url=None,
+                 build_json_dir=None, verify_ssl=True, use_auth=True,
                  koji_ssl_certs_dir=None, koji_proxy_user=None,
                  koji_principal=None, koji_keytab=None,
                  blocksize=None, prefer_schema1_digest=True,
