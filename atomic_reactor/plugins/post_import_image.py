@@ -11,8 +11,9 @@ from __future__ import unicode_literals
 from osbs.exceptions import OsbsResponseException
 
 from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
-from atomic_reactor.util import get_primary_images
-from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
+from atomic_reactor.util import get_primary_images, df_parser
+from atomic_reactor.plugins.pre_reactor_config import get_openshift_session, get_source_registry
+from osbs.utils import Labels
 
 
 # Note: We use multiple inheritance here only to make it explicit that
@@ -28,7 +29,7 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
     key = 'import_image'
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, imagestream, docker_image_repo,
+    def __init__(self, tasker, workflow, imagestream, docker_image_repo=None,
                  url=None, build_json_dir=None, verify_ssl=True, use_auth=True,
                  insecure_registry=None):
         """
@@ -48,7 +49,8 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
         # call parent constructor
         super(ImportImagePlugin, self).__init__(tasker, workflow)
         self.imagestream_name = imagestream
-        self.docker_image_repo = docker_image_repo
+
+        self.docker_image_repo = self.resolve_docker_image_repo(docker_image_repo)
 
         self.openshift_fallback = {
             'url': url,
@@ -56,7 +58,9 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
             'auth': {'enable': use_auth},
             'build_json_dir': build_json_dir
         }
-        self.insecure_registry = insecure_registry
+
+        self.insecure_registry = get_source_registry(
+            self.workflow, {'insecure': insecure_registry})['insecure']
 
         self.osbs = None
         self.imagestream = None
@@ -116,3 +120,19 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
             tags.append(tag)
 
         return tags
+
+    def resolve_docker_image_repo(self, docker_image_repo_fallback):
+        # The plugin parameter docker_image_repo is actually a combination
+        # of source_registry_uri and name label. Thus, the fallback case must
+        # be handled in a non-generic way.
+        try:
+            source_registry = get_source_registry(self.workflow)
+        except KeyError:
+            return docker_image_repo_fallback
+
+        registry = source_registry['uri'].docker_uri
+
+        labels = Labels(df_parser(self.workflow.builder.df_path).labels)
+        _, name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)
+
+        return '/'.join([registry, name])
