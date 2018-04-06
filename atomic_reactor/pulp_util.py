@@ -12,12 +12,15 @@ import os
 import re
 import warnings
 from collections import namedtuple
+from six.moves.configparser import ConfigParser
 
 try:
     import dockpulp
+    from dockpulp import DEFAULT_CONFIG_FILE
 
 except (ImportError, SyntaxError):
     dockpulp = None
+    DEFAULT_CONFIG_FILE = '/tmp'
     import logging
 
 
@@ -101,6 +104,7 @@ class PulpHandler(object):
             else:
                 path = os.environ["SOURCE_SECRET_PATH"]
                 self.log.info("SOURCE_SECRET_PATH=%s from environment", path)
+                self.pulp_secret_path = path
 
             # Work out the pathnames for the certificate/key pair.
             cer = os.path.join(path, self.CER)
@@ -215,3 +219,20 @@ class PulpHandler(object):
 
     def get_pulp_instance(self):
         return self.pulp_instance
+
+    def get_secret(self):
+        if not self.p:
+            self.create_dockpulp()
+        return self.pulp_secret_path
+
+    def get_insecure(self, conf_file=DEFAULT_CONFIG_FILE):
+        conf = ConfigParser()
+        if not conf_file:
+            raise RuntimeError('Missing dockpulp config file')
+        conf.readfp(open(conf_file))
+        if conf.has_section('verify'):
+            if conf.has_option('verify', self.pulp_instance):
+                return not conf.getboolean('verify', self.pulp_instance)
+
+        # no option found means an insecure dockpulp
+        return True
