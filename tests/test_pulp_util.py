@@ -10,6 +10,7 @@ from __future__ import unicode_literals
 import os
 import logging
 from collections import namedtuple
+from textwrap import dedent
 
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
@@ -254,3 +255,95 @@ def test_ensure_repos(auto_publish, unsupported):
     image_names = [ImageName(repo="myproject-hello-world")]
     handler = PulpHandler(workflow, pulp_registry_name, log)
     handler.create_dockpulp_and_repos(image_names)
+
+
+@pytest.mark.skipif(dockpulp is None,
+                    reason='dockpulp module not available')
+@pytest.mark.parametrize(("user", "secret_path", "secret_env"), [
+    (None, None, False),
+    ("user", None, False),
+    (None, None, True),
+    (None, True, None),
+])
+def test_get_secret(tmpdir, user, secret_path, secret_env, monkeypatch):
+    log = logging.getLogger("tests.test_pulp_util")
+    pulp_registry_name = 'registry.example.com'
+    testfile = 'foo'
+    secret = None
+
+    if secret_env:
+        monkeypatch.setenv('SOURCE_SECRET_PATH', str(tmpdir))
+        secret = str(tmpdir)
+    if secret_path:
+        secret_path = str(tmpdir)
+        secret = str(tmpdir)
+    with open(os.path.join(str(tmpdir), "pulp.cer"), "wt") as cer:
+        cer.write("pulp certificate\n")
+    with open(os.path.join(str(tmpdir), "pulp.key"), "wt") as key:
+        key.write("pulp key\n")
+
+    _, workflow = prepare(testfile)
+    handler = PulpHandler(workflow, pulp_registry_name, log, pulp_secret_path=secret_path,
+                          username=user, password=user)
+    assert handler.get_secret() == secret
+    image_names = workflow.tag_conf.images[:]
+    handler.create_dockpulp_and_repos(image_names)
+    assert handler.get_secret() == secret
+
+
+@pytest.mark.skipif(dockpulp is None,
+                    reason='dockpulp module not available')
+@pytest.mark.parametrize(("verify_exists"), [
+    True, False
+])
+@pytest.mark.parametrize(("verify"), [
+    'yes', 'no', None
+])
+def test_get_insecure(tmpdir, verify_exists, verify, monkeypatch):
+    log = logging.getLogger("tests.test_pulp_util")
+    pulp_registry_name = 'registry.example.com'
+    testfile = 'foo'
+    user = 'user'
+
+    # pretend we're a normal conf file
+    conf = dedent("""\
+        [pulps]
+        prod = https://pulp-docker.corp.redhat.com
+        prod-v2 = https://pulp-docker.corp.redhat.com
+    """)
+
+    if verify_exists:
+        conf += dedent("""\
+            [verify]
+            prod = No
+            prod-v2 = No
+        """)
+        if verify is not None:
+            conf += dedent("""\
+                {pulp_reg}: {verify}
+            """.format(pulp_reg=pulp_registry_name, verify=verify))
+
+    conf_file_name = os.path.join(str(tmpdir), "dockpulp.conf")
+    with open(conf_file_name, "wt") as conf_file:
+        conf_file.write(conf)
+
+    insecure = not (verify_exists and verify == 'yes')
+
+    _, workflow = prepare(testfile)
+    handler = PulpHandler(workflow, pulp_registry_name, log, pulp_secret_path=None,
+                          username=user, password=user)
+    assert handler.get_insecure(conf_file_name) == insecure
+
+
+@pytest.mark.skipif(dockpulp is None,
+                    reason='dockpulp module not available')
+def test_get_insecure_no_conf():
+    log = logging.getLogger("tests.test_pulp_util")
+    pulp_registry_name = 'registry.example.com'
+    testfile = 'foo'
+    user = 'user'
+    _, workflow = prepare(testfile)
+    handler = PulpHandler(workflow, pulp_registry_name, log, pulp_secret_path=None,
+                          username=user, password=user)
+    with pytest.raises(RuntimeError):
+        handler.get_insecure(None)
