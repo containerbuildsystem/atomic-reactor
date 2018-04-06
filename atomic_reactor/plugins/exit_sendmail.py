@@ -23,7 +23,7 @@ from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 from atomic_reactor.plugins.pre_reactor_config import (get_smtp_session, get_koji_session,
                                                        get_smtp, get_koji, get_openshift,
-                                                       get_openshift_session)
+                                                       get_openshift_session, get_koji_path_info)
 from atomic_reactor.koji_util import get_koji_task_owner
 from atomic_reactor.util import get_build_json, OSBSLogs
 
@@ -133,11 +133,6 @@ class SendMailPlugin(ExitPlugin):
                 'krb_keytab_path': str(koji_krb_keytab)
             }
         }
-
-        self.koji_root = get_koji(self.workflow, self.koji_fallback)['root_url']
-        # Make sure koji_root doesn't end with a slash for a prettier link
-        if self.koji_root and self.koji_root[-1] == '/':
-            self.koji_root = self.koji_root[:-1]
 
         self.openshift_fallback = {
             'url': url,
@@ -304,9 +299,7 @@ class SendMailPlugin(ExitPlugin):
     def _get_logs_url(self):
         url = None
         try:
-            # We're importing this here in order to trap ImportError
-            from koji import PathInfo
-            pathinfo = PathInfo(topdir=self.koji_root)
+            pathinfo = get_koji_path_info(self.workflow, self.koji_fallback)
             url = '/'.join([pathinfo.work(), pathinfo.taskrelpath(self.koji_task_id)])
         except Exception:
             self.log.exception("Failed to fetch logs from koji")

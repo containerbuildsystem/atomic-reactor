@@ -26,6 +26,7 @@ except ImportError:
     PDC_AVAILABLE = False
 
 import atomic_reactor
+import koji
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import read_yaml
@@ -39,6 +40,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        ReactorConfigPlugin,
                                                        get_config, WORKSPACE_CONF_KEY,
                                                        get_koji_session,
+                                                       get_koji_path_info,
                                                        get_pulp_session,
                                                        get_odcs_session,
                                                        get_smtp_session,
@@ -693,6 +695,54 @@ class TestReactorConfigPlugin(object):
             .and_return(True))
 
         get_koji_session(workflow, fallback_map)
+
+    @pytest.mark.parametrize('fallback', (True, False))
+    @pytest.mark.parametrize('root_url', (
+        'https://koji.example.com/root',
+        'https://koji.example.com/root/',
+        None
+    ))
+    def test_get_koji_path_info(self, fallback, root_url):
+        tasker, workflow = self.prepare()
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+
+        config = {
+            'version': 1,
+            'koji': {
+                'hub_url': 'https://koji.example.com/hub',
+                'auth': {
+                    'ssl_certs_dir': '/var/certs'
+                }
+            }
+        }
+
+        expected_root_url = 'https://koji.example.com/root'
+
+        if root_url:
+            config['koji']['root_url'] = root_url
+
+        config_yaml = yaml.safe_dump(config)
+
+        expect_error = not root_url
+        if expect_error:
+            with pytest.raises(Exception):
+                read_yaml(config_yaml, 'schemas/config.json')
+            return
+
+        parsed_config = read_yaml(config_yaml, 'schemas/config.json')
+
+        fallback_map = {}
+        if fallback:
+            fallback_map = deepcopy(config['koji'])
+        else:
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = \
+                ReactorConfig(parsed_config)
+
+        (flexmock(koji.PathInfo)
+            .should_receive('__init__')
+            .with_args(topdir=expected_root_url)
+            .once())
+        get_koji_path_info(workflow, fallback_map)
 
     @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize(('config', 'raise_error'), [

@@ -9,11 +9,11 @@ of the BSD license. See the LICENSE file for details.
 Pre build plugin for koji build system
 """
 import os
-import koji
 from atomic_reactor.constants import YUM_REPOS_DIR
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import render_yum_repo
-from atomic_reactor.plugins.pre_reactor_config import get_koji_session, get_yum_proxy
+from atomic_reactor.plugins.pre_reactor_config import (get_koji_session, get_yum_proxy,
+                                                       get_koji_path_info)
 
 
 class KojiPlugin(PreBuildPlugin):
@@ -40,13 +40,14 @@ class KojiPlugin(PreBuildPlugin):
 
         self.koji_fallback = {
             'hub_url': hub,
+            'root_url': root,
             'auth': {
                 'ssl_certs_dir': koji_ssl_certs_dir
             }
         }
 
         self.xmlrpc = get_koji_session(self.workflow, self.koji_fallback)
-        self.pathinfo = koji.PathInfo(topdir=root)
+        self.pathinfo = get_koji_path_info(self.workflow, self.koji_fallback)
         self.proxy = get_yum_proxy(self.workflow, proxy)
 
     def run(self):

@@ -192,15 +192,10 @@ class TestKoji(object):
                          tmpdir, root, koji_ssl_certs,
                          expected_string, expected_file, proxy, reactor_config_map):
         tasker, workflow = prepare()
-        args = {
-            'target': target,
-            'hub': '',
-            'root': root,
-            'proxy': proxy,
-        }
+
+        args = {'target': target}
 
         if koji_ssl_certs:
-            args['koji_ssl_certs_dir'] = str(tmpdir)
             tmpdir.join('cert').write('cert')
             tmpdir.join('serverca').write('serverca')
 
@@ -216,6 +211,16 @@ class TestKoji(object):
                 ReactorConfig({'version': 1,
                                'koji': koji_map,
                                'yum_proxy': proxy})
+
+        else:
+            args.update({
+                'hub': '',
+                'root': root,
+                'proxy': proxy,
+            })
+
+            if koji_ssl_certs:
+                args['koji_ssl_certs_dir'] = str(tmpdir)
 
         runner = PreBuildPluginsRunner(tasker, workflow, [{
             'name': KojiPlugin.key,
