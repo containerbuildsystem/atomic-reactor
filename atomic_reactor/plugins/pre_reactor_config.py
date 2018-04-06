@@ -76,6 +76,16 @@ def get_koji_session(workflow, fallback):
     return create_koji_session(config['hub_url'], auth_info)
 
 
+def get_koji_path_info(workflow, fallback):
+    config = get_koji(workflow, fallback)
+    from koji import PathInfo
+
+    # Make sure koji root_url doesn't end with a slash since the url
+    # is used to construct resource urls (e.g. log links)
+    root_url = config['root_url'].rstrip('/')
+    return PathInfo(topdir=root_url)
+
+
 def get_pulp(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'pulp', fallback)
 

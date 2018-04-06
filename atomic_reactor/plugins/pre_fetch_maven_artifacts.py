@@ -16,6 +16,7 @@ from atomic_reactor import util
 from atomic_reactor.constants import DEFAULT_DOWNLOAD_BLOCK_SIZE
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import (get_koji_session, get_koji,
+                                                       get_koji_path_info,
                                                        get_artifacts_allowed_domains)
 from collections import namedtuple
 
@@ -102,8 +103,7 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
                 'krb_keytab_path': str(koji_krb_keytab)
             }
         }
-        self.path_info =\
-            koji.PathInfo(topdir=get_koji(self.workflow, self.koji_fallback)['root_url'])
+        self.path_info = get_koji_path_info(self.workflow, self.koji_fallback)
 
         all_allowed_domains = get_artifacts_allowed_domains(self.workflow, allowed_domains or [])
         self.allowed_domains = set(domain.lower() for domain in all_allowed_domains or [])
