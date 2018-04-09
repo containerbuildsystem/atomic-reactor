@@ -195,7 +195,12 @@ def test_add_labels_plugin(tmpdir, docker_tasker,
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
 
     if reactor_config_map:
-        make_and_store_reactor_config_map(workflow, {'image_labels': deepcopy(labels_conf),
+        # reactor_config should not return json
+        if isinstance(labels_conf, str):
+            image_labels = json.loads(labels_conf)
+        else:
+            image_labels = deepcopy(labels_conf)
+        make_and_store_reactor_config_map(workflow, {'image_labels': image_labels,
                                                      'image_equal_labels': eq_conf})
 
     runner = PreBuildPluginsRunner(
@@ -223,6 +228,57 @@ def test_add_labels_plugin(tmpdir, docker_tasker,
         runner.run()
         assert AddLabelsPlugin.key is not None
         assert df.content in expected_output
+
+
+@pytest.mark.parametrize('use_reactor', [True, False])  # noqa
+@pytest.mark.parametrize('release', [None, 'test'])
+def test_add_labels_arrangement6(tmpdir, docker_tasker, release, use_reactor):
+    # explicitly test arrangement 6's handling of reactor config
+    df = df_parser(str(tmpdir))
+    df.content = DF_CONTENT
+
+    if MOCK:
+        mock_docker()
+
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    setattr(workflow, 'builder', X)
+    flexmock(workflow, base_image_inspect=LABELS_CONF_BASE)
+    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+
+    if use_reactor:
+        make_and_store_reactor_config_map(workflow, {'image_labels': LABELS_CONF})
+        if release is not None:
+            labels = {'release': release}
+        else:
+            labels = None
+    else:
+        labels = LABELS_CONF
+        if release is not None:
+            labels.update({'release': release})
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': AddLabelsPlugin.key,
+            'args': {
+                'labels': labels,
+                'dont_overwrite': [],
+                'auto_labels': [],
+                'aliases': [],
+                'equal_labels': [],
+            }
+        }]
+    )
+
+    runner.run()
+    assert AddLabelsPlugin.key is not None
+    assert 'label1' in df.content
+    if release:
+        assert 'release' in df.content
+        assert release in df.content
+    else:
+        assert 'release' not in df.content
 
 
 @pytest.mark.parametrize('auto_label, value_re_part', [  # noqa

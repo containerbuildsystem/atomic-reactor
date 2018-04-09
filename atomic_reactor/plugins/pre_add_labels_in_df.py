@@ -103,12 +103,23 @@ class AddLabelsPlugin(PreBuildPlugin):
         # call parent constructor
         super(AddLabelsPlugin, self).__init__(tasker, workflow)
 
-        self.labels = get_image_labels(self.workflow, labels)
-
-        if isinstance(self.labels, str):
-            self.labels = json.loads(self.labels)
-        if not isinstance(self.labels, dict):
+        if isinstance(labels, str):
+            labels = json.loads(labels)
+        if labels and not isinstance(labels, dict):
             raise RuntimeError("labels have to be dict")
+
+        # see if REACTOR_CONFIG has any labels. If so, merge them with the existing argument
+        # and otherwise use the existing argument
+        image_labels = get_image_labels(self.workflow, False)
+
+        # validity of image_labels is enforced by REACTOR_CONFIG's schema, so no need to check
+        if image_labels:
+            if labels:
+                labels.update(image_labels)
+            else:
+                labels = image_labels
+
+        self.labels = labels
 
         self.dont_overwrite = dont_overwrite or ()
         self.dont_overwrite_if_in_dockerfile = dont_overwrite_if_in_dockerfile
