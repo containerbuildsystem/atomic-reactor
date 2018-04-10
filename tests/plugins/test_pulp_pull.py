@@ -12,6 +12,11 @@ from atomic_reactor.plugins.post_pulp_pull import (PulpPullPlugin,
                                                    CraneTimeoutError)
 from atomic_reactor.inner import TagConf, PushConf
 from atomic_reactor.util import ImageName
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
+                                                       ReactorConfigPlugin,
+                                                       ReactorConfigKeys,
+                                                       WORKSPACE_CONF_KEY)
+
 from flexmock import flexmock
 import pytest
 import requests
@@ -46,7 +51,7 @@ class TestPostPulpPull(object):
     EXPECTED_PULLSPEC = EXPECTED_IMAGE.to_str()
 
     def workflow(self, push=True, sync=True, build_process_failed=False,
-                 postbuild_results=None):
+                 postbuild_results=None, expectv2schema2=False):
         tag_conf = TagConf()
         tag_conf.add_unique_image(self.TEST_UNIQUE_IMAGE)
         push_conf = PushConf()
@@ -55,6 +60,16 @@ class TestPostPulpPull(object):
         if sync:
             push_conf.add_pulp_registry('pulp', crane_uri=self.CRANE_URI, server_side_sync=True)
 
+        conf = {
+            ReactorConfigKeys.VERSION_KEY: 1,
+            'prefer_schema1_digest': not expectv2schema2
+        }
+        plugin_workspace = {
+            ReactorConfigPlugin.key: {
+                WORKSPACE_CONF_KEY: ReactorConfig(conf)
+            }
+        }
+
         mock_get_retry_session()
         builder = flexmock()
         setattr(builder, 'image_id', 'sha256:(old)')
@@ -62,7 +77,7 @@ class TestPostPulpPull(object):
                         push_conf=push_conf,
                         builder=builder,
                         build_process_failed=build_process_failed,
-                        plugin_workspace={},
+                        plugin_workspace=plugin_workspace,
                         postbuild_results=postbuild_results or {})
 
     media_type_v1 = 'application/vnd.docker.distribution.manifest.v1+json'
@@ -307,6 +322,7 @@ class TestPostPulpPull(object):
         assert workflow.builder.image_id == test_id
         assert len(tasker.pulled_images) == 1
 
+    @pytest.mark.parametrize('reactor_config', [True, False])
     @pytest.mark.parametrize('v2,expect_v2schema2', [
         (False, False),
         (False, True),
@@ -319,8 +335,8 @@ class TestPostPulpPull(object):
         (0.1, 0.06, 3, False),
     ])
     def test_pull_retry(self, expect_v2schema2, v2, timeout, retry_delay, failures,
-                        expect_success):
-        workflow = self.workflow()
+                        expect_success, reactor_config):
+        workflow = self.workflow(expect_v2schema2)
         tasker = MockerTasker()
         if v2:
             test_id = 'sha256:(old)'
@@ -367,9 +383,13 @@ class TestPostPulpPull(object):
              .once())
         workflow.postbuild_plugins_conf = []
 
-        plugin = PulpPullPlugin(tasker, workflow, timeout=timeout,
-                                retry_delay=retry_delay,
-                                expect_v2schema2=expect_v2schema2)
+        if reactor_config:
+            plugin = PulpPullPlugin(tasker, workflow, timeout=timeout,
+                                    retry_delay=retry_delay)
+        else:
+            plugin = PulpPullPlugin(tasker, workflow, timeout=timeout,
+                                    retry_delay=retry_delay,
+                                    expect_v2schema2=expect_v2schema2)
 
         if not expect_success:
             with pytest.raises(Exception):
