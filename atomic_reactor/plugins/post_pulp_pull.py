@@ -23,8 +23,6 @@ from atomic_reactor.constants import (PLUGIN_PULP_PUSH_KEY, PLUGIN_PULP_SYNC_KEY
 from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.util import get_manifest_digests
-from atomic_reactor.plugins.pre_reactor_config import (get_pulp, get_pulp_session,
-                                                       get_prefer_schema1_digest, NO_FALLBACK)
 import requests
 from time import time, sleep
 
@@ -62,17 +60,9 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
         super(PulpPullPlugin, self).__init__(tasker, workflow)
         self.timeout = timeout
         self.retry_delay = retry_delay
-
-        pulp_config = get_pulp(workflow, False)
-        if pulp_config:
-            pulp_handler = get_pulp_session(workflow, self.log, NO_FALLBACK)
-            self.secret = pulp_handler.get_secret()
-            self.insecure = pulp_handler.get_insecure()
-        else:
-            self.insecure = insecure
-            self.secret = secret
-
-        self.expect_v2schema2 = not get_prefer_schema1_digest(workflow, not expect_v2schema2)
+        self.insecure = insecure
+        self.secret = secret
+        self.expect_v2schema2 = expect_v2schema2
         self.expect_v2schema2list = False  # automatically set in run()
 
     def retry_if_not_found(self, func, *args, **kwargs):
