@@ -128,7 +128,7 @@ def mock_environment(tmpdir, session=None, build_process_failed=False,
 
 def create_runner(tasker, workflow, ssl_certs=False, principal=None,
                   keytab=None, poll_interval=0.01, proxy_user=None,
-                  reactor_config_map=False):
+                  reactor_config_map=False, use_args=True):
     args = {
         'kojihub': '',
         'target': 'koji-target',
@@ -162,13 +162,15 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
             ReactorConfig({'version': 1, 'koji': koji_map})
 
-    runner = ExitPluginsRunner(tasker, workflow,
-                               [
-                                   {
-                                       'name': KojiTagBuildPlugin.key,
-                                       'args': args,
-                                   },
-                               ])
+    plugin_conf = {
+        'name': KojiTagBuildPlugin.key
+    }
+    if use_args:
+        plugin_conf['args'] = args
+    else:
+        plugin_conf['args'] = {'target': 'koji-target'}
+
+    runner = ExitPluginsRunner(tasker, workflow, [plugin_conf])
 
     return runner
 
@@ -277,5 +279,15 @@ class TestKojiPromote(object):
     def test_koji_tag_build_success(self, tmpdir, use_import, reactor_config_map):
         tasker, workflow = mock_environment(tmpdir, koji_build_id='98765', use_import=use_import)
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
+        result = runner.run()
+        assert result[KojiTagBuildPlugin.key] == 'images-candidate'
+
+    @pytest.mark.parametrize('use_import', [ # noqa
+        (True, False)
+    ])
+    def test_koji_tag_build_success_no_args(self, tmpdir, use_import, reactor_config_map):
+        tasker, workflow = mock_environment(tmpdir, koji_build_id='98765', use_import=use_import)
+        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map,
+                               use_args=False)
         result = runner.run()
         assert result[KojiTagBuildPlugin.key] == 'images-candidate'

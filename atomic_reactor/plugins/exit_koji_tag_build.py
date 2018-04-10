@@ -35,7 +35,7 @@ class KojiTagBuildPlugin(ExitPlugin):
     key = PLUGIN_KOJI_TAG_BUILD_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, kojihub, target,
+    def __init__(self, tasker, workflow, target, kojihub=None,
                  koji_ssl_certs=None, koji_proxy_user=None,
                  koji_principal=None, koji_keytab=None,
                  poll_interval=5):
