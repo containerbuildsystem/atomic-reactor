@@ -38,8 +38,9 @@ $RUN $PKG install -y $PKG_EXTRA
 $RUN $BUILDDEP -y atomic-reactor.spec
 if [[ $OS == "fedora" ]]; then
   # Remove python-docker-py because docker-squash will pull
-  # in the latest version from PyPI
-  $RUN $PKG remove -y python{,3}-docker{,-py}
+  # in the latest version from PyPI. Don't remove the dependencies
+  # that it pulled in, to avoid having to rebuild them.
+  $RUN $PKG remove -y --noautoremove python{,3}-docker{,-py}
 else
   # Install dependecies for test, as check is disabled for rhel
   $RUN yum install -y python-flexmock python-six \
