@@ -196,7 +196,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
 
         if self.compose_ids:
             if len(self.compose_ids) > 1:
-                self.log.info("Multiple compose_ids, using first compose %d", self.compose_id)
+                self.log.info("Multiple compose_ids, using first compose %d", self.compose_ids[0])
             self.compose_id = self.compose_ids[0]
 
         if self.compose_id is None:
