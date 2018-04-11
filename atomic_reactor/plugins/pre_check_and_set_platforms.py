@@ -16,7 +16,7 @@ when koji build tags change.
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import get_platforms_in_limits
-from atomic_reactor.plugins.pre_reactor_config import get_koji_session
+from atomic_reactor.plugins.pre_reactor_config import get_koji_session, NO_FALLBACK
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 
 
@@ -40,7 +40,7 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
         """
         run the plugin
         """
-        koji_session = get_koji_session(self.workflow)
+        koji_session = get_koji_session(self.workflow, NO_FALLBACK)
         self.log.info("Checking koji target for platforms")
         event_id = koji_session.getLastEvent()['id']
         target_info = koji_session.getBuildTarget(self.koji_target, event=event_id)

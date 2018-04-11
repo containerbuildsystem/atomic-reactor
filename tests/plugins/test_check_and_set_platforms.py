@@ -11,8 +11,8 @@ import os
 import yaml
 
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, REPO_CONTAINER_CONFIG
-from atomic_reactor.plugins.pre_reactor_config import NO_FALLBACK
 import atomic_reactor.plugins.pre_reactor_config as reactor_config
+import atomic_reactor.koji_util as koji_util
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
@@ -111,11 +111,12 @@ def test_check_and_set_platforms(tmpdir, platforms, platform_exclude, platform_o
     tasker, workflow = prepare(tmpdir)
 
     session = mock_session(platforms)
-    flexmock(reactor_config).should_receive('get_koji_session').and_return(session)
-    (flexmock(reactor_config).
-        should_receive('get_value').
-        with_args(workflow, 'koji_target', NO_FALLBACK).
-        and_return(KOJI_TARGET))
+    mock_koji_config = {
+        'auth': {},
+        'hub_url': 'test',
+    }
+    flexmock(reactor_config).should_receive('get_koji').and_return(mock_koji_config)
+    flexmock(koji_util).should_receive('create_koji_session').and_return(session)
 
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
