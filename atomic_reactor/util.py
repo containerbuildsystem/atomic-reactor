@@ -1141,9 +1141,17 @@ class SessionWithTimeout(requests.Session):
         return super(SessionWithTimeout, self).request(*args, **kwargs)
 
 
+# This is a hook to mock during tests to temporarily disable retries
+def _http_retries_disabled():
+    return False
+
+
 def get_retrying_requests_session(client_statuses=HTTP_CLIENT_STATUS_RETRY,
                                   times=HTTP_MAX_RETRIES, delay=HTTP_BACKOFF_FACTOR,
                                   method_whitelist=None):
+    if _http_retries_disabled():
+        times = 0
+
     retry = Retry(
         total=int(times),
         backoff_factor=delay,

@@ -13,13 +13,6 @@ from atomic_reactor import util
 
 
 def mock_get_retry_session():
-
-    def custom_retries(*args, **kwargs):
-        kwargs['times'] = 0
-        return retry_fnc(*args, **kwargs)
-
-    retry_fnc = util.get_retrying_requests_session
-
     (flexmock(util)
-        .should_receive('get_retrying_requests_session')
-        .replace_with(custom_retries))
+        .should_receive('_http_retries_disabled')
+        .and_return(True))
