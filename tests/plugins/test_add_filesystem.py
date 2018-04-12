@@ -52,6 +52,11 @@ if MOCK:
 KOJI_HUB = 'https://koji-hub.com'
 FILESYSTEM_TASK_ID = 1234567
 
+DEFAULT_DOCKERFILE = dedent("""\
+    FROM koji/image-build
+    RUN dnf install -y python-django
+    """)
+
 
 class MockSource(object):
     def __init__(self, tmpdir):
@@ -172,7 +177,7 @@ def mock_image_build_file(tmpdir, contents=None):
     return file_path
 
 
-def mock_workflow(tmpdir, dockerfile):
+def mock_workflow(tmpdir, dockerfile=DEFAULT_DOCKERFILE):
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', X)
@@ -190,12 +195,7 @@ def mock_workflow(tmpdir, dockerfile):
 def create_plugin_instance(tmpdir, kwargs=None, scratch=False, reactor_config_map=False):  # noqa
     flexmock(util).should_receive('is_scratch_build').and_return(scratch)
     tasker = flexmock()
-    workflow = flexmock()
-    mock_source = MockSource(tmpdir)
-    setattr(workflow, 'builder', X)
-    workflow.builder.source = mock_source
-    workflow.source = mock_source
-    workflow.plugin_workspace = {}
+    workflow = mock_workflow(tmpdir)
 
     if kwargs is None:
         kwargs = {}
@@ -226,11 +226,7 @@ def test_add_filesystem_plugin_generated(tmpdir, docker_tasker, scratch, reactor
     if MOCK:
         mock_docker()
 
-    dockerfile = dedent("""\
-        FROM koji/image-build
-        RUN dnf install -y python-django
-        """)
-    workflow = mock_workflow(tmpdir, dockerfile)
+    workflow = mock_workflow(tmpdir)
     task_id = FILESYSTEM_TASK_ID
     mock_koji_session(scratch=scratch)
     mock_image_build_file(str(tmpdir))
@@ -267,11 +263,7 @@ def test_add_filesystem_plugin_legacy(tmpdir, docker_tasker, scratch, reactor_co
     if MOCK:
         mock_docker()
 
-    dockerfile = dedent("""\
-        FROM koji/image-build
-        RUN dnf install -y python-django
-        """)
-    workflow = mock_workflow(tmpdir, dockerfile)
+    workflow = mock_workflow(tmpdir)
     mock_koji_session(scratch=scratch)
     mock_image_build_file(str(tmpdir))
 
@@ -361,18 +353,13 @@ def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_err
     if MOCK:
         mock_docker()
 
-    dockerfile = dedent("""\
-        FROM koji/image-build
-        RUN dnf install -y python-django
-        """)
-
     task_result = 'task-result'
 
     def _mockGetTaskResult(task_id):
         if raise_error:
             raise RuntimeError(task_result)
         return task_result
-    workflow = mock_workflow(tmpdir, dockerfile)
+    workflow = mock_workflow(tmpdir)
     mock_koji_session(image_task_fail=True,
                       throws_build_cancelled=build_cancel,
                       error_on_build_cancelled=error_during_cancel,
@@ -589,12 +576,7 @@ def test_image_download(tmpdir, docker_tasker, architecture, architectures, down
     if MOCK:
         mock_docker()
 
-    dockerfile = dedent("""\
-        FROM koji/image-build
-        RUN dnf install -y python-django
-        """)
-
-    workflow = mock_workflow(tmpdir, dockerfile)
+    workflow = mock_workflow(tmpdir)
     mock_koji_session(download_filesystem=download_filesystem)
     mock_image_build_file(str(tmpdir))
 
