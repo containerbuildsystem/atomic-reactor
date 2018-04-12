@@ -254,7 +254,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
     key = PLUGIN_BUILD_ORCHESTRATE_KEY
 
-    def __init__(self, tasker, workflow, platforms, build_kwargs,
+    def __init__(self, tasker, workflow, build_kwargs, platforms=None,
                  osbs_client_config=None, worker_build_image=None,
                  config_kwargs=None,
                  find_cluster_retry_delay=FIND_CLUSTER_RETRY_DELAY,
@@ -267,8 +267,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param platforms: list<str>, platforms to build
         :param build_kwargs: dict, keyword arguments for starting worker builds
+        :param platforms: list<str>, platforms to build
         :param osbs_client_config: str, path to directory containing osbs.conf
         :param worker_build_image: str, the builder image to use for worker builds
                                   (not used, image is inherited from the orchestrator)

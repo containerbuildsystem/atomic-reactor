@@ -844,14 +844,14 @@ def test_orchestrate_build_exclude_platforms(tmpdir, platforms, platform_exclude
     (['x86_64', 'ppc64le'], ['ppc64le'], ['ppc64le']),
     (['x86_64', 'spam', 'bacon', 'toast', 'ppc64le'], ['x86_64', 'ppc64le'],
      ['x86_64', 'ppc64le']),
-    (['x86_64', 'ppc64le'], None, ['x86_64', 'ppc64le'])
+    (['x86_64', 'ppc64le'], None, ['x86_64', 'ppc64le']),
+    (None, ['x86_64', 'ppc64le'], ['x86_64', 'ppc64le']),
 ])
 def test_orchestrate_build_exclude_platforms_from_plugin(tmpdir, platforms, plugin_results, result):
     workflow = mock_workflow(tmpdir)
     mock_osbs()
     mock_manifest_list()
 
-    reactor_config = {}
     reactor_config = {
         'x86_64': [
             {
@@ -874,20 +874,20 @@ def test_orchestrate_build_exclude_platforms_from_plugin(tmpdir, platforms, plug
     else:
         workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = None
 
+    plugin_args = {
+        'build_kwargs': make_worker_build_kwargs(),
+        'osbs_client_config': str(tmpdir),
+        'goarch': {'x86_64': 'amd64'},
+    }
+    if platforms:
+        plugin_args['platforms'] = platforms
+
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
-            'args': {
-                # Explicitly leaving off 'eggs' platform to
-                # ensure no errors occur when unknown platform
-                # is provided in container.yaml file.
-                'platforms': platforms,
-                'build_kwargs': make_worker_build_kwargs(),
-                'osbs_client_config': str(tmpdir),
-                'goarch': {'x86_64': 'amd64'},
-            }
+            'args': plugin_args
         }]
     )
 
