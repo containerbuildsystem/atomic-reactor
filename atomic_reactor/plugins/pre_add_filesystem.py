@@ -26,7 +26,8 @@ import json
 import re
 import os
 
-from atomic_reactor.constants import DEFAULT_DOWNLOAD_BLOCK_SIZE, PLUGIN_ADD_FILESYSTEM_KEY
+from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE, PLUGIN_ADD_FILESYSTEM_KEY,
+                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
 from atomic_reactor.plugin import PreBuildPlugin, BuildCanceledException
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
@@ -120,10 +121,17 @@ class AddFilesystemPlugin(PreBuildPlugin):
         self.poll_interval = poll_interval
         self.blocksize = blocksize
         self.repos = repos or []
-        self.architectures = architectures
+        self.architectures = self.get_arches(architectures)
         self.is_orchestrator = True if self.architectures else False
         self.architecture = architecture
         self.scratch = util.is_scratch_build()
+
+    def get_arches(self, fallback):
+        architectures = self.workflow.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+        if architectures:
+            return list(architectures)
+
+        return fallback
 
     def is_image_build_type(self, base_image):
         return base_image.strip().lower() == 'koji/image-build'
