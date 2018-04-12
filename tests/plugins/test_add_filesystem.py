@@ -40,7 +40,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        ReactorConfig)
 from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.source import VcsInfo
-from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY
+from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from atomic_reactor import koji_util, util
 from tests.constants import (MOCK_SOURCE, DOCKERFILE_GIT, DOCKERFILE_SHA1,
                              MOCK, IMPORTED_IMAGE_ID)
@@ -83,7 +83,8 @@ def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
                       throws_build_cancelled=False,
                       error_on_build_cancelled=False,
                       download_filesystem=True,
-                      get_task_result_mock=None):
+                      get_task_result_mock=None,
+                      arches=None):
 
     session = flexmock()
 
@@ -92,6 +93,9 @@ def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
             assert kwargs['opts']['scratch'] is True
         else:
             assert 'scratch' not in kwargs['opts']
+
+        if arches:
+            assert set(args[2]) == set(arches)
 
         if not download_filesystem:
             return None
@@ -285,6 +289,50 @@ def test_add_filesystem_plugin_legacy(tmpdir, docker_tasker, scratch, reactor_co
     plugin_result = results[PLUGIN_ADD_FILESYSTEM_KEY]
     assert 'base-image-id' in plugin_result
     assert plugin_result['base-image-id'] == IMPORTED_IMAGE_ID
+    assert 'filesystem-koji-task-id' in plugin_result
+
+
+@pytest.mark.parametrize(('global_arches', 'param_arches', 'expected_arches'), (
+    (['x86_64'], None, ['x86_64']),
+    (None, ['x86_64'], ['x86_64']),
+    (['x86_64', 'ppc64le'], None, ['x86_64', 'ppc64le']),
+    (None, ['x86_64', 'ppc64le'], ['x86_64', 'ppc64le']),
+    (['x86_64'], ['spam'], ['x86_64']),
+    (['x86_64', 'ppc64le'], ['spam', 'bacon'], ['x86_64', 'ppc64le']),
+))
+def test_use_check_and_set_platforms_result(tmpdir, docker_tasker, global_arches, param_arches,
+                                            expected_arches):
+    """
+    global_arches: list of architectures returned by check_and_set_platforms plugin
+    param_arches: list of architectures given to add_filesystem plugin as parameter
+    """
+    if MOCK:
+        mock_docker()
+
+    workflow = mock_workflow(tmpdir)
+    mock_koji_session(arches=expected_arches)
+    mock_image_build_file(str(tmpdir))
+
+    if global_arches:
+        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(global_arches)
+
+    plugin_args = {}
+    if param_arches:
+        plugin_args['architectures'] = param_arches
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': PLUGIN_ADD_FILESYSTEM_KEY,
+            'args': plugin_args
+        }]
+    )
+
+    results = runner.run()
+    plugin_result = results[PLUGIN_ADD_FILESYSTEM_KEY]
+    assert 'base-image-id' in plugin_result
+    assert plugin_result['base-image-id'] is None
     assert 'filesystem-koji-task-id' in plugin_result
 
 
