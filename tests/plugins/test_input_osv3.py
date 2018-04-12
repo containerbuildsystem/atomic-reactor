@@ -222,6 +222,8 @@ def test_remove_v1_pulp_and_exit_delete():
             auth:
                 password: testpasswd
                 username: testuser
+        content_versions:
+        - v2
         registries:
         - url: https://container-registry.example.com/v2
         auth:

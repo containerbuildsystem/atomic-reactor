@@ -82,18 +82,18 @@ class OSv3InputPlugin(InputPlugin):
             docker_registry = None
             all_registries = self.get_value('registries', {})
 
-            versions = []
+            versions = self.get_value('content_versions', ['v1', 'v2'])
 
             for registry in all_registries:
                 reguri = RegistryURI(registry.get('url'))
-                versions.append(reguri.version)
-                if not docker_registry and reguri.version == 'v2':
+                if reguri.version == 'v2':
                     # First specified v2 registry is the one we'll tell pulp
                     # to sync from. Keep the http prefix -- pulp wants it.
                     docker_registry = registry
+                    break
 
             if 'v1' not in versions:
-                self.remove_plugin('postbuild_plugins', 'pulp_push', 'only V2 registries')
+                self.remove_plugin('postbuild_plugins', 'pulp_push', 'v1 content not enabled')
 
             if docker_registry:
                 source_registry_str = self.get_value('source_registry', {}).get('url')
