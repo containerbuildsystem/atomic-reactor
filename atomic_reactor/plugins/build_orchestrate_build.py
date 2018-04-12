@@ -280,7 +280,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         :param goarch: dict, keys are platform, values are go language platform names
         """
         super(OrchestrateBuildPlugin, self).__init__(tasker, workflow)
-        self.platforms = set(platforms)
+        self.platforms = self.get_platforms(platforms)
+
         self.build_kwargs = build_kwargs
         self.osbs_client_config_fallback = osbs_client_config
         self.config_kwargs = config_kwargs or {}
@@ -415,14 +416,14 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         self.build_kwargs['arrangement_version'] =\
             get_arrangement_version(self.workflow, self.build_kwargs['arrangement_version'])
 
-    def get_platforms(self):
+    def get_platforms(self, fallback):
         koji_platforms = self.workflow.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
         if koji_platforms:
             return koji_platforms
 
         # if check_and_set_platforms didn't run, or didn't get any platforms from koji
         # determine platforms from USER_PARAMS platforms parameter
-        return get_platforms_in_limits(self.workflow, self.platforms)
+        return get_platforms_in_limits(self.workflow, fallback)
 
     def get_current_builds(self, osbs):
         field_selector = ','.join(['status!={status}'.format(status=status.capitalize())
@@ -846,8 +847,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
                                      platforms, current_buildimage)
 
     def run(self):
-        self.platforms = self.get_platforms()
-
         if not self.platforms:
             raise RuntimeError("No enabled platform to build on")
         self.set_build_image(self.platforms)
