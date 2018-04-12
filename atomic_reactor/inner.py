@@ -474,21 +474,24 @@ def build_inside(input_method, input_args=None, substitutions=None):
 
     if not input_method:
         raise RuntimeError("No input method specified!")
-    else:
-        logger.debug("getting build json from input %s", input_method)
 
-        cleaned_input_args = process_keyvals(input_args)
-        cleaned_subs = process_keyvals(substitutions)
+    logger.debug("getting build json from input %s", input_method)
 
-        cleaned_input_args['substitutions'] = cleaned_subs
+    cleaned_input_args = process_keyvals(input_args)
+    cleaned_input_args['substitutions'] = process_keyvals(substitutions)
 
-        input_runner = InputPluginsRunner([{'name': input_method,
-                                            'args': cleaned_input_args}])
-        build_json = input_runner.run()[input_method]
-        logger.debug("build json: %s", build_json)
+    input_runner = InputPluginsRunner([{'name': input_method,
+                                        'args': cleaned_input_args}])
+    build_json = input_runner.run()[input_method]
+
+    if isinstance(build_json, Exception):
+        raise RuntimeError("Input plugin raised exception: {}".format(build_json))
+    logger.debug("build json: %s", build_json)
     if not build_json:
         raise RuntimeError("No valid build json!")
-    # TODO: validate json
+    if not isinstance(build_json, dict):
+        raise RuntimeError("Input plugin did not return valid build json: {}".format(build_json))
+
     dbw = DockerBuildWorkflow(**build_json)
     build_result = dbw.build_docker_image()
     if not build_result or build_result.is_failed():
