@@ -188,7 +188,7 @@ def mock_content_sets_config(tmpdir, data=None):
             - pulp-eggs
         """)
 
-    tmpdir.join('content_sets.yaml').write(data)
+    tmpdir.join('content_sets.yml').write(data)
 
 
 def mock_odcs_request():
