@@ -17,35 +17,53 @@ from atomic_reactor.plugins.pre_check_and_set_rebuild import (is_rebuild,
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
+from atomic_reactor.plugins import build_orchestrate_build
 from atomic_reactor.util import ImageName
 import json
 from osbs.api import OSBS
 import osbs.conf
 from flexmock import flexmock
-from tests.constants import SOURCE, MOCK
+from tests.constants import MOCK, MOCK_SOURCE
 from tests.fixtures import docker_tasker, reactor_config_map  # noqa
+from textwrap import dedent
 if MOCK:
     from tests.docker_mock import mock_docker
 
 
-class X(object):
-    pass
+class MockInsideBuilder(object):
+    def __init__(self, tmpdir):
+        self.tasker = DockerTasker()
+        self.base_image = ImageName(repo='Fedora', tag='22')
+        self.image_id = 'image_id'
+        self.image = 'image'
+        self.source = MockSource(tmpdir)
+
+
+class MockSource(object):
+    def __init__(self, tmpdir):
+        self.dockerfile_path = str(tmpdir.join('Dockerfile'))
+        self.path = str(tmpdir)
+        self.commit_id = None
+
+    def get_build_file_path(self):
+        return self.dockerfile_path, self.path
+
+    def reset(self, git_reference):
+        self.commit_id = 'HEAD-OF-' + git_reference
 
 
 class TestCheckRebuild(object):
-    def prepare(self, key, value, update_labels_args=None, update_labels_kwargs=None,
+    def prepare(self, tmpdir, key, value, update_labels_args=None, update_labels_kwargs=None,
                 reactor_config_map=False):
         if MOCK:
             mock_docker()
         tasker = DockerTasker()
-        workflow = DockerBuildWorkflow(SOURCE, "test-image")
-        setattr(workflow, 'builder', X())
-        setattr(workflow.builder, 'image_id', 'asd123')
-        setattr(workflow.builder, 'base_image', ImageName(repo='Fedora',
-                                                          tag='22'))
-        setattr(workflow.builder, 'source', X())
-        setattr(workflow.builder.source, 'path', '/tmp')
-        setattr(workflow.builder.source, 'dockerfile_path', None)
+
+        workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+        workflow.builder = MockInsideBuilder(tmpdir)
+        workflow.source = workflow.builder.source
+        flexmock(workflow, base_image_inspect={})
+
         expectation = (flexmock(OSBS)
                        .should_receive('update_labels_on_build_config'))
         if update_labels_args is not None:
@@ -82,18 +100,18 @@ class TestCheckRebuild(object):
         ])
         return workflow, runner
 
-    def test_check_rebuild_no_build_json(self, monkeypatch, reactor_config_map):
-        workflow, runner = self.prepare('is_autorebuild', 'true',
+    def test_check_rebuild_no_build_json(self, tmpdir, monkeypatch, reactor_config_map):
+        workflow, runner = self.prepare(tmpdir, 'is_autorebuild', 'true',
                                         reactor_config_map=reactor_config_map)
         monkeypatch.delenv('BUILD', raising=False)
 
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_check_no_buildconfig(self, monkeypatch):
+    def test_check_no_buildconfig(self, tmpdir, monkeypatch):
         key = 'is_autorebuild'
         value = 'true'
-        workflow, runner = self.prepare(key, value, reactor_config_map=reactor_config_map)
+        workflow, runner = self.prepare(tmpdir, key, value, reactor_config_map=reactor_config_map)
         monkeypatch.setenv("BUILD", json.dumps({
             "metadata": {
                 "labels": {
@@ -107,7 +125,7 @@ class TestCheckRebuild(object):
             runner.run()
 
     @pytest.mark.parametrize(('namespace'), [None, 'my_namespace'])
-    def test_check_is_not_rebuild(self, namespace, monkeypatch, reactor_config_map):
+    def test_check_is_not_rebuild(self, tmpdir, namespace, monkeypatch, reactor_config_map):
         key = 'is_autorebuild'
         value = 'true'
         buildconfig = "buildconfig1"
@@ -115,7 +133,7 @@ class TestCheckRebuild(object):
         if namespace is not None:
             namespace_dict["namespace"] = namespace
 
-        workflow, runner = self.prepare(key, value,
+        workflow, runner = self.prepare(tmpdir, key, value,
                                         update_labels_args=(buildconfig,
                                                             {key: value}),
                                         update_labels_kwargs=namespace_dict,
@@ -136,19 +154,40 @@ class TestCheckRebuild(object):
         assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] is False
         assert not is_rebuild(workflow)
 
-    def test_check_is_rebuild(self, monkeypatch, reactor_config_map):
+    @pytest.mark.parametrize('from_latest', (None, True, False))
+    def test_check_is_rebuild(self, tmpdir, monkeypatch, reactor_config_map, from_latest):
         key = 'is_autorebuild'
         value = 'true'
-        workflow, runner = self.prepare(key, value, reactor_config_map=reactor_config_map)
+
+        workflow, runner = self.prepare(tmpdir, key, value, reactor_config_map=reactor_config_map)
 
         monkeypatch.setenv("BUILD", json.dumps({
             "metadata": {
                 "labels": {
                     "buildconfig": "buildconfig1",
                     key: value,
+                    'git-branch': 'the-branch',
                 }
             }
         }))
+
+        (flexmock(workflow.source)
+            .should_call('reset')
+            .times(1 if from_latest is True else 0)
+            .with_args('origin/the-branch'))
+
+        (flexmock(build_orchestrate_build)
+            .should_receive('override_build_kwarg')
+            .times(1 if from_latest is True else 0)
+            .with_args(workflow, 'git_ref', 'HEAD-OF-origin/the-branch'))
+
+        if from_latest is not None:
+            tmpdir.join('container.yaml').write(dedent("""
+            ---
+            autorebuild:
+              from_latest: {}
+            """.format(from_latest)))
+
         runner.run()
         assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] is True
         assert is_rebuild(workflow)

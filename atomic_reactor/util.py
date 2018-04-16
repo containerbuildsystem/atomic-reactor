@@ -286,8 +286,19 @@ def clone_git_repo(git_url, target_dir, commit=None, retry_times=GIT_MAX_RETRIES
             else:
                 raise
 
-    cmd = ["git", "reset", "--hard", commit]
-    logger.debug("checking out branch '%s'", cmd)
+    return reset_git_repo(target_dir, commit)
+
+
+def reset_git_repo(target_dir, git_reference):
+    """
+    hard reset git clone in target_dir to given git_reference
+
+    :param target_dir: str, filesystem path where the repo is cloned
+    :param git_reference: str, any valid git reference
+    :return: str, commit ID of HEAD
+    """
+    cmd = ["git", "reset", "--hard", git_reference]
+    logger.debug("Resetting current HEAD: '%s'", cmd)
     subprocess.check_call(cmd, cwd=target_dir)
     cmd = ["git", "rev-parse", "HEAD"]
     logger.debug("getting SHA-1 of provided ref '%s'", cmd)
@@ -342,6 +353,10 @@ class LazyGit(object):
         if not self.provided_tmpdir:
             if self.our_tmpdir:
                 shutil.rmtree(self.our_tmpdir)
+
+    def reset(self, git_reference):
+        self._commit_id = reset_git_repo(self.git_path, git_reference)
+        self.commit = git_reference
 
 
 def escape_dollar(v):

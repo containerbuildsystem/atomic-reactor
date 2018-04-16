@@ -222,6 +222,12 @@ def test_lazy_git():
         assert lazy_git.commit_id is not None
         assert len(lazy_git.commit_id) == 40  # current git hashes are this long
 
+        previous_commit_id = lazy_git.commit_id
+        lazy_git.reset('HEAD~2')  # Go back two commits
+        assert lazy_git.commit_id is not None
+        assert lazy_git.commit_id != previous_commit_id
+        assert len(lazy_git.commit_id) == 40  # current git hashes are this long
+
 
 @requires_internet
 def test_lazy_git_with_tmpdir(tmpdir):

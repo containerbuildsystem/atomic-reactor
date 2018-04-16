@@ -20,6 +20,14 @@ class TestGitSource(object):
         gs = GitSource('git', DOCKERFILE_GIT)
         assert os.path.exists(os.path.join(gs.path, '.git'))
         assert os.path.basename(gs.path) == 'docker-hello-world'
+        assert gs.commit_id is not None
+        assert len(gs.commit_id) == 40  # current git hashes are this long
+
+        previous_commit_id = gs.commit_id
+        gs.reset('HEAD~2')  # Go back two commits
+        assert gs.commit_id is not None
+        assert gs.commit_id != previous_commit_id
+        assert len(gs.commit_id) == 40  # current git hashes are this long
 
 
 class TestPathSource(object):

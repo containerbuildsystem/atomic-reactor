@@ -8,9 +8,13 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
+from atomic_reactor.constants import REPO_CONTAINER_CONFIG
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import get_build_json
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
+from atomic_reactor.util import get_build_json
+
+import os
+import yaml
 
 
 def is_rebuild(workflow):
@@ -70,14 +74,16 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
             'auth': {'enable': use_auth}
         }
 
+        self.build_labels = None
+
     def run(self):
         """
         run the plugin
         """
         metadata = get_build_json().get("metadata", {})
-        labels = metadata.get("labels", {})
-        buildconfig = labels["buildconfig"]
-        is_rebuild = labels.get(self.label_key) == self.label_value
+        self.build_labels = metadata.get("labels", {})
+        buildconfig = self.build_labels["buildconfig"]
+        is_rebuild = self.build_labels.get(self.label_key) == self.label_value
         self.log.info("This is a rebuild? %s", is_rebuild)
 
         if not is_rebuild:
@@ -85,7 +91,30 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
             # instantiated from it is detected as being an automated
             # rebuild
             osbs = get_openshift_session(self.workflow, self.openshift_fallback)
-            labels = {self.label_key: self.label_value}
-            osbs.update_labels_on_build_config(buildconfig, labels)
+            new_labels = {self.label_key: self.label_value}
+            osbs.update_labels_on_build_config(buildconfig, new_labels)
+        else:
+            self.pull_latest_commit_if_configured()
 
         return is_rebuild
+
+    def pull_latest_commit_if_configured(self):
+        if not self.should_use_latest_commit():
+            return
+
+        git_branch = self.build_labels['git-branch']
+        self.workflow.source.reset('origin/{}'.format(git_branch))
+
+        # Import it here to avoid circular import errors.
+        from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
+        override_build_kwarg(self.workflow, 'git_ref', self.workflow.source.commit_id)
+
+    def should_use_latest_commit(self):
+        workdir = self.workflow.source.get_build_file_path()[1]
+        file_path = os.path.join(workdir, REPO_CONTAINER_CONFIG)
+        from_latest = False
+        if os.path.exists(file_path):
+            with open(file_path) as f:
+                from_latest = (yaml.safe_load(f) or {}).get('autorebuild', {}).get('from_latest')
+
+        return from_latest
