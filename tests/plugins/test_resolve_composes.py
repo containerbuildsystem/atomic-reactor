@@ -652,7 +652,24 @@ class TestResolveComposes(object):
         self.run_plugin_with_args(workflow, expect_error=error_message,
                                   reactor_config_map=reactor_config_map)
 
-    @pytest.mark.parametrize(('state_name', 'time_to_expire_delta', 'expect_renew'), (
+    def test_only_pulp_repos(self, workflow, reactor_config_map):  # noqa:F811
+        mock_repo_config(workflow._tmpdir,
+                         dedent("""\
+                             compose:
+                                 pulp_repos: true
+                             """))
+        mock_content_sets_config(workflow._tmpdir)
+        (flexmock(ODCSClient)
+            .should_receive('start_compose')
+            .with_args(
+                source_type='pulp',
+                source='pulp-spam pulp-bacon pulp-eggs',
+                sigkeys=[],
+                arches=['x86_64'])
+            .and_return(ODCS_COMPOSE))
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
+
+    @pytest.mark.parametrize(('state_name', 'time_to_expire_delta', 'expect_renew'), (  # noqa:F811
         ('removed', timedelta(), True),
         ('removed', timedelta(hours=-2), True),
         ('done', timedelta(), True),
