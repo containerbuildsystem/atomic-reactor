@@ -43,6 +43,7 @@ from tests.fixtures import reactor_config_map  # noqa
 from flexmock import flexmock
 import pytest
 from tests.docker_mock import mock_docker
+import time
 
 
 class X(object):
@@ -123,10 +124,14 @@ def mock_environment(tmpdir, session=None, build_process_failed=False,
         else:
             workflow.exit_results[KojiPromotePlugin.key] = koji_build_id
 
+    (flexmock(time)
+        .should_receive('sleep')
+        .and_return(None))
+
     return tasker, workflow
 
 
-def create_runner(tasker, workflow, ssl_certs=False, principal=None,
+def create_runner(tasker, workflow, ssl_certs=False, principal=None,  # noqa:F811
                   keytab=None, poll_interval=0.01, proxy_user=None,
                   reactor_config_map=False, use_args=True):
     args = {
@@ -192,7 +197,7 @@ class TestKojiPromote(object):
         result = runner.run()
         assert result[KojiTagBuildPlugin.key] is None
 
-    @pytest.mark.parametrize('params', [
+    @pytest.mark.parametrize('params', [  # noqa:F811
         {
             'should_raise': False,
             'principal': None,
@@ -260,7 +265,7 @@ class TestKojiPromote(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    @pytest.mark.parametrize('task_states', [
+    @pytest.mark.parametrize('task_states', [  # noqa:F811
         ['FREE', 'ASSIGNED', 'FAILED'],
         ['CANCELED'],
         [None],
@@ -273,7 +278,7 @@ class TestKojiPromote(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    @pytest.mark.parametrize('use_import', [
+    @pytest.mark.parametrize('use_import', [  # noqa:F811
         (True, False)
     ])
     def test_koji_tag_build_success(self, tmpdir, use_import, reactor_config_map):
