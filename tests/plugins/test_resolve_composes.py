@@ -234,10 +234,10 @@ def mock_koji_session():
 
 class TestResolveComposes(object):
 
-    def test_request_compose(self, workflow, reactor_config_map):  # noqa
+    def test_request_compose(self, workflow, reactor_config_map):  # noqa:F811
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
-    @pytest.mark.parametrize('arches', (  # noqa
+    @pytest.mark.parametrize('arches', (  # noqa:F811
         ['x86_64', 'ppc64le'],
         ['x86_64'],
     ))
@@ -254,11 +254,11 @@ class TestResolveComposes(object):
         workflow.buildstep_plugins_conf[0]['args']['platforms'] = arches
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
-    def test_request_compose_fallback(self, workflow, reactor_config_map):  # noqa
+    def test_request_compose_fallback(self, workflow, reactor_config_map):  # noqa:F811
         del workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
-    def test_request_compose_for_modules(self, workflow, reactor_config_map):  # noqa
+    def test_request_compose_for_modules(self, workflow, reactor_config_map):  # noqa:F811
         repo_config = dedent("""\
             compose:
                 modules:
@@ -278,7 +278,7 @@ class TestResolveComposes(object):
 
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
-    @pytest.mark.parametrize(('pulp_arches', 'arches', 'signing_intent', 'expected_intent'), (  # noqa
+    @pytest.mark.parametrize(('pulp_arches', 'arches', 'signing_intent', 'expected_intent'), (  # noqa:F811
         (None, None, 'unsigned', 'unsigned'),
         (['x86_64'], None, 'release', 'beta'),
         (['x86_64'], ['x86_64'], 'release', 'beta'),
@@ -367,7 +367,7 @@ class TestResolveComposes(object):
 
         assert plugin_result['signing_intent'] == expected_intent
 
-    def test_request_compose_for_pulp_no_container(self, workflow, reactor_config_map):  # noqa
+    def test_request_compose_for_pulp_no_container(self, workflow, reactor_config_map):  # noqa:F811
         (flexmock(ODCSClient)
             .should_receive('start_compose')
             .with_args(
@@ -396,13 +396,13 @@ class TestResolveComposes(object):
 
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
-    def test_signing_intent_and_compose_ids_mutex(self, workflow, reactor_config_map):  # noqa
+    def test_signing_intent_and_compose_ids_mutex(self, workflow, reactor_config_map):  # noqa:F811
         plugin_args = {'compose_ids': [1, 2], 'signing_intent': 'unsigned'}
         self.run_plugin_with_args(workflow, plugin_args,
                                   expect_error='cannot be used at the same time',
                                   reactor_config_map=reactor_config_map)
 
-    @pytest.mark.parametrize(('plugin_args', 'expected_kwargs'), (
+    @pytest.mark.parametrize(('plugin_args', 'expected_kwargs'), (  # noqa:F811
         ({
             'odcs_insecure': True,
         }, {'insecure': True}),
@@ -424,7 +424,7 @@ class TestResolveComposes(object):
         }, {'insecure': False}),
 
     ))
-    def test_odcs_session_creation(self, tmpdir, workflow, reactor_config_map,  # noqa
+    def test_odcs_session_creation(self, tmpdir, workflow, reactor_config_map,
                                    plugin_args, expected_kwargs):
         plug_args = deepcopy(plugin_args)
         exp_kwargs = deepcopy(expected_kwargs)
@@ -467,7 +467,7 @@ class TestResolveComposes(object):
 
         self.run_plugin_with_args(workflow, plug_args, reactor_config_map=reactor_config_map)
 
-    @pytest.mark.parametrize(('plugin_args', 'ssl_login'), (
+    @pytest.mark.parametrize(('plugin_args', 'ssl_login'), (  # noqa:F811
         ({
             'koji_target': KOJI_TARGET_NAME,
             'koji_hub': KOJI_BUILD_ID,
@@ -479,7 +479,7 @@ class TestResolveComposes(object):
             'koji_hub': KOJI_BUILD_ID,
         }, False),
     ))
-    def test_koji_session_creation(self, workflow, plugin_args, ssl_login, reactor_config_map):  # noqa
+    def test_koji_session_creation(self, workflow, plugin_args, ssl_login, reactor_config_map):
         koji_session = workflow._koji_session
 
         (flexmock(koji_session)
@@ -500,7 +500,7 @@ class TestResolveComposes(object):
         self.run_plugin_with_args(workflow, plugin_args,
                                   expect_error='koji_hub is required when koji_target is used')
 
-    @pytest.mark.parametrize(('default_si', 'config_si', 'arg_si', 'parent_si', 'expected_si',
+    @pytest.mark.parametrize(('default_si', 'config_si', 'arg_si', 'parent_si', 'expected_si',  # noqa:F811
                               'overridden'), (
         # Downgraded by parent's signing intent
         ('release', None, None, 'beta', 'beta', True),
@@ -536,7 +536,7 @@ class TestResolveComposes(object):
 
     ))
     @pytest.mark.parametrize('use_compose_id', (False, True))
-    def test_adjust_signing_intent(self, tmpdir, workflow, default_si, config_si, arg_si,  # noqa
+    def test_adjust_signing_intent(self, tmpdir, workflow, default_si, config_si, arg_si,
                                    parent_si, expected_si, overridden, use_compose_id,
                                    reactor_config_map):
 
@@ -600,13 +600,13 @@ class TestResolveComposes(object):
         }
         assert plugin_result == expected_result
 
-    @pytest.mark.parametrize(('composes_intent', 'expected_intent'), (
+    @pytest.mark.parametrize(('composes_intent', 'expected_intent'), (  # noqa:F811
         (('release', 'beta'), 'beta'),
         (('beta', 'release'), 'beta'),
         (('release', 'release'), 'release'),
         (('unsigned', 'release'), 'unsigned'),
     ))
-    def test_signing_intent_multiple_composes(self, workflow, composes_intent, expected_intent,  # noqa
+    def test_signing_intent_multiple_composes(self, workflow, composes_intent, expected_intent,
                                               reactor_config_map):
         composes = []
 
@@ -634,7 +634,7 @@ class TestResolveComposes(object):
         assert plugin_result['signing_intent'] == expected_intent
         assert plugin_result['composes'] == composes
 
-    @pytest.mark.parametrize(('config', 'error_message'), (
+    @pytest.mark.parametrize(('config', 'error_message'), (  # noqa:F811
         (dedent("""\
             compose:
                 packages: []
@@ -653,13 +653,13 @@ class TestResolveComposes(object):
                 - module1
             """), 'cannot contain both'),
     ))
-    def test_invalid_compose_request(self, workflow, config, error_message,  # noqa
+    def test_invalid_compose_request(self, workflow, config, error_message,
                                      reactor_config_map):
         mock_repo_config(workflow._tmpdir, config)
         self.run_plugin_with_args(workflow, expect_error=error_message,
                                   reactor_config_map=reactor_config_map)
 
-    @pytest.mark.parametrize(('state_name', 'time_to_expire_delta', 'expect_renew'), (
+    @pytest.mark.parametrize(('state_name', 'time_to_expire_delta', 'expect_renew'), (  # noqa:F811
         ('removed', timedelta(), True),
         ('removed', timedelta(hours=-2), True),
         ('done', timedelta(), True),
@@ -667,7 +667,7 @@ class TestResolveComposes(object):
         ('done', timedelta(minutes=118), True),
         ('done', timedelta(hours=3), False),
     ))
-    def test_renew_compose(self, workflow, state_name, time_to_expire_delta, expect_renew,  # noqa
+    def test_renew_compose(self, workflow, state_name, time_to_expire_delta, expect_renew,
                            reactor_config_map):
         old_odcs_compose = ODCS_COMPOSE.copy()
         time_to_expire = (ODCS_COMPOSE_TIME_TO_EXPIRE -
@@ -717,11 +717,11 @@ class TestResolveComposes(object):
         else:
             assert plugin_result['composes'] == [old_odcs_compose]
 
-    def test_inject_yum_repos_from_new_compose(self, workflow, reactor_config_map):  # noqa
+    def test_inject_yum_repos_from_new_compose(self, workflow, reactor_config_map):  # noqa:F811
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
         assert self.get_override_yum_repourls(workflow) == [ODCS_COMPOSE_REPOFILE]
 
-    def test_inject_yum_repos_from_existing_composes(self, workflow, reactor_config_map):  # noqa
+    def test_inject_yum_repos_from_existing_composes(self, workflow, reactor_config_map):  # noqa:F811
         compose_ids = []
         expected_yum_repourls = []
 
@@ -748,7 +748,7 @@ class TestResolveComposes(object):
 
         assert self.get_override_yum_repourls(workflow) == expected_yum_repourls
 
-    def test_abort_when_odcs_config_missing(self, tmpdir, caplog, workflow, reactor_config_map):  # noqa
+    def test_abort_when_odcs_config_missing(self, tmpdir, caplog, workflow, reactor_config_map):  # noqa:F811
         # Clear out default reactor config
         mock_reactor_config(workflow, tmpdir, data='')
         with caplog.atLevel(logging.INFO):
@@ -757,7 +757,7 @@ class TestResolveComposes(object):
         msg = 'Aborting plugin execution: ODCS config not found'
         assert msg in (x.message for x in caplog.records())
 
-    def test_abort_when_compose_config_missing(self, caplog, workflow, reactor_config_map):  # noqa
+    def test_abort_when_compose_config_missing(self, caplog, workflow, reactor_config_map):  # noqa:F811
         # Clear out default git repo config
         mock_repo_config(workflow._tmpdir, '')
         # Ensure no compose_ids are passed to plugin
@@ -768,7 +768,7 @@ class TestResolveComposes(object):
         msg = 'Aborting plugin execution: "compose" config not set and compose_ids not given'
         assert msg in (x.message for x in caplog.records())
 
-    def test_invalid_koji_build_target(self, workflow, reactor_config_map):  # noqa
+    def test_invalid_koji_build_target(self, workflow, reactor_config_map):  # noqa:F811
         plugin_args = {
             'koji_hub': KOJI_HUB,
             'koji_target': 'spam',
@@ -777,14 +777,14 @@ class TestResolveComposes(object):
         self.run_plugin_with_args(workflow, plugin_args, expect_error=expect_error,
                                   reactor_config_map=reactor_config_map)
 
-    @pytest.mark.parametrize(('plugin_args', 'msg'), (
+    @pytest.mark.parametrize(('plugin_args', 'msg'), (  # noqa:F811
         ({'signing_intent': 'spam'},
          'Autorebuild detected: Ignoring signing_intent plugin parameter'),
 
         ({'compose_ids': [1, 2, 3]},
          'Autorebuild detected: Ignoring compose_ids plugin parameter'),
     ))
-    def test_parameters_ignored_for_autorebuild(self, caplog, workflow, plugin_args, msg,  # noqa
+    def test_parameters_ignored_for_autorebuild(self, caplog, workflow, plugin_args, msg,
                                                 reactor_config_map):
         flexmock(pre_check_and_set_rebuild).should_receive('is_rebuild').and_return(True)
         with caplog.atLevel(logging.INFO):
@@ -793,7 +793,7 @@ class TestResolveComposes(object):
 
         assert msg in (x.message for x in caplog.records())
 
-    def run_plugin_with_args(self, workflow, plugin_args=None,  # noqa
+    def run_plugin_with_args(self, workflow, plugin_args=None,  # noqa:F811
                              expect_error=None, reactor_config_map=False,
                              platforms=ODCS_COMPOSE_DEFAULT_ARCH_LIST, is_pulp=None):
         plugin_args = plugin_args or {}
