@@ -93,6 +93,9 @@ class GitSource(Source):
             vcs_ref=self.lg.commit_id
         )
 
+    def reset(self, git_reference):
+        self.lg.reset(git_reference)
+
 
 class PathSource(Source):
     def __init__(self, provider, uri, dockerfile_path=None, provider_params=None, tmpdir=None):
