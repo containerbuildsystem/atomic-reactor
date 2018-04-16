@@ -346,7 +346,7 @@ class ComposeConfig(object):
         requests = []
         if self.packages:
             requests.append(self.render_packages_request())
-        else:
+        elif self.modules:
             requests.append(self.render_modules_request())
 
         for arch in self.pulp:
@@ -382,8 +382,8 @@ class ComposeConfig(object):
 
     def validate_for_request(self):
         """Verify enough information is available for requesting compose."""
-        if not self.packages and not self.modules:
-            raise ValueError('List of packages or modules cannot be empty')
+        if not self.packages and not self.modules and not self.pulp:
+            raise ValueError("Nothing to compose (no packages, modules, or enabled pulp repos)")
 
         if self.packages and self.modules:
             raise ValueError('Compose config cannot contain both packages and modules')
