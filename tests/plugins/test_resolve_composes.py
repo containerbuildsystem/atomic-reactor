@@ -638,12 +638,17 @@ class TestResolveComposes(object):
         (dedent("""\
             compose:
                 packages: []
-            """), 'cannot be empty'),
+            """), 'Nothing to compose'),
 
         (dedent("""\
             compose:
                 modules: []
-            """), 'cannot be empty'),
+            """), 'Nothing to compose'),
+
+        (dedent("""\
+            compose:
+                pulp_repos: true
+            """), 'Nothing to compose'),
 
         (dedent("""\
             compose:
