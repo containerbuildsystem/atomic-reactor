@@ -11,6 +11,7 @@ from __future__ import unicode_literals
 from collections import defaultdict
 import json
 import os
+import time
 import docker
 from dockerfile_parse import DockerfileParser
 
@@ -32,6 +33,7 @@ import signal
 
 from atomic_reactor.inner import BuildResults, BuildResultsEncoder, BuildResultsJSONDecoder
 from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.inner import FSWatcher
 from atomic_reactor.constants import INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS
 
 
@@ -1350,3 +1352,32 @@ def test_layer_sizes():
     ]
 
     assert workflow.layer_sizes == expected
+
+
+def test_fs_watcher_update(monkeypatch):
+
+    # check that using the actual os call does not choke
+    assert type(FSWatcher._update({})) is dict
+
+    # check that the data actually gets updated
+    stats = flexmock(
+        f_frsize=1000,  # pretend blocks are 1000 bytes to make mb come out right
+        f_blocks=101 * 1000,
+        f_bfree=99 * 1000,
+        f_files=1, f_ffree=1,
+    )
+    data = dict(mb_total=101, mb_free=100)
+    monkeypatch.setattr(os, "statvfs", stats)
+    assert type(FSWatcher._update(data)) is dict
+    assert data["mb_used"] == 2
+    assert data["mb_free"] == 99
+
+
+def test_fs_watcher(monkeypatch):
+    w = FSWatcher()
+    monkeypatch.setattr(time, "sleep", lambda x: x)  # don't waste a second of test time
+    w.start()
+    w.finish()
+    w.join(0.1)  # timeout if thread still running
+    assert not w.is_alive()
+    assert "mb_used" in w.get_usage_data()

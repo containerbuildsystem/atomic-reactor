@@ -153,6 +153,16 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             "durations": self.workflow.plugins_durations,
         }
 
+    def get_filesystem_metadata(self):
+        data = {}
+        try:
+            data = self.workflow.fs_watcher.get_usage_data()
+            self.log.debug("filesystem metadata: %s", data)
+        except Exception:
+            self.log.exception("Error getting filesystem stats")
+
+        return data
+
     def make_labels(self):
         labels = {}
 
@@ -223,7 +233,8 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             "base-image-name": base_image_name,
             "image-id": self.workflow.builder.image_id or '',
             "digests": json.dumps(self.get_pullspecs(self.get_digests())),
-            "plugins-metadata": json.dumps(self.get_plugin_metadata())
+            "plugins-metadata": json.dumps(self.get_plugin_metadata()),
+            "filesystem": json.dumps(self.get_filesystem_metadata()),
         }
 
         help_result = self.workflow.prebuild_results.get(AddHelpPlugin.key)

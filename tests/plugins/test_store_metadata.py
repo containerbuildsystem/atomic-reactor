@@ -217,6 +217,7 @@ CMD blabla"""
     workflow.exit_results = {
         PulpPullPlugin.key: pulp_pull_results,
     }
+    workflow.fs_watcher._data = dict(fs_data=None)
 
     if br_annotations or br_labels:
         workflow.build_result = BuildResult(
@@ -268,6 +269,8 @@ CMD blabla"""
     assert is_string_type(annotations['base-image-name'])
     assert "image-id" in annotations
     assert is_string_type(annotations['image-id'])
+    assert "filesystem" in annotations
+    assert "fs_data" in annotations['filesystem']
 
     if koji:
         assert "metadata_fragment" in annotations
