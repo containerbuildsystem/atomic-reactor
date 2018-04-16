@@ -9,10 +9,12 @@ of the BSD license. See the LICENSE file for details.
 from atomic_reactor.odcs_util import ODCSClient
 from tests.retry_mock import mock_get_retry_session
 
+import flexmock
 import pytest
 import responses
 import six
 import json
+import time
 
 
 MODULE_NAME = 'eog'
@@ -132,6 +134,10 @@ def test_wait_for_compose(odcs_client, final_state_id, final_state_name, expect_
     responses.add_callback(responses.GET, '{}composes/{}'.format(ODCS_URL, COMPOSE_ID),
                            content_type='application/json',
                            callback=handle_composes_get)
+
+    (flexmock(time)
+        .should_receive('sleep')
+        .and_return(None))
 
     if expect_exc:
         with pytest.raises(RuntimeError) as exc_info:
