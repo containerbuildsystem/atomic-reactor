@@ -367,7 +367,7 @@ class TestResolveComposes(object):
 
         assert plugin_result['signing_intent'] == expected_intent
 
-    def test_request_compose_for_pulp_no_container(self, workflow, reactor_config_map):  # noqa:F811
+    def test_request_compose_for_pulp_no_content_sets(self, workflow, reactor_config_map):  # noqa:F811
         (flexmock(ODCSClient)
             .should_receive('start_compose')
             .with_args(
