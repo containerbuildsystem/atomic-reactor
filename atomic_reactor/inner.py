@@ -14,6 +14,9 @@ import logging
 import tempfile
 import signal
 import docker
+import threading
+import os
+import time
 
 from atomic_reactor.build import InsideBuilder
 from atomic_reactor.plugin import (
@@ -252,6 +255,60 @@ class PushConf(object):
         return self.docker_registries + self.pulp_registries
 
 
+class FSWatcher(threading.Thread):
+    """
+    Poll the filesystem every second in the background and keep a record of highest usage.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(FSWatcher, self).__init__(*args, **kwargs)
+        self.daemon = True  # exits whenever the process exits
+        self._lock = threading.Lock()
+        self._done = False
+        self._data = {}
+
+    def run(self):
+        """ Overrides parent method to implement thread's functionality. """
+        while not self._done:
+            with self._lock:
+                self._update(self._data)
+            time.sleep(1)
+
+    def get_usage_data(self):
+        """ Safely retrieve the most up to date results. """
+        with self._lock:
+            data_copy = self._data.copy()
+        return data_copy
+
+    def finish(self):
+        """ Signal background thread to exit next time it wakes up. """
+        with self._lock:  # just to be tidy; lock not really needed to set a boolean
+            self._done = True
+
+    @staticmethod
+    def _update(data):
+        try:
+            st = os.statvfs("/")
+        except Exception as e:
+            return e  # just for tests; we don't really need return value
+
+        mb = 1000 ** 2  # sadly storage is generally expressed in decimal units
+        new_data = dict(
+            mb_free=st.f_bfree * st.f_frsize / mb,
+            mb_total=st.f_blocks * st.f_frsize / mb,
+            mb_used=(st.f_blocks - st.f_bfree) * st.f_frsize / mb,
+            inodes_free=st.f_ffree,
+            inodes_total=st.f_files,
+            inodes_used=st.f_files - st.f_ffree,
+        )
+        for key in ["mb_total", "mb_used", "inodes_total", "inodes_used"]:
+            data[key] = max(new_data[key], data.get(key, 0))
+        for key in ["mb_free", "inodes_free"]:
+            data[key] = min(new_data[key], data.get(key, float("inf")))
+
+        return new_data
+
+
 class DockerBuildWorkflow(object):
     """
     This class defines a workflow for building images:
@@ -302,6 +359,7 @@ class DockerBuildWorkflow(object):
         self.build_canceled = False
         self.plugin_failed = False
         self.plugin_files = plugin_files
+        self.fs_watcher = FSWatcher()
 
         self.kwargs = kwargs
 
@@ -370,6 +428,7 @@ class DockerBuildWorkflow(object):
         """
         self.builder = InsideBuilder(self.source, self.image)
         try:
+            self.fs_watcher.start()
             signal.signal(signal.SIGTERM, self.throw_canceled_build_exception)
             # time to run pre-build plugins, so they can access cloned repo
             logger.info("running pre-build plugins")
@@ -451,6 +510,7 @@ class DockerBuildWorkflow(object):
                 raise
             finally:
                 self.source.remove_tmpdir()
+                self.fs_watcher.finish()
 
             signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
