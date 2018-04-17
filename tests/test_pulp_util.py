@@ -254,3 +254,50 @@ def test_ensure_repos(auto_publish, unsupported):
     image_names = [ImageName(repo="myproject-hello-world")]
     handler = PulpHandler(workflow, pulp_registry_name, log)
     handler.create_dockpulp_and_repos(image_names)
+
+
+@pytest.mark.skipif(dockpulp is None,
+                    reason='dockpulp module not available')
+@pytest.mark.parametrize(("unsupported"), [
+    (True),
+    (False)
+])
+def test_upload(unsupported, caplog):
+    log = logging.getLogger("tests.test_pulp_util")
+    pulp_registry_name = 'registry.example.com'
+    testfile = 'foo'
+    upload_file = 'test_file'
+    repo_id = 'redhat-myproject-hello-world'
+
+    _, workflow = prepare(testfile)
+    image_names = [ImageName(repo="myproject-hello-world")]
+    handler = PulpHandler(workflow, pulp_registry_name, log)
+    handler.create_dockpulp_and_repos(image_names)
+
+    if unsupported:
+        (flexmock(dockpulp.Pulp)
+         .should_receive('upload')
+         .with_args(upload_file, repo_id)
+         .and_raise(TypeError)
+         .once()
+         .ordered())
+        (flexmock(dockpulp.Pulp)
+         .should_receive('upload')
+         .with_args(upload_file)
+         .and_return(True)
+         .once()
+         .ordered())
+    else:
+        (flexmock(dockpulp.Pulp)
+         .should_receive('upload')
+         .with_args(upload_file, repo_id)
+         .and_return(False)
+         .once())
+
+    handler.upload(upload_file, repo_id)
+
+    assert "Uploading %s to %s" % (upload_file, repo_id) in caplog.text()
+
+    if unsupported:
+        assert "Falling back to uploading %s to redhat-everything repo" %\
+               upload_file in caplog.text()
