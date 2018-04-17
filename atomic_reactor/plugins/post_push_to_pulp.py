@@ -100,6 +100,49 @@ class PulpPushPlugin(PostBuildPlugin):
 
         self.pulp_handler = get_pulp_session(self.workflow, self.log, self.pulp_fallback)
 
+    def _deduplicate_layers(self, layers, filename, file_extension):
+        # getImageIdsExist was introduced in rh-dockpulp 0.6+
+        existing_imageids = self.pulp_handler.get_image_ids_existing(layers)
+        self.log.debug("existing layers: %s", existing_imageids)
+
+        # Strip existing layers from the tar and repack it
+        remove_layers = [str(os.path.join(x, 'layer.tar')) for x in existing_imageids]
+
+        commands = {'.xz': 'xzcat', '.gz': 'zcat', '.bz2': 'bzcat', '.tar': 'cat'}
+        unpacker = commands.get(file_extension, None)
+        self.log.debug("using unpacker %s for extension %s", unpacker, file_extension)
+        if unpacker is None:
+            raise Exception("Unknown tarball format: %s" % filename)
+
+        fd, compressed_filename = tempfile.mkstemp(prefix='strip_tar_', suffix='.gz')
+        os.close(fd)
+        cmd = "set -o pipefail; {0} {1} | tar --delete {2} | gzip - > {3}".format(
+            unpacker, filename, ' '.join(remove_layers), compressed_filename)
+        return self._run_command(cmd, compressed_filename)
+
+    def _gzip_file(self, filename):
+        fd, compressed_filename = tempfile.mkstemp(prefix='full_tar_', suffix='.gz')
+        os.close(fd)
+        cmd = "set -o pipefail; cat {0} | gzip - > {1}".format(
+            filename, compressed_filename)
+        return self._run_command(cmd, compressed_filename)
+
+    def _run_command(self, cmd, filename):
+        self.log.debug("running %s", cmd)
+        try:
+            subprocess.check_call(cmd, shell=True)
+            return filename
+        except Exception:
+            self._unlink_file(filename)
+            raise
+
+    def _unlink_file(self, filename):
+        if filename:
+            try:
+                os.unlink(filename)
+            except (IOError, OSError):
+                pass
+
     def push_tar(self, filename, image_names=None, repo_prefix="redhat-"):
         # Find out how to tag this image.
         self.log.info("image names: %s", [str(image_name) for image_name in image_names])
@@ -109,47 +152,34 @@ class PulpPushPlugin(PostBuildPlugin):
 
         pulp_repos = self.pulp_handler.create_dockpulp_and_repos(image_names, repo_prefix)
         _, file_extension = os.path.splitext(filename)
+        compressed_filename = None
 
         try:
             top_layer, layers = self.pulp_handler.get_tar_metadata(filename)
-            # getImageIdsExist was introduced in rh-dockpulp 0.6+
-            existing_imageids = self.pulp_handler.get_image_ids_existing(layers)
-            self.log.debug("existing layers: %s", existing_imageids)
-
-            # Strip existing layers from the tar and repack it
-            remove_layers = [str(os.path.join(x, 'layer.tar')) for x in existing_imageids]
-
-            commands = {'.xz': 'xzcat', '.gz': 'zcat', '.bz2': 'bzcat', '.tar': 'cat'}
-            unpacker = commands.get(file_extension, None)
-            self.log.debug("using unpacker %s for extension %s", unpacker, file_extension)
-            if unpacker is None:
-                raise Exception("Unknown tarball format: %s" % filename)
-
-            with NamedTemporaryFile(prefix='strip_tar_', suffix='.gz') as outfile:
-                cmd = "set -o pipefail; {0} {1} | tar --delete {2} | gzip - > {3}".format(
-                    unpacker, filename, ' '.join(remove_layers), outfile.name)
-                self.log.debug("running %s", cmd)
-                subprocess.check_call(cmd, shell=True)
-                self.log.debug("uploading %s", outfile.name)
-                self.pulp_handler.upload(outfile.name)
+            compressed_filename = self._deduplicate_layers(layers, filename, file_extension)
         except:
             self.log.debug("Error on creating deduplicated layers tar", exc_info=True)
             try:
                 if file_extension != '.tar':
                     raise RuntimeError("tar is already compressed")
-                with NamedTemporaryFile(prefix='full_tar_', suffix='.gz') as outfile:
-                    cmd = "set -o pipefail; cat {0} | gzip - > {1}".format(
-                        filename, outfile.name)
-                    self.log.debug("Compressing tar using '%s' command", cmd)
-                    subprocess.check_call(cmd, shell=True)
-                    self.log.debug("uploading %s", outfile.name)
-                    self.pulp_handler.upload(outfile.name)
+                compressed_filename = self._gzip_file(filename)
             except:
                 self.log.info("Falling back to full tar upload")
-                self.pulp_handler.upload(filename)
+
+        in_rh_everything = False
+        if compressed_filename:
+            filename = compressed_filename
+        for repo_id in pulp_repos:
+            in_rh_everything = self.pulp_handler.upload(filename, repo_id)
+            # Content was uploaded to shared redhat-everything repo. This should only be done
+            # once regardless of how many pulp repos are in use.
+            if in_rh_everything:
+                break
+        self._unlink_file(compressed_filename)
 
         for repo_id, pulp_repo in pulp_repos.items():
-            self.pulp_handler.copy_v1_layers(repo_id, layers)
+            if in_rh_everything:
+                self.pulp_handler.copy_v1_layers(repo_id, layers)
             self.pulp_handler.update_repo(repo_id, {"tag": "%s:%s" % (",".join(pulp_repo.tags),
                                                                       top_layer)})
 

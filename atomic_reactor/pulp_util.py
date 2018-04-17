@@ -183,8 +183,17 @@ class PulpHandler(object):
     def get_image_ids_existing(self, layers):
         return self.p.getImageIdsExist(layers)
 
-    def upload(self, filename):
-        self.p.upload(filename)
+    def upload(self, filename, repo_id):
+        # returns boolean that is was uploaded to redhat-everything
+        try:
+            self.log.debug("Uploading %s to %s", filename, repo_id)
+            self.p.upload(filename, repo_id)
+            return False
+
+        except TypeError:
+            self.log.debug('Falling back to uploading %s to redhat-everything repo', filename)
+            self.p.upload(filename)
+            return True
 
     def copy(self, repo_id, layer):
         self.p.copy(repo_id, layer)
