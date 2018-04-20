@@ -48,6 +48,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        get_openshift_session,
                                                        get_clusters_client_config_path,
                                                        get_docker_registry,
+                                                       get_platform_to_goarch_mapping,
                                                        NO_FALLBACK)
 from tests.constants import TEST_IMAGE, REACTOR_CONFIG_MAP
 from tests.docker_mock import mock_docker
@@ -568,6 +569,33 @@ class TestReactorConfigPlugin(object):
             return
 
         assert output == expected
+
+    @pytest.mark.parametrize('fallback', (True, False))
+    @pytest.mark.parametrize(('config', 'expect'), [
+        ("""\
+          version: 1
+          platform_descriptors:
+            - platform: x86_64
+              architecture: amd64
+         """,
+         {'x86_64': 'amd64',
+          'ppc64le': 'ppc64le'}),
+    ])
+    def test_get_platform_to_goarch_mapping(self, fallback, config, expect):
+        tasker, workflow = self.prepare()
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+
+        config_json = read_yaml(config, 'schemas/config.json')
+
+        workspace = workflow.plugin_workspace[ReactorConfigPlugin.key]
+        workspace[WORKSPACE_CONF_KEY] = ReactorConfig(config_json)
+
+        kwargs = {}
+        if fallback:
+            kwargs['descriptors_fallback'] = {'x86_64': 'amd64'}
+        goarch = get_platform_to_goarch_mapping(workflow, **kwargs)
+        for key, value in expect.items():
+            assert goarch[key] == value
 
     @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize(('config', 'raise_error'), [

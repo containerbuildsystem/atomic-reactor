@@ -8,7 +8,8 @@ of the BSD license. See the LICENSE file for details.
 
 from copy import deepcopy
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import read_yaml, read_yaml_from_file_path, get_build_json
+from atomic_reactor.util import (read_yaml, read_yaml_from_file_path,
+                                 get_build_json, DefaultKeyDict)
 from osbs.utils import RegistryURI
 
 import os
@@ -304,6 +305,17 @@ def get_clusters(workflow, fallback=NO_FALLBACK):
 def get_clusters_client_config_path(workflow, fallback=NO_FALLBACK):
     client_config_dir = get_value(workflow, 'clusters_client_config_dir', fallback)
     return os.path.join(client_config_dir, 'osbs.conf')
+
+
+def get_platform_to_goarch_mapping(workflow,
+                                   descriptors_fallback=NO_FALLBACK):
+    platform_descriptors = get_platform_descriptors(
+        workflow,
+        fallback=descriptors_fallback,
+    )
+    return DefaultKeyDict(
+        (descriptor['platform'], descriptor['architecture'])
+        for descriptor in platform_descriptors)
 
 
 class ClusterConfig(object):

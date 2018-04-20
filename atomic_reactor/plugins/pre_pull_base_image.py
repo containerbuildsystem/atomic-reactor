@@ -14,11 +14,12 @@ from __future__ import unicode_literals
 import docker
 
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import get_build_json, get_manifest_list, ImageName, DefaultKeyDict
+from atomic_reactor.util import get_build_json, get_manifest_list, ImageName
 from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
 from atomic_reactor.core import RetryGeneratorException
-from atomic_reactor.plugins.pre_reactor_config import get_source_registry, get_platform_descriptors
+from atomic_reactor.plugins.pre_reactor_config import (get_source_registry,
+                                                       get_platform_to_goarch_mapping)
 from osbs.utils import RegistryURI
 
 
@@ -163,7 +164,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
             return
 
         try:
-            platform_descriptors = get_platform_descriptors(self.workflow)
+            platform_to_arch = get_platform_to_goarch_mapping(self.workflow)
         except KeyError:
             self.log.info('Cannot validate available platforms for base image '
                           'because platform descriptors are not defined')
@@ -177,10 +178,6 @@ class PullBaseImagePlugin(PreBuildPlugin):
         all_manifests = manifest_list.json()['manifests']
         manifest_list_arches = set(
             manifest['platform']['architecture'] for manifest in all_manifests)
-
-        platform_to_arch = DefaultKeyDict(
-            (descriptor['platform'], descriptor['architecture'])
-            for descriptor in platform_descriptors)
 
         expected_arches = set(
             platform_to_arch[platform] for platform in expected_platforms)
