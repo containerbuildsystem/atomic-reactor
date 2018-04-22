@@ -603,6 +603,32 @@ class TestReactorConfigPlugin(object):
             assert goarch_to_platform[goarch] == plat
 
     @pytest.mark.parametrize('fallback', (True, False))
+    @pytest.mark.parametrize(('config', 'expect'), [
+        ("""\
+          version: 1
+          build_image_override:
+            ppc64le: registry.example.com/buildroot-ppc64le:latest
+            arm: registry.example.com/buildroot-arm:latest
+         """,
+         {'ppc64le': 'registry.example.com/buildroot-ppc64le:latest',
+          'arm': 'registry.example.com/buildroot-arm:latest'}),
+    ])
+    def test_get_build_image_override(self, fallback, config, expect):
+        tasker, workflow = self.prepare()
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+
+        config_json = read_yaml(config, 'schemas/config.json')
+
+        workspace = workflow.plugin_workspace[ReactorConfigPlugin.key]
+        workspace[WORKSPACE_CONF_KEY] = ReactorConfig(config_json)
+
+        kwargs = {}
+        if fallback:
+            kwargs['fallback'] = expect
+        build_image_override = get_build_image_override(workflow, **kwargs)
+        assert build_image_override == expect
+
+    @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize(('config', 'raise_error'), [
         ("""\
           version: 1

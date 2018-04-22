@@ -476,6 +476,11 @@
         "items": {
             "type": "string"
         }
+    },
+    "build_image_override": {
+        "description": "Specify different build_image image for platforms",
+        "type": "object",
+        "additionalProperties": {"type": "string"}
     }
   },
   "definitions": {
