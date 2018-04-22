@@ -34,7 +34,9 @@ from atomic_reactor.plugins.pre_reactor_config import (get_config,
                                                        get_yum_proxy, get_image_equal_labels,
                                                        get_content_versions, get_openshift_session,
                                                        get_platform_descriptors,
-                                                       get_clusters_client_config_path)
+                                                       get_clusters_client_config_path,
+                                                       get_build_image_override,
+                                                       get_goarch_to_platform_mapping)
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import (df_parser, get_build_json, get_manifest_list, ImageName,
                                  get_platforms_in_limits)
@@ -316,6 +318,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         self.namespace = get_build_json().get('metadata', {}).get('namespace', None)
         self.build_image_digests = {}  # by platform
         self._openshift_session = None
+        self.build_image_override = get_build_image_override(workflow, {})
 
     def adjust_config_kwargs(self):
         koji_fallback = {
@@ -723,16 +726,9 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             arch = manifest['platform']['architecture']
             arch_digests[arch] = image_name + '@' + manifest['digest']
 
-        platform_descriptors = get_platform_descriptors(self.workflow,
-                                                        self.plat_des_fallback)
-        plat_by_arch = {plat['architecture']: plat['platform']
-                        for plat in platform_descriptors}
+        arch_to_platform = get_goarch_to_platform_mapping(self.workflow, self.plat_des_fallback)
         for arch in arch_digests:
-            if arch not in plat_by_arch:
-                plat_by_arch[arch] = arch
-
-        self.build_image_digests = {plat_by_arch[arch]: arch_digests[arch]
-                                    for arch in arch_digests}
+            self.build_image_digests[arch_to_platform[arch]] = arch_digests[arch]
 
         # orchestrator platform is in manifest list
         if orchestrator_platform not in self.build_image_digests:
@@ -810,7 +806,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         else:
             return tag_image
 
-    def set_build_image(self, platforms):
+    def set_build_image(self):
         """
         Overrides build_image for worker, to be same as in orchestrator build
         """
@@ -818,9 +814,20 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         orchestrator_platform = current_platform or 'x86_64'
         current_buildimage = self.get_current_buildimage()
 
+        for plat, build_image in self.build_image_override.items():
+            self.log.debug('Overriding build image for %s platform to %s',
+                           plat, build_image)
+            self.build_image_digests[plat] = build_image
+
+        manifest_list_platforms = self.platforms - set(self.build_image_override.keys())
+        if not manifest_list_platforms:
+            self.log.debug('Build image override used for all platforms, '
+                           'skipping build image manifest list checks')
+            return
+
         # orchestrator platform is same as platform on which we want to built on,
         # so we can use the same image
-        if platforms == set([orchestrator_platform]):
+        if manifest_list_platforms == set([orchestrator_platform]):
             self.build_image_digests[orchestrator_platform] = current_buildimage
             return
 
@@ -844,12 +851,12 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         # we have build_image with tag, so we can check for manifest list
         if build_image:
             self.check_manifest_list(build_image, orchestrator_platform,
-                                     platforms, current_buildimage)
+                                     manifest_list_platforms, current_buildimage)
 
     def run(self):
         if not self.platforms:
             raise RuntimeError("No enabled platform to build on")
-        self.set_build_image(self.platforms)
+        self.set_build_image()
 
         thread_pool = ThreadPool(len(self.platforms))
         result = thread_pool.map_async(self.select_and_start_cluster, self.platforms)

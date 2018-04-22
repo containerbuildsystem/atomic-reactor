@@ -45,10 +45,26 @@ import yaml
 import platform
 
 
-manifest_list = {
+MANIFEST_LIST = {
     'manifests': [
         {'platform': {'architecture': 'amd64'}, 'digest': 'sha256:123456'},
         {'platform': {'architecture': 'ppc64le'}, 'digest': 'sha256:123456'},
+    ]
+}
+
+
+DEFAULT_CLUSTERS = {
+    'x86_64': [
+        {
+            'name': 'worker_x86_64',
+            'max_concurrent_builds': 3
+        }
+    ],
+    'ppc64le': [
+        {
+            'name': 'worker_ppc64le',
+            'max_concurrent_builds': 3
+        }
     ]
 }
 
@@ -141,20 +157,8 @@ def mock_workflow(tmpdir):
 
 def mock_reactor_config(tmpdir, clusters=None, empty=False):
     if not clusters and not empty:
-        clusters = {
-            'x86_64': [
-                {
-                    'name': 'worker_x86_64',
-                    'max_concurrent_builds': 3
-                }
-            ],
-            'ppc64le': [
-                {
-                    'name': 'worker_ppc64le',
-                    'max_concurrent_builds': 3
-                }
-            ]
-        }
+        clusters = deepcopy(DEFAULT_CLUSTERS)
+
     conf_json = {'version': 1, 'clusters': clusters}
     conf = ReactorConfig(conf_json)
     (flexmock(pre_reactor_config)
@@ -175,7 +179,13 @@ def mock_reactor_config(tmpdir, clusters=None, empty=False):
 def mock_manifest_list():
     (flexmock(atomic_reactor.util)
      .should_receive('get_manifest_list')
-     .and_return(fake_manifest_list(manifest_list)))
+     .and_return(fake_manifest_list(MANIFEST_LIST)))
+
+
+def mock_orchestrator_platfrom(plat='x86_64'):
+    (flexmock(platform)
+     .should_receive('processor')
+     .and_return(plat))
 
 
 def mock_osbs(current_builds=2, worker_builds=1, logs_return_bytes=False, worker_expect=None):
@@ -284,22 +294,8 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
         if 'equal_labels' in config_kwargs:
             expected_kwargs['equal_labels'] = config_kwargs.get('equal_labels')
 
-    clusters = {
-        'x86_64': [
-            {
-                'name': 'worker_x86_64',
-                'max_concurrent_builds': 3,
-                'enabled': True
-            }
-        ],
-        'ppc64le': [
-            {
-                'name': 'worker_ppc64le',
-                'max_concurrent_builds': 3,
-                'enabled': True
-            }
-        ]
-    }
+    clusters = deepcopy(DEFAULT_CLUSTERS)
+
     if reactor_config_map:
         reactor_dict = {'version': 1, 'arrangement_version': 1}
         if config_kwargs and 'sources_command' in config_kwargs:
@@ -1650,6 +1646,66 @@ def test_set_build_image_works(tmpdir, build, bc, bc_cont, ims, ims_cont, ml, ml
 
     runner.run()
 
+
+@pytest.mark.parametrize(('platforms', 'override'), [
+    (['ppc64le', 'x86_64'], ['ppc64le']),
+    (['ppc64le'], ['ppc64le']),
+])
+def test_set_build_image_with_override(tmpdir, platforms, override):
+    workflow = mock_workflow(tmpdir)
+
+    default_build_image = 'registry/osbs-buildroot@sha256:12345'
+    build = json.dumps({"spec": {
+      "strategy": {
+            "customStrategy": {
+                "from": {"name": default_build_image, "kind": "DockerImage"}}}},
+      "status": {
+          "config": {"kind": "BuildConfig", "name": "build config"}}})
+    flexmock(os, environ={'BUILD': build})
+
+    mock_osbs()
+    mock_manifest_list()
+    mock_orchestrator_platfrom()
+
+    build_config = {"spec": {"strategy": {
+        "customStrategy": {
+            "from": {"kind": "DockerImage",
+                     "name": "registry/osbs-buildroot:bc"}}}}}
+    (flexmock(Openshift)
+     .should_receive('get_build_config')
+     .and_return(build_config))
+
+    reactor_config = {
+        'version': 1,
+        'clusters': deepcopy(DEFAULT_CLUSTERS),
+        'platform_descriptors': [{'platform': 'x86_64', 'architecture': 'amd64'}],
+        'build_image_override': {plat: 'registry/osbs-buildroot-{}:latest'.format(plat)
+                                 for plat in override},
+    }
+
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+        ReactorConfig(reactor_config)
+
+    plugin_args = {
+        'platforms': platforms,
+        'build_kwargs': make_worker_build_kwargs(),
+        'osbs_client_config': str(tmpdir),
+    }
+
+    runner = BuildStepPluginsRunner(
+        workflow.builder.tasker,
+        workflow,
+        [{'name': OrchestrateBuildPlugin.key, 'args': plugin_args}]
+    )
+
+    runner.run()
+
+    for plat in platforms:
+        used_build_image = get_worker_build_info(workflow, plat).osbs.build_conf.get_build_image()
+        expected_build_image = reactor_config['build_image_override'].get(plat,
+                                                                          default_build_image)
+        assert used_build_image == expected_build_image
 
 def test_no_platforms(tmpdir):
     workflow = mock_workflow(tmpdir)
