@@ -333,6 +333,10 @@ def get_goarch_to_platform_mapping(workflow,
         for descriptor in platform_descriptors)
 
 
+def get_build_image_override(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'build_image_override', fallback)
+
+
 class ClusterConfig(object):
     """
     Configuration relating to a particular cluster
