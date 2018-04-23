@@ -105,6 +105,8 @@ image_labels:
     authoritative-source-url: registry.public.example.com
     distribution-scope: public
 
+image_label_info_url_format: "https://catalog.example.com/{com.redhat.component}:{name}-{version}"
+
 image_equal_labels:
 - [description, io.k8s.description]
 
