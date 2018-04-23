@@ -16,14 +16,8 @@ when koji build tags change.
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import get_platforms_in_limits
-from atomic_reactor.plugins.pre_reactor_config import (get_koji_session,
-                                                       get_platform_to_goarch_mapping,
-                                                       NO_FALLBACK)
+from atomic_reactor.plugins.pre_reactor_config import get_koji_session, NO_FALLBACK
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
-
-
-class MustBuildForAmd64(Exception):
-    """ Platforms must include one for GOARCH amd64 """
 
 
 class CheckAndSetPlatformsPlugin(PreBuildPlugin):
@@ -37,33 +31,10 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param koji_target: str, Koji build target name
         """
         # call parent constructor
         super(CheckAndSetPlatformsPlugin, self).__init__(tasker, workflow)
         self.koji_target = koji_target
-        try:
-            self.goarch = get_platform_to_goarch_mapping(workflow)
-        except KeyError:
-            self.goarch = None
-
-    def validate_platforms(self, platforms):
-        """
-        Verify that a platform with GOARCH=amd64 is present. If it is not,
-        the tag will not be pullable by clients that do not have
-        support for the 'manifest list' type.
-        """
-        if self.goarch is None:
-            # Don't perform this check without a real reactor_config_map
-            self.log.info("No GOARCH mapping: skipping platform validation")
-            return
-
-        for platform in platforms:
-            goarch = self.goarch.get(platform, platform)
-            if goarch == 'amd64':
-                return
-
-        raise MustBuildForAmd64
 
     def run(self):
         """
@@ -79,7 +50,6 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
         if not koji_platforms:
             self.log.info("No platforms found in koji target")
             return None
-        platforms = get_platforms_in_limits(self.workflow,
-                                            koji_platforms.split())
-        self.validate_platforms(platforms)
-        return platforms
+        platforms = koji_platforms.split()
+
+        return get_platforms_in_limits(self.workflow, platforms)
