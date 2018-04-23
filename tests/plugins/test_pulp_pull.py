@@ -6,7 +6,11 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY
+from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY,
+                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
+                                      MEDIA_TYPE_DOCKER_V2_SCHEMA1,
+                                      MEDIA_TYPE_DOCKER_V2_SCHEMA2,
+                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
 from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
 from atomic_reactor.plugins.post_pulp_pull import (PulpPullPlugin,
                                                    CraneTimeoutError)
@@ -51,7 +55,8 @@ class TestPostPulpPull(object):
     EXPECTED_PULLSPEC = EXPECTED_IMAGE.to_str()
 
     def workflow(self, push=True, sync=True, build_process_failed=False,
-                 postbuild_results=None, expectv2schema2=False):
+                 postbuild_results=None, prebuild_results=None, expectv2schema2=False,
+                 platform_descriptors=False):
         tag_conf = TagConf()
         tag_conf.add_unique_image(self.TEST_UNIQUE_IMAGE)
         push_conf = PushConf()
@@ -64,6 +69,10 @@ class TestPostPulpPull(object):
             ReactorConfigKeys.VERSION_KEY: 1,
             'prefer_schema1_digest': not expectv2schema2
         }
+        if platform_descriptors:
+            conf['platform_descriptors'] = [
+                {'platform': 'x86_64', 'architecture': 'amd64'},
+            ]
         plugin_workspace = {
             ReactorConfigPlugin.key: {
                 WORKSPACE_CONF_KEY: ReactorConfig(conf)
@@ -78,7 +87,8 @@ class TestPostPulpPull(object):
                         builder=builder,
                         build_process_failed=build_process_failed,
                         plugin_workspace=plugin_workspace,
-                        postbuild_results=postbuild_results or {})
+                        postbuild_results=postbuild_results or {},
+                        prebuild_results=prebuild_results or {})
 
     media_type_v1 = 'application/vnd.docker.distribution.manifest.v1+json'
     media_type_v2 = 'application/vnd.docker.distribution.manifest.v2+json'
@@ -489,3 +499,40 @@ class TestPostPulpPull(object):
         else:
             with pytest.raises(CraneTimeoutError):
                 plugin.run()
+
+    @responses.activate
+    @pytest.mark.parametrize(('platforms', 'platform_descriptors', 'manifest_list_only'), [
+        (['ppc64le'], True, True),
+        (['ppc64le'], False, False),
+        (['ppc64le', 'arm'], True, True),
+        (['ppc64le', 'arm'], False, False),
+        (['ppc64le', 'x86_64'], True, False),
+        (['ppc64le', 'x86_64'], False, False),
+        (['x86_64'], True, False),
+        (['x86_64'], False, False),
+    ])
+    def test_expect_v2schema2list_only(self, platforms, platform_descriptors, manifest_list_only):
+        def get_manifest(request):
+            media_types = request.headers.get('Accept', '').split(',')
+            content_type = media_types[0]
+            return (200, {'Content-Type': content_type}, '{}')
+
+        url = re.compile(r'.*//crane.example.com/v2/.*/manifests/.*')
+        responses.add_callback(responses.GET, url, callback=get_manifest)
+        digests = {'digest': None}
+        workflow = self.workflow(
+            platform_descriptors=platform_descriptors,
+            postbuild_results={PLUGIN_GROUP_MANIFESTS_KEY: digests},
+            prebuild_results={PLUGIN_CHECK_AND_SET_PLATFORMS_KEY: set(platforms)},
+        )
+        workflow.postbuild_plugins_conf = [{'name': 'pulp_sync'}]
+        tasker = MockerTasker()
+        plugin = PulpPullPlugin(tasker, workflow, timeout=0.2,
+                                retry_delay=0.1, expect_v2schema2=True)
+        media_types = plugin.run()
+
+        expected_media_types = [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]
+        if not manifest_list_only:
+            expected_media_types.append(MEDIA_TYPE_DOCKER_V2_SCHEMA1)
+            expected_media_types.append(MEDIA_TYPE_DOCKER_V2_SCHEMA2)
+        assert set(media_types) == set(expected_media_types)

@@ -17,13 +17,16 @@ from __future__ import unicode_literals
 
 from atomic_reactor.constants import (PLUGIN_PULP_PUSH_KEY, PLUGIN_PULP_SYNC_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY,
+                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
                                       MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_SCHEMA1,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
+
 from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.util import get_manifest_digests
-from atomic_reactor.plugins.pre_reactor_config import get_prefer_schema1_digest
+from atomic_reactor.plugins.pre_reactor_config import (get_prefer_schema1_digest,
+                                                       get_platform_to_goarch_mapping)
 import requests
 from time import time, sleep
 
@@ -65,6 +68,7 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
         self.secret = secret
         self.expect_v2schema2 = not get_prefer_schema1_digest(workflow, not expect_v2schema2)
         self.expect_v2schema2list = False  # automatically set in run()
+        self.expect_v2schema2list_only = False  # automatically set in run()
 
     def retry_if_not_found(self, func, *args, **kwargs):
         start = time()
@@ -113,10 +117,7 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
             self.workflow.builder.image_id = None
             return []
 
-        # Decide whether we expect v2schema2list based on whether
-        # group_manifests grouped any manifests
-        if self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY):
-            self.expect_v2schema2list = True
+        self.set_manifest_list_expectations()
 
         # Work out the name of the image to pull
         assert self.workflow.tag_conf.unique_images  # must be set
@@ -147,6 +148,11 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
                 if digests.v2_list:
                     self.log.info("Manifest list found")
                     media_types.append(MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
+                    if self.expect_v2schema2list_only:
+                        self.log.info("Only V2 schema 2 manifest list is expected, "
+                                      "leaving image ID unchanged %s",
+                                      self.workflow.builder.image_id)
+                        return [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]
                 if digests.v2:
                     self.log.info("V2 schema 2 digest found, leaving image ID unchanged %s",
                                   self.workflow.builder.image_id)
@@ -175,3 +181,29 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
         self.workflow.builder.image_id = image_id
 
         return sorted(media_types)
+
+    def set_manifest_list_expectations(self):
+        # Decide whether we expect v2schema2list based on whether
+        # group_manifests grouped any manifests
+        if self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY):
+            self.expect_v2schema2list = True
+
+            platforms = self.workflow.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+            if not platforms:
+                self.log.debug('Cannot check if only manifest list digest should be checked '
+                               'because %s plugin did not run', PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+                return
+
+            try:
+                platform_to_goarch = get_platform_to_goarch_mapping(self.workflow)
+            except KeyError:
+                self.log.debug('Cannot check if only manifest list digest should be checked '
+                               'because there are no platform descriptors')
+                return
+
+            for plat in platforms:
+                if platform_to_goarch[plat] == 'amd64':
+                    break
+            else:
+                self.log.debug('amd64 was not built, only manifest list digest is available')
+                self.expect_v2schema2list_only = True
