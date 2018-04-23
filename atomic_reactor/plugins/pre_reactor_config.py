@@ -164,6 +164,10 @@ def get_image_labels(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'image_labels', fallback)
 
 
+def get_image_label_info_url_format(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'image_label_info_url_format', fallback)
+
+
 def get_image_equal_labels(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'image_equal_labels', fallback)
 

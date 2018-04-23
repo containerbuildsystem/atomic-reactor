@@ -295,6 +295,10 @@
         },
         "additionalProperties": false
     },
+    "image_label_info_url_format": {
+        "description": "URL format (with {label}-style substitution) for 'info' label",
+        "type": "string"
+    },
     "image_equal_labels": {
         "description": "Labels that are expected to be equal in value",
         "type": "array",
