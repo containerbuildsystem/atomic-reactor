@@ -182,7 +182,8 @@ def make_and_store_reactor_config_map(workflow, additional=None):
 ])
 def test_add_labels_plugin(tmpdir, docker_tasker,
                            df_content, labels_conf_base, labels_conf, eq_conf,
-                           dont_overwrite, aliases, expected_output, caplog, reactor_config_map):
+                           dont_overwrite, aliases, expected_output, caplog,
+                           reactor_config_map):
     df = df_parser(str(tmpdir))
     df.content = df_content
 
@@ -200,8 +201,10 @@ def test_add_labels_plugin(tmpdir, docker_tasker,
             image_labels = json.loads(labels_conf)
         else:
             image_labels = deepcopy(labels_conf)
-        make_and_store_reactor_config_map(workflow, {'image_labels': image_labels,
-                                                     'image_equal_labels': eq_conf})
+        make_and_store_reactor_config_map(workflow, {
+            'image_labels': image_labels,
+            'image_equal_labels': eq_conf,
+        })
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -710,7 +713,10 @@ def test_url_label(tmpdir, docker_tasker, caplog, url_format, info_url, reactor_
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
 
     if reactor_config_map:
-        make_and_store_reactor_config_map(workflow, {'image_labels': plugin_labels})
+        make_and_store_reactor_config_map(workflow, {
+            'image_labels': plugin_labels,
+            'image_label_info_url_format': url_format,
+        })
 
     runner = PreBuildPluginsRunner(
         docker_tasker,

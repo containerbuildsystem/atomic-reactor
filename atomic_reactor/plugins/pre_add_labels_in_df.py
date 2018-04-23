@@ -60,7 +60,9 @@ from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.util import (get_docker_architecture, df_parser, LabelFormatter)
-from atomic_reactor.plugins.pre_reactor_config import get_image_equal_labels, get_image_labels
+from atomic_reactor.plugins.pre_reactor_config import (get_image_equal_labels,
+                                                       get_image_labels,
+                                                       get_image_label_info_url_format)
 from osbs.utils import Labels
 import json
 import datetime
@@ -97,7 +99,7 @@ class AddLabelsPlugin(PreBuildPlugin):
                         added (with the same value)
         :param dont_overwrite_if_in_dockerfile : iterable, list of label keys which should not be
                                                  overwritten if they are present in dockerfile
-        :param info_url_format : string, format for url dockerfile label
+        :param info_url_format : string, format for url dockerfile label (deprecated)
         :param equal_labels: list, with equal labels groups as lists
         """
         # call parent constructor
@@ -125,7 +127,8 @@ class AddLabelsPlugin(PreBuildPlugin):
         self.dont_overwrite_if_in_dockerfile = dont_overwrite_if_in_dockerfile
         self.aliases = aliases or Labels.get_new_names_by_old()
         self.auto_labels = auto_labels or ()
-        self.info_url_format = info_url_format
+        self.info_url_format = get_image_label_info_url_format(self.workflow,
+                                                               info_url_format)
 
         self.equal_labels = get_image_equal_labels(self.workflow, equal_labels or [])
         if not isinstance(self.equal_labels, list):
