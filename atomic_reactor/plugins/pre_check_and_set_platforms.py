@@ -31,6 +31,7 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
+        :param koji_target: str, Koji build target name
         """
         # call parent constructor
         super(CheckAndSetPlatformsPlugin, self).__init__(tasker, workflow)
