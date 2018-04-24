@@ -322,6 +322,17 @@ def get_platform_to_goarch_mapping(workflow,
         for descriptor in platform_descriptors)
 
 
+def get_goarch_to_platform_mapping(workflow,
+                                   descriptors_fallback=NO_FALLBACK):
+    platform_descriptors = get_platform_descriptors(
+        workflow,
+        fallback=descriptors_fallback,
+    )
+    return DefaultKeyDict(
+        (descriptor['architecture'], descriptor['platform'])
+        for descriptor in platform_descriptors)
+
+
 class ClusterConfig(object):
     """
     Configuration relating to a particular cluster
