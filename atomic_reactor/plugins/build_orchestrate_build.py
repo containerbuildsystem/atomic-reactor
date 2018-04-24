@@ -319,6 +319,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         self.build_image_digests = {}  # by platform
         self._openshift_session = None
         self.build_image_override = get_build_image_override(workflow, {})
+        self.platform_descriptors = get_platform_descriptors(self.workflow, self.plat_des_fallback)
 
     def adjust_config_kwargs(self):
         koji_fallback = {
@@ -501,6 +502,22 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         unique_fragment = '%r.%s' % (time.time(), random_chars)
         return os.path.join(dir_prefix, unique_fragment)
 
+    def _update_content_versions(self, worker_reactor_conf, platform):
+        enable_v1 = False
+        for descriptor in self.platform_descriptors:
+            if descriptor['platform'] == platform:
+                enable_v1 = descriptor.get('enable_v1', False)
+                break
+        # Remove v1 from content_versions if the platform descriptor doesn't enable v1
+        if not enable_v1 and 'content_versions' in worker_reactor_conf:
+            try:
+                self.log.info('removing v1 from content_versions')
+                worker_reactor_conf['content_versions'].remove('v1')
+            except ValueError:
+                pass
+            if not worker_reactor_conf['content_versions']:
+                raise RuntimeError("content_versions is empty")
+
     def get_worker_build_kwargs(self, release, platform, koji_upload_dir,
                                 task_id, worker_openshift):
         build_kwargs = deepcopy(self.build_kwargs)
@@ -518,6 +535,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             worker_reactor_conf = deepcopy(self.reactor_config.conf)
             worker_reactor_conf['openshift'] = worker_openshift
             worker_reactor_conf.pop('worker_token_secrets', None)
+            self._update_content_versions(worker_reactor_conf, platform)
+
             build_kwargs['reactor_config_override'] = worker_reactor_conf
 
         return build_kwargs
