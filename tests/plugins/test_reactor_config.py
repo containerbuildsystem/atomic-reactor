@@ -49,6 +49,8 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        get_clusters_client_config_path,
                                                        get_docker_registry,
                                                        get_platform_to_goarch_mapping,
+                                                       get_goarch_to_platform_mapping,
+                                                       get_build_image_override,
                                                        NO_FALLBACK)
 from tests.constants import TEST_IMAGE, REACTOR_CONFIG_MAP
 from tests.docker_mock import mock_docker
@@ -594,9 +596,11 @@ class TestReactorConfigPlugin(object):
         kwargs = {}
         if fallback:
             kwargs['descriptors_fallback'] = {'x86_64': 'amd64'}
-        goarch = get_platform_to_goarch_mapping(workflow, **kwargs)
-        for key, value in expect.items():
-            assert goarch[key] == value
+        platform_to_goarch = get_platform_to_goarch_mapping(workflow, **kwargs)
+        goarch_to_platform = get_goarch_to_platform_mapping(workflow, **kwargs)
+        for plat, goarch in expect.items():
+            assert platform_to_goarch[plat] == goarch
+            assert goarch_to_platform[goarch] == plat
 
     @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize(('config', 'raise_error'), [
