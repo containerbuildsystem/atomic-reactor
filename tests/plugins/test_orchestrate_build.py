@@ -155,11 +155,13 @@ def mock_workflow(tmpdir):
     return workflow
 
 
-def mock_reactor_config(tmpdir, clusters=None, empty=False):
+def mock_reactor_config(tmpdir, clusters=None, empty=False, add_config=None):
     if not clusters and not empty:
         clusters = deepcopy(DEFAULT_CLUSTERS)
 
     conf_json = {'version': 1, 'clusters': clusters}
+    if add_config:
+        conf_json.update(add_config)
     conf = ReactorConfig(conf_json)
     (flexmock(pre_reactor_config)
         .should_receive('get_config')
@@ -1272,6 +1274,78 @@ def test_orchestrate_override_build_kwarg(tmpdir, overrides):
 
     build_result = runner.run()
     assert not build_result.is_failed()
+
+
+@pytest.mark.parametrize('enable_v1', [
+    True,
+    False
+])
+@pytest.mark.parametrize('content_versions', [
+    ['v1', 'v2'],
+    ['v1'],
+    ['v2'],
+])
+def test_orchestrate_override_content_versions(tmpdir, caplog, enable_v1, content_versions):
+    workflow = mock_workflow(tmpdir)
+    expected_kwargs = {
+        'git_uri': SOURCE['uri'],
+        'git_ref': 'master',
+        'git_branch': 'master',
+        'user': 'bacon',
+        'is_auto': False,
+        'platform': 'x86_64',
+        'release': '10',
+        'arrangement_version': 1
+    }
+    add_config = {
+        'platform_descriptors': [{
+            'platform': 'x86_64',
+            'architecture': 'amd64',
+            'enable_v1': enable_v1
+        }],
+        'content_versions': content_versions
+    }
+
+    reactor_config_override = mock_reactor_config(tmpdir, add_config=add_config)
+    reactor_config_override['openshift'] = {
+        'auth': {'enable': None},
+        'build_json_dir': None,
+        'insecure': False,
+        'url': 'https://worker_x86_64.com/'
+    }
+
+    will_fail = False
+    if not enable_v1 and 'v2' not in content_versions:
+        will_fail = True
+    if not enable_v1 and 'v1' in content_versions:
+        reactor_config_override['content_versions'].remove('v1')
+
+    expected_kwargs['reactor_config_override'] = reactor_config_override
+    mock_osbs(worker_expect=expected_kwargs)
+
+    plugin_args = {
+        'platforms': ['x86_64'],
+        'build_kwargs': make_worker_build_kwargs(),
+        'worker_build_image': 'fedora:latest',
+        'osbs_client_config': str(tmpdir),
+    }
+
+    runner = BuildStepPluginsRunner(
+        workflow.builder.tasker,
+        workflow,
+        [{
+            'name': OrchestrateBuildPlugin.key,
+            'args': plugin_args,
+        }]
+    )
+
+    build_result = runner.run()
+    if will_fail:
+        assert build_result.is_failed()
+        assert 'failed to create worker build' in caplog.text()
+        assert 'content_versions is empty' in caplog.text()
+    else:
+        assert not build_result.is_failed()
 
 
 @pytest.mark.parametrize(('build', 'exc_str', 'bc', 'bc_cont', 'ims', 'ims_cont',
