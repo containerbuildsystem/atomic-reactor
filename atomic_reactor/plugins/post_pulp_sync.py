@@ -183,6 +183,10 @@ class PulpSyncPlugin(PostBuildPlugin):
             return {}
 
         dockercfg = Dockercfg(self.registry_secret_path)
+
+        if dockercfg.json_secret_path is None:
+            return {}
+
         registry_creds = dockercfg.get_credentials(docker_registry)
         if 'username' not in registry_creds:
             return {}

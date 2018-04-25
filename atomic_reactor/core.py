@@ -568,20 +568,22 @@ class DockerTasker(LastLogger):
         logger.info("logging in: registry '%s', secret path '%s'", registry, docker_secret_path)
         # Docker-py needs username
         dockercfg = Dockercfg(docker_secret_path)
-        username = dockercfg.get_credentials(registry)['username']
-        logger.info("found username %s for registry %s", username, registry)
+        if dockercfg.json_secret_path is not None:
+            username = dockercfg.get_credentials(registry)['username']
+            logger.info("found username %s for registry %s", username, registry)
 
-        response = self.d.login(registry=registry, username=username,
-                                dockercfg_path=dockercfg.json_secret_path)
-        if not response:
-            raise RuntimeError("Failed to login to '%s' with config '%s'" % (registry, dockercfg))
-        if u'Status' in response and response[u'Status'] == u'Login Succeeded':
-            logger.info("login succeeded")
-        else:
-            if not(isinstance(response, dict) and 'password' in response.keys()):
-                # for some reason docker-py returns the contents of the dockercfg - we shouldn't
-                # be displaying that
-                logger.debug("response: %r", response)
+            response = self.d.login(registry=registry, username=username,
+                                    dockercfg_path=dockercfg.json_secret_path)
+            if not response:
+                raise RuntimeError("Failed to login to '%s' with config '%s'"
+                                   % (registry, dockercfg))
+            if u'Status' in response and response[u'Status'] == u'Login Succeeded':
+                logger.info("login succeeded")
+            else:
+                if not(isinstance(response, dict) and 'password' in response.keys()):
+                    # for some reason docker-py returns the contents of the dockercfg
+                    # - we shouldn't be displaying that
+                    logger.debug("response: %r", response)
 
     def push_image(self, image, insecure=False):
         """
