@@ -182,7 +182,7 @@ class PulpSyncPlugin(PostBuildPlugin):
         if not self.registry_secret_path:
             return {}
 
-        dockercfg = Dockercfg(self.registry_secret_path)
+        dockercfg = Dockercfg(self.registry_secret_path, dockercfg_required=True)
 
         if dockercfg.json_secret_path is None:
             return {}

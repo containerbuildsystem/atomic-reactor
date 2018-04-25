@@ -611,7 +611,7 @@ def registry_hostname(registry):
 
 
 class Dockercfg(object):
-    def __init__(self, secret_path):
+    def __init__(self, secret_path, dockercfg_required=False):
         """
         Create a new Dockercfg object from a .dockercfg file whose
         containing directory is secret_path.
@@ -620,6 +620,11 @@ class Dockercfg(object):
         """
         self.json_secret_path = os.path.join(secret_path, '.dockercfg')
         if not os.path.exists(self.json_secret_path):
+            if dockercfg_required:
+                msg = "dockercfg secret file does not exists"
+                logger.error(msg, exc_info=True)
+                raise RuntimeError(msg)
+
             self.json_secret_path = None
             self.json_secret = {}
         else:
