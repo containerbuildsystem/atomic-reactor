@@ -1375,8 +1375,10 @@ def test_fs_watcher_update(monkeypatch):
 
 def test_fs_watcher(monkeypatch):
     w = FSWatcher()
+    sleep = time.sleep
     monkeypatch.setattr(time, "sleep", lambda x: x)  # don't waste a second of test time
     w.start()
+    sleep(0.1)  # make sure the thread has time to get started
     w.finish()
     w.join(0.1)  # timeout if thread still running
     assert not w.is_alive()
