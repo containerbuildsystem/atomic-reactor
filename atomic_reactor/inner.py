@@ -269,9 +269,11 @@ class FSWatcher(threading.Thread):
 
     def run(self):
         """ Overrides parent method to implement thread's functionality. """
-        while not self._done:
+        while True:  # make sure to run at least once before exiting
             with self._lock:
                 self._update(self._data)
+            if self._done:
+                break
             time.sleep(1)
 
     def get_usage_data(self):
