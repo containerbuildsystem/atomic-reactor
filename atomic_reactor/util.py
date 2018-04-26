@@ -617,13 +617,13 @@ class Dockercfg(object):
         containing directory is secret_path.
 
         :param secret_path: str, dirname of .dockercfg location
+        :param dockercfg_required: boolean, when True raise a RuntimeError
+                                   execption if .dockercfg file is missing.
         """
         self.json_secret_path = os.path.join(secret_path, '.dockercfg')
         if not os.path.exists(self.json_secret_path):
             if dockercfg_required:
-                msg = "dockercfg secret file does not exists"
-                logger.error(msg, exc_info=True)
-                raise RuntimeError(msg)
+                raise RuntimeError("dockercfg secret file does not exists")
 
             self.json_secret_path = None
             self.json_secret = {}
@@ -674,13 +674,11 @@ class RegistrySession(object):
             else:
                 # Use the registry certificates to authenticate instead of
                 # instead of username/password.
-                self.cert_path = os.path.join(dockercfg_path, 'registry.cert')
-                self.key_path = os.path.join(dockercfg_path, 'registry.key')
+                self.cert_path = os.path.join(dockercfg_path, 'client.cert')
+                self.key_path = os.path.join(dockercfg_path, 'client.key')
 
                 if not os.path.exists(self.cert_path) or not os.path.exists(self.key_path):
-                    msg = "failed to read registry certs secret"
-                    logger.error(msg, exc_info=True)
-                    raise RuntimeError(msg)
+                    raise RuntimeError("failed to read registry certs secret")
 
         self._fallback = None
         if re.match('http(s)?://', self.registry):
