@@ -45,7 +45,7 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow,
-                 timeout=600, retry_delay=30,
+                 timeout=1200, retry_delay=30,
                  insecure=False, secret=None,
                  expect_v2schema2=False):
         """
