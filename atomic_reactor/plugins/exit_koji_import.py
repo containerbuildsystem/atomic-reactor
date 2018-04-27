@@ -57,7 +57,7 @@ class KojiImportPlugin(ExitPlugin):
     Import this build to Koji
 
     Submits a successful build to Koji using the Content Generator API,
-    https://fedoraproject.org/wiki/Koji/ContentGenerators
+    https://docs.pagure.org/koji/content_generators
 
     Authentication is with Kerberos unless the koji_ssl_certs
     configuration parameter is given, in which case it should be a
