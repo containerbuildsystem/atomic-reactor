@@ -29,7 +29,7 @@ Koji task.
 
 The image build configuration file is used to specify how the filesystem will
 be created.
-[More Info](https://fedoraproject.org/wiki/Koji/BuildingImages#Building_Disk_Images).
+[More Info](https://docs.pagure.org/koji/image_build/#building-disk-images).
 The syntax for this file is equivalent to the syntax used when in the config
 file used for Koji's CLI client image build subcommand:
 `koji image-build --config config`
