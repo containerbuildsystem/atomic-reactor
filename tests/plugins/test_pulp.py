@@ -47,7 +47,7 @@ class X(object):
 
 def prepare(check_repo_retval=0, existing_layers=[],
             subprocess_exceptions=False,
-            conf=None):
+            conf=None, unsupported=False):
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
@@ -89,12 +89,40 @@ def prepare(check_repo_retval=0, existing_layers=[],
       ]))
     (flexmock(dockpulp.Pulp)
      .should_receive('createRepo'))
-    (flexmock(dockpulp.Pulp)
-     .should_receive('upload')
-     .with_args(unicode)).at_most().once()
-    (flexmock(dockpulp.Pulp)
-     .should_receive('copy_filters')
-     .with_args(unicode, v1=True, v2=False, filters={'unit': {'$or': [{'image_id': 'foo'}]}}))
+
+    image_count = len(workflow.tag_conf.images)
+    if unsupported:
+        (flexmock(dockpulp.Pulp)
+         .should_receive('upload')
+         .with_args(unicode, unicode)
+         .and_raise(TypeError)
+         .at_most()
+         .times(image_count)
+         .ordered())
+        (flexmock(dockpulp.Pulp)
+         .should_receive('upload')
+         .with_args(unicode)
+         .and_return(True)
+         .at_most()
+         .times(image_count)
+         .ordered())
+        (flexmock(dockpulp.Pulp)
+         .should_receive('copy_filters')
+         .with_args(unicode, v1=True, v2=False, filters={'unit': {'$or': [{'image_id': 'foo'}]}})
+         .at_most()
+         .times(image_count))
+    else:
+        (flexmock(dockpulp.Pulp)
+         .should_receive('upload')
+         .with_args(unicode, unicode)
+         .and_return(False)
+         .at_most()
+         .times(image_count))
+        (flexmock(dockpulp.Pulp)
+         .should_receive('copy_filters')
+         .with_args(unicode, v1=True, v2=False, filters={'unit': {'$or': [{'image_id': 'foo'}]}})
+         .at_most()
+         .once())
     (flexmock(dockpulp.Pulp)
      .should_receive('updateRepo')
      .with_args(unicode, dict))
@@ -124,24 +152,36 @@ def prepare(check_repo_retval=0, existing_layers=[],
 
 @pytest.mark.skipif(dockpulp is None,
                     reason='dockpulp module not available')
+@pytest.mark.parametrize(("unsupported"), [
+    (True),
+    (False)
+])
+@pytest.mark.parametrize(("unlink_exc"), [
+    (IOError),
+    (OSError),
+    (None)
+])
 @pytest.mark.parametrize(("existing_layers", "should_raise", "subprocess_exceptions"), [
     (None, True, False),               # mock dockpulp without getImageIdsExist method
     ([], True, False),                 # this will trigger remove dedup layers and pass
     (['no-such-layer'], True, False),  # no such layer - tar command will fail
     ([], True, True),                  # all subprocess.check_call will fail
 ])
-def test_pulp_dedup_layers(
-        tmpdir, existing_layers, should_raise, monkeypatch, subprocess_exceptions,
-        reactor_config_map):
+def test_pulp_dedup_layers(unsupported, unlink_exc, tmpdir, existing_layers, should_raise,
+                           monkeypatch, subprocess_exceptions, reactor_config_map):
     tasker, workflow = prepare(
         check_repo_retval=0,
         existing_layers=existing_layers,
-        subprocess_exceptions=subprocess_exceptions)
+        subprocess_exceptions=subprocess_exceptions, unsupported=unsupported)
     monkeypatch.setenv('SOURCE_SECRET_PATH', str(tmpdir))
     with open(os.path.join(str(tmpdir), "pulp.cer"), "wt") as cer:
         cer.write("pulp certificate\n")
     with open(os.path.join(str(tmpdir), "pulp.key"), "wt") as key:
         key.write("pulp key\n")
+
+    if unlink_exc is not None:
+        (flexmock(os).should_receive('unlink')
+         .and_raise(unlink_exc))
 
     runner = PostBuildPluginsRunner(tasker, workflow, [{
         'name': PulpPushPlugin.key,
