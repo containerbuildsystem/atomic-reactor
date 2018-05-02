@@ -15,7 +15,6 @@ import os
 import shutil
 import tempfile
 import collections
-import yaml
 try:
     from urlparse import urlparse
 except ImportError:
@@ -23,6 +22,7 @@ except ImportError:
 
 from atomic_reactor import util
 from atomic_reactor.constants import CONTAINER_BUILD_METHODS, REPO_CONTAINER_CONFIG
+from atomic_reactor.util import read_yaml_from_file_path
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +39,12 @@ class SourceConfig(object):
         self.data = {}
         file_path = os.path.join(build_path, REPO_CONTAINER_CONFIG)
         if os.path.exists(file_path):
-            with open(file_path) as f:
-                # TODO: validate against schema
-                self.data = yaml.safe_load(f) or {}
+            try:
+                # read file and validate against schema
+                self.data = read_yaml_from_file_path(file_path, 'schemas/container.json') or {}
+            except Exception:
+                logger.exception("Failed to load and validate source config YAML from " + file_path)
+                # and proceed with default source config, that is, none
 
         self.autorebuild = self.data.get('autorebuild', {})
         self.override_image_build = oib = self.data.get('override_image_build')
