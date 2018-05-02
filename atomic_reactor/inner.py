@@ -32,6 +32,7 @@ from atomic_reactor.plugin import (
 )
 from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.constants import INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS
+from atomic_reactor.constants import CONTAINER_DEFAULT_BUILD_METHOD
 from atomic_reactor.util import ImageName
 from atomic_reactor.build import BuildResult
 from atomic_reactor import get_logging_encoding
@@ -369,6 +370,7 @@ class DockerBuildWorkflow(object):
         self.built_image_inspect = None
         self.layer_sizes = []
         self._base_image_inspect = None
+        self.default_image_build_method = CONTAINER_DEFAULT_BUILD_METHOD
 
         self.pulled_base_images = set()
 

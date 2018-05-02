@@ -481,6 +481,10 @@
         "description": "Specify different build_image image for platforms",
         "type": "object",
         "additionalProperties": {"type": "string"}
+    },
+    "default_image_build_method": {
+        "description": "Specify different default buildstep plugin for worker builds",
+        "enum": ["docker_api", "imagebuilder"]
     }
   },
   "definitions": {

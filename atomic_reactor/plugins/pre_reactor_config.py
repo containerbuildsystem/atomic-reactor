@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from copy import deepcopy
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.constants import CONTAINER_BUILD_METHODS, CONTAINER_DEFAULT_BUILD_METHOD
 from atomic_reactor.util import (read_yaml, read_yaml_from_file_path,
                                  get_build_json, DefaultKeyDict)
 from osbs.utils import RegistryURI
@@ -337,6 +338,14 @@ def get_build_image_override(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'build_image_override', fallback)
 
 
+def get_default_image_build_method(workflow, logger, fallback=CONTAINER_DEFAULT_BUILD_METHOD):
+    value = get_value(workflow, 'default_image_build_method', fallback)
+    if value not in CONTAINER_BUILD_METHODS:
+        logger.error("invalid default_image_build_method '{}'; using default".format(value))
+        return fallback
+    return value
+
+
 class ClusterConfig(object):
     """
     Configuration relating to a particular cluster
@@ -487,8 +496,12 @@ class ReactorConfigPlugin(PreBuildPlugin):
             self.log.info("reading config from %s", config_filename)
             conf = read_yaml_from_file_path(config_filename, 'schemas/config.json')
         reactor_conf = ReactorConfig(conf)
-        workspace = self.workflow.plugin_workspace.get(self.key, {})
+        workspace = self.workflow.plugin_workspace.setdefault(self.key, {})
         workspace[WORKSPACE_CONF_KEY] = reactor_conf
 
         self.log.info("reading config content %s", reactor_conf.conf)
-        self.workflow.plugin_workspace[self.key] = workspace
+
+        # need to stash this on the workflow for access in a place that can't import this module
+        self.workflow.default_image_build_method = get_default_image_build_method(
+            self.workflow, self.log
+        )

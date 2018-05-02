@@ -50,6 +50,8 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        get_docker_registry,
                                                        get_platform_to_goarch_mapping,
                                                        get_goarch_to_platform_mapping,
+                                                       get_default_image_build_method,
+                                                       CONTAINER_DEFAULT_BUILD_METHOD,
                                                        get_build_image_override,
                                                        NO_FALLBACK)
 from tests.constants import TEST_IMAGE, REACTOR_CONFIG_MAP
@@ -601,6 +603,38 @@ class TestReactorConfigPlugin(object):
         for plat, goarch in expect.items():
             assert platform_to_goarch[plat] == goarch
             assert goarch_to_platform[goarch] == plat
+
+    @pytest.mark.parametrize(('config', 'fallback', 'expect'), [
+        ("""\
+          version: 1
+          default_image_build_method: imagebuilder
+         """,
+         False,
+         "imagebuilder"),
+        ("""\
+          version: 1
+         """,
+         False,
+         CONTAINER_DEFAULT_BUILD_METHOD),
+        ("""\
+          version: 1
+         """,
+         True,
+         "bogus_plugin_name"),
+    ])
+    def test_get_default_image_build_method(self, fallback, config, expect):
+        config_json = read_yaml(config, 'schemas/config.json')
+        _, workflow = self.prepare()
+        workspace = workflow.plugin_workspace.setdefault(ReactorConfigPlugin.key, {})
+        workspace[WORKSPACE_CONF_KEY] = ReactorConfig(config_json)
+
+        kwargs = {}
+        logger = flexmock()
+        if fallback:
+            logger.should_receive('error')
+            kwargs['fallback'] = expect
+        method = get_default_image_build_method(workflow, logger, **kwargs)
+        assert method == expect
 
     @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize(('config', 'expect'), [
