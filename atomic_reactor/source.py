@@ -15,13 +15,14 @@ import os
 import shutil
 import tempfile
 import collections
+import yaml
 try:
     from urlparse import urlparse
 except ImportError:
     from urllib.parse import urlparse
 
 from atomic_reactor import util
-
+from atomic_reactor.constants import CONTAINER_BUILD_METHODS, REPO_CONTAINER_CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +32,26 @@ logger = logging.getLogger(__name__)
 VcsInfo = collections.namedtuple('VcsInfo', ['vcs_type', 'vcs_url', 'vcs_ref'])
 
 
+class SourceConfig(object):
+    """ read container.yaml file from build source and store as attrs """
+
+    def __init__(self, build_path):
+        self.data = {}
+        file_path = os.path.join(build_path, REPO_CONTAINER_CONFIG)
+        if os.path.exists(file_path):
+            with open(file_path) as f:
+                # TODO: validate against schema
+                self.data = yaml.safe_load(f) or {}
+
+        self.autorebuild = self.data.get('autorebuild', {})
+        self.override_image_build = oib = self.data.get('override_image_build')
+        if oib is not None and oib not in CONTAINER_BUILD_METHODS:
+            raise RuntimeError("unknown build method " + oib)
+
+
 class Source(object):
     def __init__(self, provider, uri, dockerfile_path=None, provider_params=None, tmpdir=None):
+        self._config = None
         self.provider = provider
         self.uri = uri
         self.dockerfile_path = dockerfile_path
@@ -63,6 +82,12 @@ class Source(object):
     def get_build_file_path(self):
         # TODO: will we need figure_out_build_file as a separate method?
         return util.figure_out_build_file(self.path, self.dockerfile_path)
+
+    @property
+    def config(self):
+        # contents of container.yaml
+        self._config = self._config or SourceConfig(self.path)
+        return self._config
 
     def remove_tmpdir(self):
         shutil.rmtree(self.tmpdir)
