@@ -5,7 +5,7 @@ import pytest
 from atomic_reactor.source import (Source, GitSource, PathSource, get_source_instance_for)
 import atomic_reactor.source
 
-from tests.constants import DOCKERFILE_GIT, DOCKERFILE_OK_PATH
+from tests.constants import DOCKERFILE_GIT, DOCKERFILE_OK_PATH, SOURCE_CONFIG_ERROR_PATH
 from tests.util import requires_internet
 import flexmock
 
@@ -73,3 +73,8 @@ class TestGetSourceInstanceFor(object):
         flexmock(atomic_reactor.source, CONTAINER_BUILD_METHODS=[])
         with pytest.raises(RuntimeError):
             assert s.config
+
+    def test_broken_source_config_file(self):
+        s = get_source_instance_for({'provider': 'path', 'uri': SOURCE_CONFIG_ERROR_PATH})
+        assert s.config
+        assert s.config.override_image_build is None  # because the load failed

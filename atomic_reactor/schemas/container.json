@@ -3,7 +3,7 @@
 
   "title": "container image build configuration",
 
-  "type": "object",
+  "type": ["object", "null"],
   "properties": {
     "platforms": {
       "type": "object",
@@ -16,6 +16,18 @@
         }
       },
       "additionalProperties": false
+    },
+    "autorebuild": {
+      "type": "object"
+    },
+    "compose": {
+      "type": "object"
+    },
+    "flatpak": {
+      "type": "object"
+    },
+    "override_image_build": {
+      "enum": ["docker_api", "imagebuilder"]
     }
   },
   "additionalProperties": false,
