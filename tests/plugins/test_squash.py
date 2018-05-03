@@ -69,6 +69,11 @@ class TestSquashPlugin(object):
         # Expected path for exported squashed image.
         self.output_path = None
 
+    def test_skip_squash(self):
+        flexmock(Squash).should_receive('__init__').never()
+        self.workflow.skip_layer_squash = True
+        self.run_plugin_with_args({})
+
     def test_default_parameters(self):
         self.should_squash_with_kwargs()
         self.run_plugin_with_args({})
