@@ -95,10 +95,6 @@ class MockDockerTaskerBaseImage(MockDockerTasker):
         raise docker.errors.NotFound(message='foo', response='bar', explanation='baz')
 
 
-class X(object):
-    pass
-
-
 class MockInsideBuilder(object):
     def __init__(self, failed=False, is_base_image=False):
         if is_base_image:
@@ -119,10 +115,11 @@ class MockInsideBuilder(object):
 
     @property
     def source(self):
-        result = X()
-        setattr(result, 'dockerfile_path', '/')
-        setattr(result, 'path', '/tmp')
-        return result
+        return flexmock(
+            dockerfile_path='/',
+            path='/tmp',
+            config=flexmock(override_image_build=None),
+        )
 
     def pull_base_image(self, source_registry, insecure=False):
         pass

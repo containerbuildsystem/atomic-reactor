@@ -420,9 +420,14 @@ class BuildStepPluginsRunner(BuildPluginsRunner):
         logger.info("initializing runner of build-step plugin")
         self.plugins_results = workflow.buildstep_result
 
-        if plugin_conf is None:
-            # if there is no buildstep_plugins key, fallback to docker api plugin
-            plugin_conf = [{'name': 'docker_api', 'is_allowed_to_fail': False}]
+        override = workflow.builder.source.config.override_image_build
+        if override:
+            # ignore system config and use what the source says
+            plugin_conf = [{'name': override, 'is_allowed_to_fail': False}]
+        elif plugin_conf is None:
+            # if there is no buildstep_plugins key, fallback to default plugin
+            build_plugin = workflow.default_image_build_method
+            plugin_conf = [{'name': build_plugin, 'is_allowed_to_fail': False}]
         else:
             # any non existing buildstep plugin must be skipped without error
             for i in range(len(plugin_conf)):

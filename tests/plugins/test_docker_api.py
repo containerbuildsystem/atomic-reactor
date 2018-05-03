@@ -61,10 +61,11 @@ class MockInsideBuilder(object):
 
     @property
     def source(self):
-        result = X()
-        setattr(result, 'dockerfile_path', '/')
-        setattr(result, 'path', '/tmp')
-        return result
+        return flexmock(
+            dockerfile_path='/',
+            path='/tmp',
+            config=flexmock(override_image_build='docker_api'),
+        )
 
     def pull_base_image(self, source_registry, insecure=False):
         pass

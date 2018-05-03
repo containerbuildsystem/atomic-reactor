@@ -71,12 +71,14 @@ def mock_workflow(tmpdir):
     setattr(workflow.builder, 'ensure_not_built', flexmock())
     flexmock(workflow.builder, ensure_not_built=None)
     setattr(workflow.builder, 'image_id', 'image-id')
-    setattr(workflow.builder, 'source', flexmock())
+    setattr(workflow.builder, 'source', flexmock(
+        dockerfile_path='dockerfile-path',
+        path='path',
+        config=flexmock(override_image_build=None),
+    ))
     setattr(workflow.builder, 'df_path', 'df_path')
-    setattr(workflow.builder.source, 'dockerfile_path', 'dockerfile-path')
     setattr(workflow.builder, 'image', flexmock())
     setattr(workflow.builder.image, 'to_str', lambda: 'image')
-    setattr(workflow.builder.source, 'path', 'path')
     setattr(workflow.builder, 'base_image', flexmock())
     setattr(workflow.builder.base_image, 'to_str', lambda: 'base-image')
 
@@ -90,11 +92,11 @@ def mock_workflow(tmpdir):
     ExitPluginsRunner,
     BuildStepPluginsRunner,
 ])
-def test_load_plugins(docker_tasker, runner_type):
+def test_load_plugins(docker_tasker, runner_type, tmpdir):
     """
     test loading plugins
     """
-    runner = runner_type(docker_tasker, DockerBuildWorkflow(SOURCE, ""), None)
+    runner = runner_type(docker_tasker, mock_workflow(tmpdir), None)
     assert runner.plugin_classes is not None
     assert len(runner.plugin_classes) > 0
 
@@ -256,15 +258,14 @@ def test_no_appropriate_buildstep_build_plugin(caplog, tmpdir, docker_tasker):  
         runner.run()
 
 
-def test_fallback_to_docker_build(docker_tasker):  # noqa
+def test_fallback_to_docker_build(docker_tasker, tmpdir):  # noqa
     """
     test fallback to docker build
     if no build_step specified or
     if empty list of build step plugins specified
     docker build plugin will run
     """
-    workflow = DockerBuildWorkflow(SOURCE, 'test-image')
-    setattr(workflow, 'builder', X())
+    workflow = mock_workflow(tmpdir)
 
     runner = BuildStepPluginsRunner(docker_tasker, workflow, [])
     assert runner.plugins_conf == []
