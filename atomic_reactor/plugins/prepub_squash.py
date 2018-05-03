@@ -85,6 +85,8 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         self.save_archive = save_archive
 
     def run(self):
+        if self.workflow.skip_layer_squash:
+            return  # enable build plugins to prevent unnecessary squashes
         if self.save_archive:
             output_path = os.path.join(self.workflow.source.workdir, EXPORTED_SQUASHED_IMAGE_NAME)
             metadata = {"path": output_path}
