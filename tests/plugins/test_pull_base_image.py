@@ -328,7 +328,7 @@ class TestValidateBaseImage(object):
                                     [], [], reactor_config_map=True,
                                     workflow_callback=self.prepare,
                                     check_platforms=True)
-        assert log_message in caplog.text()
+        assert log_message in caplog.text
 
     def test_manifest_list_fallback_to_orchestrate_build_args(self, caplog):
 
@@ -342,7 +342,7 @@ class TestValidateBaseImage(object):
                                     [], [], reactor_config_map=True,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
-        assert log_message in caplog.text()
+        assert log_message in caplog.text
 
     def test_expected_platforms_unknown(self, caplog):
 
@@ -357,7 +357,7 @@ class TestValidateBaseImage(object):
                                     [], [], reactor_config_map=True,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
-        assert log_message in caplog.text()
+        assert log_message in caplog.text
 
     def test_single_platform_build(self, caplog):
 
@@ -371,7 +371,7 @@ class TestValidateBaseImage(object):
                                     [], [], reactor_config_map=True,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
-        assert log_message in caplog.text()
+        assert log_message in caplog.text
 
     def test_registry_undefined(self, caplog):
         def workflow_callback(workflow):
@@ -385,7 +385,7 @@ class TestValidateBaseImage(object):
                                     [], [], reactor_config_map=True,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
-        assert log_message in caplog.text()
+        assert log_message in caplog.text
 
     def test_platform_descriptors_undefined(self, caplog):
         def workflow_callback(workflow):
@@ -399,7 +399,7 @@ class TestValidateBaseImage(object):
                                     [], [], reactor_config_map=True,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
-        assert log_message in caplog.text()
+        assert log_message in caplog.text
 
     def test_manifest_list_with_no_response(self, caplog):
         def workflow_callback(workflow):

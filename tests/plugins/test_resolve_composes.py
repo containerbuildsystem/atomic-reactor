@@ -773,22 +773,22 @@ class TestResolveComposes(object):
     def test_abort_when_odcs_config_missing(self, tmpdir, caplog, workflow, reactor_config_map):  # noqa:F811
         # Clear out default reactor config
         mock_reactor_config(workflow, tmpdir, data='')
-        with caplog.atLevel(logging.INFO):
+        with caplog.at_level(logging.INFO):
             self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
         msg = 'Aborting plugin execution: ODCS config not found'
-        assert msg in (x.message for x in caplog.records())
+        assert msg in (x.message for x in caplog.records)
 
     def test_abort_when_compose_config_missing(self, caplog, workflow, reactor_config_map):  # noqa:F811
         # Clear out default git repo config
         mock_repo_config(workflow._tmpdir, '')
         # Ensure no compose_ids are passed to plugin
         plugin_args = {'compose_ids': tuple()}
-        with caplog.atLevel(logging.INFO):
+        with caplog.at_level(logging.INFO):
             self.run_plugin_with_args(workflow, plugin_args, reactor_config_map=reactor_config_map)
 
         msg = 'Aborting plugin execution: "compose" config not set and compose_ids not given'
-        assert msg in (x.message for x in caplog.records())
+        assert msg in (x.message for x in caplog.records)
 
     def test_invalid_koji_build_target(self, workflow, reactor_config_map):  # noqa:F811
         plugin_args = {
@@ -809,11 +809,11 @@ class TestResolveComposes(object):
     def test_parameters_ignored_for_autorebuild(self, caplog, workflow, plugin_args, msg,
                                                 reactor_config_map):
         flexmock(pre_check_and_set_rebuild).should_receive('is_rebuild').and_return(True)
-        with caplog.atLevel(logging.INFO):
+        with caplog.at_level(logging.INFO):
             self.run_plugin_with_args(workflow, plugin_args,
                                       reactor_config_map=reactor_config_map)
 
-        assert msg in (x.message for x in caplog.records())
+        assert msg in (x.message for x in caplog.records)
 
     def run_plugin_with_args(self, workflow, plugin_args=None,  # noqa:F811
                              expect_error=None, reactor_config_map=False,

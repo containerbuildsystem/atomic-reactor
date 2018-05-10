@@ -526,7 +526,7 @@ class TestPostPulpSync(object):
                                 dockpulp_loglevel=loglevel)
         plugin.run()
 
-        errors = [record.getMessage() for record in caplog.records()
+        errors = [record.getMessage() for record in caplog.records
                   if record.levelname == 'ERROR']
 
         if fail:
@@ -624,7 +624,7 @@ class TestPostPulpSync(object):
                                 delete_from_registry=True)
         plugin.run()
 
-        errors = [record.getMessage() for record in caplog.records()
+        errors = [record.getMessage() for record in caplog.records
                   if record.levelname == 'ERROR']
 
         assert [message for message in errors
@@ -762,7 +762,7 @@ class TestPostPulpSync(object):
                                 workflow=workflow,
                                 **kwargs)
         plugin.run()
-        log_messages = [l.getMessage() for l in caplog.records()]
+        log_messages = [l.getMessage() for l in caplog.records]
 
         for image in workflow.tag_conf.images:
             expected_log = 'image available at %s' % image.to_str()

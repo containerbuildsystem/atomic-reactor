@@ -182,10 +182,10 @@ class TestReactorConfigPlugin(object):
 
         tasker, workflow = self.prepare()
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
-        with caplog.atLevel(logging.ERROR), pytest.raises(Exception):
+        with caplog.at_level(logging.ERROR), pytest.raises(Exception):
             plugin.run()
 
-        captured_errs = [x.message for x in caplog.records()]
+        captured_errs = [x.message for x in caplog.records]
         assert "unable to extract JSON schema, cannot validate" in captured_errs
 
     @pytest.mark.parametrize('schema', [
@@ -212,10 +212,10 @@ class TestReactorConfigPlugin(object):
 
         tasker, workflow = self.prepare()
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
-        with caplog.atLevel(logging.ERROR), pytest.raises(Exception):
+        with caplog.at_level(logging.ERROR), pytest.raises(Exception):
             plugin.run()
 
-        captured_errs = [x.message for x in caplog.records()]
+        captured_errs = [x.message for x in caplog.records]
         assert any("cannot validate" in x for x in captured_errs)
 
     @pytest.mark.parametrize(('config', 'errors'), [  # noqa:F811
@@ -315,11 +315,11 @@ class TestReactorConfigPlugin(object):
         tasker, workflow = self.prepare()
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
 
-        with caplog.atLevel(logging.ERROR), pytest.raises(ValidationError):
+        with caplog.at_level(logging.ERROR), pytest.raises(ValidationError):
             plugin.run()
 
         os.environ.pop('REACTOR_CONFIG', None)
-        captured_errs = [x.message for x in caplog.records()]
+        captured_errs = [x.message for x in caplog.records]
         for error in errors:
             try:
                 # Match regexp

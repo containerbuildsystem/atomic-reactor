@@ -168,7 +168,7 @@ def test_pulp_publish_success(caplog, reactor_config_map):
 
     crane_images = plugin.run()
 
-    assert 'to be published' in caplog.text()
+    assert 'to be published' in caplog.text
     images = [i.to_str() for i in crane_images]
     assert "registry.example.com/image-name1:latest" in images
     assert "registry.example.com/image-name1:2" in images
@@ -208,6 +208,6 @@ def test_pulp_publish_delete(worker_builds_created, v1_image_ids,
 
     assert crane_images == []
     if expected and worker_builds_created:
-        assert msg in caplog.text()
+        assert msg in caplog.text
     else:
-        assert msg not in caplog.text()
+        assert msg not in caplog.text

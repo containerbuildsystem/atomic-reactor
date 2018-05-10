@@ -63,7 +63,7 @@ class TestStopAutorebuildIfDisabledPlugin(object):
     }]
 
     def assert_message_logged(self, msg, cplog):
-        assert any([msg in l.getMessage() for l in cplog.records()])
+        assert any([msg in l.message for l in cplog.records])
 
     def setup_method(self, method):
         if MOCK:

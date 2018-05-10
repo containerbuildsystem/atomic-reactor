@@ -732,14 +732,14 @@ class TestKojiImport(object):
         assert isinstance(extra, dict)
 
         if expect_success:
-            assert "Koji Task ID {}".format(koji_task_id) in caplog.text()
+            assert "Koji Task ID {}".format(koji_task_id) in caplog.text
 
             assert 'container_koji_task_id' in extra
             extra_koji_task_id = extra['container_koji_task_id']
             assert isinstance(extra_koji_task_id, int)
             assert extra_koji_task_id == koji_task_id
         else:
-            assert "invalid task ID" in caplog.text()
+            assert "invalid task ID" in caplog.text
             assert 'container_koji_task_id' not in extra
 
     @pytest.mark.parametrize('params', [
@@ -1051,7 +1051,7 @@ class TestKojiImport(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
-        assert 'metadata:' in caplog.text()
+        assert 'metadata:' in caplog.text
 
     @pytest.mark.parametrize(('parent_id', 'expect_success', 'expect_error'), [
         (1234, True, False),
@@ -1087,7 +1087,7 @@ class TestKojiImport(object):
         assert isinstance(extra, dict)
 
         if expect_error:
-            assert 'invalid koji parent id' in caplog.text()
+            assert 'invalid koji parent id' in caplog.text
         if expect_success:
             image = extra['image']
             assert isinstance(image, dict)
@@ -1132,7 +1132,7 @@ class TestKojiImport(object):
             assert isinstance(filesystem_koji_task_id, int)
             assert filesystem_koji_task_id == task_id
         else:
-            assert 'invalid task ID' in caplog.text()
+            assert 'invalid task ID' in caplog.text
             assert 'filesystem_koji_task_id' not in extra
 
     def test_koji_import_filesystem_koji_task_id_missing(self, tmpdir, os_env, caplog,  # noqa
@@ -1157,7 +1157,7 @@ class TestKojiImport(object):
         extra = build['extra']
         assert isinstance(extra, dict)
         assert 'filesystem_koji_task_id' not in extra
-        assert AddFilesystemPlugin.key in caplog.text()
+        assert AddFilesystemPlugin.key in caplog.text
 
     @pytest.mark.parametrize('blocksize', (None, 1048576))
     @pytest.mark.parametrize(('apis',

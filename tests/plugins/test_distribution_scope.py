@@ -55,46 +55,48 @@ class TestDistributionScope(object):
                                          {'distribution-scope': parent_scope},
                                          current_scope)
         if allowed:
-            with caplog.atLevel(logging.ERROR):
+            with caplog.at_level(logging.ERROR):
                 plugin.run()
 
             # No errors logged
-            assert not caplog.records()
+            # FIXME: at_level() doesn't seem to work correctly
+            assert all(x.levelno < logging.ERROR for x in caplog.records)
         else:
             with pytest.raises(DisallowedDistributionScope):
                 plugin.run()
 
             # Should log something at ERROR
-            assert caplog.records()
+            assert caplog.records
 
     @pytest.mark.parametrize('current_scope', [None, 'private'])
     def test_imported_parent_distribution_scope(self, tmpdir, caplog, current_scope):
         plugin = self.instantiate_plugin(tmpdir, None, current_scope)
-        with caplog.atLevel(logging.ERROR):
+        with caplog.at_level(logging.ERROR):
             plugin.run()
 
         # No errors logged
-        assert not caplog.records()
+        # FIXME: at_level() doesn't seem to work correctly
+        assert all(x.levelno < logging.ERROR for x in caplog.records)
 
     @pytest.mark.parametrize('current_scope', [None, 'private'])
     def test_invalid_parent_distribution_scope(self, tmpdir, caplog, current_scope):
         plugin = self.instantiate_plugin(tmpdir,
                                          {'distribution-scope': 'invalid-choice'},
                                          current_scope)
-        with caplog.atLevel(logging.WARNING):
+        with caplog.at_level(logging.WARNING):
             plugin.run()
 
             if current_scope:
                 # Warning logged (if we get as far as checking parent scope)
-                assert 'invalid label' in caplog.text()
+                assert 'invalid label' in caplog.text
 
     @pytest.mark.parametrize('parent_scope', [None, 'private'])
     def test_invalid_current_distribution_scope(self, tmpdir, caplog, parent_scope):
         plugin = self.instantiate_plugin(tmpdir,
                                          {'distribution-scope': parent_scope},
                                          'invalid-choice')
-        with caplog.atLevel(logging.WARNING):
+        with caplog.at_level(logging.WARNING):
             plugin.run()
 
             # Warning logged
-            assert 'invalid label' in caplog.text()
+            assert 'invalid label' in caplog.text

@@ -592,7 +592,7 @@ CMD blabla"""
         .and_raise(OsbsResponseException('/', 'failed', 0)))
     with pytest.raises(PluginFailedException):
         runner.run()
-    assert 'annotations:' in caplog.text()
+    assert 'annotations:' in caplog.text
 
 
 @pytest.mark.parametrize('koji_plugin', (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
@@ -619,7 +619,7 @@ def test_store_metadata_fail_update_labels(tmpdir, caplog, koji_plugin, reactor_
         .and_raise(OsbsResponseException('/', 'failed', 0)))
     with pytest.raises(PluginFailedException):
         runner.run()
-    assert 'labels:' in caplog.text()
+    assert 'labels:' in caplog.text
 
 
 @pytest.mark.parametrize(('pulp_registries', 'docker_registries', 'prefixes'), [

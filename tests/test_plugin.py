@@ -189,7 +189,7 @@ def test_buildstep_phase_build_plugin(caplog, tmpdir, docker_tasker, success1, s
     else:
         runner.run()
         expected_log_message = "stopping further execution of plugins after first successful plugin"
-        assert expected_log_message in [l.getMessage() for l in caplog.records()]
+        assert expected_log_message in [l.getMessage() for l in caplog.records]
 
 
 @pytest.mark.parametrize('success1', [True, False])  # noqa
@@ -222,7 +222,7 @@ def test_buildstep_phase_build_plugin_failing_exception(tmpdir, caplog, docker_t
     else:
         runner.run()
         expected_log_message = "stopping further execution of plugins after first successful plugin"
-        assert expected_log_message in [l.getMessage() for l in caplog.records()]
+        assert expected_log_message in [l.getMessage() for l in caplog.records]
 
 
 def test_non_buildstep_phase_raises_InappropriateBuildStepError(caplog, tmpdir, docker_tasker):  # noqa

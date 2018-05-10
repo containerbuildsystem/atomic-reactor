@@ -97,4 +97,4 @@ def test_all_missing_required_labels(tmpdir, docker_tasker, caplog, df_content, 
         runner.run()
 
     error_msg = "Dockerfile is missing required labels: {0}".format(req_labels)
-    assert error_msg in caplog.text()
+    assert error_msg in caplog.text

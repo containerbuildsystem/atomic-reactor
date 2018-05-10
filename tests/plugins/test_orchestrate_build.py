@@ -437,7 +437,7 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
     build_info = get_worker_build_info(workflow, 'x86_64')
     assert build_info.osbs
 
-    for record in caplog.records():
+    for record in caplog.records:
         if not record.name.startswith("atomic_reactor"):
             continue
 
@@ -1342,8 +1342,8 @@ def test_orchestrate_override_content_versions(tmpdir, caplog, enable_v1, conten
     build_result = runner.run()
     if will_fail:
         assert build_result.is_failed()
-        assert 'failed to create worker build' in caplog.text()
-        assert 'content_versions is empty' in caplog.text()
+        assert 'failed to create worker build' in caplog.text
+        assert 'content_versions is empty' in caplog.text
     else:
         assert not build_result.is_failed()
 
