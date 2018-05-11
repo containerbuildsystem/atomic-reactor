@@ -18,6 +18,7 @@ import imp
 import datetime
 import inspect
 import time
+from six import PY2
 
 from atomic_reactor.build import BuildResult
 from atomic_reactor.util import process_substitutions
@@ -365,13 +366,18 @@ class BuildPluginsRunner(PluginsRunner):
             return translation_dict.get(obj_to_translate, obj_to_translate)
 
     def _remove_unknown_args(self, plugin_class, plugin_conf):
-        args, _, var_kwargs, _ = inspect.getargspec(plugin_class.__init__)
+        if PY2:
+            sig = inspect.getargspec(plugin_class.__init__)
+            kwargs = sig.keywords
+        else:
+            sig = inspect.getfullargspec(plugin_class.__init__)
+            kwargs = sig.varkw
 
         # Constructor defines **kwargs, it'll take any parameter
-        if var_kwargs:
+        if kwargs:
             return plugin_conf
 
-        args = set(args)
+        args = set(sig.args)
         known_plugin_conf = {}
         for key, value in plugin_conf.items():
             if key not in args:
