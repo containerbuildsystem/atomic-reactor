@@ -58,7 +58,7 @@ class BuildResult(object):
     REMOTE_IMAGE = object()
 
     def __init__(self, logs=None, fail_reason=None, image_id=None,
-                 annotations=None, labels=None):
+                 annotations=None, labels=None, skip_layer_squash=False):
         """
         :param logs: iterable of log lines (without newlines)
         :param fail_reason: str, description of failure or None if successful
@@ -67,6 +67,8 @@ class BuildResult(object):
                             should be annotated to OpenShift build
         :param labels: dict, data captured during build step which
                        should be set as labels on OpenShift build
+        :param skip_layer_squash: boolean, direct post-build plugins not
+                                  to squash image layers for this build
         """
         assert fail_reason is None or bool(fail_reason), \
             "If fail_reason provided, can't be falsy"
@@ -78,6 +80,7 @@ class BuildResult(object):
         self._image_id = image_id
         self._annotations = annotations
         self._labels = labels
+        self._skip_layer_squash = skip_layer_squash
 
     @staticmethod
     def make_remote_image_result(annotations=None, labels=None):
@@ -107,6 +110,10 @@ class BuildResult(object):
     @property
     def labels(self):
         return self._labels
+
+    @property
+    def skip_layer_squash(self):
+        return self._skip_layer_squash
 
     def is_image_available(self):
         return self._image_id and self._image_id is not self.REMOTE_IMAGE

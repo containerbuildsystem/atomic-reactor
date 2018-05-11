@@ -21,6 +21,7 @@ from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
 from atomic_reactor.plugins import exit_remove_built_image
 from atomic_reactor.plugins.prepub_squash import PrePublishSquashPlugin
 from atomic_reactor.util import ImageName
+from atomic_reactor.build import BuildResult
 from docker_squash.squash import Squash
 from tests.constants import MOCK, MOCK_SOURCE
 
@@ -71,7 +72,7 @@ class TestSquashPlugin(object):
 
     def test_skip_squash(self):
         flexmock(Squash).should_receive('__init__').never()
-        self.workflow.skip_layer_squash = True
+        self.workflow.build_result = BuildResult(image_id="spam", skip_layer_squash=True)
         self.run_plugin_with_args({})
 
     def test_default_parameters(self):
