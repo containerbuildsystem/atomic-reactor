@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 import json
+import logging
 import os
 import tempfile
 import pytest
@@ -487,7 +488,7 @@ def test_guess_manifest_media_type(content, media_type):
      '/v2/spam/manifests/latest'),
 ])
 @responses.activate
-def test_get_manifest_digests(tmpdir, image, registry, insecure, creds,
+def test_get_manifest_digests(tmpdir, caplog, image, registry, insecure, creds,
                               versions, require_digest, path):
     kwargs = {}
 
@@ -563,17 +564,26 @@ def test_get_manifest_digests(tmpdir, image, registry, insecure, creds,
     if versions and 'v2_list' in versions:
         expected_result['v2_list'] = True
 
-    if expected_versions:
-        actual_digests = get_manifest_digests(**kwargs)
-        assert actual_digests.v1 == expected_result.get('v1')
-        assert actual_digests.v2 == expected_result.get('v2')
-        if 'v2_list' in expected_result:
-            assert actual_digests.v2_list == expected_result.get('v2_list')
-    elif require_digest:
-        with pytest.raises(RuntimeError):
+    # Only capture errors, since we want to be sure none are reported
+    with caplog.atLevel(logging.ERROR):
+        if expected_versions:
+            actual_digests = get_manifest_digests(**kwargs)
+
+            # Check the expected versions are found
+            assert actual_digests.v1 == expected_result.get('v1')
+            assert actual_digests.v2 == expected_result.get('v2')
+            if 'v2_list' in expected_result:
+                assert actual_digests.v2_list == expected_result.get('v2_list')
+        elif require_digest:
+            # When require_digest is set but there is no digest
+            # available (no expected_versions), expect a RuntimeError
+            with pytest.raises(RuntimeError):
+                get_manifest_digests(**kwargs)
+        else:
             get_manifest_digests(**kwargs)
-    else:
-        get_manifest_digests(**kwargs)
+
+    # there should be no errors reported
+    assert not caplog.records()
 
 
 @pytest.mark.parametrize('has_content_type_header', [

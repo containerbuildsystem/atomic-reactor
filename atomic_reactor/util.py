@@ -876,7 +876,7 @@ def get_manifest(image, registry_session, version):
             raise
 
     if not manifest_is_media_type(response, media_type):
-        logger.error("content does not match expected media type")
+        logger.warning("content does not match expected media type")
         return None, saved_not_found
     logger.debug("content matches expected media type")
     return response, saved_not_found
