@@ -8,7 +8,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function, unicode_literals
 
 import subprocess
-from time import sleep
+import time
 from six import PY2
 
 from atomic_reactor.plugin import BuildStepPlugin
@@ -61,7 +61,7 @@ class ImagebuilderPlugin(BuildStepPlugin):
             if out == '' and err == '':
                 if poll is not None:
                     break
-                sleep(0.1)  # don't busy-wait when there's no output
+                time.sleep(0.1)  # don't busy-wait when there's no output
 
         if ib_process.returncode != 0:
             # imagebuilder uses stderr for normal output too; so in the case of an apparent
@@ -72,12 +72,9 @@ class ImagebuilderPlugin(BuildStepPlugin):
                 fail_reason="image build failed (rc={}): {}".format(ib_process.returncode, err),
             )
 
-        # NOTE: it may make more sense to record this in the BuildResult
-        self.workflow.skip_layer_squash = True
-
         image_id = builder.get_built_image_info()['Id']
         if ':' not in image_id:
             # Older versions of the daemon do not include the prefix
             image_id = 'sha256:{}'.format(image_id)
 
-        return BuildResult(logs=output, image_id=image_id)
+        return BuildResult(logs=output, image_id=image_id, skip_layer_squash=True)

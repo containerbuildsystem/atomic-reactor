@@ -9,9 +9,11 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 import subprocess
+import time
 from dockerfile_parse import DockerfileParser
 
 from atomic_reactor.plugin import PluginFailedException
+from atomic_reactor.plugins.build_imagebuilder import ImagebuilderPlugin
 from atomic_reactor.build import InsideBuilder, BuildResult
 from atomic_reactor.util import ImageName
 from atomic_reactor.inner import DockerBuildWorkflow
@@ -94,7 +96,7 @@ def test_popen_cmd(image_id):
     assert not workflow.build_result.is_failed()
     assert workflow.build_result.image_id.startswith('sha256:')
     assert workflow.build_result.image_id.count(':') == 1
-    assert workflow.skip_layer_squash
+    assert workflow.build_result.skip_layer_squash
     assert cmd_output in workflow.build_result.logs
 
 
@@ -121,4 +123,23 @@ def test_failed_build():
     assert cmd_output in workflow.build_result.logs
     assert cmd_error in workflow.build_result.logs
     assert cmd_error in workflow.build_result.fail_reason
-    assert workflow.skip_layer_squash is False
+    assert workflow.build_result.skip_layer_squash is False
+
+
+def test_sleep_await_output():
+    ib_process = flexmock(
+        stdout=StringIO(""),
+        stderr=StringIO(""),
+        poll=lambda: None,
+        returncode=1,
+    )
+    flexmock(subprocess).should_receive('Popen').and_return(ib_process)
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    workflow.builder = MockInsideBuilder(image_id='abcde')
+
+    class Spam(Exception):
+        pass
+
+    flexmock(time).should_receive('sleep').with_args(0.1).and_raise(Spam)
+    with pytest.raises(Spam):
+        ImagebuilderPlugin(None, workflow).run()

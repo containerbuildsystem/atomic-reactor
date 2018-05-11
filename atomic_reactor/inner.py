@@ -360,7 +360,6 @@ class DockerBuildWorkflow(object):
         self.plugins_errors = {}
         self.autorebuild_canceled = False
         self.build_canceled = False
-        self.skip_layer_squash = False
         self.plugin_failed = False
         self.plugin_files = plugin_files
         self.fs_watcher = FSWatcher()
