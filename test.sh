@@ -33,6 +33,11 @@ if [[ $(docker ps -q -f name=$CONTAINER_NAME | wc -l) -eq 0 ]]; then
   docker run --name $CONTAINER_NAME -d -v $PWD:$PWD:z -w $PWD -ti $IMAGE sleep infinity
 fi
 
+if [[ $OS == "centos" ]]; then
+  # Don't let builddep enable *-source repos since they give 404 errors
+  $RUN rm -f /etc/yum.repos.d/CentOS-Sources.repo
+fi
+
 # Install dependencies
 $RUN $PKG install -y $PKG_EXTRA
 $RUN $BUILDDEP -y atomic-reactor.spec
