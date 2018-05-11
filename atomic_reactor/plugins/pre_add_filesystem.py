@@ -235,7 +235,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         if self.architecture:
             prefix = '{}.*{}'.format(prefix, self.architecture)
 
-        pattern = ('{}.*(\.tar|\.tar\.gz|\.tar\.bz2|\.tar\.xz)$'
+        pattern = (r'{}.*(\.tar|\.tar\.gz|\.tar\.bz2|\.tar\.xz)$'
                    .format(prefix))
         filesystem_regex = re.compile(pattern, re.IGNORECASE)
 

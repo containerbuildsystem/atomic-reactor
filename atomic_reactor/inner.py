@@ -559,4 +559,4 @@ def build_inside(input_method, input_args=None, substitutions=None):
     if not build_result or build_result.is_failed():
         raise RuntimeError("no image built")
     else:
-        logger.info("build has finished successfully \o/")
+        logger.info("build has finished successfully \\o/")

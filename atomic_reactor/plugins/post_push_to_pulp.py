@@ -41,7 +41,6 @@ pulp_secret_path:
 from __future__ import print_function, unicode_literals
 
 import tempfile
-from tempfile import NamedTemporaryFile
 import os
 import subprocess
 
@@ -157,13 +156,13 @@ class PulpPushPlugin(PostBuildPlugin):
         try:
             top_layer, layers = self.pulp_handler.get_tar_metadata(filename)
             compressed_filename = self._deduplicate_layers(layers, filename, file_extension)
-        except:
+        except Exception:
             self.log.debug("Error on creating deduplicated layers tar", exc_info=True)
             try:
                 if file_extension != '.tar':
                     raise RuntimeError("tar is already compressed")
                 compressed_filename = self._gzip_file(filename)
-            except:
+            except Exception:
                 self.log.info("Falling back to full tar upload")
 
         in_rh_everything = False

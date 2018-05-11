@@ -201,16 +201,16 @@ class CommandResult(object):
 
         # make sure the log item is a dictionary object
         if isinstance(item, dict):
-            line = item.get("stream", "")
+            lines = item.get("stream", "")
         else:
-            line = item
+            lines = item
             item = None
 
-        for l in line.splitlines():
-            l = l.strip()
-            self._logs.append(l)
-            if l:
-                logger.debug(l)
+        for line in lines.splitlines():
+            line = line.strip()
+            self._logs.append(line)
+            if line:
+                logger.debug(line)
 
         if item is not None:
             self._error = item.get("error", None)

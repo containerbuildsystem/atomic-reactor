@@ -15,7 +15,7 @@ import os
 from atomic_reactor import util
 from atomic_reactor.constants import DEFAULT_DOWNLOAD_BLOCK_SIZE
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import (get_koji_session, get_koji,
+from atomic_reactor.plugins.pre_reactor_config import (get_koji_session,
                                                        get_koji_path_info,
                                                        get_artifacts_allowed_domains)
 from collections import namedtuple
