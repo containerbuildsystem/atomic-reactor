@@ -19,7 +19,7 @@ except ImportError:
     pass
 
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.source import VcsInfo
+from atomic_reactor.source import VcsInfo, SourceConfig
 from atomic_reactor.util import ImageName
 
 from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
@@ -34,6 +34,7 @@ class MockSource(object):
         self.path = tmpdir
 
         self.container_yaml_path = os.path.join(tmpdir, 'container.yaml')
+        self.config = None
 
     def get_build_file_path(self):
         return self.container_yaml_path, self.path
@@ -63,6 +64,7 @@ def mock_workflow(tmpdir, container_yaml):
 
     with open(mock_source.container_yaml_path, "w") as f:
         f.write(container_yaml)
+    workflow.builder.source.config = SourceConfig(str(tmpdir))
 
     setattr(workflow.builder, 'df_dir', str(tmpdir))
 

@@ -30,6 +30,7 @@ except ImportError:
 from atomic_reactor.constants import PLUGIN_KOJI_PARENT_KEY, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.source import SourceConfig
 from atomic_reactor.odcs_util import ODCSClient
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins import pre_check_and_set_rebuild
@@ -133,9 +134,15 @@ class MockSource(object):
     def __init__(self, tmpdir):
         self.dockerfile_path = str(tmpdir.join('Dockerfile'))
         self.path = str(tmpdir)
+        self._config = None
 
     def get_build_file_path(self):
         return self.dockerfile_path, self.path
+
+    @property
+    def config(self):  # lazy load after container.yaml has been created
+        self._config = self._config or SourceConfig(self.path)
+        return self._config
 
 
 def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_INTENT):

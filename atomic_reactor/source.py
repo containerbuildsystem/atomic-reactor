@@ -47,6 +47,8 @@ class SourceConfig(object):
                 # and proceed with default source config, that is, none
 
         self.autorebuild = self.data.get('autorebuild', {})
+        self.flatpak = self.data.get('flatpak')
+        self.compose = self.data.get('compose')
         self.override_image_build = oib = self.data.get('override_image_build')
         if oib is not None and oib not in CONTAINER_BUILD_METHODS:
             raise RuntimeError("unknown build method " + oib)

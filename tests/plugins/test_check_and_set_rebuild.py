@@ -44,6 +44,7 @@ class MockSource(object):
         self.dockerfile_path = str(tmpdir.join('Dockerfile'))
         self.path = str(tmpdir)
         self.commit_id = None
+        self.config = flexmock(autorebuild=dict(from_latest=False))
 
     def get_build_file_path(self):
         return self.dockerfile_path, self.path
@@ -181,12 +182,7 @@ class TestCheckRebuild(object):
             .times(1 if from_latest is True else 0)
             .with_args(workflow, 'git_ref', 'HEAD-OF-origin/the-branch'))
 
-        if from_latest is not None:
-            tmpdir.join('container.yaml').write(dedent("""
-            ---
-            autorebuild:
-              from_latest: {}
-            """.format(from_latest)))
+        workflow.source.config.autorebuild = dict(from_latest=from_latest)
 
         runner.run()
         assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] is True
