@@ -29,7 +29,6 @@ from modulemd import ModuleMetadata
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import split_module_spec
-from atomic_reactor.constants import REPO_CONTAINER_CONFIG
 from atomic_reactor.plugins.pre_reactor_config import (get_pdc_session, get_odcs_session,
                                                        get_pdc, get_odcs)
 
@@ -126,11 +125,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
         self.data = None
 
     def read_configs_general(self):
-        workdir = self.workflow.source.get_build_file_path()[1]
-        file_path = os.path.join(workdir, REPO_CONTAINER_CONFIG)
-        if os.path.exists(file_path):
-            with open(file_path) as f:
-                self.data = (yaml.safe_load(f) or {}).get('compose')
+        self.data = self.workflow.source.config.compose
 
         if not self.data:
             raise RuntimeError('"compose" config in container.yaml is required for Flatpaks')

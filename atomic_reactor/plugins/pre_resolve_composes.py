@@ -13,8 +13,7 @@ import yaml
 from collections import defaultdict
 
 from atomic_reactor.constants import (PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
-                                      REPO_CONTAINER_CONFIG, REPO_CONTENT_SETS_CONFIG,
-                                      PLUGIN_BUILD_ORCHESTRATE_KEY,
+                                      REPO_CONTENT_SETS_CONFIG, PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
 
 from atomic_reactor.plugin import PreBuildPlugin
@@ -149,16 +148,11 @@ class ResolveComposesPlugin(PreBuildPlugin):
         if not self.odcs_config:
             raise SkipResolveComposesPlugin('ODCS config not found')
 
-        workdir = self.workflow.source.get_build_file_path()[1]
-        file_path = os.path.join(workdir, REPO_CONTAINER_CONFIG)
-        data = None
-        if os.path.exists(file_path):
-            with open(file_path) as f:
-                data = (yaml.safe_load(f) or {}).get('compose')
-
+        data = self.workflow.source.config.compose
         if not data and not self.compose_ids:
             raise SkipResolveComposesPlugin('"compose" config not set and compose_ids not given')
 
+        workdir = self.workflow.source.get_build_file_path()[1]
         file_path = os.path.join(workdir, REPO_CONTENT_SETS_CONFIG)
         pulp_data = None
         if os.path.exists(file_path):

@@ -8,7 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 
-from atomic_reactor.constants import REPO_CONTAINER_CONFIG
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
 from atomic_reactor.util import get_build_json
@@ -110,11 +109,4 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
         override_build_kwarg(self.workflow, 'git_ref', self.workflow.source.commit_id)
 
     def should_use_latest_commit(self):
-        workdir = self.workflow.source.get_build_file_path()[1]
-        file_path = os.path.join(workdir, REPO_CONTAINER_CONFIG)
-        from_latest = False
-        if os.path.exists(file_path):
-            with open(file_path) as f:
-                from_latest = (yaml.safe_load(f) or {}).get('autorebuild', {}).get('from_latest')
-
-        return from_latest
+        return self.workflow.source.config.autorebuild.get('from_latest', False)

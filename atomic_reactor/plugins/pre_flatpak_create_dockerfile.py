@@ -21,7 +21,7 @@ Example configuration:
 import os
 import yaml
 
-from atomic_reactor.constants import DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG, YUM_REPOS_DIR
+from atomic_reactor.constants import DOCKERFILE_FILENAME, YUM_REPOS_DIR
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_resolve_module_compose import get_compose_info
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
@@ -139,10 +139,7 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
         self.base_image = base_image
 
     def _load_source(self):
-        container_yaml_path = os.path.join(self.workflow.builder.df_dir, REPO_CONTAINER_CONFIG)
-        with open(container_yaml_path, 'r') as fp:
-            container_yaml = yaml.safe_load(fp)
-        flatpak_yaml = container_yaml['flatpak']
+        flatpak_yaml = self.workflow.source.config.flatpak
 
         compose_info = get_compose_info(self.workflow)
         if compose_info is None:

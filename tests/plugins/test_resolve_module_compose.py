@@ -27,7 +27,7 @@ from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from atomic_reactor.source import VcsInfo
+from atomic_reactor.source import VcsInfo, SourceConfig
 from atomic_reactor.util import ImageName
 from atomic_reactor.constants import REPO_CONTAINER_CONFIG
 
@@ -42,6 +42,7 @@ class MockSource(object):
         tmpdir = str(tmpdir)
         self.dockerfile_path = "./"
         self.path = tmpdir
+        self._config = None
 
         self.container_yaml_path = os.path.join(tmpdir, 'container.yaml')
 
@@ -50,6 +51,11 @@ class MockSource(object):
 
     def get_vcs_info(self):
         return VcsInfo('git', FLATPAK_GIT, FLATPAK_SHA1)
+
+    @property
+    def config(self):  # lazy load after container.yaml has been created
+        self._config = self._config or SourceConfig(self.path)
+        return self._config
 
 
 class MockBuilder(object):
