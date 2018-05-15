@@ -148,6 +148,9 @@ def test_bad_inspect_data(tmpdir, docker_tasker, inspect, error):
                                      'name_value:version_value']),
     (['foo', 'bar'], ['{version}-{release}'],
      ['name_value:foo', 'name_value:bar', 'name_value:version_value-7.4.1']),
+    (['foo', 'bar'], ['baz', '{version}', 'version_value', 'baz'],
+     ['name_value:foo', 'name_value:bar', 'name_value:baz',
+      'name_value:version_value']),
 ])
 def test_tag_parse(tmpdir, docker_tasker, unique_tags, primary_tags, expected):
     df = df_parser(str(tmpdir))
