@@ -338,11 +338,12 @@ def get_build_image_override(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'build_image_override', fallback)
 
 
-def get_default_image_build_method(workflow, logger, fallback=CONTAINER_DEFAULT_BUILD_METHOD):
+def get_default_image_build_method(workflow, fallback=CONTAINER_DEFAULT_BUILD_METHOD):
     value = get_value(workflow, 'default_image_build_method', fallback)
-    if value not in CONTAINER_BUILD_METHODS:
-        logger.error("invalid default_image_build_method '{}'; using default".format(value))
-        return fallback
+    assert value in CONTAINER_BUILD_METHODS, (
+        "unknown default_image_build_method '{}' in reactor config; "
+        "config schema validation should have caught this."
+    ).format(value)
     return value
 
 
@@ -502,6 +503,4 @@ class ReactorConfigPlugin(PreBuildPlugin):
         self.log.info("reading config content %s", reactor_conf.conf)
 
         # need to stash this on the workflow for access in a place that can't import this module
-        self.workflow.default_image_build_method = get_default_image_build_method(
-            self.workflow, self.log
-        )
+        self.workflow.default_image_build_method = get_default_image_build_method(self.workflow)
