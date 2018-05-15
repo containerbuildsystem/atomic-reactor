@@ -96,10 +96,11 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
                         # OK, really give up now.
                         raise
             else:
-                if self.expect_v2schema2 and not digests.v2:
-                    self.log.warn("Expected schema 2 manifest")
-                elif self.expect_v2schema2list and not digests.v2_list:
+                if self.expect_v2schema2list and not digests.v2_list:
                     self.log.warn("Expected schema 2 manifest list")
+                elif (not self.expect_v2schema2list_only and self.expect_v2schema2 and
+                      not digests.v2):
+                    self.log.warn("Expected schema 2 manifest")
                 else:
                     return digests
 
@@ -207,3 +208,4 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
             else:
                 self.log.debug('amd64 was not built, only manifest list digest is available')
                 self.expect_v2schema2list_only = True
+                self.expect_v2schema2 = False

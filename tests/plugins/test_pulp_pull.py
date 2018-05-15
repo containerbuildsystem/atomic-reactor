@@ -501,6 +501,7 @@ class TestPostPulpPull(object):
                 plugin.run()
 
     @responses.activate
+    @pytest.mark.parametrize('expect_v2', [True, False])
     @pytest.mark.parametrize(('platforms', 'platform_descriptors', 'manifest_list_only'), [
         (['ppc64le'], True, True),
         (['ppc64le'], False, False),
@@ -511,7 +512,8 @@ class TestPostPulpPull(object):
         (['x86_64'], True, False),
         (['x86_64'], False, False),
     ])
-    def test_expect_v2schema2list_only(self, platforms, platform_descriptors, manifest_list_only):
+    def test_expect_v2schema2list_only(self, caplog, expect_v2, platforms, platform_descriptors,
+                                       manifest_list_only):
         def get_manifest(request):
             media_types = request.headers.get('Accept', '').split(',')
             content_type = media_types[0]
@@ -528,11 +530,144 @@ class TestPostPulpPull(object):
         workflow.postbuild_plugins_conf = [{'name': 'pulp_sync'}]
         tasker = MockerTasker()
         plugin = PulpPullPlugin(tasker, workflow, timeout=0.2,
-                                retry_delay=0.1, expect_v2schema2=True)
+                                retry_delay=0.1, expect_v2schema2=expect_v2)
         media_types = plugin.run()
 
         expected_media_types = [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]
         if not manifest_list_only:
             expected_media_types.append(MEDIA_TYPE_DOCKER_V2_SCHEMA1)
             expected_media_types.append(MEDIA_TYPE_DOCKER_V2_SCHEMA2)
+        else:
+            assert "Only V2 schema 2 manifest list is expected, " in caplog.text()
         assert set(media_types) == set(expected_media_types)
+
+    @responses.activate
+    @pytest.mark.parametrize(('platforms', 'manifest_list_only', 'has_v1', 'has_v2',
+                              'has_v2_list', 'expect_v2', 'expect_success',
+                              'manifest_list_warn', 'manifest2_warn'), [
+        (['ppc64le'], True, False, True, True, True, True, False, False),
+        (['ppc64le'], True, False, True, True, False, True, False, False),
+        (['ppc64le'], True, False, True, False, True, False, True, False),
+        (['ppc64le'], True, False, True, False, False, False, True, False),
+        (['ppc64le'], True, False, False, True, True, True, False, False),
+        (['ppc64le'], True, False, False, True, False, True, False, False),
+        (['ppc64le'], True, False, False, False, True, False, False, False),
+        (['ppc64le'], True, False, False, False, False, False, False, False),
+
+        (['ppc64le', 'arm'], True, False, True, True, True, True, False, False),
+        (['ppc64le', 'arm'], True, False, True, True, False, True, False, False),
+        (['ppc64le', 'arm'], True, False, True, False, True, False, True, False),
+        (['ppc64le', 'arm'], True, False, True, False, False, False, True, False),
+        (['ppc64le', 'arm'], True, False, False, True, True, True, False, False),
+        (['ppc64le', 'arm'], True, False, False, True, False, True, False, False),
+        (['ppc64le', 'arm'], True, False, False, False, True, False, False, False),
+        (['ppc64le', 'arm'], True, False, False, False, False, False, False, False),
+
+        (['ppc64le', 'x86_64'], False, True, True, True, True, True, False, False),
+        (['ppc64le', 'x86_64'], False, True, True, True, False, True, False, False),
+        (['ppc64le', 'x86_64'], False, True, True, False, True, False, True, False),
+        (['ppc64le', 'x86_64'], False, True, True, False, False, False, True, False),
+        (['ppc64le', 'x86_64'], False, True, False, True, True, False, False, True),
+        (['ppc64le', 'x86_64'], False, True, False, True, False, False, False, False),
+        (['ppc64le', 'x86_64'], False, True, False, False, True, False, True, False),
+        (['ppc64le', 'x86_64'], False, True, False, False, False, False, True, False),
+
+        (['x86_64'], False, True, True, True, True, True, False, False),
+        (['x86_64'], False, True, True, True, False, True, False, False),
+        (['x86_64'], False, True, True, False, True, False, True, False),
+        (['x86_64'], False, True, True, False, False, False, True, False),
+        (['x86_64'], False, True, False, True, True, False, False, True),
+        (['x86_64'], False, True, False, True, False, False, False, False),
+        (['x86_64'], False, True, False, False, True, False, True, False),
+        (['x86_64'], False, True, False, False, False, False, True, False),
+    ])
+    def test_expect_v2_expect_v2list(self, caplog, has_v2, has_v2_list,
+                                     expect_v2, platforms, manifest_list_only, has_v1,
+                                     expect_success, manifest_list_warn, manifest2_warn):
+        def get_manifest(request):
+            media_types = request.headers.get('Accept', '').split(',')
+            content_type = media_types[0]
+            return (200, {'Content-Type': content_type}, '{}')
+
+        url = re.compile(r'.*//crane.example.com/v2/.*/manifests/.*')
+        responses.add_callback(responses.GET, url, callback=get_manifest)
+        digests = {'digest': None}
+        workflow = self.workflow(
+            platform_descriptors=True,
+            postbuild_results={PLUGIN_GROUP_MANIFESTS_KEY: digests},
+            prebuild_results={PLUGIN_CHECK_AND_SET_PLATFORMS_KEY: set(platforms)},
+            expectv2schema2=expect_v2,
+        )
+        workflow.postbuild_plugins_conf = [{'name': 'pulp_sync'}]
+
+        not_found = requests.Response()
+        flexmock(not_found, status_code=requests.codes.not_found)
+        expectation = flexmock(requests.Session).should_receive('get')
+
+        # 1st retry don't find anything
+        for _ in range(5):
+            expectation = expectation.and_return(not_found)
+
+        # (for v1, v2, list.v2, oci, and oci.index media types) before get_manifest_digests
+        # v1
+        if has_v1:
+            expectation.and_return(self.config_response_config_v1)
+        else:
+            expectation.and_return(not_found)
+
+        # v2
+        if has_v2:
+            expectation.and_return(self.config_response_config_v2)
+        elif has_v1:
+            expectation.and_return(self.config_response_config_v1)
+        else:
+            expectation.and_return(not_found)
+
+        # v2_list
+        if has_v2_list:
+            expectation.and_return(self.config_response_config_v2_list)
+        else:
+            expectation.and_return(not_found)
+
+        # oci
+        if has_v1:
+            expectation.and_return(self.config_response_config_v1)
+            expectation.and_return(self.config_response_config_v1)
+        else:
+            expectation.and_return(not_found)
+            expectation.and_return(not_found)
+
+        tasker = MockerTasker()
+        plugin = PulpPullPlugin(tasker, workflow, timeout=0.2,
+                                retry_delay=0.2, expect_v2schema2=expect_v2)
+        media_types = None
+
+        if manifest_list_only:
+            if expect_success:
+                media_types = plugin.run()
+            else:
+                with pytest.raises(Exception):
+                    plugin.run()
+                if manifest_list_warn:
+                    assert "Expected schema 2 manifest list" in caplog.text()
+        else:
+            if expect_success:
+                media_types = plugin.run()
+            else:
+                with pytest.raises(Exception):
+                    plugin.run()
+                if manifest_list_warn:
+                    assert "Expected schema 2 manifest list" in caplog.text()
+                elif manifest2_warn:
+                    assert "Expected schema 2 manifest" in caplog.text()
+
+        if media_types:
+            expected_media_types = [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]
+            if not manifest_list_only:
+                expected_media_types.append(MEDIA_TYPE_DOCKER_V2_SCHEMA1)
+                expected_media_types.append(MEDIA_TYPE_DOCKER_V2_SCHEMA2)
+                assert "V2 schema 2 digest found, leaving image ID unchanged" in caplog.text()
+            else:
+                assert "Only V2 schema 2 manifest list is expected, " in caplog.text()
+
+            assert set(media_types) == set(expected_media_types)
