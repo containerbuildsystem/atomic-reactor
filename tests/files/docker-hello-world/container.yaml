@@ -1,2 +1,2 @@
 ---
-override_image_build: imagebuilder
+image_build_method: imagebuilder

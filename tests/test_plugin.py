@@ -74,7 +74,7 @@ def mock_workflow(tmpdir):
     setattr(workflow.builder, 'source', flexmock(
         dockerfile_path='dockerfile-path',
         path='path',
-        config=flexmock(override_image_build=None),
+        config=flexmock(image_build_method=None),
     ))
     setattr(workflow.builder, 'df_path', 'df_path')
     setattr(workflow.builder, 'image', flexmock())
