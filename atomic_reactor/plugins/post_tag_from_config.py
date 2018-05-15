@@ -1,5 +1,5 @@
 """
-Copyright (c) 2016 Red Hat, Inc
+Copyright (c) 2016, 2017, 2018 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -57,14 +57,16 @@ class TagFromConfigPlugin(PostBuildPlugin):
             tag = '{}:{}'.format(name, tag_suffix)
             self.log.debug('Using additional unique tag %s', tag)
             self.workflow.tag_conf.add_unique_image(tag)
-            tags.append(tag)
+            if tag not in tags:
+                tags.append(tag)
 
         for tag_suffix in self.tag_suffixes.get('primary', []):
             p_suffix = LabelFormatter().vformat(tag_suffix, [], self.labels)
             p_tag = '{}:{}'.format(name, p_suffix)
             self.log.debug('Using additional primary tag %s', p_tag)
             self.workflow.tag_conf.add_primary_image(p_tag)
-            tags.append(p_tag)
+            if p_tag not in tags:
+                tags.append(p_tag)
 
         return tags
 
