@@ -604,36 +604,24 @@ class TestReactorConfigPlugin(object):
             assert platform_to_goarch[plat] == goarch
             assert goarch_to_platform[goarch] == plat
 
-    @pytest.mark.parametrize(('config', 'fallback', 'expect'), [
+    @pytest.mark.parametrize(('config', 'expect'), [
         ("""\
           version: 1
           default_image_build_method: imagebuilder
          """,
-         False,
          "imagebuilder"),
         ("""\
           version: 1
          """,
-         False,
          CONTAINER_DEFAULT_BUILD_METHOD),
-        ("""\
-          version: 1
-         """,
-         True,
-         "bogus_plugin_name"),
     ])
-    def test_get_default_image_build_method(self, fallback, config, expect):
+    def test_get_default_image_build_method(self, config, expect):
         config_json = read_yaml(config, 'schemas/config.json')
         _, workflow = self.prepare()
         workspace = workflow.plugin_workspace.setdefault(ReactorConfigPlugin.key, {})
         workspace[WORKSPACE_CONF_KEY] = ReactorConfig(config_json)
 
-        kwargs = {}
-        logger = flexmock()
-        if fallback:
-            logger.should_receive('error')
-            kwargs['fallback'] = expect
-        method = get_default_image_build_method(workflow, logger, **kwargs)
+        method = get_default_image_build_method(workflow)
         assert method == expect
 
     @pytest.mark.parametrize('fallback', (True, False))
