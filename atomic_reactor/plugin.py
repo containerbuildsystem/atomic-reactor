@@ -420,7 +420,7 @@ class BuildStepPluginsRunner(BuildPluginsRunner):
         logger.info("initializing runner of build-step plugin")
         self.plugins_results = workflow.buildstep_result
 
-        override = workflow.builder.source.config.override_image_build
+        override = workflow.builder.source.config.image_build_method
         if override:
             # ignore system config and use what the source says
             plugin_conf = [{'name': override, 'is_allowed_to_fail': False}]

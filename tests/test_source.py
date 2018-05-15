@@ -66,7 +66,7 @@ class TestGetSourceInstanceFor(object):
     def test_retrieves_source_config_file(self):
         s = get_source_instance_for({'provider': 'path', 'uri': DOCKERFILE_OK_PATH})
         assert s.config
-        assert s.config.override_image_build == 'imagebuilder'
+        assert s.config.image_build_method == 'imagebuilder'
 
     def test_sourceconfig_bad_build_method(self, monkeypatch):
         s = get_source_instance_for({'provider': 'path', 'uri': DOCKERFILE_OK_PATH})
@@ -77,4 +77,4 @@ class TestGetSourceInstanceFor(object):
     def test_broken_source_config_file(self):
         s = get_source_instance_for({'provider': 'path', 'uri': SOURCE_CONFIG_ERROR_PATH})
         assert s.config
-        assert s.config.override_image_build is None  # because the load failed
+        assert s.config.image_build_method is None  # because the load failed

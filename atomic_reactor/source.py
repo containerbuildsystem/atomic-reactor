@@ -49,9 +49,9 @@ class SourceConfig(object):
         self.autorebuild = self.data.get('autorebuild', {})
         self.flatpak = self.data.get('flatpak')
         self.compose = self.data.get('compose')
-        self.override_image_build = oib = self.data.get('override_image_build')
-        if oib is not None and oib not in CONTAINER_BUILD_METHODS:
-            raise RuntimeError("unknown build method " + oib)
+        self.image_build_method = meth = self.data.get('image_build_method')
+        if meth is not None and meth not in CONTAINER_BUILD_METHODS:
+            raise RuntimeError("unknown build method " + meth)
 
 
 class Source(object):

@@ -118,7 +118,7 @@ class MockInsideBuilder(object):
         return flexmock(
             dockerfile_path='/',
             path='/tmp',
-            config=flexmock(override_image_build=None),
+            config=flexmock(image_build_method=None),
         )
 
     def pull_base_image(self, source_registry, insecure=False):

@@ -75,7 +75,7 @@ class MockSource(object):
         tmpdir = str(tmpdir)
         self.dockerfile_path = os.path.join(tmpdir, 'Dockerfile')
         self.path = tmpdir
-        self.config = flexmock(override_image_build=None)
+        self.config = flexmock(image_build_method=None)
 
     def get_build_file_path(self):
         return self.dockerfile_path, self.path
