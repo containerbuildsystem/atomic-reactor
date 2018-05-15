@@ -44,14 +44,16 @@ class SourceConfig(object):
                 self.data = read_yaml_from_file_path(file_path, 'schemas/container.json') or {}
             except Exception:
                 logger.exception("Failed to load and validate source config YAML from " + file_path)
-                # and proceed with default source config, that is, none
+                raise
 
         self.autorebuild = self.data.get('autorebuild', {})
         self.flatpak = self.data.get('flatpak')
         self.compose = self.data.get('compose')
         self.image_build_method = meth = self.data.get('image_build_method')
-        if meth is not None and meth not in CONTAINER_BUILD_METHODS:
-            raise RuntimeError("unknown build method " + meth)
+        assert meth is None or meth in CONTAINER_BUILD_METHODS, (
+               "unknown build method '{}' specified in {}; also, schema validated it."
+               .format(meth, REPO_CONTAINER_CONFIG)
+        )
 
 
 class Source(object):
