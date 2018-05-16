@@ -176,10 +176,8 @@ class CLI(object):
         self.ib_parser = subparsers.add_parser(
             'inside-build',
             usage="%s [OPTIONS] inside-build" % PROG,
-            description="We do expect we are inside container, therefore we'll read "
-                        "build configuration from json at '%s'" % CONTAINER_BUILD_JSON_PATH +
-                        "and when the build is done, results are written in that dir so Atomic "
-                        "Reactor from host may read those.")
+            description="build inside a container, taking build JSON input "
+                        "from the source specified by the --input option.")
         self.ib_parser.add_argument("--input", action='store', default="auto",
                                     help="input plugin name (determined automatically unless "
                                     "given)")
