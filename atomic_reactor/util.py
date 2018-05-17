@@ -611,22 +611,30 @@ def registry_hostname(registry):
 
 
 class Dockercfg(object):
-    def __init__(self, secret_path):
+    def __init__(self, secret_path, dockercfg_required=False):
         """
         Create a new Dockercfg object from a .dockercfg file whose
         containing directory is secret_path.
 
         :param secret_path: str, dirname of .dockercfg location
+        :param dockercfg_required: boolean, when True raise a RuntimeError
+                                   execption if .dockercfg file is missing.
         """
-
         self.json_secret_path = os.path.join(secret_path, '.dockercfg')
-        try:
-            with open(self.json_secret_path) as fp:
-                self.json_secret = json.load(fp)
-        except Exception:
-            msg = "failed to read registry secret"
-            logger.error(msg, exc_info=True)
-            raise RuntimeError(msg)
+        if not os.path.exists(self.json_secret_path):
+            if dockercfg_required:
+                raise RuntimeError("dockercfg secret file does not exists")
+
+            self.json_secret_path = None
+            self.json_secret = {}
+        else:
+            try:
+                with open(self.json_secret_path) as fp:
+                    self.json_secret = json.load(fp)
+            except Exception:
+                msg = "failed to read registry dockercfg secret"
+                logger.error(msg, exc_info=True)
+                raise RuntimeError(msg)
 
     def get_credentials(self, docker_registry):
         # For maximal robustness we check the host:port of the passed in
@@ -652,13 +660,25 @@ class RegistrySession(object):
         self.insecure = insecure
 
         self.auth = None
+        self.cert_path = None
+        self.key_path = None
         if dockercfg_path:
-            dockercfg = Dockercfg(dockercfg_path).get_credentials(registry)
+            dockercfg = Dockercfg(dockercfg_path)
+            if dockercfg.json_secret_path is not None:
+                dockercfg = dockercfg.get_credentials(registry)
 
-            username = dockercfg.get('username')
-            password = dockercfg.get('password')
-            if username and password:
-                self.auth = requests.auth.HTTPBasicAuth(username, password)
+                username = dockercfg.get('username')
+                password = dockercfg.get('password')
+                if username and password:
+                    self.auth = requests.auth.HTTPBasicAuth(username, password)
+            else:
+                # Use the registry certificates to authenticate instead of
+                # instead of username/password.
+                self.cert_path = os.path.join(dockercfg_path, 'client.cert')
+                self.key_path = os.path.join(dockercfg_path, 'client.key')
+
+                if not os.path.exists(self.cert_path) or not os.path.exists(self.key_path):
+                    raise RuntimeError("failed to read registry certs secret")
 
         self._fallback = None
         if re.match('http(s)?://', self.registry):
@@ -676,6 +696,10 @@ class RegistrySession(object):
     def _do(self, f, relative_url, *args, **kwargs):
         kwargs['auth'] = self.auth
         kwargs['verify'] = not self.insecure
+
+        if self.cert_path is not None and self.key_path is not None:
+            kwargs['cert'] = (self.cert_path, self.key_path)
+
         if self._fallback:
             try:
                 res = f(self._base + relative_url, *args, **kwargs)
