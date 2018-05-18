@@ -1102,12 +1102,10 @@ def read_yaml(yaml_data, schema):
         raise
     except jsonschema.ValidationError:
         for error in validator.iter_errors(data):
-            path = ''
-            for element in error.absolute_path:
-                if isinstance(element, int):
-                    path += '[{}]'.format(element)
-                else:
-                    path += '.{}'.format(element)
+            path = "".join(
+                ('[{}]' if isinstance(element, int) else '.{}').format(element)
+                for element in error.path
+            )
 
             if path.startswith('.'):
                 path = path[1:]
