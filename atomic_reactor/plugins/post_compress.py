@@ -77,9 +77,7 @@ class CompressPlugin(PostBuildPlugin):
         return outfile
 
     def run(self):
-        if self.load_exported_image:
-            if len(self.workflow.exported_image_sequence) == 0:
-                raise RuntimeError('load_exported_image used, but no exported image')
+        if self.load_exported_image and len(self.workflow.exported_image_sequence) > 0:
             image_metadata = self.workflow.exported_image_sequence[-1]
             image = image_metadata.get('path')
             image_type = image_metadata.get('type')

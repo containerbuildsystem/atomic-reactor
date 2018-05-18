@@ -34,12 +34,14 @@ class X(object):
 
 
 class TestCompress(object):
-    @pytest.mark.parametrize('method, load_exported_image, extension', [
-        ('gzip', False, 'gz'),
-        ('lzma', False, 'xz'),
-        ('gzip', True, 'gz'),
+    @pytest.mark.parametrize('method, load_exported_image, give_export, extension', [
+        ('gzip', False, True, 'gz'),
+        ('lzma', False, False, 'xz'),
+        ('gzip', True, True, 'gz'),
+        ('gzip', True, False, 'gz'),
+        ('spam', True, True, None),
     ])
-    def test_compress(self, tmpdir, caplog, method, load_exported_image, extension):
+    def test_compress(self, tmpdir, caplog, method, load_exported_image, give_export, extension):
         if MOCK:
             mock_docker()
 
@@ -48,10 +50,11 @@ class TestCompress(object):
         workflow.builder = X()
         exp_img = os.path.join(str(tmpdir), 'img.tar')
 
-        if load_exported_image:
+        if load_exported_image and give_export:
             tarfile.open(exp_img, mode='w').close()
             workflow.exported_image_sequence.append({'path': exp_img,
                                                      'type': IMAGE_TYPE_DOCKER_ARCHIVE})
+            tasker = None  # image provided, should not query docker
 
         runner = PostBuildPluginsRunner(
             tasker,
@@ -64,6 +67,12 @@ class TestCompress(object):
                 },
             }]
         )
+
+        if not extension:
+            with pytest.raises(Exception) as excinfo:
+                runner.run()
+            assert 'Unsupported compression format' in str(excinfo.value)
+            return
 
         runner.run()
 
