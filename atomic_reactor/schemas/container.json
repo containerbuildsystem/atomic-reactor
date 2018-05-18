@@ -28,6 +28,14 @@
     },
     "image_build_method": {
       "enum": ["docker_api", "imagebuilder"]
+    },
+    "tags": {
+      "type": "array"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1
     }
   },
   "additionalProperties": false,
