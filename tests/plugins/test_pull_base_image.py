@@ -25,6 +25,7 @@ from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
+from requests.exceptions import HTTPError, RetryError, Timeout
 from tests.fixtures import reactor_config_map  # noqa
 from tests.constants import MOCK, MOCK_SOURCE, LOCALHOST_REGISTRY
 
@@ -36,6 +37,7 @@ BASE_IMAGE = "busybox:latest"
 BASE_IMAGE_W_LIBRARY = "library/" + BASE_IMAGE
 BASE_IMAGE_W_REGISTRY = LOCALHOST_REGISTRY + "/" + BASE_IMAGE
 BASE_IMAGE_W_LIB_REG = LOCALHOST_REGISTRY + "/" + BASE_IMAGE_W_LIBRARY
+BASE_IMAGE_W_SHA = "busybox@sha256:19b0fc5d9581e28baf8d3e40a39bc"
 UNIQUE_ID = 'build-name-123'
 
 
@@ -435,6 +437,66 @@ class TestValidateBaseImage(object):
                                         workflow_callback=workflow_callback,
                                         check_platforms=True)
         assert 'Missing arches in manifest list' in str(exc_info.value)
+
+    @pytest.mark.parametrize('exception', (
+        HTTPError,
+        RetryError,
+        Timeout,
+    ))
+    def test_manifest_config_raises(self, caplog, exception):
+        class MockResponse(object):
+            content = ''
+            status_code = 408
+
+        def workflow_callback(workflow):
+            workflow = self.prepare(workflow)
+            (flexmock(atomic_reactor.util)
+             .should_receive('get_config_from_registry')
+             .and_raise(exception('', response=MockResponse()))
+             .once())
+            return workflow
+
+        with pytest.raises(PluginFailedException) as exc_info:
+            test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE_W_SHA,
+                                        [], [], reactor_config_map=True,
+                                        workflow_callback=workflow_callback,
+                                        check_platforms=True)
+        assert 'Unable to fetch config for base image' in str(exc_info.value)
+
+    def test_manifest_config_passes(self):
+        def workflow_callback(workflow):
+            workflow = self.prepare(workflow)
+            release = 'rel1'
+            version = 'ver1'
+            config_blob = {'config': {'Labels': {'release': release, 'version': version}}}
+            (flexmock(atomic_reactor.util)
+             .should_receive('get_config_from_registry')
+             .and_return(config_blob)
+             .once())
+
+            manifest_list = {
+                'manifests': [
+                    {'platform': {'architecture': 'amd64'}, 'digest': 'sha256:123456'},
+                    {'platform': {'architecture': 'ppc64le'}, 'digest': 'sha256:654321'},
+                ]
+            }
+
+            docker_tag = "%s-%s" % (version, release)
+            manifest_tag = 'registry.example.com' + '/' +\
+                           BASE_IMAGE_W_SHA[:BASE_IMAGE_W_SHA.find('@sha256')] + ':' + docker_tag
+            base_image_result = ImageName.parse(manifest_tag)
+            manifest_image = base_image_result.copy()
+            (flexmock(atomic_reactor.util)
+             .should_receive('get_manifest_list')
+             .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True)
+             .and_return(flexmock(json=lambda: manifest_list))
+             .once())
+            return workflow
+
+        test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE_W_SHA,
+                                    [], [], reactor_config_map=True,
+                                    workflow_callback=workflow_callback,
+                                    check_platforms=True)
 
     def prepare(self, workflow):
         # Setup expected platforms
