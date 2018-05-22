@@ -216,7 +216,10 @@ def _mock_pull(repo, tag='latest', **kwargs):
     if im.repo == 'library-only' and im.namespace != 'library':
         return iter(mock_pull_logs_failed)
 
-    repotag = '%s:%s' % (repo, tag)
+    if tag and 'sha256' in tag:
+        repotag = '%s@%s' % (repo, tag)
+    else:
+        repotag = '%s:%s' % (repo, tag)
     if _find_image(repotag) is None:
         new_image = mock_image.copy()
         new_image['RepoTags'] = [repotag]

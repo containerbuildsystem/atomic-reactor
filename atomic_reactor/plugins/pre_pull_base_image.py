@@ -14,12 +14,14 @@ from __future__ import unicode_literals
 import docker
 
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import get_build_json, get_manifest_list, ImageName
+from atomic_reactor.util import (get_build_json, get_manifest_list,
+                                 get_config_from_registry, ImageName)
 from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
 from atomic_reactor.core import RetryGeneratorException
 from atomic_reactor.plugins.pre_reactor_config import (get_source_registry,
                                                        get_platform_to_goarch_mapping)
+from requests.exceptions import HTTPError, RetryError, Timeout
 from osbs.utils import RegistryURI
 
 
@@ -169,6 +171,24 @@ class PullBaseImagePlugin(PreBuildPlugin):
             self.log.info('Cannot validate available platforms for base image '
                           'because platform descriptors are not defined')
             return
+
+        if '@sha256:' in str(base_image):
+            # we want to adjust the tag only for manifest list fetching
+            base_image = base_image.copy()
+
+            try:
+                config_blob = get_config_from_registry(base_image, base_image.registry,
+                                                       base_image.tag,
+                                                       insecure=self.parent_registry_insecure)
+            except (HTTPError, RetryError, Timeout) as ex:
+                self.log.warning('Unable to fetch config for %s, got error %s',
+                                 base_image, ex.response.status_code)
+                raise RuntimeError('Unable to fetch config for base image')
+
+            release = config_blob['config']['Labels']['release']
+            version = config_blob['config']['Labels']['version']
+            docker_tag = "%s-%s" % (version, release)
+            base_image.tag = docker_tag
 
         manifest_list = get_manifest_list(base_image, base_image.registry,
                                           insecure=self.parent_registry_insecure)
