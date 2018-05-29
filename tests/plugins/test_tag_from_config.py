@@ -184,7 +184,16 @@ def test_tag_parse(tmpdir, docker_tasker, unique_tags, primary_tags, expected):
     if expected is not None:
         results = runner.run()
         plugin_result = results[TagFromConfigPlugin.key]
+
+        # Plugin should return the tags we expect
         assert plugin_result == expected
+
+        # Workflow should have the expected tags configured
+        for tag in expected:
+            assert any(tag == str(image) for image in workflow.tag_conf.images)
+
+        # Workflow should not have any other tags configured
+        assert len(workflow.tag_conf.images) == len(expected)
     else:
         with pytest.raises(PluginFailedException):
             runner.run()
