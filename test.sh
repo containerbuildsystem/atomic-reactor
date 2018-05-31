@@ -10,6 +10,10 @@ IMAGE="$OS:$OS_VERSION"
 if [[ $OS == "fedora" ]]; then
   IMAGE="registry.fedoraproject.org/$IMAGE"
 fi
+docker_mounts="-v $PWD:$PWD:z"
+for dir in ${EXTRA_MOUNT:-}; do
+  docker_mounts="${docker_mounts} -v $dir:$dir:z"
+done
 
 CONTAINER_NAME="atomic-reactor-$OS-$OS_VERSION-py$PYTHON_VERSION"
 RUN="docker exec -ti $CONTAINER_NAME"
@@ -28,9 +32,13 @@ else
   BUILDDEP="yum-builddep"
   PYTHON="python"
 fi
-# Create container if needed
-if [[ $(docker ps -q -f name=$CONTAINER_NAME | wc -l) -eq 0 ]]; then
-  docker run --name $CONTAINER_NAME -d -v $PWD:$PWD:z -w $PWD -ti $IMAGE sleep infinity
+
+# Create or resurrect container if needed
+if [[ $(docker ps -qa -f name=$CONTAINER_NAME | wc -l) -eq 0 ]]; then
+  docker run --name $CONTAINER_NAME -d $docker_mounts -w $PWD -ti $IMAGE sleep infinity
+elif [[ $(docker ps -q -f name=$CONTAINER_NAME | wc -l) -eq 0 ]]; then
+  echo found stopped existing container, restarting. volume mounts cannot be updated.
+  docker container start $CONTAINER_NAME
 fi
 
 if [[ $OS == "centos" ]]; then
@@ -99,7 +107,7 @@ $RUN $PIP install -r tests/requirements.txt
 if [[ $OS != "fedora" ]]; then $RUN $PIP install -U setuptools; fi
 
 # Run tests
-$RUN pytest -vv tests --cov atomic_reactor "$@"
+$RUN pytest -vv tests --cov atomic_reactor --cov-report html "$@"
 
 echo "To run tests again:"
-echo "$RUN pytest -vv tests --cov atomic_reactor "
+echo "$RUN pytest -vv tests --cov atomic_reactor --cov-report html"
