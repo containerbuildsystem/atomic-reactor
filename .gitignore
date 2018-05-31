@@ -1,5 +1,5 @@
 *.py[co]
-*.swp
+*.sw[po]
 dist/
 *.egg-info/
 .eggs/
@@ -8,3 +8,5 @@ build/
 # Unit test / coverage reports
 .cache
 .coverage
+.coverage.*
+htmlcov
