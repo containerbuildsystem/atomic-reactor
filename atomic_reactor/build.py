@@ -141,6 +141,8 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         # arguments for build
         self.source = source
         self.base_image = None
+        self.original_base_image = None
+        self.parent_images = {}  # dockerfile image => locally available image
         self.image_id = None
         self.built_image_info = None
         self.image = ImageName.parse(image)
@@ -166,13 +168,21 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
 
     def set_df_path(self, path):
         self._df_path = path
-        self.set_base_image(df_parser(path).baseimage)
+        dfp = df_parser(path)
+        base = dfp.baseimage
+        if base is None:
+            raise RuntimeError("no base image specified in Dockerfile")
+        self.set_base_image(base)
         logger.debug("base image specified in dockerfile = '%s'", self.base_image)
-        if not self.base_image.tag:
-            self.base_image.tag = 'latest'
+        self.parent_images.clear()
+        for image in dfp.parent_images:
+            self.parent_images[image] = None
 
     def set_base_image(self, base_image):
+        logger.info("setting base image to '%s'", base_image)
         self.base_image = ImageName.parse(base_image)
+        self.original_base_image = self.original_base_image or self.base_image
+        self.parent_images[str(self.original_base_image)] = base_image
 
     def inspect_base_image(self):
         """

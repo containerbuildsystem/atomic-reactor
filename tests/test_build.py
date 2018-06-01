@@ -12,8 +12,11 @@ import pytest
 from atomic_reactor.build import InsideBuilder, BuildResult
 from atomic_reactor.core import DockerTasker  # noqa
 from atomic_reactor.source import get_source_instance_for
-from atomic_reactor.util import ImageName
-from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_OK_PATH, MOCK, SOURCE
+from atomic_reactor.util import ImageName, df_parser
+from tests.constants import (
+    LOCALHOST_REGISTRY, MOCK, SOURCE,
+    DOCKERFILE_OK_PATH, DOCKERFILE_MULTISTAGE_PATH,
+)
 from tests.util import requires_internet
 from flexmock import flexmock
 
@@ -29,8 +32,24 @@ git_base_image = ImageName(registry=LOCALHOST_REGISTRY, repo="fedora", tag="late
 
 with_all_sources = pytest.mark.parametrize('source_params', [
     SOURCE,
-    {'provider': 'path', 'uri': 'file://' + DOCKERFILE_OK_PATH}
+    {'provider': 'path', 'uri': 'file://' + DOCKERFILE_OK_PATH},
+    {'provider': 'path', 'uri': 'file://' + DOCKERFILE_MULTISTAGE_PATH},
 ])
+
+
+@requires_internet
+@with_all_sources
+def test_parent_images(tmpdir, source_params):
+    if MOCK:
+        mock_docker()
+    s = get_source_instance_for(source_params)
+    b = InsideBuilder(s, '')
+
+    orig_base = str(b.base_image)
+    assert orig_base in b.parent_images
+    assert b.parent_images[orig_base] is None
+    b.set_base_image("spam:eggs")
+    assert b.parent_images[orig_base] == "spam:eggs"
 
 
 @requires_internet
@@ -93,6 +112,19 @@ def test_get_base_image_info(tmpdir, source_params, image, will_raise):
         assert built_inspect is not None
         assert built_inspect["Id"] is not None
         assert built_inspect["RepoTags"] is not None
+
+
+def test_no_base_image(tmpdir):
+    if MOCK:
+        mock_docker()
+
+    source = {'provider': 'path', 'uri': 'file://' + DOCKERFILE_OK_PATH, 'tmpdir': str(tmpdir)}
+    b = InsideBuilder(get_source_instance_for(source), 'built-img')
+    dfp = df_parser(str(tmpdir))
+    dfp.content = "# no FROM\nADD spam /eggs"
+    with pytest.raises(RuntimeError) as exc:
+        b.set_df_path(str(tmpdir))
+    assert "no base image specified" in str(exc.value)
 
 
 @requires_internet
