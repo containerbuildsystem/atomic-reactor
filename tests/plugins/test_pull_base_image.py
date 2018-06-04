@@ -190,6 +190,16 @@ def test_pull_base_wrong_registry(reactor_config_map):  # noqa
                                     reactor_config_map=reactor_config_map)
 
 
+# test previous issue https://github.com/projectatomic/atomic-reactor/issues/1008
+def test_pull_base_library(reactor_config_map, caplog):  # noqa
+    with pytest.raises(PluginFailedException) as exc:
+        test_pull_base_image_plugin(
+            LOCALHOST_REGISTRY, "spam/library-only:latest", [], [], reactor_config_map
+        )
+    assert "not found" in str(exc.value)
+    assert "RetryGeneratorException" in str(exc.value)
+    assert "trying" not in caplog.text()  # don't retry with "library/library-only:latest"
+
 def test_pull_base_base_parse(reactor_config_map):  # noqa
     flexmock(ImageName).should_receive('parse').and_raise(AttributeError)
     with pytest.raises(AttributeError):
