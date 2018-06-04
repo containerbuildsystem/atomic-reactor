@@ -372,6 +372,7 @@ class DockerBuildWorkflow(object):
         self._base_image_inspect = None
         self.default_image_build_method = CONTAINER_DEFAULT_BUILD_METHOD
 
+        # list of images pulled during the build, to be deleted after the build
         self.pulled_base_images = set()
 
         # When an image is exported into tarball, it can then be processed by various plugins.
