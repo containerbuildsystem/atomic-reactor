@@ -198,9 +198,9 @@ def test_pulp_tag_basic(tmpdir, monkeypatch, v1_image_ids, should_raise, caplog,
 
     results = runner.run()
     if msg:
-        assert msg in caplog.text()
+        assert msg in caplog.text
     else:
-        assert "tagging v1-image-id" not in caplog.text()
+        assert "tagging v1-image-id" not in caplog.text
     assert results['pulp_tag'] == expected_results
 
 
@@ -234,7 +234,7 @@ def test_pulp_tag_source_secret(tmpdir, monkeypatch, caplog, reactor_config_map)
                                                   'auth': {'ssl_certs_dir': str(tmpdir)}}})
 
     results = runner.run()
-    assert msg in caplog.text()
+    assert msg in caplog.text
     assert results['pulp_tag'] == expected_results
 
 
@@ -270,5 +270,5 @@ def test_pulp_tag_service_account_secret(tmpdir, monkeypatch, caplog, reactor_co
                                     'auth': {'ssl_certs_dir': str(tmpdir)}}})
 
     results = runner.run()
-    assert msg in caplog.text()
+    assert msg in caplog.text
     assert results['pulp_tag'] == expected_results

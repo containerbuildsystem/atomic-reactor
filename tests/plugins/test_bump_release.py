@@ -114,7 +114,7 @@ class TestBumpRelease(object):
         plugin = self.prepare(tmpdir, labels={release_label: '1'},
                               reactor_config_map=reactor_config_map)
         plugin.run()
-        assert 'not incrementing' in caplog.text()
+        assert 'not incrementing' in caplog.text
 
     @pytest.mark.parametrize('labels', [
         {'com.redhat.component': 'component'},

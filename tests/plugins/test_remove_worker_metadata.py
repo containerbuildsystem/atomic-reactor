@@ -126,6 +126,6 @@ def test_remove_worker_plugin(tmpdir, caplog, names, fragment_key):
 
     for name in names:
         if name:
-            assert "ConfigMap {} deleted".format(name) in caplog.text()
+            assert "ConfigMap {} deleted".format(name) in caplog.text
         else:
-            assert "Failed to delete ConfigMap None" in caplog.text()
+            assert "Failed to delete ConfigMap None" in caplog.text

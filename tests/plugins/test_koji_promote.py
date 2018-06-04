@@ -553,14 +553,14 @@ class TestKojiPromote(object):
         assert isinstance(extra, dict)
 
         if expect_success:
-            assert "Koji Task ID {}".format(koji_task_id) in caplog.text()
+            assert "Koji Task ID {}".format(koji_task_id) in caplog.text
 
             assert 'container_koji_task_id' in extra
             extra_koji_task_id = extra['container_koji_task_id']
             assert isinstance(extra_koji_task_id, int)
             assert extra_koji_task_id == koji_task_id
         else:
-            assert "invalid task ID" in caplog.text()
+            assert "invalid task ID" in caplog.text
             assert 'container_koji_task_id' not in extra
 
     @pytest.mark.parametrize('params', [
@@ -929,7 +929,7 @@ class TestKojiPromote(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
-        assert 'metadata:' in caplog.text()
+        assert 'metadata:' in caplog.text
 
     @pytest.mark.parametrize('task_states', [
         ['FREE', 'ASSIGNED', 'FAILED'],
@@ -986,7 +986,7 @@ class TestKojiPromote(object):
             assert isinstance(filesystem_koji_task_id, int)
             assert filesystem_koji_task_id == task_id
         else:
-            assert 'invalid task ID' in caplog.text()
+            assert 'invalid task ID' in caplog.text
             assert 'filesystem_koji_task_id' not in extra
 
     def test_koji_promote_filesystem_koji_task_id_missing(self, tmpdir, os_env,
@@ -1011,7 +1011,7 @@ class TestKojiPromote(object):
         extra = build['extra']
         assert isinstance(extra, dict)
         assert 'filesystem_koji_task_id' not in extra
-        assert AddFilesystemPlugin.key in caplog.text()
+        assert AddFilesystemPlugin.key in caplog.text
 
     @pytest.mark.parametrize('additional_tags', [
         None,

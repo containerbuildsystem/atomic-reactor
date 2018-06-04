@@ -294,10 +294,11 @@ def test_upload(unsupported, caplog):
          .and_return(False)
          .once())
 
-    handler.upload(upload_file, repo_id)
+    with caplog.at_level(logging.DEBUG):
+        handler.upload(upload_file, repo_id)
 
-    assert "Uploading %s to %s" % (upload_file, repo_id) in caplog.text()
+    assert "Uploading %s to %s" % (upload_file, repo_id) in caplog.text
 
     if unsupported:
         assert "Falling back to uploading %s to redhat-everything repo" %\
-               upload_file in caplog.text()
+               upload_file in caplog.text

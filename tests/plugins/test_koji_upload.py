@@ -856,7 +856,7 @@ class TestKojiUpload(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
-        assert 'metadata:' in caplog.text()
+        assert 'metadata:' in caplog.text
 
     @pytest.mark.parametrize('additional_tags', [
         None,

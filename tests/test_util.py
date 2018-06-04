@@ -875,7 +875,7 @@ def test_df_parser_parent_env_wf(tmpdir, caplog, env_arg):
 
     if isinstance(env_arg, list) and ('=' not in env_arg[0]):
         expected_log_message = "Unable to parse all of Parent Config ENV"
-        assert expected_log_message in [l.getMessage() for l in caplog.records()]
+        assert expected_log_message in [l.getMessage() for l in caplog.records]
     elif isinstance(env_arg, dict):
         assert df.labels.get('label') == ('foobar ' + env_arg['test_env'])
     else:
@@ -1216,7 +1216,7 @@ def test_get_platforms_in_limits(tmpdir, platforms, platform_exclude, platform_o
         workflow = MockWorkflow(str(tmpdir))
         final_platforms = get_platforms_in_limits(workflow, platforms)
         if platform_exclude and platform_exclude == platform_only:
-            assert 'only and not platforms are the same' in caplog.text()
+            assert 'only and not platforms are the same' in caplog.text
         assert final_platforms == set(result)
     elif valid:
         workflow = MockWorkflow(str(tmpdir))

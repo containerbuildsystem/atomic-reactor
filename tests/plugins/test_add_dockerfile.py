@@ -183,7 +183,7 @@ CMD blabla"""
         }]
     )
     runner.run()
-    assert "plugin 'add_dockerfile' raised an exception: ValueError" in caplog.text()
+    assert "plugin 'add_dockerfile' raised an exception: ValueError" in caplog.text
 
 
 def test_adddockerfile_final(tmpdir, docker_tasker):  # noqa
