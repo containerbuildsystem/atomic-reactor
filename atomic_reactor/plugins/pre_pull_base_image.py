@@ -100,7 +100,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
                                    insecure=self.parent_registry_insecure)
 
         except RetryGeneratorException as original_exc:
-            if base_image_with_registry.namespace == 'library':
+            if base_image_with_registry.namespace:
                 raise
 
             self.log.info("'%s' not found", base_image_with_registry.to_str())
