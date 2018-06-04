@@ -50,6 +50,7 @@ class MockBuilder(object):
     image_id = "xxx"
     source = MockSource()
     base_image = None
+    parent_images = {UNIQUE_ID: None}
 
     def set_base_image(self, base_image):
         self.base_image = base_image
