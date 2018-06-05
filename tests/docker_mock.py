@@ -246,12 +246,12 @@ def _mock_inspect(img, **kwargs):
     raise _docker_exception()
 
 
-def _mock_tag(src_img, dest_repo, dest_tag='latest', **kwargs):
+def _mock_tag(src_img, dest_repo, tag='latest', **kwargs):
     i = _find_image(src_img)
     if i is None:
         raise _docker_exception()
 
-    dst_img = "%s:%s" % (dest_repo, dest_tag)
+    dst_img = "%s:%s" % (dest_repo, tag)
     i = _find_image(dst_img)
     if i is None:
         new_image = mock_image.copy()

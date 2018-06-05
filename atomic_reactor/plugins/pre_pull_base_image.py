@@ -65,15 +65,22 @@ class PullBaseImagePlugin(PreBuildPlugin):
         Pull parent images and retag them uniquely for this build.
         """
         build_json = get_build_json()
-        base_image = self._resolve_base_image(build_json)
-        base_image_with_registry = self._ensure_image_registry(base_image)
+        base_image_str = str(self.workflow.builder.base_image)
+        for nonce, parent in enumerate(sorted(self.workflow.builder.parent_images.keys())):
+            image = ImageName.parse(parent)
+            if parent == base_image_str:
+                image = self._resolve_base_image(build_json)
+            image = self._ensure_image_registry(image)
 
-        if self.check_platforms:
-            self._validate_platforms_in_image(base_image_with_registry)
+            if self.check_platforms:
+                self._validate_platforms_in_image(image)
 
-        new_image = self._pull_and_tag_image(base_image_with_registry, build_json)
-        self.workflow.builder.original_base_image = base_image.copy()
-        self.workflow.builder.set_base_image(str(new_image))
+            new_image = self._pull_and_tag_image(image, build_json, str(nonce))
+            self.workflow.builder.parent_images[parent] = str(new_image)
+
+            if parent == base_image_str:
+                self.workflow.builder.original_base_image = image.copy()
+                self.workflow.builder.set_base_image(str(new_image))
 
     def _resolve_base_image(self, build_json):
         """If this is an auto-rebuild, adjust the base image to use the triggering build"""
@@ -81,8 +88,11 @@ class PullBaseImagePlugin(PreBuildPlugin):
         try:
             image_id = spec['triggeredBy'][0]['imageChangeBuild']['imageID']
         except (TypeError, KeyError, IndexError):
+            # build not marked for auto-rebuilds; use regular base image
             base_image = self.workflow.builder.base_image
         else:
+            # build has auto-rebuilds enabled
+            self.log.info("using %s from build spec[triggeredBy] as base image.", image_id)
             base_image = ImageName.parse(image_id)  # any exceptions will propagate
 
         return base_image
@@ -100,17 +110,11 @@ class PullBaseImagePlugin(PreBuildPlugin):
                 self.log.error("%s", error)
                 raise RuntimeError(error)
 
-            self.log.info(
-                "pulling parent image '%s' from registry '%s'",
-                image, self.parent_registry
-            )
             image_with_registry.registry = self.parent_registry
-        else:
-            self.log.info("pulling parent image '%s'", image)
 
         return image_with_registry
 
-    def _pull_and_tag_image(self, image, build_json):
+    def _pull_and_tag_image(self, image, build_json, nonce):
         """Docker pull the image and tag it uniquely for use by this build"""
         image = image.copy()
         first_library_exc = None
@@ -145,7 +149,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
             # Use the OpenShift build name as the unique ID
             unique_id = build_json['metadata']['name']
-            new_image = ImageName(repo=unique_id)
+            new_image = ImageName(repo=unique_id, tag=nonce)
 
             try:
                 self.log.info("tagging pulled image")
