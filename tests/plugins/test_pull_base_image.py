@@ -53,8 +53,8 @@ class MockBuilder(object):
     parent_images = {UNIQUE_ID: None}
 
     def set_base_image(self, base_image):
-        self.base_image = base_image
-        assert base_image == UNIQUE_ID
+        self.base_image = ImageName.parse(base_image)
+        assert base_image.startswith(UNIQUE_ID + ":")
 
 
 @pytest.fixture(autouse=True)
@@ -121,7 +121,7 @@ def set_build_json(monkeypatch):
 ])
 def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected,
                                 reactor_config_map, workflow_callback=None,
-                                check_platforms=False):
+                                check_platforms=False, parent_images=None):
     if MOCK:
         mock_docker(remember_images=True)
 
@@ -130,12 +130,15 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
         'name': PLUGIN_BUILD_ORCHESTRATE_KEY,
         'args': {'platforms': ['x86_64']},
     }]
+    parent_images = parent_images or {df_base: None}
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image', buildstep_plugins=buildstep_plugin,)
     workflow.builder = MockBuilder()
     workflow.builder.base_image = ImageName.parse(df_base)
+    workflow.builder.parent_images = parent_images
 
     expected = set(expected)
-    expected.add(UNIQUE_ID)
+    for nonce in range(len(parent_images)):
+        expected.add("{}:{}".format(UNIQUE_ID, nonce))
     all_images = set(expected).union(not_expected)
     for image in all_images:
         assert not tasker.image_exists(image)
@@ -178,17 +181,45 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
     for image in workflow.pulled_base_images:
         assert tasker.image_exists(image)
 
-    for image in all_images:
-        try:
-            tasker.remove_image(image)
-        except:
-            pass
+    for df, tagged in parent_images.items():
+        assert tagged is not None, "Did not tag parent image " + df
+    # tags should all be unique
+    assert len(set(parent_images.values())) == len(parent_images)
+
+
+def test_pull_parent_images(reactor_config_map):  # noqa
+    builder_image = "builder:image"
+    parent_images = {BASE_IMAGE: None, builder_image: None}
+    test_pull_base_image_plugin(
+        None, BASE_IMAGE,
+        [   # expected to pull
+            BASE_IMAGE,
+            builder_image,
+        ],
+        [],  # should not be pulled
+        reactor_config_map=reactor_config_map,
+        parent_images=parent_images)
 
 
 def test_pull_base_wrong_registry(reactor_config_map):  # noqa
-    with pytest.raises(PluginFailedException):
-        test_pull_base_image_plugin('localhost:1234', BASE_IMAGE_W_REGISTRY, [], [],
-                                    reactor_config_map=reactor_config_map)
+    with pytest.raises(PluginFailedException) as exc:
+        test_pull_base_image_plugin(
+            'different.registry:5000', "some.registry:8888/base:image", [], [],
+            reactor_config_map=reactor_config_map
+        )
+    assert "expected registry: 'different.registry:5000'" in str(exc.value)
+
+
+def test_pull_parent_wrong_registry(reactor_config_map):  # noqa: F811
+    parent_images = {"base:image": None, "some.registry:8888/builder:image": None}
+    with pytest.raises(PluginFailedException) as exc:
+        test_pull_base_image_plugin(
+            'different.registry:5000', "base:image", [], [],
+            reactor_config_map=reactor_config_map, parent_images=parent_images
+        )
+    assert "Dockerfile: 'some.registry:8888/builder:image'" in str(exc.value)
+    assert "expected registry: 'different.registry:5000'" in str(exc.value)
+    assert "base:image" not in str(exc.value)
 
 
 # test previous issue https://github.com/projectatomic/atomic-reactor/issues/1008
@@ -290,6 +321,7 @@ def test_try_with_library_pull_base_image(library, reactor_config_map):
     else:
         base_image = 'parent-image'
     workflow.builder.base_image = ImageName.parse(base_image)
+    workflow.builder.parent_images = {base_image: None}
 
     class MockResponse(object):
         content = ''
