@@ -65,7 +65,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
         Pull parent images and retag them uniquely for this build.
         """
         build_json = get_build_json()
-        base_image_str = str(self.workflow.builder.base_image)
+        base_image_str = str(self.workflow.builder.original_base_image)
         for nonce, parent in enumerate(sorted(self.workflow.builder.parent_images.keys())):
             image = ImageName.parse(parent)
             if parent == base_image_str:
@@ -79,7 +79,6 @@ class PullBaseImagePlugin(PreBuildPlugin):
             self.workflow.builder.parent_images[parent] = str(new_image)
 
             if parent == base_image_str:
-                self.workflow.builder.original_base_image = image.copy()
                 self.workflow.builder.set_base_image(str(new_image))
 
     def _resolve_base_image(self, build_json):
@@ -90,6 +89,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
         except (TypeError, KeyError, IndexError):
             # build not marked for auto-rebuilds; use regular base image
             base_image = self.workflow.builder.base_image
+            self.log.info("using %s as base image.", base_image)
         else:
             # build has auto-rebuilds enabled
             self.log.info("using %s from build spec[triggeredBy] as base image.", image_id)

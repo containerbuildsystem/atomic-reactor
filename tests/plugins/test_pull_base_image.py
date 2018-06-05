@@ -50,10 +50,12 @@ class MockBuilder(object):
     image_id = "xxx"
     source = MockSource()
     base_image = None
+    original_base_image = None
     parent_images = {UNIQUE_ID: None}
 
     def set_base_image(self, base_image):
         self.base_image = ImageName.parse(base_image)
+        self.original_base_image = self.original_base_image or self.base_image
         assert base_image.startswith(UNIQUE_ID + ":")
 
 
@@ -132,9 +134,9 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
     }]
     parent_images = parent_images or {df_base: None}
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image', buildstep_plugins=buildstep_plugin,)
-    workflow.builder = MockBuilder()
-    workflow.builder.base_image = ImageName.parse(df_base)
-    workflow.builder.parent_images = parent_images
+    builder = workflow.builder = MockBuilder()
+    builder.base_image = builder.original_base_image = ImageName.parse(df_base)
+    builder.parent_images = parent_images
 
     expected = set(expected)
     for nonce in range(len(parent_images)):

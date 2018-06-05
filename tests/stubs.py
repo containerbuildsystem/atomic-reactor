@@ -45,6 +45,7 @@ class StubInsideBuilder(object):
 
     def __init__(self):
         self.base_image = None
+        self.parent_images = {}
         self.df_path = None
         self.df_dir = None
         self.git_dockerfile_path = None
@@ -80,3 +81,7 @@ class StubInsideBuilder(object):
 
     def inspect_base_image(self):
         return self._inspection_data
+
+    def set_base_image(self, image):
+        # likely run as side effect; ignore. tests that want stateful results must mock.
+        pass
