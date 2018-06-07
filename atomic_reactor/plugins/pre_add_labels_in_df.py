@@ -162,9 +162,6 @@ class AddLabelsPlugin(PreBuildPlugin):
             if lbl not in generated:
                 self.log.warning("requested automatic label %r is not available", lbl)
 
-            elif lbl in plugin_labels:
-                self.log.info("label %r is set explicitly, not using generated value", lbl)
-
             else:
                 self.labels[lbl] = generated[lbl]
                 self.log.info("automatic label %r is generated to %r", lbl, generated[lbl])
