@@ -791,7 +791,8 @@ def test_add_labels_plugin_explicit(tmpdir, docker_tasker, auto_label, labels_do
 
     runner.run()
 
-    assert df.labels[auto_label] == 'explicit_value'
+    assert df.labels[auto_label] != 'explicit_value'
+
 
 
 @pytest.mark.parametrize('parent,should_fail', [  # noqa
