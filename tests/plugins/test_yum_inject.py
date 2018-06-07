@@ -133,9 +133,9 @@ Dockerfile = namedtuple('Dockerfile', ['inherited_user',
 
 
 DOCKERFILES = {
-    "no maintainer":
+    "simple":
         Dockerfile('',
-                   ["# Simple example with no MAINTAINER line\n",
+                   ["# Simple example\n",
                     "FROM base\n"],
                    # add goes here
                    [" RUN yum -y update\n"],
@@ -143,18 +143,14 @@ DOCKERFILES = {
 
     "no yum":
         Dockerfile('',
-                   ["FROM base\n",
-                    "# This time there is a MAINTAINER line\n",
-                    "# but it's the last last there is\n",
-                    "MAINTAINER Example <example@example.com>\n"],
+                   ["FROM base\n"],
                    # add goes here
-                   [],
+                   ["MAINTAINER Example <example@example.com>\n"],
                    ["RUN rm ...\n"]),
 
     "user":
         Dockerfile('',
-                   [" From base\n",
-                    " Maintainer Example <example@example.com\n"],
+                   [" From base\n"],
                    # add goes here
                    [" Run yum update -y\n",
                     " Env asd qwe\n",
@@ -168,8 +164,7 @@ DOCKERFILES = {
 
     "root":
         Dockerfile('',
-                   ["FROM nonroot-base\n",
-                    "MAINTAINER example@example.com\n"],
+                   ["FROM nonroot-base\n"],
                    # add goes here
                    ["USER root\n",
                     "RUN yum -y update\n",
