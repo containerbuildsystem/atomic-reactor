@@ -18,15 +18,6 @@ from atomic_reactor.util import df_parser
 logger = None
 
 
-def alter_yum_commands(df, wrap_str):
-    regex = re.compile(r"RUN\s+(?P<yum_command>yum((\s.+\\\n)+)?(.+))", re.MULTILINE)
-
-    def sub_func(match):
-        return wrap_str % {'yum_command': match.group('yum_command').rstrip()}
-
-    return regex.sub(sub_func, df)
-
-
 def add_yum_repos_to_dockerfile(yumrepos, df, inherited_user):
     df_lines = df.lines
     if len(df_lines) == 0:
@@ -88,41 +79,19 @@ def add_yum_repos_to_dockerfile(yumrepos, df, inherited_user):
     return newdf
 
 
-def wrap_yum_commands(yum_repos, df_path):
-    cmd_template = "RUN %(generate_repos)s&& %%(yum_command)s && yum clean all &&%(clean_repos)s"
-    generate_repos = ""
-    clean_repos = " rm -f"
-    for repo, repo_content in yum_repos.items():
-        generate_repos += 'printf "%s" >%s ' % (repo_content, repo)
-        clean_repos += " %s" % repo
-
-    wrap_cmd = cmd_template % {
-        "generate_repos": generate_repos,
-        "clean_repos": clean_repos,
-    }
-
-    logger.debug("wrap cmd is %r", wrap_cmd)
-
-    df = df_parser(df_path)
-    df_content = df.content
-    df.content = alter_yum_commands(df_content, wrap_cmd)
-
-
 class InjectYumRepoPlugin(PreBuildPlugin):
     key = "inject_yum_repo"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, wrap_commands=False):
+    def __init__(self, tasker, workflow):
         """
         constructor
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param wrap_commands: bool, wrap yum calls
         """
         # call parent constructor
         super(InjectYumRepoPlugin, self).__init__(tasker, workflow)
-        self.wrap_commands = wrap_commands
         self.host_repos_path = os.path.join(self.workflow.builder.df_dir, RELATIVE_REPOS_PATH)
 
         global logger
@@ -133,30 +102,27 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         run the plugin
         """
         yum_repos = {k: v for k, v in self.workflow.files.items() if k.startswith(YUM_REPOS_DIR)}
-        if self.wrap_commands:
-            wrap_yum_commands(yum_repos, self.workflow.builder.df_path)
-        else:
-            if not yum_repos:
-                return
-            # absolute path in containers -> relative path within context
-            repos_host_cont_mapping = {}
-            host_repos_path = os.path.join(self.workflow.builder.df_dir, RELATIVE_REPOS_PATH)
-            self.log.info("creating directory for yum repos: %s", host_repos_path)
-            os.mkdir(host_repos_path)
+        if not yum_repos:
+            return
+        # absolute path in containers -> relative path within context
+        repos_host_cont_mapping = {}
+        host_repos_path = os.path.join(self.workflow.builder.df_dir, RELATIVE_REPOS_PATH)
+        self.log.info("creating directory for yum repos: %s", host_repos_path)
+        os.mkdir(host_repos_path)
 
-            for repo, repo_content in self.workflow.files.items():
-                repo_basename = os.path.basename(repo)
-                repo_relative_path = os.path.join(RELATIVE_REPOS_PATH, repo_basename)
-                repo_host_path = os.path.join(host_repos_path, repo_basename)
-                self.log.info("writing repo to '%s'", repo_host_path)
-                with open(repo_host_path, "wb") as fp:
-                    fp.write(repo_content.encode("utf-8"))
-                self.log.debug("%s\n%s", repo, repo_content.strip())
-                repos_host_cont_mapping[repo] = repo_relative_path
+        for repo, repo_content in self.workflow.files.items():
+            repo_basename = os.path.basename(repo)
+            repo_relative_path = os.path.join(RELATIVE_REPOS_PATH, repo_basename)
+            repo_host_path = os.path.join(host_repos_path, repo_basename)
+            self.log.info("writing repo to '%s'", repo_host_path)
+            with open(repo_host_path, "wb") as fp:
+                fp.write(repo_content.encode("utf-8"))
+            self.log.debug("%s\n%s", repo, repo_content.strip())
+            repos_host_cont_mapping[repo] = repo_relative_path
 
-            # Find out the USER inherited from the base image
-            inspect = self.workflow.builder.inspect_base_image()
-            inherited_user = inspect[INSPECT_CONFIG].get('User', '')
-            df = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
-            df.lines = add_yum_repos_to_dockerfile(repos_host_cont_mapping,
-                                                   df, inherited_user)
+        # Find out the USER inherited from the base image
+        inspect = self.workflow.builder.inspect_base_image()
+        inherited_user = inspect[INSPECT_CONFIG].get('User', '')
+        df = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
+        df.lines = add_yum_repos_to_dockerfile(repos_host_cont_mapping,
+                                               df, inherited_user)

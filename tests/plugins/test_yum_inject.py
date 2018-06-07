@@ -17,7 +17,10 @@ from collections import OrderedDict
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
-from atomic_reactor.plugins.pre_inject_yum_repo import InjectYumRepoPlugin, alter_yum_commands
+from atomic_reactor.plugins.pre_inject_yum_repo import (
+    InjectYumRepoPlugin,
+    add_yum_repos_to_dockerfile
+)
 from atomic_reactor.util import render_yum_repo, df_parser
 import os.path
 from collections import namedtuple
@@ -53,7 +56,7 @@ def prepare(df_path, inherited_user=''):
 
 
 @requires_internet
-def test_yuminject_plugin_notwrapped(tmpdir):
+def test_yuminject_plugin(tmpdir):
     df_content = """\
 FROM fedora
 RUN yum install -y python-django
@@ -73,9 +76,7 @@ CMD blabla"""
 
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': InjectYumRepoPlugin.key,
-        'args': {
-            "wrap_commands": False
-        }
+        'args': {}
     }])
     runner.run()
     assert InjectYumRepoPlugin.key is not None
@@ -89,78 +90,7 @@ RUN rm -f '/etc/yum.repos.d/atomic-reactor-injected.repo'
     assert expected_output == df.content
 
 
-@requires_internet  # noqa
-def test_yuminject_plugin_wrapped(tmpdir, docker_tasker):
-    df_content = """\
-FROM fedora
-RUN yum install -y python-django
-CMD blabla"""
-    df = df_parser(str(tmpdir))
-    df.content = df_content
-
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
-    workflow.builder = (StubInsideBuilder()
-                        .for_workflow(workflow)
-                        .set_df_path(df.dockerfile_path))
-
-    metalink = 'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
-
-    workflow.files[os.path.join(YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME)] = \
-        render_yum_repo(OrderedDict((('name', 'my-repo'),
-                                     ('metalink', metalink),
-                                     ('enabled', '1'),
-                                     ('gpgcheck', '0')), ))
-
-    runner = PreBuildPluginsRunner(docker_tasker, workflow, [{
-        'name': InjectYumRepoPlugin.key,
-        'args': {
-            "wrap_commands": True
-        }
-    }])
-    runner.run()
-    assert InjectYumRepoPlugin.key is not None
-
-    expected_output = """FROM fedora
-RUN printf "[my-repo]\nname=my-repo\nmetalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-\\$releasever&arch=\\$basearch\nenabled=1\ngpgcheck=0\n" >/etc/yum.repos.d/atomic-reactor-injected.repo && yum install -y python-django && yum clean all && rm -f /etc/yum.repos.d/atomic-reactor-injected.repo
-CMD blabla"""  # noqa
-    assert df.content == expected_output
-
-
-def test_yuminject_multiline_wrapped(tmpdir, docker_tasker):  # noqa
-    df_content = """\
-FROM fedora
-RUN yum install -y httpd \
-                   uwsgi
-CMD blabla"""
-    df = df_parser(str(tmpdir))
-    df.content = df_content
-
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
-    workflow.builder = (StubInsideBuilder()
-                        .for_workflow(workflow)
-                        .set_df_path(df.dockerfile_path))
-
-    metalink = 'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
-
-    workflow.files[os.path.join(YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME)] = \
-        render_yum_repo(OrderedDict((('name', 'my-repo'),
-                                     ('metalink', metalink),
-                                     ('enabled', '1'),
-                                     ('gpgcheck', '0')), ))
-    runner = PreBuildPluginsRunner(docker_tasker, workflow,
-                                   [{'name': InjectYumRepoPlugin.key, 'args': {
-                                       "wrap_commands": True
-                                   }}])
-    runner.run()
-    assert InjectYumRepoPlugin.key is not None
-
-    expected_output = """FROM fedora
-RUN printf "[my-repo]\nname=my-repo\nmetalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-\\$releasever&arch=\\$basearch\nenabled=1\ngpgcheck=0\n" >/etc/yum.repos.d/atomic-reactor-injected.repo && yum install -y httpd                    uwsgi && yum clean all && rm -f /etc/yum.repos.d/atomic-reactor-injected.repo
-CMD blabla"""  # noqa
-    assert df.content == expected_output
-
-
-def test_yuminject_multiline_notwrapped(tmpdir):
+def test_yuminject_multiline(tmpdir):
     df_content = """\
 FROM fedora
 RUN yum install -y httpd \
@@ -179,9 +109,7 @@ CMD blabla"""
                                     ('enabled', 1),
                                     ('gpgcheck', 0)), ))
     runner = PreBuildPluginsRunner(tasker, workflow,
-                                   [{'name': InjectYumRepoPlugin.key, 'args': {
-                                       "wrap_commands": False
-                                   }}])
+                                   [{'name': InjectYumRepoPlugin.key, 'args': {}}])
     runner.run()
     assert InjectYumRepoPlugin.key is not None
 
@@ -192,72 +120,6 @@ CMD blabla
 RUN rm -f '/etc/yum.repos.d/atomic-reactor-injected.repo'
 """
     assert df.content == expected_output
-
-
-def test_yuminject_multiline_wrapped_with_chown(tmpdir, docker_tasker):  # noqa
-    df_content = """\
-FROM fedora
-RUN yum install -y --setopt=tsflags=nodocs bind-utils gettext iproute v8314 mongodb24-mongodb mongodb24 && \
-    yum clean all && \
-    mkdir -p /var/lib/mongodb/data && chown -R mongodb:mongodb /var/lib/mongodb/ && \
-    test "$(id mongodb)" = "uid=184(mongodb) gid=998(mongodb) groups=998(mongodb)" && \
-    chmod o+w -R /var/lib/mongodb && chmod o+w -R /opt/rh/mongodb24/root/var/lib/mongodb
-CMD blabla"""  # noqa
-    df = df_parser(str(tmpdir))
-    df.content = df_content
-
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
-    workflow.builder = (StubInsideBuilder()
-                        .for_workflow(workflow)
-                        .set_df_path(df.dockerfile_path))
-
-    metalink = r'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'  # noqa
-
-    workflow.files[os.path.join(YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME)] = \
-        render_yum_repo(OrderedDict((('name', 'my-repo'),
-                                     ('metalink', metalink),
-                                     ('enabled', 1),
-                                     ('gpgcheck', 0)), ))
-    runner = PreBuildPluginsRunner(docker_tasker, workflow,
-                                   [{'name': InjectYumRepoPlugin.key, 'args': {
-                                       "wrap_commands": True
-                                   }}])
-    runner.run()
-    assert InjectYumRepoPlugin.key is not None
-
-    expected_output = """FROM fedora
-RUN printf "[my-repo]\nname=my-repo\nmetalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-\\$releasever&arch=\
-\\$basearch\nenabled=1\ngpgcheck=0\n" >/etc/yum.repos.d/atomic-reactor-injected.repo && \
-yum install -y --setopt=tsflags=nodocs bind-utils gettext iproute v8314 mongodb24-mongodb mongodb24 &&     \
-yum clean all &&     mkdir -p /var/lib/mongodb/data && chown -R mongodb:mongodb /var/lib/mongodb/ &&     \
-test "$(id mongodb)" = "uid=184(mongodb) gid=998(mongodb) groups=998(mongodb)" &&     \
-chmod o+w -R /var/lib/mongodb && chmod o+w -R /opt/rh/mongodb24/root/var/lib/mongodb && \
-yum clean all && rm -f /etc/yum.repos.d/atomic-reactor-injected.repo
-CMD blabla"""  # noqa
-    assert df.content == expected_output
-
-
-def test_complex_df():
-    df = """\
-FROM fedora
-RUN asd
-RUN  yum install x
-ENV x=y
-RUN yum install \
-    x \
-    y \
-    && something else
-CMD asd"""
-    wrap_cmd = "RUN test && %(yum_command)s && asd"
-    out = alter_yum_commands(df, wrap_cmd)
-    expected_output = """\
-FROM fedora
-RUN asd
-RUN test && yum install x && asd
-ENV x=y
-RUN test && yum install     x     y     && something else && asd
-CMD asd"""
-    assert out == expected_output
 
 
 repocontent = '''\
@@ -384,7 +246,7 @@ def test_single_repourl(tmpdir):
         workflow.files[repo_path] = repocontent
         runner = PreBuildPluginsRunner(tasker, workflow, [{
                 'name': InjectYumRepoPlugin.key,
-                'args': {'wrap_commands': False}}])
+                'args': {}}])
         runner.run()
 
         # Was it written correctly?
@@ -435,7 +297,7 @@ def test_multiple_repourls(tmpdir):
         workflow.files[repo_path2] = repocontent
         runner = PreBuildPluginsRunner(tasker, workflow, [{
                 'name': InjectYumRepoPlugin.key,
-                'args': {'wrap_commands': False}}])
+                'args': {}}])
         runner.run()
 
         # Remove the repos/ directory.
