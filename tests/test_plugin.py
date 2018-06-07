@@ -258,20 +258,37 @@ def test_no_appropriate_buildstep_build_plugin(caplog, tmpdir, docker_tasker):  
         runner.run()
 
 
-def test_fallback_to_docker_build(docker_tasker, tmpdir):  # noqa
+@pytest.mark.parametrize('pluginconf_method, default_method, source_method, expected', [  # noqa
+    ('orchestrator', 'docker_api',   None,           'orchestrator'),
+    ('orchestrator', 'docker_api',   'imagebuilder', 'orchestrator'),
+    (None,           'docker_api',   None,           'docker_api'),
+    ([],             'docker_api',   'imagebuilder', 'imagebuilder'),
+    (None,           'docker_api',   'docker_api',   'docker_api'),
+    ([],             'imagebuilder', None,           'imagebuilder'),
+    (None,           'imagebuilder', 'imagebuilder', 'imagebuilder'),
+    ([],             'imagebuilder', 'docker_api',   'docker_api'),
+])
+def test_which_buildstep_plugin_configured(
+    docker_tasker, tmpdir,
+    pluginconf_method, default_method, source_method, expected
+):
     """
-    test fallback to docker build
-    if no build_step specified or
-    if empty list of build step plugins specified
-    docker build plugin will run
+    test buildstep plugin adjustments.
+    if no/empty build_step specified,
+    build plugin from source or default will run
     """
     workflow = mock_workflow(tmpdir)
 
-    runner = BuildStepPluginsRunner(docker_tasker, workflow, [])
-    assert runner.plugins_conf == []
+    workflow.default_image_build_method = default_method
+    workflow.builder.source.config.image_build_method = source_method
+    expected = [{'name': expected, 'is_allowed_to_fail': False}]
+    plugins_conf = pluginconf_method
+    if pluginconf_method:
+        plugins_conf = [{'name': pluginconf_method, 'is_allowed_to_fail': False}]
+        expected[0]['required'] = False
 
-    runner = BuildStepPluginsRunner(docker_tasker, workflow, None)
-    assert runner.plugins_conf == [{'name': 'docker_api', 'is_allowed_to_fail': False}]
+    runner = BuildStepPluginsRunner(docker_tasker, workflow, plugins_conf)
+    assert runner.plugins_conf == expected
 
 
 class TestBuildPluginsRunner(object):

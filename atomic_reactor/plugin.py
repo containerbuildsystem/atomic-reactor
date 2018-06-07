@@ -420,19 +420,17 @@ class BuildStepPluginsRunner(BuildPluginsRunner):
         logger.info("initializing runner of build-step plugin")
         self.plugins_results = workflow.buildstep_result
 
-        override = workflow.builder.source.config.image_build_method
-        if override:
-            # ignore system config and use what the source says
-            plugin_conf = [{'name': override, 'is_allowed_to_fail': False}]
-        elif plugin_conf is None:
-            # if there is no buildstep_plugins key, fallback to default plugin
-            build_plugin = workflow.default_image_build_method
-            plugin_conf = [{'name': build_plugin, 'is_allowed_to_fail': False}]
-        else:
+        if plugin_conf:
             # any non existing buildstep plugin must be skipped without error
             for i in range(len(plugin_conf)):
                 plugin_conf[i]['required'] = False
                 plugin_conf[i]['is_allowed_to_fail'] = False
+        else:
+            # if no buildstep_plugins configured, which is typical for worker builds,
+            # use what the source says or the system default.
+            source_method = workflow.builder.source.config.image_build_method
+            system_method = workflow.default_image_build_method
+            plugin_conf = [{'name': source_method or system_method, 'is_allowed_to_fail': False}]
 
         super(BuildStepPluginsRunner, self).__init__(
             dt, workflow, 'BuildStepPlugin', plugin_conf, *args, **kwargs)
