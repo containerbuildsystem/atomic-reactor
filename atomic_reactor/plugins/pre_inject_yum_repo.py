@@ -9,69 +9,42 @@ of the BSD license. See the LICENSE file for details.
 Pre build plugin which injects custom yum repository in dockerfile.
 """
 import os
-import re
 from atomic_reactor.constants import YUM_REPOS_DIR, RELATIVE_REPOS_PATH, INSPECT_CONFIG
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
 
 
-logger = None
-
-
 def add_yum_repos_to_dockerfile(yumrepos, df, inherited_user):
-    df_lines = df.lines
-    if len(df_lines) == 0:
-        raise RuntimeError("Empty Dockerfile")
-
-    # Find where to insert commands
-
-    preinsert = None
-    structure = df.structure
-    for insndesc in structure:
-        insn = insndesc['instruction']
-        if insn == 'FROM':
-            # FROM line: can use this, but keep looking in case there is another
-            preinsert = insndesc['endline'] + 1
-
-    if preinsert is None:
+    if df.baseimage is None:
         raise RuntimeError("No FROM line in Dockerfile")
 
-    # Track changes to the inherited USER
-    if inherited_user:
-        final_user = "USER %s\n" % inherited_user
-    else:
-        final_user = None
-
-    for insndesc in structure:
+    # Determine the USER the final image should end with
+    final_user_line = "USER " + inherited_user if inherited_user else None
+    # Look for the last USER after the last FROM... by looking in reverse
+    for insndesc in reversed(df.structure):
         if insndesc['instruction'] == 'USER':
-            final_user = insndesc['content']
+            final_user_line = insndesc['content']  # we will reuse the line verbatim
+            break
+        if insndesc['instruction'] == 'FROM':
+            break  # no USER specified in final stage
 
-    # Insert the ADD line
-    newdf = df_lines[:preinsert]
-    newdf.append("ADD %s* '%s'\n" % (RELATIVE_REPOS_PATH, YUM_REPOS_DIR))
-    newdf.extend(df_lines[preinsert:])
+    # Insert the ADD line at the beginning of each stage
+    df.add_lines(
+        "ADD %s* '%s'" % (RELATIVE_REPOS_PATH, YUM_REPOS_DIR),
+        all_stages=True, at_start=True
+    )
 
-    # Deal with potential lack of newline on final line
-    last = len(newdf) - 1
-    if newdf[last][len(newdf[last]) - 1] != '\n':
-        newdf[last] += '\n'
+    # Insert line(s) to remove the repos
+    cleanup_lines = [
+        "RUN rm -f " +
+        " ".join(["'%s'" % repo for repo in yumrepos])
+    ]
+    # If needed, change to root in order to RUN rm, then change back.
+    if final_user_line:
+        cleanup_lines.insert(0, "USER root")
+        cleanup_lines.append(final_user_line)
 
-    # If needed, change to root in order to RUN rm
-    if final_user is not None:
-        newdf.append("USER root\n")
-
-    # Insert the line to remove the repos
-    newdf.append("RUN rm -f " +
-                 " ".join(["'%s'" % yumrepo
-                           for yumrepo in yumrepos]) +
-                 "\n")
-
-    # If needed, switch back to the user we would have been before
-    # modifications
-    if final_user is not None:
-        newdf.append(final_user)
-
-    return newdf
+    df.add_lines(*cleanup_lines)
 
 
 class InjectYumRepoPlugin(PreBuildPlugin):
@@ -88,9 +61,6 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         # call parent constructor
         super(InjectYumRepoPlugin, self).__init__(tasker, workflow)
         self.host_repos_path = os.path.join(self.workflow.builder.df_dir, RELATIVE_REPOS_PATH)
-
-        global logger
-        logger = self.log
 
     def run(self):
         """
@@ -119,5 +89,4 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         inspect = self.workflow.builder.inspect_base_image()
         inherited_user = inspect[INSPECT_CONFIG].get('User', '')
         df = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
-        df.lines = add_yum_repos_to_dockerfile(repos_host_cont_mapping,
-                                               df, inherited_user)
+        add_yum_repos_to_dockerfile(repos_host_cont_mapping, df, inherited_user)

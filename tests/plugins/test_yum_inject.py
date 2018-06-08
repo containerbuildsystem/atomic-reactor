@@ -10,10 +10,13 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function, unicode_literals
 
 import os
+import re
+import itertools
+from textwrap import dedent
+from collections import OrderedDict
+import pytest
 from atomic_reactor.constants import (YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME, RELATIVE_REPOS_PATH,
                                       INSPECT_CONFIG)
-
-from collections import OrderedDict
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
@@ -324,3 +327,96 @@ def test_multiple_repourls(tmpdir):
         remove = newdf[before_remove:]
         assert remove_lines_match(remove, df_content.remove_lines,
                                   [filename1, filename2])
+
+
+@pytest.mark.parametrize('name, inherited_user, dockerfile, expect_cleanup_lines', [
+    (
+        'single_stage',
+        '',
+        dedent("""\
+            FROM base
+              ### ADD HERE
+            RUN yum -y update
+        """),
+        ["RUN rm ...\n"],
+    ),
+    (
+        'multiple_stages',
+        '',
+        dedent("""\
+            FROM builder
+              ### ADD HERE
+            RUN build /some/stuff
+            FROM base
+              ### ADD HERE
+            RUN yum -y update
+            COPY --from=0 /some/stuff /bin/stuff
+        """),
+        ["RUN rm ...\n"],
+    ),
+    (
+        'multistage_with_user_confusion',
+        'johncleese',
+        dedent("""\
+            FROM golang:1.9 AS builder1
+              ### ADD HERE
+            USER grahamchapman
+            RUN build /spam/eggs
+
+            FROM jdk:1.8 AS builder2
+              ### ADD HERE
+            USER ericidle
+            RUN yum -y update
+            RUN build /bacon/beans
+
+            FROM base
+              ### ADD HERE
+            COPY --from=builder1 /some/stuff /bin/spam
+            COPY --from=builder2 /some/stuff /bin/eggs
+            # users in other stages should be ignored
+        """),
+        dedent("""\
+            USER root
+            RUN rm ...
+            USER johncleese
+        """).splitlines(True),
+    ),
+])
+def test_multistage_dockerfiles(name, inherited_user, dockerfile, expect_cleanup_lines, tmpdir):
+    # expect repo ADD instructions where indicated in the content, and RUN rm at the end.
+    # begin by splitting on "### ADD HERE" so we know where to expect changes.
+    segments = re.split(r'^.*ADD HERE.*$\n?', dockerfile, flags=re.M)
+    segment_lines = [seg.splitlines(True) for seg in segments]
+
+    # build expected contents by manually inserting expected ADD lines between the segments
+    for lines in segment_lines[:-1]:
+        lines.append("ADD %s* '/etc/yum.repos.d/'\n" % RELATIVE_REPOS_PATH)
+    expected_lines = list(itertools.chain.from_iterable(segment_lines))  # flatten lines
+
+    # now run the plugin to transform the given dockerfile
+    df = df_parser(str(tmpdir))
+    df.content = ''.join(segments)  # dockerfile without the "### ADD HERE" lines
+    tasker, workflow = prepare(df.dockerfile_path, inherited_user)
+    repo_file = 'myrepo.repo'
+    repo_path = os.path.join(YUM_REPOS_DIR, repo_file)
+    workflow.files[repo_path] = repocontent
+    runner = PreBuildPluginsRunner(tasker, workflow, [{
+            'name': InjectYumRepoPlugin.key,
+            'args': {}}])
+    runner.run()
+
+    # assert the Dockerfile has changed as expected up to the cleanup lines
+    new_df = df.lines
+    assert new_df[:len(expected_lines)] == expected_lines
+
+    # the rest of the lines should be cleanup lines
+    cleanup_lines = new_df[len(expected_lines):]
+    assert remove_lines_match(cleanup_lines, expect_cleanup_lines, [repo_file])
+
+
+def test_empty_dockerfile(tmpdir):
+    df = df_parser(str(tmpdir))
+    df.content = ''
+    with pytest.raises(RuntimeError) as exc:
+        add_yum_repos_to_dockerfile([], df, '')
+    assert "No FROM" in str(exc.value)
