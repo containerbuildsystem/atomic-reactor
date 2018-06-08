@@ -228,6 +228,18 @@ def test_ensure_primary(tmpdir, monkeypatch, osbs_error, tag_conf, annotations, 
     monkeypatch.setenv("BUILD", json.dumps({
         "metadata": {}
     }))
+    tags = []
+    primary_images = runner.workflow.tag_conf.primary_images
+    if not primary_images:
+        primary_images = [
+            ImageName.parse(primary) for primary in
+            runner.workflow.build_result.annotations['repositories']['primary']]
+
+    for primary_image in primary_images:
+        tag = primary_image.tag
+        if '-' in tag:
+            continue
+        tags.append(tag)
 
     (flexmock(OSBS)
      .should_receive('get_image_stream')
@@ -250,7 +262,7 @@ def test_ensure_primary(tmpdir, monkeypatch, osbs_error, tag_conf, annotations, 
 
     (flexmock(OSBS)
      .should_receive('import_image')
-     .with_args(TEST_IMAGESTREAM)
+     .with_args(TEST_IMAGESTREAM, tags=tags)
      .times(0 if osbs_error else 1)
      .and_return(True))
 
@@ -261,12 +273,14 @@ def test_ensure_primary(tmpdir, monkeypatch, osbs_error, tag_conf, annotations, 
         runner.run()
 
 
+@pytest.mark.parametrize('import_image_with_tags', [True, False])  # noqa
 @pytest.mark.parametrize('build_process_failed', [True, False])
 @pytest.mark.parametrize(('namespace'), [
     ({}),
     ({'namespace': 'my_namespace'})
 ])
-def test_import_image(tmpdir, build_process_failed, namespace, monkeypatch, reactor_config_map):
+def test_import_image(tmpdir, import_image_with_tags, build_process_failed, namespace,
+                      monkeypatch, reactor_config_map):
     """
     Test importing tags for an existing ImageStream
     """
@@ -278,6 +292,13 @@ def test_import_image(tmpdir, build_process_failed, namespace, monkeypatch, reac
     build_json = {"metadata": {}}
     build_json["metadata"].update(namespace)
     monkeypatch.setenv("BUILD", json.dumps(build_json))
+
+    tags = []
+    for primary_image in runner.workflow.tag_conf.primary_images:
+        tag = primary_image.tag
+        if '-' in tag:
+            continue
+        tags.append(tag)
 
     if build_process_failed:
         (flexmock(pre_reactor_config)
@@ -304,11 +325,27 @@ def test_import_image(tmpdir, build_process_failed, namespace, monkeypatch, reac
         (flexmock(OSBS)
          .should_receive('ensure_image_stream_tag')
          .times(DEFAULT_TAGS_AMOUNT))
-        (flexmock(OSBS)
-         .should_receive('import_image')
-         .once()
-         .with_args(TEST_IMAGESTREAM)
-         .and_return(True))
+
+        if import_image_with_tags:
+            (flexmock(OSBS)
+             .should_receive('import_image')
+             .once()
+             .with_args(TEST_IMAGESTREAM, tags=tags)
+             .and_return(True))
+        else:
+            (flexmock(OSBS)
+             .should_receive('import_image')
+             .once()
+             .with_args(TEST_IMAGESTREAM, tags=tags)
+             .and_raise(TypeError)
+             .ordered())
+            (flexmock(OSBS)
+             .should_receive('import_image')
+             .once()
+             .with_args(TEST_IMAGESTREAM)
+             .and_return(True)
+             .ordered())
+
     runner.run()
 
 
