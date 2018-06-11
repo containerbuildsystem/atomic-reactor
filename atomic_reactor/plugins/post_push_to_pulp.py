@@ -209,9 +209,7 @@ class PulpPushPlugin(PostBuildPlugin):
             self.log.info("extending image names: %s", self.image_names)
             image_names += [ImageName.parse(x) for x in self.image_names]
 
-        if self.load_exported_image:
-            if len(self.workflow.exported_image_sequence) == 0:
-                raise RuntimeError('no exported image to push to pulp')
+        if self.load_exported_image and len(self.workflow.exported_image_sequence) > 0:
             export_path = self.workflow.exported_image_sequence[-1].get("path")
             top_layer, crane_repos = self.push_tar(export_path, image_names)
         else:
