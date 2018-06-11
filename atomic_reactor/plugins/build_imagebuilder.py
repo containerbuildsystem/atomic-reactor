@@ -10,10 +10,13 @@ from __future__ import print_function, unicode_literals
 import subprocess
 import time
 from six import PY2
+import os
 
+from atomic_reactor.util import get_exported_image_metadata
 from atomic_reactor.plugin import BuildStepPlugin
 from atomic_reactor.build import BuildResult
 from atomic_reactor.constants import CONTAINER_IMAGEBUILDER_BUILD_METHOD
+from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME, IMAGE_TYPE_DOCKER_ARCHIVE
 
 
 def sixdecode(data):
@@ -76,5 +79,13 @@ class ImagebuilderPlugin(BuildStepPlugin):
         if ':' not in image_id:
             # Older versions of the daemon do not include the prefix
             image_id = 'sha256:{}'.format(image_id)
+
+        # since we need no squash, export the image for local operations like squash would have
+        self.log.info("fetching image %s from docker", image)
+        output_path = os.path.join(self.workflow.source.workdir, EXPORTED_SQUASHED_IMAGE_NAME)
+        with open(output_path, "w") as image_file:
+            image_file.write(self.tasker.d.get_image(image).data)
+        img_metadata = get_exported_image_metadata(output_path, IMAGE_TYPE_DOCKER_ARCHIVE)
+        self.workflow.exported_image_sequence.append(img_metadata)
 
         return BuildResult(logs=output, image_id=image_id, skip_layer_squash=True)
