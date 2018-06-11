@@ -150,7 +150,7 @@ def prepare(check_repo_retval=0, existing_layers=[],
     return tasker, workflow
 
 
-@pytest.mark.skipif(dockpulp is None,
+@pytest.mark.skipif(dockpulp is None,  # noqa: F811; redefinition of 'reactor_config_map'
                     reason='dockpulp module not available')
 @pytest.mark.parametrize(("unsupported"), [
     (True),
@@ -204,7 +204,7 @@ def test_pulp_dedup_layers(unsupported, unlink_exc, tmpdir, existing_layers, sho
     assert top_layer == 'foo'
 
 
-@pytest.mark.skipif(dockpulp is None,
+@pytest.mark.skipif(dockpulp is None,  # noqa: F811; redefinition of 'reactor_config_map'
                     reason='dockpulp module not available')
 @pytest.mark.parametrize(("check_repo_retval", "should_raise"), [
     (3, True),
@@ -248,7 +248,7 @@ def test_pulp_source_secret(tmpdir, check_repo_retval, should_raise, monkeypatch
     assert "registry.example.com/image-name3:asd" in images
 
 
-@pytest.mark.skipif(dockpulp is None,
+@pytest.mark.skipif(dockpulp is None,  # noqa: F811; redefinition of 'reactor_config_map'
                     reason='dockpulp module not available')
 def test_pulp_service_account_secret(tmpdir, monkeypatch, reactor_config_map):
     tasker, workflow = prepare()
@@ -280,7 +280,7 @@ def test_pulp_service_account_secret(tmpdir, monkeypatch, reactor_config_map):
     assert "registry.example.com/image-name3:asd" in images
 
 
-@pytest.mark.skipif(dockpulp is None,
+@pytest.mark.skipif(dockpulp is None,  # noqa: F811; redefinition of 'reactor_config_map'
                     reason='dockpulp module not available')
 @pytest.mark.parametrize(('before_name', 'after_name', 'publish', 'should_publish'), [
     ('foo', 'foo', True, True),
@@ -337,3 +337,24 @@ def test_pulp_publish_only_without_sync(before_name, after_name, publish,
         assert 'to be published' in caplog.text()
     else:
         assert 'publishing deferred' in caplog.text()
+
+
+@pytest.mark.skipif(dockpulp is None,
+                    reason='dockpulp module not available')
+def test_load_exported_image():
+    # low-level case to exercise the logic for using exported image
+    tasker, workflow = prepare()
+    workflow.exported_image_sequence = [dict(path='/some/dir')]
+    plugin = flexmock(PulpPushPlugin(
+        tasker, workflow,
+        publish=False,
+        load_exported_image=True,
+    ))
+    (
+        plugin
+        .should_receive('push_tar')
+        .with_args('/some/dir', workflow.tag_conf.images)
+        .and_return((None, None))
+        .once()
+    )
+    plugin.run()
