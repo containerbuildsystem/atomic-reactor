@@ -29,6 +29,9 @@ class MockDocker(object):
     def history(self, name):
         return []
 
+    def get_image(self, image_id):
+        return flexmock(data="image data")
+
 
 class MockDockerTasker(object):
     def __init__(self):
@@ -97,6 +100,7 @@ def test_popen_cmd(image_id):
     assert workflow.build_result.image_id.startswith('sha256:')
     assert workflow.build_result.image_id.count(':') == 1
     assert workflow.build_result.skip_layer_squash
+    assert len(workflow.exported_image_sequence) == 1
     assert cmd_output in workflow.build_result.logs
 
 
