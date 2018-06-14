@@ -26,7 +26,9 @@ except ImportError:
     del koji
     import koji as koji
 
-from atomic_reactor.constants import INSPECT_CONFIG
+from atomic_reactor.constants import (
+    INSPECT_CONFIG, BASE_IMAGE_KOJI_BUILD, PARENT_IMAGES_KOJI_BUILDS
+)
 from atomic_reactor.build import InsideBuilder
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
@@ -216,8 +218,8 @@ class TestKojiParent(object):
         workflow.base_image_inspect.update(image_inspects['base'])
 
         expected = {
-            'parent-image-koji-build': koji_builds['base'],
-            'parent-images-koji-builds': koji_builds,
+            BASE_IMAGE_KOJI_BUILD: koji_builds['base'],
+            PARENT_IMAGES_KOJI_BUILDS: koji_builds,
         }
         self.run_plugin_with_args(
             workflow, expect_result=expected, reactor_config_map=reactor_config_map
@@ -251,7 +253,7 @@ class TestKojiParent(object):
 
         result = runner.run()
         if expect_result is True:
-            expected_result = {'parent-image-koji-build': KOJI_BUILD}
+            expected_result = {BASE_IMAGE_KOJI_BUILD: KOJI_BUILD}
         elif expect_result is False:
             expected_result = None
         else:  # param provided the expected result

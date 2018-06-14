@@ -41,7 +41,9 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST, MEDIA_TYPE_OCI_V1,
                                       MEDIA_TYPE_OCI_V1_INDEX, GIT_MAX_RETRIES, GIT_BACKOFF_FACTOR,
-                                      PLUGIN_BUILD_ORCHESTRATE_KEY)
+                                      PLUGIN_BUILD_ORCHESTRATE_KEY, PLUGIN_KOJI_PARENT_KEY,
+                                      PARENT_IMAGE_BUILDS_KEY, PARENT_IMAGES_KOJI_BUILDS,
+                                      BASE_IMAGE_KOJI_BUILD, BASE_IMAGE_BUILD_ID_KEY)
 
 from dockerfile_parse import DockerfileParser
 from pkg_resources import resource_stream
@@ -1197,6 +1199,31 @@ def get_primary_images(workflow):
             ImageName.parse(primary) for primary in
             workflow.build_result.annotations['repositories']['primary']]
     return primary_images
+
+
+def get_parent_image_koji_data(workflow):
+    """Transform koji_parent plugin results into metadata dict."""
+    koji_parent = workflow.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY) or {}
+    image_metadata = {}
+
+    parents = {}
+    for img, build in (koji_parent.get(PARENT_IMAGES_KOJI_BUILDS) or {}).items():
+        if not build:
+            parents[img] = None
+        else:
+            parents[img] = {key: val for key, val in build.items() if key in ('id', 'nvr')}
+    image_metadata[PARENT_IMAGE_BUILDS_KEY] = parents
+
+    base_info = koji_parent.get(BASE_IMAGE_KOJI_BUILD) or {}
+    parent_id = base_info.get('id')
+    if parent_id is not None:
+        try:
+            parent_id = int(parent_id)
+        except ValueError:
+            logger.exception("invalid koji parent id %r", parent_id)
+        else:
+            image_metadata[BASE_IMAGE_BUILD_ID_KEY] = parent_id
+    return image_metadata
 
 
 class ModuleSpec(object):

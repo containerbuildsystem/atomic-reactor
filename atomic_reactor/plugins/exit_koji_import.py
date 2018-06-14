@@ -19,7 +19,7 @@ from atomic_reactor.plugins.build_orchestrate_build import (get_worker_build_inf
                                                             get_koji_upload_dir)
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
-from atomic_reactor.util import OSBSLogs
+from atomic_reactor.util import OSBSLogs, get_parent_image_koji_data
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
 
 try:
@@ -36,13 +36,10 @@ except ImportError:
     def get_manifests_in_pulp_repository(_):
         raise KeyError
 
-from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
-                                      PLUGIN_PULP_PULL_KEY,
-                                      PLUGIN_PULP_SYNC_KEY,
-                                      PLUGIN_FETCH_WORKER_METADATA_KEY,
-                                      PLUGIN_GROUP_MANIFESTS_KEY,
-                                      PLUGIN_KOJI_PARENT_KEY,
-                                      PLUGIN_RESOLVE_COMPOSES_KEY)
+from atomic_reactor.constants import (
+    PLUGIN_KOJI_IMPORT_PLUGIN_KEY, PLUGIN_PULP_PULL_KEY, PLUGIN_PULP_SYNC_KEY,
+    PLUGIN_FETCH_WORKER_METADATA_KEY, PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_RESOLVE_COMPOSES_KEY
+)
 from atomic_reactor.util import (Output, get_build_json,
                                  df_parser, ImageName, get_primary_images,
                                  get_manifest_media_type,
@@ -167,11 +164,6 @@ class KojiImportPlugin(ExitPlugin):
                 outputs.append(instance)
 
         return outputs
-
-    def get_parent_image_koji_build_id(self):
-        res = self.workflow.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY) or {}
-        build_info = res.get('parent-image-koji-build') or {}
-        return build_info.get('id')
 
     def get_buildroot(self, worker_metadatas):
         """
@@ -357,15 +349,7 @@ class KojiImportPlugin(ExitPlugin):
                 else:
                     extra['filesystem_koji_task_id'] = task_id
 
-        parent_id = self.get_parent_image_koji_build_id()
-        if parent_id is not None:
-            try:
-                parent_id = int(parent_id)
-            except ValueError:
-                self.log.exception("invalid koji parent id %r", parent_id)
-            else:
-                extra.setdefault('image', {})
-                extra['image']['parent_build_id'] = parent_id
+        extra['image'].update(get_parent_image_koji_data(self.workflow))
 
         flatpak_source_info = get_flatpak_source_info(self.workflow)
         if flatpak_source_info is not None:

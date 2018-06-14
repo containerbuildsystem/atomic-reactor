@@ -27,7 +27,11 @@ except ImportError:
     del koji
     import koji as koji
 
-from atomic_reactor.constants import PLUGIN_KOJI_PARENT_KEY, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
+from atomic_reactor.constants import (
+    PLUGIN_KOJI_PARENT_KEY,
+    PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
+    BASE_IMAGE_KOJI_BUILD
+)
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.source import SourceConfig
@@ -589,7 +593,7 @@ class TestResolveComposes(object):
             parent_build_info['extra']['image'] = {'odcs': {'signing_intent': parent_si}}
 
         workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = {
-            'parent-image-koji-build': parent_build_info,
+            BASE_IMAGE_KOJI_BUILD: parent_build_info,
         }
 
         plugin_args = {}

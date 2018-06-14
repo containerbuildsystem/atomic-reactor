@@ -57,7 +57,9 @@ from atomic_reactor.build import BuildResult
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
                                       PLUGIN_PULP_PULL_KEY, PLUGIN_PULP_SYNC_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY,
-                                      PLUGIN_RESOLVE_COMPOSES_KEY)
+                                      PLUGIN_RESOLVE_COMPOSES_KEY, BASE_IMAGE_KOJI_BUILD,
+                                      PARENT_IMAGES_KOJI_BUILDS, BASE_IMAGE_BUILD_ID_KEY,
+                                      PARENT_IMAGE_BUILDS_KEY)
 from tests.constants import SOURCE, MOCK
 from tests.fixtures import reactor_config_map  # noqa
 from tests.flatpak import MODULEMD_AVAILABLE, setup_flatpak_source_info
@@ -1071,7 +1073,7 @@ class TestKojiImport(object):
         koji_parent_result = None
         if parent_id != 'NO-RESULT':
             koji_parent_result = {
-                'parent-image-koji-build': {'id': parent_id},
+                BASE_IMAGE_KOJI_BUILD: {'id': parent_id},
             }
         workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = koji_parent_result
 
@@ -1091,13 +1093,42 @@ class TestKojiImport(object):
         if expect_success:
             image = extra['image']
             assert isinstance(image, dict)
-            assert 'parent_build_id' in image
-            parent_image_koji_build_id = image['parent_build_id']
+            assert BASE_IMAGE_BUILD_ID_KEY in image
+            parent_image_koji_build_id = image[BASE_IMAGE_BUILD_ID_KEY]
             assert isinstance(parent_image_koji_build_id, int)
             assert parent_image_koji_build_id == parent_id
         else:
             if 'image' in extra:
-                assert 'parent_build_id' not in extra['image']
+                assert BASE_IMAGE_BUILD_ID_KEY not in extra['image']
+
+    def test_produces_metadata_for_parent_images(  # noqa: F811
+            self, tmpdir, os_env, reactor_config_map
+        ):
+
+        koji_session = MockedClientSession('')
+        tasker, workflow = mock_environment(
+            tmpdir, session=koji_session, name='ns/name', version='1.0', release='1'
+        )
+
+        koji_parent_result = {
+            BASE_IMAGE_KOJI_BUILD: dict(id=16, extra='build info'),
+            PARENT_IMAGES_KOJI_BUILDS: dict(
+                base=dict(nvr='base-16.0-1', id=16, extra='build_info'),
+            ),
+        }
+        workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = koji_parent_result
+
+        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
+        runner.run()
+
+        image_metadata = koji_session.metadata['build']['extra']['image']
+        key = PARENT_IMAGE_BUILDS_KEY
+        assert key in image_metadata
+        assert image_metadata[key]['base'] == dict(nvr='base-16.0-1', id=16)
+        assert 'extra' not in image_metadata[key]['base']
+        key = BASE_IMAGE_BUILD_ID_KEY
+        assert key in image_metadata
+        assert image_metadata[key] == 16
 
     @pytest.mark.parametrize(('task_id', 'expect_success'), [
         (1234, True),

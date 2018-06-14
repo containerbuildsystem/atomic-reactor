@@ -29,7 +29,9 @@ except ImportError:
 
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
                                       PLUGIN_PULP_SYNC_KEY, PLUGIN_PULP_PULL_KEY,
-                                      PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY)
+                                      PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
+                                      BASE_IMAGE_KOJI_BUILD, BASE_IMAGE_BUILD_ID_KEY,
+                                      PARENT_IMAGES_KOJI_BUILDS, PARENT_IMAGE_BUILDS_KEY)
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.exit_koji_promote import (KojiUploadLogger,
                                                       KojiPromotePlugin)
@@ -1525,7 +1527,7 @@ class TestKojiPromote(object):
 
         if parent_output:
             workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = \
-                {'parent-image-koji-build': {'id': parent_output}}
+                {BASE_IMAGE_KOJI_BUILD: {'id': parent_output}}
         else:
             workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = parent_output
 
@@ -1544,10 +1546,10 @@ class TestKojiPromote(object):
         assert isinstance(image, dict)
 
         if expected_result:
-            assert 'parent_build_id' in image.keys()
-            assert image['parent_build_id'] == expected_result
+            assert BASE_IMAGE_BUILD_ID_KEY in image.keys()
+            assert image[BASE_IMAGE_BUILD_ID_KEY] == expected_result
         else:
-            assert 'parent_build_id' not in image.keys()
+            assert BASE_IMAGE_BUILD_ID_KEY not in image.keys()
 
     def test_koji_promote_no_parent_id(self, tmpdir, os_env, reactor_config_map):  # noqa
         session = MockedClientSession('')
@@ -1571,8 +1573,30 @@ class TestKojiPromote(object):
         image = extra['image']
         assert isinstance(image, dict)
 
-        assert 'parent_build_id' not in image.keys()
+        assert BASE_IMAGE_BUILD_ID_KEY not in image.keys()
         assert PLUGIN_KOJI_PARENT_KEY not in workflow.prebuild_results
+
+    def test_supplies_parent_builds(self, tmpdir, os_env, reactor_config_map):  # noqa: F811
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(
+            tmpdir, name='ns/name', version='1.0', release='1', session=session
+        )
+
+        koji_parent_result = {
+            BASE_IMAGE_KOJI_BUILD: {'id': 16},
+            PARENT_IMAGES_KOJI_BUILDS: dict(
+                base=dict(nvr='base-16.0-1', id=16),
+            ),
+        }
+        workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = koji_parent_result
+
+        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
+        runner.run()
+
+        image_metadata = session.metadata['build']['extra']['image']
+        key = PARENT_IMAGE_BUILDS_KEY
+        assert key in image_metadata
+        assert image_metadata[key] == koji_parent_result[PARENT_IMAGES_KOJI_BUILDS]
 
     def test_koji_promote_owner_submitter(self, tmpdir, monkeypatch):
         (taskId, userId, userName) = (1234, 5432, 'dev1')

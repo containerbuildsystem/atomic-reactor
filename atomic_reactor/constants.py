@@ -93,6 +93,14 @@ PLUGIN_CHECK_AND_SET_PLATFORMS_KEY = 'check_and_set_platforms'
 PLUGIN_REMOVE_WORKER_METADATA_KEY = 'remove_worker_metadata'
 PLUGIN_RESOLVE_COMPOSES_KEY = 'resolve_composes'
 
+# some shared dict keys for build metadata that gets recorded with koji.
+# for consistency of metadata in historical builds, these values basically cannot change.
+# however constant names could change to more accurately reflect current semantics.
+BASE_IMAGE_KOJI_BUILD = 'parent-image-koji-build'  # from when the base image was the only parent
+PARENT_IMAGES_KOJI_BUILDS = 'parent-images-koji-builds'
+BASE_IMAGE_BUILD_ID_KEY = 'parent_build_id'  # from when the base image was the only parent
+PARENT_IMAGE_BUILDS_KEY = 'parent_image_builds'
+
 # max retries for docker requests
 DOCKER_MAX_RETRIES = 3
 # how many seconds should wait before another try of docker request

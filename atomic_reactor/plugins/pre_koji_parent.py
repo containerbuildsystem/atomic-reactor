@@ -7,9 +7,10 @@ of the BSD license. See the LICENSE file for details.
 """
 from __future__ import print_function, unicode_literals
 
-from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.constants import PLUGIN_KOJI_PARENT_KEY
+from atomic_reactor.constants import (
+    INSPECT_CONFIG, PLUGIN_KOJI_PARENT_KEY, BASE_IMAGE_KOJI_BUILD, PARENT_IMAGES_KOJI_BUILDS
+)
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 from osbs.utils import Labels
 
@@ -139,7 +140,7 @@ class KojiParentPlugin(PreBuildPlugin):
         """Construct the result dict to be preserved in the build metadata."""
         result = {}
         if self._base_image_build:
-            result['parent-image-koji-build'] = self._base_image_build
+            result[BASE_IMAGE_KOJI_BUILD] = self._base_image_build
         if self._parent_builds:
-            result['parent-images-koji-builds'] = self._parent_builds
+            result[PARENT_IMAGES_KOJI_BUILDS] = self._parent_builds
         return result if result else None
