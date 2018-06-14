@@ -27,7 +27,7 @@ except ImportError:
     import koji as koji
 
 from atomic_reactor.constants import INSPECT_CONFIG
-from atomic_reactor.core import DockerTasker
+from atomic_reactor.build import InsideBuilder
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_koji_parent import KojiParentPlugin
@@ -69,13 +69,15 @@ BASE_IMAGE_LABELS_W_ALIASES = {
 }
 
 
-class MockInsideBuilder(object):
+class MockInsideBuilder(InsideBuilder):
     def __init__(self):
-        self.tasker = DockerTasker()
+        self.tasker = flexmock()
         self.base_image = ImageName(repo='Fedora', tag='22')
+        self.original_base_image = ImageName(repo='Fedora', tag='22')
+        self.parent_images = {}  # don't want to handle inspections in most tests
         self.image_id = 'image_id'
         self.image = 'image'
-        self.df_path = 'df_path'
+        self._df_path = 'df_path'
         self.df_dir = 'df_dir'
 
     @property
@@ -151,7 +153,7 @@ class TestKojiParent(object):
         with pytest.raises(PluginFailedException) as exc_info:
             self.run_plugin_with_args(workflow, {'poll_timeout': 0.01},
                                       reactor_config_map=reactor_config_map)
-        assert 'build NOT found' in str(exc_info.value)
+        assert 'KojiParentBuildMissing' in str(exc_info.value)
 
     def test_base_image_not_inspected(self, workflow, koji_session, reactor_config_map):  # noqa
         del workflow.base_image_inspect[INSPECT_CONFIG]
@@ -160,7 +162,7 @@ class TestKojiParent(object):
         assert 'KeyError' in str(exc_info.value)
         assert 'Config' in str(exc_info.value)
 
-    @pytest.mark.parametrize(('remove_labels', 'exp_result'), [
+    @pytest.mark.parametrize(('remove_labels', 'exp_result'), [  # noqa: F811
         (['com.redhat.component'], True),
         (['BZComponent'], True),
         (['com.redhat.component', 'BZComponent'], False),
@@ -178,6 +180,48 @@ class TestKojiParent(object):
             del workflow.base_image_inspect[INSPECT_CONFIG]['Labels'][label]
         self.run_plugin_with_args(workflow, expect_result=exp_result,
                                   reactor_config_map=reactor_config_map)
+
+    def test_multiple_parent_images(self, workflow, koji_session, reactor_config_map):  # noqa: F811
+        parent_images = dict(
+            somebuilder='b1tag',
+            otherbuilder='b2tag',
+            base='basetag',
+            unresolved=None,
+        )
+        koji_builds = dict(
+            somebuilder=dict(nvr='somebuilder-1.0-1', id=42),
+            otherbuilder=dict(nvr='otherbuilder-2.0-1', id=43),
+            base=dict(nvr='base-16.0-1', id=16),
+            unresolved=None,
+        )
+        image_inspects = {}
+
+        # need to load up our mock objects with expected responses for the parents
+        for img, build in koji_builds.items():
+            if build is None:
+                continue
+            name, version, release = koji_builds[img]['nvr'].split('-')
+            labels = {'com.redhat.component': name, 'version': version, 'release': release}
+            image_inspects[img] = {INSPECT_CONFIG: dict(Labels=labels)}
+            (workflow.builder.tasker
+                .should_receive('inspect_image')
+                .with_args(parent_images[img])
+                .and_return(image_inspects[img]))
+            (koji_session.should_receive('getBuild')
+                .with_args(koji_builds[img]['nvr'])
+                .and_return(koji_builds[img]))
+
+        workflow.builder.set_base_image('basetag')
+        workflow.builder.parent_images = parent_images
+        workflow.base_image_inspect.update(image_inspects['base'])
+
+        expected = {
+            'parent-image-koji-build': koji_builds['base'],
+            'parent-images-koji-builds': koji_builds,
+        }
+        self.run_plugin_with_args(
+            workflow, expect_result=expected, reactor_config_map=reactor_config_map
+        )
 
     def run_plugin_with_args(self, workflow, plugin_args=None, expect_result=True,  # noqa
                              reactor_config_map=False):
@@ -206,9 +250,11 @@ class TestKojiParent(object):
         )
 
         result = runner.run()
-        if expect_result:
+        if expect_result is True:
             expected_result = {'parent-image-koji-build': KOJI_BUILD}
-        else:
+        elif expect_result is False:
             expected_result = None
+        else:  # param provided the expected result
+            expected_result = expect_result
 
         assert result[KojiParentPlugin.key] == expected_result
