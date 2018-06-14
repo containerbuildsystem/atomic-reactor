@@ -14,7 +14,7 @@ from collections import defaultdict
 
 from atomic_reactor.constants import (PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
                                       REPO_CONTENT_SETS_CONFIG, PLUGIN_BUILD_ORCHESTRATE_KEY,
-                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, BASE_IMAGE_KOJI_BUILD)
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
@@ -180,7 +180,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
                            PLUGIN_KOJI_PARENT_KEY)
             return
 
-        build_info = plugin_result['parent-image-koji-build']
+        build_info = plugin_result[BASE_IMAGE_KOJI_BUILD]
 
         try:
             parent_signing_intent_name = build_info['extra']['image']['odcs']['signing_intent']

@@ -26,6 +26,7 @@ from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session, get_koji_session
+from atomic_reactor.util import get_parent_image_koji_data
 
 try:
     from atomic_reactor.plugins.pre_flatpak_create_dockerfile import get_flatpak_source_info
@@ -44,7 +45,6 @@ except ImportError:
 from atomic_reactor.constants import (PROG, PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_TAG_BUILD_KEY,
                                       PLUGIN_PULP_PULL_KEY,
-                                      PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY)
 from atomic_reactor.util import (Output, get_version_of_tools, get_checksums,
                                  get_build_json,
@@ -542,16 +542,8 @@ class KojiPromotePlugin(ExitPlugin):
         if pulp_pull_results:
             extra['image']['media_types'] = sorted(list(set(pulp_pull_results)))
 
-        # Append parent_build_id from koji parent
-        parent_results = self.workflow.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY) or {}
-        parent_id = parent_results.get('parent-image-koji-build', {}).get('id')
-        if parent_id is not None:
-            try:
-                parent_id = int(parent_id)
-            except ValueError:
-                self.log.exception("invalid koji parent id %r", parent_id)
-            else:
-                extra['image']['parent_build_id'] = parent_id
+        # append parent builds and parent_build_id from koji parent
+        extra['image'].update(get_parent_image_koji_data(self.workflow))
 
         # Append isolated build flag
         try:
