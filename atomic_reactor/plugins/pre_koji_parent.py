@@ -20,6 +20,11 @@ DEFAULT_POLL_TIMEOUT = 60 * 10  # 10 minutes
 DEFAULT_POLL_INTERVAL = 10  # 10 seconds
 
 
+class KojiParentBuildMissing(ValueError):
+    """Expected to find a build for the parent image in koji, did not find it within timeout."""
+    pass
+
+
 class KojiParentPlugin(PreBuildPlugin):
     """Wait for Koji build of parent image to be avaialable
 
@@ -61,20 +66,38 @@ class KojiParentPlugin(PreBuildPlugin):
         self.poll_interval = poll_interval
         self.poll_timeout = poll_timeout
 
-        self._parent_image_nvr = None
-        self._parent_image_build = None
+        self._base_image_nvr = None
+        self._base_image_build = None
+        self._parent_builds = {}
         self._poll_start = None
 
     def run(self):
-        if not self.detect_parent_image_nvr():
-            return
-        self.wait_for_parent_image_build()
-        self.verify_parent_image_build()
+        nvr = self._base_image_nvr = self.detect_parent_image_nvr(
+            self.workflow.builder.base_image,
+            inspect_data=self.workflow.base_image_inspect,
+        )
+        if nvr:
+            self._base_image_build = self.wait_for_parent_image_build(nvr)
+
+        for img, local_tag in self.workflow.builder.parent_images.items():
+            nvr = self.detect_parent_image_nvr(local_tag) if local_tag else None
+            if nvr == self._base_image_nvr:  # don't look up base image a second time
+                self._parent_builds[img] = self._base_image_build
+                continue
+            self._parent_builds[img] = self.wait_for_parent_image_build(nvr) if nvr else None
+
         return self.make_result()
 
-    def detect_parent_image_nvr(self):
-        config = self.workflow.base_image_inspect[INSPECT_CONFIG]
-        labels = Labels(config['Labels'] or {})
+    def detect_parent_image_nvr(self, image_name, inspect_data=None):
+        """
+        Look for the NVR labels, if any, in the image.
+
+        :return NVR string if labels found, otherwise None
+        """
+
+        if inspect_data is None:
+            inspect_data = self.workflow.builder.tasker.inspect_image(image_name)
+        labels = Labels(inspect_data[INSPECT_CONFIG].get('Labels', {}))
 
         label_names = [Labels.LABEL_TYPE_COMPONENT, Labels.LABEL_TYPE_VERSION,
                        Labels.LABEL_TYPE_RELEASE]
@@ -85,41 +108,38 @@ class KojiParentPlugin(PreBuildPlugin):
                 _, lbl_value = labels.get_name_and_value(lbl_name)
                 label_values.append(lbl_value)
             except KeyError:
-                self.log.info("Failed to find label '%s' in parent image.",
-                              labels.get_name(lbl_name))
+                self.log.info("Failed to find label '%s' in parent image '%s'.",
+                              labels.get_name(lbl_name), image_name)
 
-        if len(label_values) != len(label_names):
-            self._parent_image_nvr = None
-            self.log.info("Not waiting for Koji build.")
-            return False
+        if len(label_values) != len(label_names):  # don't have all the necessary labels
+            self.log.info("Image '%s' NVR missing; not searching for Koji build.", image_name)
+            return None
 
-        self._parent_image_nvr = '-'.join(label_values)
-        return True
+        return '-'.join(label_values)
 
-    def wait_for_parent_image_build(self):
-        self.start_polling_timer()
-        self.log.info('Waiting for parent image Koji build %s', self._parent_image_nvr)
-        while self.is_within_timeout():
-            if self.has_parent_image_build():
-                self.log.info('Parent image Koji build found')
-                break
+    def wait_for_parent_image_build(self, nvr):
+        """
+        Given image NVR, wait for the build that produced it to show up in koji.
+        If it doesn't within the timeout, raise an error.
+
+        :return build info dict with 'nvr' and 'id' keys
+        """
+
+        self.log.info('Waiting for Koji build for parent image %s', nvr)
+        poll_start = time.time()
+        while time.time() - poll_start < self.poll_timeout:
+            build = self.koji_session.getBuild(nvr)
+            if build:
+                self.log.info('Parent image Koji build found with id %s', build.get('id'))
+                return build
             time.sleep(self.poll_interval)
-
-    def start_polling_timer(self):
-        self._poll_start = time.time()
-
-    def is_within_timeout(self):
-        return (time.time() - self._poll_start) < self.poll_timeout
-
-    def has_parent_image_build(self):
-        self._parent_image_build = self.koji_session.getBuild(self._parent_image_nvr)
-        return self._parent_image_build is not None
-
-    def verify_parent_image_build(self):
-        if self._parent_image_build is None:
-            raise ValueError('Parent image Koji build NOT found!')
+        raise KojiParentBuildMissing('Parent image Koji build NOT found for {}!'.format(nvr))
 
     def make_result(self):
-        return {
-            'parent-image-koji-build': self._parent_image_build,
-        }
+        """Construct the result dict to be preserved in the build metadata."""
+        result = {}
+        if self._base_image_build:
+            result['parent-image-koji-build'] = self._base_image_build
+        if self._parent_builds:
+            result['parent-images-koji-builds'] = self._parent_builds
+        return result if result else None
