@@ -438,11 +438,16 @@ class ODCSConfig(object):
         self.get_signing_intent_by_name(self.default_signing_intent)
 
     def get_signing_intent_by_name(self, name):
+        valid = []
         for entry in self.signing_intents:
-            if entry['name'] == name:
+            this_name = entry['name']
+            if this_name == name:
                 return entry
 
-        raise ValueError('unknown signing intent name "{}"'.format(name))
+            valid.append(this_name)
+
+        raise ValueError('unknown signing intent name "{}", valid names: {}'
+                         .format(name, ', '.join(valid)))
 
     def get_signing_intent_by_keys(self, keys):
         if isinstance(keys, six.text_type):
