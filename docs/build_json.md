@@ -35,7 +35,7 @@ If you want to take advantage of _inner_ part logic of Atomic Reactor, you can d
     },
     {
       "args": {},
-      "name": "assert_labels",
+      "name": "check_and_set_platforms",
       "required": false
     }
   ],
