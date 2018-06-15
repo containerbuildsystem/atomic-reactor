@@ -267,7 +267,7 @@ class TestReactorConfigPlugin(object):
             "'one' is not of type %r" % u'integer',
 
             "validation error (clusters.foo[3].max_concurrent_builds): "
-            "-1.0 is less than the minimum of 0",
+            "-1 is less than the minimum of 0",
         ]),
 
         ("""\
