@@ -18,7 +18,7 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_inject_yum_repo import InjectYumRepoPlugin, alter_yum_commands
-from atomic_reactor.util import ImageName, render_yum_repo, df_parser
+from atomic_reactor.util import render_yum_repo, df_parser
 import os.path
 from collections import namedtuple
 import requests
@@ -26,12 +26,9 @@ from flexmock import flexmock
 from tests.fixtures import docker_tasker  # noqa
 from tests.constants import SOURCE, MOCK
 from tests.util import requires_internet
+from tests.stubs import StubInsideBuilder
 if MOCK:
     from tests.docker_mock import mock_docker
-
-
-class X(object):
-    pass
 
 
 def prepare(df_path, inherited_user=''):
@@ -39,20 +36,15 @@ def prepare(df_path, inherited_user=''):
         mock_docker()
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
-    setattr(workflow, 'builder', X())
+    workflow.builder = (StubInsideBuilder()
+                        .for_workflow(workflow)
+                        .set_df_path(df_path)
+                        .set_inspection_data({
+                            INSPECT_CONFIG: {
+                                'User': inherited_user,
+                            },
+                        }))
 
-    setattr(workflow.builder, 'image_id', "asd123")
-    setattr(workflow.builder, 'df_path', str(df_path))
-    setattr(workflow.builder, 'df_dir', os.path.dirname(str(df_path)))
-    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
-    setattr(workflow.builder, 'git_dockerfile_path', None)
-    setattr(workflow.builder, 'git_path', None)
-    setattr(workflow.builder, 'source', X())
-    setattr(workflow.builder.source, 'dockerfile_path', None)
-    setattr(workflow.builder.source, 'path', '')
-
-    inspection_data = {INSPECT_CONFIG: {'User': inherited_user}}
-    workflow.builder.inspect_base_image = lambda: inspection_data
     (flexmock(requests.Response, content=repocontent)
      .should_receive('raise_for_status')
      .and_return(None))
@@ -107,8 +99,9 @@ CMD blabla"""
     df.content = df_content
 
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
-    setattr(workflow, 'builder', X())
-    workflow.builder.source = workflow.source
+    workflow.builder = (StubInsideBuilder()
+                        .for_workflow(workflow)
+                        .set_df_path(df.dockerfile_path))
 
     metalink = 'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
 
@@ -118,12 +111,6 @@ CMD blabla"""
                                      ('enabled', '1'),
                                      ('gpgcheck', '0')), ))
 
-    setattr(workflow.builder, 'image_id', "asd123")
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
-    setattr(workflow.builder, 'df_dir', str(tmpdir))
-    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
-    setattr(workflow.builder, 'git_dockerfile_path', None)
-    setattr(workflow.builder, 'git_path', None)
     runner = PreBuildPluginsRunner(docker_tasker, workflow, [{
         'name': InjectYumRepoPlugin.key,
         'args': {
@@ -149,7 +136,9 @@ CMD blabla"""
     df.content = df_content
 
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
-    setattr(workflow, 'builder', X())
+    workflow.builder = (StubInsideBuilder()
+                        .for_workflow(workflow)
+                        .set_df_path(df.dockerfile_path))
 
     metalink = 'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
 
@@ -158,13 +147,6 @@ CMD blabla"""
                                      ('metalink', metalink),
                                      ('enabled', '1'),
                                      ('gpgcheck', '0')), ))
-    setattr(workflow.builder, 'image_id', "asd123")
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
-    setattr(workflow.builder, 'df_dir', str(tmpdir))
-    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
-    setattr(workflow.builder, 'source', X())
-    setattr(workflow.builder.source, 'dockerfile_path', None)
-    setattr(workflow.builder.source, 'path', None)
     runner = PreBuildPluginsRunner(docker_tasker, workflow,
                                    [{'name': InjectYumRepoPlugin.key, 'args': {
                                        "wrap_commands": True
@@ -225,7 +207,9 @@ CMD blabla"""  # noqa
     df.content = df_content
 
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
-    setattr(workflow, 'builder', X())
+    workflow.builder = (StubInsideBuilder()
+                        .for_workflow(workflow)
+                        .set_df_path(df.dockerfile_path))
 
     metalink = r'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'  # noqa
 
@@ -234,15 +218,6 @@ CMD blabla"""  # noqa
                                      ('metalink', metalink),
                                      ('enabled', 1),
                                      ('gpgcheck', 0)), ))
-    setattr(workflow.builder, 'image_id', "asd123")
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
-    setattr(workflow.builder, 'df_dir', str(tmpdir))
-    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
-    setattr(workflow.builder, 'git_dockerfile_path', None)
-    setattr(workflow.builder, 'git_path', None)
-    setattr(workflow.builder, 'source', X())
-    setattr(workflow.builder.source, 'dockerfile_path', None)
-    setattr(workflow.builder.source, 'path', '')
     runner = PreBuildPluginsRunner(docker_tasker, workflow,
                                    [{'name': InjectYumRepoPlugin.key, 'args': {
                                        "wrap_commands": True
