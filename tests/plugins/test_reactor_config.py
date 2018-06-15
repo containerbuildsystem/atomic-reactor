@@ -507,7 +507,10 @@ class TestReactorConfigPlugin(object):
 
         with pytest.raises(ValueError) as exc_info:
             get_config(workflow).get_odcs_config()
-        assert 'unknown signing intent' in str(exc_info.value)
+        message = str(exc_info.value)
+        assert message == dedent("""\
+            unknown signing intent name "spam", valid names: unsigned, beta, release
+            """.rstrip())
 
     @pytest.mark.parametrize('fallback', (True, False, None))
     @pytest.mark.parametrize('method', [
