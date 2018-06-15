@@ -287,7 +287,6 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_koji_parent.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_inject_parent_image.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_fetch_maven_artifacts.py*
-%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py*
 %exclude %{python2_sitelib}/integration-tests
 
 %{python2_sitelib}/atomic_reactor-%{version}-py2.*.egg-info
@@ -315,7 +314,6 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %files -n python-atomic-reactor-rebuilds
 %{python2_sitelib}/atomic_reactor/plugins/exit_sendmail.py*
 %{python2_sitelib}/atomic_reactor/plugins/post_import_image.py*
-%{python2_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py*
 
 
 %if 0%{?with_python3}
@@ -347,7 +345,6 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_koji.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_koji_parent.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_inject_parent_image.py
-%exclude %{python3_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_fetch_maven_artifacts.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_promote*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_import*.py*
@@ -361,7 +358,6 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji_parent*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_inject_parent_image*.py*
-%exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_stop_autorebuild_if_disabled*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_fetch_maven_artifacts*.py*
 %exclude %{python3_sitelib}/integration-tests
 
@@ -406,11 +402,9 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python3_sitelib}/atomic_reactor/plugins/exit_sendmail.py
 %{python3_sitelib}/atomic_reactor/plugins/post_import_image.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_check_and_set_rebuild.py
-%{python3_sitelib}/atomic_reactor/plugins/pre_stop_autorebuild_if_disabled.py
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_sendmail*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/post_import_image*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_check_and_set_rebuild*.py*
-%{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_stop_autorebuild_if_disabled*.py*
 %endif  # with_python3
 
 
