@@ -10,11 +10,14 @@ from __future__ import print_function
 
 
 import koji
+from requests.exceptions import ConnectionError
+
 import logging
 import os
 import time
 
-from atomic_reactor.constants import DEFAULT_DOWNLOAD_BLOCK_SIZE
+from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE,
+                                      HTTP_BACKOFF_FACTOR, HTTP_MAX_RETRIES)
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +41,35 @@ class KojiUploadLogger(object):
             self.last_percent_done = percent_done
             self.logger.debug("upload: %d%% done (%.1f MiB/sec)",
                               percent_done, size / t1 / 1024 / 1024)
+
+
+class KojiSessionWrapper(object):
+    """
+    Wrap all calls to koji.ClientSession methods in a catch/exception block, so that
+    improperly handled ConnectionErrors from koji.ClientSession will get retried silently.
+
+
+    """
+    def __init__(self, session):
+        self._wrapped_session = session
+
+    def __getattr__(self, name):
+        session_attr = getattr(self._wrapped_session, name)
+        if callable(session_attr):
+            def call_with_catch(*a, **kw):
+                retry_delay = HTTP_BACKOFF_FACTOR
+                last_exc = None
+                for retry in range(HTTP_MAX_RETRIES):
+                    try:
+                        return session_attr(*a, **kw)
+                    except ConnectionError as exc:
+                        time.sleep(retry_delay * (2 ** retry))
+                        last_exc = exc
+                        continue
+                raise last_exc
+            return call_with_catch
+        else:
+            return session_attr
 
 
 def koji_login(session,
@@ -103,7 +135,7 @@ def create_koji_session(hub_url, auth_info=None):
     :param auth_info: dict, authentication parameters used for koji_login
     :return: koji.ClientSession instance
     """
-    session = koji.ClientSession(hub_url, opts={'krb_rdns': False})
+    session = KojiSessionWrapper(koji.ClientSession(hub_url, opts={'krb_rdns': False}))
 
     if auth_info is not None:
         koji_login(session, **auth_info)
