@@ -613,16 +613,27 @@ def registry_hostname(registry):
 class Dockercfg(object):
     def __init__(self, secret_path):
         """
-        Create a new Dockercfg object from a .dockercfg file whose
+        Create a new Dockercfg object from a .dockercfg/.dockerconfigjson file whose
         containing directory is secret_path.
 
-        :param secret_path: str, dirname of .dockercfg location
+        :param secret_path: str, dirname of .dockercfg/.dockerconfigjson location
         """
 
-        self.json_secret_path = os.path.join(secret_path, '.dockercfg')
+        if os.path.exists(os.path.join(secret_path, '.dockercfg')):
+            self.json_secret_path = os.path.join(secret_path, '.dockercfg')
+        elif os.path.exists(os.path.join(secret_path, '.dockerconfigjson')):
+            self.json_secret_path = os.path.join(secret_path, '.dockerconfigjson')
+        else:
+            raise RuntimeError("The registry secret was not found on the filesystem, "
+                               "either .dockercfg or .dockerconfigjson are supported")
         try:
             with open(self.json_secret_path) as fp:
                 self.json_secret = json.load(fp)
+
+            # If the auths key exist then we have a dockerconfigjson secret.
+            if 'auths' in self.json_secret:
+                self.json_secret = self.json_secret.get('auths')
+
         except Exception:
             msg = "failed to read registry secret"
             logger.error(msg, exc_info=True)
