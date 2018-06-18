@@ -107,9 +107,17 @@ class X(object):
     (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_10_NOT_IN_STATUS, True, True),
     (TEST_IMAGE, PUSH_ERROR_LOGS, True, False),
 ])
+@pytest.mark.parametrize(("file_name", "dockerconfig_contents"), [
+    (".dockercfg", {LOCALHOST_REGISTRY: {"username": "user",
+                                         "email": "test@example.com",
+                                         "password": "mypassword"}}),
+    (".dockerconfigjson", {"auths": {LOCALHOST_REGISTRY: {"username": "user",
+                                                          "email": "test@example.com",
+                                                          "password": "mypassword"}}}),
+])
 def test_tag_and_push_plugin(
         tmpdir, monkeypatch, image_name, logs, should_raise, has_config, use_secret,
-        reactor_config_map):
+        reactor_config_map, file_name, dockerconfig_contents):
 
     if MOCK:
         mock_docker()
@@ -124,10 +132,7 @@ def test_tag_and_push_plugin(
     secret_path = None
     if use_secret:
         temp_dir = mkdtemp()
-        with open(os.path.join(temp_dir, ".dockercfg"), "w+") as dockerconfig:
-            dockerconfig_contents = {
-                LOCALHOST_REGISTRY: {
-                    "username": "user", "email": "test@example.com", "password": "mypassword"}}
+        with open(os.path.join(temp_dir, file_name), "w+") as dockerconfig:
             dockerconfig.write(json.dumps(dockerconfig_contents))
             dockerconfig.flush()
             secret_path = temp_dir
