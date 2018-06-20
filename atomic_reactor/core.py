@@ -323,7 +323,7 @@ class DockerTasker(LastLogger):
 
             return cmd_result
 
-    def build_image_from_path(self, path, image, stream=False, use_cache=False, remove_im=True):
+    def build_image_from_path(self, path, image, use_cache=False, remove_im=True):
         """
         build image from provided path and tag it
 
@@ -338,15 +338,9 @@ class DockerTasker(LastLogger):
         :return: generator
         """
         logger.info("building image '%s' from path '%s'", image, path)
-        try:
-            response = self.d.build(path=path, tag=image.to_str(), stream=stream,
-                                    nocache=not use_cache, decode=True,
-                                    rm=remove_im, forcerm=True, pull=False)  # returns generator
-        except TypeError:
-            # because changing api is fun
-            response = self.d.build(path=path, tag=image.to_str(), stream=stream,
-                                    nocache=not use_cache, decode=True,
-                                    rm=remove_im, forcerm=True,)  # returns generator
+        response = self.d.build(path=path, tag=image.to_str(),
+                                nocache=not use_cache, decode=True,
+                                rm=remove_im, forcerm=True, pull=False)  # returns generator
         return response
 
     def build_image_from_git(self, url, image, git_path=None, git_commit=None,
@@ -376,8 +370,7 @@ class DockerTasker(LastLogger):
             build_file_path, build_file_dir = figure_out_build_file(temp_dir, git_path)
             if copy_dockerfile_to:  # TODO: pre build plugin
                 shutil.copyfile(build_file_path, copy_dockerfile_to)
-            response = self.build_image_from_path(build_file_dir, image, stream=stream,
-                                                  use_cache=use_cache)
+            response = self.build_image_from_path(build_file_dir, image, use_cache=use_cache)
         finally:
             try:
                 shutil.rmtree(temp_dir)

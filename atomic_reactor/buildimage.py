@@ -77,7 +77,7 @@ class BuildImageBuilder(object):
             shutil.copy(reactor_tarball, reactor_tb_path)
 
             image_name = ImageName.parse(image)
-            logs_gen = self.tasker.build_image_from_path(df_tmpdir, image_name, stream=True,
+            logs_gen = self.tasker.build_image_from_path(df_tmpdir, image_name,
                                                          use_cache=use_cache)
             wait_for_command(logs_gen)
         finally:
