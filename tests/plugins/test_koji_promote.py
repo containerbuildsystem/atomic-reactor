@@ -1426,7 +1426,7 @@ class TestKojiPromote(object):
             assert 'help' not in image.keys()
 
     @pytest.mark.skipif(not MODULEMD_AVAILABLE,
-                        reason="modulemd not available")
+                        reason="libmodulemd not available")
     def test_koji_promote_flatpak(self, tmpdir, os_env, reactor_config_map):  # noqa
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,

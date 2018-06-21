@@ -26,6 +26,9 @@ from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
 from tests.fixtures import docker_tasker  # noqa
 from tests.flatpak import MODULEMD_AVAILABLE, build_flatpak_test_configs, setup_flatpak_compose_info
 
+if MODULEMD_AVAILABLE:
+    from gi.repository import GLib
+
 
 class MockSource(object):
     def __init__(self, tmpdir):
@@ -76,7 +79,7 @@ CONFIGS = build_flatpak_test_configs()
 
 @responses.activate  # noqa - docker_tasker fixture
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,
-                    reason='modulemd not available')
+                    reason='libmodulemd not available')
 @pytest.mark.parametrize('config_name,breakage', [
     ('app', None),
     ('runtime', None),
@@ -90,7 +93,21 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker, config_name, breakage)
     compose = setup_flatpak_compose_info(workflow, config)
 
     if breakage == 'branch_mismatch':
-        compose.base_module.mmd.xmd['flatpak']['branch'] = 'MISMATCH'
+        xmd = compose.base_module.mmd.props.xmd
+
+        # Modifying the xmd from Python requires creating a new GVariant
+        flatpak_xmd = xmd['flatpak']
+
+        new_flatpak_xmd = {}
+        for i in range(flatpak_xmd.n_children()):
+            v = flatpak_xmd.get_child_value(i)
+            new_flatpak_xmd[v.get_child_value(0).unpack()] = v.get_child_value(1)
+
+        new_flatpak_xmd['branch'] = GLib.Variant('s', 'MISMATCH')
+
+        xmd['flatpak'] = GLib.Variant('a{sv}', new_flatpak_xmd)
+        compose.base_module.mmd.props.xmd = xmd
+
         expected_exception = "Mismatch for 'branch'"
     else:
         assert breakage is None
