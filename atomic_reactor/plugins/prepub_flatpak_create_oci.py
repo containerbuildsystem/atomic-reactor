@@ -277,7 +277,7 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         return parse_rpm_output(lines)
 
     def _filter_app_manifest(self, components):
-        runtime_rpms = self.source.runtime_module.mmd.props.profiles['runtime'].props.rpms
+        runtime_rpms = self.source.runtime_module.mmd.peek_profiles()['runtime'].props.rpms
 
         return [c for c in components if not runtime_rpms.contains(c['name'])]
 
