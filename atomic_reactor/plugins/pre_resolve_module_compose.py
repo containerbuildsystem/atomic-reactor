@@ -23,9 +23,6 @@ Example configuration:
 }
 """
 
-import os
-import yaml
-
 import gi
 try:
     gi.require_version('Modulemd', '1.0')
