@@ -187,7 +187,6 @@ def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules,  # 
                            callback=handle_unreleasedvariants)
 
     args = {
-        'base_image': "registry.fedoraproject.org/fedora:latest",
         'odcs_url': ODCS_URL,
         'odcs_openidc_secret_path': secrets_path,
         'pdc_url': PDC_URL,
