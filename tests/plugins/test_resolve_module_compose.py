@@ -110,7 +110,7 @@ def compose_json(state, state_name):
 
 @responses.activate  # noqa - docker_tasker fixture
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,
-                    reason="modulemd not available")
+                    reason="libmodulemd not available")
 @pytest.mark.parametrize('compose_ids', (None, [], [84], [84, 2]))
 @pytest.mark.parametrize('modules', (
     None,
@@ -228,4 +228,4 @@ def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules,  # 
         assert compose_info.base_module.name == MODULE_NAME
         assert compose_info.base_module.stream == MODULE_STREAM
         assert compose_info.base_module.version == MODULE_VERSION
-        assert compose_info.base_module.mmd.summary == 'Eye of GNOME Application Module'
+        assert compose_info.base_module.mmd.props.summary == 'Eye of GNOME Application Module'

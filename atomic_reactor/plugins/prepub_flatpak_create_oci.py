@@ -277,9 +277,9 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         return parse_rpm_output(lines)
 
     def _filter_app_manifest(self, components):
-        runtime_rpms = self.source.runtime_module.mmd.profiles['runtime'].rpms
+        runtime_rpms = self.source.runtime_module.mmd.props.profiles['runtime'].props.rpms
 
-        return [c for c in components if c['name'] not in runtime_rpms]
+        return [c for c in components if not runtime_rpms.contains(c['name'])]
 
     def _create_runtime_oci(self, tarred_filesystem, outfile):
         info = self.source.flatpak_yaml
@@ -337,9 +337,10 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
     def _find_runtime_info(self):
         runtime_module = self.source.runtime_module
 
-        runtime_id = runtime_module.mmd.xmd['flatpak']['runtimes']['runtime']['id']
-        sdk_id = runtime_module.mmd.xmd['flatpak']['runtimes']['runtime'].get('sdk', runtime_id)
-        runtime_version = runtime_module.mmd.xmd['flatpak']['branch']
+        flatpak_xmd = runtime_module.mmd.props.xmd['flatpak']
+        runtime_id = flatpak_xmd['runtimes']['runtime']['id']
+        sdk_id = flatpak_xmd['runtimes']['runtime'].get('sdk', runtime_id)
+        runtime_version = flatpak_xmd['branch']
 
         return runtime_id, sdk_id, runtime_version
 

@@ -22,18 +22,16 @@ from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
 
-try:
-    from atomic_reactor.plugins.prepub_flatpak_create_oci import FlatpakCreateOciPlugin
-    from modulemd import ModuleMetadata
-except ImportError:
-    pass
-
 from atomic_reactor.util import ImageName
 
 from tests.constants import TEST_IMAGE
 from tests.fixtures import docker_tasker  # noqa
 from tests.flatpak import (MODULEMD_AVAILABLE, FLATPAK_APP_FINISH_ARGS,
                            setup_flatpak_source_info, build_flatpak_test_configs)
+
+if MODULEMD_AVAILABLE:
+    from atomic_reactor.plugins.prepub_flatpak_create_oci import FlatpakCreateOciPlugin
+    from gi.repository import Modulemd
 
 TEST_ARCH = 'x86_64'
 
@@ -630,7 +628,7 @@ class MockInspector(object):
 
 
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,  # noqa - docker_tasker fixture
-                    reason="modulemd not available")
+                    reason="libmodulemd not available")
 @pytest.mark.parametrize('config_name, breakage', [
     ('app', None),
     ('app', 'no_runtime'),
@@ -695,17 +693,21 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
             os.chmod(fullpath, int(mode, 8))
 
     if breakage == 'no_runtime':
-        mmd = ModuleMetadata()
-
         # Copy the parts of the config we are going to change
         config = dict(config)
         config['modules'] = dict(config['modules'])
         config['modules']['eog'] = dict(config['modules']['eog'])
 
         module_config = config['modules']['eog']
-        mmd.loads(module_config['metadata'])
-        del mmd.buildrequires['flatpak-runtime']
+        mmd = Modulemd.Module.new_from_string(module_config['metadata'])
+
+        # Clear out all dependencies. Setting via the property causes a crash
+        # https://gitlab.gnome.org/GNOME/pygobject/issues/37
+#        mmd.props.dependencies = [Modulemd.Dependencies()]
+        mmd.set_dependencies([Modulemd.Dependencies()])
+
         module_config['metadata'] = mmd.dumps()
+
         expected_exception = 'Failed to identify runtime module'
     else:
         assert breakage is None

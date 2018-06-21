@@ -6,14 +6,14 @@ try:
                                                                    set_compose_info)
     from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (FlatpakSourceInfo,
                                                                       set_flatpak_source_info)
-    from modulemd import ModuleMetadata
+    from gi.repository import Modulemd
     MODULEMD_AVAILABLE = True
 except ImportError:
     MODULEMD_AVAILABLE = False
 
 FLATPAK_APP_MODULEMD = """
 document: modulemd
-version: 1
+version: 2
 data:
   name: eog
   stream: f26
@@ -25,8 +25,10 @@ data:
   license:
     module: [MIT]
   dependencies:
-    buildrequires: {flatpak-runtime: f28}
-    requires: {flatpak-runtime: f28}
+  - buildrequires:
+      flatpak-runtime: [f28]
+    requires:
+      flatpak-runtime: [f28]
   profiles:
     default:
       rpms: [eog]
@@ -92,7 +94,7 @@ flatpak:
 
 FLATPAK_RUNTIME_MODULEMD = """
 document: modulemd
-version: 1
+version: 2
 data:
   name: flatpak-runtime
   stream: f28
@@ -108,8 +110,10 @@ data:
       libnotify, adwaita-icon-theme, libgcab1, libxkbcommon, libappstream-glib, python3-cairo,
       gnome-desktop3, libepoxy, hunspell, libgusb, glib2, enchant, at-spi2-atk]
   dependencies:
-    buildrequires: {platform: f28}
-    requires: {platform: f28}
+  - buildrequires:
+      flatpak-runtime: [f28]
+    requires:
+      flatpak-runtime: [f28]
   license:
     module: [MIT]
   profiles:
@@ -257,8 +261,7 @@ def build_flatpak_test_configs(extensions={}):
 def setup_flatpak_compose_info(workflow, config=APP_CONFIG):
     modules = {}
     for name, module_config in config['modules'].items():
-        mmd = ModuleMetadata()
-        mmd.loads(module_config['metadata'])
+        mmd = Modulemd.Module.new_from_string(module_config['metadata'])
         modules[name] = ModuleInfo(name,
                                    module_config['stream'],
                                    module_config['version'],

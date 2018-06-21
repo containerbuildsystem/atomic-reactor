@@ -25,7 +25,14 @@ Example configuration:
 
 import os
 import yaml
-from modulemd import ModuleMetadata
+
+import gi
+try:
+    gi.require_version('Modulemd', '1.0')
+except ValueError as e:
+    # Normalize to ImportError to simplify handling
+    raise ImportError(str(e))
+from gi.repository import Modulemd
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import split_module_spec
@@ -161,8 +168,12 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
             if len(retval) != 1:
                 raise RuntimeError("Multiple modules in the PDC matched %r" % query)
 
-            mmd = ModuleMetadata()
-            mmd.loads(retval[0]['modulemd'])
+            objects = Modulemd.objects_from_string(retval[0]['modulemd'])
+            assert len(objects) == 1
+            mmd = objects[0]
+            assert isinstance(mmd, Modulemd.Module)
+            # Make sure we have a version 2 modulemd file
+            mmd.upgrade()
             rpms = set(retval[0]['rpms'])
 
             resolved_modules[module.name] = ModuleInfo(module.name, module.stream, module.version,
