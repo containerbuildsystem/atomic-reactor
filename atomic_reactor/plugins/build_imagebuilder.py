@@ -52,13 +52,16 @@ class ImagebuilderPlugin(BuildStepPlugin):
         (output, last_error) = ([], None)
         while True:
             poll = ib_process.poll()
+            # NOTE: imagebuilder writes both stdout and stderr in normal operation.
+            # Because the two streams are not always logged in the same order as they're
+            # produced, prefix logs with stderr/stdout to distinguish the streams.
             out = sixdecode(ib_process.stdout.readline())
             if out:
-                self.log.info(out.strip())
+                self.log.info('stdout: %s', out.strip())
                 output.append(out)
             err = sixdecode(ib_process.stderr.readline())
             if err:
-                self.log.error(err.strip())
+                self.log.info('stderr: %s', err.strip())
                 output.append(err)  # include stderr with stdout
                 last_error = err    # while noting the final line
             if out == '' and err == '':
