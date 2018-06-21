@@ -19,7 +19,6 @@ Example configuration:
 """
 
 import os
-import yaml
 
 from atomic_reactor.constants import DOCKERFILE_FILENAME, YUM_REPOS_DIR
 from atomic_reactor.plugin import PreBuildPlugin
