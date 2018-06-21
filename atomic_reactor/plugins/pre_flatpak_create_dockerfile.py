@@ -55,7 +55,7 @@ class FlatpakSourceInfo(object):
         mmd = compose.base_module.mmd
         # A runtime module must have a 'runtime' profile, but can have other
         # profiles for SDKs, minimal runtimes, etc.
-        self.runtime = 'runtime' in mmd.props.profiles
+        self.runtime = 'runtime' in mmd.peek_profiles()
 
         module_spec = split_module_spec(compose.source_spec)
         if module_spec.profile:
@@ -65,7 +65,7 @@ class FlatpakSourceInfo(object):
         else:
             self.profile = 'default'
 
-        assert self.profile in mmd.props.profiles
+        assert self.profile in mmd.peek_profiles()
 
     # The module for the Flatpak runtime that this app runs against
     @property
@@ -77,10 +77,10 @@ class FlatpakSourceInfo(object):
         # A built module should have its dependencies already expanded
         assert len(dependencies) == 1
 
-        for key in dependencies[0].props.buildrequires.keys():
+        for key in dependencies[0].peek_buildrequires().keys():
             try:
                 module = compose.modules[key]
-                if 'runtime' in module.mmd.props.profiles:
+                if 'runtime' in module.mmd.peek_profiles():
                     return module
             except KeyError:
                 pass
@@ -97,7 +97,7 @@ class FlatpakSourceInfo(object):
 
         def is_app_module(m):
             dependencies = m.mmd.props.dependencies
-            return runtime_module_name in dependencies[0].props.buildrequires
+            return runtime_module_name in dependencies[0].peek_buildrequires()
 
         return [m for m in self.compose.modules.values() if is_app_module(m)]
 
@@ -188,7 +188,7 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
 
         # Create the dockerfile
 
-        install_packages = module_info.mmd.props.profiles[source.profile].props.rpms.get()
+        install_packages = module_info.mmd.peek_profiles()[source.profile].props.rpms.get()
         install_packages_str = ' '.join(install_packages)
 
         df_path = os.path.join(self.workflow.builder.df_dir, DOCKERFILE_FILENAME)
@@ -226,7 +226,7 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
 
         if not source.runtime:
             runtime_module = source.runtime_module
-            runtime_profile = runtime_module.mmd.props.profiles['runtime']
+            runtime_profile = runtime_module.mmd.peek_profiles()['runtime']
             available_packages = sorted(runtime_profile.props.rpms.get())
 
             for m in source.app_modules:
@@ -235,7 +235,7 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
                 available_packages.extend(x[:-4] for x in m.rpms)
         else:
             base_module = source.compose.base_module
-            runtime_profile = base_module.mmd.props.profiles['runtime']
+            runtime_profile = base_module.mmd.peek_profiles()['runtime']
             available_packages = sorted(runtime_profile.props.rpms.get())
 
         includepkgs_path = os.path.join(self.workflow.builder.df_dir, 'atomic-reactor-includepkgs')
