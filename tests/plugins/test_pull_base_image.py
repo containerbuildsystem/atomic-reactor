@@ -464,6 +464,15 @@ class TestValidateBaseImage(object):
              .should_receive('get_config_from_registry')
              .and_raise(exception('', response=MockResponse()))
              .once())
+
+            manifest_tag = 'registry.example.com' + '/' + BASE_IMAGE_W_SHA
+            base_image_result = ImageName.parse(manifest_tag)
+            manifest_image = base_image_result.copy()
+            (flexmock(atomic_reactor.util)
+             .should_receive('get_manifest_list')
+             .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True)
+             .and_return(None)
+             .once())
             return workflow
 
         with pytest.raises(PluginFailedException) as exc_info:
@@ -473,7 +482,11 @@ class TestValidateBaseImage(object):
                                         check_platforms=True)
         assert 'Unable to fetch config for base image' in str(exc_info.value)
 
-    def test_manifest_config_passes(self):
+    @pytest.mark.parametrize('sha_is_manifest_list', (
+        True,
+        False,
+    ))
+    def test_manifest_config_passes(self, sha_is_manifest_list):
         def workflow_callback(workflow):
             workflow = self.prepare(workflow)
             release = 'rel1'
@@ -482,7 +495,7 @@ class TestValidateBaseImage(object):
             (flexmock(atomic_reactor.util)
              .should_receive('get_config_from_registry')
              .and_return(config_blob)
-             .once())
+             .times(0 if sha_is_manifest_list else 1))
 
             manifest_list = {
                 'manifests': [
@@ -491,16 +504,36 @@ class TestValidateBaseImage(object):
                 ]
             }
 
-            docker_tag = "%s-%s" % (version, release)
-            manifest_tag = 'registry.example.com' + '/' +\
-                           BASE_IMAGE_W_SHA[:BASE_IMAGE_W_SHA.find('@sha256')] + ':' + docker_tag
+            manifest_tag = 'registry.example.com' + '/' + BASE_IMAGE_W_SHA
             base_image_result = ImageName.parse(manifest_tag)
             manifest_image = base_image_result.copy()
-            (flexmock(atomic_reactor.util)
-             .should_receive('get_manifest_list')
-             .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True)
-             .and_return(flexmock(json=lambda: manifest_list))
-             .once())
+
+            if sha_is_manifest_list:
+                (flexmock(atomic_reactor.util)
+                 .should_receive('get_manifest_list')
+                 .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True)
+                 .and_return(flexmock(json=lambda: manifest_list))
+                 .once())
+            else:
+                (flexmock(atomic_reactor.util)
+                 .should_receive('get_manifest_list')
+                 .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True)
+                 .and_return(None)
+                 .once()
+                 .ordered())
+
+                docker_tag = "%s-%s" % (version, release)
+                manifest_tag = 'registry.example.com' + '/' +\
+                               BASE_IMAGE_W_SHA[:BASE_IMAGE_W_SHA.find('@sha256')] +\
+                               ':' + docker_tag
+                base_image_result = ImageName.parse(manifest_tag)
+                manifest_image = base_image_result.copy()
+                (flexmock(atomic_reactor.util)
+                 .should_receive('get_manifest_list')
+                 .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True)
+                 .and_return(flexmock(json=lambda: manifest_list))
+                 .once()
+                 .ordered())
             return workflow
 
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE_W_SHA,
