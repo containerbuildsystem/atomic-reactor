@@ -172,7 +172,9 @@ class PullBaseImagePlugin(PreBuildPlugin):
                           'because platform descriptors are not defined')
             return
 
-        if '@sha256:' in str(base_image):
+        manifest_list = get_manifest_list(base_image, base_image.registry,
+                                          insecure=self.parent_registry_insecure)
+        if '@sha256:' in str(base_image) and not manifest_list:
             # we want to adjust the tag only for manifest list fetching
             base_image = base_image.copy()
 
@@ -190,8 +192,9 @@ class PullBaseImagePlugin(PreBuildPlugin):
             docker_tag = "%s-%s" % (version, release)
             base_image.tag = docker_tag
 
-        manifest_list = get_manifest_list(base_image, base_image.registry,
-                                          insecure=self.parent_registry_insecure)
+            manifest_list = get_manifest_list(base_image, base_image.registry,
+                                              insecure=self.parent_registry_insecure)
+
         if not manifest_list:
             raise RuntimeError('Unable to fetch manifest list for base image')
 
