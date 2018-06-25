@@ -30,7 +30,7 @@ from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE, PLUGIN_ADD_FI
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
 from atomic_reactor.plugin import PreBuildPlugin, BuildCanceledException
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
-from atomic_reactor.plugins.pre_reactor_config import get_koji_session
+from atomic_reactor.plugins.pre_reactor_config import get_koji_session, get_koji
 from atomic_reactor.koji_util import TaskWatcher, stream_task_output
 from atomic_reactor.util import get_retrying_requests_session
 from atomic_reactor import util
@@ -125,6 +125,8 @@ class AddFilesystemPlugin(PreBuildPlugin):
         self.is_orchestrator = True if self.architectures else False
         self.architecture = architecture
         self.scratch = util.is_scratch_build()
+        koji = get_koji(self.workflow, self.koji_fallback) or {}
+        self.koji_url = koji.get('hub_url')
 
     def get_arches(self, fallback):
         architectures = self.workflow.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
@@ -279,8 +281,8 @@ class AddFilesystemPlugin(PreBuildPlugin):
     def download_filesystem(self, task_id, filesystem_regex):
         found = self.find_filesystem(task_id, filesystem_regex)
         if found is None:
-            raise RuntimeError('Filesystem not found as task output: {}'
-                               .format(filesystem_regex.pattern))
+            raise RuntimeError('Filesystem not found as task output: {}, see {}/taskinfo?taskID={}'
+                               .format(filesystem_regex.pattern), self.koji_url, task_id)
         task_id, file_name = found
 
         self.log.info('Streaming filesystem: %s from task ID: %s',
@@ -319,8 +321,9 @@ class AddFilesystemPlugin(PreBuildPlugin):
                 task_result = self.session.getTaskResult(task_id)
             except Exception as exc:
                 task_result = repr(exc)
-            raise RuntimeError('image task, {}, failed: {}'
-                               .format(task_id, task_result))
+            raise RuntimeError('image task failed. see {}/taskinfo?taskID={}    \n'
+                               'underlying task failure: {}'
+                               .format(self.koji_url, task_id, task_result))
 
         return task_id, filesystem_regex
 
