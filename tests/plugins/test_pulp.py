@@ -89,6 +89,8 @@ def prepare(check_repo_retval=0, existing_layers=[],
       ]))
     (flexmock(dockpulp.Pulp)
      .should_receive('createRepo'))
+    (flexmock(dockpulp.Pulp)
+     .should_receive('deleteRepo'))
 
     image_count = len(workflow.tag_conf.images)
     if unsupported:
