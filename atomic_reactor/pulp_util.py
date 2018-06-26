@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017, 2018 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -8,17 +8,20 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import print_function, unicode_literals
 
+import logging
 import os
 import re
+import time
 import warnings
 from collections import namedtuple
 
 try:
     import dockpulp
-
 except (ImportError, SyntaxError):
     dockpulp = None
-    import logging
+
+from atomic_reactor.constants import (LOCKEDPULPREPOSITORY_RETRIES,
+                                      LOCKEDPULPREPOSITORY_BACKOFF)
 
 
 PulpRepo = namedtuple('PulpRepo', ['registry_id', 'tags'])
@@ -27,6 +30,8 @@ PulpRepo = namedtuple('PulpRepo', ['registry_id', 'tags'])
 # which may result in tenths of messages: very annoying
 # with "module", it just prints one warning -- this should balance security and UX
 warnings.filterwarnings("module")
+
+logger = logging.getLogger(__name__)
 
 
 class PulpLogWrapper(object):
@@ -224,3 +229,60 @@ class PulpHandler(object):
 
     def get_pulp_instance(self):
         return self.pulp_instance
+
+
+class LockedPulpRepository(object):
+    """
+    Context manager for Pulp repository operations.
+
+    This context manager creates a 'lock' repository on entry, and
+    deletes the repository on exit.
+
+    Usage:
+
+    with LockedPulpRepository(handler, repo_id) as locked_repo:
+        locked_repo.set_image_tags(v1_image_id, tags)
+    """
+
+    def __init__(self, pulp, repo_id, prefix='lock-'):
+        self.pulp = pulp
+        self.repo_id = repo_id
+        self.prefix = prefix
+
+        self.retry_times = LOCKEDPULPREPOSITORY_RETRIES
+        self.retry_delay = LOCKEDPULPREPOSITORY_BACKOFF
+
+    def __enter__(self):
+        logger.info("creating lock repository %s%s", self.prefix, self.repo_id)
+        registry_id = 'lock/{}'.format(self.repo_id)
+        retry = 0
+        total_attempts = 1 + self.retry_times  # initial attempt plus retries
+        for counter in range(total_attempts):
+            if retry:
+                time.sleep(retry)
+
+            try:
+                self.pulp.createRepo(self.repo_id, None,
+                                     registry_id=registry_id,
+                                     is_origin=True,  # avoid origin-lock-...
+                                     prefix_with=self.prefix)
+                break
+            except dockpulp.errors.DockPulpError as exc:
+                if counter == self.retry_times:
+                    # This was the last chance; go ahead anyway. This
+                    # avoids a stale lock preventing builds.
+                    logging.info("got error, breaking lock: %s", exc)
+                else:
+                    logging.info("got error, will retry in %s: %s", retry, exc)
+                    retry = self.retry_delay * (2 ** counter)
+
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        repo_id = '%s%s' % (self.prefix, self.repo_id)
+        logger.info("deleting lock repository %s", repo_id)
+        try:
+            self.pulp.deleteRepo(repo_id)
+        except dockpulp.errors.DockPulpError as exc:
+            logging.info("ignoring error from lock repository deletion: %s",
+                         exc)

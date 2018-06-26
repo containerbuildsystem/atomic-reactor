@@ -96,6 +96,8 @@ def prepare(v1_image_ids={}):
     (flexmock(dockpulp.Pulp)
      .should_receive('createRepo'))
     (flexmock(dockpulp.Pulp)
+     .should_receive('deleteRepo'))
+    (flexmock(dockpulp.Pulp)
      .should_receive('upload')
      .with_args(unicode)).at_most().once()
     (flexmock(dockpulp.Pulp)

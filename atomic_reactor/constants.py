@@ -111,7 +111,10 @@ HTTP_REQUEST_TIMEOUT = 600
 GIT_MAX_RETRIES = 3
 # how many seconds should wait before another try of git clone
 GIT_BACKOFF_FACTOR = 5
-
+# max retries for creating 'lock' repository
+LOCKEDPULPREPOSITORY_RETRIES = 10
+# how many seconds to wait before 1st retry; doubles each retry
+LOCKEDPULPREPOSITORY_BACKOFF = 5
 
 # Media types
 MEDIA_TYPE_DOCKER_V1 = "application/json"
