@@ -19,7 +19,8 @@ from atomic_reactor.util import ImageName
 import pytest
 import copy
 from flexmock import flexmock
-from tests.constants import INPUT_IMAGE, SOURCE, MOCK
+from tests.constants import SOURCE, MOCK
+from tests.stubs import StubInsideBuilder, StubTagConf
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -37,27 +38,19 @@ except (ImportError):
 PulpRepo = namedtuple('PulpRepo', ['registry_id', 'tags'])
 
 
-class X(object):
-    image_id = INPUT_IMAGE
-    git_dockerfile_path = None
-    git_path = None
-    base_image = ImageName(repo="qwe", tag="asd")
-
-
 def prepare(testfile="test-image", check_repo_retval=0):
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, testfile)
-    setattr(workflow, 'builder', X())
-    setattr(workflow.builder, 'source', X())
-    setattr(workflow.builder.source, 'dockerfile_path', None)
-    setattr(workflow.builder.source, 'path', None)
-    setattr(workflow, 'tag_conf', X())
-    setattr(workflow.tag_conf, 'images', [ImageName(repo="image-name1"),
-                                          ImageName(namespace="prefix",
-                                                    repo="image-name2"),
-                                          ImageName(repo="image-name3", tag="asd")])
+    workflow.builder = StubInsideBuilder()
+    workflow.tag_conf = StubTagConf().set_images([
+        ImageName(repo="image-name1"),
+        ImageName(namespace="prefix",
+                  repo="image-name2"),
+        ImageName(repo="image-name3",
+                  tag="asd"),
+    ])
 
     # Mock dockpulp and docker
     dockpulp.Pulp = flexmock(dockpulp.Pulp)
