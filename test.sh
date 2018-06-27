@@ -82,7 +82,8 @@ fi
 # Install latest osbs-client by installing dependencies from the master branch
 # and running pip install with '--no-deps' to avoid compilation
 # This would also ensure all the deps are specified in the spec
-$RUN rm -rf /tmp/osbs-client && $RUN git clone https://github.com/projectatomic/osbs-client /tmp/osbs-client
+$RUN rm -rf /tmp/osbs-client
+$RUN git clone https://github.com/projectatomic/osbs-client /tmp/osbs-client
 $RUN $BUILDDEP -y /tmp/osbs-client/osbs-client.spec
 $RUN $PIP install --upgrade --no-deps --force-reinstall git+https://github.com/projectatomic/osbs-client
 
