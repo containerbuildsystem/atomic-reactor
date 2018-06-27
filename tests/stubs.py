@@ -19,6 +19,17 @@ class StubSource(object):
     path = ''
 
 
+class StubTagConf(object):
+    def __init__(self):
+        self.primary_images = []
+        self.unique_images = []
+        self.images = []
+
+    def set_images(self, images):
+        self.images = images
+        return self
+
+
 class StubInsideBuilder(object):
     """
     A test data builder for the InsideBuilder class.
@@ -41,6 +52,7 @@ class StubInsideBuilder(object):
         self.image = None
         self.image_id = None
         self.source = StubSource()
+        self.tag_conf = StubTagConf()
 
         self._inspection_data = None
 
