@@ -27,7 +27,7 @@ except ImportError:
 
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
-from atomic_reactor.plugins.exit_sendmail import SendMailPlugin
+from atomic_reactor.plugins.exit_sendmail import SendMailPlugin, validate_address
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
@@ -139,6 +139,29 @@ def mock_store_metadata_results(workflow, annotations=DEFAULT_ANNOTATIONS):
     workflow.exit_results[StoreMetadataInOSv3Plugin.key] = result
 
 
+@pytest.mark.parametrize(('address', 'valid'), [
+    ('me@example.com', True),
+    ('me1@example.com', True),
+    ('me+@example.com', True),
+    ('me_@example.com', True),
+    ('me-@example.com', True),
+    ('me.me@example.com', True),
+    ('me@www-1.example.com', True),
+    (None, None),
+    ('', None),
+    ('invalid', None),
+    ('me@example', None),
+    ('me@@example.com', None),
+    ('me/me@example.com', None),
+    ('1me@example.com', None),
+    ('me@www/example.com', None),
+    ('me@www_example.com', None),
+    ('me@www+example.com', None),
+])
+def test_valid_address(address, valid):
+    assert validate_address(address) == valid
+
+
 class TestSendMailPlugin(object):
     def test_fails_with_unknown_states(self, reactor_config_map):  # noqa
         class WF(object):
@@ -212,6 +235,93 @@ class TestSendMailPlugin(object):
 
         p = SendMailPlugin(None, workflow, **kwargs)
         assert p._should_send(rebuild, success, auto_canceled, manual_canceled) == expected
+
+    @pytest.mark.parametrize(('additional_addresses', 'expected_receivers'), [  # noqa:F811
+        ('', None),
+        ([], None),
+        ([''], None),
+        (['', ''], None),
+        (['not/me@example.com'], None),
+        (['me@example.com'], ['me@example.com']),
+        (['me@example.com', 'me@example.com'], ['me@example.com']),
+        (['me@example.com', '', 'me@example.com'], ['me@example.com']),
+        (['not/me@example.com', 'me@example.com'], ['me@example.com']),
+        (['me@example.com', 'us@example.com'], ['me@example.com', 'us@example.com']),
+        (['not/me@example.com', '', 'me@example.com', 'us@example.com'],
+         ['me@example.com', 'us@example.com']),
+    ])
+    def test_get_receiver_list(self, monkeypatch, additional_addresses, expected_receivers,
+                               reactor_config_map):
+        class TagConf(object):
+            unique_images = []
+
+        class WF(object):
+            image = util.ImageName.parse('foo/bar:baz')
+            openshift_build_selflink = '/builds/blablabla'
+            build_process_failed = False
+            autorebuild_canceled = False
+            build_canceled = False
+            tag_conf = TagConf()
+            exit_results = {
+                KojiPromotePlugin.key: MOCK_KOJI_BUILD_ID
+            }
+            prebuild_results = {}
+            plugin_workspace = {}
+
+        monkeypatch.setenv("BUILD", json.dumps({
+            'metadata': {
+                'labels': {
+                    'koji-task-id': MOCK_KOJI_TASK_ID,
+                },
+                'name': {},
+            }
+        }))
+
+        session = MockedClientSession('', has_kerberos=True)
+        pathinfo = MockedPathInfo('https://koji')
+
+        flexmock(koji, ClientSession=lambda hub, opts: session, PathInfo=pathinfo)
+        kwargs = {
+            'url': 'https://something.com',
+            'smtp_host': 'smtp.bar.com',
+            'from_address': 'foo@bar.com',
+            'koji_root': 'https://koji/',
+            'additional_addresses': additional_addresses
+        }
+
+        workflow = WF()
+
+        if reactor_config_map:
+            openshift_map = {'url': 'https://something.com'}
+            koji_map = {
+                'hub_url': None,
+                'root_url': 'https://koji/',
+                'auth': {
+                    'ssl_certs_dir': '/certs',
+                    'proxyuser': None,
+                    'krb_principal': None,
+                    'krb_keytab_path': None
+                }
+            }
+            smtp_map = {
+                'from_address': 'foo@bar.com',
+                'host': 'smtp.bar.com',
+                'send_to_submitter': False,
+                'send_to_pkg_owner': False,
+                'additional_addresses': additional_addresses
+            }
+            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                ReactorConfig({'version': 1, 'smtp': smtp_map, 'koji': koji_map,
+                               'openshift': openshift_map})
+
+        p = SendMailPlugin(None, workflow, **kwargs)
+        if expected_receivers:
+            assert sorted(expected_receivers) == sorted(p._get_receivers_list())
+        else:
+            with pytest.raises(RuntimeError) as ex:
+                p._get_receivers_list()
+                assert str(ex) == 'No recipients found'
 
     @pytest.mark.parametrize('success', (True, False))
     @pytest.mark.parametrize(('has_store_metadata_results', 'annotations', 'has_repositories',
