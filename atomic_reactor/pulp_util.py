@@ -210,7 +210,8 @@ class PulpHandler(object):
         self.p.copy_filters(repo_id, filters=pulp_filter, v1=True, v2=False)
 
     def update_repo(self, repo_id, tag):
-        self.p.updateRepo(repo_id, tag)
+        with LockedPulpRepository(self.p, repo_id):
+            self.p.updateRepo(repo_id, tag)
 
     def remove_image(self, repo_id, image):
         self.p.remove(repo_id, image)
