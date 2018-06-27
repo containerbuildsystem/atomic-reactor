@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+import re
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -28,6 +29,22 @@ from atomic_reactor.plugins.pre_reactor_config import (get_smtp_session, get_koj
                                                        get_openshift_session, get_koji_path_info)
 from atomic_reactor.koji_util import get_koji_task_owner
 from atomic_reactor.util import get_build_json, OSBSLogs, ImageName
+
+
+# an email address consisting of local name, an @ sign, and a domain name
+# the local name starts with a letter and then has one or more alphanumerics, _, +, and -
+# symbols in any order.
+# the domain name has one or more alphanumerics or - in any order
+# followed by a ., followed by one or more alphanumerics and - in any order.
+# RFC 2821 defines a valid email address much more expansively, but this definition matches
+# what most people loosely expect to be valid.
+# specifically, email addresses of the form id/name@domain.tla are not valid.
+VALID_EMAIL_REGEX = '^[a-zA-Z][a-zA-Z0-9-_\.\+]+@[a-zA-Z0-9-\.]+\.[a-zA-Z0-9-]+$'
+
+
+def validate_address(address):
+    if address and re.match(VALID_EMAIL_REGEX, address) is not None:
+        return True
 
 
 class SendMailPlugin(ExitPlugin):
@@ -362,8 +379,8 @@ class SendMailPlugin(ExitPlugin):
         # Remove duplicates
         receivers_list = list(set(receivers_list))
 
-        # Remove empty and None items
-        receivers_list = [x for x in receivers_list if x]
+        # Remove invalid items
+        receivers_list = [x for x in receivers_list if validate_address(x)]
 
         if not receivers_list:
             raise RuntimeError("No recipients found")
