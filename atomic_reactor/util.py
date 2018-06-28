@@ -40,7 +40,8 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG
                                       HTTP_CLIENT_STATUS_RETRY, HTTP_REQUEST_TIMEOUT,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST, MEDIA_TYPE_OCI_V1,
-                                      MEDIA_TYPE_OCI_V1_INDEX, GIT_MAX_RETRIES, GIT_BACKOFF_FACTOR)
+                                      MEDIA_TYPE_OCI_V1_INDEX, GIT_MAX_RETRIES, GIT_BACKOFF_FACTOR,
+                                      PLUGIN_BUILD_ORCHESTRATE_KEY)
 
 from dockerfile_parse import DockerfileParser
 from pkg_resources import resource_stream
@@ -597,6 +598,12 @@ def is_isolated_build():
     except KeyError:
         logger.error('metadata.labels not found in build json')
         raise
+
+
+def get_orchestrator_platforms(workflow):
+    for plugin in workflow.buildstep_plugins_conf or []:
+        if plugin['name'] == PLUGIN_BUILD_ORCHESTRATE_KEY:
+            return plugin['args']['platforms']
 
 
 # copypasted and slightly modified from
