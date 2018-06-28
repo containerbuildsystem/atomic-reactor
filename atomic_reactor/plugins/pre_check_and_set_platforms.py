@@ -15,7 +15,8 @@ when koji build tags change.
 """
 
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import get_platforms_in_limits
+from atomic_reactor.util import (get_platforms_in_limits, is_scratch_build, is_isolated_build,
+                                 get_orchestrator_platforms)
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session, NO_FALLBACK
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 
@@ -52,5 +53,12 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
             self.log.info("No platforms found in koji target")
             return None
         platforms = koji_platforms.split()
+
+        if is_scratch_build() or is_isolated_build():
+            override_platforms = get_orchestrator_platforms(self.workflow)
+            if override_platforms and set(override_platforms) != koji_platforms:
+                # platforms from user params do not match platforms from koji target
+                # that almost certainly means they were overridden and should be used
+                return set(override_platforms)
 
         return get_platforms_in_limits(self.workflow, platforms)
