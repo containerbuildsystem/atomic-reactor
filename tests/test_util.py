@@ -39,6 +39,7 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  registry_hostname, Dockercfg, RegistrySession,
                                  get_manifest_digests, ManifestDigest,
                                  get_manifest_list,
+                                 get_build_json, is_scratch_build, is_isolated_build, df_parser,
                                  get_build_json, is_scratch_build, df_parser,
                                  are_plugins_in_order, LabelFormatter,
                                  guess_manifest_media_type,
@@ -825,6 +826,23 @@ def test_is_scratch_build(build_json, scratch):
         assert is_scratch_build() == scratch
 
 
+@pytest.mark.parametrize(('build_json', 'isolated'), [
+    ({'metadata': {'labels': {'isolated': True}}}, True),
+    ({'metadata': {'labels': {'isolated': False}}}, False),
+    ({'metadata': {'labels': {}}}, False),
+    ({'metadata': {}}, None),
+    ({}, None),
+])
+def test_is_isolated_build(build_json, isolated):
+    flexmock(util).should_receive('get_build_json').and_return(build_json)
+    if isolated is None:
+        with pytest.raises(KeyError):
+            is_isolated_build()
+    else:
+        assert is_isolated_build() == isolated
+
+
+@pytest.mark.parametrize(('inputs', 'results'), [
 def test_df_parser(tmpdir):
     tmpdir_path = str(tmpdir.realpath())
     df = df_parser(tmpdir_path)

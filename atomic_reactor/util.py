@@ -590,6 +590,15 @@ def is_scratch_build():
         raise
 
 
+def is_isolated_build():
+    build_json = get_build_json()
+    try:
+        return build_json['metadata']['labels'].get('isolated', False)
+    except KeyError:
+        logger.error('metadata.labels not found in build json')
+        raise
+
+
 # copypasted and slightly modified from
 # http://stackoverflow.com/questions/1094841/reusable-library-to-get-human-readable-version-of-file-size/1094933#1094933
 def human_size(num, suffix='B'):
