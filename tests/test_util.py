@@ -40,7 +40,6 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_manifest_digests, ManifestDigest,
                                  get_manifest_list,
                                  get_build_json, is_scratch_build, is_isolated_build, df_parser,
-                                 get_build_json, is_scratch_build, df_parser,
                                  are_plugins_in_order, LabelFormatter,
                                  guess_manifest_media_type,
                                  get_manifest_media_type,
@@ -49,12 +48,12 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_image_upload_filename,
                                  split_module_spec, ModuleSpec,
                                  read_yaml, read_yaml_from_file_path, OSBSLogs,
-                                 get_platforms_in_limits)
+                                 get_platforms_in_limits, get_orchestrator_platforms)
 from atomic_reactor import util
 from tests.constants import (DOCKERFILE_GIT, DOCKERFILE_SHA1,
                              INPUT_IMAGE, MOCK, MOCK_SOURCE,
                              REACTOR_CONFIG_MAP)
-from atomic_reactor.constants import INSPECT_CONFIG
+from atomic_reactor.constants import INSPECT_CONFIG, PLUGIN_BUILD_ORCHESTRATE_KEY
 
 from tests.util import requires_internet
 
@@ -843,6 +842,25 @@ def test_is_isolated_build(build_json, isolated):
 
 
 @pytest.mark.parametrize(('inputs', 'results'), [
+    (None, None),
+    ([], None),
+    ([{'name': 'Bogus', 'args': {'platforms': ['spam']}}], None),
+    ([{'name': 'Bogus', 'args': {'platforms': ['spam']}},
+      {'name': PLUGIN_BUILD_ORCHESTRATE_KEY, 'args': {'platforms': ['ppce64le', 'arm64']}}],
+     ['arm64', 'ppce64le'])
+])
+def test_get_orchestrator_platforms(inputs, results):
+    class MockWorkflow(object):
+        def __init__(self, inputs):
+            self.buildstep_plugins_conf = inputs
+
+    workflow = MockWorkflow(inputs)
+    if results:
+        assert sorted(get_orchestrator_platforms(workflow)) == sorted(results)
+    else:
+        assert get_orchestrator_platforms(workflow) == results
+
+
 def test_df_parser(tmpdir):
     tmpdir_path = str(tmpdir.realpath())
     df = df_parser(tmpdir_path)

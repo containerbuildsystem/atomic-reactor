@@ -15,9 +15,9 @@ import docker
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (get_build_json, get_manifest_list,
-                                 get_config_from_registry, ImageName)
-from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
-                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+                                 get_config_from_registry, ImageName,
+                                 get_orchestrator_platforms)
+from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from atomic_reactor.core import RetryGeneratorException
 from atomic_reactor.plugins.pre_reactor_config import (get_source_registry,
                                                        get_platform_to_goarch_mapping)
@@ -217,6 +217,4 @@ class PullBaseImagePlugin(PreBuildPlugin):
         if platforms:
             return platforms
 
-        for plugin in self.workflow.buildstep_plugins_conf or []:
-            if plugin['name'] == PLUGIN_BUILD_ORCHESTRATE_KEY:
-                return plugin['args']['platforms']
+        return get_orchestrator_platforms(self.workflow)
