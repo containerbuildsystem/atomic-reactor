@@ -30,10 +30,6 @@ TEST_IMAGE = "fedora:latest"
 SOURCE = {"provider": "git", "uri": DOCKERFILE_GIT}
 
 
-class X(object):
-    pass
-
-
 PACKAGE_LIST = ['python-docker-py;1.3.1;1.fc24;noarch;(none);'
                 '191456;7c1f60d8cde73e97a45e0c489f4a3b26;1438058212;(none);(none)',
                 'fedora-repos-rawhide;24;0.1;noarch;(none);'
@@ -81,13 +77,8 @@ def test_rpmqa_plugin(docker_tasker, remove_container_error, ignore_autogenerate
             should_raise_error['remove_container'] = None
         mock_docker(should_raise_error=should_raise_error)
 
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
-    setattr(workflow, 'builder', X())
-    setattr(workflow.builder, 'image_id', "asd123")
-    setattr(workflow.builder, 'base_image', ImageName(repo='fedora', tag='21'))
-    setattr(workflow.builder, "source", X())
-    setattr(workflow.builder.source, 'dockerfile_path', "/non/existent")
-    setattr(workflow.builder.source, 'path', "/non/existent")
+    workflow = DockerBuildWorkflow(SOURCE, TEST_IMAGE)
+    workflow.builder = StubInsideBuilder().for_workflow(workflow)
 
     flexmock(docker.APIClient, logs=mock_logs)
     runner = PostBuildPluginsRunner(
@@ -107,14 +98,9 @@ def test_rpmqa_plugin_skip(docker_tasker):  # noqa
     """
     Test skipping the plugin if workflow.image_components is already set
     """
-
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
-    setattr(workflow, 'builder', X())
-    setattr(workflow.builder, 'image_id', "asd123")
-    setattr(workflow.builder, 'base_image', ImageName(repo='fedora', tag='21'))
-    setattr(workflow.builder, "source", X())
-    setattr(workflow.builder.source, 'dockerfile_path', "/non/existent")
-    setattr(workflow.builder.source, 'path', "/non/existent")
+    mock_docker()
+    workflow = DockerBuildWorkflow(SOURCE, TEST_IMAGE)
+    workflow.builder = StubInsideBuilder().for_workflow(workflow)
 
     image_components = {
         'type': 'rpm',
@@ -122,7 +108,6 @@ def test_rpmqa_plugin_skip(docker_tasker):  # noqa
     }
     setattr(workflow, 'image_components', image_components)
 
-    mock_docker()
     flexmock(docker.APIClient, logs=mock_logs_raise)
     runner = PostBuildPluginsRunner(docker_tasker, workflow,
                                     [{"name": PostBuildRPMqaPlugin.key,
@@ -133,15 +118,10 @@ def test_rpmqa_plugin_skip(docker_tasker):  # noqa
 
 
 def test_rpmqa_plugin_exception(docker_tasker):  # noqa
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
-    setattr(workflow, 'builder', X())
-    setattr(workflow.builder, 'image_id', "asd123")
-    setattr(workflow.builder, 'base_image', ImageName(repo='fedora', tag='21'))
-    setattr(workflow.builder, "source", X())
-    setattr(workflow.builder.source, 'dockerfile_path', "/non/existent")
-    setattr(workflow.builder.source, 'path', "/non/existent")
-
     mock_docker()
+    workflow = DockerBuildWorkflow(SOURCE, TEST_IMAGE)
+    workflow.builder = StubInsideBuilder().for_workflow(workflow)
+
     flexmock(docker.APIClient, logs=mock_logs_raise)
     runner = PostBuildPluginsRunner(docker_tasker, workflow,
                                     [{"name": PostBuildRPMqaPlugin.key,
@@ -151,8 +131,6 @@ def test_rpmqa_plugin_exception(docker_tasker):  # noqa
 
 
 def test_dangling_volumes_removed(docker_tasker, request):  # noqa:F811
-    mock_docker()
-
     fake_logger = FakeLogger()
     existing_logger = atomic_reactor.core.logger
 
@@ -162,13 +140,9 @@ def test_dangling_volumes_removed(docker_tasker, request):  # noqa:F811
     request.addfinalizer(restore_logger)
     atomic_reactor.core.logger = fake_logger
 
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
-    setattr(workflow, 'builder', X())
-    setattr(workflow.builder, 'image_id', "asd123")
-    setattr(workflow.builder, 'base_image', ImageName(repo='fedora', tag='21'))
-    setattr(workflow.builder, "source", X())
-    setattr(workflow.builder.source, 'dockerfile_path', "/non/existent")
-    setattr(workflow.builder.source, 'path', "/non/existent")
+    mock_docker()
+    workflow = DockerBuildWorkflow(SOURCE, TEST_IMAGE)
+    workflow.builder = StubInsideBuilder().for_workflow(workflow)
 
     runner = PostBuildPluginsRunner(docker_tasker, workflow,
                                     [{"name": PostBuildRPMqaPlugin.key,
@@ -191,7 +165,7 @@ def test_dangling_volumes_removed(docker_tasker, request):  # noqa:F811
 
 def test_empty_logs_retry(docker_tasker):  # noqa
     mock_docker()
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
+    workflow = DockerBuildWorkflow(SOURCE, TEST_IMAGE)
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
 
     flexmock(docker.APIClient, logs=mock_logs_retry)
@@ -205,7 +179,7 @@ def test_empty_logs_retry(docker_tasker):  # noqa
 
 def test_empty_logs_failure(docker_tasker):  # noqa
     mock_docker()
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
+    workflow = DockerBuildWorkflow(SOURCE, TEST_IMAGE)
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
 
     flexmock(docker.APIClient, logs=mock_logs_empty)
