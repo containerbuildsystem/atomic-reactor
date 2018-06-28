@@ -10,13 +10,15 @@ from __future__ import unicode_literals
 import os
 import yaml
 
-from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, REPO_CONTAINER_CONFIG
+from atomic_reactor.constants import (PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, REPO_CONTAINER_CONFIG,
+                                      PLUGIN_BUILD_ORCHESTRATE_KEY)
 import atomic_reactor.plugins.pre_reactor_config as reactor_config
 import atomic_reactor.koji_util as koji_util
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.util import ImageName
+from atomic_reactor import util
 from flexmock import flexmock
 import pytest
 from tests.constants import SOURCE, MOCK
@@ -110,6 +112,9 @@ def test_check_and_set_platforms(tmpdir, platforms, platform_exclude, platform_o
 
     tasker, workflow = prepare(tmpdir)
 
+    build_json = {'metadata': {'labels': {}}}
+    flexmock(util).should_receive('get_build_json').and_return(build_json)
+
     session = mock_session(platforms)
     mock_koji_config = {
         'auth': {},
@@ -125,6 +130,51 @@ def test_check_and_set_platforms(tmpdir, platforms, platform_exclude, platform_o
 
     plugin_result = runner.run()
     if platforms:
+        assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
+        assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] == set(result)
+    else:
+        assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] is None
+
+
+@pytest.mark.parametrize(('labels', 'platforms', 'orchestrator_platforms', 'result'), [
+    ({}, None, None, None),
+    ({}, 'x86_64 arm64', ['spam', 'bacon'], ['arm64', 'x86_64']),
+    ({'isolated': True}, 'spam bacon', ['x86_64', 'arm64'], ['arm64', 'x86_64']),
+    ({'isolated': True}, 'x86_64 arm64', None, ['arm64', 'x86_64']),
+    ({'isolated': True}, None, ['x86_64', 'arm64'], None),
+    ({'scratch': True}, 'spam bacon', ['x86_64', 'arm64'], ['arm64', 'x86_64']),
+    ({'scratch': True}, 'x86_64 arm64', None, ['arm64', 'x86_64']),
+    ({'scratch': True}, None, ['x86_64', 'arm64'], None),
+])
+def test_check_isolated_or_scratch(tmpdir, labels, platforms, orchestrator_platforms, result):
+    container_path = os.path.join(str(tmpdir), REPO_CONTAINER_CONFIG)
+    with open(container_path, 'w') as f:
+        f.write(yaml.safe_dump({}))
+        f.flush()
+
+    tasker, workflow = prepare(tmpdir)
+    if orchestrator_platforms:
+        workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY,
+                                            'args': {'platforms': orchestrator_platforms}}]
+
+    build_json = {'metadata': {'labels': labels}}
+    flexmock(util).should_receive('get_build_json').and_return(build_json)
+
+    session = mock_session(platforms)
+    mock_koji_config = {
+        'auth': {},
+        'hub_url': 'test',
+    }
+    flexmock(reactor_config).should_receive('get_koji').and_return(mock_koji_config)
+    flexmock(koji_util).should_receive('create_koji_session').and_return(session)
+
+    runner = PreBuildPluginsRunner(tasker, workflow, [{
+        'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
+        'args': {'koji_target': KOJI_TARGET},
+    }])
+
+    plugin_result = runner.run()
+    if result:
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] == set(result)
     else:
