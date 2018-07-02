@@ -32,6 +32,9 @@ class OSv3InputPlugin(InputPlugin):
         from osbs.api import OSBS
         from osbs.conf import Configuration
 
+        # make sure the input json is valid
+        read_yaml(user_params, 'schemas/user_params.json')
+
         osbs_conf = Configuration(build_json_dir=json.loads(user_params).get('build_json_dir'))
         osbs = OSBS(osbs_conf, osbs_conf)
         return osbs.render_plugins_configuration(user_params)
