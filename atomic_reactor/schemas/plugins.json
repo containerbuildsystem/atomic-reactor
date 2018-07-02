@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+
+  "title": "atomic-reactor plugins configuration",
+
+  "definitions": {
+    "base_plugins_phase": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "args": {"type": "object"}
+        },
+        "required": ["name"]
+      }
+    },
+    "general_plugins_phase": {
+      "allOf": [
+        {"$ref": "#/definitions/base_plugins_phase"},
+        {
+          "properties": {
+            "is_allowed_to_fail": {"type": "boolean"},
+            "required": {"type": "boolean"}
+          }
+        }
+      ]
+    }
+  },
+  "type": ["object", "null"],
+  "properties": {
+    "prebuild_plugins": {"$ref": "#/definitions/general_plugins_phase"},
+    "buildstep_plugins": {"$ref": "#/definitions/base_plugins_phase"},
+    "postbuild_plugins": {"$ref": "#/definitions/general_plugins_phase"},
+    "prepublish_plugins": {"$ref": "#/definitions/general_plugins_phase"},
+    "exit_plugins": {"$ref": "#/definitions/general_plugins_phase"}
+  }
+}

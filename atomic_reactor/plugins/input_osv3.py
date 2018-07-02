@@ -167,6 +167,8 @@ class OSv3InputPlugin(InputPlugin):
         self.log.debug("build json: %s", input_json)
 
         self.remove_plugins_without_parameters()
+        # make sure the final json is valid
+        read_yaml(json.dumps(self.plugins_json), 'schemas/plugins.json')
 
         return input_json
 
