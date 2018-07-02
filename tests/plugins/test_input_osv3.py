@@ -92,6 +92,10 @@ def test_plugins_variable(plugins_variable, valid):
         mock_env.update({
             plugins_variable: json.dumps({
                 'build_json_dir': 'inputs',
+                'build_type': 'orchestrator',
+                'git_ref': 'test',
+                'git_uri': 'test',
+                'user': 'user'
             }),
         })
 
@@ -144,6 +148,10 @@ def test_remove_dockerfile_content():
 def test_remove_everything():
     plugins_json = {
         'build_json_dir': 'inputs',
+        'build_type': 'orchestrator',
+        'git_ref': 'test',
+        'git_uri': 'test',
+        'user': 'user',
         'prebuild_plugins': [
             {'name': 'before', },
             {'name': 'bump_release', },
@@ -204,6 +212,10 @@ def test_remove_everything():
 def test_remove_v1_pulp_and_exit_delete():
     plugins_json = {
         'build_json_dir': 'inputs',
+        'build_type': 'orchestrator',
+        'git_ref': 'test',
+        'git_uri': 'test',
+        'user': 'user',
         'postbuild_plugins': [
             {'name': 'before', },
             {'name': 'pulp_push', },
@@ -257,6 +269,10 @@ def test_remove_v1_pulp_and_exit_delete():
 def test_remove_v2_pulp():
     plugins_json = {
         'build_json_dir': 'inputs',
+        'build_type': 'orchestrator',
+        'git_ref': 'test',
+        'git_uri': 'test',
+        'user': 'user',
         'postbuild_plugins': [
             {'name': 'before', },
             {'name': 'pulp_sync', },

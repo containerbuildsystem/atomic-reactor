@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+
+  "title": "atomic-reactor user params",
+
+  "type": ["object", "null"],
+  "properties": {
+    "arrangement_version": {"type": "integer"},
+    "base_image": {"type": "string"},
+    "build_from": {"type": "string"},
+    "build_image": {"type": "string"},
+    "build_imagestream": {"type": "string"},
+    "build_json_dir": {"type": "string"},
+    "build_type": {"enum": ["orchestrator", "worker"]},
+    "component": {"type": "string"},
+    "compose_ids": {
+      "type": "array",
+      "items": {"type": "integer"}
+    },
+    "customize_conf": {"type": "string"},
+    "filesystem_koji_task_id": {"type": "string"},
+    "flatpak": {"type": "boolean"},
+    "flatpak_base_image": {"type": "string"},
+    "git_branch": {"type": "string"},
+    "git_ref": {"type": "string"},
+    "git_uri": {"type": "string"},
+    "image_tag": {"type": "string"},
+    "imagestream_name": {"type": "string"},
+    "isolated": {"type": "boolean"},
+    "koji_parent_build": {"type": "string"},
+    "koji_target": {"type": "string"},
+    "koji_task_id": {"type": "integer"},
+    "koji_upload_dir": {"type": "string"},
+    "name": {"type": "string"},
+    "platform": {"type": "string"},
+    "platforms": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "reactor_config_map": {"type": "string"},
+    "reactor_config_override": {"type": "string"},
+    "release": {"type": "string"},
+    "scratch": {"type": "boolean"},
+    "signing_intent": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "trigger_imagestreamtag": {"type": "string"},
+    "user": {"type": "string"},
+    "yum_repourls": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  },
+  "required": ["build_json_dir", "build_type", "git_ref", "git_uri", "user"]
+}
