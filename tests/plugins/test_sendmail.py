@@ -239,9 +239,9 @@ class TestSendMailPlugin(object):
     @pytest.mark.parametrize(('additional_addresses', 'expected_receivers'), [  # noqa:F811
         ('', None),
         ([], None),
-        ([''], None),
-        (['', ''], None),
-        (['not/me@example.com'], None),
+        ([''], []),
+        (['', ''], []),
+        (['not/me@example.com'], []),
         (['me@example.com'], ['me@example.com']),
         (['me@example.com', 'me@example.com'], ['me@example.com']),
         (['me@example.com', '', 'me@example.com'], ['me@example.com']),
@@ -316,7 +316,7 @@ class TestSendMailPlugin(object):
                                'openshift': openshift_map})
 
         p = SendMailPlugin(None, workflow, **kwargs)
-        if expected_receivers:
+        if expected_receivers is not None:
             assert sorted(expected_receivers) == sorted(p._get_receivers_list())
         else:
             with pytest.raises(RuntimeError) as ex:
@@ -1066,6 +1066,48 @@ class TestSendMailPlugin(object):
                                                            six.text_type, six.text_type, None)
 
         p.run()
+
+    def test_run_invalid_receivers(self, caplog, reactor_config_map):  # noqa
+        class TagConf(object):
+            unique_images = []
+
+        class WF(object):
+            autorebuild_canceled = False
+            build_canceled = False
+            prebuild_results = {CheckAndSetRebuildPlugin.key: True}
+            image = util.ImageName.parse('repo/name')
+            build_process_failed = True
+            tag_conf = TagConf()
+            exit_results = {}
+            plugin_workspace = {}
+
+        error_addresses = ['error@address.com']
+        workflow = WF()
+        mock_store_metadata_results(workflow)
+
+        if reactor_config_map:
+            smtp_map = {
+                'from_address': 'foo@bar.com',
+                'host': 'smtp.bar.com',
+                'error_addresses': ['error@address.com'],
+            }
+            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+                ReactorConfig({'version': 1, 'smtp': smtp_map})
+
+        p = SendMailPlugin(None, workflow,
+                           from_address='foo@bar.com', smtp_host='smtp.spam.com',
+                           send_on=[AF], error_addresses=error_addresses)
+
+        (flexmock(p).should_receive('_should_send')
+            .with_args(True, False, False, False).and_return(True))
+        flexmock(p).should_receive('_get_receivers_list').and_return([])
+        flexmock(p).should_receive('_fetch_log_files').and_return(None)
+        flexmock(p).should_receive('_get_image_name_and_repos').and_return(('foobar',
+                                                                           ['foo/bar:baz',
+                                                                            'foo/bar:spam']))
+        p.run()
+        assert 'no valid addresses in requested addresses. Doing nothing' in caplog.text()
 
     def test_run_does_nothing_if_conditions_not_met(self, reactor_config_map):  # noqa
         class WF(object):

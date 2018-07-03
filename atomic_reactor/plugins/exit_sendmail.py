@@ -280,6 +280,12 @@ class SendMailPlugin(ExitPlugin):
         return (subject_template % formatting_dict, body_template % formatting_dict, log_files)
 
     def _send_mail(self, receivers_list, subject, body, log_files=None):
+        if not receivers_list:
+            self.log.info('no valid addresses in requested addresses. Doing nothing')
+            return
+
+        self.log.info('sending notification to %s ...', receivers_list)
+
         """Actually sends the mail with `subject` and `body` and optionanl log_file attachements
         to all members of `receivers_list`."""
         if log_files:
@@ -379,11 +385,13 @@ class SendMailPlugin(ExitPlugin):
         # Remove duplicates
         receivers_list = list(set(receivers_list))
 
-        # Remove invalid items
-        receivers_list = [x for x in receivers_list if validate_address(x)]
-
+        # an empty list because of invalid addresses is not an error, so check for an
+        # empty list before invalidating addresses
         if not receivers_list:
             raise RuntimeError("No recipients found")
+
+        # Remove invalid items
+        receivers_list = [x for x in receivers_list if validate_address(x)]
 
         return receivers_list
 
@@ -419,7 +427,6 @@ class SendMailPlugin(ExitPlugin):
                     expected_body
                 ])
                 receivers = self.error_addresses
-            self.log.info('sending notification to %s ...', receivers)
             subject, body, full_logs = self._render_mail(rebuild, success,
                                                          auto_canceled, manual_canceled)
             self._send_mail(receivers, subject, body, full_logs)
