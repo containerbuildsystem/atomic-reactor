@@ -272,9 +272,9 @@ class LockedPulpRepository(object):
                 if counter == self.retry_times:
                     # This was the last chance; go ahead anyway. This
                     # avoids a stale lock preventing builds.
-                    logging.info("got error, breaking lock: %s", exc)
+                    logger.info("got error, breaking lock: %s", exc)
                 else:
-                    logging.info("got error, will retry in %s: %s", retry, exc)
+                    logger.info("got error, will retry in %s: %s", retry, exc)
                     retry = self.retry_delay * (2 ** counter)
 
         return self
@@ -285,5 +285,4 @@ class LockedPulpRepository(object):
         try:
             self.pulp.deleteRepo(repo_id)
         except dockpulp.errors.DockPulpError as exc:
-            logging.info("ignoring error from lock repository deletion: %s",
-                         exc)
+            logger.info("ignoring error from lock repository deletion: %s", exc)
