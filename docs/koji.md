@@ -46,6 +46,7 @@ Data which is placed here includes:
 - `build.extra.filesystem_koji_task_id` (int): Koji task ID which atomic-reactor created in order to generate the initial layer of the image (for "FROM koji/image-build" images) -- note that this location is technically incorrect but remains as-is for compatibility with existing software
 - `build.extra.image.media_types` (str list): Container image media types for which this image is available, where "application/json" is for a Docker Registry HTTP API V1 image; currently this key is only set when Pulp integration is enabled
 - `build.extra.image.parent_build_id` (int): Koji build id of the parent image, if found
+- `build.extra.image.parent_image_builds` (map of maps): With each parent image given in the Dockerfile as a key, its value being a map representing the Koji build (if found) for that image, with keys `id` (int) and `nvr` (str).
 - `build.extra.image.index` (map): information about the manifest list
 - `build.extra.image.flatpak` (boolean): true if this image is a Flatpak
 - `build.extra.image.modules` (boolean): the [modules](https://docs.pagure.org/modularity/) that provide the packages for this image, resolved to `NAME-STREAM-VERSION`. This will include the resolved versions of the modules in `source_modules`, and the dependencies of those modules. (Currently only for Flatpaks)
