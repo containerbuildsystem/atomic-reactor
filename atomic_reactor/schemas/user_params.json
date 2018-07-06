@@ -38,7 +38,7 @@
       "items": {"type": "string"}
     },
     "reactor_config_map": {"type": "string"},
-    "reactor_config_override": {"type": "string"},
+    "reactor_config_override": {"type": "object"},
     "release": {"type": "string"},
     "scratch": {"type": "boolean"},
     "signing_intent": {

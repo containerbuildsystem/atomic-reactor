@@ -34,6 +34,9 @@ class OSv3InputPlugin(InputPlugin):
 
         # make sure the input json is valid
         read_yaml(user_params, 'schemas/user_params.json')
+        reactor_config_override = json.loads(user_params).get('reactor_config_override')
+        if reactor_config_override:
+            read_yaml(json.dumps(reactor_config_override), 'schemas/config.json')
 
         osbs_conf = Configuration(build_json_dir=json.loads(user_params).get('build_json_dir'))
         osbs = OSBS(osbs_conf, osbs_conf)

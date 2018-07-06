@@ -18,6 +18,7 @@ from tests.constants import REACTOR_CONFIG_MAP
 
 import pytest
 from flexmock import flexmock
+from jsonschema import ValidationError
 
 
 def test_doesnt_fail_if_no_plugins():
@@ -315,3 +316,48 @@ def test_remove_v2_pulp():
         {'name': 'before', },
         {'name': 'after', },
     ]
+
+
+@pytest.mark.parametrize(('override', 'valid'), [
+    ('invalid_override', False),
+    ({'version': 1}, True),
+    (None, True),
+])
+@pytest.mark.parametrize('buildtype', [
+    'worker', 'orchestrator'
+])
+def test_validate_reactor_config_override(override, valid, buildtype):
+    plugins_json = {
+        'postbuild_plugins': [],
+    }
+
+    user_params = {
+        'build_json_dir': 'inputs',
+        'build_type': buildtype,
+        'git_ref': 'test',
+        'git_uri': 'test',
+        'user': 'user',
+        'reactor_config_map': REACTOR_CONFIG_MAP,
+    }
+    if override:
+        user_params['reactor_config_override'] = override
+    mock_env = {
+        'BUILD': '{}',
+        'SOURCE_URI': 'https://github.com/foo/bar.git',
+        'SOURCE_REF': 'master',
+        'OUTPUT_IMAGE': 'asdf:fdsa',
+        'OUTPUT_REGISTRY': 'localhost:5000',
+        'REACTOR_CONFIG': REACTOR_CONFIG_MAP,
+        'USER_PARAMS': json.dumps(user_params)
+    }
+
+    enable_plugins_configuration(plugins_json)
+
+    flexmock(os, environ=mock_env)
+
+    plugin = OSv3InputPlugin()
+    if valid:
+        plugin.run()
+    else:
+        with pytest.raises(ValidationError):
+            plugin.run()
