@@ -26,6 +26,7 @@ Example configuration to add content of repo file at URL:
 from atomic_reactor.constants import YUM_REPOS_DIR
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import get_retrying_requests_session
+from hashlib import md5
 import os
 import os.path
 
@@ -50,8 +51,18 @@ class YumRepo(object):
 
     @property
     def filename(self):
+        '''Returns the filename to be used for saving the repo file.
+
+        The filename is derived from the repo url by injecting a suffix
+        after the name and before the file extension. This suffix is a
+        partial md5 checksum of the full repourl. This avoids multiple
+        repos from being written to the same file.
+        '''
         urlpath = unquote(urlsplit(self.repourl, allow_fragments=False).path)
-        return os.path.basename(urlpath)
+        basename = os.path.basename(urlpath)
+        suffix = '-' + md5(self.repourl.encode('utf-8')).hexdigest()[:5]
+        final_name = suffix.join(os.path.splitext(basename))
+        return final_name
 
     @property
     def dst_filename(self):

@@ -68,7 +68,7 @@ def test_no_repourls(inject_proxy):
 def test_single_repourl(inject_proxy):
     tasker, workflow = prepare()
     url = 'http://example.com/example%20repo.repo'
-    filename = 'example repo.repo'
+    filename = 'example repo-4ca91.repo'
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': AddYumRepoByUrlPlugin.key,
         'args': {'repourls': [url], 'inject_proxy': inject_proxy}}])
@@ -83,21 +83,24 @@ def test_single_repourl(inject_proxy):
 
 
 @pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
-def test_multiple_repourls(inject_proxy):
+@pytest.mark.parametrize(('repos', 'filenames'), (
+    (['http://example.com/a/b/c/myrepo.repo', 'http://example.com/repo-2.repo'],
+     ['myrepo-d0856.repo', 'repo-2-ba4b3.repo']),
+    (['http://example.com/spam/myrepo.repo', 'http://example.com/bacon/myrepo.repo'],
+     ['myrepo-608de.repo', 'myrepo-a1f78.repo']),
+))
+def test_multiple_repourls(inject_proxy, repos, filenames):
     tasker, workflow = prepare()
-    url1 = 'http://example.com/a/b/c/myrepo.repo'
-    filename1 = 'myrepo.repo'
-    url2 = 'http://example.com/repo-2.repo'
-    filename2 = 'repo-2.repo'
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': AddYumRepoByUrlPlugin.key,
-        'args': {'repourls': [url1, url2], 'inject_proxy': inject_proxy}}])
+        'args': {'repourls': repos, 'inject_proxy': inject_proxy}}])
     runner.run()
     repo_content = repocontent
     if inject_proxy:
         repo_content = '%sproxy = %s\n\n' % (repocontent.decode('utf-8'), inject_proxy)
-    assert workflow.files[os.path.join(YUM_REPOS_DIR, filename1)]
-    assert workflow.files[os.path.join(YUM_REPOS_DIR, filename2)]
-    assert workflow.files[os.path.join(YUM_REPOS_DIR, filename1)] == repo_content
-    assert workflow.files[os.path.join(YUM_REPOS_DIR, filename2)] == repo_content
+
+    for filename in filenames:
+        assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)]
+        assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)] == repo_content
+
     assert len(workflow.files) == 2
