@@ -51,7 +51,7 @@ BuildRequires:  python-setuptools
 %if 0%{?with_check}
 BuildRequires:  pytest
 BuildRequires:  python-pytest-capturelog
-BuildRequires:  python-dockerfile-parse >= 0.0.5
+BuildRequires:  python-dockerfile-parse >= 0.0.11
 BuildRequires:  python-docker-py
 BuildRequires:  python-flexmock >= 0.10.2
 BuildRequires:  python-six
@@ -73,7 +73,7 @@ BuildRequires:  python3-setuptools
 %if 0%{?with_check}
 BuildRequires:  python3-pytest
 BuildRequires:  python3-pytest-capturelog
-BuildRequires:  python3-dockerfile-parse >= 0.0.5
+BuildRequires:  python3-dockerfile-parse >= 0.0.11
 BuildRequires:  python3-docker-py
 BuildRequires:  python3-flexmock >= 0.10.2
 BuildRequires:  python3-six
@@ -99,7 +99,7 @@ License:        BSD
 Requires:       python-docker-py
 Requires:       python-requests
 Requires:       python-setuptools
-Requires:       python-dockerfile-parse >= 0.0.5
+Requires:       python-dockerfile-parse >= 0.0.11
 Requires:       python-docker-squash >= 1.0.0-0.3
 Requires:       python-backports-lzma
 Requires:       python-jsonschema
@@ -163,7 +163,7 @@ License:        BSD
 Requires:       python3-docker-py
 Requires:       python3-requests
 Requires:       python3-setuptools
-Requires:       python3-dockerfile-parse >= 0.0.5
+Requires:       python3-dockerfile-parse >= 0.0.11
 Requires:       python3-docker-squash >= 1.0.0-0.3
 Requires:       python3-jsonschema
 Requires:       python3-PyYAML
