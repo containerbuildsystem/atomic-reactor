@@ -100,7 +100,7 @@ Requires:       python-docker-py
 Requires:       python-requests
 Requires:       python-setuptools
 Requires:       python-dockerfile-parse >= 0.0.11
-Requires:       python-docker-squash >= 1.0.0-0.3
+Requires:       python-docker-squash >= 1.0.7
 Requires:       python-backports-lzma
 Requires:       python-jsonschema
 Requires:       python-six
@@ -164,7 +164,7 @@ Requires:       python3-docker-py
 Requires:       python3-requests
 Requires:       python3-setuptools
 Requires:       python3-dockerfile-parse >= 0.0.11
-Requires:       python3-docker-squash >= 1.0.0-0.3
+Requires:       python3-docker-squash >= 1.0.7
 Requires:       python3-jsonschema
 Requires:       python3-PyYAML
 Requires:       python3-six
