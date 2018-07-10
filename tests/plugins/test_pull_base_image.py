@@ -576,6 +576,45 @@ class TestValidateBaseImage(object):
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
 
+    def test_manifest_list_doesnt_have_current_platform(self, caplog):
+        def workflow_callback(workflow):
+            workflow = self.prepare(workflow)
+            workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(['ppc64le'])
+            release = 'rel1'
+            version = 'ver1'
+            config_blob = {'config': {'Labels': {'release': release, 'version': version}}}
+            (flexmock(atomic_reactor.util)
+             .should_receive('get_config_from_registry')
+             .and_return(config_blob)
+             .times(0))
+
+            manifest_list = {
+                'manifests': [
+                    {'platform': {'architecture': 'ppc64le'}, 'digest': 'sha256:654321'},
+                ]
+            }
+
+            manifest_tag = 'registry.example.com' + '/' + BASE_IMAGE_W_SHA
+            base_image_result = ImageName.parse(manifest_tag)
+            manifest_image = base_image_result.copy()
+
+            (flexmock(atomic_reactor.util)
+             .should_receive('get_manifest_list')
+             .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True)
+             .and_return(flexmock(json=lambda: manifest_list))
+             .once())
+            return workflow
+
+        test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE_W_SHA,
+                                    [], [], reactor_config_map=True,
+                                    workflow_callback=workflow_callback,
+                                    check_platforms=True)
+        new_image = "'registry.example.com/busybox@sha256:654321'"
+        pulling_msg = "pulling image " + new_image + " from registry"
+        tagging_msg = "tagging image " + new_image + " as '" + UNIQUE_ID
+        assert pulling_msg in caplog.text()
+        assert tagging_msg in caplog.text()
+
     def prepare(self, workflow):
         # Setup expected platforms
         workflow.buildstep_plugins_conf[0]['args']['platforms'] = ['x86_64', 'ppc64le']
