@@ -17,6 +17,7 @@ this build so that it isn't removed by other builds doing clean-up.
 from __future__ import unicode_literals
 
 import docker
+import platform
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (get_build_json, get_manifest_list,
@@ -25,7 +26,8 @@ from atomic_reactor.util import (get_build_json, get_manifest_list,
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from atomic_reactor.core import RetryGeneratorException
 from atomic_reactor.plugins.pre_reactor_config import (get_source_registry,
-                                                       get_platform_to_goarch_mapping)
+                                                       get_platform_to_goarch_mapping,
+                                                       get_goarch_to_platform_mapping)
 from requests.exceptions import HTTPError, RetryError, Timeout
 from osbs.utils import RegistryURI
 
@@ -66,6 +68,8 @@ class PullBaseImagePlugin(PreBuildPlugin):
         """
         build_json = get_build_json()
         base_image_str = str(self.workflow.builder.original_base_image)
+        current_platform = platform.processor() or 'x86_64'
+        self.manifest_list_cache = {}
         for nonce, parent in enumerate(sorted(self.workflow.builder.parent_images.keys())):
             image = ImageName.parse(parent)
             if parent == base_image_str:
@@ -75,11 +79,43 @@ class PullBaseImagePlugin(PreBuildPlugin):
             if self.check_platforms:
                 self._validate_platforms_in_image(image)
 
+                new_arch_image = self._get_image_for_different_arch(image, current_platform)
+                if new_arch_image:
+                    image = new_arch_image
+
             new_image = self._pull_and_tag_image(image, build_json, str(nonce))
             self.workflow.builder.parent_images[parent] = str(new_image)
 
             if parent == base_image_str:
                 self.workflow.builder.set_base_image(str(new_image))
+
+    def _get_image_for_different_arch(self, image, platform):
+        manifest_list = self._get_manifest_list(image)
+        new_image = None
+
+        if manifest_list:
+            manifest_list_dict = manifest_list.json()
+            arch_digests = {}
+            build_image_digests = {}
+            image_name = image.to_str(tag=False)
+
+            for manifest in manifest_list_dict['manifests']:
+                arch = manifest['platform']['architecture']
+                arch_digests[arch] = image_name + '@' + manifest['digest']
+
+            present_platform = None
+            try:
+                arch_to_platform = get_goarch_to_platform_mapping(self.workflow)
+                for arch, digest in arch_digests.items():
+                    present_platform = arch_to_platform[arch]
+                    build_image_digests[present_platform] = digest
+
+                if platform not in build_image_digests:
+                    new_image = ImageName.parse(build_image_digests[present_platform])
+            except KeyError:
+                self.log.info('Cannot validate available platforms for base image '
+                              'because platform descriptors are not defined')
+        return new_image
 
     def _resolve_base_image(self, build_json):
         """If this is an auto-rebuild, adjust the base image to use the triggering build"""
@@ -168,6 +204,35 @@ class PullBaseImagePlugin(PreBuildPlugin):
         self.log.error("giving up trying to pull image")
         raise RuntimeError("too many attempts to pull and tag image")
 
+    def _get_manifest_list(self, image):
+        """try to figure out manifest list"""
+        if image in self.manifest_list_cache:
+            return self.manifest_list_cache[image]
+
+        manifest_list = get_manifest_list(image, image.registry,
+                                          insecure=self.parent_registry_insecure)
+        if '@sha256:' in str(image) and not manifest_list:
+            # we want to adjust the tag only for manifest list fetching
+            image = image.copy()
+
+            try:
+                config_blob = get_config_from_registry(image, image.registry, image.tag,
+                                                       insecure=self.parent_registry_insecure)
+            except (HTTPError, RetryError, Timeout) as ex:
+                self.log.warning('Unable to fetch config for %s, got error %s',
+                                 image, ex.response.status_code)
+                raise RuntimeError('Unable to fetch config for base image')
+
+            release = config_blob['config']['Labels']['release']
+            version = config_blob['config']['Labels']['version']
+            docker_tag = "%s-%s" % (version, release)
+            image.tag = docker_tag
+
+            manifest_list = get_manifest_list(image, image.registry,
+                                              insecure=self.parent_registry_insecure)
+        self.manifest_list_cache[image] = manifest_list
+        return self.manifest_list_cache[image]
+
     def _validate_platforms_in_image(self, image):
         """Ensure that the image provides all platforms expected for the build."""
         expected_platforms = self._get_expected_platforms()
@@ -192,27 +257,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
                           'because platform descriptors are not defined')
             return
 
-        manifest_list = get_manifest_list(image, image.registry,
-                                          insecure=self.parent_registry_insecure)
-        if '@sha256:' in str(image) and not manifest_list:
-            # we want to adjust the tag only for manifest list fetching
-            image = image.copy()
-
-            try:
-                config_blob = get_config_from_registry(image, image.registry, image.tag,
-                                                       insecure=self.parent_registry_insecure)
-            except (HTTPError, RetryError, Timeout) as ex:
-                self.log.warning('Unable to fetch config for %s, got error %s',
-                                 image, ex.response.status_code)
-                raise RuntimeError('Unable to fetch config for base image')
-
-            release = config_blob['config']['Labels']['release']
-            version = config_blob['config']['Labels']['version']
-            docker_tag = "%s-%s" % (version, release)
-            image.tag = docker_tag
-
-            manifest_list = get_manifest_list(image, image.registry,
-                                              insecure=self.parent_registry_insecure)
+        manifest_list = self._get_manifest_list(image)
 
         if not manifest_list:
             raise RuntimeError('Unable to fetch manifest list for base image')
