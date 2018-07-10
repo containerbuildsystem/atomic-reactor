@@ -12,6 +12,7 @@ Pull base image to build our layer on.
 from __future__ import unicode_literals
 
 import docker
+import platform
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (get_build_json, get_manifest_list,
@@ -20,7 +21,8 @@ from atomic_reactor.util import (get_build_json, get_manifest_list,
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from atomic_reactor.core import RetryGeneratorException
 from atomic_reactor.plugins.pre_reactor_config import (get_source_registry,
-                                                       get_platform_to_goarch_mapping)
+                                                       get_platform_to_goarch_mapping,
+                                                       get_goarch_to_platform_mapping)
 from requests.exceptions import HTTPError, RetryError, Timeout
 from osbs.utils import RegistryURI
 
@@ -38,6 +40,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
         :param workflow: DockerBuildWorkflow instance
         :param parent_registry: registry to enforce pulling from
         :param parent_registry_insecure: allow connecting to the registry over plain http
+        :param check_platforms: validate parent images provide all platforms expected for the build
         """
         # call parent constructor
         super(PullBaseImagePlugin, self).__init__(tasker, workflow)
@@ -54,103 +57,176 @@ class PullBaseImagePlugin(PreBuildPlugin):
             self.parent_registry = None
             self.parent_registry_insecure = False
 
-    def resolve_base_image(self, build_json):
-        spec = build_json.get("spec")
-        try:
-            image_id = spec['triggeredBy'][0]['imageChangeBuild']['imageID']
-        except (TypeError, KeyError, IndexError):
-            base_image = self.workflow.builder.base_image
-        else:
-            base_image = ImageName.parse(image_id)  # any exceptions will propagate
-
-        return base_image
-
     def run(self):
         """
         pull base image
         """
         build_json = get_build_json()
+        current_platform = platform.processor() or 'x86_64'
+        self.manifest_list_cache = {}
 
-        base_image = self.resolve_base_image(build_json)
-
-        base_image_with_registry = base_image.copy()
-
-        if self.parent_registry:
-            self.log.info("pulling base image '%s' from registry '%s'",
-                          base_image, self.parent_registry)
-            # registry in dockerfile doesn't match provided source registry
-            if base_image.registry and base_image.registry != self.parent_registry:
-                self.log.error("registry in dockerfile doesn't match provided source registry, "
-                               "dockerfile = '%s', provided = '%s'",
-                               base_image.registry, self.parent_registry)
-                raise RuntimeError(
-                    "Registry specified in dockerfile doesn't match provided one. "
-                    "Dockerfile: '%s', Provided: '%s'"
-                    % (base_image.registry, self.parent_registry))
-
-            base_image_with_registry.registry = self.parent_registry
-        else:
-            self.log.info("pulling base image '%s'", base_image)
+        image = self._resolve_base_image(build_json)
+        original_base_image = image.copy()
+        image = self._ensure_image_registry(image)
 
         if self.check_platforms:
-            self.validate_platforms_in_base_image(base_image_with_registry)
+            self._validate_platforms_in_image(image)
 
-        try:
-            self.tasker.pull_image(base_image_with_registry,
-                                   insecure=self.parent_registry_insecure)
+            new_arch_image = self._get_image_for_different_arch(image, current_platform)
+            if new_arch_image:
+                image = new_arch_image
 
-        except RetryGeneratorException as original_exc:
-            if base_image_with_registry.namespace:
-                raise
+        new_image = self._pull_and_tag_image(image, build_json)
+        self.workflow.builder.set_base_image(str(new_image))
+        self.workflow.builder.original_base_image = ImageName.parse(original_base_image.to_str())
 
-            self.log.info("'%s' not found", base_image_with_registry.to_str())
-            base_image_with_registry.namespace = 'library'
-            self.log.info("trying '%s'", base_image_with_registry.to_str())
+    def _get_image_for_different_arch(self, image, platform):
+        manifest_list = self._get_manifest_list(image)
+        new_image = None
 
+        if manifest_list:
+            manifest_list_dict = manifest_list.json()
+            arch_digests = {}
+            build_image_digests = {}
+            image_name = image.to_str(tag=False)
+
+            for manifest in manifest_list_dict['manifests']:
+                arch = manifest['platform']['architecture']
+                arch_digests[arch] = image_name + '@' + manifest['digest']
+
+            present_platform = None
             try:
-                self.tasker.pull_image(base_image_with_registry,
-                                       insecure=self.parent_registry_insecure)
+                arch_to_platform = get_goarch_to_platform_mapping(self.workflow)
+                for arch, digest in arch_digests.items():
+                    present_platform = arch_to_platform[arch]
+                    build_image_digests[present_platform] = digest
 
-            except RetryGeneratorException:
-                raise original_exc
+                if platform not in build_image_digests:
+                    new_image = ImageName.parse(build_image_digests[present_platform])
+            except KeyError:
+                self.log.info('Cannot validate available platforms for base image '
+                              'because platform descriptors are not defined')
+        return new_image
 
-        pulled_base = base_image_with_registry.to_str()
-        self.workflow.pulled_base_images.add(pulled_base)
+    def _resolve_base_image(self, build_json):
+        """If this is an auto-rebuild, adjust the base image to use the triggering build"""
+        spec = build_json.get("spec")
+        try:
+            image_id = spec['triggeredBy'][0]['imageChangeBuild']['imageID']
+        except (TypeError, KeyError, IndexError):
+            # build not marked for auto-rebuilds; use regular base image
+            base_image = self.workflow.builder.base_image
+            self.log.info("using %s as base image.", base_image)
+        else:
+            # build has auto-rebuilds enabled
+            self.log.info("using %s from build spec[triggeredBy] as base image.", image_id)
+            base_image = ImageName.parse(image_id)  # any exceptions will propagate
 
-        # Attempt to tag it using a unique ID. We might have to retry
-        # if another build with the same parent image is finishing up
-        # and removing images it pulled.
+        return base_image
 
-        # Use the OpenShift build name as the unique ID
-        unique_id = build_json['metadata']['name']
-        original_base_image = base_image.copy()
-        base_image = ImageName(repo=unique_id)
+    def _ensure_image_registry(self, image):
+        """If plugin configured with a parent registry, ensure the image uses it"""
+        image_with_registry = image.copy()
+        if self.parent_registry:
+            # if registry specified in Dockerfile image, ensure it's the one allowed by config
+            if image.registry and image.registry != self.parent_registry:
+                error = (
+                    "Registry specified in dockerfile image doesn't match configured one. "
+                    "Dockerfile: '%s'; expected registry: '%s'"
+                    % (image, self.parent_registry))
+                self.log.error("%s", error)
+                raise RuntimeError(error)
 
+            image_with_registry.registry = self.parent_registry
+
+        return image_with_registry
+
+    def _pull_and_tag_image(self, image, build_json):
+        """Docker pull the image and tag it uniquely for use by this build"""
+        image = image.copy()
+        first_library_exc = None
         for _ in range(20):
+            # retry until pull and tag is successful or definitively fails.
+            # should never require 20 retries but there's a race condition at work.
+            # just in case something goes wildly wrong, limit to 20 so it terminates.
+            try:
+                self.tasker.pull_image(image, insecure=self.parent_registry_insecure)
+                self.workflow.pulled_base_images.add(image.to_str())
+            except RetryGeneratorException as exc:
+                # getting here means the pull itself failed. we may want to retry if the
+                # image being pulled lacks a namespace, like e.g. "rhel7". we cannot count
+                # on the registry mapping this into the docker standard "library/rhel7" so
+                # need to retry with that.
+                if first_library_exc:
+                    # we already tried and failed; report the first failure.
+                    raise first_library_exc
+                if image.namespace:
+                    # already namespaced, do not retry with "library/", just fail.
+                    raise
+
+                self.log.info("'%s' not found", image.to_str())
+                image.namespace = 'library'
+                self.log.info("trying '%s'", image.to_str())
+                first_library_exc = exc  # report first failure if retry also fails
+                continue
+
+            # Attempt to tag it using a unique ID. We might have to retry
+            # if another build with the same parent image is finishing up
+            # and removing images it pulled.
+
+            # Use the OpenShift build name as the unique ID
+            unique_id = build_json['metadata']['name']
+            new_image = ImageName(repo=unique_id)
+
             try:
                 self.log.info("tagging pulled image")
-                response = self.tasker.tag_image(base_image_with_registry,
-                                                 base_image)
+                response = self.tasker.tag_image(image, new_image)
                 self.workflow.pulled_base_images.add(response)
-                break
+                self.log.debug("image '%s' is available as '%s'", image, new_image)
+                return new_image
             except docker.errors.NotFound:
                 # If we get here, some other build raced us to remove
                 # the parent image, and that build won.
                 # Retry the pull immediately.
                 self.log.info("re-pulling removed image")
-                self.tasker.pull_image(base_image_with_registry,
-                                       insecure=self.parent_registry_insecure)
-        else:
-            # Failed to tag it
-            self.log.error("giving up trying to pull image")
-            raise RuntimeError("too many attempts to pull and tag image")
+                continue
 
-        self.workflow.builder.set_base_image(base_image.to_str())
-        self.workflow.builder.original_base_image = ImageName.parse(original_base_image.to_str())
-        self.log.debug("image '%s' is available", pulled_base)
+        # Failed to tag it after 20 tries
+        self.log.error("giving up trying to pull image")
+        raise RuntimeError("too many attempts to pull and tag image")
 
-    def validate_platforms_in_base_image(self, base_image):
-        expected_platforms = self.get_expected_platforms()
+    def _get_manifest_list(self, image):
+        """try to figure out manifest list"""
+        if image in self.manifest_list_cache:
+            return self.manifest_list_cache[image]
+
+        manifest_list = get_manifest_list(image, image.registry,
+                                          insecure=self.parent_registry_insecure)
+        if '@sha256:' in str(image) and not manifest_list:
+            # we want to adjust the tag only for manifest list fetching
+            image = image.copy()
+
+            try:
+                config_blob = get_config_from_registry(image, image.registry, image.tag,
+                                                       insecure=self.parent_registry_insecure)
+            except (HTTPError, RetryError, Timeout) as ex:
+                self.log.warning('Unable to fetch config for %s, got error %s',
+                                 image, ex.response.status_code)
+                raise RuntimeError('Unable to fetch config for base image')
+
+            release = config_blob['config']['Labels']['release']
+            version = config_blob['config']['Labels']['version']
+            docker_tag = "%s-%s" % (version, release)
+            image.tag = docker_tag
+
+            manifest_list = get_manifest_list(image, image.registry,
+                                              insecure=self.parent_registry_insecure)
+        self.manifest_list_cache[image] = manifest_list
+        return self.manifest_list_cache[image]
+
+    def _validate_platforms_in_image(self, image):
+        """Ensure that the image provides all platforms expected for the build."""
+        expected_platforms = self._get_expected_platforms()
         if not expected_platforms:
             self.log.info('Skipping validation of available platforms '
                           'because expected platforms are unknown')
@@ -160,7 +236,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
                           'because this is a single platform build')
             return
 
-        if not base_image.registry:
+        if not image.registry:
             self.log.info('Cannot validate available platforms for base image '
                           'because base image registry is not defined')
             return
@@ -172,28 +248,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
                           'because platform descriptors are not defined')
             return
 
-        manifest_list = get_manifest_list(base_image, base_image.registry,
-                                          insecure=self.parent_registry_insecure)
-        if '@sha256:' in str(base_image) and not manifest_list:
-            # we want to adjust the tag only for manifest list fetching
-            base_image = base_image.copy()
-
-            try:
-                config_blob = get_config_from_registry(base_image, base_image.registry,
-                                                       base_image.tag,
-                                                       insecure=self.parent_registry_insecure)
-            except (HTTPError, RetryError, Timeout) as ex:
-                self.log.warning('Unable to fetch config for %s, got error %s',
-                                 base_image, ex.response.status_code)
-                raise RuntimeError('Unable to fetch config for base image')
-
-            release = config_blob['config']['Labels']['release']
-            version = config_blob['config']['Labels']['version']
-            docker_tag = "%s-%s" % (version, release)
-            base_image.tag = docker_tag
-
-            manifest_list = get_manifest_list(base_image, base_image.registry,
-                                              insecure=self.parent_registry_insecure)
+        manifest_list = self._get_manifest_list(image)
 
         if not manifest_list:
             raise RuntimeError('Unable to fetch manifest list for base image')
@@ -212,7 +267,8 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
         self.log.info('Base image is a manifest list for all required platforms')
 
-    def get_expected_platforms(self):
+    def _get_expected_platforms(self):
+        """retrieve expected platforms configured for this build"""
         platforms = self.workflow.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
         if platforms:
             return platforms
