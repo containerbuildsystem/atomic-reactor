@@ -18,7 +18,7 @@
       "items": {"type": "integer"}
     },
     "customize_conf": {"type": "string"},
-    "filesystem_koji_task_id": {"type": "string"},
+    "filesystem_koji_task_id": {"type": "integer"},
     "flatpak": {"type": "boolean"},
     "flatpak_base_image": {"type": "string"},
     "git_branch": {"type": "string"},
@@ -41,10 +41,7 @@
     "reactor_config_override": {"type": "object"},
     "release": {"type": "string"},
     "scratch": {"type": "boolean"},
-    "signing_intent": {
-      "type": "array",
-      "items": {"type": "string"}
-    },
+    "signing_intent": {"type": "string"},
     "trigger_imagestreamtag": {"type": "string"},
     "user": {"type": "string"},
     "yum_repourls": {
