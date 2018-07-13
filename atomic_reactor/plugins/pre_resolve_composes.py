@@ -25,6 +25,8 @@ from atomic_reactor.plugins.pre_reactor_config import (get_config,
 
 ODCS_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 MINIMUM_TIME_TO_EXPIRE = timedelta(hours=2).total_seconds()
+# flag to let ODCS see hidden pulp repos
+UNPUBLISHED_REPOS = 'include_unpublished_pulp_repos'
 
 
 class ResolveComposesPlugin(PreBuildPlugin):
@@ -325,6 +327,9 @@ class ComposeConfig(object):
         self.pulp = {}
         if data.get('pulp_repos'):
             self.pulp = pulp_data or {}
+            self.flags = None
+            if data.get(UNPUBLISHED_REPOS):
+                self.flags = [UNPUBLISHED_REPOS]
         self.koji_tag = koji_tag
         self.odcs_config = odcs_config
         self.arches = arches
@@ -376,6 +381,7 @@ class ComposeConfig(object):
             'source_type': 'pulp',
             'source': ' '.join(self.pulp.get(arch, [])),
             'sigkeys': [],
+            'flags': self.flags,
             'arches': [arch]
         }
 

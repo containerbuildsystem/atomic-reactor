@@ -42,7 +42,9 @@ from atomic_reactor.plugins.build_orchestrate_build import (WORKSPACE_KEY_OVERRI
                                                             OrchestrateBuildPlugin)
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY, ReactorConfig)
-from atomic_reactor.plugins.pre_resolve_composes import ResolveComposesPlugin, ODCS_DATETIME_FORMAT
+from atomic_reactor.plugins.pre_resolve_composes import (ResolveComposesPlugin,
+                                                         ODCS_DATETIME_FORMAT, UNPUBLISHED_REPOS)
+
 from atomic_reactor.util import ImageName, read_yaml
 from datetime import datetime, timedelta
 from flexmock import flexmock
@@ -298,8 +300,13 @@ class TestResolveComposes(object):
         (['x86_64', 'ppce64le', 'arm64'], ['x86_64', 'ppce64le', 'arm64'], 'unsigned', 'unsigned'),
         (['x86_64', 'ppce64le', 'arm64'], None, 'beta', 'beta'),
     ))
+    @pytest.mark.parametrize(('flags', 'expected_flags'), [
+        ({}, None,),
+        ({UNPUBLISHED_REPOS: False}, None),
+        ({UNPUBLISHED_REPOS: True, 'some_flag': True}, [UNPUBLISHED_REPOS])
+    ])
     def test_request_pulp_and_multiarch(self, workflow, reactor_config_map, pulp_arches, arches,
-                                        signing_intent, expected_intent):
+                                        signing_intent, expected_intent, flags, expected_flags):
         content_set = ''
         pulp_composes = {}
         base_repos = ['spam', 'bacon', 'eggs']
@@ -326,9 +333,13 @@ class TestResolveComposes(object):
                 'time_to_expire': ODCS_COMPOSE_TIME_TO_EXPIRE.strftime(ODCS_DATETIME_FORMAT),
             }
             pulp_composes[arch] = pulp_compose
+            if expected_flags:
+                pulp_composes['flags'] = expected_flags
+
             (flexmock(ODCSClient)
                 .should_receive('start_compose')
-                .with_args(source_type='pulp', source=source, arches=[arch], sigkeys=[])
+                .with_args(source_type='pulp', source=source, arches=[arch], sigkeys=[],
+                           flags=expected_flags)
                 .and_return(pulp_composes[arch]).once())
             (flexmock(ODCSClient)
                 .should_receive('wait_for_compose')
@@ -346,6 +357,8 @@ class TestResolveComposes(object):
                 - eggs
                 signing_intent: {0}
             """.format(signing_intent))
+        for flag in flags:
+            repo_config += ("    {0}: {1}\n".format(flag, flags[flag]))
         mock_repo_config(workflow._tmpdir, repo_config)
         del workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
         workflow.buildstep_plugins_conf[0]['args']['platforms'] = arches
@@ -688,6 +701,7 @@ class TestResolveComposes(object):
                 source_type='pulp',
                 source='pulp-spam pulp-bacon pulp-eggs',
                 sigkeys=[],
+                flags=None,
                 arches=['x86_64'])
             .and_return(ODCS_COMPOSE))
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
