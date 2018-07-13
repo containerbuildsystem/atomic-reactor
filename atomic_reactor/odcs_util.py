@@ -41,7 +41,8 @@ class ODCSClient(object):
 
         self.session = session
 
-    def start_compose(self, source_type, source, packages=None, sigkeys=None, arches=None):
+    def start_compose(self, source_type, source, packages=None, sigkeys=None, arches=None,
+                      flags=None):
         """Start a new ODCS compose
 
         :param source_type: str, the type of compose to request (tag, module, pulp)
@@ -71,6 +72,9 @@ class ODCSClient(object):
 
         if sigkeys is not None:
             body['source']['sigkeys'] = sigkeys
+
+        if flags is not None:
+            body['flags'] = flags
 
         if arches is not None:
             body['arches'] = arches

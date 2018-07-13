@@ -86,7 +86,12 @@ def compose_json(state, state_name, source_type='module', source=MODULE_NSV,
     ('my-tag', 'tag', ['spam', 'bacon', 'eggs'], ""),
     ('my-tag', 'tag', ['spam', 'bacon', 'eggs'], []),
 ))
-def test_create_compose(odcs_client, source, source_type, packages, sigkeys, arches):
+@pytest.mark.parametrize('flags', (
+    None,
+    ['no_deps'],
+    ['breakfast', 'lunch'],
+))
+def test_create_compose(odcs_client, source, source_type, packages, sigkeys, arches, flags):
 
     def handle_composes_post(request):
         assert_request_token(request, odcs_client.session)
@@ -101,6 +106,7 @@ def test_create_compose(odcs_client, source, source_type, packages, sigkeys, arc
         assert body_json['source']['source'] == source
         assert body_json['source'].get('packages') == packages
         assert body_json['source'].get('sigkeys') == sigkeys
+        assert body_json.get('flags') == flags
         assert body_json.get('arches') == arches
         return (200, {}, compose_json(0, 'wait', source_type=source_type, source=source))
 
@@ -109,7 +115,7 @@ def test_create_compose(odcs_client, source, source_type, packages, sigkeys, arc
                            callback=handle_composes_post)
 
     odcs_client.start_compose(source_type=source_type, source=source, packages=packages,
-                              sigkeys=sigkeys, arches=arches)
+                              sigkeys=sigkeys, arches=arches, flags=flags)
 
 
 @responses.activate
