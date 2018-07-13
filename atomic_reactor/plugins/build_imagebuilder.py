@@ -8,7 +8,6 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function, unicode_literals
 
 import subprocess
-import time
 from six import PY2
 import os
 
@@ -17,10 +16,6 @@ from atomic_reactor.plugin import BuildStepPlugin
 from atomic_reactor.build import BuildResult
 from atomic_reactor.constants import CONTAINER_IMAGEBUILDER_BUILD_METHOD
 from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME, IMAGE_TYPE_DOCKER_ARCHIVE
-
-
-def sixdecode(data):
-    return data.decode() if PY2 else data
 
 
 class ImagebuilderPlugin(BuildStepPlugin):
@@ -43,36 +38,28 @@ class ImagebuilderPlugin(BuildStepPlugin):
 
         image = builder.image.to_str()
         # TODO: directly invoke go imagebuilder library in shared object via python module
-        kwargs = dict(stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        kwargs = dict(stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+        encoding_params = dict(encoding='utf-8', errors='replace')
         if not PY2:
-            kwargs['encoding'] = 'utf-8'
+            kwargs.update(encoding_params)
         ib_process = subprocess.Popen(['imagebuilder', '-t', image, builder.df_dir], **kwargs)
 
         self.log.debug('imagebuilder build has begun; waiting for it to finish')
-        (output, last_error) = ([], None)
+        output = []
         while True:
             poll = ib_process.poll()
-            # NOTE: imagebuilder writes both stdout and stderr in normal operation.
-            # Because the two streams are not always logged in the same order as they're
-            # produced, prefix logs with stderr/stdout to distinguish the streams.
-            out = sixdecode(ib_process.stdout.readline())
+            out = ib_process.stdout.readline()
+            out = out.decode(**encoding_params) if PY2 else out
             if out:
-                self.log.info('stdout: %s', out.strip())
+                self.log.info('%s', out.rstrip())
                 output.append(out)
-            err = sixdecode(ib_process.stderr.readline())
-            if err:
-                self.log.info('stderr: %s', err.strip())
-                output.append(err)  # include stderr with stdout
-                last_error = err    # while noting the final line
-            if out == '' and err == '':
-                if poll is not None:
-                    break
-                time.sleep(0.1)  # don't busy-wait when there's no output
+            elif poll is not None:
+                break
 
         if ib_process.returncode != 0:
-            # imagebuilder uses stderr for normal output too; so in the case of an apparent
-            # failure, single out the last line to include in the failure summary.
-            err = last_error or "<imagebuilder had bad exit code but no error output>"
+            # in the case of an apparent failure, single out the last line to
+            # include in the failure summary.
+            err = output[-1] if output else "<imagebuilder had bad exit code but no output>"
             return BuildResult(
                 logs=output,
                 fail_reason="image build failed (rc={}): {}".format(ib_process.returncode, err),
