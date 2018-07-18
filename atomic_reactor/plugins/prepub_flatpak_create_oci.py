@@ -261,7 +261,10 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
     def _export_filesystem(self):
         image = self.workflow.image
         self.log.info("Creating temporary docker container")
-        container_dict = self.tasker.d.create_container(image)
+        # The command here isn't used, since we only use the container for export,
+        # but (in some circumstances) the docker daemon will error out if no
+        # command is specified.
+        container_dict = self.tasker.d.create_container(image, command=["/bin/bash"])
         container_id = container_dict['Id']
 
         try:
