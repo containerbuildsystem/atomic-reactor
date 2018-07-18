@@ -721,6 +721,16 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
 
     export_stream = open(filesystem_tar, "rb")
 
+    def stream_to_generator(s):
+        while True:
+            # Yield small chunks to test the StreamAdapter code better
+            buf = s.read(100)
+            if len(buf) == 0:
+                return
+            yield buf
+
+    export_generator = stream_to_generator(export_stream)
+
     (flexmock(docker_tasker.d.wrapped)
      .should_receive('create_container')
      .with_args(workflow.image, command=["/bin/bash"])
@@ -728,7 +738,7 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
     (flexmock(docker_tasker.d.wrapped)
      .should_receive('export')
      .with_args(CONTAINER_ID)
-     .and_return(export_stream))
+     .and_return(export_generator))
     (flexmock(docker_tasker.d.wrapped)
      .should_receive('remove_container')
      .with_args(CONTAINER_ID))

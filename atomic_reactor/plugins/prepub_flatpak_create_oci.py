@@ -119,6 +119,41 @@ def update_desktop_files(app_id, builddir):
                                                     basename)))
 
 
+# This converts the generator provided by the export() operation to a file-like
+# object with a read that we can pass to tarfile.
+class StreamAdapter(object):
+    def __init__(self, gen):
+        self.gen = gen
+        self.buf = None
+        self.pos = None
+
+    def read(self, count):
+        pieces = []
+        remaining = count
+        while remaining > 0:
+            if not self.buf:
+                try:
+                    self.buf = next(self.gen)
+                    self.pos = 0
+                except StopIteration:
+                    break
+
+            if len(self.buf) - self.pos < remaining:
+                pieces.append(self.buf[self.pos:])
+                remaining -= (len(self.buf) - self.pos)
+                self.buf = None
+                self.pos = None
+            else:
+                pieces.append(self.buf[self.pos:self.pos + remaining])
+                self.pos += remaining
+                remaining = 0
+
+        return b''.join(pieces)
+
+    def close(self):
+        pass
+
+
 class FlatpakCreateOciPlugin(PrePublishPlugin):
     key = 'flatpak_create_oci'
     is_allowed_to_fail = False
@@ -195,7 +230,9 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         outfile = os.path.join(self.workflow.source.workdir, 'filesystem.tar.gz')
         manifestfile = os.path.join(self.workflow.source.workdir, 'flatpak-build.rpm_qf')
 
-        export_stream = self.tasker.d.export(container_id)
+        export_generator = self.tasker.d.export(container_id)
+        export_stream = StreamAdapter(export_generator)
+
         out_fileobj = open(outfile, "wb")
         compress_process = subprocess.Popen(['gzip', '-c'],
                                             stdin=subprocess.PIPE,
