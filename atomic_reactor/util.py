@@ -615,9 +615,8 @@ def get_platforms(workflow):
     if koji_platforms:
         return koji_platforms
 
-    # if check_and_set_platforms didn't run, or didn't get any platforms from koji
-    # determine platforms from USER_PARAMS platforms parameter
-    return get_platforms_in_limits(self.workflow, get_orchestrator_platforms())
+    # Not an orchestrator build
+    return None
 
 
 # copypasted and slightly modified from

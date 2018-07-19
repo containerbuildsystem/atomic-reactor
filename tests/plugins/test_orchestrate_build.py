@@ -41,7 +41,6 @@ import json
 import os
 import pytest
 import time
-import yaml
 import platform
 
 
@@ -122,7 +121,7 @@ class fake_manifest_list(object):
         return self.content
 
 
-def mock_workflow(tmpdir):
+def mock_workflow(tmpdir, platforms=['x86_64', 'ppc64le']):
     workflow = DockerBuildWorkflow(MOCK_SOURCE, TEST_IMAGE)
     builder = MockInsideBuilder()
     source = MockSource(tmpdir)
@@ -140,6 +139,8 @@ def mock_workflow(tmpdir):
             """))
     df = df_parser(df_path)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
+
+    workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(platforms)
 
     build = {
         "spec": {
@@ -275,7 +276,7 @@ def make_worker_build_kwargs(**overrides):
 ])
 def test_orchestrate_build(tmpdir, caplog, config_kwargs,
                            worker_build_image, logs_return_bytes, reactor_config_map):
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, platforms=['x86_64'])
     mock_osbs(logs_return_bytes=logs_return_bytes)
     plugin_args = {
         'platforms': ['x86_64'],
@@ -653,7 +654,7 @@ def test_orchestrate_choose_cluster_retry_timeout(tmpdir):
 
 
 def test_orchestrate_build_cancelation(tmpdir):
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, platforms=['x86_64'])
     mock_osbs()
     mock_manifest_list()
     mock_reactor_config(tmpdir)
@@ -761,144 +762,8 @@ def test_orchestrate_build_choose_clusters(tmpdir, clusters_x86_64,
         assert plat_annotations['build']['cluster-url'] == 'https://chosen_{}.com/'.format(plat)
 
 
-@pytest.mark.parametrize(('platforms', 'platform_exclude', 'platform_only', 'result'), [
-    (['x86_64', 'ppc64le'], '', 'ppc64le', ['ppc64le']),
-    (['x86_64', 'spam', 'bacon', 'toast', 'ppc64le'], ['spam', 'bacon', 'eggs', 'toast'], '',
-     ['x86_64', 'ppc64le']),
-    (['ppc64le', 'spam', 'bacon', 'toast'], ['spam', 'bacon', 'eggs', 'toast'], 'ppc64le',
-     ['ppc64le']),
-    (['x86_64', 'bacon', 'toast'], 'toast', ['x86_64', 'ppc64le'], ['x86_64']),
-    (['x86_64', 'toast'], 'toast', 'x86_64', ['x86_64']),
-    (['x86_64', 'spam', 'bacon', 'toast'], ['spam', 'bacon', 'eggs', 'toast'], ['x86_64',
-                                                                                'ppc64le'],
-     ['x86_64']),
-    (['x86_64', 'ppc64le'], '', '', ['x86_64', 'ppc64le'])
-])
-def test_orchestrate_build_exclude_platforms(tmpdir, platforms, platform_exclude, platform_only,
-                                             result):
-    workflow = mock_workflow(tmpdir)
-    mock_osbs()
-    mock_manifest_list()
-
-    reactor_config = {
-        'x86_64': [
-            {
-                'name': 'worker01',
-                'max_concurrent_builds': 3
-            }
-        ],
-        'ppc64le': [
-            {
-                'name': 'worker02',
-                'max_concurrent_builds': 3
-            }
-        ]
-    }
-
-    for exclude in ('spam', 'bacon', 'eggs'):
-        reactor_config[exclude] = [
-            {'name': 'worker-{}'.format(exclude), 'max_concurrent_builds': 3}
-        ]
-
-    mock_reactor_config(tmpdir, reactor_config)
-
-    platforms_dict = {}
-    if platform_exclude != '':
-        platforms_dict['platforms'] = {}
-        platforms_dict['platforms']['not'] = platform_exclude
-    if platform_only != '':
-        if 'platforms' not in platforms_dict:
-            platforms_dict['platforms'] = {}
-        platforms_dict['platforms']['only'] = platform_only
-
-    with open(os.path.join(str(tmpdir), 'container.yaml'), 'w') as f:
-        f.write(yaml.safe_dump(platforms_dict))
-        f.flush()
-
-    runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
-        workflow,
-        [{
-            'name': OrchestrateBuildPlugin.key,
-            'args': {
-                # Explicitly leaving off 'eggs' platform to
-                # ensure no errors occur when unknown platform
-                # is provided in container.yaml file.
-                'platforms': platforms,
-                'build_kwargs': make_worker_build_kwargs(),
-                'osbs_client_config': str(tmpdir),
-                'goarch': {'x86_64': 'amd64'},
-            }
-        }]
-    )
-
-    build_result = runner.run()
-    assert not build_result.is_failed()
-
-    annotations = build_result.annotations
-    assert set(annotations['worker-builds'].keys()) == set(result)
-
-
-@pytest.mark.parametrize(('platforms', 'plugin_results', 'result'), [
-    (['x86_64', 'ppc64le'], ['ppc64le'], ['ppc64le']),
-    (['x86_64', 'spam', 'bacon', 'toast', 'ppc64le'], ['x86_64', 'ppc64le'],
-     ['x86_64', 'ppc64le']),
-    (['x86_64', 'ppc64le'], None, ['x86_64', 'ppc64le']),
-    (None, ['x86_64', 'ppc64le'], ['x86_64', 'ppc64le']),
-])
-def test_orchestrate_build_exclude_platforms_from_plugin(tmpdir, platforms, plugin_results, result):
-    workflow = mock_workflow(tmpdir)
-    mock_osbs()
-    mock_manifest_list()
-
-    reactor_config = {
-        'x86_64': [
-            {
-                'name': 'worker01',
-                'max_concurrent_builds': 3
-            }
-        ],
-        'ppc64le': [
-            {
-                'name': 'worker02',
-                'max_concurrent_builds': 3
-            }
-        ]
-    }
-
-    mock_reactor_config(tmpdir, reactor_config)
-
-    if plugin_results:
-        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(plugin_results)
-    else:
-        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = None
-
-    plugin_args = {
-        'build_kwargs': make_worker_build_kwargs(),
-        'osbs_client_config': str(tmpdir),
-        'goarch': {'x86_64': 'amd64'},
-    }
-    if platforms:
-        plugin_args['platforms'] = platforms
-
-    runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
-        workflow,
-        [{
-            'name': OrchestrateBuildPlugin.key,
-            'args': plugin_args
-        }]
-    )
-
-    build_result = runner.run()
-    assert not build_result.is_failed()
-
-    annotations = build_result.annotations
-    assert set(annotations['worker-builds'].keys()) == set(result)
-
-
 def test_orchestrate_build_unknown_platform(tmpdir, reactor_config_map):  # noqa
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, platforms=['x86_64', 'spam'])
     mock_osbs()
     mock_manifest_list()
     if reactor_config_map:
@@ -1094,7 +959,7 @@ def test_orchestrate_build_failed_waiting(tmpdir,
     (None, 'TypeError'),
 ])
 def test_orchestrate_build_get_fs_task_id(tmpdir, task_id, error):
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, platforms=['x86_64'])
     mock_osbs()
 
     mock_reactor_config(tmpdir)
@@ -1128,7 +993,7 @@ def test_orchestrate_build_get_fs_task_id(tmpdir, task_id, error):
 
 @pytest.mark.parametrize('fail_at', ('all', 'first'))
 def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, platforms=['x86_64'])
     mock_osbs()  # Current builds is a constant 2
 
     mock_reactor_config(tmpdir, {
@@ -1184,7 +1049,7 @@ def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
     False
 ])
 def test_orchestrate_build_worker_build_kwargs(tmpdir, caplog, is_auto):
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, platforms=['x86_64'])
     expected_kwargs = {
         'git_uri': SOURCE['uri'],
         'git_ref': 'master',
@@ -1233,7 +1098,7 @@ def test_orchestrate_build_worker_build_kwargs(tmpdir, caplog, is_auto):
     {'x86_64': '4242', None: '1111'},
 ])
 def test_orchestrate_override_build_kwarg(tmpdir, overrides):
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, platforms=['x86_64'])
     expected_kwargs = {
         'git_uri': SOURCE['uri'],
         'git_ref': 'master',
@@ -1287,7 +1152,7 @@ def test_orchestrate_override_build_kwarg(tmpdir, overrides):
     ['v2'],
 ])
 def test_orchestrate_override_content_versions(tmpdir, caplog, enable_v1, content_versions):
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, platforms=['x86_64'])
     expected_kwargs = {
         'git_uri': SOURCE['uri'],
         'git_ref': 'master',
@@ -1678,7 +1543,7 @@ def test_set_build_image_raises(tmpdir, build, exc_str, bc, bc_cont, ims, ims_co
 def test_set_build_image_works(tmpdir, build, bc, bc_cont, ims, ims_cont, ml, ml_cont,
                                platforms):
     build = json.dumps(build)
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, platforms=platforms)
 
     orchestrator_default_platform = 'x86_64'
     (flexmock(platform)
@@ -1727,7 +1592,7 @@ def test_set_build_image_works(tmpdir, build, bc, bc_cont, ims, ims_cont, ml, ml
     (['ppc64le'], ['ppc64le']),
 ])
 def test_set_build_image_with_override(tmpdir, platforms, override):
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, platforms=platforms)
 
     default_build_image = 'registry/osbs-buildroot@sha256:12345'
     build = json.dumps({"spec": {
@@ -1782,8 +1647,9 @@ def test_set_build_image_with_override(tmpdir, platforms, override):
                                                                           default_build_image)
         assert used_build_image == expected_build_image
 
+
 def test_no_platforms(tmpdir):
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, platforms=[])
     mock_osbs()
     mock_reactor_config(tmpdir)
 

@@ -377,20 +377,6 @@ class TestValidateBaseImage(object):
                                     check_platforms=True)
         assert log_message in caplog.text()
 
-    def test_manifest_list_fallback_to_orchestrate_build_args(self, caplog):
-
-        def workflow_callback(workflow):
-            self.prepare(workflow)
-            del workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
-            return workflow
-
-        log_message = 'manifest list for all required platforms'
-        test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
-                                    [], [], reactor_config_map=True,
-                                    workflow_callback=workflow_callback,
-                                    check_platforms=True)
-        assert log_message in caplog.text()
-
     def test_expected_platforms_unknown(self, caplog):
 
         def workflow_callback(workflow):
