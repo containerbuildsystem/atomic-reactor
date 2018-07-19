@@ -196,10 +196,14 @@ def mock_workflow(tmpdir, dockerfile=DEFAULT_DOCKERFILE):
     return workflow
 
 
-def create_plugin_instance(tmpdir, kwargs=None, scratch=False, reactor_config_map=False):  # noqa
+def create_plugin_instance(tmpdir, kwargs=None, scratch=False, reactor_config_map=False,  # noqa
+                           architectures=None):
     flexmock(util).should_receive('is_scratch_build').and_return(scratch)
     tasker = flexmock()
     workflow = mock_workflow(tmpdir)
+
+    if architectures:
+        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(architectures)
 
     if kwargs is None:
         kwargs = {}
@@ -289,50 +293,6 @@ def test_add_filesystem_plugin_legacy(tmpdir, docker_tasker, scratch, reactor_co
     plugin_result = results[PLUGIN_ADD_FILESYSTEM_KEY]
     assert 'base-image-id' in plugin_result
     assert plugin_result['base-image-id'] == IMPORTED_IMAGE_ID
-    assert 'filesystem-koji-task-id' in plugin_result
-
-
-@pytest.mark.parametrize(('global_arches', 'param_arches', 'expected_arches'), (
-    (['x86_64'], None, ['x86_64']),
-    (None, ['x86_64'], ['x86_64']),
-    (['x86_64', 'ppc64le'], None, ['x86_64', 'ppc64le']),
-    (None, ['x86_64', 'ppc64le'], ['x86_64', 'ppc64le']),
-    (['x86_64'], ['spam'], ['x86_64']),
-    (['x86_64', 'ppc64le'], ['spam', 'bacon'], ['x86_64', 'ppc64le']),
-))
-def test_use_check_and_set_platforms_result(tmpdir, docker_tasker, global_arches, param_arches,
-                                            expected_arches):
-    """
-    global_arches: list of architectures returned by check_and_set_platforms plugin
-    param_arches: list of architectures given to add_filesystem plugin as parameter
-    """
-    if MOCK:
-        mock_docker()
-
-    workflow = mock_workflow(tmpdir)
-    mock_koji_session(arches=expected_arches)
-    mock_image_build_file(str(tmpdir))
-
-    if global_arches:
-        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(global_arches)
-
-    plugin_args = {}
-    if param_arches:
-        plugin_args['architectures'] = param_arches
-
-    runner = PreBuildPluginsRunner(
-        docker_tasker,
-        workflow,
-        [{
-            'name': PLUGIN_ADD_FILESYSTEM_KEY,
-            'args': plugin_args
-        }]
-    )
-
-    results = runner.run()
-    plugin_result = results[PLUGIN_ADD_FILESYSTEM_KEY]
-    assert 'base-image-id' in plugin_result
-    assert plugin_result['base-image-id'] is None
     assert 'filesystem-koji-task-id' in plugin_result
 
 
@@ -529,9 +489,8 @@ def test_image_build_overwrites(tmpdir, architectures, architecture, reactor_con
                     """))
     plugin = create_plugin_instance(tmpdir, {
         'repos': repos,
-        'architectures': architectures,
         'architecture': architecture
-    }, reactor_config_map=reactor_config_map)
+    }, reactor_config_map=reactor_config_map, architectures=architectures)
     image_build_conf = dedent("""\
         [image-build]
         name = my-name
@@ -562,10 +521,13 @@ def test_image_build_overwrites(tmpdir, architectures, architecture, reactor_con
         config_arch = [architecture]
     else:
         config_arch = ['i386', 'i486']
+
+    # Sort architectures for comparsion
+    config[2] = sorted(config[2])
     assert config == [
         'my-name',
         '1.0',
-        config_arch,
+        sorted(config_arch),
         'guest-fedora-23-docker',
         'http://install-tree.com/$arch/fedora23/',
     ]
@@ -628,6 +590,9 @@ def test_image_download(tmpdir, docker_tasker, architecture, architectures, down
     mock_koji_session(download_filesystem=download_filesystem)
     mock_image_build_file(str(tmpdir))
 
+    if architectures:
+        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(architectures)
+
     if reactor_config_map:
         make_and_store_reactor_config_map(workflow, {'root_url': '', 'auth': {}})
 
@@ -639,7 +604,6 @@ def test_image_download(tmpdir, docker_tasker, architecture, architectures, down
             'args': {
                 'koji_hub': KOJI_HUB,
                 'architecture': architecture,
-                'architectures': architectures,
             }
         }]
     )

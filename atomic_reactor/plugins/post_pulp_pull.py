@@ -17,14 +17,13 @@ from __future__ import unicode_literals
 
 from atomic_reactor.constants import (PLUGIN_PULP_PUSH_KEY, PLUGIN_PULP_SYNC_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY,
-                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
                                       MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_SCHEMA1,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
 
 from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
-from atomic_reactor.util import get_manifest_digests
+from atomic_reactor.util import get_manifest_digests, get_platforms
 from atomic_reactor.plugins.pre_reactor_config import (get_prefer_schema1_digest,
                                                        get_platform_to_goarch_mapping)
 import requests
@@ -189,10 +188,10 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
         if self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY):
             self.expect_v2schema2list = True
 
-            platforms = self.workflow.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+            platforms = get_platforms(self.workflow)
             if not platforms:
                 self.log.debug('Cannot check if only manifest list digest should be checked '
-                               'because %s plugin did not run', PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+                               'because we have no platforms list')
                 return
 
             try:

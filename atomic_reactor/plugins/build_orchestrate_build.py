@@ -38,10 +38,9 @@ from atomic_reactor.plugins.pre_reactor_config import (get_config,
                                                        get_build_image_override,
                                                        get_goarch_to_platform_mapping)
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
-from atomic_reactor.util import (df_parser, get_build_json, get_manifest_list, ImageName,
-                                 get_platforms_in_limits)
-from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY,
-                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+from atomic_reactor.util import (df_parser, get_build_json, get_manifest_list, get_platforms,
+                                 ImageName)
+from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY)
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from osbs.conf import Configuration
@@ -271,6 +270,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         :param workflow: DockerBuildWorkflow instance
         :param build_kwargs: dict, keyword arguments for starting worker builds
         :param platforms: list<str>, platforms to build
+                          (used via utils.get_orchestrator_platforms())
         :param osbs_client_config: str, path to directory containing osbs.conf
         :param worker_build_image: str, the builder image to use for worker builds
                                   (not used, image is inherited from the orchestrator)
@@ -282,7 +282,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         :param goarch: dict, keys are platform, values are go language platform names
         """
         super(OrchestrateBuildPlugin, self).__init__(tasker, workflow)
-        self.platforms = self.get_platforms(platforms)
+        self.platforms = get_platforms(self.workflow)
 
         self.build_kwargs = build_kwargs
         self.osbs_client_config_fallback = osbs_client_config
@@ -419,15 +419,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     def adjust_build_kwargs(self):
         self.build_kwargs['arrangement_version'] =\
             get_arrangement_version(self.workflow, self.build_kwargs['arrangement_version'])
-
-    def get_platforms(self, fallback):
-        koji_platforms = self.workflow.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
-        if koji_platforms:
-            return koji_platforms
-
-        # if check_and_set_platforms didn't run, or didn't get any platforms from koji
-        # determine platforms from USER_PARAMS platforms parameter
-        return get_platforms_in_limits(self.workflow, fallback)
 
     def get_current_builds(self, osbs):
         field_selector = ','.join(['status!={status}'.format(status=status.capitalize())

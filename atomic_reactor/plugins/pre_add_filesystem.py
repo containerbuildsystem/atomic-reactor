@@ -26,13 +26,12 @@ import json
 import re
 import os
 
-from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE, PLUGIN_ADD_FILESYSTEM_KEY,
-                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE, PLUGIN_ADD_FILESYSTEM_KEY)
 from atomic_reactor.plugin import PreBuildPlugin, BuildCanceledException
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 from atomic_reactor.koji_util import TaskWatcher, stream_task_output
-from atomic_reactor.util import get_retrying_requests_session
+from atomic_reactor.util import get_platforms, get_retrying_requests_session
 from atomic_reactor import util
 
 
@@ -101,7 +100,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
                       base filesystem creation. First value will also
                       be used as install_tree. Only baseurl value is used
                       from each repo file.
-        :param architectures: list<str>, list of arches to build on (orchestrator)
+        :param architectures: list<str>, list of arches to build on (orchestrator) - UNUSED
         :param architecture: str, arch to build on (worker)
         """
         # call parent constructor
@@ -121,17 +120,10 @@ class AddFilesystemPlugin(PreBuildPlugin):
         self.poll_interval = poll_interval
         self.blocksize = blocksize
         self.repos = repos or []
-        self.architectures = self.get_arches(architectures)
+        self.architectures = get_platforms(self.workflow)
         self.is_orchestrator = True if self.architectures else False
         self.architecture = architecture
         self.scratch = util.is_scratch_build()
-
-    def get_arches(self, fallback):
-        architectures = self.workflow.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
-        if architectures:
-            return list(architectures)
-
-        return fallback
 
     def is_image_build_type(self, base_image):
         return base_image.strip().lower() == 'koji/image-build'
