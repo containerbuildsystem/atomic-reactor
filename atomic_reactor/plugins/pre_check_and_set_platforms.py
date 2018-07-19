@@ -56,7 +56,7 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
 
         if is_scratch_build() or is_isolated_build():
             override_platforms = get_orchestrator_platforms(self.workflow)
-            if override_platforms and set(override_platforms) != koji_platforms:
+            if override_platforms and set(override_platforms) != set(platforms):
                 # platforms from user params do not match platforms from koji target
                 # that almost certainly means they were overridden and should be used
                 return set(override_platforms)

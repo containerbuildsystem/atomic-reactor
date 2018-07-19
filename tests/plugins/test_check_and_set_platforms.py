@@ -136,20 +136,29 @@ def test_check_and_set_platforms(tmpdir, platforms, platform_exclude, platform_o
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] is None
 
 
-@pytest.mark.parametrize(('labels', 'platforms', 'orchestrator_platforms', 'result'), [
-    ({}, None, None, None),
-    ({}, 'x86_64 arm64', ['spam', 'bacon'], ['arm64', 'x86_64']),
-    ({'isolated': True}, 'spam bacon', ['x86_64', 'arm64'], ['arm64', 'x86_64']),
-    ({'isolated': True}, 'x86_64 arm64', None, ['arm64', 'x86_64']),
-    ({'isolated': True}, None, ['x86_64', 'arm64'], None),
-    ({'scratch': True}, 'spam bacon', ['x86_64', 'arm64'], ['arm64', 'x86_64']),
-    ({'scratch': True}, 'x86_64 arm64', None, ['arm64', 'x86_64']),
-    ({'scratch': True}, None, ['x86_64', 'arm64'], None),
+@pytest.mark.parametrize(('labels', 'platforms', 'orchestrator_platforms', 'platform_only',
+                          'result'), [
+    ({}, None, None, '', None),
+    ({}, 'x86_64 arm64', ['spam', 'bacon'], '', ['arm64', 'x86_64']),
+    ({'isolated': True}, 'spam bacon', ['x86_64', 'arm64'], '', ['arm64', 'x86_64']),
+    ({'isolated': True}, 'x86_64 arm64', None, '', ['arm64', 'x86_64']),
+    ({'isolated': True}, None, ['x86_64', 'arm64'], '', None),
+    ({'scratch': True}, 'spam bacon', ['x86_64', 'arm64'], '', ['arm64', 'x86_64']),
+    ({'scratch': True}, 'x86_64 arm64', None, '', ['arm64', 'x86_64']),
+    ({'scratch': True}, None, ['x86_64', 'arm64'], '', None),
+    ({'scratch': True}, 'x86_64 arm64', ['x86_64', 'arm64'], 'x86_64', ['x86_64']),
+    ({'scratch': True}, 'x86_64 arm64 s390x', ['x86_64', 'arm64'], 'x86_64', ['x86_64', 'arm64']),
 ])
-def test_check_isolated_or_scratch(tmpdir, labels, platforms, orchestrator_platforms, result):
+def test_check_isolated_or_scratch(tmpdir, labels, platforms,
+                                   orchestrator_platforms, platform_only, result):
+    platforms_dict = {}
+    if platform_only != '':
+        platforms_dict['platforms'] = {}
+        platforms_dict['platforms']['only'] = platform_only
+
     container_path = os.path.join(str(tmpdir), REPO_CONTAINER_CONFIG)
     with open(container_path, 'w') as f:
-        f.write(yaml.safe_dump({}))
+        f.write(yaml.safe_dump(platforms_dict))
         f.flush()
 
     tasker, workflow = prepare(tmpdir)
