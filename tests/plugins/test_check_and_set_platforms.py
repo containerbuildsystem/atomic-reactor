@@ -66,6 +66,24 @@ class MockSource(object):
         return self.path, self.path
 
 
+class MockClusterConfig(object):
+    enabled = True
+
+
+class MockConfig(object):
+    def __init__(self, platforms):
+        if platforms:
+            self.platforms = set(platforms.split())
+        else:
+            self.platforms = ['x86_64']
+
+    def get_enabled_clusters_for_platform(self, platform):
+        if platform in self.platforms:
+            return MockClusterConfig
+        else:
+            return []
+
+
 def write_container_yaml(tmpdir, platform_exclude='', platform_only=''):
     platforms_dict = {}
     if platform_exclude != '':
@@ -132,6 +150,9 @@ def test_check_and_set_platforms(tmpdir, platforms, platform_exclude, platform_o
     flexmock(reactor_config).should_receive('get_koji').and_return(mock_koji_config)
     flexmock(koji_util).should_receive('create_koji_session').and_return(session)
 
+    mock_config = MockConfig(platforms)
+    flexmock(reactor_config).should_receive('get_config').and_return(mock_config)
+
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
         'args': {'koji_target': KOJI_TARGET},
@@ -177,6 +198,9 @@ def test_check_isolated_or_scratch(tmpdir, labels, platforms,
     flexmock(reactor_config).should_receive('get_koji').and_return(mock_koji_config)
     flexmock(koji_util).should_receive('create_koji_session').and_return(session)
 
+    mock_config = MockConfig(platforms)
+    flexmock(reactor_config).should_receive('get_config').and_return(mock_config)
+
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
         'args': {'koji_target': KOJI_TARGET},
@@ -205,6 +229,42 @@ def test_check_and_set_platforms_no_koji(tmpdir, platforms, platform_only, resul
 
     build_json = {'metadata': {'labels': {}}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
+
+    mock_config = MockConfig(platforms)
+    flexmock(reactor_config).should_receive('get_config').and_return(mock_config)
+
+    runner = PreBuildPluginsRunner(tasker, workflow, [{
+        'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
+    }])
+
+    if platforms:
+        plugin_result = runner.run()
+        assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
+        assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] == set(result)
+    else:
+        with pytest.raises(Exception) as e:
+            plugin_result = runner.run()
+            assert "no koji target or platform list" in str(e)
+
+
+@pytest.mark.parametrize(('platforms', 'platform_only', 'cluster_platforms', 'result'), [
+    ('x86_64 ppc64le', '', 'x86_64', ['x86_64']),
+    ('x86_64 ppc64le arm64', ['x86_64', 'arm64'], 'x86_64', ['x86_64']),
+])
+def test_platforms_from_cluster_config(tmpdir, platforms, platform_only,
+                                       cluster_platforms, result):
+    write_container_yaml(tmpdir, platform_only=platform_only)
+
+    tasker, workflow = prepare(tmpdir)
+
+    if platforms:
+        set_orchestrator_platforms(workflow, platforms.split())
+
+    build_json = {'metadata': {'labels': {}}}
+    flexmock(util).should_receive('get_build_json').and_return(build_json)
+
+    mock_config = MockConfig(cluster_platforms)
+    flexmock(reactor_config).should_receive('get_config').and_return(mock_config)
 
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,

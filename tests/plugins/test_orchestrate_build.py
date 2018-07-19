@@ -762,6 +762,8 @@ def test_orchestrate_build_choose_clusters(tmpdir, clusters_x86_64,
         assert plat_annotations['build']['cluster-url'] == 'https://chosen_{}.com/'.format(plat)
 
 
+# This test tests code paths that can no longer be hit in actual operation since
+# we exclude platforms with no clusters in check_and_set_platforms.
 def test_orchestrate_build_unknown_platform(tmpdir, reactor_config_map):  # noqa
     workflow = mock_workflow(tmpdir, platforms=['x86_64', 'spam'])
     mock_osbs()
