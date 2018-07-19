@@ -66,6 +66,27 @@ class MockSource(object):
         return self.path, self.path
 
 
+def write_container_yaml(tmpdir, platform_exclude='', platform_only=''):
+    platforms_dict = {}
+    if platform_exclude != '':
+        platforms_dict['platforms'] = {}
+        platforms_dict['platforms']['not'] = platform_exclude
+    if platform_only != '':
+        if 'platforms' not in platforms_dict:
+            platforms_dict['platforms'] = {}
+        platforms_dict['platforms']['only'] = platform_only
+
+    container_path = os.path.join(str(tmpdir), REPO_CONTAINER_CONFIG)
+    with open(container_path, 'w') as f:
+        f.write(yaml.safe_dump(platforms_dict))
+        f.flush()
+
+
+def set_orchestrator_platforms(workflow, orchestrator_platforms):
+    workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY,
+                                        'args': {'platforms': orchestrator_platforms}}]
+
+
 def prepare(tmpdir):
     if MOCK:
         mock_docker()
@@ -96,19 +117,7 @@ def prepare(tmpdir):
     ('x86_64 ppc64le', '', '', ['x86_64', 'ppc64le'])
 ])
 def test_check_and_set_platforms(tmpdir, platforms, platform_exclude, platform_only, result):
-    platforms_dict = {}
-    if platform_exclude != '':
-        platforms_dict['platforms'] = {}
-        platforms_dict['platforms']['not'] = platform_exclude
-    if platform_only != '':
-        if 'platforms' not in platforms_dict:
-            platforms_dict['platforms'] = {}
-        platforms_dict['platforms']['only'] = platform_only
-
-    container_path = os.path.join(str(tmpdir), REPO_CONTAINER_CONFIG)
-    with open(container_path, 'w') as f:
-        f.write(yaml.safe_dump(platforms_dict))
-        f.flush()
+    write_container_yaml(tmpdir, platform_exclude, platform_only)
 
     tasker, workflow = prepare(tmpdir)
 
@@ -151,20 +160,11 @@ def test_check_and_set_platforms(tmpdir, platforms, platform_exclude, platform_o
 ])
 def test_check_isolated_or_scratch(tmpdir, labels, platforms,
                                    orchestrator_platforms, platform_only, result):
-    platforms_dict = {}
-    if platform_only != '':
-        platforms_dict['platforms'] = {}
-        platforms_dict['platforms']['only'] = platform_only
-
-    container_path = os.path.join(str(tmpdir), REPO_CONTAINER_CONFIG)
-    with open(container_path, 'w') as f:
-        f.write(yaml.safe_dump(platforms_dict))
-        f.flush()
+    write_container_yaml(tmpdir, platform_only=platform_only)
 
     tasker, workflow = prepare(tmpdir)
     if orchestrator_platforms:
-        workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY,
-                                            'args': {'platforms': orchestrator_platforms}}]
+        set_orchestrator_platforms(workflow, orchestrator_platforms)
 
     build_json = {'metadata': {'labels': labels}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
@@ -184,6 +184,34 @@ def test_check_isolated_or_scratch(tmpdir, labels, platforms,
 
     plugin_result = runner.run()
     if result:
+        assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
+        assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] == set(result)
+    else:
+        assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] is None
+
+
+@pytest.mark.parametrize(('platforms', 'platform_only', 'result'), [
+    (None, 'ppc64le', None),
+    ('x86_64 ppc64le', '', ['x86_64', 'ppc64le']),
+    ('x86_64 ppc64le', 'ppc64le', ['ppc64le']),
+])
+def test_check_and_set_platforms_no_koji(tmpdir, platforms, platform_only, result):
+    write_container_yaml(tmpdir, platform_only=platform_only)
+
+    tasker, workflow = prepare(tmpdir)
+
+    if platforms:
+        set_orchestrator_platforms(workflow, platforms.split())
+
+    build_json = {'metadata': {'labels': {}}}
+    flexmock(util).should_receive('get_build_json').and_return(build_json)
+
+    runner = PreBuildPluginsRunner(tasker, workflow, [{
+        'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
+    }])
+
+    plugin_result = runner.run()
+    if platforms:
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] == set(result)
     else:

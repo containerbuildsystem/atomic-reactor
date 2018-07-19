@@ -267,10 +267,6 @@ class TestResolveComposes(object):
         workflow.buildstep_plugins_conf[0]['args']['platforms'] = arches
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
-    def test_request_compose_fallback(self, workflow, reactor_config_map):  # noqa:F811
-        del workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
-        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
-
     def test_request_compose_for_modules(self, workflow, reactor_config_map):  # noqa:F811
         repo_config = dedent("""\
             compose:
@@ -360,8 +356,10 @@ class TestResolveComposes(object):
         for flag in flags:
             repo_config += ("    {0}: {1}\n".format(flag, flags[flag]))
         mock_repo_config(workflow._tmpdir, repo_config)
-        del workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
-        workflow.buildstep_plugins_conf[0]['args']['platforms'] = arches
+        if arches:
+            workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(arches)
+        else:
+            del workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
         tag_compose = deepcopy(ODCS_COMPOSE)
 
         sig_keys = SIGNING_INTENTS[signing_intent]
