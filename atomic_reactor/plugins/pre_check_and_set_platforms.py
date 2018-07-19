@@ -17,7 +17,7 @@ when koji build tags change.
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (get_platforms_in_limits, is_scratch_build, is_isolated_build,
                                  get_orchestrator_platforms)
-from atomic_reactor.plugins.pre_reactor_config import get_koji_session, NO_FALLBACK
+from atomic_reactor.plugins.pre_reactor_config import get_config, get_koji_session, NO_FALLBACK
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 
 
@@ -37,6 +37,7 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
         # call parent constructor
         super(CheckAndSetPlatformsPlugin, self).__init__(tasker, workflow)
         self.koji_target = koji_target
+        self.reactor_config = get_config(self.workflow)
 
     def run(self):
         """
@@ -64,4 +65,16 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
         else:
             platforms = get_orchestrator_platforms(self.workflow)
 
-        return get_platforms_in_limits(self.workflow, platforms)
+        if not platforms:
+            raise RuntimeError("Cannot determine platforms; no koji target or platform list")
+
+        # Filter platforms based on clusters
+        enabled_platforms = []
+        for p in platforms:
+            if self.reactor_config.get_enabled_clusters_for_platform(p):
+                enabled_platforms.append(p)
+            else:
+                self.log.warning(
+                    "No cluster found for platform '%s' in reactor config map, skipping", p)
+
+        return get_platforms_in_limits(self.workflow, enabled_platforms)
