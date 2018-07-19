@@ -370,7 +370,7 @@ class TestResolveComposes(object):
             tag_compose['arches'] = ' '.join(arches)
             (flexmock(ODCSClient)
                 .should_receive('start_compose')
-                .with_args(source_type='tag', source=KOJI_TAG_NAME, arches=arches,
+                .with_args(source_type='tag', source=KOJI_TAG_NAME, arches=sorted(arches),
                            packages=['spam', 'bacon', 'eggs'], sigkeys=sig_keys)
                 .and_return(tag_compose).once())
         else:

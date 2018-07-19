@@ -13,8 +13,7 @@ import yaml
 from collections import defaultdict
 
 from atomic_reactor.constants import (PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
-                                      REPO_CONTENT_SETS_CONFIG, PLUGIN_BUILD_ORCHESTRATE_KEY,
-                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, BASE_IMAGE_KOJI_BUILD)
+                                      REPO_CONTENT_SETS_CONFIG, BASE_IMAGE_KOJI_BUILD)
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
@@ -22,6 +21,7 @@ from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.pre_reactor_config import (get_config,
                                                        get_odcs_session,
                                                        get_koji_session, get_koji)
+from atomic_reactor.util import get_platforms
 
 ODCS_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 MINIMUM_TIME_TO_EXPIRE = timedelta(hours=2).total_seconds()
@@ -135,16 +135,6 @@ class ResolveComposesPlugin(PreBuildPlugin):
             self.log.info('Autorebuild detected: Ignoring compose_ids plugin parameter')
             self.compose_ids = tuple()
 
-    def get_arches(self):
-        platforms = self.workflow.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
-        if platforms:
-            return [platform for platform in platforms]
-
-        # Fallback to build_orchestrate_build args if check_and_set_platforms didn't run
-        for plugin in self.workflow.buildstep_plugins_conf:
-            if plugin['name'] == PLUGIN_BUILD_ORCHESTRATE_KEY:
-                return plugin['args']['platforms']
-
     def read_configs(self):
         self.odcs_config = get_config(self.workflow).get_odcs_config()
         if not self.odcs_config:
@@ -161,9 +151,12 @@ class ResolveComposesPlugin(PreBuildPlugin):
             with open(file_path) as f:
                 pulp_data = yaml.safe_load(f) or {}
 
-        arches = self.get_arches()
+        platforms = get_platforms(self.workflow)
+        if platforms:
+            platforms = sorted(platforms)  # sorted to keep predictable for tests
 
-        self.compose_config = ComposeConfig(data, pulp_data, self.odcs_config, arches=arches)
+        self.compose_config = ComposeConfig(data, pulp_data, self.odcs_config,
+                                            arches=platforms)
 
     def adjust_compose_config(self):
         if self.signing_intent:

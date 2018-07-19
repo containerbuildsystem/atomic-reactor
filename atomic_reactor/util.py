@@ -41,7 +41,9 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST, MEDIA_TYPE_OCI_V1,
                                       MEDIA_TYPE_OCI_V1_INDEX, GIT_MAX_RETRIES, GIT_BACKOFF_FACTOR,
-                                      PLUGIN_BUILD_ORCHESTRATE_KEY, PLUGIN_KOJI_PARENT_KEY,
+                                      PLUGIN_BUILD_ORCHESTRATE_KEY,
+                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
+                                      PLUGIN_KOJI_PARENT_KEY,
                                       PARENT_IMAGE_BUILDS_KEY, PARENT_IMAGES_KOJI_BUILDS,
                                       BASE_IMAGE_KOJI_BUILD, BASE_IMAGE_BUILD_ID_KEY)
 
@@ -606,6 +608,16 @@ def get_orchestrator_platforms(workflow):
     for plugin in workflow.buildstep_plugins_conf or []:
         if plugin['name'] == PLUGIN_BUILD_ORCHESTRATE_KEY:
             return plugin['args']['platforms']
+
+
+def get_platforms(workflow):
+    koji_platforms = workflow.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+    if koji_platforms:
+        return koji_platforms
+
+    # if check_and_set_platforms didn't run, or didn't get any platforms from koji
+    # determine platforms from USER_PARAMS platforms parameter
+    return get_platforms_in_limits(self.workflow, get_orchestrator_platforms())
 
 
 # copypasted and slightly modified from

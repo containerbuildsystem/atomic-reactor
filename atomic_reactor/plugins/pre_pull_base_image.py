@@ -22,8 +22,7 @@ import platform
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (get_build_json, get_manifest_list,
                                  get_config_from_registry, ImageName,
-                                 get_orchestrator_platforms)
-from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
+                                 get_platforms)
 from atomic_reactor.core import RetryGeneratorException
 from atomic_reactor.plugins.pre_reactor_config import (get_source_registry,
                                                        get_platform_to_goarch_mapping,
@@ -235,7 +234,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
     def _validate_platforms_in_image(self, image):
         """Ensure that the image provides all platforms expected for the build."""
-        expected_platforms = self._get_expected_platforms()
+        expected_platforms = get_platforms(self.workflow)
         if not expected_platforms:
             self.log.info('Skipping validation of available platforms '
                           'because expected platforms are unknown')
@@ -275,11 +274,3 @@ class PullBaseImagePlugin(PreBuildPlugin):
             'Missing arches in manifest list for base image'
 
         self.log.info('Base image is a manifest list for all required platforms')
-
-    def _get_expected_platforms(self):
-        """retrieve expected platforms configured for this build"""
-        platforms = self.workflow.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
-        if platforms:
-            return platforms
-
-        return get_orchestrator_platforms(self.workflow)
