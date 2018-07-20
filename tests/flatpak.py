@@ -11,12 +11,46 @@ try:
 except ImportError:
     MODULEMD_AVAILABLE = False
 
+PLATFORM_MODULEMD = """
+document: modulemd
+version: 2
+data:
+  name: platform
+  stream: f28
+  version: 5
+  context: 00000000
+  summary: Fedora 29 traditional base
+  description: >-
+    Fedora 29 traditional base
+  license:
+    module:
+    - MIT
+  xmd:
+    mbs:
+      mse: TRUE
+      commit: f28
+      buildrequires: {}
+      koji_tag: module-f28-build
+      requires: {}
+  dependencies:
+  - {}
+  profiles:
+    buildroot:
+      rpms:
+      - bash
+    srpm-buildroot:
+      rpms:
+      - bash
+  buildopts:
+    rpms: {}
+"""
+
 FLATPAK_APP_MODULEMD = """
 document: modulemd
 version: 2
 data:
   name: eog
-  stream: f26
+  stream: f28
   version: 20170629213428
   summary: Eye of GNOME Application Module
   description: The Eye of GNOME image viewer (eog) is the official image viewer for
@@ -111,9 +145,9 @@ data:
       gnome-desktop3, libepoxy, hunspell, libgusb, glib2, enchant, at-spi2-atk]
   dependencies:
   - buildrequires:
-      flatpak-runtime: [f28]
+      platform: [f28]
     requires:
-      flatpak-runtime: [f28]
+      platform: [f28]
   license:
     module: [MIT]
   profiles:
@@ -202,15 +236,21 @@ APP_CONFIG = {
     'base_module': 'eog',
     'modules': {
         'eog': {
-            'stream': 'f26',
+            'stream': 'f28',
             'version': '20170629213428',
             'metadata': FLATPAK_APP_MODULEMD,
             'rpms': FLATPAK_APP_RPMS,
         },
         'flatpak-runtime': {
-            'stream': 'f26',
+            'stream': 'f28',
             'version': '20170701152209',
             'metadata': FLATPAK_RUNTIME_MODULEMD,
+            'rpms': [],  # We don't use this currently
+        },
+        'platform': {
+            'stream': 'f28',
+            'version': '5',
+            'metadata': PLATFORM_MODULEMD,
             'rpms': [],  # We don't use this currently
         },
     },
@@ -221,9 +261,15 @@ RUNTIME_CONFIG = {
     'base_module': 'flatpak-runtime',
     'modules': {
         'flatpak-runtime': {
-            'stream': 'f26',
+            'stream': 'f28',
             'version': '20170629185228',
             'metadata': FLATPAK_RUNTIME_MODULEMD,
+            'rpms': [],  # We don't use this currently
+        },
+        'platform': {
+            'stream': 'f28',
+            'version': '5',
+            'metadata': PLATFORM_MODULEMD,
             'rpms': [],  # We don't use this currently
         },
     },
@@ -235,9 +281,15 @@ SDK_CONFIG = {
     'profile': 'sdk',
     'modules': {
         'flatpak-runtime': {
-            'stream': 'f26',
+            'stream': 'f28',
             'version': '20170629185228',
             'metadata': FLATPAK_RUNTIME_MODULEMD,
+            'rpms': [],  # We don't use this currently
+        },
+        'platform': {
+            'stream': 'f28',
+            'version': '5',
+            'metadata': PLATFORM_MODULEMD,
             'rpms': [],  # We don't use this currently
         },
     },

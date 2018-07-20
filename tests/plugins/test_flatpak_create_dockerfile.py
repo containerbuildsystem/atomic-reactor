@@ -11,6 +11,7 @@ from flexmock import flexmock
 import responses
 import os
 import pytest
+import re
 
 from atomic_reactor.inner import DockerBuildWorkflow
 try:
@@ -134,6 +135,17 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker, config_name, breakage)
         runner.run()
 
         assert os.path.exists(workflow.builder.df_path)
+        with open(workflow.builder.df_path) as f:
+            df = f.read()
+
+        m = re.search(r'module enable\s*(.*?)\s*&&', df)
+        assert m
+        enabled_modules = sorted(m.group(1).split())
+
+        if config_name == 'app':
+            assert enabled_modules == ['eog:f28', 'flatpak-runtime:f28']
+        else:
+            assert enabled_modules == ['flatpak-runtime:f28']
 
         includepkgs_path = os.path.join(workflow.builder.df_dir, 'atomic-reactor-includepkgs')
         assert os.path.exists(includepkgs_path)
