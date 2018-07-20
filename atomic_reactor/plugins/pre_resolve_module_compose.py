@@ -57,10 +57,12 @@ class ComposeInfo(object):
     def koji_metadata(self):
         sorted_modules = [self.modules[k] for k in sorted(self.modules.keys())]
 
+        # We exclude the 'platform' pseudo-module here since we don't enable
+        # it for package installation - it doesn't influence the image contents
         return {
             'source_modules': [self.source_spec],
             'modules': ['-'.join((m.name, m.stream, m.version)) for
-                        m in sorted_modules]
+                        m in sorted_modules if m.name != 'platform']
         }
 
 
