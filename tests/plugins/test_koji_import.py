@@ -1532,9 +1532,9 @@ class TestKojiImport(object):
         assert isinstance(image, dict)
 
         assert image.get('flatpak') is True
-        assert image.get('modules') == ['eog-f26-20170629213428',
-                                        'flatpak-runtime-f26-20170701152209']
-        assert image.get('source_modules') == ['eog:f26']
+        assert image.get('modules') == ['eog-f28-20170629213428',
+                                        'flatpak-runtime-f28-20170701152209']
+        assert image.get('source_modules') == ['eog:f28']
 
     @pytest.mark.parametrize(('config', 'expected'), [
         ({'pulp_push': False,

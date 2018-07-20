@@ -40,6 +40,11 @@ RUN cat /tmp/atomic-reactor-includepkgs >> /etc/dnf/dnf.conf && \\
     --disablerepo=* \\
     --enablerepo=atomic-reactor-koji-plugin-* \\
     --enablerepo=atomic-reactor-module-* \\
+    --installroot=/var/tmp/flatpak-build module enable {modules} && \\
+    dnf -y --nogpgcheck \\
+    --disablerepo=* \\
+    --enablerepo=atomic-reactor-koji-plugin-* \\
+    --enablerepo=atomic-reactor-module-* \\
     --installroot=/var/tmp/flatpak-build install {packages}
 RUN rpm --root=/var/tmp/flatpak-build {rpm_qf_args} > /var/tmp/flatpak-build.rpm_qf
 COPY cleanup.sh /var/tmp/flatpak-build/tmp/
@@ -188,6 +193,11 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
 
         # Create the dockerfile
 
+        # We need to enable all the modules other than the platform pseudo-module
+        modules_str = ' '.join(sorted(m.mmd.props.name + ':' + m.mmd.props.stream
+                                      for m in source.compose.modules.values()
+                                      if m.mmd.props.name != 'platform'))
+
         install_packages = module_info.mmd.peek_profiles()[source.profile].props.rpms.get()
         install_packages_str = ' '.join(install_packages)
 
@@ -197,6 +207,7 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
                                                 stream=module_info.stream,
                                                 version=module_info.version,
                                                 base_image=self.base_image,
+                                                modules=modules_str,
                                                 packages=install_packages_str,
                                                 rpm_qf_args=rpm_qf_args()))
 
