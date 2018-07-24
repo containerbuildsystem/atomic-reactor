@@ -6,8 +6,8 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 
 get the image manifest lists from the worker builders. If possible, group them together
-and return them. if not, return the x86_64/amd64 image manifest instead after re-uploading
-it for all existing image tags.
+and return them. if not, return empty dict after re-uploading it for all existing image
+tags.
 """
 
 
@@ -371,10 +371,11 @@ class GroupManifestsPlugin(PostBuildPlugin):
                 digests[repo] = digest
             else:
                 found = False
+                if len(source) != 1:
+                    raise RuntimeError('Without grouping only one source is expected')
                 for platform, digest in source.items():
-                    if self.goarch.get(platform, platform) == 'amd64':
-                        self.tag_manifest_into_registry(session, digest)
-                        found = True
+                    self.tag_manifest_into_registry(session, digest)
+                    found = True
                 if not found:
-                    raise ValueError('failed to find an x86_64 platform')
+                    raise ValueError('Failed to find any platform')
         return digests
