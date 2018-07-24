@@ -381,7 +381,7 @@ OTHER_V2 = 'registry.example.com:5001'
      {
      },
      "No worker builds found"),
-    # group=False, should tag x86_64 manifest with configured tags
+    # group=False, should fail as we expect only one entry if not grouped
     ("tag",
      False, False, [REGISTRY_V2, OTHER_V2, REGISTRY_V1],
      {
@@ -394,10 +394,10 @@ OTHER_V2 = 'registry.example.com:5001'
              OTHER_V2: ['namespace/httpd:worker-build-x86_64-latest'],
          }
      },
-     None),
+     "Without grouping only one source is expected"),
     # Have to copy the manifest and link blobs from one repository to another
     ("tag_link_manifests",
-     False, False, [REGISTRY_V2],
+     True, False, [REGISTRY_V2],
      {
          'ppc64le': {
              REGISTRY_V2: ['worker-build:worker-build-ppc64le-latest'],
@@ -407,7 +407,7 @@ OTHER_V2 = 'registry.example.com:5001'
          }
      },
      None),
-    # No x86_64 found, should error out
+    # No x86_64 found, but still have ppc64le
     ("tag_no_x86_64",
      False, False, [REGISTRY_V2],
      {
@@ -415,7 +415,7 @@ OTHER_V2 = 'registry.example.com:5001'
              REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
          },
      },
-     "failed to find an x86_64 platform")
+     None)
 ])
 @responses.activate  # noqa
 def test_group_manifests(tmpdir, test_name,
@@ -564,7 +564,11 @@ def test_group_manifests(tmpdir, test_name,
                                                       source_manifests[platform], platform)
 
         else:
-            source_build = annotations['worker-builds']['x86_64']['digests'][0]
+            platforms = annotations['worker-builds']
+            assert len(platforms.keys()) == 1
+            platform = list(platforms.keys())[0]
+
+            source_build = annotations['worker-builds'][platform]['digests'][0]
             source_registry = mocked_registries[source_build['registry']]
             source_manifest = source_registry.get_manifest(source_build['repository'],
                                                            source_build['digest'])
@@ -579,7 +583,7 @@ def test_group_manifests(tmpdir, test_name,
                     if tag not in target_registry.get_repo(name)['tags']:
                         continue
                     verify_manifest_in_repository(target_registry, name,
-                                                  source_manifest, 'x86_64',
+                                                  source_manifest, platform,
                                                   tag)
 
         # Check that plugin returns ManifestDigest object
