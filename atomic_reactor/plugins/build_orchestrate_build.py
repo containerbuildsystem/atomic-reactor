@@ -735,7 +735,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         # we don't have manifest list, but we want to build on different platforms
         if not manifest_list:
-            raise RuntimeError("Buildroot image tag isn't manifest list,"
+            raise RuntimeError("Buildroot image isn't manifest list,"
                                " which is needed for specified arch")
         arch_digests = {}
         image_name = build_image.rsplit(':', 1)[0]
@@ -860,12 +860,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         # if imageStream is used
         if imagestream:
             build_image = self.get_build_image_from_imagestream(imagestream)
-
-        # we have build_image with sha, but we need tag to check for manifest list,
-        # as we want to build on different platforms
-        if build_image and '@sha256:' in build_image:
-            raise RuntimeError("Buildroot image doesn't have tag,"
-                               " which is needed for specified arch")
 
         # we have build_image with tag, so we can check for manifest list
         if build_image:

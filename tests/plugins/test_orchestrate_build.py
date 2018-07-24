@@ -1414,9 +1414,9 @@ def test_orchestrate_override_content_versions(tmpdir, caplog, enable_v1, conten
         "metadata": {
             "annotations": {
                 "from": json.dumps({"kind": "DockerImage",
-                                    "name": "image@sha256:123456"})}}},
-     "Buildroot image doesn't have tag, which is needed for specified arch",
-     None, None, None, None, None, None),
+                                    "name": "registry/image@sha256:123456"})}}},
+     "Buildroot image isn't manifest list, which is needed for specified arch",
+     None, None, None, None, False, None),
 
     ({"spec": {
         "strategy": {
@@ -1502,7 +1502,7 @@ def test_orchestrate_override_content_versions(tmpdir, caplog, enable_v1, conten
             "annotations": {
                 "from": json.dumps({"kind": "DockerImage",
                                     "name": "registry/image:tag"})}}},
-     "Buildroot image tag isn't manifest list, which is needed for specified arch",
+     "Buildroot image isn't manifest list, which is needed for specified arch",
      None, None, None, None, False, None),
 
     ({"spec": {
