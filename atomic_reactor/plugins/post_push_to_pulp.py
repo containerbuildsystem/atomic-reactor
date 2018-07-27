@@ -115,8 +115,12 @@ class PulpPushPlugin(PostBuildPlugin):
 
         fd, compressed_filename = tempfile.mkstemp(prefix='strip_tar_', suffix='.gz')
         os.close(fd)
-        cmd = "set -o pipefail; {0} {1} | tar --delete {2} | gzip - > {3}".format(
-            unpacker, filename, ' '.join(remove_layers), compressed_filename)
+        cmd = "set -o pipefail; {0} {1} | gzip - > {2}".format(
+            unpacker, filename, compressed_filename)
+        if remove_layers:
+            # tar --delete only with args; without it may corrupt the archive; see OSBS-5816
+            cmd = "set -o pipefail; {0} {1} | tar --delete {2} | gzip - > {3}".format(
+                unpacker, filename, ' '.join(remove_layers), compressed_filename)
         return self._run_command(cmd, compressed_filename)
 
     def _gzip_file(self, filename):
