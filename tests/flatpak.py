@@ -1,11 +1,12 @@
 import yaml
 
+from atomic_reactor.util import split_module_spec
+
 try:
-    from atomic_reactor.plugins.pre_resolve_module_compose import (ModuleInfo,
-                                                                   ComposeInfo,
+    from atomic_reactor.plugins.pre_resolve_module_compose import (ComposeInfo,
                                                                    set_compose_info)
-    from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (FlatpakSourceInfo,
-                                                                      set_flatpak_source_info)
+    from atomic_reactor.plugins.pre_flatpak_create_dockerfile import set_flatpak_source_info
+    from flatpak_module_tools.flatpak_builder import FlatpakSourceInfo, ModuleInfo
     from gi.repository import Modulemd
     MODULEMD_AVAILABLE = True
 except ImportError:
@@ -123,6 +124,9 @@ flatpak:
     # Test overriding the automatic "first executable in /usr/bin'
     command: eog2
     tags: ["Viewer"]
+    copy-icon: true
+    rename-desktop-file: eog.desktop
+    rename-icon: eog
     finish-args: >
 """ + "".join("        {}\n".format(a) for a in FLATPAK_APP_FINISH_ARGS)
 
@@ -342,7 +346,10 @@ def setup_flatpak_source_info(workflow, config=APP_CONFIG):
 
     flatpak_yaml = yaml.safe_load(config['container_yaml'])['flatpak']
 
-    source = FlatpakSourceInfo(flatpak_yaml, compose)
+    module_spec = split_module_spec(compose.source_spec)
+
+    source = FlatpakSourceInfo(flatpak_yaml, compose.modules, compose.base_module,
+                               module_spec.profile)
     set_flatpak_source_info(workflow, source)
 
     return source

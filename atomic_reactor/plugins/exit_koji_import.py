@@ -24,6 +24,7 @@ from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
 
 try:
     from atomic_reactor.plugins.pre_flatpak_create_dockerfile import get_flatpak_source_info
+    from atomic_reactor.plugins.pre_resolve_module_compose import get_compose_info
 except ImportError:
     # modulemd and/or pdc_client not available
     def get_flatpak_source_info(_):
@@ -353,7 +354,10 @@ class KojiImportPlugin(ExitPlugin):
 
         flatpak_source_info = get_flatpak_source_info(self.workflow)
         if flatpak_source_info is not None:
-            extra['image'].update(flatpak_source_info.koji_metadata())
+            compose_info = get_compose_info(self.workflow)
+            koji_metadata = compose_info.koji_metadata()
+            koji_metadata['flatpak'] = True
+            extra['image'].update(koji_metadata)
 
         koji_task_owner = get_koji_task_owner(self.session, koji_task_id).get('name')
         extra['submitter'] = self.session.getLoggedInUser()['name']

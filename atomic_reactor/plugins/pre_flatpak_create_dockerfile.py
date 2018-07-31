@@ -20,6 +20,8 @@ Example configuration:
 
 import os
 
+from flatpak_module_tools.flatpak_builder import FlatpakSourceInfo, FlatpakBuilder
+
 from atomic_reactor.constants import DOCKERFILE_FILENAME, YUM_REPOS_DIR
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_resolve_module_compose import get_compose_info
@@ -50,67 +52,6 @@ RUN rpm --root=/var/tmp/flatpak-build {rpm_qf_args} > /var/tmp/flatpak-build.rpm
 COPY cleanup.sh /var/tmp/flatpak-build/tmp/
 RUN chroot /var/tmp/flatpak-build/ /bin/sh /tmp/cleanup.sh
 '''
-
-
-class FlatpakSourceInfo(object):
-    def __init__(self, flatpak_yaml, compose):
-        self.flatpak_yaml = flatpak_yaml
-        self.compose = compose
-
-        mmd = compose.base_module.mmd
-        # A runtime module must have a 'runtime' profile, but can have other
-        # profiles for SDKs, minimal runtimes, etc.
-        self.runtime = 'runtime' in mmd.peek_profiles()
-
-        module_spec = split_module_spec(compose.source_spec)
-        if module_spec.profile:
-            self.profile = module_spec.profile
-        elif self.runtime:
-            self.profile = 'runtime'
-        else:
-            self.profile = 'default'
-
-        assert self.profile in mmd.peek_profiles()
-
-    # The module for the Flatpak runtime that this app runs against
-    @property
-    def runtime_module(self):
-        assert not self.runtime
-        compose = self.compose
-
-        dependencies = compose.base_module.mmd.props.dependencies
-        # A built module should have its dependencies already expanded
-        assert len(dependencies) == 1
-
-        for key in dependencies[0].peek_buildrequires().keys():
-            try:
-                module = compose.modules[key]
-                if 'runtime' in module.mmd.peek_profiles():
-                    return module
-            except KeyError:
-                pass
-
-        raise RuntimeError("Failed to identify runtime module in the buildrequires for {}"
-                           .format(compose.base_module.name))
-
-    # All modules that were build against the Flatpak runtime,
-    # and thus were built with prefix=/app. This is primarily the app module
-    # but might contain modules shared between multiple flatpaks as well.
-    @property
-    def app_modules(self):
-        runtime_module_name = self.runtime_module.mmd.props.name
-
-        def is_app_module(m):
-            dependencies = m.mmd.props.dependencies
-            return runtime_module_name in dependencies[0].peek_buildrequires()
-
-        return [m for m in self.compose.modules.values() if is_app_module(m)]
-
-    def koji_metadata(self):
-        metadata = self.compose.koji_metadata()
-        metadata['flatpak'] = True
-
-        return metadata
 
 
 WORKSPACE_SOURCE_KEY = 'source_info'
@@ -157,7 +98,12 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
             raise RuntimeError(
                 "resolve_module_compose must be run before flatpak_create_dockerfile")
 
-        return FlatpakSourceInfo(flatpak_yaml, compose_info)
+        module_spec = split_module_spec(compose_info.source_spec)
+
+        return FlatpakSourceInfo(flatpak_yaml,
+                                 compose_info.modules,
+                                 compose_info.base_module,
+                                 module_spec.profile)
 
     def run(self):
         """
@@ -168,38 +114,18 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
 
         set_flatpak_source_info(self.workflow, source)
 
-        module_info = source.compose.base_module
+        builder = FlatpakBuilder(source, None, None)
 
-        # For a runtime, certain information is duplicated between the container.yaml
-        # and the modulemd, check that it matches
-        if source.runtime:
-            flatpak_yaml = source.flatpak_yaml
-            flatpak_xmd = module_info.mmd.props.xmd['flatpak']
-
-            def check(condition, what):
-                if not condition:
-                    raise RuntimeError(
-                        "Mismatch for {} betweeen module xmd and container.yaml".format(what))
-
-            check(flatpak_yaml['branch'] == flatpak_xmd['branch'], "'branch'")
-            check(source.profile in flatpak_xmd['runtimes'], 'profile name')
-
-            profile_xmd = flatpak_xmd['runtimes'][source.profile]
-
-            check(flatpak_yaml['id'] == profile_xmd['id'], "'id'")
-            check(flatpak_yaml.get('runtime', None) ==
-                  profile_xmd.get('runtime', None), "'runtime'")
-            check(flatpak_yaml.get('sdk', None) == profile_xmd.get('sdk', None), "'sdk'")
+        builder.precheck()
 
         # Create the dockerfile
 
-        # We need to enable all the modules other than the platform pseudo-module
-        modules_str = ' '.join(sorted(m.mmd.props.name + ':' + m.mmd.props.stream
-                                      for m in source.compose.modules.values()
-                                      if m.mmd.props.name != 'platform'))
+        module_info = source.base_module
 
-        install_packages = module_info.mmd.peek_profiles()[source.profile].props.rpms.get()
-        install_packages_str = ' '.join(install_packages)
+        # We need to enable all the modules other than the platform pseudo-module
+        modules_str = ' '.join(builder.get_enable_modules())
+
+        install_packages_str = ' '.join(builder.get_install_packages())
 
         df_path = os.path.join(self.workflow.builder.df_dir, DOCKERFILE_FILENAME)
         with open(df_path, 'w') as fp:
@@ -213,54 +139,16 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
 
         self.workflow.builder.set_df_path(df_path)
 
-        # For a runtime, we want to make sure that the set of RPMs that is installed
-        # into the filesystem is *exactly* the set that is listed in the runtime
-        # profile. Requiring the full listed set of RPMs to be listed makes it
-        # easier to catch unintentional changes in the package list that might break
-        # applications depending on the runtime. It also simplifies the checking we
-        # do for application flatpaks, since we can simply look at the runtime
-        # modulemd to find out what packages are present in the runtime.
-        #
-        # For an application, we want to make sure that each RPM that is installed
-        # into the filesystem is *either* an RPM that is part of the 'runtime'
-        # profile of the base runtime, or from a module that was built with
-        # flatpak-rpm-macros in the install root and, thus, prefix=/app.
-        #
-        # We achieve this by restricting the set of available packages in the dnf
-        # configuration to just the ones that we want.
-        #
-        # The advantage of doing this upfront, rather than just checking after the
-        # fact is that this makes sure that when a application is being installed,
-        # we don't get a different package to satisfy a dependency than the one
-        # in the runtime - e.g. aajohan-comfortaa-fonts to satisfy font(:lang=en)
-        # because it's alphabetically first.
-
-        if not source.runtime:
-            runtime_module = source.runtime_module
-            runtime_profile = runtime_module.mmd.peek_profiles()['runtime']
-            available_packages = sorted(runtime_profile.props.rpms.get())
-
-            for m in source.app_modules:
-                # Strip off the '.rpm' suffix from the filename to get something
-                # that DNF can parse.
-                available_packages.extend(x[:-4] for x in m.rpms)
-        else:
-            base_module = source.compose.base_module
-            runtime_profile = base_module.mmd.peek_profiles()['runtime']
-            available_packages = sorted(runtime_profile.props.rpms.get())
-
+        includepkgs = builder.get_includepkgs()
         includepkgs_path = os.path.join(self.workflow.builder.df_dir, 'atomic-reactor-includepkgs')
         with open(includepkgs_path, 'w') as f:
-            f.write('includepkgs = ' + ','.join(available_packages) + '\n')
+            f.write('includepkgs = ' + ','.join(includepkgs) + '\n')
 
         # Create the cleanup script
 
         cleanupscript = os.path.join(self.workflow.builder.df_dir, "cleanup.sh")
         with open(cleanupscript, 'w') as f:
-            cleanup_commands = source.flatpak_yaml.get('cleanup-commands')
-            if cleanup_commands is not None:
-                f.write(cleanup_commands.rstrip())
-                f.write("\n")
+            f.write(builder.get_cleanup_script())
         os.chmod(cleanupscript, 0o0755)
 
         # Add a yum-repository pointing to the compose
@@ -270,9 +158,11 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
             stream=module_info.stream,
             version=module_info.version)
 
+        compose_info = get_compose_info(self.workflow)
+
         repo = {
             'name': repo_name,
-            'baseurl': source.compose.repo_url,
+            'baseurl': compose_info.repo_url,
             'enabled': 1,
             'gpgcheck': 0,
         }
@@ -280,4 +170,4 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
         path = os.path.join(YUM_REPOS_DIR, repo_name + '.repo')
         self.workflow.files[path] = render_yum_repo(repo, escape_dollars=False)
 
-        override_build_kwarg(self.workflow, 'module_compose_id', source.compose.compose_id)
+        override_build_kwarg(self.workflow, 'module_compose_id', compose_info.compose_id)

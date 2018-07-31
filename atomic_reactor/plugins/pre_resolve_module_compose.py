@@ -23,6 +23,9 @@ Example configuration:
 }
 """
 
+
+from flatpak_module_tools.flatpak_builder import ModuleInfo
+
 import gi
 try:
     gi.require_version('Modulemd', '1.0')
@@ -35,15 +38,6 @@ from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import split_module_spec
 from atomic_reactor.plugins.pre_reactor_config import (get_pdc_session, get_odcs_session,
                                                        get_pdc, get_odcs)
-
-
-class ModuleInfo(object):
-    def __init__(self, name, stream, version, mmd, rpms):
-        self.name = name
-        self.stream = stream
-        self.version = version
-        self.mmd = mmd
-        self.rpms = rpms
 
 
 class ComposeInfo(object):
