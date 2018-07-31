@@ -30,6 +30,7 @@ from atomic_reactor.util import get_parent_image_koji_data
 
 try:
     from atomic_reactor.plugins.pre_flatpak_create_dockerfile import get_flatpak_source_info
+    from atomic_reactor.plugins.pre_resolve_module_compose import get_compose_info
 except ImportError:
     # modulemd and/or pdc_client not available
     def get_flatpak_source_info(_):
@@ -564,7 +565,10 @@ class KojiPromotePlugin(ExitPlugin):
 
         flatpak_source_info = get_flatpak_source_info(self.workflow)
         if flatpak_source_info is not None:
-            extra['image'].update(flatpak_source_info.koji_metadata())
+            compose_info = get_compose_info(self.workflow)
+            koji_metadata = compose_info.koji_metadata()
+            koji_metadata['flatpak'] = True
+            extra['image'].update(koji_metadata)
 
         resolve_comp_result = self.workflow.prebuild_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
         if resolve_comp_result:
