@@ -491,7 +491,7 @@ class DockerTasker(LastLogger):
         if exact_tag:
             # tag is specified, we are looking for the exact image
             for found_image in images:
-                if image.to_str(explicit_tag=True) in found_image['RepoTags']:
+                if image.to_str() in found_image['RepoTags']:
                     logger.debug("image '%s' found", image)
                     return [found_image]
             images = []  # image not found

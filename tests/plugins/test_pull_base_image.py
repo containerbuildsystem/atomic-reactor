@@ -132,7 +132,7 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
         'name': PLUGIN_BUILD_ORCHESTRATE_KEY,
         'args': {'platforms': ['x86_64']},
     }]
-    parent_images = parent_images or {df_base: None}
+    parent_images = parent_images or {str(ImageName.parse(df_base)): None}
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image', buildstep_plugins=buildstep_plugin,)
     builder = workflow.builder = MockBuilder()
     builder.base_image = builder.original_base_image = ImageName.parse(df_base)

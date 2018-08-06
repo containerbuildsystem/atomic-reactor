@@ -97,15 +97,14 @@ class X(object):
     False,
 ])
 @pytest.mark.parametrize(("image_name", "logs", "should_raise", "has_config"), [
-    (TEST_IMAGE, PUSH_LOGS_1_X, False, False),
-    (TEST_IMAGE, PUSH_LOGS_1_9, False, False),
-    (TEST_IMAGE, PUSH_LOGS_1_10, False, True),
-    (TEST_IMAGE, PUSH_LOGS_1_10_NOT_IN_STATUS, False, False),
-    (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_X, True, False),
-    (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_9, True, False),
-    (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_10, True, True),
-    (DOCKER0_REGISTRY + '/' + TEST_IMAGE, PUSH_LOGS_1_10_NOT_IN_STATUS, True, True),
-    (TEST_IMAGE, PUSH_ERROR_LOGS, True, False),
+    (TEST_IMAGE + ':latest', PUSH_LOGS_1_X, False, False),
+    (TEST_IMAGE + ':latest', PUSH_LOGS_1_10, False, True),
+    (TEST_IMAGE + ':latest', PUSH_LOGS_1_10_NOT_IN_STATUS, False, False),
+    (DOCKER0_REGISTRY + '/' + TEST_IMAGE + ':latest', PUSH_LOGS_1_X, True, False),
+    (DOCKER0_REGISTRY + '/' + TEST_IMAGE + ':latest', PUSH_LOGS_1_9, True, False),
+    (DOCKER0_REGISTRY + '/' + TEST_IMAGE + ':latest', PUSH_LOGS_1_10, True, True),
+    (DOCKER0_REGISTRY + '/' + TEST_IMAGE + ':latest', PUSH_LOGS_1_10_NOT_IN_STATUS, True, True),
+    (TEST_IMAGE + ':latest', PUSH_ERROR_LOGS, True, False),
 ])
 @pytest.mark.parametrize(("file_name", "dockerconfig_contents"), [
     (".dockercfg", {LOCALHOST_REGISTRY: {"username": "user",
@@ -433,7 +432,7 @@ def test_tag_and_push_plugin_oci(
             assert '--dest-creds=user:mypassword' in args
         assert '--dest-tls-verify=false' in args
         assert args[-2] == 'oci:' + oci_dir + ':' + REF_NAME
-        assert args[-1] == 'docker://' + LOCALHOST_REGISTRY + '/' + TEST_IMAGE
+        assert args[-1] == 'docker://' + LOCALHOST_REGISTRY + '/' + TEST_IMAGE + ':latest'
         return ''
 
     (flexmock(subprocess)
@@ -527,8 +526,9 @@ def test_tag_and_push_plugin_oci(
         tasker.remove_image(image)
         assert len(workflow.push_conf.docker_registries) > 0
 
-        assert workflow.push_conf.docker_registries[0].digests[TEST_IMAGE].v1 is None
-        assert workflow.push_conf.docker_registries[0].digests[TEST_IMAGE].v2 is None
-        assert workflow.push_conf.docker_registries[0].digests[TEST_IMAGE].oci == DIGEST_OCI
+        assert workflow.push_conf.docker_registries[0].digests[TEST_IMAGE + ':latest'].v1 is None
+        assert workflow.push_conf.docker_registries[0].digests[TEST_IMAGE + ':latest'].v2 is None
+        assert (workflow.push_conf.docker_registries[0].digests[TEST_IMAGE + ':latest'].oci ==
+                DIGEST_OCI)
 
         assert workflow.push_conf.docker_registries[0].config is config_json
