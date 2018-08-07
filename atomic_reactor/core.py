@@ -509,16 +509,17 @@ class DockerTasker(LastLogger):
         """
         logger.info("pulling image '%s' from registry", image)
         logger.debug("image = '%s', insecure = '%s'", image, insecure)
+        tag = image.tag or 'latest'
         try:
             command_result = self.retry_generator(self.d.pull,
                                                   image.to_str(tag=False),
-                                                  tag=image.tag, insecure_registry=insecure,
+                                                  tag=tag, insecure_registry=insecure,
                                                   decode=True, stream=True)
         except TypeError:
             # because changing api is fun
             command_result = self.retry_generator(self.d.pull,
                                                   image.to_str(tag=False),
-                                                  tag=image.tag, decode=True, stream=True)
+                                                  tag=tag, decode=True, stream=True)
 
         self.last_logs = command_result.logs
         return image.to_str()
