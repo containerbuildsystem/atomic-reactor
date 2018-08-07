@@ -74,10 +74,10 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         self.from_layer = from_layer
         if from_base and from_layer is None:
             try:
-                base_image_id = self.workflow.base_image_inspect['Id']
+                base_image_id = self.workflow.builder.base_image_inspect['Id']
             except KeyError:
                 self.log.error("Missing Id in inspection: '%s'",
-                               self.workflow.base_image_inspect)
+                               self.workflow.builder.base_image_inspect)
                 raise
             self.log.info("will squash from base-image: '%s'", base_image_id)
             self.from_layer = base_image_id

@@ -75,7 +75,7 @@ class KojiParentPlugin(PreBuildPlugin):
     def run(self):
         nvr = self._base_image_nvr = self.detect_parent_image_nvr(
             self.workflow.builder.base_image,
-            inspect_data=self.workflow.base_image_inspect,
+            inspect_data=self.workflow.builder.base_image_inspect,
         )
         if nvr:
             self._base_image_build = self.wait_for_parent_image_build(nvr)
@@ -97,7 +97,7 @@ class KojiParentPlugin(PreBuildPlugin):
         """
 
         if inspect_data is None:
-            inspect_data = self.workflow.builder.tasker.inspect_image(image_name)
+            inspect_data = self.workflow.builder.parent_image_inspect(image_name)
         labels = Labels(inspect_data[INSPECT_CONFIG].get('Labels', {}))
 
         label_names = [Labels.LABEL_TYPE_COMPONENT, Labels.LABEL_TYPE_VERSION,

@@ -396,7 +396,7 @@ class KojiUploadPlugin(PostBuildPlugin):
 
         # Parent of squashed built image is base image
         image_id = self.workflow.builder.image_id
-        parent_id = self.workflow.base_image_inspect['Id']
+        parent_id = self.workflow.builder.base_image_inspect['Id']
 
         # Read config from the registry using v2 schema 2 digest
         registries = self.workflow.push_conf.docker_registries

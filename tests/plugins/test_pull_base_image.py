@@ -26,7 +26,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
 from requests.exceptions import HTTPError, RetryError, Timeout
-from tests.fixtures import reactor_config_map  # noqa
+from tests.fixtures import reactor_config_map, inspect_only  # noqa
 from tests.constants import MOCK, MOCK_SOURCE, LOCALHOST_REGISTRY
 
 if MOCK:
@@ -53,10 +53,11 @@ class MockBuilder(object):
     original_base_image = None
     parent_images = {UNIQUE_ID: None}
 
-    def set_base_image(self, base_image):
+    def set_base_image(self, base_image, parents_pulled=True, insecure=False):
         self.base_image = ImageName.parse(base_image)
         self.original_base_image = self.original_base_image or self.base_image
-        assert base_image.startswith(UNIQUE_ID + ":")
+        if parents_pulled:
+            assert base_image.startswith(UNIQUE_ID + ":")
 
 
 @pytest.fixture(autouse=True)
@@ -122,7 +123,7 @@ def set_build_json(monkeypatch):
       LOCALHOST_REGISTRY + "/library-only:latest"]),
 ])
 def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected,
-                                reactor_config_map, workflow_callback=None,
+                                reactor_config_map, inspect_only, workflow_callback=None,
                                 check_platforms=False, parent_images=None):
     if MOCK:
         mock_docker(remember_images=True)
@@ -162,7 +163,8 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
             'name': PullBaseImagePlugin.key,
             'args': {'parent_registry': parent_registry,
                      'parent_registry_insecure': True,
-                     'check_platforms': check_platforms}
+                     'check_platforms': check_platforms,
+                     'inspect_only': inspect_only}
         }]
     )
 
@@ -174,8 +176,12 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
     runner.run()
 
     for image in expected:
-        assert tasker.image_exists(image)
-        assert image in workflow.pulled_base_images
+        if inspect_only:
+            assert not tasker.image_exists(image)
+            assert image not in workflow.pulled_base_images
+        else:
+            assert tasker.image_exists(image)
+            assert image in workflow.pulled_base_images
 
     for image in not_expected:
         assert not tasker.image_exists(image)
@@ -189,7 +195,7 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
     assert len(set(parent_images.values())) == len(parent_images)
 
 
-def test_pull_parent_images(reactor_config_map):  # noqa
+def test_pull_parent_images(reactor_config_map, inspect_only):  # noqa
     builder_image = "builder:image"
     parent_images = {BASE_IMAGE: None, builder_image: None}
     test_pull_base_image_plugin(
@@ -200,24 +206,28 @@ def test_pull_parent_images(reactor_config_map):  # noqa
         ],
         [],  # should not be pulled
         reactor_config_map=reactor_config_map,
+        inspect_only=inspect_only,
         parent_images=parent_images)
 
 
-def test_pull_base_wrong_registry(reactor_config_map):  # noqa
+def test_pull_base_wrong_registry(reactor_config_map, inspect_only):  # noqa
     with pytest.raises(PluginFailedException) as exc:
         test_pull_base_image_plugin(
             'different.registry:5000', "some.registry:8888/base:image", [], [],
-            reactor_config_map=reactor_config_map
+            reactor_config_map=reactor_config_map,
+            inspect_only=inspect_only
         )
     assert "expected registry: 'different.registry:5000'" in str(exc.value)
 
 
-def test_pull_parent_wrong_registry(reactor_config_map):  # noqa: F811
+def test_pull_parent_wrong_registry(reactor_config_map, inspect_only):  # noqa: F811
     parent_images = {"base:image": None, "some.registry:8888/builder:image": None}
     with pytest.raises(PluginFailedException) as exc:
         test_pull_base_image_plugin(
             'different.registry:5000', "base:image", [], [],
-            reactor_config_map=reactor_config_map, parent_images=parent_images
+            reactor_config_map=reactor_config_map,
+            inspect_only=inspect_only,
+            parent_images=parent_images
         )
     assert "Dockerfile: 'some.registry:8888/builder:image'" in str(exc.value)
     assert "expected registry: 'different.registry:5000'" in str(exc.value)
@@ -228,21 +238,23 @@ def test_pull_parent_wrong_registry(reactor_config_map):  # noqa: F811
 def test_pull_base_library(reactor_config_map, caplog):  # noqa
     with pytest.raises(PluginFailedException) as exc:
         test_pull_base_image_plugin(
-            LOCALHOST_REGISTRY, "spam/library-only:latest", [], [], reactor_config_map
+            LOCALHOST_REGISTRY, "spam/library-only:latest", [], [],
+            reactor_config_map, False
         )
     assert "not found" in str(exc.value)
     assert "RetryGeneratorException" in str(exc.value)
     assert "trying" not in caplog.text()  # don't retry with "library/library-only:latest"
 
-def test_pull_base_base_parse(reactor_config_map):  # noqa
+def test_pull_base_base_parse(reactor_config_map, inspect_only):  # noqa
     flexmock(ImageName).should_receive('parse').and_raise(AttributeError)
     with pytest.raises(AttributeError):
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE, [BASE_IMAGE_W_REGISTRY],
                                     [BASE_IMAGE_W_LIB_REG],
-                                    reactor_config_map=reactor_config_map)
+                                    reactor_config_map=reactor_config_map,
+                                    inspect_only=inspect_only)
 
 
-def test_pull_base_change_override(monkeypatch, reactor_config_map):  # noqa
+def test_pull_base_change_override(monkeypatch, reactor_config_map, inspect_only):  # noqa
     monkeypatch.setenv("BUILD", json.dumps({
         'metadata': {
             'name': UNIQUE_ID,
@@ -259,7 +271,8 @@ def test_pull_base_change_override(monkeypatch, reactor_config_map):  # noqa
     }))
     test_pull_base_image_plugin(LOCALHOST_REGISTRY, 'invalid-image',
                                 [BASE_IMAGE_W_REGISTRY], [BASE_IMAGE_W_LIB_REG],
-                                reactor_config_map=reactor_config_map)
+                                reactor_config_map=reactor_config_map,
+                                inspect_only=inspect_only)
 
 
 @pytest.mark.parametrize(('exc', 'failures', 'should_succeed'), [
@@ -373,6 +386,7 @@ class TestValidateBaseImage(object):
         log_message = 'manifest list for all required platforms'
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
                                     [], [], reactor_config_map=True,
+                                    inspect_only=False,
                                     workflow_callback=self.prepare,
                                     check_platforms=True)
         assert log_message in caplog.text()
@@ -388,6 +402,7 @@ class TestValidateBaseImage(object):
         log_message = 'expected platforms are unknown'
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
                                     [], [], reactor_config_map=True,
+                                    inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
         assert log_message in caplog.text()
@@ -402,6 +417,7 @@ class TestValidateBaseImage(object):
         log_message = 'single platform build'
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
                                     [], [], reactor_config_map=True,
+                                    inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
         assert log_message in caplog.text()
@@ -416,6 +432,7 @@ class TestValidateBaseImage(object):
         log_message = 'base image registry is not defined'
         test_pull_base_image_plugin('', BASE_IMAGE,
                                     [], [], reactor_config_map=True,
+                                    inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
         assert log_message in caplog.text()
@@ -430,6 +447,7 @@ class TestValidateBaseImage(object):
         log_message = 'platform descriptors are not defined'
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
                                     [], [], reactor_config_map=True,
+                                    inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
         assert log_message in caplog.text()
@@ -445,6 +463,7 @@ class TestValidateBaseImage(object):
         with pytest.raises(PluginFailedException) as exc_info:
             test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
                                         [], [], reactor_config_map=True,
+                                        inspect_only=False,
                                         workflow_callback=workflow_callback,
                                         check_platforms=True)
         assert 'Unable to fetch manifest list' in str(exc_info.value)
@@ -465,6 +484,7 @@ class TestValidateBaseImage(object):
         with pytest.raises(PluginFailedException) as exc_info:
             test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
                                         [], [], reactor_config_map=True,
+                                        inspect_only=False,
                                         workflow_callback=workflow_callback,
                                         check_platforms=True)
         assert 'Missing arches in manifest list' in str(exc_info.value)
@@ -499,6 +519,7 @@ class TestValidateBaseImage(object):
         with pytest.raises(PluginFailedException) as exc_info:
             test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE_W_SHA,
                                         [], [], reactor_config_map=True,
+                                        inspect_only=False,
                                         workflow_callback=workflow_callback,
                                         check_platforms=True)
         assert 'Unable to fetch config for base image' in str(exc_info.value)
@@ -559,6 +580,7 @@ class TestValidateBaseImage(object):
 
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE_W_SHA,
                                     [], [], reactor_config_map=True,
+                                    inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
 
@@ -593,6 +615,7 @@ class TestValidateBaseImage(object):
 
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE_W_SHA,
                                     [], [], reactor_config_map=True,
+                                    inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
         new_image = "'registry.example.com/busybox@sha256:654321'"

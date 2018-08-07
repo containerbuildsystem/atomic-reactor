@@ -160,12 +160,13 @@ def test_tag_parse(tmpdir, docker_tasker, unique_tags, primary_tags, expected):
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     workflow.build_result = BuildResult.make_remote_image_result()
 
-    flexmock(workflow, base_image_inspect={
+    base_inspect = {
         INSPECT_CONFIG: {
             'Labels': {'parentrelease': '7.4.1'},
             'Env': {'parentrelease': '7.4.1'},
         }
-    })
+    }
+    setattr(workflow.builder, 'base_image_inspect', base_inspect)
     mock_additional_tags_file(str(tmpdir), ['get_tags', 'file_tags'])
 
     if unique_tags is not None and primary_tags is not None:

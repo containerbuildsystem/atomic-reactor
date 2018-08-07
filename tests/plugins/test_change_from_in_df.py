@@ -64,11 +64,13 @@ def test_update_base_image(tmpdir):
     """)
     dfp = df_parser(str(tmpdir))
     dfp.content = df_content.format("base:image")
+    image_name = "base@sha256:1234"
 
     workflow = mock_workflow()
     workflow.builder.set_df_path(dfp.dockerfile_path)
-    workflow.builder.parent_images = {"base:image": "base@sha256:1234"}
-    workflow.builder.base_image = ImageName.parse("base@sha256:1234")
+    workflow.builder.parent_images = {"base:image": image_name}
+    workflow.builder.base_image = ImageName.parse(image_name)
+    workflow.builder.set_parent_inspection_data(image_name, dict(Id="base@sha256:1234"))
     workflow.builder.tasker.inspect_image = lambda *_: dict(Id="base@sha256:1234")
 
     run_plugin(workflow)
@@ -81,12 +83,13 @@ def test_update_base_image_inspect_broken(tmpdir, caplog):
     df_content = "FROM base:image"
     dfp = df_parser(str(tmpdir))
     dfp.content = df_content
+    image_name = "base@sha256:1234"
 
     workflow = mock_workflow()
     workflow.builder.set_df_path(dfp.dockerfile_path)
-    workflow.builder.parent_images = {"base:image": "base@sha256:1234"}
-    workflow.builder.base_image = ImageName.parse("base@sha256:1234")
-    workflow.builder.tasker.inspect_image = lambda img: dict(no_id="here")
+    workflow.builder.parent_images = {"base:image": image_name}
+    workflow.builder.base_image = ImageName.parse(image_name)
+    workflow.builder.set_parent_inspection_data(image_name, dict(no_id="here"))
 
     with pytest.raises(NoIdInspection):
         ChangeFromPlugin(docker_tasker(), workflow).run()
@@ -125,6 +128,8 @@ def test_update_parent_images(tmpdir):
     workflow.builder.base_image = ImageName.parse(pimgs['monty'])
     workflow.builder.parent_images = pimgs
     workflow.builder.tasker.inspect_image = lambda img: dict(Id=img_ids[img])
+    for image_name, image_id in img_ids.items():
+        workflow.builder.set_parent_inspection_data(image_name, dict(Id=image_id))
 
     run_plugin(workflow)
     expected_df_content = df_content

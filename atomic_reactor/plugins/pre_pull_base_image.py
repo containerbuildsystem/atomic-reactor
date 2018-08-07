@@ -36,7 +36,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, parent_registry=None, parent_registry_insecure=False,
-                 check_platforms=False):
+                 check_platforms=False, inspect_only=False):
         """
         constructor
 
@@ -50,6 +50,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
         super(PullBaseImagePlugin, self).__init__(tasker, workflow)
 
         self.check_platforms = check_platforms
+        self.inspect_only = inspect_only
         source_registry = get_source_registry(self.workflow, {
             'uri': RegistryURI(parent_registry) if parent_registry else None,
             'insecure': parent_registry_insecure})
@@ -82,11 +83,16 @@ class PullBaseImagePlugin(PreBuildPlugin):
                 if new_arch_image:
                     image = new_arch_image
 
-            new_image = self._pull_and_tag_image(image, build_json, str(nonce))
+            if self.inspect_only:
+                new_image = image
+            else:
+                new_image = self._pull_and_tag_image(image, build_json, str(nonce))
             self.workflow.builder.parent_images[parent] = str(new_image)
 
             if parent == base_image_str:
-                self.workflow.builder.set_base_image(str(new_image))
+                self.workflow.builder.set_base_image(str(new_image),
+                                                     parents_pulled=not self.inspect_only,
+                                                     insecure=self.parent_registry_insecure)
 
     def _get_image_for_different_arch(self, image, platform):
         manifest_list = self._get_manifest_list(image)

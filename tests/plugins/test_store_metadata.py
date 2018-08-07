@@ -141,9 +141,10 @@ def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=Fals
 
     if before_dockerfile:
         setattr(workflow, 'builder', XBeforeDockerfile())
+        setattr(workflow.builder, 'base_image_inspect', {})
     else:
         setattr(workflow, 'builder', X)
-        setattr(workflow, '_base_image_inspect', {'Id': '01234567'})
+        setattr(workflow.builder, 'base_image_inspect', {'Id': '01234567'})
         workflow.build_logs = [
             "a", "b",
         ]

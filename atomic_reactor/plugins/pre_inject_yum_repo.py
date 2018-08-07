@@ -86,7 +86,7 @@ class InjectYumRepoPlugin(PreBuildPlugin):
             repos_host_cont_mapping[repo] = repo_relative_path
 
         # Find out the USER inherited from the base image
-        inspect = self.workflow.builder.inspect_base_image()
+        inspect = self.workflow.builder.base_image_inspect
         inherited_user = inspect[INSPECT_CONFIG].get('User', '')
         df = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
         add_yum_repos_to_dockerfile(repos_host_cont_mapping, df, inherited_user)

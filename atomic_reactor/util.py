@@ -32,6 +32,7 @@ from collections import namedtuple
 from copy import deepcopy
 
 from six.moves.urllib.parse import urlparse
+from six import PY2
 
 from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG, TOOLS_USED,
                                       INSPECT_CONFIG,
@@ -996,7 +997,99 @@ def get_manifest_list(image, registry, insecure=False, dockercfg_path=None):
     return response
 
 
-def get_config_from_registry(image, registry, digest, insecure=False,
+def get_all_manifests(image, registry, insecure=False, dockercfg_path=None,
+                      versions=('v1', 'v2', 'v2_list')):
+    """Return manifest digests for image.
+
+    :param image: ImageName, the remote image to inspect
+    :param registry: str, URI for registry, if URI schema is not provided,
+                          https:// will be used
+    :param insecure: bool, when True registry's cert is not verified
+    :param dockercfg_path: str, dirname of .dockercfg location
+    :param versions: tuple, for which manifest schema versions to fetch manifests
+
+    :return: dict of successful responses, with versions as keys
+    """
+    digests = {}
+    registry_session = RegistrySession(registry, insecure=insecure, dockercfg_path=dockercfg_path)
+    for version in versions:
+        response, _ = get_manifest(image, registry_session, version)
+        if response:
+            digests[version] = response
+
+    return digests
+
+
+def get_inspect_for_image(image, registry, insecure=False, dockercfg_path=None):
+    """Return inspect for image.
+
+    :param image: ImageName, the remote image to inspect
+    :param registry: str, URI for registry, if URI schema is not provided,
+                          https:// will be used
+    :param insecure: bool, when True registry's cert is not verified
+    :param dockercfg_path: str, dirname of .dockercfg location
+
+    :return: dict of inspected image
+    """
+    all_man_digests = get_all_manifests(image, registry, insecure=insecure,
+                                        dockercfg_path=dockercfg_path)
+    blob_config = None
+    config_digest = None
+    image_inspect = {}
+
+    # we have manifest list (get digest for 1st platform)
+    if 'v2_list' in all_man_digests:
+        man_list_json = all_man_digests['v2_list'].json()
+        if man_list_json['manifests'][0]['mediaType'] != MEDIA_TYPE_DOCKER_V2_SCHEMA2:
+            raise NotImplementedError('v2 schema 1 in manifest list')
+
+        v2_digest = man_list_json['manifests'][0]['digest']
+        blob_config, config_digest = get_config_and_id_from_registry(image, registry, v2_digest,
+                                                                     insecure=insecure,
+                                                                     version='v2',
+                                                                     dockercfg_path=dockercfg_path)
+    # get config for v2 digest
+    elif 'v2' in all_man_digests:
+        blob_config, config_digest = get_config_and_id_from_registry(image, registry, image.tag,
+                                                                     insecure=insecure,
+                                                                     version='v2',
+                                                                     dockercfg_path=dockercfg_path)
+    # read config from v1
+    elif 'v1' in all_man_digests:
+        v1_json = all_man_digests['v1'].json()
+        if PY2:
+            blob_config = json.loads(v1_json['history'][0]['v1Compatibility'].decode('utf-8'))
+        else:
+            blob_config = json.loads(v1_json['history'][0]['v1Compatibility'])
+    else:
+        raise NotImplementedError("No v2 schema 1 image, or v2 schema 2 image or list, found")
+
+    # dictionary to convert config keys to inspect keys
+    config_2_inspect = {
+        'created': 'Created',
+        'os': 'Os',
+        'container_config': 'ContainerConfig',
+        'architecture': 'Architecture',
+        'docker_version': 'DockerVersion',
+        'config': 'Config',
+    }
+
+    if not blob_config:
+        raise RuntimeError("Couldn't get inspect data from digest config")
+
+    # set Id, which isn't in config blob, won't be set for v1, as for that image has to be pulled
+    image_inspect['Id'] = config_digest
+    # only v2 has rootfs, not v1
+    if 'rootfs' in blob_config:
+        image_inspect['RootFS'] = blob_config['rootfs']
+
+    for old_key, new_key in config_2_inspect.items():
+        image_inspect[new_key] = blob_config[old_key]
+
+    return image_inspect
+
+
+def get_config_and_id_from_registry(image, registry, digest, insecure=False,
                              dockercfg_path=None, version='v2'):
     """Return image config by digest
 
@@ -1028,6 +1121,26 @@ def get_config_from_registry(image, registry, digest, insecure=False,
     tag = image.tag or 'latest'
     logger.debug('Image %s:%s has config:\n%s', context, tag, blob_config)
 
+    return blob_config, config_digest
+
+
+def get_config_from_registry(image, registry, digest, insecure=False,
+                             dockercfg_path=None, version='v2'):
+    """Return image config by digest
+
+    :param image: ImageName, the remote image to inspect
+    :param registry: str, URI for registry, if URI schema is not provided,
+                          https:// will be used
+    :param digest: str, digest of the image manifest
+    :param insecure: bool, when True registry's cert is not verified
+    :param dockercfg_path: str, dirname of .dockercfg location
+    :param version: str, which manifest schema versions to fetch digest
+
+    :return: dict, versions mapped to their digest
+    """
+    blob_config, _ = get_config_and_id_from_registry(image, registry, digest, insecure=insecure,
+                                                     dockercfg_path=dockercfg_path,
+                                                     version=version)
     return blob_config
 
 
@@ -1057,7 +1170,7 @@ def df_parser(df_path, workflow=None, cache_content=False, env_replace=True, par
         # the workflow for the parent_env
 
         try:
-            parent_config = workflow.base_image_inspect[INSPECT_CONFIG]
+            parent_config = workflow.builder.base_image_inspect[INSPECT_CONFIG]
         except (AttributeError, TypeError, KeyError):
             logger.debug("base image unable to be inspected")
         else:

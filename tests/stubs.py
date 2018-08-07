@@ -56,6 +56,7 @@ class StubInsideBuilder(object):
         self.tag_conf = StubTagConf()
 
         self._inspection_data = None
+        self._parent_inspection_data = {}
 
     def for_workflow(self, workflow):
         return self.set_source(workflow.source).set_image(workflow.image)
@@ -73,14 +74,21 @@ class StubInsideBuilder(object):
         self._inspection_data = inspection_data
         return self
 
+    def set_parent_inspection_data(self, image, inspection_data):
+        self._parent_inspection_data[image] = inspection_data
+        return self
+
     def set_source(self, source):
         self.source = source
         return self
 
     # Mocked methods
-
-    def inspect_base_image(self):
+    @property
+    def base_image_inspect(self):
         return self._inspection_data
+
+    def parent_image_inspect(self, image):
+        return self._parent_inspection_data[image]
 
     def set_base_image(self, image):
         # likely run as side effect; ignore. tests that want stateful results must mock.

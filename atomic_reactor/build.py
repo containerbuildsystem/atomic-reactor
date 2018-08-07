@@ -12,8 +12,10 @@ Logic above these classes has to set the workflow itself.
 import json
 
 import logging
+import docker.errors
+import atomic_reactor.util
 from atomic_reactor.core import DockerTasker, LastLogger
-from atomic_reactor.util import ImageName, print_version_of_tools, df_parser
+from atomic_reactor.util import (ImageName, print_version_of_tools, df_parser)
 from atomic_reactor.constants import DOCKERFILE_FILENAME
 
 logger = logging.getLogger(__name__)
@@ -142,7 +144,10 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         self.source = source
         self.base_image = None
         self.original_base_image = None
+        self._base_image_inspect = None
+        self._parents_pulled = False
         self.parent_images = {}  # dockerfile image => locally available image
+        self._parent_images_inspect = {}  # locally available image => inspect
         self.image_id = None
         self.built_image_info = None
         self.image = ImageName.parse(image)
@@ -178,21 +183,60 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         for image in dfp.parent_images:
             self.parent_images[image] = None
 
-    def set_base_image(self, base_image):
+    def set_base_image(self, base_image, parents_pulled=True, insecure=False):
         logger.info("setting base image to '%s'", base_image)
         self.base_image = ImageName.parse(base_image)
         self.original_base_image = self.original_base_image or self.base_image
         self.parent_images[str(self.original_base_image)] = base_image
+        self._parents_pulled = parents_pulled
+        self._base_image_insecure = insecure
 
-    def inspect_base_image(self):
+    # inspect base image lazily just before it's needed - pre plugins may change the base image
+    @property
+    def base_image_inspect(self):
         """
         inspect base image
 
         :return: dict
         """
-        logger.info("inspecting base image '%s'", self.base_image)
-        inspect_data = self.tasker.inspect_image(self.base_image)
-        return inspect_data
+        if self._base_image_inspect is None:
+            if self._parents_pulled:
+                try:
+                    self._base_image_inspect = self.tasker.inspect_image(self.base_image)
+
+                except docker.errors.NotFound:
+                    # If the base image cannot be found throw KeyError -
+                    # as this property should behave like a dict
+                    raise KeyError("Unprocessed base image Dockerfile cannot be inspected")
+            else:
+                self._base_image_inspect =\
+                    atomic_reactor.util.get_inspect_for_image(self.base_image,
+                                                              self.base_image.registry,
+                                                              self._base_image_insecure)
+
+            base_image_str = str(self.base_image)
+            if base_image_str not in self._parent_images_inspect:
+                self._parent_images_inspect[base_image_str] = self._base_image_inspect
+
+        return self._base_image_inspect
+
+    def parent_image_inspect(self, image):
+        """
+        inspect parent image
+
+        :return: dict
+        """
+        if image not in self._parent_images_inspect:
+            if self._parents_pulled:
+                self._parent_images_inspect[image] = self.tasker.inspect_image(image)
+            else:
+                image_obj = ImageName.parse(image)
+                self._parent_images_inspect[image] =\
+                    atomic_reactor.util.get_inspect_for_image(image_obj,
+                                                              image_obj.registry,
+                                                              self._base_image_insecure)
+
+        return self._parent_images_inspect[image]
 
     def inspect_built_image(self):
         """
