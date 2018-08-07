@@ -416,9 +416,14 @@ class DockerBuildWorkflow(object):
                 self._base_image_inspect = self.builder.tasker.inspect_image(
                     self.builder.base_image)
             except docker.errors.NotFound:
-                # If the base image cannot be found throw KeyError - as this property should behave
-                # like a dict
-                raise KeyError("Unprocessed base image Dockerfile cannot be inspected")
+                try:
+                    base_image_copy = self.builder.base_image.copy()
+                    base_image_copy.tag = 'latest'
+                    self._base_image_inspect = self.builder.tasker.inspect_image(base_image_copy)
+                except docker.errors.NotFound:
+                    # If the base image cannot be found throw KeyError - as this property should
+                    # behave like a dict
+                    raise KeyError("Unprocessed base image Dockerfile cannot be inspected")
         return self._base_image_inspect
 
     def throw_canceled_build_exception(self, *args, **kwargs):

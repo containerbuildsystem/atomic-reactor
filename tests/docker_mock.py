@@ -193,7 +193,7 @@ mock_inspect_container = {
 def _find_image(img, ignore_registry=False):
     global mock_images
 
-    tagged_img = ImageName.parse(img).to_str(explicit_tag=True)
+    tagged_img = ImageName.parse(img).to_str()
     for im in mock_images:
         im_name = im['RepoTags'][0]
         if im_name == tagged_img:

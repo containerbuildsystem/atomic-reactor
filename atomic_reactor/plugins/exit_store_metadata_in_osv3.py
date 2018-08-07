@@ -139,7 +139,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
                         pullspecs.append({
                             "registry": registry.uri,
                             "repository": image.to_str(registry=False, tag=False),
-                            "tag": image.tag or 'latest',
+                            "tag": image.tag,
                             "digest": digest[digest_version],
                             "version": digest_version
                         })

@@ -63,7 +63,7 @@ class ImageName(object):
         self.registry = registry
         self.namespace = namespace
         self.repo = repo
-        self.tag = tag
+        self.tag = tag or 'latest'
 
     @classmethod
     def parse(cls, image_name):
@@ -91,8 +91,7 @@ class ImageName(object):
 
         return result
 
-    def to_str(self, registry=True, tag=True, explicit_tag=False,
-               explicit_namespace=False):
+    def to_str(self, registry=True, tag=True, explicit_namespace=False):
         if self.repo is None:
             raise RuntimeError('No image repository specified')
 
@@ -102,8 +101,6 @@ class ImageName(object):
             result = '{0}@{1}'.format(result, self.tag)
         elif tag and self.tag:
             result = '{0}:{1}'.format(result, self.tag)
-        elif tag and explicit_tag:
-            result = '{0}:{1}'.format(result, 'latest')
 
         if registry and self.registry:
             result = '{0}/{1}'.format(self.registry, result)
@@ -803,7 +800,7 @@ def query_registry(registry_session, image, digest=None, version='v1', is_blob=F
     """
 
     context = '/'.join([x for x in [image.namespace, image.repo] if x])
-    reference = digest or image.tag or 'latest'
+    reference = digest or image.tag
     object_type = 'manifests'
     if is_blob:
         object_type = 'blobs'
@@ -955,9 +952,8 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
 
         digests[version] = response.headers['Docker-Content-Digest']
         context = '/'.join([x for x in [image.namespace, image.repo] if x])
-        tag = image.tag or 'latest'
         logger.debug('Image %s:%s has %s manifest digest: %s',
-                     context, tag, version, digests[version])
+                     context, image.tag, version, digests[version])
 
     if not digests:
         if all_not_found and len(versions) > 0:
@@ -1014,8 +1010,7 @@ def get_config_from_registry(image, registry, digest, insecure=False,
     blob_config = config_response.json()
 
     context = '/'.join([x for x in [image.namespace, image.repo] if x])
-    tag = image.tag or 'latest'
-    logger.debug('Image %s:%s has config:\n%s', context, tag, blob_config)
+    logger.debug('Image %s:%s has config:\n%s', context, image.tag, blob_config)
 
     return blob_config
 

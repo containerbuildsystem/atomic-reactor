@@ -143,7 +143,7 @@ def test_parent_images_unresolved(tmpdir):
     workflow.builder.base_image = ImageName.parse('eggs')
 
     # we want to fail because some img besides base was not resolved
-    workflow.builder.parent_images = {'spam': 'eggs', 'extra:image': None}
+    workflow.builder.parent_images = {'spam': 'eggs:latest', 'extra:image': None}
 
     with pytest.raises(ParentImageUnresolved):
         ChangeFromPlugin(docker_tasker(), workflow).run()
