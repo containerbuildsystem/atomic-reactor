@@ -63,7 +63,7 @@ class TestCheckRebuild(object):
         workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
         workflow.builder = MockInsideBuilder(tmpdir)
         workflow.source = workflow.builder.source
-        flexmock(workflow, base_image_inspect={})
+        setattr(workflow.builder, 'base_image_inspect', {})
 
         expectation = (flexmock(OSBS)
                        .should_receive('update_labels_on_build_config'))

@@ -212,12 +212,12 @@ def mock_environment(tmpdir, session=None, name=None,
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     base_image_id = '123456parent-id'
-    setattr(workflow, '_base_image_inspect', {'Id': base_image_id})
     setattr(workflow, 'builder', X())
     setattr(workflow.builder, 'image_id', '123456imageid')
     setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='22'))
     setattr(workflow.builder, 'source', X())
     setattr(workflow.builder, 'built_image_info', {'ParentId': base_image_id})
+    setattr(workflow.builder, 'base_image_inspect', {'Id': base_image_id})
     setattr(workflow.builder.source, 'dockerfile_path', None)
     setattr(workflow.builder.source, 'path', None)
     setattr(workflow, 'tag_conf', TagConf())

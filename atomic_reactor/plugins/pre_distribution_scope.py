@@ -90,7 +90,7 @@ class DistributionScopePlugin(PreBuildPlugin):
             scope = self.get_scope('current', labels)
 
             # Find out the parent's intended scope
-            parent_labels = self.workflow.base_image_inspect[INSPECT_CONFIG]['Labels']
+            parent_labels = self.workflow.builder.base_image_inspect[INSPECT_CONFIG]['Labels']
             parent_scope = self.get_scope('parent', parent_labels)
         except NothingToCheck:
             self.log.debug("no checks performed")

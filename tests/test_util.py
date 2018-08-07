@@ -28,7 +28,8 @@ from collections import OrderedDict
 import docker
 import yaml
 from atomic_reactor.build import BuildResult
-from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR)
+from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,
+                                      MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2)
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  LazyGit, figure_out_build_file,
@@ -38,7 +39,8 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  human_size, CommandResult,
                                  registry_hostname, Dockercfg, RegistrySession,
                                  get_manifest_digests, ManifestDigest,
-                                 get_manifest_list,
+                                 get_manifest_list, get_all_manifests,
+                                 get_inspect_for_image,
                                  get_build_json, is_scratch_build, is_isolated_build, df_parser,
                                  are_plugins_in_order, LabelFormatter,
                                  guess_manifest_media_type,
@@ -53,9 +55,11 @@ from atomic_reactor import util
 from tests.constants import (DOCKERFILE_GIT, DOCKERFILE_SHA1,
                              INPUT_IMAGE, MOCK, MOCK_SOURCE,
                              REACTOR_CONFIG_MAP)
+import atomic_reactor.util
 from atomic_reactor.constants import INSPECT_CONFIG, PLUGIN_BUILD_ORCHESTRATE_KEY
 
 from tests.util import requires_internet
+from tests.stubs import StubInsideBuilder
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -905,7 +909,8 @@ def test_df_parser_parent_env_wf(tmpdir, caplog, env_arg):
         """)
     env_conf = {INSPECT_CONFIG: {"Env": env_arg}}
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
-    flexmock(workflow, base_image_inspect=env_conf)
+    workflow.builder = StubInsideBuilder()
+    workflow.builder.set_inspection_data(env_conf)
     df = df_parser(str(tmpdir), workflow=workflow)
     df.content = df_content
 
@@ -1201,6 +1206,113 @@ def test_get_manifest_list(tmpdir, image, registry, insecure, creds, path):
     assert manifest_list
 
 
+@pytest.mark.parametrize('insecure', [
+    True,
+    False,
+])
+@pytest.mark.parametrize('creds', [
+    ('user1', 'pass'),
+    (None, 'pass'),
+    ('user1', None),
+    None,
+])
+@pytest.mark.parametrize('image,registry,path', [
+    ('not-used.com/spam:latest', 'localhost.com',
+     '/v2/spam/manifests/latest'),
+
+    ('not-used.com/food/spam:latest', 'http://localhost.com',
+     '/v2/food/spam/manifests/latest'),
+
+    ('not-used.com/spam', 'https://localhost.com',
+     '/v2/spam/manifests/latest'),
+])
+@pytest.mark.parametrize('versions', [
+    ('v1', 'v2', 'v2_list'),
+    ('v1', 'v2'),
+    ('v1', 'v2_list'),
+    ('v2', 'v2_list'),
+    ('v1',),
+    ('v1',),
+    ('v2_list',),
+    tuple(),
+    None,
+])
+@responses.activate
+def test_get_all_manifests(tmpdir, image, registry, insecure, creds, path, versions):
+    kwargs = {}
+
+    image = ImageName.parse(image)
+    kwargs['image'] = image
+
+    if creds:
+        temp_dir = mkdtemp(dir=str(tmpdir))
+        with open(os.path.join(temp_dir, '.dockercfg'), 'w+') as dockerconfig:
+            dockerconfig.write(json.dumps({
+                registry: {
+                    'username': creds[0], 'password': creds[1]
+                }
+            }))
+        kwargs['dockercfg_path'] = temp_dir
+
+    kwargs['registry'] = registry
+
+    if insecure is not None:
+        kwargs['insecure'] = insecure
+
+    if versions is not None:
+        kwargs['versions'] = versions
+    expected_versions = versions
+    if versions is None:
+        # Test default versions value
+        expected_versions = ('v1', 'v2', 'v2_list')
+
+    def request_callback(request, all_headers=True):
+        if creds and creds[0] and creds[1]:
+            assert request.headers['Authorization']
+
+        media_type = request.headers['Accept']
+        if media_type.endswith('list.v2+json'):
+            digest = 'v2_list-digest'
+        elif media_type.endswith('v2+json'):
+            digest = 'v2-digest'
+        elif media_type.endswith('v1+json'):
+            digest = 'v1-digest'
+        else:
+            raise ValueError('Unexpected media type {}'.format(media_type))
+
+        media_type_prefix = media_type.split('+')[0]
+        if all_headers:
+            headers = {
+                'Content-Type': '{}+jsonish'.format(media_type_prefix),
+            }
+            if not media_type.endswith('list.v2+json'):
+                headers['Docker-Content-Digest'] = digest
+        else:
+            headers = {}
+        return (200, headers, '')
+
+    if registry.startswith('http'):
+        url = registry + path
+    else:
+        # In the insecure case, we should try the https URL, and when that produces
+        # an error, fall back to http
+        if insecure:
+            https_url = 'https://' + registry + path
+            responses.add(responses.GET, https_url, body=ConnectionError())
+            url = 'http://' + registry + path
+        else:
+            url = 'https://' + registry + path
+    responses.add_callback(responses.GET, url, callback=request_callback)
+
+    all_manifests = get_all_manifests(**kwargs)
+    if expected_versions:
+        assert all_manifests
+        for version in expected_versions:
+            assert version in all_manifests
+    else:
+        assert all_manifests == {}
+
+
 @pytest.mark.parametrize(('valid'), [
     True,
     False
@@ -1262,3 +1374,95 @@ def test_get_platforms_in_limits(tmpdir, platforms, platform_exclude, platform_o
         workflow = MockWorkflow('bad_dir')
         final_platforms = get_platforms_in_limits(workflow, platforms)
         assert final_platforms == set(platforms)
+
+
+@pytest.mark.parametrize('insecure', [True, False])
+@pytest.mark.parametrize(('found_versions', 'type_in_list', 'will_raise'), [
+    (('v1', 'v2', 'v2_list'), MEDIA_TYPE_DOCKER_V2_SCHEMA1, True),
+    (('v1', 'v2', 'v2_list'), MEDIA_TYPE_DOCKER_V2_SCHEMA2, False),
+    (('v1', 'v2'), None, False),
+    (('v1', 'v2_list'), MEDIA_TYPE_DOCKER_V2_SCHEMA1, True),
+    (('v1', 'v2_list'), MEDIA_TYPE_DOCKER_V2_SCHEMA2, False),
+    (('v2', 'v2_list'), MEDIA_TYPE_DOCKER_V2_SCHEMA1, True),
+    (('v2', 'v2_list'), MEDIA_TYPE_DOCKER_V2_SCHEMA2, False),
+    (('v1',), None, False),
+    (('v2',), None, False),
+    (('v2_list',), MEDIA_TYPE_DOCKER_V2_SCHEMA1, True),
+    (('v2_list',), MEDIA_TYPE_DOCKER_V2_SCHEMA2, False),
+    (tuple(), None, True),
+    (None, None, True),
+])
+def test_get_inspect_for_image(insecure, found_versions, type_in_list, will_raise):
+    image_with_reg = 'localhost.com/not-used.com/spam:latest'
+    image = ImageName.parse(image_with_reg)
+
+    if not found_versions:
+        raise_exception = NotImplementedError
+        error_msg = 'No v2 schema 1 image, or v2 schema 2 image or list, found'
+    elif 'v2_list' in found_versions and will_raise:
+        raise_exception = NotImplementedError
+        error_msg = 'v2 schema 1 in manifest list'
+
+    inspect_data = {
+        'created': 'create_time',
+        'os': 'os version',
+        'container_config': 'container config',
+        'architecture': 'arch',
+        'docker_version': 'docker version',
+        'config': 'conf',
+        'rootfs': 'some roots'
+    }
+    config_digest = 987654321
+
+    expect_inspect = {
+        'Created': 'create_time',
+        'Os': 'os version',
+        'ContainerConfig': 'container config',
+        'Architecture': 'arch',
+        'DockerVersion': 'docker version',
+        'Config': 'conf',
+        'RootFS': 'some roots',
+        'Id': config_digest
+    }
+    if found_versions == ('v1', ):
+        config_digest = None
+        expect_inspect.pop('RootFS')
+        expect_inspect['Id'] = None
+        inspect_data.pop('rootfs')
+
+    v2_list_json = {'manifests': [{'mediaType': type_in_list, 'digest': 12345}]}
+    v2_list_response = flexmock(json=lambda: v2_list_json, status_code=200)
+    v1_json = {'history': [{'v1Compatibility': json.dumps(inspect_data)}]}
+    v1_response = flexmock(json=lambda: v1_json, status_code=200)
+    v2_response = None
+
+    return_list = {}
+    if found_versions:
+        for version in found_versions:
+            if version == 'v1':
+                return_list[version] = v1_response
+            elif version == 'v2':
+                return_list[version] = v2_response
+            elif version == 'v2_list':
+                return_list[version] = v2_list_response
+
+    (flexmock(atomic_reactor.util)
+     .should_receive('get_all_manifests')
+     .and_return(return_list)
+     .once())
+
+    if (found_versions and ('v2' in found_versions or 'v2_list' in found_versions)
+            and not will_raise):
+        (flexmock(atomic_reactor.util)
+         .should_receive('get_config_and_id_from_registry')
+         .and_return(inspect_data, config_digest)
+         .once())
+
+    if will_raise:
+        with pytest.raises(raise_exception) as e:
+            get_inspect_for_image(image, image.registry, insecure)
+        assert error_msg in str(e)
+
+    else:
+        inspected = get_inspect_for_image(image, image.registry, insecure)
+        assert inspected == expect_inspect

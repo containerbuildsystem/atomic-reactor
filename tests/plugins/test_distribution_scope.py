@@ -27,7 +27,7 @@ class TestDistributionScope(object):
                 df.write('LABEL distribution-scope={}\n'.format(current_scope))
 
         setattr(workflow.builder, 'df_path', filename)
-        setattr(workflow, 'base_image_inspect', {
+        setattr(workflow.builder, 'base_image_inspect', {
             INSPECT_CONFIG: {
                 'Labels': parent_labels,
             }

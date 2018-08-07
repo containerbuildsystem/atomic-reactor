@@ -9,6 +9,8 @@ from __future__ import unicode_literals
 
 import pytest
 
+import atomic_reactor.util
+import docker.errors
 from atomic_reactor.build import InsideBuilder, BuildResult
 from atomic_reactor.core import DockerTasker  # noqa
 from atomic_reactor.source import get_source_instance_for
@@ -39,7 +41,8 @@ with_all_sources = pytest.mark.parametrize('source_params', [
 
 @requires_internet
 @with_all_sources
-def test_parent_images(tmpdir, source_params):
+@pytest.mark.parametrize('parents_pulled', [True, False])
+def test_parent_images(parents_pulled, tmpdir, source_params):
     if MOCK:
         mock_docker()
     s = get_source_instance_for(source_params)
@@ -48,8 +51,9 @@ def test_parent_images(tmpdir, source_params):
     orig_base = str(b.base_image)
     assert orig_base in b.parent_images
     assert b.parent_images[orig_base] is None
-    b.set_base_image("spam:eggs")
+    b.set_base_image("spam:eggs", parents_pulled=parents_pulled)
     assert b.parent_images[orig_base] == "spam:eggs"
+    assert b._parents_pulled == parents_pulled
 
 
 @requires_internet
@@ -71,17 +75,65 @@ def test_inspect_built_image(tmpdir, source_params):
 
 @requires_internet
 @with_all_sources
-def test_inspect_base_image(tmpdir, source_params):
+@pytest.mark.parametrize('parents_pulled', [True, False])
+def test_parent_image_inspect(parents_pulled, tmpdir, source_params):
+    provided_image = "test-build:test_tag"
+    if MOCK:
+        mock_docker(provided_image_repotags=provided_image)
+
+    source_params.update({'tmpdir': str(tmpdir)})
+    s = get_source_instance_for(source_params)
+    b = InsideBuilder(s, provided_image)
+    b._parents_pulled = parents_pulled
+
+    if not parents_pulled:
+        (flexmock(atomic_reactor.util)
+         .should_receive('get_inspect_for_image')
+         .and_return({'Id': 123}))
+
+    built_inspect = b.parent_image_inspect(provided_image)
+
+    assert built_inspect is not None
+    assert built_inspect["Id"] is not None
+
+
+@requires_internet
+@with_all_sources
+@pytest.mark.parametrize('parents_pulled', [True, False])
+@pytest.mark.parametrize('base_exist', [True, False])
+def test_base_image_inspect(parents_pulled, base_exist, tmpdir, source_params):
     if MOCK:
         mock_docker()
 
     source_params.update({'tmpdir': str(tmpdir)})
     s = get_source_instance_for(source_params)
     b = InsideBuilder(s, '')
-    built_inspect = b.inspect_base_image()
+    b._parents_pulled = parents_pulled
 
-    assert built_inspect is not None
-    assert built_inspect["Id"] is not None
+    if base_exist:
+        if not parents_pulled:
+            (flexmock(atomic_reactor.util)
+             .should_receive('get_inspect_for_image')
+             .and_return({'Id': 123}))
+
+        built_inspect = b.base_image_inspect
+
+        assert built_inspect is not None
+        assert built_inspect["Id"] is not None
+    else:
+        if parents_pulled:
+            response = flexmock(content="not found", status_code=404)
+            (flexmock(docker.APIClient)
+             .should_receive('inspect_image')
+             .and_raise(docker.errors.NotFound, "xyz", response))
+            with pytest.raises(KeyError):
+                b.base_image_inspect
+        else:
+            (flexmock(atomic_reactor.util)
+             .should_receive('get_inspect_for_image')
+             .and_raise(NotImplementedError))
+            with pytest.raises(NotImplementedError):
+                b.base_image_inspect
 
 
 @requires_internet

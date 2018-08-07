@@ -57,6 +57,13 @@ class MockInsideBuilder(object):
         setattr(result, 'path', '/tmp')
         return result
 
+    @property
+    def base_image_inspect(self):
+        try:
+            return self.tasker.inspect_image(self.base_image)
+        except:
+            raise KeyError()
+
 
 class TestSquashPlugin(object):
 
@@ -135,12 +142,12 @@ class TestSquashPlugin(object):
 
         # Avoid inspect errors at this point
         if 'from_layer' not in kwargs:
-            kwargs['from_layer'] = self.workflow.base_image_inspect['Id']
+            kwargs['from_layer'] = self.workflow.builder.base_image_inspect['Id']
 
         self.output_path = kwargs['output_path']
 
         if kwargs.get('from_layer') == SET_DEFAULT_LAYER_ID:
-            kwargs['from_layer'] = self.workflow.base_image_inspect['Id']
+            kwargs['from_layer'] = self.workflow.builder.base_image_inspect['Id']
 
         def mock_run():
             if not kwargs['output_path'] is None:

@@ -74,7 +74,7 @@ class ChangeFromPlugin(PreBuildPlugin):
         # docker inspect all parent images so we can address them by Id
         parent_image_ids = {}
         for img, new_img in builder.parent_images.items():
-            inspection = builder.tasker.inspect_image(new_img)
+            inspection = builder.parent_image_inspect(new_img)
             try:
                 parent_image_ids[img] = inspection['Id']
             except KeyError:  # unexpected code bugs or maybe docker weirdness

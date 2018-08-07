@@ -99,8 +99,7 @@ def workflow():
         mock_docker()
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = MockInsideBuilder()
-
-    flexmock(workflow, base_image_inspect={})
+    setattr(workflow.builder, 'base_image_inspect', {})
 
     return workflow
 

@@ -126,8 +126,7 @@ def workflow(tmpdir):
     workflow._tmpdir = tmpdir
     workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(
                                                                     ODCS_COMPOSE_DEFAULT_ARCH_LIST)
-
-    flexmock(workflow, base_image_inspect={})
+    setattr(workflow.builder, 'base_image_inspect', {})
 
     mock_reactor_config(workflow, tmpdir)
     mock_repo_config(tmpdir)

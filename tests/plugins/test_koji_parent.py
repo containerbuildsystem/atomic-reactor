@@ -77,6 +77,7 @@ class MockInsideBuilder(InsideBuilder):
         self.base_image = ImageName(repo='Fedora', tag='22')
         self.original_base_image = ImageName(repo='Fedora', tag='22')
         self.parent_images = {}  # don't want to handle inspections in most tests
+        self._parent_images_inspect = {}
         self.image_id = 'image_id'
         self.image = 'image'
         self._df_path = 'df_path'
@@ -96,9 +97,8 @@ def workflow():
         mock_docker()
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = MockInsideBuilder()
-
-    flexmock(workflow, base_image_inspect={})
-    workflow.base_image_inspect[INSPECT_CONFIG] = {'Labels': BASE_IMAGE_LABELS.copy()}
+    base_inspect = {INSPECT_CONFIG: {'Labels': BASE_IMAGE_LABELS.copy()}}
+    flexmock(workflow.builder, base_image_inspect=base_inspect)
 
     return workflow
 
@@ -158,7 +158,7 @@ class TestKojiParent(object):
         assert 'KojiParentBuildMissing' in str(exc_info.value)
 
     def test_base_image_not_inspected(self, workflow, koji_session, reactor_config_map):  # noqa
-        del workflow.base_image_inspect[INSPECT_CONFIG]
+        del workflow.builder.base_image_inspect[INSPECT_CONFIG]
         with pytest.raises(PluginFailedException) as exc_info:
             self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
         assert 'KeyError' in str(exc_info.value)
@@ -177,9 +177,10 @@ class TestKojiParent(object):
     ])
     def test_base_image_missing_labels(self, workflow, koji_session, remove_labels, exp_result,
                                        reactor_config_map):
-        workflow.base_image_inspect[INSPECT_CONFIG]['Labels'] = BASE_IMAGE_LABELS_W_ALIASES.copy()
+        workflow.builder.base_image_inspect[INSPECT_CONFIG]['Labels'] =\
+            BASE_IMAGE_LABELS_W_ALIASES.copy()
         for label in remove_labels:
-            del workflow.base_image_inspect[INSPECT_CONFIG]['Labels'][label]
+            del workflow.builder.base_image_inspect[INSPECT_CONFIG]['Labels'][label]
         self.run_plugin_with_args(workflow, expect_result=exp_result,
                                   reactor_config_map=reactor_config_map)
 
@@ -215,7 +216,7 @@ class TestKojiParent(object):
 
         workflow.builder.set_base_image('basetag')
         workflow.builder.parent_images = parent_images
-        workflow.base_image_inspect.update(image_inspects['base'])
+        workflow.builder.base_image_inspect.update(image_inspects['base'])
 
         expected = {
             BASE_IMAGE_KOJI_BUILD: koji_builds['base'],

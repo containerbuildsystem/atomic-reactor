@@ -13,7 +13,6 @@ import json
 import logging
 import tempfile
 import signal
-import docker
 import threading
 import os
 import time
@@ -369,7 +368,6 @@ class DockerBuildWorkflow(object):
         self.builder = None
         self.built_image_inspect = None
         self.layer_sizes = []
-        self._base_image_inspect = None
         self.default_image_build_method = CONTAINER_DEFAULT_BUILD_METHOD
 
         # list of images pulled during the build, to be deleted after the build
@@ -407,19 +405,6 @@ class DockerBuildWorkflow(object):
         Has any aspect of the build process failed?
         """
         return self.build_result.is_failed() or self.plugin_failed
-
-    # inspect base image lazily just before it's needed - pre plugins may change the base image
-    @property
-    def base_image_inspect(self):
-        if self._base_image_inspect is None:
-            try:
-                self._base_image_inspect = self.builder.tasker.inspect_image(
-                    self.builder.base_image)
-            except docker.errors.NotFound:
-                # If the base image cannot be found throw KeyError - as this property should behave
-                # like a dict
-                raise KeyError("Unprocessed base image Dockerfile cannot be inspected")
-        return self._base_image_inspect
 
     def throw_canceled_build_exception(self, *args, **kwargs):
         self.build_canceled = True

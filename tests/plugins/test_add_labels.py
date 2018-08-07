@@ -192,8 +192,8 @@ def test_add_labels_plugin(tmpdir, docker_tasker,
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     setattr(workflow, 'builder', X)
-    flexmock(workflow, base_image_inspect=labels_conf_base)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    setattr(workflow.builder, 'base_image_inspect', labels_conf_base)
 
     if reactor_config_map:
         # reactor_config should not return json
@@ -245,7 +245,7 @@ def test_add_labels_arrangement6(tmpdir, docker_tasker, release, use_reactor):
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     setattr(workflow, 'builder', X)
-    flexmock(workflow, base_image_inspect=LABELS_CONF_BASE)
+    setattr(workflow.builder, 'base_image_inspect', LABELS_CONF_BASE)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
 
     if use_reactor:
@@ -304,8 +304,8 @@ def test_add_labels_plugin_generated(tmpdir, docker_tasker, auto_label, value_re
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     setattr(workflow, 'builder', X)
     flexmock(workflow, source=MockSource())
-    flexmock(workflow, base_image_inspect=LABELS_CONF_BASE)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    setattr(workflow.builder, 'base_image_inspect', LABELS_CONF_BASE)
 
     if reactor_config_map:
         make_and_store_reactor_config_map(workflow, {'image_labels': {}})
@@ -416,8 +416,8 @@ def test_add_labels_aliases(tmpdir, docker_tasker, caplog,
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     setattr(workflow, 'builder', X)
-    flexmock(workflow, base_image_inspect=base_labels)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    setattr(workflow.builder, 'base_image_inspect', base_labels)
 
     if reactor_config_map:
         make_and_store_reactor_config_map(workflow, {'image_labels': plugin_labels})
@@ -495,8 +495,8 @@ def test_add_labels_equal_aliases(tmpdir, docker_tasker, caplog,
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     setattr(workflow, 'builder', X)
-    flexmock(workflow, base_image_inspect=base_labels)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    setattr(workflow.builder, 'base_image_inspect', base_labels)
 
     if reactor_config_map:
         make_and_store_reactor_config_map(
@@ -576,8 +576,8 @@ def test_add_labels_equal_aliases2(tmpdir, docker_tasker, caplog, base_l,
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     setattr(workflow, 'builder', X)
-    flexmock(workflow, base_image_inspect=base_labels)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    setattr(workflow.builder, 'base_image_inspect', base_labels)
 
     if reactor_config_map:
         make_and_store_reactor_config_map(
@@ -658,8 +658,8 @@ def test_dont_overwrite_distribution_scope(tmpdir, docker_tasker, parent_scope,
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     setattr(workflow, 'builder', X)
-    flexmock(workflow, base_image_inspect=labels_conf_base)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    setattr(workflow.builder, 'base_image_inspect', labels_conf_base)
 
     wf_args = {
         'labels': {"distribution-scope": "restricted"},
@@ -709,8 +709,8 @@ def test_url_label(tmpdir, docker_tasker, caplog, url_format, info_url, reactor_
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     setattr(workflow, 'builder', X)
-    flexmock(workflow, base_image_inspect=base_labels)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    setattr(workflow.builder, 'base_image_inspect', base_labels)
 
     if reactor_config_map:
         make_and_store_reactor_config_map(workflow, {
@@ -770,8 +770,8 @@ def test_add_labels_plugin_explicit(tmpdir, docker_tasker, auto_label, labels_do
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     setattr(workflow, 'builder', X)
     flexmock(workflow, source=MockSource())
-    flexmock(workflow, base_image_inspect=labels_base)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    setattr(workflow.builder, 'base_image_inspect', labels_base)
 
     prov_labels = {}
     prov_labels[auto_label] = 'explicit_value'
@@ -794,8 +794,7 @@ def test_add_labels_plugin_explicit(tmpdir, docker_tasker, auto_label, labels_do
     assert df.labels[auto_label] != 'explicit_value'
 
 
-
-@pytest.mark.parametrize('parent,should_fail', [  # noqa
+@pytest.mark.parametrize('parent, should_fail', [  # noqa
     ('koji/image-build', False),
     ('fedora', True),
 ])
@@ -812,6 +811,7 @@ def test_add_labels_base_image(tmpdir, docker_tasker, parent, should_fail,
     flexmock(workflow, source=MockSource())
     setattr(workflow.builder, 'tasker', docker_tasker)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    setattr(workflow.builder, 'base_image_inspect', {})
 
     # When a 'release' label is provided by parameter and used to
     # configure the plugin, it should be set in the Dockerfile even
@@ -889,8 +889,8 @@ def test_release_label(tmpdir, docker_tasker, caplog,
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     setattr(workflow, 'builder', X)
-    flexmock(workflow, base_image_inspect=base_labels)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    setattr(workflow.builder, 'base_image_inspect', base_labels)
 
     if reactor_config_map:
         make_and_store_reactor_config_map(workflow, {'image_labels': plugin_labels})

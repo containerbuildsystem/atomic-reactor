@@ -137,10 +137,10 @@ CMD blabla"""
         mock_docker()
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
-    flexmock(workflow, base_image_inspect={INSPECT_CONFIG: {"Labels": {}}})
     workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
+    setattr(workflow.builder, 'base_image_inspect', {INSPECT_CONFIG: {"Labels": {}}})
 
     runner = PreBuildPluginsRunner(
         docker_tasker,

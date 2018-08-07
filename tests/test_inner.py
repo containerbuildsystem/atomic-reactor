@@ -350,7 +350,6 @@ def test_workflow():
     assert watch_buildstep.was_called()
     assert watch_post.was_called()
     assert watch_exit.was_called()
-    assert workflow.base_image_inspect == {}
 
 
 def test_workflow_base_images():
@@ -399,8 +398,6 @@ def test_workflow_base_images():
     assert watch_buildstep.was_called()
     assert watch_post.was_called()
     assert watch_exit.was_called()
-    with pytest.raises(KeyError):
-        assert workflow.base_image_inspect
 
 
 class FakeLogger(object):

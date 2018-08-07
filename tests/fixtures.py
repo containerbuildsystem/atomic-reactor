@@ -60,3 +60,8 @@ def docker_tasker():
 @pytest.fixture(params=[True, False])
 def reactor_config_map(request):
     return request.param
+
+
+@pytest.fixture(params=[True, False])
+def inspect_only(request):
+    return request.param
