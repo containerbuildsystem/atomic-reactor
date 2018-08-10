@@ -55,15 +55,20 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
                 self.log.info("No platforms found in koji target")
                 return None
             platforms = koji_platforms.split()
+            self.log.info("Koji platforms are %s", sorted(platforms))
 
             if is_scratch_build() or is_isolated_build():
                 override_platforms = get_orchestrator_platforms(self.workflow)
                 if override_platforms and set(override_platforms) != set(platforms):
+                    sort_platforms = sorted(override_platforms)
+                    self.log.info("Received user specified platforms %s", sort_platforms)
+                    self.log.info("Using them instead of koji platforms")
                     # platforms from user params do not match platforms from koji target
                     # that almost certainly means they were overridden and should be used
                     return set(override_platforms)
         else:
             platforms = get_orchestrator_platforms(self.workflow)
+            self.log.info("No koji platforms. User specified platforms are %s", sorted(platforms))
 
         if not platforms:
             raise RuntimeError("Cannot determine platforms; no koji target or platform list")

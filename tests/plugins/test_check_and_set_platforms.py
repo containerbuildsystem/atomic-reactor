@@ -134,7 +134,8 @@ def prepare(tmpdir):
      ['x86_64']),
     ('x86_64 ppc64le', '', '', ['x86_64', 'ppc64le'])
 ])
-def test_check_and_set_platforms(tmpdir, platforms, platform_exclude, platform_only, result):
+def test_check_and_set_platforms(tmpdir, caplog, platforms, platform_exclude, platform_only,
+                                 result):
     write_container_yaml(tmpdir, platform_exclude, platform_only)
 
     tasker, workflow = prepare(tmpdir)
@@ -160,10 +161,13 @@ def test_check_and_set_platforms(tmpdir, platforms, platform_exclude, platform_o
 
     plugin_result = runner.run()
     if platforms:
+        koji_msg = "Koji platforms are {0}".format(sorted(platforms.split()))
+        assert koji_msg in caplog.text()
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] == set(result)
     else:
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] is None
+        assert "No platforms found in koji target" in caplog.text()
 
 
 @pytest.mark.parametrize(('labels', 'platforms', 'orchestrator_platforms', 'platform_only',
@@ -179,7 +183,7 @@ def test_check_and_set_platforms(tmpdir, platforms, platform_exclude, platform_o
     ({'scratch': True}, 'x86_64 arm64', ['x86_64', 'arm64'], 'x86_64', ['x86_64']),
     ({'scratch': True}, 'x86_64 arm64 s390x', ['x86_64', 'arm64'], 'x86_64', ['x86_64', 'arm64']),
 ])
-def test_check_isolated_or_scratch(tmpdir, labels, platforms,
+def test_check_isolated_or_scratch(tmpdir, caplog, labels, platforms,
                                    orchestrator_platforms, platform_only, result):
     write_container_yaml(tmpdir, platform_only=platform_only)
 
@@ -207,6 +211,17 @@ def test_check_isolated_or_scratch(tmpdir, labels, platforms,
     }])
 
     plugin_result = runner.run()
+    if platforms:
+        koji_msg = "Koji platforms are {0}".format(sorted(platforms.split()))
+        assert koji_msg in caplog.text()
+        diffplat = orchestrator_platforms and set(platforms.split()) != set(orchestrator_platforms)
+        if labels and diffplat:
+            sort_platforms = sorted(orchestrator_platforms)
+            user_msg = "Received user specified platforms {0}".format(sort_platforms)
+            assert user_msg in caplog.text()
+    else:
+        assert "No platforms found in koji target" in caplog.text()
+
     if result:
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] == set(result)
@@ -219,7 +234,7 @@ def test_check_isolated_or_scratch(tmpdir, labels, platforms,
     ('x86_64 ppc64le', '', ['x86_64', 'ppc64le']),
     ('x86_64 ppc64le', 'ppc64le', ['ppc64le']),
 ])
-def test_check_and_set_platforms_no_koji(tmpdir, platforms, platform_only, result):
+def test_check_and_set_platforms_no_koji(tmpdir, caplog, platforms, platform_only, result):
     write_container_yaml(tmpdir, platform_only=platform_only)
 
     tasker, workflow = prepare(tmpdir)
@@ -239,6 +254,11 @@ def test_check_and_set_platforms_no_koji(tmpdir, platforms, platform_only, resul
 
     if platforms:
         plugin_result = runner.run()
+        # Build up the message to avoid wrapping
+        no_koji_msg = "No koji platforms. "
+        platform_msg = "User specified platforms are {0}".format(sorted(platforms.split()))
+        user_msg = no_koji_msg + platform_msg
+        assert user_msg in caplog.text()
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] == set(result)
     else:
