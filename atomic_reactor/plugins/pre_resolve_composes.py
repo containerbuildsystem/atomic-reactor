@@ -318,14 +318,17 @@ class ComposeConfig(object):
         self.packages = data.get('packages', [])
         self.modules = data.get('modules', [])
         self.pulp = {}
+        self.arches = arches or []
+
         if data.get('pulp_repos'):
-            self.pulp = pulp_data or {}
+            for arch in pulp_data or {}:
+                if arch in self.arches:
+                    self.pulp[arch] = pulp_data[arch]
             self.flags = None
             if data.get(UNPUBLISHED_REPOS):
                 self.flags = [UNPUBLISHED_REPOS]
         self.koji_tag = koji_tag
         self.odcs_config = odcs_config
-        self.arches = arches
 
         signing_intent_name = data.get('signing_intent', self.odcs_config.default_signing_intent)
         self.set_signing_intent(signing_intent_name)

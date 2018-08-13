@@ -289,11 +289,18 @@ class TestResolveComposes(object):
 
     @pytest.mark.parametrize(('pulp_arches', 'arches', 'signing_intent', 'expected_intent'), (  # noqa:F811
         (None, None, 'unsigned', 'unsigned'),
-        (['x86_64'], None, 'release', 'beta'),
+        # For the next test, since arches is none, no compose is performed even though pulp_arches
+        # has a value. Expected intent doesn't change when nothing is composed.
+        (['x86_64'], None, 'release', 'release'),
+        # pulp composes have the beta signing intent and downgrade the release intent to beta.
         (['x86_64'], ['x86_64'], 'release', 'beta'),
         (['x86_64', 'ppce64le'], ['x86_64', 'ppce64le'], 'release', 'beta'),
+        (['x86_64', 'ppce64le'], ['x86_64'], 'release', 'beta'),
         (['x86_64', 'ppce64le', 'arm64'], ['x86_64', 'ppce64le', 'arm64'], 'beta', 'beta'),
+        # pulp composes have the beta signing intent but the unsigned intent overrides that
         (['x86_64', 'ppce64le', 'arm64'], ['x86_64', 'ppce64le', 'arm64'], 'unsigned', 'unsigned'),
+        # For the next test, since arches is none, no compose is performed even though pulp_arches
+        # has a value. Expected intent doesn't change when nothing is composed.
         (['x86_64', 'ppce64le', 'arm64'], None, 'beta', 'beta'),
     ))
     @pytest.mark.parametrize(('flags', 'expected_flags'), [
@@ -307,6 +314,8 @@ class TestResolveComposes(object):
         pulp_composes = {}
         base_repos = ['spam', 'bacon', 'eggs']
         pulp_id = ODCS_COMPOSE_ID
+        arches = arches or []
+
         for arch in pulp_arches or []:
             pulp_id += 1
             pulp_repos = []
@@ -316,6 +325,9 @@ class TestResolveComposes(object):
                 pulp_repos.append(pulp_repo)
                 content_set += """\n    - {0}""".format(pulp_repo)
             source = ' '.join(pulp_repos)
+
+            if arch not in arches:
+                continue
 
             pulp_compose = {
                 'id': pulp_id,
@@ -385,7 +397,7 @@ class TestResolveComposes(object):
             .and_return(tag_compose).once())
 
         plugin_result = self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
-                                                  platforms=pulp_arches, is_pulp=pulp_arches)
+                                                  platforms=arches, is_pulp=pulp_arches)
 
         assert plugin_result['signing_intent'] == expected_intent
 
