@@ -18,7 +18,14 @@
       "additionalProperties": false
     },
     "autorebuild": {
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "from_latest": {
+          "description": "Whether to rebuild from the latest commit",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
     },
     "compose": {
       "type": "object"
