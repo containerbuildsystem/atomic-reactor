@@ -28,7 +28,31 @@
       "additionalProperties": false
     },
     "compose": {
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "packages": {
+          "description": "names of RPMs to include",
+          "type": ["array", "null"],
+          "items": {
+              "type": "string"
+          }
+        },
+        "pulp_repos": {
+          "description": "whether to build pulp composes",
+          "type": "boolean"
+        },
+        "modules": {
+          "description": "names of modules to include",
+          "type": ["array", "null"],
+          "items": {
+              "type": "string"
+          }
+        },
+        "signing_intent": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
     },
     "flatpak": {
       "type": "object"
