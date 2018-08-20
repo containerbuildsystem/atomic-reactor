@@ -286,29 +286,112 @@ class TestResolveComposes(object):
 
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
-    @pytest.mark.parametrize(('pulp_arches', 'arches', 'signing_intent', 'expected_intent'), (  # noqa:F811
-        (None, None, 'unsigned', 'unsigned'),
-        # For the next test, since arches is none, no compose is performed even though pulp_arches
-        # has a value. Expected intent doesn't change when nothing is composed.
-        (['x86_64'], None, 'release', 'release'),
-        # pulp composes have the beta signing intent and downgrade the release intent to beta.
-        (['x86_64'], ['x86_64'], 'release', 'beta'),
-        (['x86_64', 'ppce64le'], ['x86_64', 'ppce64le'], 'release', 'beta'),
-        (['x86_64', 'ppce64le'], ['x86_64'], 'release', 'beta'),
-        (['x86_64', 'ppce64le', 'arm64'], ['x86_64', 'ppce64le', 'arm64'], 'beta', 'beta'),
-        # pulp composes have the beta signing intent but the unsigned intent overrides that
-        (['x86_64', 'ppce64le', 'arm64'], ['x86_64', 'ppce64le', 'arm64'], 'unsigned', 'unsigned'),
-        # For the next test, since arches is none, no compose is performed even though pulp_arches
-        # has a value. Expected intent doesn't change when nothing is composed.
-        (['x86_64', 'ppce64le', 'arm64'], None, 'beta', 'beta'),
+    @pytest.mark.parametrize(('arches', 'final_arches', 'multilib',   # noqa:F811
+                              'pulp_arches', 'is_pulp',
+                              'signing_intent', 'expected_intent'), (
+        # submit no arches and no pulp, final_arches and is_pulp are none, intent doesn't change
+        (None, None, False, [], [], 'unsigned', 'unsigned'),
+        (None, None, True, [], [], 'unsigned', 'unsigned'),
+        (None, None, False, [], [], 'release', 'release'),
+        (None, None, True, [], [], 'release', 'release'),
+        # submit arches so final_arches match, but don't submit pulp, intent doesn't change
+        (['ppc64le'], ['ppc64le'], False, [], [], 'unsigned', 'unsigned'),
+        (['ppc64le'], ['ppc64le'], True, [], [], 'unsigned', 'unsigned'),
+        (['ppc64le'], ['ppc64le'], False, [], [], 'release', 'release'),
+        (['ppc64le'], ['ppc64le'], True, [], [], 'release', 'release'),
+        # submit x86_64 arches and change final_arches if multilib, intent doesn't change
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64'], False, [], [],
+         'unsigned', 'unsigned'),
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64', 'i686'], True, [], [],
+         'unsigned', 'unsigned'),
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64'], False, [], [],
+         'release', 'release'),
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64', 'i686'], True, [], [],
+         'release', 'release'),
+        # submit no arches and pulp repos, no build happens, intent doesn't change
+        (None, None, False, ['ppc64le'], [], 'unsigned', 'unsigned'),
+        (None, None, True, ['ppc64le'], [], 'unsigned', 'unsigned'),
+        (None, None, False, ['ppc64le'], [], 'release', 'release'),
+        (None, None, True, ['ppc64le'], [], 'release', 'release'),
+        # submit arches and matching pulp, unsigned intent overrides pulp's beta intent
+        (['ppc64le'], ['ppc64le'], False, ['ppc64le'], ['ppc64le'],
+         'unsigned', 'unsigned'),
+        (['ppc64le'], ['ppc64le'], True, ['ppc64le'], ['ppc64le'],
+         'unsigned', 'unsigned'),
+        # submit arches and matching pulp, release intent changes because pulp's beta overrides
+        (['ppc64le'], ['ppc64le'], False, ['ppc64le'], ['ppc64le'],
+         'release', 'beta'),
+        (['ppc64le'], ['ppc64le'], True, ['ppc64le'], ['ppc64le'],
+         'release', 'beta'),
+        # multiple compose arches don't trigger extra pulp builds
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64'], False,
+         ['ppc64le'], ['ppc64le'], 'unsigned', 'unsigned'),
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64', 'i686'], True,
+         ['ppc64le'], ['ppc64le'], 'unsigned', 'unsigned'),
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64'], False,
+         ['ppc64le'], ['ppc64le'], 'release', 'beta'),
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64', 'i686'], True,
+         ['ppc64le'], ['ppc64le'], 'release', 'beta'),
+        # don't build pulp composes that aren't in arch
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64'], False, ['arm64'], [],
+         'unsigned', 'unsigned'),
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64', 'i686'], True, ['arm64'], [],
+         'unsigned', 'unsigned'),
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64'], False, ['arm64'], [],
+         'release', 'release'),
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64', 'i686'], True, ['arm64'], [],
+         'release', 'release'),
+        # presence of x86_64 in multilib require i686 in pulp builds
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64'], False,
+         ['ppc64le', 'x86_64', 'arm64'], ['ppc64le', 'x86_64'], 'unsigned', 'unsigned'),
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64', 'i686'], True,
+         ['ppc64le', 'x86_64', 'arm64'], ['ppc64le', 'x86_64'], 'unsigned', 'unsigned'),
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64'], False,
+         ['ppc64le', 'x86_64', 'arm64'], ['ppc64le', 'x86_64'], 'release', 'beta'),
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64', 'i686'], True,
+         ['ppc64le', 'x86_64', 'arm64'], ['ppc64le', 'x86_64'], 'release', 'beta'),
+        # explicit i686 in arches doesn't change anything
+        (['ppc64le', 'x86_64', 'i686'], ['ppc64le', 'x86_64', 'i686'], False,
+         ['ppc64le', 'x86_64', 'arm64'], ['ppc64le', 'x86_64'], 'unsigned', 'unsigned'),
+        (['ppc64le', 'x86_64', 'i686'], ['ppc64le', 'x86_64', 'i686'], True,
+         ['ppc64le', 'x86_64', 'arm64'], ['ppc64le', 'x86_64'], 'unsigned', 'unsigned'),
+        (['ppc64le', 'x86_64', 'i686'], ['ppc64le', 'x86_64', 'i686'], False,
+         ['ppc64le', 'x86_64', 'arm64'], ['ppc64le', 'x86_64'], 'release', 'beta'),
+        (['ppc64le', 'x86_64', 'i686'], ['ppc64le', 'x86_64', 'i686'], True,
+         ['ppc64le', 'x86_64', 'arm64'], ['ppc64le', 'x86_64'], 'release', 'beta'),
+        # explicit i686 in pulp_arches doesn't build unless explicit i686 in arches
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64'], False,
+         ['ppc64le', 'x86_64', 'arm64', 'i686'], ['ppc64le', 'x86_64'], 'unsigned', 'unsigned'),
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64', 'i686'], True,
+         ['ppc64le', 'x86_64', 'arm64', 'i686'], ['ppc64le', 'x86_64'], 'unsigned', 'unsigned'),
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64'], False,
+         ['ppc64le', 'x86_64', 'arm64', 'i686'], ['ppc64le', 'x86_64'], 'release', 'beta'),
+        (['ppc64le', 'x86_64'], ['ppc64le', 'x86_64', 'i686'], True,
+         ['ppc64le', 'x86_64', 'arm64', 'i686'], ['ppc64le', 'x86_64'], 'release', 'beta'),
+        # explicit i686 in pulp_arches builds with explicit i686 in arches
+        (['ppc64le', 'x86_64', 'i686'], ['ppc64le', 'x86_64', 'i686'], False,
+         ['ppc64le', 'x86_64', 'arm64', 'i686'], ['ppc64le', 'x86_64', 'i686'],
+         'unsigned', 'unsigned'),
+        (['ppc64le', 'x86_64', 'i686'], ['ppc64le', 'x86_64', 'i686'], True,
+         ['ppc64le', 'x86_64', 'arm64', 'i686'], ['ppc64le', 'x86_64', 'i686'],
+         'unsigned', 'unsigned'),
+        (['ppc64le', 'x86_64', 'i686'], ['ppc64le', 'x86_64', 'i686'], False,
+         ['ppc64le', 'x86_64', 'arm64', 'i686'], ['ppc64le', 'x86_64', 'i686'],
+         'release', 'beta'),
+        (['ppc64le', 'x86_64', 'i686'], ['ppc64le', 'x86_64', 'i686'], True,
+         ['ppc64le', 'x86_64', 'arm64', 'i686'], ['ppc64le', 'x86_64', 'i686'],
+         'release', 'beta'),
     ))
     @pytest.mark.parametrize(('flags', 'expected_flags'), [
         ({}, None,),
         ({UNPUBLISHED_REPOS: False}, None),
         ({UNPUBLISHED_REPOS: True, 'some_flag': True}, [UNPUBLISHED_REPOS])
     ])
-    def test_request_pulp_and_multiarch(self, workflow, reactor_config_map, pulp_arches, arches,
-                                        signing_intent, expected_intent, flags, expected_flags):
+    def test_request_pulp_and_multiarch(self, workflow, reactor_config_map,
+                                        arches, final_arches, multilib,
+                                        pulp_arches, is_pulp,
+                                        signing_intent, expected_intent,
+                                        flags, expected_flags):
         content_set = ''
         pulp_composes = {}
         base_repos = ['spam', 'bacon', 'eggs']
@@ -325,9 +408,9 @@ class TestResolveComposes(object):
                 content_set += """\n    - {0}""".format(pulp_repo)
             source = ' '.join(pulp_repos)
 
-            if arch not in arches:
-                continue
-
+            pulp_compose_arches = [arch]
+            if multilib and arch == 'x86_64':
+                pulp_compose_arches = ['i686', 'x86_64']
             pulp_compose = {
                 'id': pulp_id,
                 'result_repo': ODCS_COMPOSE_REPO,
@@ -336,17 +419,20 @@ class TestResolveComposes(object):
                 'source_type': 'pulp',
                 'sigkeys': "B457",
                 'state_name': 'done',
-                'arches': arch,
+                'arches': ' '.join(sorted(pulp_compose_arches)),
                 'time_to_expire': ODCS_COMPOSE_TIME_TO_EXPIRE.strftime(ODCS_DATETIME_FORMAT),
             }
+            if arch not in is_pulp:
+                continue
+
             pulp_composes[arch] = pulp_compose
             if expected_flags:
                 pulp_composes['flags'] = expected_flags
 
             (flexmock(ODCSClient)
                 .should_receive('start_compose')
-                .with_args(source_type='pulp', source=source, arches=[arch], sigkeys=[],
-                           flags=expected_flags)
+                .with_args(source_type='pulp', source=source, arches=pulp_compose_arches,
+                           sigkeys=[], flags=expected_flags)
                 .and_return(pulp_composes[arch]).once())
             (flexmock(ODCSClient)
                 .should_receive('wait_for_compose')
@@ -363,10 +449,12 @@ class TestResolveComposes(object):
                 - bacon
                 - eggs
                 signing_intent: {0}
-            """.format(signing_intent))
+                with_multilib: {1}
+            """.format(signing_intent, multilib))
         for flag in flags:
             repo_config += ("    {0}: {1}\n".format(flag, flags[flag]))
         mock_repo_config(workflow._tmpdir, repo_config)
+        # set the actual arch used by resolve_composes argument here
         if arches:
             workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(arches)
         else:
@@ -375,11 +463,11 @@ class TestResolveComposes(object):
 
         sig_keys = SIGNING_INTENTS[signing_intent]
         tag_compose['sigkeys'] = ' '.join(sig_keys)
-        if arches:
-            tag_compose['arches'] = ' '.join(arches)
+        if final_arches:
+            tag_compose['arches'] = ' '.join(sorted(final_arches))
             (flexmock(ODCSClient)
                 .should_receive('start_compose')
-                .with_args(source_type='tag', source=KOJI_TAG_NAME, arches=sorted(arches),
+                .with_args(source_type='tag', source=KOJI_TAG_NAME, arches=sorted(final_arches),
                            packages=['spam', 'bacon', 'eggs'], sigkeys=sig_keys)
                 .and_return(tag_compose).once())
         else:
@@ -396,7 +484,7 @@ class TestResolveComposes(object):
             .and_return(tag_compose).once())
 
         plugin_result = self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
-                                                  platforms=arches, is_pulp=pulp_arches)
+                                                  platforms=final_arches, is_pulp=is_pulp)
 
         assert plugin_result['signing_intent'] == expected_intent
 
@@ -881,19 +969,26 @@ class TestResolveComposes(object):
             return
 
         results = runner.run()[ResolveComposesPlugin.key]
+        is_pulp = is_pulp or []
         if results:
+            pulp_composes = []
             for platform in platforms or []:
                 yum_repourls = self.get_override_yum_repourls(workflow, platform)
                 # Koji tag compose is present in each one
                 assert ODCS_COMPOSE['result_repofile'] in yum_repourls
-                if is_pulp:
+                if platform in is_pulp:
                     pulp_repo = ODCS_COMPOSE_REPO + '/pulp_compose-' + platform
                     assert pulp_repo in yum_repourls
+                    pulp_composes.append(platform)
             yum_repourls = self.get_override_yum_repourls(workflow, None)
             if platforms:
+                # double check that we didn't build any extra pulp composes
+                if is_pulp:
+                    assert sorted(pulp_composes) == sorted(is_pulp)
                 assert yum_repourls is None
             else:
                 assert ODCS_COMPOSE['result_repofile'] in yum_repourls
+                assert not pulp_composes
             assert set(results.keys()) == set(['signing_intent', 'signing_intent_overridden',
                                                'composes'])
         else:
