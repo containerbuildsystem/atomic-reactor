@@ -50,6 +50,10 @@
         },
         "signing_intent": {
           "type": "string"
+        },
+        "with_multilib": {
+          "description": "Whether to request multilib composes: if true, a packages compose including x86_64 will also include i686 and a pulp x86_64 compose will include i686",
+          "type": "boolean"
         }
       },
       "additionalProperties": true
