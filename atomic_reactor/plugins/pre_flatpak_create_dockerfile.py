@@ -37,6 +37,10 @@ LABEL version="{stream}"
 LABEL release="{version}"
 
 ADD atomic-reactor-includepkgs /tmp/
+
+RUN mkdir -p /var/tmp/flatpak-build/dev && \
+    for i in null zero random urandom ; do cp -a /dev/$i /var/tmp/flatpak-build/dev ; done
+
 RUN cat /tmp/atomic-reactor-includepkgs >> /etc/dnf/dnf.conf && \\
     dnf -y --nogpgcheck \\
     --disablerepo=* \\
