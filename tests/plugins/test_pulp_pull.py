@@ -340,9 +340,9 @@ class TestPostPulpPull(object):
         (True, True),
     ])
     @pytest.mark.parametrize('timeout,retry_delay,failures,expect_success', [
-        (0.1, 0.06, 1, True),
-        (0.1, 0.06, 1, True),
-        (0.1, 0.06, 3, False),
+        (0.5, 0.26, 1, True),
+        (0.5, 0.26, 1, True),
+        (0.5, 0.26, 3, False),
     ])
     def test_pull_retry(self, expect_v2schema2, v2, timeout, retry_delay, failures,
                         expect_success, reactor_config):
@@ -461,8 +461,8 @@ class TestPostPulpPull(object):
         expectation.and_return(self.config_response_config_v1)
         expectation.and_return(self.config_response_config_v1)
         workflow.postbuild_plugins_conf = []
-        plugin = PulpPullPlugin(tasker, workflow, timeout=0.1,
-                                retry_delay=0.06,
+        plugin = PulpPullPlugin(tasker, workflow, timeout=0.5,
+                                retry_delay=0.26,
                                 expect_v2schema2=True)
 
         plugin.run()
