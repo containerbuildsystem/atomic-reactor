@@ -37,7 +37,8 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        ReactorConfig)
 from atomic_reactor.util import ImageName, LazyGit, ManifestDigest, df_parser
 import pytest
-from tests.constants import LOCALHOST_REGISTRY, DOCKER0_REGISTRY, TEST_IMAGE, INPUT_IMAGE
+from tests.constants import (LOCALHOST_REGISTRY, DOCKER0_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME,
+                             INPUT_IMAGE)
 from tests.util import is_string_type
 from tests.fixtures import reactor_config_map  # noqa
 
@@ -135,7 +136,7 @@ def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=Fals
 
     for docker_registry in docker_registries:
         r = workflow.push_conf.add_docker_registry(docker_registry)
-        r.digests[TEST_IMAGE] = ManifestDigest(v1=DIGEST_NOT_USED, v2=DIGEST1)
+        r.digests[TEST_IMAGE_NAME] = ManifestDigest(v1=DIGEST_NOT_USED, v2=DIGEST1)
         r.digests["namespace/image:asd123"] = ManifestDigest(v1=DIGEST_NOT_USED,
                                                              v2=DIGEST2)
 
@@ -709,15 +710,15 @@ CMD blabla"""
     ([], [], False,
      {'unique': [], 'primary': []}),
     ([('spam', 'spam:8888')], ['docker:9999'], False,
-     {'primary': ['docker:9999/atomic-reactor-test-image',
-                  'spam:8888/atomic-reactor-test-image'],
+     {'primary': ['docker:9999/atomic-reactor-test-image:latest',
+                  'spam:8888/atomic-reactor-test-image:latest'],
       'unique': ['docker:9999/namespace/image:asd123',
                  'spam:8888/namespace/image:asd123']}),
     ([('spam', 'spam:8888')], ['docker:9999'], True,
-     {'primary': ['spam:8888/atomic-reactor-test-image'],
+     {'primary': ['spam:8888/atomic-reactor-test-image:latest'],
       'unique': ['spam:8888/namespace/image:asd123']}),
     ([], ['docker:9999'], True,
-     {'primary': ['docker:9999/atomic-reactor-test-image'],
+     {'primary': ['docker:9999/atomic-reactor-test-image:latest'],
       'unique': ['docker:9999/namespace/image:asd123']}),
 ])
 def test_filter_nonpulp_repositories(tmpdir, pulp_registries, docker_registries,
