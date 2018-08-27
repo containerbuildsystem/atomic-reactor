@@ -509,7 +509,7 @@ class DockerTasker(LastLogger):
         """
         logger.info("pulling image '%s' from registry", image)
         logger.debug("image = '%s', insecure = '%s'", image, insecure)
-        tag = image.tag or 'latest'
+        tag = image.tag
         try:
             command_result = self.retry_generator(self.d.pull,
                                                   image.to_str(tag=False),

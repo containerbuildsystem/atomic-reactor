@@ -815,7 +815,7 @@ def query_registry(registry_session, image, digest=None, version='v1', is_blob=F
     """
 
     context = '/'.join([x for x in [image.namespace, image.repo] if x])
-    reference = digest or image.tag or 'latest'
+    reference = digest or image.tag
     object_type = 'manifests'
     if is_blob:
         object_type = 'blobs'
@@ -967,7 +967,7 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
 
         digests[version] = response.headers['Docker-Content-Digest']
         context = '/'.join([x for x in [image.namespace, image.repo] if x])
-        tag = image.tag or 'latest'
+        tag = image.tag
         logger.debug('Image %s:%s has %s manifest digest: %s',
                      context, tag, version, digests[version])
 
@@ -1118,7 +1118,7 @@ def get_config_and_id_from_registry(image, registry, digest, insecure=False,
     blob_config = config_response.json()
 
     context = '/'.join([x for x in [image.namespace, image.repo] if x])
-    tag = image.tag or 'latest'
+    tag = image.tag
     logger.debug('Image %s:%s has config:\n%s', context, tag, blob_config)
 
     return blob_config, config_digest
