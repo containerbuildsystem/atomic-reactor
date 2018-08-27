@@ -67,13 +67,17 @@ class PullBaseImagePlugin(PreBuildPlugin):
         Pull parent images and retag them uniquely for this build.
         """
         build_json = get_build_json()
-        base_image_str = str(self.workflow.builder.original_base_image)
         current_platform = platform.processor() or 'x86_64'
         self.manifest_list_cache = {}
         for nonce, parent in enumerate(sorted(self.workflow.builder.parent_images.keys())):
             image = ImageName.parse(parent)
-            if parent == base_image_str:
+            is_base_image = False
+            # original_base_image is an ImageName, so compare parent as an ImageName also
+            # since image is parent as an ImageName, just use that
+            if image == self.workflow.builder.original_base_image:
+                is_base_image = True
                 image = self._resolve_base_image(build_json)
+
             image = self._ensure_image_registry(image)
 
             if self.check_platforms:
@@ -89,7 +93,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
                 new_image = self._pull_and_tag_image(image, build_json, str(nonce))
             self.workflow.builder.parent_images[parent] = str(new_image)
 
-            if parent == base_image_str:
+            if is_base_image:
                 self.workflow.builder.set_base_image(str(new_image),
                                                      parents_pulled=not self.inspect_only,
                                                      insecure=self.parent_registry_insecure)

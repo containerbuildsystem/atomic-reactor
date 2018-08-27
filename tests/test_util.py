@@ -66,7 +66,7 @@ if MOCK:
     from tests.retry_mock import mock_get_retry_session
 
 TEST_DATA = {
-    "repository.com/image-name": ImageName(registry="repository.com", repo="image-name"),
+    "repository.com/image-name:latest": ImageName(registry="repository.com", repo="image-name"),
     "repository.com/prefix/image-name:1": ImageName(registry="repository.com",
                                                     namespace="prefix",
                                                     repo="image-name", tag="1"),
@@ -74,16 +74,14 @@ TEST_DATA = {
                                                                namespace="prefix",
                                                                repo="image-name",
                                                                tag="sha256:12345"),
-    "repository.com/prefix/image-name": ImageName(registry="repository.com",
-                                                  namespace="prefix",
-                                                  repo="image-name"),
-    "image-name": ImageName(repo="image-name"),
+    "repository.com/prefix/image-name:latest": ImageName(registry="repository.com",
+                                                         namespace="prefix",
+                                                         repo="image-name"),
+    "image-name:latest": ImageName(repo="image-name"),
 
-    "registry:5000/image-name:latest": ImageName(registry="registry:5000",
-                                                 repo="image-name", tag="latest"),
     "registry:5000/image-name@sha256:12345": ImageName(registry="registry:5000",
                                                        repo="image-name", tag="sha256:12345"),
-    "registry:5000/image-name": ImageName(registry="registry:5000", repo="image-name"),
+    "registry:5000/image-name:latest": ImageName(registry="registry:5000", repo="image-name"),
 
     "fedora:20": ImageName(repo="fedora", tag="20"),
     "fedora@sha256:12345": ImageName(repo="fedora", tag="sha256:12345"),

@@ -66,7 +66,7 @@ class ImageName(object):
         self.registry = registry
         self.namespace = namespace
         self.repo = repo
-        self.tag = tag
+        self.tag = tag or 'latest'
 
     @classmethod
     def parse(cls, image_name):
@@ -1090,7 +1090,7 @@ def get_inspect_for_image(image, registry, insecure=False, dockercfg_path=None):
 
 
 def get_config_and_id_from_registry(image, registry, digest, insecure=False,
-                             dockercfg_path=None, version='v2'):
+                                    dockercfg_path=None, version='v2'):
     """Return image config by digest
 
     :param image: ImageName, the remote image to inspect

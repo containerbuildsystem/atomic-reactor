@@ -42,6 +42,7 @@ MOCK_SOURCE = {'provider': 'git', 'uri': 'asd'}
 
 REGISTRY_PORT = "5000"
 DOCKER0_IP = "172.17.42.1"
+TEST_IMAGE_NAME = "atomic-reactor-test-image:latest"
 TEST_IMAGE = "atomic-reactor-test-image"
 
 LOCALHOST_REGISTRY = "localhost:%s" % REGISTRY_PORT
