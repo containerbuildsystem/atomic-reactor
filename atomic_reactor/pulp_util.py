@@ -169,7 +169,7 @@ class PulpHandler(object):
         for image in image_names:
             repo_id = image.pulp_repo
             self.log.info("adding repo %s", repo_id)
-            tag = image.tag if image.tag else 'latest'
+            tag = image.tag
             if repo_prefix:
                 repo_id = repo_prefix + repo_id
 

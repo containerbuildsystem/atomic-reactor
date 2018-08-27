@@ -94,7 +94,7 @@ class PulpPublishPlugin(ExitPlugin):
         pulp_registry = self.pulp_handler.get_registry_hostname()
         crane_repos = [ImageName(registry=pulp_registry,
                                  repo=image.to_str(registry=False, tag=False),
-                                 tag=image.tag or 'latest') for image in image_names]
+                                 tag=image.tag) for image in image_names]
 
         for image_name in crane_repos:
             self.log.info("image available at %s", str(image_name))
