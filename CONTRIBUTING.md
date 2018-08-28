@@ -12,6 +12,8 @@ Also note: while this seems to be an awfully long text, chances are you adhere t
 * All new code, both bugfixes and new features, must have tests.
 * Pull requests must be cleanly rebased on top of master without multiple branches mixed together.
 
+Please read the [review checklist](https://osbs.readthedocs.io/en/latest/contributors.html#submitting-changes).
+
 ## Code Quality
 
 We try to write good code. This is what it means to us:
@@ -33,11 +35,4 @@ We try to write good code. This is what it means to us:
 
 ## Merging Code
 
-Assuming your pull request fulfilled all the above criteria, your code is almost ready to merge. You just need to wait for one of the core devs of Atomic Reactor to give your pull request a "LGTM" and do the actual merge. If the core dev thinks something is wrong with your pull request, he'll tell you and let you fix it. Discussion is always welcome!
-
-Current core devs are:
-* Jirka Popelka (@jpopelka)
-* Martin Milata (@mmilata)
-* Slavek Kabrda (@bkabrda)
-* Tim Waugh (@twaugh)
-* Tomas Tomecek (@TomasTomecek)
+Assuming your pull request fulfilled all the above criteria, your code is almost ready to merge. You just need to wait for one of the core developers of Atomic Reactor to give your pull request a "LGTM" and do the actual merge. If the core developer thinks something is wrong with your pull request, they'll tell you and let you fix it. Discussion is always welcome!
