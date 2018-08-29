@@ -1019,22 +1019,23 @@ def test_clone_git_repo_retry(tmpdir, retry_times, raise_exc):
 
 
 @pytest.mark.parametrize(('module', 'should_raise', 'expected'), [
-    ('eog', True, None),
+    ('eog', "must include at least NAME:STREAM", None),
     ('eog:f26', False, ModuleSpec('eog', 'f26')),
     ('eog:f26/default', False, ModuleSpec('eog', 'f26', profile='default')),
-    ('eog-f26', False, ModuleSpec('eog', 'f26')),
     ('eog:f26:20170629213428', False, ModuleSpec('eog', 'f26', '20170629213428')),
+    ('eog:f26:20170629213428:12345678', False,
+     ModuleSpec('eog', 'f26', '20170629213428', '12345678')),
     ('eog:f26:20170629213428/default', False,
      ModuleSpec('eog', 'f26', '20170629213428', profile='default')),
-    ('eog-f26-20170629213428', False, ModuleSpec('eog', 'f26', '20170629213428')),
-    ('a-b-c-20176291342855', False, ModuleSpec('a-b', 'c', '20176291342855')),
-    ('a-b-c-d', False, ModuleSpec('a-b-c', 'd')),
-    ('a:b:c:d', True, None),
+    ('a:b:c:d:e', "should be NAME:STREAM[:VERSION[:CONTEXT]][/PROFILE]", None),
+    ('a:b::d', "contains empty components", None),
+    ('a:b:c:d/', "contains empty components", None),
 ])
 def test_split_module_spec(module, should_raise, expected):
     if should_raise:
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RuntimeError) as e:
             split_module_spec(module)
+        assert should_raise in str(e)
     else:
         assert split_module_spec(module) == expected
 

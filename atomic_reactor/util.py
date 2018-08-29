@@ -1351,16 +1351,19 @@ def get_parent_image_koji_data(workflow):
 
 
 class ModuleSpec(object):
-    def __init__(self, name, stream, version=None, profile=None):
+    def __init__(self, name, stream, version=None, context=None, profile=None):
         self.name = name
         self.stream = stream
         self.version = version
+        self.context = context
         self.profile = profile
 
     def to_str(self, include_profile=True):
         result = self.name + ':' + self.stream
         if self.version:
             result += ':' + self.version
+        if self.context:
+            result += ':' + self.context
         if include_profile and self.profile:
             result += '/' + self.profile
 
@@ -1374,45 +1377,47 @@ class ModuleSpec(object):
 
 
 def split_module_spec(module):
-    # Current module naming guidelines are at:
-    # https://docs.pagure.org/modularity/development/building-modules/naming-policy.html
-    # We simplify the possible NAME:STREAM:CONTEXT:ARCH/PROFILE and only care about
-    # NAME:STREAM or NAME:STREAM:VERSION with optional PROFILE. ARCH is determined by
-    # the architecture. CONTEXT may become important in the future, but we ignore it
-    # for now.
-    #
-    # Previously the separator was '-' instead of ':', which required hardcoding the
-    # format of VERSION to distinguish between HYPHENATED-NAME-STREAM and NAME-STREAM-VERSION.
-    # We support the old format for compatibility.
-    #
-    PATTERNS = [
-        (r'^([^:/]+):([^:/]+):([^:/]+)(?:/([^:/]+))?$', 3, 4),
-        (r'^([^:/]+):([^:/]+)(?:/([^:/]+))?$', None, 3),
-        (r'^(.+)-([^-]+)-(\d{14})$', 3, None),
-        (r'^(.+)-([^-]+)$', None, None)
-    ]
+    # We simplify the possible NAME:STREAM:VERSION:CONTEXT:ARCH/PROFILE by:
+    #  * Not supporting ARCH - this is determined by the architecture of the build
+    #  * Not supporting partial specifications like NAME:::CONTEXT
 
-    for pat, version_index, profile_index in PATTERNS:
-        m = re.match(pat, module)
-        if m:
-            name = m.group(1)
-            stream = m.group(2)
-            version = None
-            if version_index is not None:
-                version = m.group(version_index)
-            else:
-                version = None
-            if profile_index is not None:
-                profile = m.group(profile_index)
-            else:
-                profile = None
+    name = None
+    stream = None
+    version = None
+    context = None
+    profile = None
 
-            return ModuleSpec(name, stream, version, profile)
+    if '/' in module:
+        module, profile = module.rsplit('/', 1)
 
-    raise RuntimeError(
-        'Module specification should be NAME:STREAM[/PROFILE] or NAME:STREAM:VERSION[/PROFILE]. ' +
-        '(NAME-STREAM and NAME-STREAM-VERSION supported for compatibility.)'
-    )
+    parts = module.split(":")
+
+    if len(parts) < 2:
+        raise RuntimeError(
+            "Module specification {} must include at least NAME:STREAM"
+            .format(module))
+
+    if len(parts) > 4:
+        raise RuntimeError(
+            "Module specifiction {} should be NAME:STREAM[:VERSION[:CONTEXT]][/PROFILE]"
+            .format(module))
+
+    name = parts[0]
+    stream = parts[1]
+
+    if len(parts) >= 3:
+        version = parts[2]
+
+    if len(parts) >= 4:
+        context = parts[3]
+
+    def empty(x):
+        return x is not None and len(x) == 0
+
+    if empty(name) or empty(stream) or empty(version) or empty(context) or empty(profile):
+        raise RuntimeError("Module specification {} contains empty components".format(module))
+
+    return ModuleSpec(name, stream, version, context, profile)
 
 
 class OSBSLogs(object):
