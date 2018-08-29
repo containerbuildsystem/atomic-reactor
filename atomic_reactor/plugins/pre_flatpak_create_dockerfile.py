@@ -24,6 +24,7 @@ from flatpak_module_tools.flatpak_builder import FlatpakSourceInfo, FlatpakBuild
 
 from atomic_reactor.constants import DOCKERFILE_FILENAME, YUM_REPOS_DIR
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.plugins.pre_reactor_config import get_flatpak_base_image
 from atomic_reactor.plugins.pre_resolve_module_compose import get_compose_info
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.rpm_util import rpm_qf_args
@@ -92,7 +93,7 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
         # call parent constructor
         super(FlatpakCreateDockerfilePlugin, self).__init__(tasker, workflow)
 
-        self.base_image = base_image
+        self.base_image = get_flatpak_base_image(workflow, base_image)
 
     def _load_source(self):
         flatpak_yaml = self.workflow.source.config.flatpak

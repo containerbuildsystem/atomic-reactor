@@ -500,6 +500,17 @@
     "default_image_build_method": {
         "description": "Specify different default buildstep plugin for worker builds",
         "enum": ["docker_api", "imagebuilder"]
+    },
+    "flatpak": {
+        "description": "Flatpak specific properties",
+        "type": "object",
+        "properties": {
+            "base_image": {
+                "description": "host image used to install packages when creating a Flatpak",
+                "type": "string"
+            }
+        },
+        "additionalProperties": false
     }
   },
   "definitions": {

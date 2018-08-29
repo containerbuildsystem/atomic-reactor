@@ -51,6 +51,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        get_platform_to_goarch_mapping,
                                                        get_goarch_to_platform_mapping,
                                                        get_default_image_build_method,
+                                                       get_flatpak_base_image,
                                                        CONTAINER_DEFAULT_BUILD_METHOD,
                                                        get_build_image_override,
                                                        NO_FALLBACK)
@@ -652,6 +653,51 @@ class TestReactorConfigPlugin(object):
             kwargs['fallback'] = expect
         build_image_override = get_build_image_override(workflow, **kwargs)
         assert build_image_override == expect
+
+    @pytest.mark.parametrize(('config', 'fallback', 'expect'), [
+        ("""\
+          version: 1
+          flatpak:
+              base_image: fedora:latest
+         """,
+         "x", "fedora:latest"),
+        ("""\
+          version: 1
+          flatpak: {}
+         """,
+         "x", "x"),
+        ("""\
+          version: 1
+         """,
+         "x", "x"),
+        ("""\
+          version: 1
+         """,
+         None, None),
+        ("""\
+          version: 1
+          flatpak: {}
+         """,
+         None, None),
+    ])
+    def test_get_flatpak_base_image(self, config, fallback, expect):
+        config_json = read_yaml(config, 'schemas/config.json')
+        _, workflow = self.prepare()
+
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {
+            WORKSPACE_CONF_KEY: ReactorConfig(config_json)
+        }
+
+        kwargs = {}
+        if fallback:
+            kwargs['fallback'] = fallback
+
+        if expect:
+            base_image = get_flatpak_base_image(workflow, **kwargs)
+            assert base_image == expect
+        else:
+            with pytest.raises(KeyError):
+                get_flatpak_base_image(workflow, **kwargs)
 
     @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize(('config', 'raise_error'), [

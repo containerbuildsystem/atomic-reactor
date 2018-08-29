@@ -347,6 +347,16 @@ def get_default_image_build_method(workflow, fallback=CONTAINER_DEFAULT_BUILD_ME
     return value
 
 
+def get_flatpak_base_image(workflow, fallback=NO_FALLBACK):
+    flatpak = get_value(workflow, 'flatpak', {})
+    try:
+        return flatpak['base_image']
+    except KeyError:
+        if fallback != NO_FALLBACK:
+            return fallback
+        raise
+
+
 class ClusterConfig(object):
     """
     Configuration relating to a particular cluster

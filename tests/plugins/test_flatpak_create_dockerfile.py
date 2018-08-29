@@ -20,11 +20,14 @@ except ImportError:
     pass
 
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.source import VcsInfo, SourceConfig
 from atomic_reactor.util import ImageName
 
 from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
-from tests.fixtures import docker_tasker  # noqa
+from tests.fixtures import docker_tasker, reactor_config_map  # noqa
 from tests.flatpak import MODULEMD_AVAILABLE, build_flatpak_test_configs, setup_flatpak_compose_info
 
 if MODULEMD_AVAILABLE:
@@ -86,7 +89,8 @@ CONFIGS = build_flatpak_test_configs()
     ('runtime', None),
     ('runtime', 'branch_mismatch'),
 ])
-def test_flatpak_create_dockerfile(tmpdir, docker_tasker, config_name, breakage):
+def test_flatpak_create_dockerfile(tmpdir, docker_tasker, config_name, breakage,
+                                   reactor_config_map):
     config = CONFIGS[config_name]
 
     workflow = mock_workflow(tmpdir, config['container_yaml'])
@@ -114,9 +118,17 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker, config_name, breakage)
         assert breakage is None
         expected_exception = None
 
+    base_image = "registry.fedoraproject.org/fedora:latest"
+
     args = {
-        'base_image': "registry.fedoraproject.org/fedora:latest",
+        'base_image': base_image,
     }
+
+    if reactor_config_map:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {
+            WORKSPACE_CONF_KEY: ReactorConfig({'version': 1,
+                                               'flatpak': {'base_image': base_image}})
+        }
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -137,6 +149,8 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker, config_name, breakage)
         assert os.path.exists(workflow.builder.df_path)
         with open(workflow.builder.df_path) as f:
             df = f.read()
+
+        assert "FROM " + base_image in df
 
         m = re.search(r'module enable\s*(.*?)\s*&&', df)
         assert m
