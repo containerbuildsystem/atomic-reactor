@@ -210,3 +210,55 @@ def get_koji_task_owner(session, task_id, default=None):
     else:
         koji_task_owner = default
     return koji_task_owner
+
+
+def get_koji_module_build(session, module_spec):
+    """
+    Get build information from Koji for a module. The module specification must
+    include at least name, stream and version. For legacy support, you can omit
+    context if there is only one build of the specified NAME:STREAM:VERSION.
+
+    :param session: KojiSessionWrapper, Session for talking to Koji
+    :param module_spec: ModuleSpec, specification of the module version
+    :return: tuple, a dictionary of information about the build, and
+        a list of RPMs in the module build
+    """
+
+    if module_spec.context is not None:
+        # The easy case - we can build the koji "name-version-release" out of the
+        # module spec.
+        koji_nvr = "{}-{}-{}.{}".format(module_spec.name,
+                                        module_spec.stream,
+                                        module_spec.version,
+                                        module_spec.context)
+        logger.info("Looking up module build %s in Koji", koji_nvr)
+        build = session.getBuild(koji_nvr)
+    else:
+        # Without the context, we have to retrieve all builds for the module, and
+        # find the one we want. This is pretty inefficient, but won't be needed
+        # long-term.
+        logger.info("Listing all builds for %s in Koji", module_spec.name)
+        package_id = session.getPackageID(module_spec.name)
+        builds = session.listBuilds(packageID=package_id, type='module',
+                                    state=koji.BUILD_STATES['COMPLETE'])
+        build = None
+
+        for b in builds:
+            if '.' in b['release']:
+                version, context = b['release'].split('.', 1)
+                if version == module_spec.version:
+                    if build is not None:
+                        raise RuntimeError("Multiple builds found for {}"
+                                           .format(module_spec.to_str()))
+                    else:
+                        build = b
+
+        if build is None:
+            raise RuntimeError("No build found for {}".format(module_spec.to_str()))
+
+    archives = session.listArchives(buildID=build['build_id'])
+    assert len(archives) == 1
+
+    rpm_list = session.listRPMs(imageID=archives[0]['id'])
+
+    return build, rpm_list

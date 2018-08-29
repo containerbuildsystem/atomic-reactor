@@ -17,9 +17,7 @@ Example configuration:
     'name': 'resolve_module_compose',
     'args': {'module_name': 'myapp',
              'module_stream': 'f26',
-             'module_version': '20170629185228',
-             'odcs_url': 'https://odcs.fedoraproject.org/odcs/1'},
-             'pdc_url': 'https://pdc.fedoraproject.org/rest_api/v1',}
+             'module_version': '20170629185228'}
 }
 """
 
@@ -34,10 +32,11 @@ except ValueError as e:
     raise ImportError(str(e))
 from gi.repository import Modulemd
 
+from atomic_reactor.koji_util import get_koji_module_build
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import split_module_spec
-from atomic_reactor.plugins.pre_reactor_config import (get_pdc_session, get_odcs_session,
-                                                       get_pdc, get_odcs)
+from atomic_reactor.plugins.pre_reactor_config import (get_koji_session, get_odcs_session,
+                                                       get_odcs, NO_FALLBACK)
 
 
 class ComposeInfo(object):
@@ -96,8 +95,8 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
         :param odcs_url: URL of ODCS (On Demand Compose Service)
         :param odcs_insecure: If True, don't check SSL certificates for `odcs_url`
         :param odcs_openidc_secret_path: directory to look in for a `token` file (optional)
-        :param pdc_url: URL of PDC (Product Definition center))
-        :param pdc_insecure: If True, don't check SSL certificates for `pdc_url`
+        :param pdc_url: unused
+        :param pdc_insecure: unused
         :
         """
         # call parent constructor
@@ -116,12 +115,6 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
         if not get_odcs(self.workflow, self.odcs_fallback)['api_url']:
             raise RuntimeError("odcs_url is required")
 
-        self.pdc_fallback = {
-            'api_url': pdc_url,
-            'insecure': pdc_insecure
-        }
-        if not get_pdc(self.workflow, self.pdc_fallback)['api_url']:
-            raise RuntimeError("pdc_url is required")
         self.data = None
 
     def read_configs_general(self):
@@ -131,46 +124,31 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
             raise RuntimeError('"compose" config in container.yaml is required for Flatpaks')
 
     def _resolve_modules(self, compose_source):
+        koji_session = get_koji_session(self.workflow, fallback=NO_FALLBACK)
+
         resolved_modules = {}
-        # The effect of develop=True is that requests to the PDC are made without authentication;
-        # since we our interaction with the PDC is read-only, this is fine for our needs and
-        # makes things simpler.
-        pdc_client = get_pdc_session(self.workflow, self.pdc_fallback)
+        for module in compose_source.strip().split():
+            module_spec = split_module_spec(module)
+            build, rpm_list = get_koji_module_build(koji_session, module_spec)
 
-        for module_spec in compose_source.strip().split():
-            try:
-                module = split_module_spec(module_spec)
-                if not module.version:
-                    raise RuntimeError
-            except RuntimeError:
-                raise RuntimeError("Cannot parse resolved module in compose: %s" % module_spec)
+            # The returned RPM list contains source RPMs and RPMs for all
+            # architectures.
+            rpms = ['{name}-{epochnum}:{version}-{release}.{arch}.rpm'
+                    .format(epochnum=rpm['epoch'] or 0, **rpm)
+                    for rpm in rpm_list]
 
-            query = {
-                'variant_id': module.name,
-                'variant_version': module.stream,
-                'variant_release': module.version,
-                'active': True,
-            }
-
-            self.log.info("Looking up module metadata for '%s' in the PDC", module_spec)
-            retval = pdc_client['unreleasedvariants/'](page_size=-1,
-                                                       fields=['modulemd', 'rpms'], **query)
-            # Error handling
-            if not retval:
-                raise RuntimeError("Failed to find module in PDC %r" % query)
-            if len(retval) != 1:
-                raise RuntimeError("Multiple modules in the PDC matched %r" % query)
-
-            objects = Modulemd.objects_from_string(retval[0]['modulemd'])
+            objects = Modulemd.objects_from_string(
+                build['extra']['typeinfo']['module']['modulemd_str'])
             assert len(objects) == 1
             mmd = objects[0]
             assert isinstance(mmd, Modulemd.Module)
             # Make sure we have a version 2 modulemd file
             mmd.upgrade()
-            rpms = set(retval[0]['rpms'])
 
-            resolved_modules[module.name] = ModuleInfo(module.name, module.stream, module.version,
-                                                       mmd, rpms)
+            resolved_modules[module_spec.name] = ModuleInfo(module_spec.name,
+                                                            module_spec.stream,
+                                                            module_spec.version,
+                                                            mmd, rpms)
         return resolved_modules
 
     def _resolve_compose(self):

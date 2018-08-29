@@ -32,7 +32,7 @@ try:
     from atomic_reactor.plugins.pre_flatpak_create_dockerfile import get_flatpak_source_info
     from atomic_reactor.plugins.pre_resolve_module_compose import get_compose_info
 except ImportError:
-    # modulemd and/or pdc_client not available
+    # modulemd not available
     def get_flatpak_source_info(_):
         return None
 

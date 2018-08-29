@@ -260,22 +260,6 @@
         "additionalProperties": false,
         "required": ["host", "from_address"]
     },
-    "pdc": {
-        "description": "Product Definition Center (PDC) instance",
-        "type": "object",
-        "properties": {
-            "api_url": {
-                "description": "PDC api url, including api version",
-                "type": "string"
-            },
-            "insecure": {
-                "description": "Don't check SSL certificate for api_url",
-                "type": "boolean"
-            }
-        },
-        "additionalProperties": false,
-        "required": ["api_url"]
-    },
     "arrangement_version": {
         "description": "Arrangement version",
         "type": "integer"

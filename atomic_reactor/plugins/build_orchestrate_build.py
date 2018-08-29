@@ -27,7 +27,7 @@ from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import BuildStepPlugin
 from atomic_reactor.plugins.pre_reactor_config import (get_config,
                                                        get_arrangement_version, get_koji,
-                                                       get_odcs, get_pdc, get_pulp,
+                                                       get_odcs, get_pulp,
                                                        get_prefer_schema1_digest, get_smtp,
                                                        get_source_registry, get_sources_command,
                                                        get_artifacts_allowed_domains,
@@ -337,14 +337,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         odcs_map = get_odcs(self.workflow, odcs_fallback)
         self.config_kwargs['odcs_url'] = odcs_map['api_url']
         self.config_kwargs['odcs_insecure'] = odcs_map.get('insecure', False)
-
-        pdc_fallback = {
-            'api_url': self.config_kwargs.get('pdc_url'),
-            'insecure': self.config_kwargs.get('pdc_insecure')
-        }
-        pdc_map = get_pdc(self.workflow, pdc_fallback)
-        self.config_kwargs['pdc_url'] = pdc_map['api_url']
-        self.config_kwargs['pdc_insecure'] = pdc_map.get('insecure', False)
 
         pulp_fallback = {'name': self.config_kwargs.get('pulp_registry_name')}
         pulp_map = get_pulp(self.workflow, pulp_fallback)

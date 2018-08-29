@@ -141,18 +141,6 @@ def get_smtp_session(workflow, fallback):
     return smtplib.SMTP(config['host'])
 
 
-def get_pdc(workflow, fallback=NO_FALLBACK):
-    return get_value(workflow, 'pdc', fallback)
-
-
-def get_pdc_session(workflow, fallback):
-    config = get_pdc(workflow, fallback)
-
-    from pdc_client import PDCClient
-    return PDCClient(server=config['api_url'], ssl_verify=not config.get('insecure', False),
-                     develop=True)
-
-
 def get_arrangement_version(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'arrangement_version', fallback)
 

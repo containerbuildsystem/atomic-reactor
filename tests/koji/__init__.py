@@ -15,6 +15,14 @@ TASK_STATES = {
     'FAILED': 5,
 }
 
+BUILD_STATES = {
+    'BUILDING': 0,
+    'COMPLETE': 1,
+    'DELETED': 2,
+    'FAILED': 3,
+    'CANCELED': 4,
+}
+
 CHECKSUM_TYPES = {
     0: 'md5',
     1: 'sha1',
