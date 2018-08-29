@@ -93,10 +93,6 @@ smtp:
     send_to_submitter: True
     send_to_pkg_owner: True
 
-pdc:
-    api_url: https://pdc.example.com/rest_api/v1
-    insecure: True
-
 arrangement_version: 6
 
 artifacts_allowed_domains:

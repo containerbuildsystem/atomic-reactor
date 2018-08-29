@@ -13,7 +13,6 @@ import responses
 import os
 import pytest
 import six
-from six.moves.urllib.parse import urlparse, parse_qs
 
 from atomic_reactor.inner import DockerBuildWorkflow
 try:
@@ -31,8 +30,24 @@ from atomic_reactor.source import VcsInfo, SourceConfig
 from atomic_reactor.util import ImageName
 from atomic_reactor.constants import REPO_CONTAINER_CONFIG
 
+try:
+    import koji
+except ImportError:
+    import inspect
+    import sys
+
+    # Find our mocked koji module
+    import tests.koji as koji
+    mock_koji_path = os.path.dirname(inspect.getfile(koji.ClientSession))
+    if mock_koji_path not in sys.path:
+        sys.path.append(os.path.dirname(mock_koji_path))
+
+    # Now load it properly, the same way the plugin will
+    del koji
+    import koji
+
 from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
-from tests.fixtures import docker_tasker, reactor_config_map  # noqa
+from tests.fixtures import docker_tasker  # noqa
 from tests.flatpak import FLATPAK_APP_MODULEMD, FLATPAK_APP_RPMS
 from tests.retry_mock import mock_get_retry_session
 
@@ -85,13 +100,19 @@ def mock_workflow(tmpdir):
 MODULE_NAME = 'eog'
 MODULE_STREAM = 'f26'
 MODULE_VERSION = "20170629213428"
+MODULE_CONTEXT = "01234567"
 MODULE_NS = MODULE_NAME + ':' + MODULE_STREAM
 MODULE_NSV = MODULE_NS + ':' + MODULE_VERSION
+MODULE_NSVC = MODULE_NSV + ':' + MODULE_CONTEXT
+MODULE_NVR = MODULE_NAME + "-" + MODULE_STREAM + "-" + MODULE_VERSION + "." + MODULE_CONTEXT
+
 
 ODCS_URL = 'https://odcs.fedoraproject.org/odcs/1'
 
-PDC_URL = 'https://pdc.fedoraproject.org/rest_api/v1'
-LATEST_VERSION_JSON = [{"modulemd": FLATPAK_APP_MODULEMD,
+LATEST_VERSION_JSON = [{"name": MODULE_NAME,
+                        "stream": MODULE_STREAM,
+                        "version": MODULE_VERSION,
+                        "modulemd": FLATPAK_APP_MODULEMD,
                         "rpms": FLATPAK_APP_RPMS}]
 
 
@@ -101,11 +122,74 @@ def compose_json(state, state_name):
         "id": 84,
         "owner": "Unknown",
         "result_repo": "http://odcs.fedoraproject.org/composes/latest-odcs-84-1/compose/Temporary",
-        "source": MODULE_NSV,
+        "source": MODULE_NSVC,
         "source_type": 2,
         "state": state,
         "state_name": state_name
     })
+
+
+def mock_koji_session():
+    session = flexmock()
+
+    (session
+     .should_receive('krb_login')
+     .and_return(True))
+
+    (session
+     .should_receive('getBuild')
+     .with_args(MODULE_NVR)
+     .and_return({
+         'build_id': 1138198,
+         'name': MODULE_NAME,
+         'version': MODULE_STREAM,
+         'release': MODULE_VERSION + "." + MODULE_CONTEXT,
+         'extra': {
+             'typeinfo': {
+                 'module': {
+                     'modulemd_str': FLATPAK_APP_MODULEMD
+                 }
+             }
+         }
+     }))
+
+    (session
+     .should_receive('listArchives')
+     .with_args(buildID=1138198)
+     .and_return(
+        [{'btype': 'module',
+          'build_id': 1138198,
+          'id': 147879}]))
+
+    (session
+     .should_receive('listRPMs')
+     .with_args(imageID=147879)
+     .and_return([
+         {'arch': 'src',
+          'epoch': None,
+          'id': 15197182,
+          'name': 'eog',
+          'release': '1.module_2123+73a9ef6f',
+          'version': '3.28.3'},
+         {'arch': 'x86_64',
+          'epoch': None,
+          'id': 15197187,
+          'metadata_only': False,
+          'name': 'eog',
+          'release': '1.module_2123+73a9ef6f',
+          'version': '3.28.3'},
+         {'arch': 'ppc64le',
+          'epoch': None,
+          'id': 15197188,
+          'metadata_only': False,
+          'name': 'eog',
+          'release': '1.module_2123+73a9ef6f',
+          'version': '3.28.3'},
+     ]))
+
+    (flexmock(koji)
+        .should_receive('ClientSession')
+        .and_return(session))
 
 
 @responses.activate  # noqa - docker_tasker fixture
@@ -119,8 +203,7 @@ def compose_json(state, state_name):
     [MODULE_NSV],
     [MODULE_NSV, 'mod_name2-mod_stream2-mod_version2'],
 ))
-def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules,  # noqa
-                                reactor_config_map):
+def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules):
     secrets_path = os.path.join(str(tmpdir), "secret")
     os.mkdir(secrets_path)
     with open(os.path.join(secrets_path, "token"), "w") as f:
@@ -139,6 +222,7 @@ def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules,  # 
 
     workflow = mock_workflow(tmpdir)
     mock_get_retry_session()
+    mock_koji_session()
 
     def handle_composes_post(request):
         assert request.headers['Authorization'] == 'Bearer green_eggs_and_ham'
@@ -173,33 +257,19 @@ def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules,  # 
                            content_type='application/json',
                            callback=handle_composes_get)
 
-    def handle_unreleasedvariants(request):
-        query = parse_qs(urlparse(request.url).query)
-
-        assert query['variant_id'] == [MODULE_NAME]
-        assert query['variant_version'] == [MODULE_STREAM]
-        assert query['variant_release'] == [MODULE_VERSION]
-
-        return (200, {}, json.dumps(LATEST_VERSION_JSON))
-
-    responses.add_callback(responses.GET, PDC_URL + '/unreleasedvariants/',
-                           content_type='application/json',
-                           callback=handle_unreleasedvariants)
-
     args = {
         'odcs_url': ODCS_URL,
         'odcs_openidc_secret_path': secrets_path,
-        'pdc_url': PDC_URL,
         'compose_ids': compose_ids
     }
 
-    if reactor_config_map:
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1,
-                           'odcs': {'api_url': ODCS_URL,
-                                    'auth': {'openidc_dir': secrets_path}},
-                           'pdc': {'api_url': PDC_URL}})
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+        ReactorConfig({'version': 1,
+                       'odcs': {'api_url': ODCS_URL,
+                                'auth': {'openidc_dir': secrets_path}},
+                       'koji':  {'auth': {},
+                                 'hub_url': 'https://koji.example.com/hub'}})
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -228,3 +298,8 @@ def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules,  # 
         assert compose_info.base_module.stream == MODULE_STREAM
         assert compose_info.base_module.version == MODULE_VERSION
         assert compose_info.base_module.mmd.props.summary == 'Eye of GNOME Application Module'
+        assert compose_info.base_module.rpms == [
+            'eog-0:3.28.3-1.module_2123+73a9ef6f.src.rpm',
+            'eog-0:3.28.3-1.module_2123+73a9ef6f.x86_64.rpm',
+            'eog-0:3.28.3-1.module_2123+73a9ef6f.ppc64le.rpm',
+        ]

@@ -19,12 +19,6 @@ import yaml
 import smtplib
 from copy import deepcopy
 
-try:
-    import pdc_client
-    PDC_AVAILABLE = True
-except ImportError:
-    PDC_AVAILABLE = False
-
 import atomic_reactor
 import koji
 from atomic_reactor.core import DockerTasker
@@ -44,7 +38,6 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        get_pulp_session,
                                                        get_odcs_session,
                                                        get_smtp_session,
-                                                       get_pdc_session,
                                                        get_openshift_session,
                                                        get_clusters_client_config_path,
                                                        get_docker_registry,
@@ -515,7 +508,7 @@ class TestReactorConfigPlugin(object):
 
     @pytest.mark.parametrize('fallback', (True, False, None))
     @pytest.mark.parametrize('method', [
-        'koji', 'pulp', 'odcs', 'smtp', 'pdc', 'arrangement_version',
+        'koji', 'pulp', 'odcs', 'smtp', 'arrangement_version',
         'artifacts_allowed_domains', 'image_labels',
         'image_label_info_url_format', 'image_equal_labels',
         'openshift', 'group_manifests', 'platform_descriptors', 'prefer_schema1_digest',
@@ -1154,54 +1147,6 @@ class TestReactorConfigPlugin(object):
             .and_return(None))
 
         get_smtp_session(workflow, fallback_map)
-
-    @pytest.mark.parametrize('fallback', (True, False))
-    @pytest.mark.parametrize(('config', 'raise_error'), [
-        ("""\
-          version: 1
-          pdc:
-             api_url: https://pdc.example.com/rest_api/v1
-        """, False),
-
-        ("""\
-          version: 1
-          pdc:
-        """, True),
-    ])
-    def test_get_pdc_session(self, fallback, config, raise_error):
-        tasker, workflow = self.prepare()
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-
-        if raise_error:
-            with pytest.raises(Exception):
-                read_yaml(config, 'schemas/config.json')
-            return
-        config_json = read_yaml(config, 'schemas/config.json')
-
-        if not PDC_AVAILABLE:
-            return
-
-        auth_info = {
-            "server": config_json['pdc']['api_url'],
-            "ssl_verify": not config_json['pdc'].get('insecure', False),
-            "develop": True,
-        }
-
-        fallback_map = {}
-        if fallback:
-            fallback_map['api_url'] = config_json['pdc']['api_url']
-            fallback_map['insecure'] = config_json['pdc'].get('insecure', False)
-        else:
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig(config_json)
-
-        (flexmock(pdc_client.PDCClient)
-            .should_receive('__init__')
-            .with_args(**auth_info)
-            .once()
-            .and_return(None))
-
-        get_pdc_session(workflow, fallback_map)
 
     @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize('build_json_dir', [

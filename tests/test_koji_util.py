@@ -29,10 +29,12 @@ except ImportError:
     import koji
 
 from atomic_reactor.koji_util import (koji_login, create_koji_session,
-                                      TaskWatcher, tag_koji_build)
+                                      TaskWatcher, tag_koji_build,
+                                      get_koji_module_build)
 from atomic_reactor import koji_util
 from atomic_reactor.plugin import BuildCanceledException
 from atomic_reactor.constants import HTTP_MAX_RETRIES
+from atomic_reactor.util import split_module_spec
 import flexmock
 import pytest
 
@@ -279,3 +281,121 @@ class TestTagKojiBuild(object):
         else:
             build_tag = tag_koji_build(session, build_id, target_name)
             assert build_tag == tag_name
+
+
+class TestGetKojiModuleBuild(object):
+    def mock_get_rpms(self, session):
+        (session
+            .should_receive('listArchives')
+            .with_args(buildID=1138198)
+            .once()
+            .and_return(
+                [{'btype': 'module',
+                  'build_id': 1138198,
+                  'id': 147879}]))
+        (session
+            .should_receive('listRPMs')
+            .with_args(imageID=147879)
+            .once()
+            .and_return([
+                {'arch': 'src',
+                 'epoch': None,
+                 'id': 15197182,
+                 'name': 'eog',
+                 'release': '1.module_2123+73a9ef6f',
+                 'version': '3.28.3'},
+                {'arch': 'x86_64',
+                 'epoch': None,
+                 'id': 15197187,
+                 'metadata_only': False,
+                 'name': 'eog',
+                 'release': '1.module_2123+73a9ef6f',
+                 'version': '3.28.3'},
+                {'arch': 'ppc64le',
+                 'epoch': None,
+                 'id': 15197188,
+                 'metadata_only': False,
+                 'name': 'eog',
+                 'release': '1.module_2123+73a9ef6f',
+                 'version': '3.28.3'},
+             ]))
+
+    def test_with_context(self):
+        module = 'eog:master:20180821163756:775baa8e'
+        module_koji_nvr = 'eog-master-20180821163756.775baa8e'
+        koji_return = {
+            'build_id': 1138198,
+            'name': 'eog',
+            'version': 'master',
+            'release': '20180821163756.775baa8e',
+            'extra': {
+                'typeinfo': {
+                    'module': {
+                        'modulemd_str': 'document: modulemd\nversion: 2'
+                    }
+                }
+            }
+        }
+
+        spec = split_module_spec(module)
+        session = flexmock()
+        (session
+            .should_receive('getBuild')
+            .with_args(module_koji_nvr)
+            .and_return(koji_return))
+        self.mock_get_rpms(session)
+
+        get_koji_module_build(session, spec)
+
+    @pytest.mark.parametrize(('koji_return', 'should_raise'), [
+        ([{
+            'build_id': 1138198,
+            'name': 'eog',
+            'version': 'master',
+            'release': '20180821163756.775baa8e',
+            'extra': {
+                'typeinfo': {
+                    'module': {
+                        'modulemd_str': 'document: modulemd\nversion: 2'
+                    }
+                }
+            }
+        }], None),
+        ([], "No build found for"),
+        ([{
+            'build_id': 1138198,
+            'name': 'eog',
+            'version': 'master',
+            'release': '20180821163756.775baa8e',
+          },
+          {
+            'build_id': 1138199,
+            'name': 'eog',
+            'version': 'master',
+            'release': '20180821163756.88888888',
+          }],
+         "Multiple builds found for"),
+    ])
+    def test_without_context(self, koji_return, should_raise):
+        module = 'eog:master:20180821163756'
+        spec = split_module_spec(module)
+
+        session = flexmock()
+        (session
+            .should_receive('getPackageID')
+            .with_args('eog')
+            .and_return(303))
+        (session
+            .should_receive('listBuilds')
+            .with_args(packageID=303,
+                       type='module',
+                       state=koji.BUILD_STATES['COMPLETE'])
+            .and_return(koji_return))
+
+        if should_raise:
+            with pytest.raises(Exception) as e:
+                get_koji_module_build(session, spec)
+            assert should_raise in str(e)
+        else:
+            self.mock_get_rpms(session)
+            get_koji_module_build(session, spec)

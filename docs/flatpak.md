@@ -5,7 +5,6 @@ In addition to building docker images from Dockerfiles, atomic-reactor can also 
 Building Flatpaks requires, in addition to a Koji installation:
 
  * A [MBS (module-build-service)](https://pagure.io/fm-orchestrator/) instance set up to build modules in Koji
- * A [PDC (product definition center)](https://github.com/product-definition-center/product-definition-center) instance to store information about the built modules
  * An [ODCS (on demand compose service)](https://pagure.io/odcs/) instance to create repositories for the build modules
 
 A modified version of osbs-box for testing Flatpak building can be found at:
