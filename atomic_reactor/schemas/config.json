@@ -418,6 +418,7 @@
                     "description": "Registry URI including version",
                     "type": "string"
                 },
+                "organization": {"$ref": "#/definitions/organization"},
                 "insecure": {
                     "description": "Don't check SSL certificate for url",
                     "type": "boolean"
@@ -433,6 +434,19 @@
                     },
                     "additionalProperties": false,
                     "required": ["cfg_path"]
+                },
+                "expected_media_types": {
+                    "description": "Expected media types to be found in registry",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": ["application/json",
+                                 "application/vnd.docker.distribution.manifest.v1+json",
+                                 "application/vnd.docker.distribution.manifest.v2+json",
+                                 "application/vnd.docker.distribution.manifest.list.v2+json",
+                                 "application/vnd.oci.image.manifest.v1+json",
+                                 "application/vnd.oci.image.index.v1+json"]
+                    }
                 }
             },
             "additionalProperties": false,
@@ -451,6 +465,7 @@
                 "description": "Registry url",
                 "type": "string"
             },
+            "organization": {"$ref": "#/definitions/organization"},
             "insecure": {
                 "description": "Don't check SSL certificate for url",
                 "type": "boolean"
@@ -494,6 +509,10 @@
     },
     "proxyuser": {
         "description": "Login as different user",
+        "type": "string"
+    },
+    "organization": {
+        "description": "Registry organization",
         "type": "string"
     }
   },
