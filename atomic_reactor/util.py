@@ -47,6 +47,7 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG
                                       PLUGIN_KOJI_PARENT_KEY,
                                       PARENT_IMAGE_BUILDS_KEY, PARENT_IMAGES_KOJI_BUILDS,
                                       BASE_IMAGE_KOJI_BUILD, BASE_IMAGE_BUILD_ID_KEY)
+from atomic_reactor.auth import HTTPRegistryAuth
 
 from dockerfile_parse import DockerfileParser
 from pkg_resources import resource_stream
@@ -703,14 +704,14 @@ class RegistrySession(object):
         self._resolved = None
         self.insecure = insecure
 
-        self.auth = None
+        username = None
+        password = None
         if dockercfg_path:
             dockercfg = Dockercfg(dockercfg_path).get_credentials(registry)
 
             username = dockercfg.get('username')
             password = dockercfg.get('password')
-            if username and password:
-                self.auth = requests.auth.HTTPBasicAuth(username, password)
+        self.auth = HTTPRegistryAuth(username, password)
 
         self._fallback = None
         if re.match('http(s)?://', self.registry):
