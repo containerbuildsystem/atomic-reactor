@@ -11,6 +11,7 @@ from __future__ import print_function, unicode_literals
 import pytest
 from flexmock import flexmock
 
+from atomic_reactor.auth import HTTPRegistryAuth
 from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY
 from atomic_reactor.util import ImageName, ManifestDigest
 from atomic_reactor.core import DockerTasker
@@ -28,7 +29,6 @@ from tempfile import mkdtemp
 import os
 import json
 import requests
-import requests.auth
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -176,7 +176,7 @@ def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir, orch
             if dig in deleted_digests:
                 continue
             url = "https://" + reg + "/v2/" + tag.split(":")[0] + "/manifests/" + dig
-            auth_type = requests.auth.HTTPBasicAuth if req_registries[reg] else None
+            auth_type = HTTPRegistryAuth
             (flexmock(requests.Session)
                 .should_receive('delete')
                 .with_args(url, verify=bool, auth=auth_type)
@@ -255,7 +255,7 @@ def test_delete_from_registry_failures(tmpdir, status_code, reactor_config_map):
             if dig in deleted_digests:
                 continue
             url = "https://" + reg + "/v2/" + tag.split(":")[0] + "/manifests/" + dig
-            auth_type = requests.auth.HTTPBasicAuth if req_registries[reg] else None
+            auth_type = HTTPRegistryAuth
 
             response = requests.Response()
             response.status_code = status_code

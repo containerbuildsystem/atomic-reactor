@@ -1,6 +1,6 @@
 flexmock
 ordereddict
-responses
+responses>=0.9.0
 pytest==3.2.5
 pytest-capturelog==0.7
 pytest-cov==2.5.1
