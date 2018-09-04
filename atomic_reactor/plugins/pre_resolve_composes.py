@@ -10,7 +10,6 @@ from __future__ import unicode_literals
 from datetime import datetime, timedelta
 import os
 import yaml
-import copy
 from collections import defaultdict
 
 from atomic_reactor.constants import (PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
@@ -320,13 +319,12 @@ class ComposeConfig(object):
         self.modules = data.get('modules', [])
         self.pulp = {}
         self.arches = arches or []
-        self.multilib = data.get('with_multilib', False)
-        self.flags = None
 
         if data.get('pulp_repos'):
             for arch in pulp_data or {}:
                 if arch in self.arches:
                     self.pulp[arch] = pulp_data[arch]
+            self.flags = None
             if data.get(UNPUBLISHED_REPOS):
                 self.flags = [UNPUBLISHED_REPOS]
         self.koji_tag = koji_tag
@@ -364,11 +362,7 @@ class ComposeConfig(object):
             'sigkeys': self.signing_intent['keys'],
         }
         if self.arches:
-            arches = copy.copy(self.arches)
-            if self.multilib and 'x86_64' in arches and 'i686' not in arches:
-                arches.append('i686')
-            # sorted to keep flexmock from being confused
-            request['arches'] = sorted(arches)
+            request['arches'] = self.arches
         return request
 
     def render_modules_request(self):
@@ -379,15 +373,12 @@ class ComposeConfig(object):
         }
 
     def render_pulp_request(self, arch):
-        arches = [arch]
-        if self.multilib and arch == 'x86_64':
-            arches = ['i686', 'x86_64']
         return {
             'source_type': 'pulp',
             'source': ' '.join(self.pulp.get(arch, [])),
             'sigkeys': [],
             'flags': self.flags,
-            'arches': arches
+            'arches': [arch]
         }
 
     def validate_for_request(self):
