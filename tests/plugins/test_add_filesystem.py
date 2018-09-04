@@ -391,7 +391,7 @@ def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_err
 
     assert task_result in str(exc)
     # Also ensure getTaskResult exception message is wrapped properly
-    assert 'image task,' in str(exc)
+    assert 'image task failed' in str(exc)
 
     if build_cancel:
         msg = "Build was canceled, canceling task %s" % FILESYSTEM_TASK_ID
