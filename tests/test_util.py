@@ -113,6 +113,36 @@ def test_image_name_format():
         assert image_name.to_str() == expected
 
 
+@pytest.mark.parametrize(('repo', 'organization', 'enclosed_repo'), (
+    ('fedora', 'spam', 'spam/fedora'),
+    ('spam/fedora', 'spam', 'spam/fedora'),
+    ('spam/fedora', 'maps', 'maps/spam-fedora'),
+))
+@pytest.mark.parametrize('registry', (
+    'example.registry.com',
+    'example.registry.com:8888',
+    None,
+))
+@pytest.mark.parametrize('tag', ('bacon', None))
+def test_image_name_enclose(repo, organization, enclosed_repo, registry, tag):
+    reference = repo
+    if tag:
+        reference = '{}:{}'.format(repo, tag)
+    if registry:
+        reference = '{}/{}'.format(registry, reference)
+
+    image_name = ImageName.parse(reference)
+    assert image_name.get_repo() == repo
+    assert image_name.registry == registry
+    assert image_name.tag == (tag or 'latest')
+
+    image_name.enclose(organization)
+    assert image_name.get_repo() == enclosed_repo
+    # Verify that registry and tag are unaffected
+    assert image_name.registry == registry
+    assert image_name.tag == (tag or 'latest')
+
+
 def test_image_name_comparison():
     # make sure that both "==" and "!=" are implemented right on both Python major releases
     i1 = ImageName(registry='foo.com', namespace='spam', repo='bar', tag='1')
