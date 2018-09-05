@@ -125,6 +125,17 @@ class ImageName(object):
     def pulp_repo(self):
         return self.to_str(registry=False, tag=False).replace("/", "-")
 
+    def enclose(self, organization):
+        if self.namespace == organization:
+            return
+
+        repo_parts = [self.repo]
+        if self.namespace:
+            repo_parts.insert(0, self.namespace)
+
+        self.namespace = organization
+        self.repo = '-'.join(repo_parts)
+
     def __str__(self):
         return self.to_str(registry=True, tag=True)
 
