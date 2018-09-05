@@ -551,6 +551,7 @@ class TestReactorConfigPlugin(object):
                 if registry.get('auth'):
                     regdict['secret'] = registry['auth']['cfg_path']
                 regdict['insecure'] = registry.get('insecure', False)
+                regdict['expected_media_types'] = registry.get('expected_media_types', [])
 
                 registries_cm[reguri.docker_uri] = regdict
 
