@@ -10,6 +10,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 from os.path import dirname
+from atomic_reactor.util import ImageName
 
 
 # Stubs for commonly-mocked classes
@@ -75,7 +76,8 @@ class StubInsideBuilder(object):
         return self
 
     def set_parent_inspection_data(self, image, inspection_data):
-        self._parent_inspection_data[image] = inspection_data
+        image_name = ImageName.parse(image)
+        self._parent_inspection_data[image_name] = inspection_data
         return self
 
     def set_source(self, source):

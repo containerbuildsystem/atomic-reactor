@@ -225,6 +225,12 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         except AttributeError:
             dockerfile_contents = ""
 
+        def parent_images_to_str(parent_images):
+            results = {}
+            for base_image_name, parent_image_name in parent_images.items():
+                results[base_image_name.to_str()] = parent_image_name.to_str()
+            return results
+
         annotations = {
             "dockerfile": dockerfile_contents,
             "repositories": json.dumps(self.get_repositories()),
@@ -233,7 +239,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             "base-image-name": base_image_name,
             "image-id": self.workflow.builder.image_id or '',
             "digests": json.dumps(self.get_pullspecs(self.get_digests())),
-            "parent_images": json.dumps(self.workflow.builder.parent_images),
+            "parent_images": json.dumps(parent_images_to_str(self.workflow.builder.parent_images)),
             "plugins-metadata": json.dumps(self.get_plugin_metadata()),
             "filesystem": json.dumps(self.get_filesystem_metadata()),
         }

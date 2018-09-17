@@ -69,11 +69,11 @@ class PullBaseImagePlugin(PreBuildPlugin):
         build_json = get_build_json()
         current_platform = platform.processor() or 'x86_64'
         self.manifest_list_cache = {}
-        for nonce, parent in enumerate(sorted(self.workflow.builder.parent_images.keys())):
-            image = ImageName.parse(parent)
+        for nonce, parent in enumerate(sorted(self.workflow.builder.parent_images.keys(),
+                                              key=str)):
+            image = parent
             is_base_image = False
             # original_base_image is an ImageName, so compare parent as an ImageName also
-            # since image is parent as an ImageName, just use that
             if image == self.workflow.builder.original_base_image:
                 is_base_image = True
                 image = self._resolve_base_image(build_json)
@@ -91,7 +91,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
                 new_image = image
             else:
                 new_image = self._pull_and_tag_image(image, build_json, str(nonce))
-            self.workflow.builder.parent_images[parent] = str(new_image)
+            self.workflow.builder.parent_images[parent] = new_image
 
             if is_base_image:
                 self.workflow.builder.set_base_image(str(new_image),

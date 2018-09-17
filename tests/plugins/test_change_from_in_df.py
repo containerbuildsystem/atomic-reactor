@@ -33,8 +33,9 @@ def mock_workflow():
     workflow = DockerBuildWorkflow(SOURCE, "mock:default_built")
     builder = StubInsideBuilder().for_workflow(workflow)
     builder.set_df_path('/mock-path')
-    builder.parent_images["mock:base"] = "mock:tag"
-    builder.base_image = ImageName.parse("mock:tag")
+    base_image_name = ImageName.parse("mock:tag")
+    builder.parent_images[ImageName.parse("mock:base")] = base_image_name
+    builder.base_image = base_image_name
     builder.tasker = flexmock()
     workflow.builder = flexmock(builder)
 
@@ -63,18 +64,20 @@ def test_update_base_image(tmpdir):
         CMD whoah
     """)
     dfp = df_parser(str(tmpdir))
-    dfp.content = df_content.format("base:image")
-    image_name = "base@sha256:1234"
+    image_str = "base:image"
+    dfp.content = df_content.format(image_str)
+    base_str = "base@sha256:1234"
+    base_image_name = ImageName.parse("base@sha256:1234")
 
     workflow = mock_workflow()
     workflow.builder.set_df_path(dfp.dockerfile_path)
-    workflow.builder.parent_images = {"base:image": image_name}
-    workflow.builder.base_image = ImageName.parse(image_name)
-    workflow.builder.set_parent_inspection_data(image_name, dict(Id="base@sha256:1234"))
-    workflow.builder.tasker.inspect_image = lambda *_: dict(Id="base@sha256:1234")
+    workflow.builder.parent_images = {ImageName.parse(image_str): base_image_name}
+    workflow.builder.base_image = base_image_name
+    workflow.builder.set_parent_inspection_data(base_str, dict(Id=base_str))
+    workflow.builder.tasker.inspect_image = lambda *_: dict(Id=base_str)
 
     run_plugin(workflow)
-    expected_df = df_content.format("base@sha256:1234")
+    expected_df = df_content.format(base_str)
     assert dfp.content == expected_df
 
 
@@ -83,13 +86,14 @@ def test_update_base_image_inspect_broken(tmpdir, caplog):
     df_content = "FROM base:image"
     dfp = df_parser(str(tmpdir))
     dfp.content = df_content
-    image_name = "base@sha256:1234"
+    image_str = "base@sha256:1234"
+    image_name = ImageName.parse(image_str)
 
     workflow = mock_workflow()
     workflow.builder.set_df_path(dfp.dockerfile_path)
-    workflow.builder.parent_images = {"base:image": image_name}
-    workflow.builder.base_image = ImageName.parse(image_name)
-    workflow.builder.set_parent_inspection_data(image_name, dict(no_id="here"))
+    workflow.builder.parent_images = {ImageName.parse("base:image"): image_name}
+    workflow.builder.base_image = image_name
+    workflow.builder.set_parent_inspection_data(image_str, dict(no_id="here"))
 
     with pytest.raises(NoIdInspection):
         ChangeFromPlugin(docker_tasker(), workflow).run()
@@ -108,14 +112,29 @@ def test_update_parent_images(tmpdir):
         COPY --from=builder1 /spam/eggs /bin/eggs
         COPY --from=builder2 /vikings /bin/vikings
     """)
+    expected_df_content = dedent("""\
+        FROM id:1 AS builder1
+        CMD build /spam/eggs
+        FROM id:2 AS builder2
+        CMD build /vikings
+        FROM id:3
+        COPY --from=builder1 /spam/eggs /bin/eggs
+        COPY --from=builder2 /vikings /bin/vikings
+    """)
     dfp = df_parser(str(tmpdir))
     dfp.content = df_content
 
     # maps from dockerfile image to unique tag and then to ID
+    first = ImageName.parse("first:parent")
+    second = ImageName.parse("second:parent")
+    monty = ImageName.parse("monty")
+    build1 = ImageName.parse('build-name:1')
+    build2 = ImageName.parse('build-name:2')
+    build3 = ImageName.parse('build-name:3')
     pimgs = {
-        "first:parent": 'build-name:1',
-        "second:parent": 'build-name:2',
-        "monty": 'build-name:3',
+        first: build1,
+        second: build2,
+        monty: build3,
     }
     img_ids = {
         'build-name:1': 'id:1',
@@ -125,16 +144,13 @@ def test_update_parent_images(tmpdir):
 
     workflow = mock_workflow()
     workflow.builder.set_df_path(dfp.dockerfile_path)
-    workflow.builder.base_image = ImageName.parse(pimgs['monty'])
+    workflow.builder.base_image = ImageName.parse('build-name:3')
     workflow.builder.parent_images = pimgs
     workflow.builder.tasker.inspect_image = lambda img: dict(Id=img_ids[img])
     for image_name, image_id in img_ids.items():
         workflow.builder.set_parent_inspection_data(image_name, dict(Id=image_id))
 
     run_plugin(workflow)
-    expected_df_content = df_content
-    for image, rename in pimgs.items():
-        expected_df_content = expected_df_content.replace(image, img_ids[rename])
     assert dfp.content == expected_df_content
 
 
@@ -146,9 +162,11 @@ def test_parent_images_unresolved(tmpdir):
     workflow = mock_workflow()
     workflow.builder.set_df_path(dfp.dockerfile_path)
     workflow.builder.base_image = ImageName.parse('eggs')
-
     # we want to fail because some img besides base was not resolved
-    workflow.builder.parent_images = {'spam': 'eggs:latest', 'extra:image': None}
+    workflow.builder.parent_images = {
+       ImageName.parse('spam'): ImageName.parse('eggs'),
+       ImageName.parse('extra:image'): None
+    }
 
     with pytest.raises(ParentImageUnresolved):
         ChangeFromPlugin(docker_tasker(), workflow).run()
@@ -165,7 +183,7 @@ def test_parent_images_missing(tmpdir):
 
     workflow = mock_workflow()
     workflow.builder.set_df_path(dfp.dockerfile_path)
-    workflow.builder.parent_images = {"monty": "build-name:3"}
+    workflow.builder.parent_images = {ImageName.parse("monty"): ImageName.parse("build-name:3")}
     workflow.builder.base_image = ImageName.parse("build-name:3")
 
     with pytest.raises(ParentImageMissing):
@@ -179,7 +197,9 @@ def test_parent_images_mismatch_base_image(tmpdir):
     workflow = mock_workflow()
     workflow.builder.set_df_path(dfp.dockerfile_path)
     workflow.builder.base_image = ImageName.parse("base:image")
-    workflow.builder.parent_images = {"base:image": "different-parent-tag"}
+    workflow.builder.parent_images = {
+       ImageName.parse("base:image"): ImageName.parse("different-parent-tag")
+    }
 
     with pytest.raises(BaseImageMismatch):
         ChangeFromPlugin(docker_tasker(), workflow).run()

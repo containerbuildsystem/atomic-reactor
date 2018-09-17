@@ -48,11 +48,11 @@ def test_parent_images(parents_pulled, tmpdir, source_params):
     s = get_source_instance_for(source_params)
     b = InsideBuilder(s, '')
 
-    orig_base = str(b.base_image)
+    orig_base = b.base_image
     assert orig_base in b.parent_images
     assert b.parent_images[orig_base] is None
     b.set_base_image("spam:eggs", parents_pulled=parents_pulled)
-    assert b.parent_images[orig_base] == "spam:eggs"
+    assert b.parent_images[orig_base] == ImageName.parse("spam:eggs")
     assert b._parents_pulled == parents_pulled
 
 

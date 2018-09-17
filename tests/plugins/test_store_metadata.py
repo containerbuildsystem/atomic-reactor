@@ -57,7 +57,7 @@ class X(object):
     source.dockerfile_path = None
     source.path = None
     base_image = ImageName(repo="qwe", tag="asd")
-    parent_images = {base_image.to_str(): "sha256:spamneggs"}
+    parent_images = {base_image: ImageName.parse("sha256:spamneggs")}
     original_base_image = base_image.copy()
     # image = ImageName.parse("test-image:unique_tag_123")
 

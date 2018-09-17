@@ -146,7 +146,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         self.original_base_image = None
         self._base_image_inspect = None
         self._parents_pulled = False
-        self.parent_images = {}  # dockerfile image => locally available image
+        self.parent_images = {}  # dockerfile ImageName => locally available ImageName
         self._parent_images_inspect = {}  # locally available image => inspect
         self.image_id = None
         self.built_image_info = None
@@ -181,13 +181,13 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         logger.debug("base image specified in dockerfile = '%s'", self.base_image)
         self.parent_images.clear()
         for image in dfp.parent_images:
-            self.parent_images[image] = None
+            self.parent_images[ImageName.parse(image)] = None
 
     def set_base_image(self, base_image, parents_pulled=True, insecure=False):
         logger.info("setting base image to '%s'", base_image)
         self.base_image = ImageName.parse(base_image)
         self.original_base_image = self.original_base_image or self.base_image
-        self.parent_images[str(self.original_base_image)] = base_image
+        self.parent_images[self.original_base_image] = self.base_image
         self._parents_pulled = parents_pulled
         self._base_image_insecure = insecure
 
@@ -226,17 +226,17 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
 
         :return: dict
         """
-        if image not in self._parent_images_inspect:
+        image_name = ImageName.parse(image)
+        if image_name not in self._parent_images_inspect:
             if self._parents_pulled:
-                self._parent_images_inspect[image] = self.tasker.inspect_image(image)
+                self._parent_images_inspect[image_name] = self.tasker.inspect_image(image)
             else:
-                image_obj = ImageName.parse(image)
-                self._parent_images_inspect[image] =\
-                    atomic_reactor.util.get_inspect_for_image(image_obj,
-                                                              image_obj.registry,
+                self._parent_images_inspect[image_name] =\
+                    atomic_reactor.util.get_inspect_for_image(image_name,
+                                                              image_name.registry,
                                                               self._base_image_insecure)
 
-        return self._parent_images_inspect[image]
+        return self._parent_images_inspect[image_name]
 
     def inspect_built_image(self):
         """
