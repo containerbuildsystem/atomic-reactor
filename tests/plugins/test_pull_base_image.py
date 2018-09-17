@@ -38,7 +38,13 @@ BASE_IMAGE_W_LIBRARY = "library/" + BASE_IMAGE
 BASE_IMAGE_W_REGISTRY = LOCALHOST_REGISTRY + "/" + BASE_IMAGE
 BASE_IMAGE_W_LIB_REG = LOCALHOST_REGISTRY + "/" + BASE_IMAGE_W_LIBRARY
 BASE_IMAGE_W_SHA = "busybox@sha256:19b0fc5d9581e28baf8d3e40a39bc"
+BASE_IMAGE_NAME = ImageName.parse(BASE_IMAGE)
+BASE_IMAGE_NAME_W_LIBRARY = ImageName.parse(BASE_IMAGE_W_LIBRARY)
+BASE_IMAGE_NAME_W_REGISTRY = ImageName.parse(BASE_IMAGE_W_REGISTRY)
+BASE_IMAGE_NAME_W_LIB_REG = ImageName.parse(BASE_IMAGE_W_LIB_REG)
+BASE_IMAGE_NAME_W_SHA = ImageName.parse(BASE_IMAGE_W_SHA)
 UNIQUE_ID = 'build-name-123'
+UNIQUE_ID_NAME = ImageName.parse(UNIQUE_ID)
 
 
 class MockSource(object):
@@ -51,7 +57,7 @@ class MockBuilder(object):
     source = MockSource()
     base_image = None
     original_base_image = None
-    parent_images = {UNIQUE_ID: None}
+    parent_images = {UNIQUE_ID_NAME: None}
 
     def set_base_image(self, base_image, parents_pulled=True, insecure=False):
         self.base_image = ImageName.parse(base_image)
@@ -133,7 +139,7 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
         'name': PLUGIN_BUILD_ORCHESTRATE_KEY,
         'args': {'platforms': ['x86_64']},
     }]
-    parent_images = parent_images or {df_base: None}
+    parent_images = parent_images or {ImageName.parse(df_base): None}
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image', buildstep_plugins=buildstep_plugin,)
     builder = workflow.builder = MockBuilder()
     builder.base_image = builder.original_base_image = ImageName.parse(df_base)
@@ -197,7 +203,7 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
 
 def test_pull_parent_images(reactor_config_map, inspect_only):  # noqa
     builder_image = "builder:image"
-    parent_images = {BASE_IMAGE: None, builder_image: None}
+    parent_images = {BASE_IMAGE_NAME: None, ImageName.parse(builder_image): None}
     test_pull_base_image_plugin(
         None, BASE_IMAGE,
         [   # expected to pull
@@ -221,7 +227,9 @@ def test_pull_base_wrong_registry(reactor_config_map, inspect_only):  # noqa
 
 
 def test_pull_parent_wrong_registry(reactor_config_map, inspect_only):  # noqa: F811
-    parent_images = {"base:image": None, "some.registry:8888/builder:image": None}
+    parent_images = {
+        ImageName.parse("base:image"): None,
+        ImageName.parse("some.registry:8888/builder:image"): None}
     with pytest.raises(PluginFailedException) as exc:
         test_pull_base_image_plugin(
             'different.registry:5000', "base:image", [], [],
@@ -336,7 +344,7 @@ def test_try_with_library_pull_base_image(library, reactor_config_map):
     else:
         base_image = 'parent-image'
     workflow.builder.base_image = ImageName.parse(base_image)
-    workflow.builder.parent_images = {base_image: None}
+    workflow.builder.parent_images = {ImageName.parse(base_image): None}
 
     class MockResponse(object):
         content = ''

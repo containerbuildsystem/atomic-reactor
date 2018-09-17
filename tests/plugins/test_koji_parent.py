@@ -185,12 +185,11 @@ class TestKojiParent(object):
                                   reactor_config_map=reactor_config_map)
 
     def test_multiple_parent_images(self, workflow, koji_session, reactor_config_map):  # noqa: F811
-        parent_images = dict(
-            somebuilder='b1tag',
-            otherbuilder='b2tag',
-            base='basetag',
-            unresolved=None,
-        )
+        parent_images = {
+            ImageName.parse('somebuilder'): ImageName.parse('b1tag'),
+            ImageName.parse('otherbuilder'): ImageName.parse('b2tag'),
+            ImageName.parse('base'): ImageName.parse('basetag'),
+        }
         koji_builds = dict(
             somebuilder=dict(nvr='somebuilder-1.0-1', id=42),
             otherbuilder=dict(nvr='otherbuilder-2.0-1', id=43),
@@ -198,6 +197,7 @@ class TestKojiParent(object):
             unresolved=None,
         )
         image_inspects = {}
+        koji_expects = {}
 
         # need to load up our mock objects with expected responses for the parents
         for img, build in koji_builds.items():
@@ -208,11 +208,12 @@ class TestKojiParent(object):
             image_inspects[img] = {INSPECT_CONFIG: dict(Labels=labels)}
             (workflow.builder.tasker
                 .should_receive('inspect_image')
-                .with_args(parent_images[img])
+                .with_args(parent_images[ImageName.parse(img)])
                 .and_return(image_inspects[img]))
             (koji_session.should_receive('getBuild')
                 .with_args(koji_builds[img]['nvr'])
                 .and_return(koji_builds[img]))
+            koji_expects[ImageName.parse(img)] = build
 
         workflow.builder.set_base_image('basetag')
         workflow.builder.parent_images = parent_images
@@ -220,7 +221,7 @@ class TestKojiParent(object):
 
         expected = {
             BASE_IMAGE_KOJI_BUILD: koji_builds['base'],
-            PARENT_IMAGES_KOJI_BUILDS: koji_builds,
+            PARENT_IMAGES_KOJI_BUILDS: koji_expects,
         }
         self.run_plugin_with_args(
             workflow, expect_result=expected, reactor_config_map=reactor_config_map

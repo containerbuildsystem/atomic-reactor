@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015-2018 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -10,7 +10,7 @@ Pre-build plugin that changes the parent images used in FROM instructions
 to the more specific names given by the builder.
 """
 from atomic_reactor.plugin import PreBuildPlugin
-from dockerfile_parse import DockerfileParser
+from atomic_reactor.util import ImageName, df_parser
 
 
 class BaseImageMismatch(RuntimeError):
@@ -44,10 +44,10 @@ class ChangeFromPlugin(PreBuildPlugin):
 
     def run(self):
         builder = self.workflow.builder
-        dfp = DockerfileParser(builder.df_path)
+        dfp = df_parser(builder.df_path)
 
-        df_base = dfp.baseimage
-        build_base = builder.base_image.to_str()
+        df_base = ImageName.parse(dfp.baseimage)
+        build_base = builder.base_image
 
         # do some sanity checks to defend against bugs and rogue plugins
 
@@ -65,7 +65,8 @@ class ChangeFromPlugin(PreBuildPlugin):
             # custom plugins modified parent_images; treat it as an error.
             raise ParentImageUnresolved("Parent image(s) unresolved: {}".format(unresolved))
 
-        missing = [df_img for df_img in dfp.parent_images if df_img not in builder.parent_images]
+        missing = [df_img for df_img in dfp.parent_images
+                   if ImageName.parse(df_img) not in builder.parent_images]
         if missing:
             # this would indicate another plugin modified parent_images out of sync
             # with the Dockerfile or some other code bug
@@ -81,12 +82,13 @@ class ChangeFromPlugin(PreBuildPlugin):
                 self.log.error(
                     "Id for image %s is missing in inspection: '%s'",
                     new_img, inspection)
-                raise NoIdInspection("Could not inspect Id for image " + new_img)
+                raise NoIdInspection("Could not inspect Id for image " + str(new_img))
 
         # update the parents in Dockerfile
         new_parents = []
         for parent in dfp.parent_images:
-            pid = parent_image_ids[parent]
+            parent_image = ImageName.parse(parent)
+            pid = parent_image_ids[parent_image]
             self.log.info("changed FROM: '%s' -> '%s'", parent, pid)
             new_parents.append(pid)
         dfp.parent_images = new_parents
@@ -96,5 +98,5 @@ class ChangeFromPlugin(PreBuildPlugin):
         builder.set_base_image(parent_image_ids[df_base])
         self.log.debug(
             "for base image '%s' using local image '%s', id '%s'",
-            df_base, build_base, builder.base_image
+            df_base, build_base, build_base
         )
