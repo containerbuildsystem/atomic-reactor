@@ -10,6 +10,8 @@ Classes which implement tasks which builder has to be capable of doing.
 Logic above these classes has to set the workflow itself.
 """
 import json
+import re
+from textwrap import dedent
 
 import logging
 import docker.errors
@@ -182,6 +184,31 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         self.parent_images.clear()
         for image in dfp.parent_images:
             self.parent_images[image] = None
+
+        # validate user has not specified COPY --from=image
+        builders = []
+        for stmt in dfp.structure:
+            if stmt['instruction'] == 'FROM':
+                # extract "bar" from "foo as bar" and record as build stage
+                match = re.search(r'\S+ \s+  as  \s+ (\S+)', stmt['value'], re.I | re.X)
+                builders.append(match.group(1) if match else None)
+            elif stmt['instruction'] == 'COPY':
+                match = re.search(r'--from=(\S+)', stmt['value'], re.I)
+                if not match:
+                    continue
+                stage = match.group(1)
+                # error unless the --from is the index or name of a stage we've seen
+                if any(stage in [str(idx), builder] for idx, builder in enumerate(builders)):
+                    continue
+                raise RuntimeError(dedent("""\
+                    OSBS does not support COPY --from unless it matches a build stage.
+                    Dockerfile instruction was:
+                      {}
+                    To use an image with COPY --from, specify it in a stage with FROM, e.g.
+                      FROM {} AS source
+                      FROM ...
+                      COPY --from=source <src> <dest>
+                    """).format(stmt['content'], stage))
 
     def set_base_image(self, base_image, parents_pulled=True, insecure=False):
         logger.info("setting base image to '%s'", base_image)
