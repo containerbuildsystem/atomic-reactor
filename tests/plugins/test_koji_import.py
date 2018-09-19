@@ -59,7 +59,7 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
                                       PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY, BASE_IMAGE_KOJI_BUILD,
                                       PARENT_IMAGES_KOJI_BUILDS, BASE_IMAGE_BUILD_ID_KEY,
-                                      PARENT_IMAGE_BUILDS_KEY)
+                                      PLUGIN_VERIFY_MEDIA_KEY, PARENT_IMAGE_BUILDS_KEY)
 from tests.constants import SOURCE, MOCK
 from tests.fixtures import reactor_config_map  # noqa
 from tests.flatpak import MODULEMD_AVAILABLE, setup_flatpak_source_info
@@ -1223,15 +1223,17 @@ class TestKojiImport(object):
          False),
     ])
     @pytest.mark.parametrize('tag_later', (True, False))
-    @pytest.mark.parametrize(('pulp_pull', 'expect_id'), (
-        (['v1'], 'abcdef123456'),
-        (['v1', 'v2'], 'abc123'),
-        (False, 'ab12')
+    @pytest.mark.parametrize(('pulp_pull', 'verify_media', 'expect_id'), (
+        (['v1'], False, 'abcdef123456'),
+        (['v1', 'v2'], False, 'abc123'),
+        (False, ['v1', 'v2', 'v2_list'], 'ab12'),
+        (False, ['v1'], 'ab12'),
+        (False, False, 'ab12')
     ))
     def test_koji_import_success(self, tmpdir, blocksize, apis,
                                  docker_registry, pulp_registries,
                                  target, os_env, has_config, is_autorebuild,
-                                 tag_later, pulp_pull, expect_id,
+                                 tag_later, pulp_pull, verify_media, expect_id,
                                  reactor_config_map):
         session = MockedClientSession('')
         # When target is provided koji build will always be tagged,
@@ -1262,6 +1264,9 @@ class TestKojiImport(object):
         workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_autorebuild
         if pulp_pull:
             workflow.exit_results[PLUGIN_PULP_PULL_KEY] = pulp_pull
+        elif verify_media:
+            workflow.exit_results[PLUGIN_VERIFY_MEDIA_KEY] = verify_media
+        expected_media_types = pulp_pull or verify_media or []
 
         workflow.builder.image_id = expect_id
 
@@ -1324,6 +1329,10 @@ class TestKojiImport(object):
         autorebuild = image['autorebuild']
         assert isinstance(autorebuild, bool)
         assert autorebuild == is_autorebuild
+        if expected_media_types:
+            media_types = image['media_types']
+            assert isinstance(media_types, list)
+            assert sorted(media_types) == sorted(expected_media_types)
 
         for buildroot in buildroots:
             self.validate_buildroot(buildroot)

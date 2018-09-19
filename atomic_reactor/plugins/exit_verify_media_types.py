@@ -10,7 +10,7 @@ the registry expects
 
 from __future__ import unicode_literals
 
-from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY,
+from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_VERIFY_MEDIA_KEY,
                                       MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_SCHEMA1,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
@@ -42,7 +42,7 @@ def verify_v1_image(image, registry, log, insecure=False, dockercfg_path=None):
 
 
 class VerifyMediaTypesPlugin(ExitPlugin):
-    key = 'verify_media_types'
+    key = PLUGIN_VERIFY_MEDIA_KEY
     is_allowed_to_fail = False
 
     def run(self):

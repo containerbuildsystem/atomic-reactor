@@ -92,6 +92,7 @@ PLUGIN_COMPARE_COMPONENTS_KEY = 'compare_components'
 PLUGIN_CHECK_AND_SET_PLATFORMS_KEY = 'check_and_set_platforms'
 PLUGIN_REMOVE_WORKER_METADATA_KEY = 'remove_worker_metadata'
 PLUGIN_RESOLVE_COMPOSES_KEY = 'resolve_composes'
+PLUGIN_VERIFY_MEDIA_KEY = 'verify_media'
 
 # some shared dict keys for build metadata that gets recorded with koji.
 # for consistency of metadata in historical builds, these values basically cannot change.
