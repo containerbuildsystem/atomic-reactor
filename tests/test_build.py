@@ -21,6 +21,7 @@ from tests.constants import (
 )
 from tests.util import requires_internet
 from flexmock import flexmock
+from textwrap import dedent
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -177,6 +178,43 @@ def test_no_base_image(tmpdir):
     with pytest.raises(RuntimeError) as exc:
         b.set_df_path(str(tmpdir))
     assert "no base image specified" in str(exc.value)
+
+
+def test_copy_from_is_blocked(tmpdir):
+    """test when user has specified COPY --from=image (instead of builder)"""
+    dfp = df_parser(str(tmpdir))
+    if MOCK:
+        mock_docker()
+    source = {'provider': 'path', 'uri': 'file://' + str(tmpdir), 'tmpdir': str(tmpdir)}
+
+    dfp.content = dedent("""\
+        FROM monty AS vikings
+        FROM python
+        COPY --from=vikings /spam/eggs /bin/eggs
+        COPY --from=0 /spam/eggs /bin/eggs
+        COPY src dest
+    """)
+    # init calls set_df_path, which should not raise an error:
+    InsideBuilder(get_source_instance_for(source), 'built-img')
+
+    dfp.content = dedent("""\
+        FROM monty as vikings
+        FROM python
+        # using a stage name we haven't seen should break:
+        COPY --from=notvikings /spam/eggs /bin/eggs
+    """)
+    with pytest.raises(RuntimeError) as exc_info:
+        InsideBuilder(get_source_instance_for(source), 'built-img')  # calls set_df_path at init
+    assert "FROM notvikings AS source" in str(exc_info.value)
+
+    dfp.content = dedent("""\
+        FROM monty as vikings
+        # using an index we haven't seen should break:
+        COPY --from=5 /spam/eggs /bin/eggs
+    """)
+    with pytest.raises(RuntimeError) as exc_info:
+        InsideBuilder(get_source_instance_for(source), 'built-img')  # calls set_df_path at init
+    assert "COPY --from=5" in str(exc_info.value)
 
 
 @requires_internet
