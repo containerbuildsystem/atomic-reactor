@@ -73,6 +73,10 @@ class ImageName(object):
     def parse(cls, image_name):
         result = cls()
 
+        if isinstance(image_name, cls):
+            logger.debug("Attempting to parse ImageName %s as an ImageName", image_name)
+            return image_name
+
         # registry.org/namespace/repo:tag
         s = image_name.split('/', 2)
 

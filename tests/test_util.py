@@ -113,6 +113,15 @@ def test_image_name_format():
         assert image_name.to_str() == expected
 
 
+def test_image_name_parse_image_name(caplog):
+    warning = 'Attempting to parse ImageName test:latest as an ImageName'
+    test = ImageName.parse("test")
+    assert warning not in caplog.text()
+    image_test = ImageName.parse(test)
+    assert warning in caplog.text()
+    assert test is image_test
+
+
 @pytest.mark.parametrize(('repo', 'organization', 'enclosed_repo'), (
     ('fedora', 'spam', 'spam/fedora'),
     ('spam/fedora', 'spam', 'spam/fedora'),
