@@ -39,7 +39,8 @@ except ImportError:
 
 from atomic_reactor.constants import (
     PLUGIN_KOJI_IMPORT_PLUGIN_KEY, PLUGIN_PULP_PULL_KEY, PLUGIN_PULP_SYNC_KEY,
-    PLUGIN_FETCH_WORKER_METADATA_KEY, PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_RESOLVE_COMPOSES_KEY
+    PLUGIN_FETCH_WORKER_METADATA_KEY, PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
+    PLUGIN_VERIFY_MEDIA_KEY
 )
 from atomic_reactor.util import (Output, get_build_json,
                                  df_parser, ImageName, get_primary_images,
@@ -205,10 +206,11 @@ class KojiImportPlugin(ExitPlugin):
                 media_types = json.loads(annotations['media-types'])
                 break
 
-        # Append media_types from pulp pull
-        pulp_pull_results = self.workflow.exit_results.get(PLUGIN_PULP_PULL_KEY)
-        if pulp_pull_results:
-            media_types += pulp_pull_results
+        # Append media_types from pulp pull or verify images
+        media_results = (self.workflow.exit_results.get(PLUGIN_PULP_PULL_KEY) or
+                         self.workflow.exit_results.get(PLUGIN_VERIFY_MEDIA_KEY))
+        if media_results:
+            media_types += media_results
 
         if media_types:
             extra['image']['media_types'] = sorted(list(set(media_types)))

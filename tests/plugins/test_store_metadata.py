@@ -22,6 +22,7 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_PULP_PUSH_KEY,
+                                      PLUGIN_VERIFY_MEDIA_KEY,
                                       PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY)
 from atomic_reactor.build import BuildResult
@@ -182,22 +183,30 @@ def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=Fals
     (None, False),
     (['foo', []], 'foo'),
 ))
-@pytest.mark.parametrize(('pulp_pull_results', 'expected_pulp_pull_results'), (
-    ([], False),
-    (Exception(), False),
-    (["application/json"], ["application/json"]),
+@pytest.mark.parametrize(('pulp_pull_results', 'expected_pulp_pull_results',
+                          'verify_media_results', 'expected_media_results'), (
+    ([], False, [], False),
+    (Exception(), False, [], False),
+    (["application/json"], ["application/json"], [], False),
     (["application/json", "application/vnd.docker.distribution.manifest.v1+json"],
-     ["application/json", "application/vnd.docker.distribution.manifest.v1+json"]),
+     ["application/json", "application/vnd.docker.distribution.manifest.v1+json"],
+     [], False),
     (["application/json", "application/vnd.docker.distribution.manifest.v1+json",
       "application/vnd.docker.distribution.manifest.v2+json"],
      ["application/json", "application/vnd.docker.distribution.manifest.v1+json",
-      "application/vnd.docker.distribution.manifest.v2+json"]),
+      "application/vnd.docker.distribution.manifest.v2+json"],
+     [], False),
+    ([], False, ["application/json"], ["application/json"]),
+    ([], False,
+     ["application/json", "application/vnd.docker.distribution.manifest.v1+json"],
+     ["application/json", "application/vnd.docker.distribution.manifest.v1+json"]),
 ))
 def test_metadata_plugin(tmpdir, br_annotations, expected_br_annotations,
                          br_labels, expected_br_labels, koji,
                          help_results, expected_help_results,
                          pulp_push_results, expected_pulp_push_results,
                          pulp_pull_results, expected_pulp_pull_results,
+                         verify_media_results, expected_media_results,
                          reactor_config_map):
     initial_timestamp = datetime.now()
     workflow = prepare(reactor_config_map=reactor_config_map)
@@ -220,6 +229,7 @@ CMD blabla"""
     }
     workflow.exit_results = {
         PulpPullPlugin.key: pulp_pull_results,
+        PLUGIN_VERIFY_MEDIA_KEY: verify_media_results,
     }
     workflow.fs_watcher._data = dict(fs_data=None)
 
@@ -371,15 +381,17 @@ CMD blabla"""
     else:
         assert annotations['v1-image-id'] == expected_pulp_push_results
 
-    if not expected_pulp_pull_results and not expected_pulp_push_results:
-        assert 'media-types' not in annotations
-    else:
+    if expected_pulp_pull_results or expected_pulp_push_results or expected_media_results:
         media_types = []
         if expected_pulp_push_results:
             media_types = ['application/json']
         if expected_pulp_pull_results:
             media_types += pulp_pull_results
+        if expected_media_results:
+            media_types += expected_media_results
         assert sorted(json.loads(annotations['media-types'])) == sorted(list(set(media_types)))
+    else:
+        assert 'media-types' not in annotations
 
 
 @pytest.mark.parametrize(('res'), (

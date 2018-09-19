@@ -14,7 +14,6 @@ from osbs.exceptions import OsbsResponseException
 from osbs.utils import graceful_chain_get
 
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
-from atomic_reactor.plugins.post_pulp_pull import PulpPullPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
 from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
@@ -23,6 +22,8 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY,
+                                      PLUGIN_PULP_PULL_KEY,
+                                      PLUGIN_VERIFY_MEDIA_KEY,
                                       MEDIA_TYPE_DOCKER_V1)
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import get_build_json
@@ -263,13 +264,15 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             media_types += [MEDIA_TYPE_DOCKER_V1]
 
         # pulp_pull may run on worker as a postbuild plugin or on orchestrator as an exit plugin
-        pulp_pull_results = (self.workflow.postbuild_results.get(PulpPullPlugin.key) or
-                             self.workflow.exit_results.get(PulpPullPlugin.key))
-        if isinstance(pulp_pull_results, Exception):
-            pulp_pull_results = None
+        # verify_media_results runs if pulp_pull does not
+        media_results = (self.workflow.postbuild_results.get(PLUGIN_PULP_PULL_KEY) or
+                         self.workflow.exit_results.get(PLUGIN_PULP_PULL_KEY) or
+                         self.workflow.exit_results.get(PLUGIN_VERIFY_MEDIA_KEY))
+        if isinstance(media_results, Exception):
+            media_results = None
 
-        if pulp_pull_results:
-            media_types += pulp_pull_results
+        if media_results:
+            media_types += media_results
 
         if media_types:
             annotations['media-types'] = json.dumps(sorted(list(set(media_types))))
