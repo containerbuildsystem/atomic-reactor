@@ -45,13 +45,18 @@ class OSv3InputPlugin(InputPlugin):
     def get_value(self, name, default=None):
         return self.reactor_env.get(name, default)
 
-    def remove_plugin(self, phase, target_plugin, reason):
+    def find_plugin(self, phase, target_plugin):
         if phase in self.plugins_json:
             for index, plugin in enumerate(self.plugins_json[phase]):
                 if plugin['name'] == target_plugin:
-                    self.log.info('%s: removing %s from phase %s', reason, target_plugin, phase)
-                    del self.plugins_json[phase][index]
-                    break
+                    return index
+        return -1
+
+    def remove_plugin(self, phase, target_plugin, reason):
+        index = self.find_plugin(phase, target_plugin)
+        if index >= 0:
+            self.log.info('%s: removing %s from phase %s', reason, target_plugin, phase)
+            del self.plugins_json[phase][index]
 
     def remove_koji_plugins(self):
         koji_map = self.get_value('koji', {})
@@ -71,12 +76,24 @@ class OSv3InputPlugin(InputPlugin):
                                    'no koji root available')
 
     def remove_pulp_plugins(self):
+        def has_plugin(self, phase, target_plugin):
+            return self.find_plugin(phase, target_plugin) >= 0
+
         phases = ('postbuild_plugins', 'exit_plugins')
         pulp_registry = self.get_value('pulp')
         koji_hub = self.get_value('koji', {}).get('hub_url')
+        has_pulp_pull = False
         for phase in phases:
             if not (pulp_registry and koji_hub):
                 self.remove_plugin(phase, 'pulp_pull', 'no pulp or koji available')
+            else:
+                has_pulp_pull |= has_plugin(self, phase, 'pulp_pull')
+        if self.plugins_json.get('arrangement_version', 0) >= 6:
+            has_verify_media = has_plugin(self, 'exit_plugins', 'verify_media_types')
+            if not (has_verify_media or has_pulp_pull):
+                self.log.warning('exit_pulp_pull or exit_verify_media_types required')
+            elif has_verify_media and has_pulp_pull:
+                self.log.warning('only one of exit_pulp_pull or exit_verify_media_types required')
 
         if not pulp_registry:
             self.remove_plugin('postbuild_plugins', 'pulp_push', 'no pulp available')
