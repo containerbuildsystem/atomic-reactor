@@ -361,3 +361,83 @@ def test_validate_reactor_config_override(override, valid, buildtype):
     else:
         with pytest.raises(ValidationError):
             plugin.run()
+
+
+@pytest.mark.parametrize(('arrangement', 'pulp', 'pulp_phase', 'verify_media', 'error_msg'), [
+    # verify media is never an option for arrangement 5
+    (5, False, None, False, None),
+    (5, True, None, False, None),
+    (5, True, 'postbuild_plugins', False, None),
+    (5, False, 'postbuild_plugins', False, None),
+    (6, False, None, False, 'exit_pulp_pull or exit_verify_media_types required'),
+    (6, True, None, False, 'exit_pulp_pull or exit_verify_media_types required'),
+    (6, False, 'exit_plugins', False, 'exit_pulp_pull or exit_verify_media_types required'),
+    (6, True, 'exit_plugins', False, None),
+    (6, False, None, True, None),
+    (6, True, None, True, None),
+    (6, False, 'exit_plugins', True, None),
+    (6, True, 'exit_plugins', True,
+     'only one of exit_pulp_pull or exit_verify_media_types required'),
+])
+def test_verify_media_warnings(arrangement, pulp, pulp_phase, verify_media, error_msg, caplog):
+    postbuild = []
+    if pulp_phase == 'postbuild_plugins':
+        postbuild.append({'name': 'pulp_pull'})
+    exit_phase = []
+    if pulp_phase == 'exit_plugins':
+        exit_phase.append({'name': 'pulp_pull'})
+    if verify_media:
+        exit_phase.append({'name': 'verify_media_types'})
+    plugins_json = {
+        'arrangement_version': arrangement,
+        'build_json_dir': 'inputs',
+        'build_type': 'orchestrator',
+        'git_ref': 'test',
+        'git_uri': 'test',
+        'user': 'user',
+        'postbuild_plugins': postbuild,
+        'exit_plugins': exit_phase
+    }
+
+    if pulp:
+        minimal_config = dedent("""\
+            version: 1
+            pulp:
+                name: my-pulp
+                auth:
+                    password: testpasswd
+                    username: testuser
+            koji:
+                hub_url: https://koji.com/hub
+                root_url: https://koji.com/hub
+                auth:
+                    ssl_certs_dir: testpasswd
+                    proxyuser: testuser
+            registries:
+            - url: https://container-registry.example.com/v1
+            auth:
+                cfg_path: /var/run/secrets/atomic-reactor/v1-registry-dockercfg
+        """)
+    else:
+        minimal_config = dedent("""\
+            version: 1
+        """)
+
+    mock_env = {
+        'BUILD': '{}',
+        'SOURCE_URI': 'https://github.com/foo/bar.git',
+        'SOURCE_REF': 'master',
+        'OUTPUT_IMAGE': 'asdf:fdsa',
+        'OUTPUT_REGISTRY': 'localhost:5000',
+        'USER_PARAMS': json.dumps(plugins_json),
+        'REACTOR_CONFIG': minimal_config
+    }
+    flexmock(os, environ=mock_env)
+    enable_plugins_configuration(plugins_json)
+
+    plugin = OSv3InputPlugin()
+    plugin.run()
+    if error_msg:
+        assert error_msg in caplog.text()
+    else:
+        assert 'exit_verify_media_types' not in caplog.text()
