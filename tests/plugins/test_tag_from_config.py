@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 from flexmock import flexmock
+from textwrap import dedent
 
 import pytest
 import os.path
@@ -16,6 +17,8 @@ from atomic_reactor.build import BuildResult
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_tag_from_config import TagFromConfigPlugin
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin, ReactorConfig,
+                                                       WORKSPACE_CONF_KEY)
 from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.constants import INSPECT_CONFIG
 from tests.constants import (MOCK_SOURCE, MOCK, IMPORTED_IMAGE_ID)
@@ -198,3 +201,56 @@ def test_tag_parse(tmpdir, docker_tasker, unique_tags, primary_tags, expected):
     else:
         with pytest.raises(PluginFailedException):
             runner.run()
+
+
+@pytest.mark.parametrize(('name', 'organization', 'expected'), (  # noqa:F811
+    ('etcd', None, 'etcd'),
+    ('etcd', 'org', 'org/etcd'),
+    ('custom/etcd', None, 'custom/etcd'),
+    ('custom/etcd', 'org', 'org/custom-etcd'),
+))
+def test_tags_enclosed(tmpdir, docker_tasker, name, organization, expected):
+    df = df_parser(str(tmpdir))
+    df.content = dedent("""\
+        FROM fedora
+        LABEL "name"="{}"
+        LABEL "version"="1.7"
+        LABEL "release"="99"
+    """.format(name))
+
+    workflow = mock_workflow(tmpdir)
+    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    workflow.build_result = BuildResult.make_remote_image_result()
+
+    if organization:
+        reactor_config = ReactorConfig({
+            'version': 1,
+            'registries_organization': organization
+        })
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {WORKSPACE_CONF_KEY: reactor_config}
+
+    input_tags = {
+        'unique': ['foo', 'bar'],
+        'primary': ['{version}', '{version}-{release}'],
+    }
+
+    runner = PostBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{'name': TagFromConfigPlugin.key,
+          'args': {'tag_suffixes': input_tags}}]
+    )
+
+    results = runner.run()
+    plugin_result = results[TagFromConfigPlugin.key]
+
+    expected_tags = ['{}:{}'.format(expected, tag) for tag in ['foo', 'bar', '1.7', '1.7-99']]
+    # Plugin should return the tags we expect
+    assert plugin_result == expected_tags
+
+    # Workflow should have the expected tags configured
+    for tag in expected_tags:
+        assert any(tag == str(image) for image in workflow.tag_conf.images)
+
+    # Workflow should not have any other tags configured
+    assert len(workflow.tag_conf.images) == len(expected_tags)
