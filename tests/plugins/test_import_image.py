@@ -35,7 +35,8 @@ if MOCK:
 TEST_IMAGESTREAM = "library-imagestream1"
 TEST_REGISTRY = "registry.example.com"
 TEST_NAME_LABEL = "library/imagestream1"
-TEST_REPO = TEST_REGISTRY + "/" + TEST_NAME_LABEL
+TEST_REPO = 'imagestream1'
+TEST_REPO_WITH_REGISTRY = '{}/{}'.format(TEST_REGISTRY, TEST_REPO)
 
 
 class X(object):
@@ -79,15 +80,13 @@ def prepare(tmpdir, insecure_registry=None, namespace=None,  # noqa:F811
     df.write('LABEL name={}'.format(TEST_NAME_LABEL))
     setattr(workflow.builder, 'df_path', str(df))
 
-    version_release_primary_image = 'registry.example.com/fedora:version-release'
-
     annotations = None
     if primary_images_annotations:
         primary_images = [
-            'registry.example.com/fedora:annotation_{}'.format(x)
+            '{}:annotation_{}'.format(TEST_REPO_WITH_REGISTRY, x)
             for x in range(primary_images_annotations)
         ]
-        primary_images.append(version_release_primary_image)
+        primary_images.append('{}:version-release'.format(TEST_REPO_WITH_REGISTRY))
         annotations = {'repositories': {'primary': primary_images}}
         annotations
     build_result = BuildResult(annotations=annotations, image_id='foo')
@@ -95,10 +94,10 @@ def prepare(tmpdir, insecure_registry=None, namespace=None,  # noqa:F811
 
     if primary_images_tag_conf:
         primary_images = [
-            'registry.example.com/fedora:tag_conf_{}'.format(x)
+            '{}:tag_conf_{}'.format(TEST_REPO, x)
             for x in range(primary_images_tag_conf)
         ]
-        primary_images.append(version_release_primary_image)
+        primary_images.insert(0, '{}:version-release'.format(TEST_REPO))
         workflow.tag_conf.add_primary_images(primary_images)
 
     fake_conf = osbs.conf.Configuration(conf_file=None, openshift_url='/')
@@ -131,7 +130,7 @@ def prepare(tmpdir, insecure_registry=None, namespace=None,  # noqa:F811
             })
     else:
         plugin_args.update({
-            'docker_image_repo': TEST_REPO,
+            'docker_image_repo': TEST_REPO_WITH_REGISTRY,
             'url': '/',
             'build_json_dir': "/var/json_dir",
             'verify_ssl': not insecure_registry,
@@ -198,7 +197,7 @@ def test_create_image(tmpdir, insecure_registry, namespace, monkeypatch, reactor
     (flexmock(OSBS)
      .should_receive('create_image_stream')
      .once()
-     .with_args(TEST_IMAGESTREAM, TEST_REPO, **kwargs)
+     .with_args(TEST_IMAGESTREAM, TEST_REPO_WITH_REGISTRY, **kwargs)
      .and_return(ImageStreamResponse()))
     (flexmock(OSBS)
      .should_receive('ensure_image_stream_tag')
@@ -213,6 +212,8 @@ def test_create_image(tmpdir, insecure_registry, namespace, monkeypatch, reactor
 @pytest.mark.parametrize(('tag_conf', 'annotations', 'tag_prefix'), (
     (DEFAULT_TAGS_AMOUNT, 0, 'tag_conf_'),
     (DEFAULT_TAGS_AMOUNT, DEFAULT_TAGS_AMOUNT, 'tag_conf_'),
+    # Legacy behavior where tag_conf is not populated. Instead, plugin
+    # retrieves info from 'repositories' build_result annotation
     (0, DEFAULT_TAGS_AMOUNT, 'annotation_'),
 ))
 @pytest.mark.parametrize(('osbs_error'), [True, False])
@@ -365,7 +366,7 @@ def test_exception_during_create(tmpdir, monkeypatch, reactor_config_map):  # no
     (flexmock(OSBS)
      .should_receive('create_image_stream')
      .once()
-     .with_args(TEST_IMAGESTREAM, TEST_REPO)
+     .with_args(TEST_IMAGESTREAM, TEST_REPO_WITH_REGISTRY)
      .and_raise(RuntimeError))
     (flexmock(OSBS)
      .should_receive('import_image')
@@ -391,7 +392,7 @@ def test_exception_during_import(tmpdir, monkeypatch, reactor_config_map):  # no
     (flexmock(OSBS)
      .should_receive('create_image_stream')
      .once()
-     .with_args(TEST_IMAGESTREAM, TEST_REPO)
+     .with_args(TEST_IMAGESTREAM, TEST_REPO_WITH_REGISTRY)
      .and_raise(RuntimeError))
     (flexmock(OSBS)
      .should_receive('import_image')
