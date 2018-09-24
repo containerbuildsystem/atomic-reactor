@@ -10,8 +10,9 @@ import os
 import re
 
 from atomic_reactor.plugin import PostBuildPlugin
+from atomic_reactor.plugins.pre_reactor_config import get_registries_organization
 from atomic_reactor.constants import INSPECT_CONFIG, TAG_NAME_REGEX
-from atomic_reactor.util import df_parser, LabelFormatter
+from atomic_reactor.util import df_parser, LabelFormatter, ImageName
 from osbs.utils import Labels
 
 
@@ -110,6 +111,13 @@ class TagFromConfigPlugin(PostBuildPlugin):
         except KeyError:
             self.log.error('Unable to determine component from "Labels"')
             raise
+
+        organization = get_registries_organization(self.workflow)
+        if organization:
+            image = ImageName.parse(name)
+            image.enclose(organization)
+            name = image.get_repo()
+
         return name
 
     def run(self):
