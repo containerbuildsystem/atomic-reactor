@@ -11,9 +11,8 @@ from __future__ import unicode_literals
 from osbs.exceptions import OsbsResponseException
 
 from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
-from atomic_reactor.util import get_primary_images, df_parser
+from atomic_reactor.util import get_primary_images, ImageName
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session, get_source_registry
-from osbs.utils import Labels
 
 
 # Note: We use multiple inheritance here only to make it explicit that
@@ -50,8 +49,6 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
         super(ImportImagePlugin, self).__init__(tasker, workflow)
         self.imagestream_name = imagestream
 
-        self.docker_image_repo = self.resolve_docker_image_repo(docker_image_repo)
-
         self.openshift_fallback = {
             'url': url,
             'insecure': not verify_ssl,
@@ -64,12 +61,21 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
 
         self.osbs = None
         self.imagestream = None
+        self.primary_images = None
+        self.docker_image_repo = None
+        self.docker_image_repo_fallback = docker_image_repo
 
     def run(self):
         # Only run if the build was successful
         if self.workflow.build_process_failed:
             self.log.info("Not importing failed build")
             return
+
+        self.primary_images = get_primary_images(self.workflow)
+        if not self.primary_images:
+            raise RuntimeError('Could not find primary images in workflow')
+
+        self.resolve_docker_image_repo()
 
         self.osbs = get_openshift_session(self.workflow, self.openshift_fallback)
         self.get_or_create_imagestream()
@@ -111,12 +117,8 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
             raise RuntimeError('Failed to import ImageStreamTag(s). Check logs')
 
     def get_trackable_tags(self):
-        primary_images = get_primary_images(self.workflow)
-        if not primary_images:
-            raise RuntimeError('Could not find primary images in workflow')
-
         tags = []
-        for primary_image in primary_images:
+        for primary_image in self.primary_images:
             tag = primary_image.tag
             if '-' in tag:
                 self.log.info('Skipping non-transient tag, %s', tag)
@@ -125,18 +127,17 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
 
         return tags
 
-    def resolve_docker_image_repo(self, docker_image_repo_fallback):
+    def resolve_docker_image_repo(self):
         # The plugin parameter docker_image_repo is actually a combination
         # of source_registry_uri and name label. Thus, the fallback case must
         # be handled in a non-generic way.
         try:
             source_registry = get_source_registry(self.workflow)
         except KeyError:
-            return docker_image_repo_fallback
+            image = ImageName.parse(self.docker_image_repo_fallback)
+        else:
+            registry = source_registry['uri'].docker_uri
+            image = self.primary_images[0]
+            image.registry = registry
 
-        registry = source_registry['uri'].docker_uri
-
-        labels = Labels(df_parser(self.workflow.builder.df_path).labels)
-        _, name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)
-
-        return '/'.join([registry, name])
+        self.docker_image_repo = image.to_str(registry=True, tag=False)
