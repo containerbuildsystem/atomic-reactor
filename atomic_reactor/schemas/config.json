@@ -392,6 +392,7 @@
             "enum": ["v1", "v2"]
         }
     },
+    "registries_organization": {"$ref": "#/definitions/organization"},
     "registries": {
         "description": "Container registries to output images",
         "type": "array",
@@ -402,7 +403,6 @@
                     "description": "Registry URI including version",
                     "type": "string"
                 },
-                "organization": {"$ref": "#/definitions/organization"},
                 "insecure": {
                     "description": "Don't check SSL certificate for url",
                     "type": "boolean"

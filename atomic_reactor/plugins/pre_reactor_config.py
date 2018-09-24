@@ -217,6 +217,10 @@ def get_content_versions(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'content_versions', fallback)
 
 
+def get_registries_organization(workflow):
+    return get_config(workflow).conf.get('registries_organization')
+
+
 def get_registries(workflow, fallback=NO_FALLBACK):
     try:
         all_registries = get_config(workflow).conf['registries']
