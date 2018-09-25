@@ -55,8 +55,8 @@ class ChangeFromPlugin(PreBuildPlugin):
             # something updated parent_images entry for base without updating
             # the build's base_image; treat it as an error
             raise BaseImageMismatch(
-                "Parent image '{}' does not match base_image '{}'"
-                .format(builder.parent_images[df_base], build_base)
+                "Parent image '{}' for df_base {} does not match base_image '{}'"
+                .format(builder.parent_images[df_base], df_base, build_base)
             )
 
         unresolved = [key for key, val in builder.parent_images.items() if not val]

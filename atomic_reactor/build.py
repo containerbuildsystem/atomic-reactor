@@ -211,12 +211,14 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
                     """).format(stmt['content'], stage))
 
     def set_base_image(self, base_image, parents_pulled=True, insecure=False):
-        logger.info("setting base image to '%s'", base_image)
         self.base_image = ImageName.parse(base_image)
         self.original_base_image = self.original_base_image or self.base_image
         self.parent_images[self.original_base_image] = self.base_image
         self._parents_pulled = parents_pulled
         self._base_image_insecure = insecure
+        logger.info("set base image to '%s' with original base '%s'", self.base_image,
+                    self.original_base_image)
+
 
     # inspect base image lazily just before it's needed - pre plugins may change the base image
     @property
