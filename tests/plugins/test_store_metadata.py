@@ -57,9 +57,18 @@ class X(object):
     source.dockerfile_path = None
     source.path = None
     base_image = ImageName(repo="qwe", tag="asd")
-    parent_images = {base_image: ImageName.parse("sha256:spamneggs")}
+    parent_images = {
+       base_image: ImageName.parse("sha256:spamneggs"),
+       ImageName.parse("sha256:spamneggs"): None,
+    }
     original_base_image = base_image.copy()
     # image = ImageName.parse("test-image:unique_tag_123")
+
+    def parent_images_to_str(self):
+        results = {
+            "qwe:asd": "sha256:spamneggs"
+        }
+        return results
 
 
 class XBeforeDockerfile(object):
@@ -69,6 +78,9 @@ class XBeforeDockerfile(object):
     source.path = None
     base_image = None
     parent_images = {}
+
+    def parent_images_to_str(self):
+        return {}
 
     @property
     def df_path(self):
@@ -144,7 +156,7 @@ def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=Fals
         setattr(workflow, 'builder', XBeforeDockerfile())
         setattr(workflow.builder, 'base_image_inspect', {})
     else:
-        setattr(workflow, 'builder', X)
+        setattr(workflow, 'builder', X())
         setattr(workflow.builder, 'base_image_inspect', {'Id': '01234567'})
         workflow.build_logs = [
             "a", "b",
@@ -207,7 +219,6 @@ RUN yum install -y python-django
 CMD blabla"""
     df = df_parser(str(tmpdir))
     df.content = df_content
-    workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
 
@@ -426,7 +437,6 @@ RUN yum install -y python-django
 CMD blabla"""
     df = df_parser(str(tmpdir))
     df.content = df_content
-    workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
 
@@ -492,7 +502,6 @@ RUN yum install -y python-django
 CMD blabla"""
     df = df_parser(str(tmpdir))
     df.content = df_content
-    workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
 
@@ -527,7 +536,6 @@ RUN yum install -y python-django
 CMD blabla"""
     df = df_parser(str(tmpdir))
     df.content = df_content
-    workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
 
@@ -580,7 +588,6 @@ RUN yum install -y python-django
 CMD blabla"""
     df = df_parser(str(tmpdir))
     df.content = df_content
-    workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
 
@@ -668,7 +675,6 @@ RUN yum install -y python-django
 CMD blabla"""
     df = df_parser(str(tmpdir))
     df.content = df_content
-    workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
 
@@ -732,7 +738,6 @@ RUN yum install -y python-django
 CMD blabla"""
     df = df_parser(str(tmpdir))
     df.content = df_content
-    workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
 
@@ -768,7 +773,6 @@ RUN yum install -y python-django
 CMD blabla"""
     df = df_parser(str(tmpdir))
     df.content = df_content
-    workflow.builder = X
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
 
