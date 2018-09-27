@@ -219,7 +219,6 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         logger.info("set base image to '%s' with original base '%s'", self.base_image,
                     self.original_base_image)
 
-
     # inspect base image lazily just before it's needed - pre plugins may change the base image
     @property
     def base_image_inspect(self):
@@ -317,3 +316,15 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
             logger.error("multiple (%d) images found for image '%s'", items_count, self.image)
             raise RuntimeError("multiple (%d) images found for image '%s'" % (items_count,
                                                                               self.image))
+
+    def parent_images_to_str(self):
+        results = {}
+        for base_image_name, parent_image_name in self.parent_images.items():
+            base_str = str(base_image_name)
+            parent_str = str(parent_image_name)
+            if base_image_name and parent_image_name:
+                results[base_str] = parent_str
+            else:
+                logger.debug("None in: base {} has parent {}".format(base_str, parent_str))
+
+        return results

@@ -293,3 +293,18 @@ def test_build_result():
     assert not BuildResult.make_remote_image_result().is_image_available()
 
     assert not BuildResult.make_remote_image_result().is_failed()
+
+
+def test_parent_images_to_str(tmpdir, caplog):
+    if MOCK:
+        mock_docker()
+
+    source = {'provider': 'path', 'uri': 'file://' + DOCKERFILE_OK_PATH, 'tmpdir': str(tmpdir)}
+    b = InsideBuilder(get_source_instance_for(source), 'built-img')
+    b.set_base_image("spam")
+    b.parent_images["bacon"] = None
+    expected_results = {
+        "fedora:latest": "spam:latest"
+    }
+    assert b.parent_images_to_str() == expected_results
+    assert "None in: base bacon has parent None" in caplog.text()
