@@ -10,7 +10,8 @@ from __future__ import print_function, unicode_literals
 from atomic_reactor.build import ImageName
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
-from atomic_reactor.plugins.pre_reactor_config import get_koji_session
+from atomic_reactor.plugins.pre_reactor_config import (get_koji_session,
+                                                       get_registries_organization)
 from osbs.utils import graceful_chain_get
 from atomic_reactor.constants import PLUGIN_INJECT_PARENT_IMAGE_KEY
 
@@ -69,6 +70,7 @@ class InjectParentImage(PreBuildPlugin):
     def run(self):
         self.find_repositories()
         self.select_new_parent_image()
+        self.adjust_new_parent_image()
         self.validate_new_parent_image()
         self.set_new_parent_image()
         return self._koji_parent_build_info['id']
@@ -113,6 +115,19 @@ class InjectParentImage(PreBuildPlugin):
             self._new_parent_image = self._repositories[0]
 
         self.log.info('New parent image is %s', self._new_parent_image)
+
+    def adjust_new_parent_image(self):
+        organization = get_registries_organization(self.workflow)
+        new_parent_image = ImageName.parse(self._new_parent_image)
+
+        if new_parent_image.registry != self.workflow.builder.base_image.registry:
+            new_parent_image.registry = self.workflow.builder.base_image.registry
+
+        if organization:
+            self.workflow.builder.base_image.enclose(organization)
+            new_parent_image.enclose(organization)
+
+        self._new_parent_image = new_parent_image.to_str()
 
     def validate_new_parent_image(self):
         current_repo = self.workflow.builder.base_image.to_str(registry=False, tag=False)

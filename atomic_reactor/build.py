@@ -210,9 +210,22 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
                       COPY --from=source <src> <dest>
                     """).format(stmt['content'], stage))
 
+    def recreate_parent_images(self):
+        # recreate parent_images to update hashes
+        # when ImageName key is added to parent_images
+        # the hash for key is calculated
+        # but later when we are enclosing that ImageName key
+        # it won't automatically rehash
+        parent_images = {}
+        for key, val in self.parent_images.items():
+            parent_images[key] = val
+        self.parent_images = parent_images
+
     def set_base_image(self, base_image, parents_pulled=True, insecure=False):
         self.base_image = ImageName.parse(base_image)
         self.original_base_image = self.original_base_image or self.base_image
+        self.recreate_parent_images()
+
         self.parent_images[self.original_base_image] = self.base_image
         self._parents_pulled = parents_pulled
         self._base_image_insecure = insecure

@@ -26,7 +26,8 @@ from atomic_reactor.util import (get_build_json, get_manifest_list,
 from atomic_reactor.core import RetryGeneratorException
 from atomic_reactor.plugins.pre_reactor_config import (get_source_registry,
                                                        get_platform_to_goarch_mapping,
-                                                       get_goarch_to_platform_mapping)
+                                                       get_goarch_to_platform_mapping,
+                                                       get_registries_organization)
 from requests.exceptions import HTTPError, RetryError, Timeout
 from osbs.utils import RegistryURI
 
@@ -69,6 +70,8 @@ class PullBaseImagePlugin(PreBuildPlugin):
         build_json = get_build_json()
         current_platform = platform.processor() or 'x86_64'
         self.manifest_list_cache = {}
+        organization = get_registries_organization(self.workflow)
+
         for nonce, parent in enumerate(sorted(self.workflow.builder.parent_images.keys(),
                                               key=str)):
             image = parent
@@ -79,6 +82,10 @@ class PullBaseImagePlugin(PreBuildPlugin):
                 image = self._resolve_base_image(build_json)
 
             image = self._ensure_image_registry(image)
+
+            if organization:
+                image.enclose(organization)
+                parent.enclose(organization)
 
             if self.check_platforms:
                 self._validate_platforms_in_image(image)
@@ -91,9 +98,13 @@ class PullBaseImagePlugin(PreBuildPlugin):
                 new_image = image
             else:
                 new_image = self._pull_and_tag_image(image, build_json, str(nonce))
+            self.workflow.builder.recreate_parent_images()
             self.workflow.builder.parent_images[parent] = new_image
 
             if is_base_image:
+                if organization:
+                    # we want to be sure we have original_base_image enclosed as well
+                    self.workflow.builder.original_base_image.enclose(organization)
                 self.workflow.builder.set_base_image(str(new_image),
                                                      parents_pulled=not self.inspect_only,
                                                      insecure=self.parent_registry_insecure)

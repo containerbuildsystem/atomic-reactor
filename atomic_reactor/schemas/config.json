@@ -449,7 +449,6 @@
                 "description": "Registry url",
                 "type": "string"
             },
-            "organization": {"$ref": "#/definitions/organization"},
             "insecure": {
                 "description": "Don't check SSL certificate for url",
                 "type": "boolean"

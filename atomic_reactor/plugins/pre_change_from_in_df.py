@@ -11,6 +11,7 @@ to the more specific names given by the builder.
 """
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import ImageName, df_parser
+from atomic_reactor.plugins.pre_reactor_config import get_registries_organization
 
 
 class BaseImageMismatch(RuntimeError):
@@ -46,7 +47,10 @@ class ChangeFromPlugin(PreBuildPlugin):
         builder = self.workflow.builder
         dfp = df_parser(builder.df_path)
 
+        organization = get_registries_organization(self.workflow)
         df_base = ImageName.parse(dfp.baseimage)
+        if organization:
+            df_base.enclose(organization)
         build_base = builder.base_image
 
         # do some sanity checks to defend against bugs and rogue plugins
@@ -58,15 +62,23 @@ class ChangeFromPlugin(PreBuildPlugin):
                 "Parent image '{}' for df_base {} does not match base_image '{}'"
                 .format(builder.parent_images[df_base], df_base, build_base)
             )
-
+        self.log.info("parent_images '%s'", builder.parent_images)
         unresolved = [key for key, val in builder.parent_images.items() if not val]
         if unresolved:
             # this would generally mean pull_base_image didn't run and/or
             # custom plugins modified parent_images; treat it as an error.
             raise ParentImageUnresolved("Parent image(s) unresolved: {}".format(unresolved))
 
-        missing = [df_img for df_img in dfp.parent_images
-                   if ImageName.parse(df_img) not in builder.parent_images]
+        # enclose images from dfp
+        enclosed_parent_images = []
+        for df_img in dfp.parent_images:
+            parent = ImageName.parse(df_img)
+            if organization:
+                parent.enclose(organization)
+            enclosed_parent_images.append(parent)
+
+        missing = [df_img for df_img in enclosed_parent_images
+                   if df_img not in builder.parent_images]
         if missing:
             # this would indicate another plugin modified parent_images out of sync
             # with the Dockerfile or some other code bug
@@ -86,9 +98,8 @@ class ChangeFromPlugin(PreBuildPlugin):
 
         # update the parents in Dockerfile
         new_parents = []
-        for parent in dfp.parent_images:
-            parent_image = ImageName.parse(parent)
-            pid = parent_image_ids[parent_image]
+        for parent in enclosed_parent_images:
+            pid = parent_image_ids[parent]
             self.log.info("changed FROM: '%s' -> '%s'", parent, pid)
             new_parents.append(pid)
         dfp.parent_images = new_parents
