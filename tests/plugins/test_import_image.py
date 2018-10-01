@@ -60,7 +60,7 @@ DEFAULT_TAGS_AMOUNT = 6
 def prepare(tmpdir, insecure_registry=None, namespace=None,  # noqa:F811
             primary_images_tag_conf=DEFAULT_TAGS_AMOUNT,
             primary_images_annotations=DEFAULT_TAGS_AMOUNT, build_process_failed=False,
-            reactor_config_map=False):
+            organization=None, reactor_config_map=False,):
     """
     Boiler-plate test set-up
     """
@@ -126,7 +126,8 @@ def prepare(tmpdir, insecure_registry=None, namespace=None,  # noqa:F811
             ReactorConfig({
                 'version': 1,
                 'openshift': openshift_map,
-                'source_registry': source_registry_map
+                'source_registry': source_registry_map,
+                'registries_organization': organization,
             })
     else:
         plugin_args.update({
@@ -171,13 +172,15 @@ def test_bad_setup(tmpdir, monkeypatch, reactor_config_map):  # noqa
 
 @pytest.mark.parametrize(('insecure_registry'), [None, False, True])
 @pytest.mark.parametrize(('namespace'), [None, 'my_namespace'])
-def test_create_image(tmpdir, insecure_registry, namespace, monkeypatch, reactor_config_map):
+@pytest.mark.parametrize(('organization'), [None, 'my_organization'])
+def test_create_image(tmpdir, insecure_registry, namespace, organization,
+                      monkeypatch, reactor_config_map):
     """
     Test that an ImageStream is created if not found
     """
 
     runner = prepare(tmpdir, insecure_registry=insecure_registry, namespace=namespace,
-                     reactor_config_map=reactor_config_map)
+                     organization=organization, reactor_config_map=reactor_config_map)
 
     kwargs = {}
     build_json = {"metadata": {}}
@@ -194,10 +197,14 @@ def test_create_image(tmpdir, insecure_registry, namespace, monkeypatch, reactor
 
     if insecure_registry is not None:
         kwargs['insecure_registry'] = insecure_registry
+
+    enclose_repo = ImageName.parse(TEST_REPO_WITH_REGISTRY)
+    if reactor_config_map and organization:
+        enclose_repo.enclose(organization)
     (flexmock(OSBS)
      .should_receive('create_image_stream')
      .once()
-     .with_args(TEST_IMAGESTREAM, TEST_REPO_WITH_REGISTRY, **kwargs)
+     .with_args(TEST_IMAGESTREAM, enclose_repo.to_str(registry=True, tag=False), **kwargs)
      .and_return(ImageStreamResponse()))
     (flexmock(OSBS)
      .should_receive('ensure_image_stream_tag')

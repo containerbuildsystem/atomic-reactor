@@ -166,24 +166,37 @@ class TestKojiParent(object):
         ]}}}
 
         koji_session(archives=archives, koji_build_info=koji_build_info)
+        workflow.builder.base_image = ImageName.parse('spam.com/fedora:some_tag')
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
         assert str(workflow.builder.base_image) == repo_template.format(selected)
 
+    @pytest.mark.parametrize('organization', [None, 'my_organization'])  # noqa
+    @pytest.mark.parametrize('archive_registry', ['spam.com', 'old_registry.com'])
     @pytest.mark.parametrize(('repositories', 'selected'), (
         ([':26-3', '@sha256:12345'], '@sha256:12345'),
         ([':26-3', ':26-spam'], ':26-3'),
     ))
-    def test_repository_selection(self, workflow, repositories, selected, reactor_config_map):
-        repo_template = 'spam.com/fedora{}'
+    def test_repository_selection(self, workflow, organization, archive_registry,
+                                  repositories, selected, reactor_config_map):
+        archive_repo_template = archive_registry + '/fedora{}'
         archives = [
             {'id': 1, 'extra': {'docker': {'repositories': [
-                repo_template.format(repo) for repo in repositories
+                archive_repo_template.format(repo) for repo in repositories
             ]}}}
         ]
+        enclosed_repo_template = 'spam.com/{}/fedora{}'
+        repo_template = 'spam.com/fedora{}'
 
         koji_session(archives=archives)
-        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
-        assert str(workflow.builder.base_image) == repo_template.format(selected)
+        workflow.builder.base_image = ImageName.parse('spam.com/fedora:some_tag')
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
+                                  organization=organization)
+        if organization and reactor_config_map:
+            selected_repo = enclosed_repo_template.format(organization, selected)
+        else:
+            selected_repo = repo_template.format(selected)
+
+        assert str(workflow.builder.base_image) == selected_repo
 
     @pytest.mark.parametrize(('repository', 'is_valid'), (
         ('fedora', True),
@@ -240,7 +253,8 @@ class TestKojiParent(object):
         assert 'A suitable archive' in str(exc_info.value)
         assert 'not found' in str(exc_info.value)
 
-    def run_plugin_with_args(self, workflow, plugin_args=None, reactor_config_map=False):  # noqa
+    def run_plugin_with_args(self, workflow, plugin_args=None, reactor_config_map=False,  # noqa
+                             organization=None):
         plugin_args = plugin_args or {}
         plugin_args.setdefault('koji_parent_build', KOJI_BUILD_ID)
         plugin_args.setdefault('koji_hub', KOJI_HUB)
@@ -254,7 +268,8 @@ class TestKojiParent(object):
                 koji_map['auth']['ssl_certs_dir'] = plugin_args['koji_ssl_certs_dir']
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig({'version': 1, 'koji': koji_map})
+                ReactorConfig({'version': 1, 'koji': koji_map,
+                               'registries_organization': organization})
 
         runner = PreBuildPluginsRunner(
             workflow.builder.tasker,

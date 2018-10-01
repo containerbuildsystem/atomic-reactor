@@ -65,6 +65,12 @@ class MockBuilder(object):
         if parents_pulled:
             assert base_image.startswith(UNIQUE_ID + ":")
 
+    def recreate_parent_images(self):
+        # recreate parent_images to update hashes
+        parent_images = {}
+        for key, val in self.parent_images.items():
+            parent_images[key] = val
+        self.parent_images = parent_images
 
 @pytest.fixture(autouse=True)
 def set_build_json(monkeypatch):
@@ -130,7 +136,7 @@ def set_build_json(monkeypatch):
 ])
 def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected,
                                 reactor_config_map, inspect_only, workflow_callback=None,
-                                check_platforms=False, parent_images=None):
+                                check_platforms=False, parent_images=None, organization=None):
     if MOCK:
         mock_docker(remember_images=True)
 
@@ -157,7 +163,8 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
             ReactorConfig({'version': 1,
                            'source_registry': {'url': parent_registry,
-                                               'insecure': True}})
+                                               'insecure': True},
+                           'registries_organization': organization})
 
     if workflow_callback:
         workflow = workflow_callback(workflow)
@@ -195,25 +202,38 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
     for image in workflow.pulled_base_images:
         assert tasker.image_exists(image)
 
-    for df, tagged in parent_images.items():
-        assert tagged is not None, "Did not tag parent image " + df
+    for df, tagged in workflow.builder.parent_images.items():
+        assert tagged is not None, "Did not tag parent image " + str(df)
     # tags should all be unique
-    assert len(set(parent_images.values())) == len(parent_images)
+    assert len(set(workflow.builder.parent_images.values())) == len(workflow.builder.parent_images)
 
 
-def test_pull_parent_images(reactor_config_map, inspect_only):  # noqa
-    builder_image = "builder:image"
-    parent_images = {BASE_IMAGE_NAME: None, ImageName.parse(builder_image): None}
+@pytest.mark.parametrize('organization', [None, 'my_organization'])  # noqa
+def test_pull_parent_images(organization, reactor_config_map, inspect_only):
+    builder_image = 'builder:image'
+    parent_images = {BASE_IMAGE_NAME.copy(): None, ImageName.parse(builder_image): None}
+
+    enclosed_base_image = BASE_IMAGE_W_REGISTRY
+    enclosed_builder_image = LOCALHOST_REGISTRY + '/' + builder_image
+    if organization and reactor_config_map:
+        base_image_name = ImageName.parse(enclosed_base_image)
+        base_image_name.enclose(organization)
+        enclosed_base_image = base_image_name.to_str()
+        builder_image_name = ImageName.parse(enclosed_builder_image)
+        builder_image_name.enclose(organization)
+        enclosed_builder_image = builder_image_name.to_str()
+
     test_pull_base_image_plugin(
-        None, BASE_IMAGE,
+        LOCALHOST_REGISTRY, BASE_IMAGE,
         [   # expected to pull
-            BASE_IMAGE,
-            builder_image,
+            enclosed_base_image,
+            enclosed_builder_image,
         ],
         [],  # should not be pulled
         reactor_config_map=reactor_config_map,
         inspect_only=inspect_only,
-        parent_images=parent_images)
+        parent_images=parent_images,
+        organization=organization)
 
 
 def test_pull_base_wrong_registry(reactor_config_map, inspect_only):  # noqa

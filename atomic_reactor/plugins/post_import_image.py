@@ -12,7 +12,8 @@ from osbs.exceptions import OsbsResponseException
 
 from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
 from atomic_reactor.util import get_primary_images, ImageName
-from atomic_reactor.plugins.pre_reactor_config import get_openshift_session, get_source_registry
+from atomic_reactor.plugins.pre_reactor_config import (get_openshift_session, get_source_registry,
+                                                       get_registries_organization)
 
 
 # Note: We use multiple inheritance here only to make it explicit that
@@ -139,5 +140,9 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
             registry = source_registry['uri'].docker_uri
             image = self.primary_images[0]
             image.registry = registry
+
+        organization = get_registries_organization(self.workflow)
+        if organization:
+            image.enclose(organization)
 
         self.docker_image_repo = image.to_str(registry=True, tag=False)

@@ -16,8 +16,11 @@ from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_change_from_in_df import (
     NoIdInspection, BaseImageMismatch, ParentImageUnresolved, ChangeFromPlugin, ParentImageMissing
 )
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.util import ImageName, df_parser
-from tests.fixtures import docker_tasker
+from tests.fixtures import docker_tasker, reactor_config_map  # noqa
 from tests.constants import SOURCE
 from tests.stubs import StubInsideBuilder
 from textwrap import dedent
@@ -42,7 +45,13 @@ def mock_workflow():
     return workflow
 
 
-def run_plugin(workflow, allow_failure=False):
+def run_plugin(workflow, reactor_config_map, allow_failure=False, organization=None):  # noqa
+    if reactor_config_map:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1,
+                           'registries_organization': organization})
+
     result = PreBuildPluginsRunner(
        docker_tasker(), workflow,
        [{
@@ -57,7 +66,8 @@ def run_plugin(workflow, allow_failure=False):
     return result[ChangeFromPlugin.key]
 
 
-def test_update_base_image(tmpdir):
+@pytest.mark.parametrize('organization', [None, 'my_organization'])  # noqa
+def test_update_base_image(organization, tmpdir, reactor_config_map):
     df_content = dedent("""\
         FROM {}
         LABEL horses=coconuts
@@ -69,14 +79,18 @@ def test_update_base_image(tmpdir):
     base_str = "base@sha256:1234"
     base_image_name = ImageName.parse("base@sha256:1234")
 
+    enclosed_parent = ImageName.parse(image_str)
+    if organization and reactor_config_map:
+        enclosed_parent.enclose(organization)
+
     workflow = mock_workflow()
     workflow.builder.set_df_path(dfp.dockerfile_path)
-    workflow.builder.parent_images = {ImageName.parse(image_str): base_image_name}
+    workflow.builder.parent_images = {enclosed_parent: base_image_name}
     workflow.builder.base_image = base_image_name
     workflow.builder.set_parent_inspection_data(base_str, dict(Id=base_str))
     workflow.builder.tasker.inspect_image = lambda *_: dict(Id=base_str)
 
-    run_plugin(workflow)
+    run_plugin(workflow, reactor_config_map=reactor_config_map, organization=organization)
     expected_df = df_content.format(base_str)
     assert dfp.content == expected_df
 
@@ -101,7 +115,8 @@ def test_update_base_image_inspect_broken(tmpdir, caplog):
     assert "missing in inspection" in caplog.text()
 
 
-def test_update_parent_images(tmpdir):
+@pytest.mark.parametrize('organization', [None, 'my_organization'])  # noqa
+def test_update_parent_images(organization, tmpdir, reactor_config_map):
     """test the happy path for updating multiple parents"""
     df_content = dedent("""\
         FROM first:parent AS builder1
@@ -131,6 +146,10 @@ def test_update_parent_images(tmpdir):
     build1 = ImageName.parse('build-name:1')
     build2 = ImageName.parse('build-name:2')
     build3 = ImageName.parse('build-name:3')
+    if organization and reactor_config_map:
+        first.enclose(organization)
+        second.enclose(organization)
+        monty.enclose(organization)
     pimgs = {
         first: build1,
         second: build2,
@@ -150,7 +169,7 @@ def test_update_parent_images(tmpdir):
     for image_name, image_id in img_ids.items():
         workflow.builder.set_parent_inspection_data(image_name, dict(Id=image_id))
 
-    run_plugin(workflow)
+    run_plugin(workflow, reactor_config_map=reactor_config_map, organization=organization)
     assert dfp.content == expected_df_content
 
 
