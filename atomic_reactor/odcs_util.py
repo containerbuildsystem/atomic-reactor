@@ -7,7 +7,9 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from atomic_reactor.util import get_retrying_requests_session
+from textwrap import dedent
 
+import json
 import logging
 import time
 
@@ -133,12 +135,17 @@ class ODCSClient(object):
             response_json = response.json()
 
             if response_json['state_name'] == 'failed':
-                raise RuntimeError('Failed request for compose_id={}: {!r}'
-                                   .format(compose_id, response_json))
+                state_reason = response_json.get('state_reason', 'Unknown')
+                logger.error(dedent("""\
+                   Compose %s failed: %s
+                   Details: %s
+                   """), compose_id, state_reason, json.dumps(response_json, indent=4))
+                raise RuntimeError('Failed request for compose_id={}: {}'
+                                   .format(compose_id, state_reason))
 
             if response_json['state_name'] not in ['wait', 'generating']:
-                logger.debug("Retrieved compose information for compose_id={}: {!r}"
-                             .format(compose_id, response_json))
+                logger.debug("Retrieved compose information for compose_id={}: {}"
+                             .format(compose_id, json.dumps(response_json, indent=4)))
                 return response_json
 
             elapsed = time.time() - start_time

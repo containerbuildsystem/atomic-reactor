@@ -60,8 +60,8 @@ def odcs_client(tmpdir, request):
 
 
 def compose_json(state, state_name, source_type='module', source=MODULE_NSV,
-                 compose_id=COMPOSE_ID):
-    return json.dumps({
+                 compose_id=COMPOSE_ID, state_reason=None):
+    compose = {
         'flags': [],
         'id': compose_id,
         'owner': 'Unknown',
@@ -70,7 +70,10 @@ def compose_json(state, state_name, source_type='module', source=MODULE_NSV,
         'source_type': SOURCE_TYPE_ENUM[source_type],
         'state': state,
         'state_name': state_name
-    })
+    }
+    if state_reason:
+        compose['state_reason'] = state_reason
+    return json.dumps(compose)
 
 
 @responses.activate
@@ -119,11 +122,12 @@ def test_create_compose(odcs_client, source, source_type, packages, sigkeys, arc
 
 
 @responses.activate
-@pytest.mark.parametrize(('final_state_id', 'final_state_name', 'expect_exc'), (
-    (2, 'done', False),
-    (4, 'failed', True),
+@pytest.mark.parametrize(('final_state_id', 'final_state_name', 'expect_exc', 'state_reason'), (
+    (2, 'done', False, None,),
+    (4, 'failed', 'Failed request for compose_id={}: Unknown'.format(COMPOSE_ID), None),
+    (4, 'failed', 'Failed request for compose_id={}: Uh oh!'.format(COMPOSE_ID), 'Uh oh!'),
 ))
-def test_wait_for_compose(odcs_client, final_state_id, final_state_name, expect_exc):
+def test_wait_for_compose(odcs_client, final_state_id, final_state_name, expect_exc, state_reason):
     state = {'count': 1}
 
     def handle_composes_get(request):
@@ -132,7 +136,8 @@ def test_wait_for_compose(odcs_client, final_state_id, final_state_name, expect_
         if state['count'] == 1:
             response_json = compose_json(1, 'generating')
         else:
-            response_json = compose_json(final_state_id, final_state_name)
+            response_json = compose_json(final_state_id, final_state_name,
+                                         state_reason=state_reason)
         state['count'] += 1
 
         return (200, {}, response_json)
@@ -148,7 +153,7 @@ def test_wait_for_compose(odcs_client, final_state_id, final_state_name, expect_
     if expect_exc:
         with pytest.raises(RuntimeError) as exc_info:
             odcs_client.wait_for_compose(COMPOSE_ID)
-        assert 'Failed request' in str(exc_info.value)
+        assert expect_exc in str(exc_info.value)
     else:
         odcs_client.wait_for_compose(COMPOSE_ID)
 
