@@ -363,23 +363,33 @@ def test_validate_reactor_config_override(override, valid, buildtype):
             plugin.run()
 
 
-@pytest.mark.parametrize(('arrangement', 'pulp', 'pulp_phase', 'verify_media', 'error_msg'), [
-    # verify media is never an option for arrangement 5
-    (5, False, None, False, None),
-    (5, True, None, False, None),
-    (5, True, 'postbuild_plugins', False, None),
-    (5, False, 'postbuild_plugins', False, None),
-    (6, False, None, False, 'exit_pulp_pull or exit_verify_media_types required'),
-    (6, True, None, False, 'exit_pulp_pull or exit_verify_media_types required'),
-    (6, False, 'exit_plugins', False, 'exit_pulp_pull or exit_verify_media_types required'),
-    (6, True, 'exit_plugins', False, None),
-    (6, False, None, True, None),
-    (6, True, None, True, None),
-    (6, False, 'exit_plugins', True, None),
-    (6, True, 'exit_plugins', True,
-     'only one of exit_pulp_pull or exit_verify_media_types required'),
+@pytest.mark.parametrize(('orchestrator', 'arrangement', 'pulp', 'pulp_phase', 'verify_media',
+                          'error_msg', 'expected_plugin'), [
+    # verify media is never an option for arrangement 5 or worker builds
+    (False, 5, False, None, False, None, None),
+    (False, 5, True, None, False, None, None),
+    (False, 6, False, None, False, None, None),
+    (False, 6, True, None, False, None, None),
+    (False, 6, False, None, True, None, None),
+    (True, 5, False, None, False, None, None),
+    (True, 5, True, None, False, None, None),
+    (True, 5, True, 'postbuild_plugins', False, None, 'pulp_pull'),
+    (True, 5, False, 'postbuild_plugins', False, None, None),
+    (True, 6, False, None, False, 'exit_pulp_pull or exit_verify_media_types required', None),
+    (True, 6, True, None, False, 'exit_pulp_pull or exit_verify_media_types required', None),
+    (True, 6, False, 'exit_plugins', False, 'exit_pulp_pull or exit_verify_media_types required',
+     None),
+    (True, 6, True, 'exit_plugins', False, None, 'pulp_pull'),
+    (True, 6, False, None, True, None, 'verify_media_types'),
+    (True, 6, True, None, True, None, 'verify_media_types'),
+    (True, 6, False, 'exit_plugins', True, None, 'verify_media_types'),
+    (True, 6, True, 'exit_plugins', True, None, 'pulp_pull'),
 ])
-def test_verify_media_warnings(arrangement, pulp, pulp_phase, verify_media, error_msg, caplog):
+def test_verify_media_warnings(orchestrator, arrangement, pulp, pulp_phase, verify_media,
+                               error_msg, expected_plugin, caplog):
+    build_type = 'worker'
+    if orchestrator:
+        build_type = 'orchestrator'
     postbuild = []
     if pulp_phase == 'postbuild_plugins':
         postbuild.append({'name': 'pulp_pull'})
@@ -391,7 +401,7 @@ def test_verify_media_warnings(arrangement, pulp, pulp_phase, verify_media, erro
     plugins_json = {
         'arrangement_version': arrangement,
         'build_json_dir': 'inputs',
-        'build_type': 'orchestrator',
+        'build_type': build_type,
         'git_ref': 'test',
         'git_uri': 'test',
         'user': 'user',
@@ -436,8 +446,12 @@ def test_verify_media_warnings(arrangement, pulp, pulp_phase, verify_media, erro
     enable_plugins_configuration(plugins_json)
 
     plugin = OSv3InputPlugin()
-    plugin.run()
+    results = plugin.run()
+
     if error_msg:
         assert error_msg in caplog.text()
     else:
         assert 'exit_verify_media_types' not in caplog.text()
+        if expected_plugin:
+            expected_phase = pulp_phase or 'exit_plugins'
+            assert results[expected_phase] == [{'name': expected_plugin}]
