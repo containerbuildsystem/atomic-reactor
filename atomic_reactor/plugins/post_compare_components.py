@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 from atomic_reactor.plugin import PostBuildPlugin
+from atomic_reactor.plugins.pre_reactor_config import get_package_comparison_exceptions
 from atomic_reactor.constants import (PLUGIN_COMPARE_COMPONENTS_KEY,
                                       PLUGIN_FETCH_WORKER_METADATA_KEY)
 
@@ -73,6 +74,8 @@ class CompareComponentsPlugin(PostBuildPlugin):
         if not comp_list:
             raise ValueError("No components to compare")
 
+        package_comparison_exceptions = get_package_comparison_exceptions(self.workflow)
+
         # master compare list
         master_comp = {}
 
@@ -90,6 +93,10 @@ class CompareComponentsPlugin(PostBuildPlugin):
             for component in components:
                 t = component['type']
                 name = component['name']
+
+                if name in package_comparison_exceptions:
+                    self.log.info("Ignoring comparison of package %s", name)
+                    continue
 
                 if t not in SUPPORTED_TYPES:
                     raise ValueError("Type %s not supported")

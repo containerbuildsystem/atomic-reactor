@@ -495,6 +495,13 @@
             }
         },
         "additionalProperties": false
+    },
+    "package_comparison_exceptions": {
+        "description": "List of packages that are not compared across architectures",
+        "type": "array",
+        "items": {
+            "type": "string"
+        }
     }
   },
   "definitions": {
