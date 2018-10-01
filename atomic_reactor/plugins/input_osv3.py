@@ -88,12 +88,14 @@ class OSv3InputPlugin(InputPlugin):
                 self.remove_plugin(phase, 'pulp_pull', 'no pulp or koji available')
             else:
                 has_pulp_pull |= has_plugin(self, phase, 'pulp_pull')
-        if self.plugins_json.get('arrangement_version', 0) >= 6:
+        arrangement_six = self.plugins_json.get('arrangement_version', 0) >= 6
+        orchestrator_build = self.plugins_json.get('build_type', None) == 'orchestrator'
+        if arrangement_six and orchestrator_build:
             has_verify_media = has_plugin(self, 'exit_plugins', 'verify_media_types')
             if not (has_verify_media or has_pulp_pull):
                 self.log.warning('exit_pulp_pull or exit_verify_media_types required')
             elif has_verify_media and has_pulp_pull:
-                self.log.warning('only one of exit_pulp_pull or exit_verify_media_types required')
+                self.remove_plugin('exit_plugins', 'verify_media_types', 'pulp enabled')
 
         if not pulp_registry:
             self.remove_plugin('postbuild_plugins', 'pulp_push', 'no pulp available')
