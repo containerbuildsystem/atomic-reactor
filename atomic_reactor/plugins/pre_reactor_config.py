@@ -350,6 +350,10 @@ def get_flatpak_base_image(workflow, fallback=NO_FALLBACK):
         raise
 
 
+def get_package_comparison_exceptions(workflow):
+    return set(get_config(workflow).conf.get('package_comparison_exceptions', []))
+
+
 class ClusterConfig(object):
     """
     Configuration relating to a particular cluster

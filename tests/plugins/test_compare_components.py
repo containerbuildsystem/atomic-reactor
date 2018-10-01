@@ -18,6 +18,9 @@ from atomic_reactor.constants import (PLUGIN_FETCH_WORKER_METADATA_KEY,
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.util import ImageName
 
 from tests.constants import MOCK_SOURCE, TEST_IMAGE, INPUT_IMAGE, FILES
@@ -90,14 +93,26 @@ def mock_metadatas():
     return worker_metadatas
 
 
-@pytest.mark.parametrize('fail', [True, False])
-def test_compare_components_plugin(tmpdir, fail):
+@pytest.mark.parametrize(('mismatch', 'exception', 'fail'), (
+    (False, False, False),
+    (True, False, True),
+    (False, True, False),
+    (True, True, False),
+))
+def test_compare_components_plugin(tmpdir, mismatch, exception, fail):
     workflow = mock_workflow(tmpdir)
     worker_metadatas = mock_metadatas()
 
-    if fail:
-        # example data has 2 log items before component item hence output[2]
-        worker_metadatas['ppc64le']['output'][2]['components'][0]['version'] = "bacon"
+    # example data has 2 log items before component item hence output[2]
+    component = worker_metadatas['ppc64le']['output'][2]['components'][0]
+    if mismatch:
+        component['version'] = 'bacon'
+    if exception:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {
+            WORKSPACE_CONF_KEY: ReactorConfig(
+                {'version': 1, 'package_comparison_exceptions': [component['name']]}
+            )
+        }
 
     workflow.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
 
