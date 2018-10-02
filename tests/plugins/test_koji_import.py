@@ -1112,9 +1112,9 @@ class TestKojiImport(object):
 
         koji_parent_result = {
             BASE_IMAGE_KOJI_BUILD: dict(id=16, extra='build info'),
-            PARENT_IMAGES_KOJI_BUILDS: dict(
-                base=dict(nvr='base-16.0-1', id=16, extra='build_info'),
-            ),
+            PARENT_IMAGES_KOJI_BUILDS: {
+                ImageName.parse('base'): dict(nvr='base-16.0-1', id=16, extra='build_info'),
+            },
         }
         workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = koji_parent_result
 
@@ -1124,8 +1124,8 @@ class TestKojiImport(object):
         image_metadata = koji_session.metadata['build']['extra']['image']
         key = PARENT_IMAGE_BUILDS_KEY
         assert key in image_metadata
-        assert image_metadata[key]['base'] == dict(nvr='base-16.0-1', id=16)
-        assert 'extra' not in image_metadata[key]['base']
+        assert image_metadata[key]['base:latest'] == dict(nvr='base-16.0-1', id=16)
+        assert 'extra' not in image_metadata[key]['base:latest']
         key = BASE_IMAGE_BUILD_ID_KEY
         assert key in image_metadata
         assert image_metadata[key] == 16
