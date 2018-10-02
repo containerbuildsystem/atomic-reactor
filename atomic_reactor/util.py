@@ -1349,9 +1349,9 @@ def get_parent_image_koji_data(workflow):
     parents = {}
     for img, build in (koji_parent.get(PARENT_IMAGES_KOJI_BUILDS) or {}).items():
         if not build:
-            parents[img] = None
+            parents[str(img)] = None
         else:
-            parents[img] = {key: val for key, val in build.items() if key in ('id', 'nvr')}
+            parents[str(img)] = {key: val for key, val in build.items() if key in ('id', 'nvr')}
     image_metadata[PARENT_IMAGE_BUILDS_KEY] = parents
 
     base_info = koji_parent.get(BASE_IMAGE_KOJI_BUILD) or {}
