@@ -257,6 +257,10 @@ def get_koji_module_build(session, module_spec):
             raise RuntimeError("No build found for {}".format(module_spec.to_str()))
 
     archives = session.listArchives(buildID=build['build_id'])
+    # The RPM list for the 'modulemd.txt' archive has all the RPMs, recent
+    # versions of MBS also write upload 'modulemd.<arch>.txt' archives with
+    # architecture subsets.
+    archives = [a for a in archives if a['filename'] == 'modulemd.txt']
     assert len(archives) == 1
 
     rpm_list = session.listRPMs(imageID=archives[0]['id'])
