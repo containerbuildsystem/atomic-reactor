@@ -159,6 +159,7 @@ def mock_koji_session():
      .and_return(
         [{'btype': 'module',
           'build_id': 1138198,
+          'filename': 'modulemd.txt',
           'id': 147879}]))
 
     (session

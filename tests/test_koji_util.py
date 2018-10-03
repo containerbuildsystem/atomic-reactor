@@ -292,7 +292,12 @@ class TestGetKojiModuleBuild(object):
             .and_return(
                 [{'btype': 'module',
                   'build_id': 1138198,
-                  'id': 147879}]))
+                  'filename': 'modulemd.txt',
+                  'id': 147879},
+                 {'btype': 'module',
+                  'build_id': 1138198,
+                  'filename': 'modulemd.x86_64.txt',
+                  'id': 147880}]))
         (session
             .should_receive('listRPMs')
             .with_args(imageID=147879)
