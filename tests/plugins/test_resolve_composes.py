@@ -45,6 +45,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
 from atomic_reactor.plugins.pre_resolve_composes import (ResolveComposesPlugin,
                                                          ODCS_DATETIME_FORMAT, UNPUBLISHED_REPOS)
 
+import yaml
 from atomic_reactor.util import ImageName, read_yaml
 from datetime import datetime, timedelta
 from flexmock import flexmock
@@ -285,6 +286,95 @@ class TestResolveComposes(object):
             .and_return(ODCS_COMPOSE))
 
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
+
+    @pytest.mark.parametrize(('compose_arches', 'pulp_arches', 'multilib_arches',  # noqa:F811
+                              'request_multilib'), [
+        (['i686'], None, None, None),
+        (['i686'], None, ['i686'], ['i686']),
+        (['i686'], None, ['ppc64le'], None),
+        (['i686'], None, ['s390x', 'i686', 'ppc64le'], ['i686']),
+        (['i686', 'ppc64le'], None, ['s390x', 'i686', 'ppc64le'], ['i686', 'ppc64le']),
+        (['i686'], ['ppc64le'], None, None),
+        (['i686'], ['ppc64le'], ['i686'], ['i686']),
+        # pcc64le is in the pulp list but not the compose list, so it's not built at all
+        (['i686'], ['ppc64le'], ['ppc64le'], None),
+        (['i686'], ['ppc64le'], ['s390x', 'i686', 'ppc64le'], ['i686']),
+        (['i686', 'ppc64le'], ['ppc64le'], ['s390x', 'i686', 'ppc64le'],
+         ['i686', 'ppc64le']),
+    ])
+    @pytest.mark.parametrize(('multilib_method', 'method_results'), [
+        (["none"], ['none']),
+        (["devel"], ['devel']),
+        (["runtime"], ['runtime']),
+        (["all"], ['all']),
+        (["runtime", "devel"], ['devel', 'runtime']),
+        (None, ['devel', 'runtime']),
+    ])
+    def test_multilib(self, workflow, reactor_config_map,
+                      compose_arches, pulp_arches, multilib_arches, request_multilib,
+                      multilib_method, method_results):
+        base_repos = ['spam', 'bacon', 'eggs']
+
+        content_dict = {}
+        for arch in pulp_arches or []:
+            pulp_repos = []
+            for repo in base_repos:
+                pulp_repos.append(repo + '-' + arch)
+            content_dict[arch] = pulp_repos
+
+        mock_content_sets_config(workflow._tmpdir, yaml.safe_dump(content_dict))
+
+        repo_config = {
+            'compose': {
+                'packages': base_repos
+            }
+        }
+        if multilib_arches:
+            repo_config['compose']['multilib_arches'] = multilib_arches
+        if multilib_method:
+            repo_config['compose']['multilib_method'] = multilib_method
+        if pulp_arches:
+            repo_config['compose']['pulp_repos'] = True
+
+        mock_repo_config(workflow._tmpdir, yaml.safe_dump(repo_config))
+        if compose_arches:
+            workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(compose_arches)
+        else:
+            del workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
+
+        reactor_conf =\
+            deepcopy(workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY].conf)
+        reactor_conf['koji'] = {'hub_url': KOJI_HUB, 'root_url': '', 'auth': {}}
+
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig(reactor_conf)
+
+        # just confirm that render_requests is returning valid data, without the overhead of
+        # mocking the compose results
+        plugin = ResolveComposesPlugin(workflow.builder.tasker, workflow,
+                                       odcs_url=ODCS_URL,
+                                       koji_target=KOJI_TARGET_NAME, koji_hub=KOJI_HUB)
+        plugin.read_configs()
+        plugin.adjust_compose_config()
+        composed_arches = set([])
+        composes = plugin.compose_config.render_requests()
+        for compose_config in composes:
+            composed_arches.update(compose_config['arches'])
+            if request_multilib:
+                if compose_config['source_type'] == 'tag':
+                    assert compose_config['multilib_arches'] == sorted(request_multilib)
+                    assert compose_config['multilib_method'] == method_results
+                    continue
+                else:
+                    if compose_config['arches'][0] in request_multilib:
+                        assert compose_config['multilib_arches'] == compose_config['arches']
+                        assert compose_config['multilib_method'] == method_results
+                        continue
+            # fall through if multilib wasn't requested or if the pulp arch wasn't in
+            # the multilib request
+            assert 'multilib_arches' not in compose_config
+            assert 'multilib_method' not in compose_config
+        assert composed_arches == set(compose_arches)
 
     @pytest.mark.parametrize(('pulp_arches', 'arches', 'signing_intent', 'expected_intent'), (  # noqa:F811
         (None, None, 'unsigned', 'unsigned'),

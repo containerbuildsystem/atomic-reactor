@@ -27,6 +27,7 @@ ODCS_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 MINIMUM_TIME_TO_EXPIRE = timedelta(hours=2).total_seconds()
 # flag to let ODCS see hidden pulp repos
 UNPUBLISHED_REPOS = 'include_unpublished_pulp_repos'
+MULTILIB_METHOD_DEFAULT = ['devel', 'runtime']
 
 
 class ResolveComposesPlugin(PreBuildPlugin):
@@ -319,6 +320,8 @@ class ComposeConfig(object):
         self.modules = data.get('modules', [])
         self.pulp = {}
         self.arches = arches or []
+        self.multilib_arches = []
+        self.multilib_method = None
 
         if data.get('pulp_repos'):
             for arch in pulp_data or {}:
@@ -327,6 +330,15 @@ class ComposeConfig(object):
             self.flags = None
             if data.get(UNPUBLISHED_REPOS):
                 self.flags = [UNPUBLISHED_REPOS]
+        for arch in data.get('multilib_arches', []):
+            if arch in arches:
+                self.multilib_arches.append(arch)
+        if self.multilib_arches:
+            if data.get('multilib_method'):
+                self.multilib_method = data.get('multilib_method')
+            else:
+                self.multilib_method = MULTILIB_METHOD_DEFAULT
+
         self.koji_tag = koji_tag
         self.odcs_config = odcs_config
 
@@ -363,6 +375,9 @@ class ComposeConfig(object):
         }
         if self.arches:
             request['arches'] = self.arches
+        if self.multilib_arches:
+            request['multilib_arches'] = sorted(self.multilib_arches)
+            request['multilib_method'] = sorted(self.multilib_method)
         return request
 
     def render_modules_request(self):
@@ -373,13 +388,17 @@ class ComposeConfig(object):
         }
 
     def render_pulp_request(self, arch):
-        return {
+        request = {
             'source_type': 'pulp',
             'source': ' '.join(self.pulp.get(arch, [])),
             'sigkeys': [],
             'flags': self.flags,
             'arches': [arch]
         }
+        if arch in self.multilib_arches:
+            request['multilib_arches'] = [arch]
+            request['multilib_method'] = sorted(self.multilib_method)
+        return request
 
     def validate_for_request(self):
         """Verify enough information is available for requesting compose."""
