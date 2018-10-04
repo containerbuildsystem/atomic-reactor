@@ -12,6 +12,7 @@ from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 from osbs.utils import graceful_chain_get
+from atomic_reactor.constants import PLUGIN_INJECT_PARENT_IMAGE_KEY
 
 
 class InjectParentImage(PreBuildPlugin):
@@ -35,7 +36,7 @@ class InjectParentImage(PreBuildPlugin):
     This plugin returns the identifier of the Koji build used.
     """
 
-    key = 'inject_parent_image'
+    key = PLUGIN_INJECT_PARENT_IMAGE_KEY
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, koji_parent_build, koji_hub=None, koji_ssl_certs_dir=None):

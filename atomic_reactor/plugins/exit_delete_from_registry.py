@@ -14,7 +14,7 @@ import requests
 from atomic_reactor.plugin import ExitPlugin, PluginFailedException
 from atomic_reactor.util import RegistrySession, registry_hostname
 from atomic_reactor.plugins.pre_reactor_config import get_registries
-from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY
+from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_DELETE_FROM_REG_KEY
 from requests.exceptions import HTTPError, RetryError, Timeout
 
 
@@ -23,7 +23,7 @@ class DeleteFromRegistryPlugin(ExitPlugin):
     Delete previously pushed v2 images from a registry.
     """
 
-    key = "delete_from_registry"
+    key = PLUGIN_DELETE_FROM_REG_KEY
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, registries=None):

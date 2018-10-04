@@ -29,6 +29,7 @@ from atomic_reactor.plugins.pre_reactor_config import (get_smtp_session, get_koj
                                                        get_openshift_session, get_koji_path_info)
 from atomic_reactor.koji_util import get_koji_task_owner
 from atomic_reactor.util import get_build_json, OSBSLogs, ImageName
+from atomic_reactor.constants import PLUGIN_SENDMAIL_KEY
 
 
 # an email address consisting of local name, an @ sign, and a domain name
@@ -66,7 +67,7 @@ class SendMailPlugin(ExitPlugin):
                 }
         }]
     """
-    key = "sendmail"
+    key = PLUGIN_SENDMAIL_KEY
 
     # symbolic constants for states
     MANUAL_SUCCESS = 'manual_success'

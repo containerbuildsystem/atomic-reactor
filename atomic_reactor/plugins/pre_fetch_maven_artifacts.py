@@ -13,7 +13,7 @@ import koji
 import os
 
 from atomic_reactor import util
-from atomic_reactor.constants import DEFAULT_DOWNLOAD_BLOCK_SIZE
+from atomic_reactor.constants import DEFAULT_DOWNLOAD_BLOCK_SIZE, PLUGIN_FETCH_MAVEN_KEY
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import (get_koji_session,
                                                        get_koji_path_info,
@@ -67,7 +67,7 @@ DownloadRequest = namedtuple('DownloadRequest', 'url dest checksums')
 
 class FetchMavenArtifactsPlugin(PreBuildPlugin):
 
-    key = 'fetch_maven_artifacts'
+    key = PLUGIN_FETCH_MAVEN_KEY
     is_allowed_to_fail = False
 
     NVR_REQUESTS_FILENAME = 'fetch-artifacts-koji.yaml'
