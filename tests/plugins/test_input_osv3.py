@@ -15,7 +15,25 @@ from textwrap import dedent
 from atomic_reactor.plugins.input_osv3 import OSv3InputPlugin
 from osbs.api import OSBS
 from tests.constants import REACTOR_CONFIG_MAP
-
+from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
+                                      PLUGIN_DELETE_FROM_REG_KEY,
+                                      PLUGIN_DISTGIT_FETCH_KEY,
+                                      PLUGIN_DOCKERFILE_CONTENT_KEY,
+                                      PLUGIN_FETCH_MAVEN_KEY,
+                                      PLUGIN_INJECT_PARENT_IMAGE_KEY,
+                                      PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
+                                      PLUGIN_KOJI_PARENT_KEY,
+                                      PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
+                                      PLUGIN_KOJI_TAG_BUILD_KEY,
+                                      PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
+                                      PLUGIN_PULP_PUBLISH_KEY,
+                                      PLUGIN_PULP_PULL_KEY,
+                                      PLUGIN_PULP_PUSH_KEY,
+                                      PLUGIN_PULP_SYNC_KEY,
+                                      PLUGIN_PULP_TAG_KEY,
+                                      PLUGIN_RESOLVE_COMPOSES_KEY,
+                                      PLUGIN_SENDMAIL_KEY,
+                                      PLUGIN_VERIFY_MEDIA_KEY)
 import pytest
 from flexmock import flexmock
 from jsonschema import ValidationError
@@ -117,7 +135,7 @@ def test_remove_dockerfile_content():
                 'name': 'before',
             },
             {
-                'name': 'dockerfile_content',
+                'name': PLUGIN_DOCKERFILE_CONTENT_KEY,
             },
             {
                 'name': 'after',
@@ -155,33 +173,33 @@ def test_remove_everything():
         'user': 'user',
         'prebuild_plugins': [
             {'name': 'before', },
-            {'name': 'bump_release', },
-            {'name': 'fetch_maven_artifacts', },
-            {'name': 'distgit_fetch_artefacts', },
-            {'name': 'dockerfile_content', },
-            {'name': 'inject_parent_image', },
-            {'name': 'koji_parent', },
-            {'name': 'resolve_composes', },
+            {'name': PLUGIN_BUMP_RELEASE_KEY, },
+            {'name': PLUGIN_FETCH_MAVEN_KEY, },
+            {'name': PLUGIN_DISTGIT_FETCH_KEY, },
+            {'name': PLUGIN_DOCKERFILE_CONTENT_KEY, },
+            {'name': PLUGIN_INJECT_PARENT_IMAGE_KEY, },
+            {'name': PLUGIN_KOJI_PARENT_KEY, },
+            {'name': PLUGIN_RESOLVE_COMPOSES_KEY, },
             {'name': 'after', },
         ],
         'postbuild_plugins': [
             {'name': 'before', },
-            {'name': 'koji_upload', },
-            {'name': 'pulp_pull', },
-            {'name': 'pulp_push', },
-            {'name': 'pulp_sync', },
-            {'name': 'pulp_tag', },
+            {'name': PLUGIN_KOJI_UPLOAD_PLUGIN_KEY, },
+            {'name': PLUGIN_PULP_PULL_KEY, },
+            {'name': PLUGIN_PULP_PUSH_KEY, },
+            {'name': PLUGIN_PULP_SYNC_KEY, },
+            {'name': PLUGIN_PULP_TAG_KEY, },
             {'name': 'after', },
         ],
         'exit_plugins': [
             {'name': 'before', },
-            {'name': 'delete_from_registry', },
-            {'name': 'koji_import', },
-            {'name': 'koji_promote', },
-            {'name': 'koji_tag_build', },
-            {'name': 'pulp_publish', },
-            {'name': 'pulp_pull', },
-            {'name': 'sendmail', },
+            {'name': PLUGIN_DELETE_FROM_REG_KEY, },
+            {'name': PLUGIN_KOJI_IMPORT_PLUGIN_KEY, },
+            {'name': PLUGIN_KOJI_PROMOTE_PLUGIN_KEY, },
+            {'name': PLUGIN_KOJI_TAG_BUILD_KEY, },
+            {'name': PLUGIN_PULP_PUBLISH_KEY, },
+            {'name': PLUGIN_PULP_PULL_KEY, },
+            {'name': PLUGIN_SENDMAIL_KEY, },
             {'name': 'after', },
         ]
     }
@@ -219,12 +237,12 @@ def test_remove_v1_pulp_and_exit_delete():
         'user': 'user',
         'postbuild_plugins': [
             {'name': 'before', },
-            {'name': 'pulp_push', },
+            {'name': PLUGIN_PULP_PUSH_KEY, },
             {'name': 'after', },
         ],
         'exit_plugins': [
             {'name': 'before', },
-            {'name': 'delete_from_registry', },
+            {'name': PLUGIN_DELETE_FROM_REG_KEY, },
             {'name': 'after', },
         ],
     }
@@ -276,12 +294,12 @@ def test_remove_v2_pulp():
         'user': 'user',
         'postbuild_plugins': [
             {'name': 'before', },
-            {'name': 'pulp_sync', },
+            {'name': PLUGIN_PULP_SYNC_KEY, },
             {'name': 'after', },
         ],
         'exit_plugins': [
             {'name': 'before', },
-            {'name': 'delete_from_registry', },
+            {'name': PLUGIN_DELETE_FROM_REG_KEY, },
             {'name': 'after', },
         ],
     }
@@ -373,17 +391,17 @@ def test_validate_reactor_config_override(override, valid, buildtype):
     (False, 6, False, None, True, None, None),
     (True, 5, False, None, False, None, None),
     (True, 5, True, None, False, None, None),
-    (True, 5, True, 'postbuild_plugins', False, None, 'pulp_pull'),
+    (True, 5, True, 'postbuild_plugins', False, None, PLUGIN_PULP_PULL_KEY),
     (True, 5, False, 'postbuild_plugins', False, None, None),
     (True, 6, False, None, False, 'exit_pulp_pull or exit_verify_media_types required', None),
     (True, 6, True, None, False, 'exit_pulp_pull or exit_verify_media_types required', None),
     (True, 6, False, 'exit_plugins', False, 'exit_pulp_pull or exit_verify_media_types required',
      None),
-    (True, 6, True, 'exit_plugins', False, None, 'pulp_pull'),
-    (True, 6, False, None, True, None, 'verify_media_types'),
-    (True, 6, True, None, True, None, 'verify_media_types'),
-    (True, 6, False, 'exit_plugins', True, None, 'verify_media_types'),
-    (True, 6, True, 'exit_plugins', True, None, 'pulp_pull'),
+    (True, 6, True, 'exit_plugins', False, None, PLUGIN_PULP_PULL_KEY),
+    (True, 6, False, None, True, None, PLUGIN_VERIFY_MEDIA_KEY),
+    (True, 6, True, None, True, None, PLUGIN_VERIFY_MEDIA_KEY),
+    (True, 6, False, 'exit_plugins', True, None, PLUGIN_VERIFY_MEDIA_KEY),
+    (True, 6, True, 'exit_plugins', True, None, PLUGIN_PULP_PULL_KEY),
 ])
 def test_verify_media_warnings(orchestrator, arrangement, pulp, pulp_phase, verify_media,
                                error_msg, expected_plugin, caplog):
@@ -392,12 +410,12 @@ def test_verify_media_warnings(orchestrator, arrangement, pulp, pulp_phase, veri
         build_type = 'orchestrator'
     postbuild = []
     if pulp_phase == 'postbuild_plugins':
-        postbuild.append({'name': 'pulp_pull'})
+        postbuild.append({'name': PLUGIN_PULP_PULL_KEY})
     exit_phase = []
     if pulp_phase == 'exit_plugins':
-        exit_phase.append({'name': 'pulp_pull'})
+        exit_phase.append({'name': PLUGIN_PULP_PULL_KEY})
     if verify_media:
-        exit_phase.append({'name': 'verify_media_types'})
+        exit_phase.append({'name': PLUGIN_VERIFY_MEDIA_KEY})
     plugins_json = {
         'arrangement_version': arrangement,
         'build_json_dir': 'inputs',

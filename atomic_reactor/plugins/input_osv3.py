@@ -14,6 +14,25 @@ import os
 from atomic_reactor.plugin import InputPlugin
 from atomic_reactor.util import get_build_json, read_yaml
 from osbs.utils import RegistryURI
+from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
+                                      PLUGIN_DELETE_FROM_REG_KEY,
+                                      PLUGIN_DISTGIT_FETCH_KEY,
+                                      PLUGIN_DOCKERFILE_CONTENT_KEY,
+                                      PLUGIN_FETCH_MAVEN_KEY,
+                                      PLUGIN_INJECT_PARENT_IMAGE_KEY,
+                                      PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
+                                      PLUGIN_KOJI_PARENT_KEY,
+                                      PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
+                                      PLUGIN_KOJI_TAG_BUILD_KEY,
+                                      PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
+                                      PLUGIN_PULP_PUBLISH_KEY,
+                                      PLUGIN_PULP_PULL_KEY,
+                                      PLUGIN_PULP_PUSH_KEY,
+                                      PLUGIN_PULP_SYNC_KEY,
+                                      PLUGIN_PULP_TAG_KEY,
+                                      PLUGIN_RESOLVE_COMPOSES_KEY,
+                                      PLUGIN_SENDMAIL_KEY,
+                                      PLUGIN_VERIFY_MEDIA_KEY)
 
 
 class OSv3InputPlugin(InputPlugin):
@@ -62,17 +81,22 @@ class OSv3InputPlugin(InputPlugin):
         koji_map = self.get_value('koji', {})
         if not koji_map.get('hub_url'):
             # bump_release is removed in PluginsConfiguration if no release value
-            self.remove_plugin('prebuild_plugins', 'bump_release', 'no koji hub available')
+            self.remove_plugin('prebuild_plugins', PLUGIN_BUMP_RELEASE_KEY,
+                               'no koji hub available')
             # inject_parent_image is removed in PluginsConfiguration if no parent image
-            self.remove_plugin('prebuild_plugins', 'inject_parent_image', 'no koji hub available')
-            self.remove_plugin('prebuild_plugins', 'koji_parent', 'no koji hub available')
-            self.remove_plugin('postbuild_plugins', 'koji_upload', 'no koji hub available')
-            self.remove_plugin('exit_plugins', 'koji_promote', 'no koji hub available')
-            self.remove_plugin('exit_plugins', 'koji_import', 'no koji hub available')
-            self.remove_plugin('exit_plugins', 'koji_tag_build', 'no koji hub available')
+            self.remove_plugin('prebuild_plugins', PLUGIN_INJECT_PARENT_IMAGE_KEY,
+                               'no koji hub available')
+            self.remove_plugin('prebuild_plugins', PLUGIN_KOJI_PARENT_KEY, 'no koji hub available')
+            self.remove_plugin('postbuild_plugins', PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
+                               'no koji hub available')
+            self.remove_plugin('exit_plugins', PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
+                               'no koji hub available')
+            self.remove_plugin('exit_plugins', PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
+                               'no koji hub available')
+            self.remove_plugin('exit_plugins', PLUGIN_KOJI_TAG_BUILD_KEY, 'no koji hub available')
             # root and hub are required, so this check is probably redundant
             if not koji_map.get('root_url'):
-                self.remove_plugin('prebuild_plugins', 'fetch_maven_artifacts',
+                self.remove_plugin('prebuild_plugins', PLUGIN_FETCH_MAVEN_KEY,
                                    'no koji root available')
 
     def remove_pulp_plugins(self):
@@ -85,24 +109,24 @@ class OSv3InputPlugin(InputPlugin):
         has_pulp_pull = False
         for phase in phases:
             if not (pulp_registry and koji_hub):
-                self.remove_plugin(phase, 'pulp_pull', 'no pulp or koji available')
+                self.remove_plugin(phase, PLUGIN_PULP_PULL_KEY, 'no pulp or koji available')
             else:
-                has_pulp_pull |= has_plugin(self, phase, 'pulp_pull')
+                has_pulp_pull |= has_plugin(self, phase, PLUGIN_PULP_PULL_KEY)
         arrangement_six = self.plugins_json.get('arrangement_version', 0) >= 6
         orchestrator_build = self.plugins_json.get('build_type', None) == 'orchestrator'
         if arrangement_six and orchestrator_build:
-            has_verify_media = has_plugin(self, 'exit_plugins', 'verify_media_types')
+            has_verify_media = has_plugin(self, 'exit_plugins', PLUGIN_VERIFY_MEDIA_KEY)
             if not (has_verify_media or has_pulp_pull):
                 self.log.warning('exit_pulp_pull or exit_verify_media_types required')
             elif has_verify_media and has_pulp_pull:
-                self.remove_plugin('exit_plugins', 'verify_media_types', 'pulp enabled')
+                self.remove_plugin('exit_plugins',  PLUGIN_VERIFY_MEDIA_KEY, 'pulp enabled')
 
         if not pulp_registry:
-            self.remove_plugin('postbuild_plugins', 'pulp_push', 'no pulp available')
-            self.remove_plugin('postbuild_plugins', 'pulp_sync', 'no pulp available')
-            self.remove_plugin('postbuild_plugins', 'pulp_tag', 'no pulp available')
-            self.remove_plugin('exit_plugins', 'delete_from_registry', 'no pulp available')
-            self.remove_plugin('exit_plugins', 'pulp_publish', 'no pulp available')
+            self.remove_plugin('postbuild_plugins', PLUGIN_PULP_PUSH_KEY, 'no pulp available')
+            self.remove_plugin('postbuild_plugins', PLUGIN_PULP_SYNC_KEY, 'no pulp available')
+            self.remove_plugin('postbuild_plugins', PLUGIN_PULP_TAG_KEY, 'no pulp available')
+            self.remove_plugin('exit_plugins', PLUGIN_DELETE_FROM_REG_KEY, 'no pulp available')
+            self.remove_plugin('exit_plugins', PLUGIN_PULP_PUBLISH_KEY, 'no pulp available')
         else:
             docker_registry = None
             all_registries = self.get_value('registries', {})
@@ -118,17 +142,21 @@ class OSv3InputPlugin(InputPlugin):
                     break
 
             if 'v1' not in versions:
-                self.remove_plugin('postbuild_plugins', 'pulp_push', 'v1 content not enabled')
+                self.remove_plugin('postbuild_plugins', PLUGIN_PULP_PUSH_KEY,
+                                   'v1 content not enabled')
 
             if docker_registry:
                 source_registry_str = self.get_value('source_registry', {}).get('url')
                 perform_delete = (source_registry_str is None or
                                   RegistryURI(source_registry_str).uri != reguri.uri)
                 if not perform_delete:
-                    self.remove_plugin('exit_plugins', 'delete_from_registry', 'no delete needed')
+                    self.remove_plugin('exit_plugins', PLUGIN_DELETE_FROM_REG_KEY,
+                                       'no delete needed')
             else:
-                self.remove_plugin('postbuild_plugins', 'pulp_sync', 'no V2 pulp available')
-                self.remove_plugin('exit_plugins', 'delete_from_registry', 'no V2 pulp available')
+                self.remove_plugin('postbuild_plugins', PLUGIN_PULP_SYNC_KEY,
+                                   'no V2 pulp available')
+                self.remove_plugin('exit_plugins', PLUGIN_DELETE_FROM_REG_KEY,
+                                   'no V2 pulp available')
 
     def remove_plugins_without_parameters(self):
         """
@@ -137,18 +165,19 @@ class OSv3InputPlugin(InputPlugin):
         """
 
         # Compatibility code for dockerfile_content plugin
-        self.remove_plugin('prebuild_plugins', 'dockerfile_content',
+        self.remove_plugin('prebuild_plugins', PLUGIN_DOCKERFILE_CONTENT_KEY,
                            'dockerfile_content is deprecated, please remove from config')
         if not self.reactor_env:
             return
         self.remove_koji_plugins()
         self.remove_pulp_plugins()
         if not self.get_value('odcs'):
-            self.remove_plugin('prebuild_plugins', 'resolve_composes', 'no odcs available')
+            self.remove_plugin('prebuild_plugins', PLUGIN_RESOLVE_COMPOSES_KEY,
+                               'no odcs available')
         if not self.get_value('smtp'):
-            self.remove_plugin('exit_plugins', 'sendmail', 'no mailhost available')
+            self.remove_plugin('exit_plugins', PLUGIN_SENDMAIL_KEY, 'no mailhost available')
         if not self.get_value('sources_command'):
-            self.remove_plugin('prebuild_plugins', 'distgit_fetch_artefacts', 'no sources command')
+            self.remove_plugin('prebuild_plugins', PLUGIN_DISTGIT_FETCH_KEY, 'no sources command')
 
     def run(self):
         """
