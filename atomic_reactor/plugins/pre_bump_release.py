@@ -12,6 +12,7 @@ from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
 from osbs.utils import Labels
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
+from atomic_reactor.constants import PLUGIN_BUMP_RELEASE_KEY
 
 
 class BumpReleasePlugin(PreBuildPlugin):
@@ -20,7 +21,7 @@ class BumpReleasePlugin(PreBuildPlugin):
     the next release should be.
     """
 
-    key = "bump_release"
+    key = PLUGIN_BUMP_RELEASE_KEY
     is_allowed_to_fail = False  # We really want to stop the process
 
     # The target parameter is no longer used by this plugin. It's

@@ -15,10 +15,11 @@ import subprocess
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_sources_command
+from atomic_reactor.constants import PLUGIN_DISTGIT_FETCH_KEY
 
 
 class DistgitFetchArtefactsPlugin(PreBuildPlugin):
-    key = "distgit_fetch_artefacts"
+    key = PLUGIN_DISTGIT_FETCH_KEY
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, command=None):
