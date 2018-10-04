@@ -55,7 +55,8 @@ class VerifyMediaTypesPlugin(ExitPlugin):
         if not self.workflow.tag_conf.unique_images:
             raise ValueError("no unique image set, impossible to verify media types")
         if self.workflow.push_conf.pulp_registries:
-            raise RuntimeError("pulp registry configure, verify_media_types should not run")
+            self.log.info("pulp registry configure, verify_media_types should not run")
+            return
         image = self.workflow.tag_conf.unique_images[0]
 
         media_types = set()

@@ -31,8 +31,7 @@ from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
                                       PLUGIN_PULP_SYNC_KEY,
                                       PLUGIN_PULP_TAG_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY,
-                                      PLUGIN_SENDMAIL_KEY,
-                                      PLUGIN_VERIFY_MEDIA_KEY)
+                                      PLUGIN_SENDMAIL_KEY)
 
 
 class OSv3InputPlugin(InputPlugin):
@@ -53,11 +52,12 @@ class OSv3InputPlugin(InputPlugin):
 
         # make sure the input json is valid
         read_yaml(user_params, 'schemas/user_params.json')
-        reactor_config_override = json.loads(user_params).get('reactor_config_override')
+        user_data = json.loads(user_params)
+        reactor_config_override = user_data.get('reactor_config_override')
         if reactor_config_override:
             read_yaml(json.dumps(reactor_config_override), 'schemas/config.json')
 
-        osbs_conf = Configuration(build_json_dir=json.loads(user_params).get('build_json_dir'))
+        osbs_conf = Configuration(build_json_dir=user_data.get('build_json_dir'))
         osbs = OSBS(osbs_conf, osbs_conf)
         return osbs.render_plugins_configuration(user_params)
 
@@ -110,16 +110,6 @@ class OSv3InputPlugin(InputPlugin):
         for phase in phases:
             if not (pulp_registry and koji_hub):
                 self.remove_plugin(phase, PLUGIN_PULP_PULL_KEY, 'no pulp or koji available')
-            else:
-                has_pulp_pull |= has_plugin(self, phase, PLUGIN_PULP_PULL_KEY)
-        arrangement_six = self.plugins_json.get('arrangement_version', 0) >= 6
-        orchestrator_build = self.plugins_json.get('build_type', None) == 'orchestrator'
-        if arrangement_six and orchestrator_build:
-            has_verify_media = has_plugin(self, 'exit_plugins', PLUGIN_VERIFY_MEDIA_KEY)
-            if not (has_verify_media or has_pulp_pull):
-                self.log.warning('exit_pulp_pull or exit_verify_media_types required')
-            elif has_verify_media and has_pulp_pull:
-                self.remove_plugin('exit_plugins',  PLUGIN_VERIFY_MEDIA_KEY, 'pulp enabled')
 
         if not pulp_registry:
             self.remove_plugin('postbuild_plugins', PLUGIN_PULP_PUSH_KEY, 'no pulp available')

@@ -514,16 +514,16 @@ class TestVerifyImageTypes(object):
     If pulp is enabled, this plugin shouldn't run
     """
     @responses.activate
-    def test_verify_fail_pulp_image(self):
+    def test_verify_fail_pulp_image(self, caplog):
         workflow = self.workflow()
         workflow.push_conf.add_pulp_registry('pulp', crane_uri='crane.example.com',
                                              server_side_sync=False)
         tasker = MockerTasker()
 
         plugin = VerifyMediaTypesPlugin(tasker, workflow)
-        with pytest.raises(RuntimeError) as exc:
-            plugin.run()
-        assert "pulp registry configure, verify_media_types should not run" in str(exc.value)
+        results = plugin.run()
+        assert not results
+        assert "pulp registry configure, verify_media_types should not run" in caplog.text()
 
     """
     Build was unsuccessful, return an empty list
