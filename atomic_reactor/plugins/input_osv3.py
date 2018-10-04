@@ -111,7 +111,7 @@ class OSv3InputPlugin(InputPlugin):
             if not (pulp_registry and koji_hub):
                 self.remove_plugin(phase, PLUGIN_PULP_PULL_KEY, 'no pulp or koji available')
             else:
-                has_pulp_pull |= has_plugin(self, phase, PLUGIN_PULP_PULL_KEY)
+                has_pulp_pull = has_plugin(self, phase, PLUGIN_PULP_PULL_KEY)
         arrangement_six = self.plugins_json.get('arrangement_version', 0) >= 6
         orchestrator_build = self.plugins_json.get('build_type', None) == 'orchestrator'
         if arrangement_six and orchestrator_build:
