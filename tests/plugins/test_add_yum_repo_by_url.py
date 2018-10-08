@@ -104,3 +104,68 @@ def test_multiple_repourls(inject_proxy, repos, filenames):
         assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)] == repo_content
 
     assert len(workflow.files) == 2
+
+
+@pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
+def test_single_repourl_no_suffix(inject_proxy):
+    tasker, workflow = prepare()
+    url = 'http://example.com/example%20repo'
+    filename = 'example repo-4ca91.repo'
+    runner = PreBuildPluginsRunner(tasker, workflow, [{
+        'name': AddYumRepoByUrlPlugin.key,
+        'args': {'repourls': [url], 'inject_proxy': inject_proxy}}])
+    runner.run()
+    repo_content = repocontent
+    if inject_proxy:
+        repo_content = '%sproxy = %s\n\n' % (repocontent.decode('utf-8'), inject_proxy)
+    # next(iter(...)) is for py 2/3 compatibility
+    assert next(iter(workflow.files.keys())) == os.path.join(YUM_REPOS_DIR, filename)
+    assert next(iter(workflow.files.values())) == repo_content
+    assert len(workflow.files) == 1
+
+
+@pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
+@pytest.mark.parametrize(('repos', 'filenames'), (
+    (['http://example.com/a/b/c/myrepo', 'http://example.com/repo-2.repo'],
+     ['myrepo-d0856.repo', 'repo-2-ba4b3.repo']),
+    (['http://example.com/a/b/c/myrepo', 'http://example.com/repo-2'],
+     ['myrepo-d0856.repo', 'repo-2-ba4b3.repo']),
+    (['http://example.com/a/b/c/myrepo.repo', 'http://example.com/repo-2'],
+     ['myrepo-d0856.repo', 'repo-2-ba4b3.repo']),
+    (['http://example.com/spam/myrepo.repo', 'http://example.com/bacon/myrepo'],
+     ['myrepo-608de.repo', 'myrepo-a1f78.repo']),
+))
+def test_multiple_repourls_no_suffix(inject_proxy, repos, filenames):
+    tasker, workflow = prepare()
+    runner = PreBuildPluginsRunner(tasker, workflow, [{
+        'name': AddYumRepoByUrlPlugin.key,
+        'args': {'repourls': repos, 'inject_proxy': inject_proxy}}])
+    runner.run()
+    repo_content = repocontent
+    if inject_proxy:
+        repo_content = '%sproxy = %s\n\n' % (repocontent.decode('utf-8'), inject_proxy)
+
+    for filename in filenames:
+        assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)]
+        assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)] == repo_content
+
+    assert len(workflow.files) == 2
+
+
+@pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
+def test_multiple_same_repourls_no_suffix(inject_proxy):
+    tasker, workflow = prepare()
+    repos = ['http://example.com/a/b/c/myrepo', 'http://example.com/a/b/c/myrepo.repo']
+    filename = 'myrepo-d0856.repo'
+    runner = PreBuildPluginsRunner(tasker, workflow, [{
+        'name': AddYumRepoByUrlPlugin.key,
+        'args': {'repourls': repos, 'inject_proxy': inject_proxy}}])
+    runner.run()
+    repo_content = repocontent
+    if inject_proxy:
+        repo_content = '%sproxy = %s\n\n' % (repocontent.decode('utf-8'), inject_proxy)
+
+    assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)]
+    assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)] == repo_content
+
+    assert len(workflow.files) == 1

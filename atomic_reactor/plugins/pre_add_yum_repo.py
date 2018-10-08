@@ -14,6 +14,7 @@ actually places the repo file in the build environment.
 import os
 from atomic_reactor.constants import YUM_REPOS_DIR
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.yum_util import YumRepo
 from atomic_reactor.util import render_yum_repo
 
 
@@ -32,8 +33,7 @@ class AddYumRepoPlugin(PreBuildPlugin):
         """
         # call parent constructor
         super(AddYumRepoPlugin, self).__init__(tasker, workflow)
-        self.baseurl = baseurl
-        self.repo_name = repo_name
+        self.repo = YumRepo(baseurl=baseurl, name=repo_name, enabled=True)
 
     def run(self):
         """
@@ -46,6 +46,6 @@ class AddYumRepoPlugin(PreBuildPlugin):
             'enabled': 1,
             'gpgcheck': 0,
         }
-        path = os.path.join(YUM_REPOS_DIR, self.repo_name + ".repo")
+        path = YumRepo(os.path.join(YUM_REPOS_DIR, self.repo_name)).dst_filename
         self.log.info("yum repo of koji target: '%s'", path)
         self.workflow.files[path] = render_yum_repo(repo)

@@ -9,8 +9,9 @@ of the BSD license. See the LICENSE file for details.
 Pre build plugin for koji build system
 """
 import os
-from atomic_reactor.constants import YUM_REPOS_DIR
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.constants import YUM_REPOS_DIR
+from atomic_reactor.yum_util import YumRepo
 from atomic_reactor.util import render_yum_repo
 from atomic_reactor.plugins.pre_reactor_config import (get_koji_session, get_yum_proxy,
                                                        get_koji_path_info)
@@ -95,6 +96,6 @@ class KojiPlugin(PreBuildPlugin):
             self.log.info("Setting yum proxy to %s", self.proxy)
             repo['proxy'] = self.proxy
 
-        path = os.path.join(YUM_REPOS_DIR, self.target + ".repo")
+        path = YumRepo(os.path.join(YUM_REPOS_DIR, self.target)).dst_filename
         self.log.info("yum repo of koji target: '%s'", path)
         self.workflow.files[path] = render_yum_repo(repo, escape_dollars=False)

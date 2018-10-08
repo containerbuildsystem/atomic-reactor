@@ -240,6 +240,7 @@ def test_single_repourl(tmpdir):
         tasker, workflow = prepare(df.dockerfile_path,
                                    df_content.inherited_user)
         filename = 'test.repo'
+        unique_filename = 'test-ccece.repo'
         repo_path = os.path.join(YUM_REPOS_DIR, filename)
         workflow.files[repo_path] = repocontent
         runner = PreBuildPluginsRunner(tasker, workflow, [{
@@ -249,7 +250,7 @@ def test_single_repourl(tmpdir):
 
         # Was it written correctly?
         repos_dir = os.path.join(str(tmpdir), RELATIVE_REPOS_PATH)
-        repofile = os.path.join(repos_dir, filename)
+        repofile = os.path.join(repos_dir, unique_filename)
         with open(repofile, "r") as fp:
             assert fp.read() == repocontent
 
@@ -289,6 +290,8 @@ def test_multiple_repourls(tmpdir):
                                    df_content.inherited_user)
         filename1 = 'myrepo.repo'
         filename2 = 'repo-2.repo'
+        unique_filename1 = 'myrepo-457b5.repo'
+        unique_filename2 = 'repo-2-7c47d.repo'
         repo_path1 = os.path.join(YUM_REPOS_DIR, filename1)
         repo_path2 = os.path.join(YUM_REPOS_DIR, filename2)
         workflow.files[repo_path1] = repocontent
@@ -300,7 +303,7 @@ def test_multiple_repourls(tmpdir):
 
         # Remove the repos/ directory.
         repos_dir = os.path.join(str(tmpdir), RELATIVE_REPOS_PATH)
-        for repofile in [filename1, filename2]:
+        for repofile in [unique_filename1, unique_filename2]:
             os.remove(os.path.join(repos_dir, repofile))
 
         os.rmdir(repos_dir)

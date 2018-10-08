@@ -29,6 +29,8 @@ from atomic_reactor.plugins.pre_resolve_module_compose import get_compose_info
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.rpm_util import rpm_qf_args
 from atomic_reactor.util import render_yum_repo, split_module_spec
+from atomic_reactor.yum_util import YumRepo
+
 
 DOCKERFILE_TEMPLATE = '''FROM {base_image}
 
@@ -172,7 +174,7 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
             'gpgcheck': 0,
         }
 
-        path = os.path.join(YUM_REPOS_DIR, repo_name + '.repo')
+        path = YumRepo(os.path.join(YUM_REPOS_DIR, repo_name)).dst_filename
         self.workflow.files[path] = render_yum_repo(repo, escape_dollars=False)
 
         override_build_kwarg(self.workflow, 'module_compose_id', compose_info.compose_id)
