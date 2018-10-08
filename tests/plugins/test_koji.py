@@ -240,7 +240,7 @@ class TestKoji(object):
                 with open(file_path, 'r') as fd:
                     assert fd.read() == expected
 
-        repofile = '/etc/yum.repos.d/target.repo'
+        repofile = '/etc/yum.repos.d/target-df7bc.repo'
         assert repofile in workflow.files
         content = workflow.files[repofile]
         assert content.startswith("[atomic-reactor-koji-plugin-target]\n")

@@ -12,6 +12,7 @@ import os
 from atomic_reactor.constants import YUM_REPOS_DIR, RELATIVE_REPOS_PATH, INSPECT_CONFIG
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
+from atomic_reactor.yum_util import YumRepo
 
 
 def add_yum_repos_to_dockerfile(yumrepos, df, inherited_user):
@@ -76,14 +77,8 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         os.mkdir(host_repos_path)
 
         for repo, repo_content in self.workflow.files.items():
-            repo_basename = os.path.basename(repo)
-            repo_relative_path = os.path.join(RELATIVE_REPOS_PATH, repo_basename)
-            repo_host_path = os.path.join(host_repos_path, repo_basename)
-            self.log.info("writing repo to '%s'", repo_host_path)
-            with open(repo_host_path, "wb") as fp:
-                fp.write(repo_content.encode("utf-8"))
-            self.log.debug("%s\n%s", repo, repo_content.strip())
-            repos_host_cont_mapping[repo] = repo_relative_path
+            yum_repo = YumRepo(repourl=repo, content=repo_content, dst_repos_dir=host_repos_path)
+            repos_host_cont_mapping[repo] = yum_repo.write_and_return_content()
 
         # Find out the USER inherited from the base image
         inspect = self.workflow.builder.base_image_inspect
