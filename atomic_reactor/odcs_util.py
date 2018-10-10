@@ -15,6 +15,7 @@ import time
 
 
 logger = logging.getLogger(__name__)
+MULTILIB_METHOD_DEFAULT = ['devel', 'runtime']
 
 
 class ODCSClient(object):
@@ -44,7 +45,7 @@ class ODCSClient(object):
         self.session = session
 
     def start_compose(self, source_type, source, packages=None, sigkeys=None, arches=None,
-                      flags=None):
+                      flags=None, multilib_arches=None, multilib_method=None):
         """Start a new ODCS compose
 
         :param source_type: str, the type of compose to request (tag, module, pulp)
@@ -60,6 +61,12 @@ class ODCSClient(object):
                         these keys will be included in a compose.
         :param arches: list<str>, List of additional Koji arches to build this compose for.
                         By default, the compose is built only for "x86_64" arch.
+        :param multilib_arches: list<str>, List of Koji arches to build as multilib in this
+                        compose. By default, no arches are built as multilib.
+        :param multilib_method: list<str>, list of methods to determine which packages should
+                        be included in a multilib compose. Defaults to none, but the value
+                        of ['devel', 'runtime] will be passed to ODCS if multilib_arches is
+                        not empty and no mulitlib_method value is provided.
 
         :return: dict, status of compose being created by request.
         """
@@ -80,6 +87,10 @@ class ODCSClient(object):
 
         if arches is not None:
             body['arches'] = arches
+
+        if multilib_arches:
+            body['multilib_arches'] = multilib_arches
+            body['multilib_method'] = multilib_method or MULTILIB_METHOD_DEFAULT
 
         logger.info("Starting compose: %s", body)
         response = self.session.post('{}composes/'.format(self.url),

@@ -6,7 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from atomic_reactor.odcs_util import ODCSClient
+from atomic_reactor.odcs_util import ODCSClient, MULTILIB_METHOD_DEFAULT
 from tests.retry_mock import mock_get_retry_session
 
 import flexmock
@@ -94,7 +94,15 @@ def compose_json(state, state_name, source_type='module', source=MODULE_NSV,
     ['no_deps'],
     ['breakfast', 'lunch'],
 ))
-def test_create_compose(odcs_client, source, source_type, packages, sigkeys, arches, flags):
+@pytest.mark.parametrize(('multilib_arches', 'multilib_method', 'expected_method'), (
+    (None, None, None),
+    (None, ['all'], None),
+    (['x86_64'], ['all'], ['all']),
+    (['breakfast', 'lunch'], ['some', 'random'], ['some', 'random']),
+    (['breakfast', 'lunch'], [], MULTILIB_METHOD_DEFAULT)
+))
+def test_create_compose(odcs_client, source, source_type, packages, sigkeys, arches, flags,
+                        multilib_arches, multilib_method, expected_method):
 
     def handle_composes_post(request):
         assert_request_token(request, odcs_client.session)
@@ -111,6 +119,11 @@ def test_create_compose(odcs_client, source, source_type, packages, sigkeys, arc
         assert body_json['source'].get('sigkeys') == sigkeys
         assert body_json.get('flags') == flags
         assert body_json.get('arches') == arches
+        assert body_json.get('multilib_arches') == multilib_arches
+        if expected_method is not None:
+            assert sorted(body_json.get('multilib_method')) == sorted(expected_method)
+        else:
+            assert 'multilib_method' not in body_json
         return (200, {}, compose_json(0, 'wait', source_type=source_type, source=source))
 
     responses.add_callback(responses.POST, '{}composes/'.format(ODCS_URL),
@@ -118,7 +131,8 @@ def test_create_compose(odcs_client, source, source_type, packages, sigkeys, arc
                            callback=handle_composes_post)
 
     odcs_client.start_compose(source_type=source_type, source=source, packages=packages,
-                              sigkeys=sigkeys, arches=arches, flags=flags)
+                              sigkeys=sigkeys, arches=arches, flags=flags,
+                              multilib_arches=multilib_arches, multilib_method=multilib_method)
 
 
 @responses.activate

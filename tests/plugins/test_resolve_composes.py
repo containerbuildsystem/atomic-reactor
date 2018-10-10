@@ -308,7 +308,7 @@ class TestResolveComposes(object):
         (["runtime"], ['runtime']),
         (["all"], ['all']),
         (["runtime", "devel"], ['devel', 'runtime']),
-        (None, ['devel', 'runtime']),
+        (None, []),
     ])
     def test_multilib(self, workflow, reactor_config_map,
                       compose_arches, pulp_arches, multilib_arches, request_multilib,
@@ -362,13 +362,15 @@ class TestResolveComposes(object):
             composed_arches.update(compose_config['arches'])
             if request_multilib:
                 if compose_config['source_type'] == 'tag':
-                    assert compose_config['multilib_arches'] == sorted(request_multilib)
-                    assert compose_config['multilib_method'] == method_results
+                    assert sorted(compose_config['multilib_arches']) == sorted(request_multilib)
+                    compose_methods = compose_config['multilib_method'] or []
+                    assert sorted(compose_methods) == sorted(method_results)
                     continue
                 else:
                     if compose_config['arches'][0] in request_multilib:
                         assert compose_config['multilib_arches'] == compose_config['arches']
-                        assert compose_config['multilib_method'] == method_results
+                        compose_methods = compose_config['multilib_method'] or []
+                        assert sorted(compose_methods) == sorted(method_results)
                         continue
             # fall through if multilib wasn't requested or if the pulp arch wasn't in
             # the multilib request
