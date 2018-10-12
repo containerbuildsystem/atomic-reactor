@@ -80,12 +80,14 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
 
         self.osbs = get_openshift_session(self.workflow, self.openshift_fallback)
         self.get_or_create_imagestream()
-        self.process_tags()
+
         try:
+            self.osbs.import_image_tags(self.imagestream_name, self.get_trackable_tags(),
+                                        self.docker_image_repo, insecure=self.insecure_registry)
+        except AttributeError:
+            self.log.info('Falling back to calling import_image instead of import_image_tags')
+            self.process_tags()
             self.osbs.import_image(self.imagestream_name, tags=self.get_trackable_tags())
-        except TypeError:
-            self.log.info('Falling back to calling import_image without tags')
-            self.osbs.import_image(self.imagestream_name)
 
     def get_or_create_imagestream(self):
         try:
