@@ -1,8 +1,17 @@
+import copy
 import os
 
 import pytest
+import jsonschema
 
-from atomic_reactor.source import (Source, GitSource, PathSource, get_source_instance_for)
+from atomic_reactor.constants import REPO_CONTAINER_CONFIG
+from atomic_reactor.source import (
+    Source,
+    SourceConfig,
+    GitSource,
+    PathSource,
+    get_source_instance_for
+)
 import atomic_reactor.source
 from jsonschema import ValidationError
 
@@ -79,3 +88,89 @@ class TestGetSourceInstanceFor(object):
         s = get_source_instance_for({'provider': 'path', 'uri': SOURCE_CONFIG_ERROR_PATH})
         with pytest.raises(ValidationError):
             s.config
+
+
+class TestSourceConfigSchemaValidation(object):
+    """Testing parsing of configuration file and schema validation.
+
+    Related to class source.SourceConfig
+    """
+    SOURCE_CONFIG_EMPTY = {
+        'data': {},
+        'autorebuild': {},
+        'flatpak': None,
+        'compose': None
+    }
+
+    def _create_source_config(self, tmpdir, yml_config):
+        tmpdir_str = str(tmpdir)
+        path = os.path.join(tmpdir_str, REPO_CONTAINER_CONFIG)
+        # store container configuration into expected file
+        with open(path, 'w') as f:
+            f.write(yml_config)
+            f.flush()
+
+        return SourceConfig(tmpdir_str)
+
+    @pytest.mark.parametrize('yml_config, attrs_updated', [
+        (
+            # empty config
+            """\
+            """,
+            {}
+        ), (
+            """\
+            platforms:
+              only: s390x
+            """,
+            {'data': {'platforms': {'only': 's390x'}}}
+        ), (
+            """\
+            platforms:
+              not: s390x
+            """,
+            {'data': {'platforms': {'not': 's390x'}}}
+        ), (
+            """\
+            platforms:
+              not: s390x
+              only: s390x
+            """,
+            {'data': {'platforms': {'only': 's390x', 'not': 's390x'}}}
+        ), (
+            """\
+            platforms:
+              not:
+               - s390x
+              only:
+               - s390x
+            """,
+            {'data': {'platforms': {'only': ['s390x'], 'not': ['s390x']}}}
+        ),
+    ])
+    def test_valid_source_config(self, tmpdir, yml_config, attrs_updated):
+        source_config = self._create_source_config(tmpdir, yml_config)
+        assert source_config
+
+        attrs_expected = copy.copy(self.SOURCE_CONFIG_EMPTY)
+        attrs_expected.update(attrs_updated)
+        for attr_name, value in attrs_expected.items():
+            assert getattr(source_config, attr_name) == value
+
+    @pytest.mark.parametrize('yml_config', [
+        """\
+        platforms:
+        """,
+
+        """\
+        platforms: not_an_object
+        """,
+
+        """\
+        platforms:
+          undefined_attr: s390x
+        """,
+    ])
+    def test_invalid_source_config_validation_error(self, tmpdir, yml_config):
+        with pytest.raises(jsonschema.ValidationError):
+            self._create_source_config(tmpdir, yml_config)
