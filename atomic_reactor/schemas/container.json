@@ -6,7 +6,7 @@
   "type": ["object", "null"],
   "properties": {
     "platforms": {
-      "type": "object",
+      "type": ["object", "null"],
       "properties": {
         "only": {
           "$ref": "#/definitions/platforms"

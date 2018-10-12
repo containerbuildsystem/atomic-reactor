@@ -146,6 +146,11 @@ class TestSourceConfigSchemaValidation(object):
                - s390x
             """,
             {'data': {'platforms': {'only': ['s390x'], 'not': ['s390x']}}}
+        ), (
+            """\
+            platforms:
+            """,
+            {'data': {'platforms': None}}
         ),
     ])
     def test_valid_source_config(self, tmpdir, yml_config, attrs_updated):
@@ -158,10 +163,6 @@ class TestSourceConfigSchemaValidation(object):
             assert getattr(source_config, attr_name) == value
 
     @pytest.mark.parametrize('yml_config', [
-        """\
-        platforms:
-        """,
-
         """\
         platforms: not_an_object
         """,
