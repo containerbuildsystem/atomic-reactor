@@ -172,6 +172,26 @@ class TestSourceConfigSchemaValidation(object):
             flatpak:
             """,
             {}
+        ), (
+            """\
+            compose:
+              packages:
+                - pkg1
+              pulp_repos: true
+              modules:
+                - module1
+              signing_intent: release
+            """,
+            {'compose': {
+                'packages': ['pkg1'], 'pulp_repos': True,
+                'modules': ['module1'], 'signing_intent': 'release'
+            }}
+        ), (
+            """\
+            compose:
+              extra_key: allowed
+            """,
+            {'compose': {'extra_key': 'allowed'}}
         ),
     ])
     def test_valid_source_config(self, tmpdir, yml_config, attrs_updated):
@@ -209,6 +229,14 @@ class TestSourceConfigSchemaValidation(object):
 
         """\
         flatpak: not_an_object
+        """,
+
+        """\
+        compose: not_an_object
+        """,
+
+        """\
+        compose:
         """,
     ])
     def test_invalid_source_config_validation_error(self, tmpdir, yml_config):
