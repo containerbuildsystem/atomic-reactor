@@ -96,7 +96,6 @@ class TestSourceConfigSchemaValidation(object):
     Related to class source.SourceConfig
     """
     SOURCE_CONFIG_EMPTY = {
-        'data': {},
         'autorebuild': {},
         'flatpak': None,
         'compose': None
@@ -117,7 +116,7 @@ class TestSourceConfigSchemaValidation(object):
             # empty config
             """\
             """,
-            {}
+            {'data': {}}
         ), (
             """\
             platforms:
@@ -151,6 +150,12 @@ class TestSourceConfigSchemaValidation(object):
             platforms:
             """,
             {'data': {'platforms': None}}
+        ), (
+            """\
+            autorebuild:
+              from_latest: true
+            """,
+            {'autorebuild': {'from_latest': True}}
         ),
     ])
     def test_valid_source_config(self, tmpdir, yml_config, attrs_updated):
@@ -171,6 +176,24 @@ class TestSourceConfigSchemaValidation(object):
         platforms:
           undefined_attr: s390x
         """,
+
+        """\
+        autorebuild:
+        """,
+
+        """\
+        autorebuild: not_an_object
+        """,
+
+        """\
+        autorebuild:
+          undefined_attr: something
+        """,
+
+        """\
+        autorebuild:
+          from_latest: not_a_boolean
+        """
     ])
     def test_invalid_source_config_validation_error(self, tmpdir, yml_config):
         with pytest.raises(jsonschema.ValidationError):
