@@ -55,7 +55,7 @@
       "additionalProperties": true
     },
     "flatpak": {
-      "type": "object"
+      "type": ["object", "null"]
     },
     "image_build_method": {
       "enum": ["docker_api", "imagebuilder"]
