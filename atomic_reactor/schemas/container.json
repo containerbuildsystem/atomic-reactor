@@ -28,7 +28,7 @@
       "additionalProperties": false
     },
     "compose": {
-      "type": "object",
+      "type": ["object", "null"],
       "properties": {
         "packages": {
           "description": "names of RPMs to include",
