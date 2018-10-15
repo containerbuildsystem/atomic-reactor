@@ -161,7 +161,13 @@ class TestSourceConfigSchemaValidation(object):
             autorebuild:
             """,
             {}
-        )
+        ), (
+            """\
+            flatpak:
+              something: random
+            """,
+            {'flatpak': {'something': 'random'}}
+        ),
     ])
     def test_valid_source_config(self, tmpdir, yml_config, attrs_updated):
         source_config = self._create_source_config(tmpdir, yml_config)
@@ -194,7 +200,15 @@ class TestSourceConfigSchemaValidation(object):
         """\
         autorebuild:
           from_latest: not_a_boolean
-        """
+        """,
+
+        """\
+        flatpak:
+        """,
+
+        """\
+        flatpak: not_an_object
+        """,
     ])
     def test_invalid_source_config_validation_error(self, tmpdir, yml_config):
         with pytest.raises(jsonschema.ValidationError):
