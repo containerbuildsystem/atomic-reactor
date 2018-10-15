@@ -156,7 +156,12 @@ class TestSourceConfigSchemaValidation(object):
               from_latest: true
             """,
             {'autorebuild': {'from_latest': True}}
-        ),
+        ), (
+            """\
+            autorebuild:
+            """,
+            {}
+        )
     ])
     def test_valid_source_config(self, tmpdir, yml_config, attrs_updated):
         source_config = self._create_source_config(tmpdir, yml_config)
@@ -175,10 +180,6 @@ class TestSourceConfigSchemaValidation(object):
         """\
         platforms:
           undefined_attr: s390x
-        """,
-
-        """\
-        autorebuild:
         """,
 
         """\

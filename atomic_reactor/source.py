@@ -46,7 +46,7 @@ class SourceConfig(object):
                 logger.exception("Failed to load and validate source config YAML from " + file_path)
                 raise
 
-        self.autorebuild = self.data.get('autorebuild', {})
+        self.autorebuild = self.data.get('autorebuild') or {}
         self.flatpak = self.data.get('flatpak')
         self.compose = self.data.get('compose')
         self.image_build_method = meth = self.data.get('image_build_method')

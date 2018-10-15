@@ -18,7 +18,7 @@
       "additionalProperties": false
     },
     "autorebuild": {
-      "type": "object",
+      "type": ["object", "null"],
       "properties": {
         "from_latest": {
           "description": "Whether to rebuild from the latest commit",
