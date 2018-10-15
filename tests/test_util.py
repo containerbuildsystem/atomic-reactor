@@ -1391,6 +1391,10 @@ def test_get_all_manifests(tmpdir, image, registry, insecure, creds, path, versi
         ['x86_64', 'ppc64le'],
         {'platforms': {'not': 'x86_64', 'only': 'x86_64'}},
         []
+    ), (
+        ['x86_64', 'ppc64le'],
+        {'platforms': None},
+        ['x86_64', 'ppc64le']
     ),
 ])
 def test_get_platforms_in_limits(tmpdir, platforms, config_dict, result, valid, caplog):
