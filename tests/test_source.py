@@ -192,6 +192,11 @@ class TestSourceConfigSchemaValidation(object):
               extra_key: allowed
             """,
             {'compose': {'extra_key': 'allowed'}}
+        ), (
+            """\
+            compose:
+            """,
+            {}
         ),
     ])
     def test_valid_source_config(self, tmpdir, yml_config, attrs_updated):
@@ -233,10 +238,6 @@ class TestSourceConfigSchemaValidation(object):
 
         """\
         compose: not_an_object
-        """,
-
-        """\
-        compose:
         """,
     ])
     def test_invalid_source_config_validation_error(self, tmpdir, yml_config):
