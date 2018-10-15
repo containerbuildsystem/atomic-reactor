@@ -167,6 +167,11 @@ class TestSourceConfigSchemaValidation(object):
               something: random
             """,
             {'flatpak': {'something': 'random'}}
+        ), (
+            """\
+            flatpak:
+            """,
+            {}
         ),
     ])
     def test_valid_source_config(self, tmpdir, yml_config, attrs_updated):
@@ -200,10 +205,6 @@ class TestSourceConfigSchemaValidation(object):
         """\
         autorebuild:
           from_latest: not_a_boolean
-        """,
-
-        """\
-        flatpak:
         """,
 
         """\
