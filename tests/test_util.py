@@ -1355,22 +1355,45 @@ def test_get_all_manifests(tmpdir, image, registry, insecure, creds, path, versi
     True,
     False
 ])
-@pytest.mark.parametrize(('platforms', 'platform_exclude', 'platform_only', 'result'), [
-    (['x86_64', 'ppc64le'], '', 'ppc64le', ['ppc64le']),
-    (['x86_64', 'spam', 'bacon', 'toast', 'ppc64le'], ['spam', 'bacon', 'eggs', 'toast'], '',
-     ['x86_64', 'ppc64le']),
-    (['ppc64le', 'spam', 'bacon', 'toast'], ['spam', 'bacon', 'eggs', 'toast'], 'ppc64le',
-     ['ppc64le']),
-    (['x86_64', 'bacon', 'toast'], 'toast', ['x86_64', 'ppc64le'], ['x86_64']),
-    (['x86_64', 'toast'], 'toast', 'x86_64', ['x86_64']),
-    (['x86_64', 'spam', 'bacon', 'toast'], ['spam', 'bacon', 'eggs', 'toast'], ['x86_64',
-                                                                                'ppc64le'],
-     ['x86_64']),
-    (['x86_64', 'ppc64le'], '', '', ['x86_64', 'ppc64le']),
-    (['x86_64', 'ppc64le'], 'x86_64', 'x86_64', []),
+@pytest.mark.parametrize(('platforms', 'config_dict', 'result'), [
+    (
+        ['x86_64', 'ppc64le'],
+        {'platforms': {'only': 'ppc64le'}},
+        ['ppc64le']
+    ), (
+        ['x86_64', 'spam', 'bacon', 'toast', 'ppc64le'],
+        {'platforms': {'not': ['spam', 'bacon', 'eggs', 'toast']}},
+        ['x86_64', 'ppc64le']
+    ), (
+        ['ppc64le', 'spam', 'bacon', 'toast'],
+        {'platforms': {'not': ['spam', 'bacon', 'eggs', 'toast'], 'only': ['ppc64le']}},
+        ['ppc64le']
+    ), (
+        ['x86_64', 'bacon', 'toast'],
+        {'platforms': {'not': 'toast', 'only': ['x86_64', 'ppc64le']}},
+        ['x86_64']
+    ), (
+        ['x86_64', 'toast'],
+        {'platforms': {'not': 'toast', 'only': 'x86_64'}},
+        ['x86_64']
+    ), (
+        ['x86_64', 'spam', 'bacon', 'toast'],
+        {'platforms': {
+            'not': ['spam', 'bacon', 'eggs', 'toast'],
+            'only': ['x86_64', 'ppc64le']
+        }},
+        ['x86_64']
+    ), (
+        ['x86_64', 'ppc64le'],
+        {},
+        ['x86_64', 'ppc64le']
+    ), (
+        ['x86_64', 'ppc64le'],
+        {'platforms': {'not': 'x86_64', 'only': 'x86_64'}},
+        []
+    ),
 ])
-def test_get_platforms_in_limits(tmpdir, platforms, platform_exclude, platform_only, result,
-                                 valid, caplog):
+def test_get_platforms_in_limits(tmpdir, platforms, config_dict, result, valid, caplog):
     class MockSource(object):
         def __init__(self, build_dir):
             self.build_dir = build_dir
@@ -1382,26 +1405,31 @@ def test_get_platforms_in_limits(tmpdir, platforms, platform_exclude, platform_o
         def __init__(self, build_dir):
             self.source = MockSource(build_dir)
 
-    platforms_dict = {}
-    if platform_exclude:
-        platforms_dict['platforms'] = {}
-        platforms_dict['platforms']['not'] = platform_exclude
-        if not isinstance(platform_exclude, list):
-            platform_exclude = [platform_exclude]
-    if platform_only:
-        if 'platforms' not in platforms_dict:
-            platforms_dict['platforms'] = {}
-        platforms_dict['platforms']['only'] = platform_only
-        if not isinstance(platform_only, list):
-            platform_only = [platform_only]
+    def configured_same_not_and_only(conf):
+
+        def to_set(conf):
+            return set([conf] if not isinstance(conf, list) else conf)
+
+        platforms_conf = conf.get('platforms', {})
+        if not platforms_conf:
+            return False
+
+        excluded_platforms_conf = platforms_conf.get('not', [])
+        excluded_platforms = to_set(excluded_platforms_conf)
+        if not excluded_platforms:
+            return False
+
+        only_platforms_conf = platforms_conf.get('only', [])
+        only_platforms = to_set(only_platforms_conf)
+        return excluded_platforms == only_platforms
 
     with open(os.path.join(str(tmpdir), 'container.yaml'), 'w') as f:
-        f.write(yaml.safe_dump(platforms_dict))
+        f.write(yaml.safe_dump(config_dict))
         f.flush()
     if valid and platforms:
         workflow = MockWorkflow(str(tmpdir))
         final_platforms = get_platforms_in_limits(workflow, platforms)
-        if platform_exclude and platform_exclude == platform_only:
+        if configured_same_not_and_only(config_dict):
             assert 'only and not platforms are the same' in caplog.text()
         assert final_platforms == set(result)
     elif valid:
