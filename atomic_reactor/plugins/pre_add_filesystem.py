@@ -67,6 +67,8 @@ class AddFilesystemPlugin(PreBuildPlugin):
         format = docker
         disk_size = 10
 
+        target = {target}
+
         install_tree = {install_tree}
         repo = {repo}
 
@@ -83,7 +85,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
                  from_task_id=None, poll_interval=5,
                  blocksize=DEFAULT_DOWNLOAD_BLOCK_SIZE,
                  repos=None, architectures=None,
-                 architecture=None):
+                 architecture=None, koji_target=None):
         """
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
@@ -102,6 +104,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
                       from each repo file.
         :param architectures: list<str>, list of arches to build on (orchestrator) - UNUSED
         :param architecture: str, arch to build on (worker)
+        :param koji_target: str, koji target name
         """
         # call parent constructor
         super(AddFilesystemPlugin, self).__init__(tasker, workflow)
@@ -124,6 +127,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         self.is_orchestrator = True if self.architectures else False
         self.architecture = architecture
         self.scratch = util.is_scratch_build()
+        self.koji_target = koji_target
 
     def is_image_build_type(self, base_image):
         return base_image.strip().lower() == 'koji/image-build'
@@ -139,6 +143,8 @@ class AddFilesystemPlugin(PreBuildPlugin):
                 if repo.has_option(section, 'baseurl')]
 
     def get_default_image_build_conf(self):
+        target = self.koji_target
+
         vcs_info = self.workflow.source.get_vcs_info()
         ksurl = '{}#{}'.format(vcs_info.vcs_url, vcs_info.vcs_ref)
 
@@ -154,6 +160,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         repo = ','.join(base_urls)
 
         kwargs = {
+            'target': target,
             'ksurl': ksurl,
             'install_tree': install_tree,
             'repo': repo,
