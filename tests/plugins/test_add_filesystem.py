@@ -50,6 +50,7 @@ if MOCK:
     from tests.retry_mock import mock_get_retry_session
 
 KOJI_HUB = 'https://koji-hub.com'
+KOJI_TARGET = 'guest-fedora-23-docker'
 FILESYSTEM_TASK_ID = 1234567
 
 DEFAULT_DOCKERFILE = dedent("""\
@@ -157,7 +158,6 @@ def mock_image_build_file(tmpdir, contents=None):
             [image-build]
             name = fedora-23
             version = 1.0
-            target = guest-fedora-23-docker
             install_tree = http://install-tree.com/$arch/fedora23/
 
             format = docker
@@ -197,7 +197,7 @@ def mock_workflow(tmpdir, dockerfile=DEFAULT_DOCKERFILE):
 
 
 def create_plugin_instance(tmpdir, kwargs=None, scratch=False, reactor_config_map=False,  # noqa
-                           architectures=None):
+                           architectures=None, koji_target=KOJI_TARGET):
     flexmock(util).should_receive('is_scratch_build').and_return(scratch)
     tasker = flexmock()
     workflow = mock_workflow(tmpdir)
@@ -211,7 +211,7 @@ def create_plugin_instance(tmpdir, kwargs=None, scratch=False, reactor_config_ma
     if reactor_config_map:
         make_and_store_reactor_config_map(workflow, {'root_url': kwargs.get('url', '')})
 
-    return AddFilesystemPlugin(tasker, workflow, KOJI_HUB, **kwargs)
+    return AddFilesystemPlugin(tasker, workflow, KOJI_HUB, koji_target=koji_target, **kwargs)
 
 
 def make_and_store_reactor_config_map(workflow, additional_koji=None):
@@ -337,7 +337,6 @@ def test_missing_yum_repourls(tmpdir, reactor_config_map):  # noqa
     image_build_conf = dedent("""\
         [image-build]
         version = 1.0
-        target = guest-fedora-23-docker
 
         distro = Fedora-23
 
@@ -433,7 +432,6 @@ def test_image_build_defaults(tmpdir, task_id, reactor_config_map):
     image_build_conf = dedent("""\
         [image-build]
         version = 1.0
-        target = guest-fedora-23-docker
 
         distro = Fedora-23
 
@@ -496,7 +494,7 @@ def test_image_build_overwrites(tmpdir, architectures, architecture, reactor_con
         name = my-name
         version = 1.0
         arches = i386,i486
-        target = guest-fedora-23-docker
+        target = guest-fedora-23-docker-candidate
         install_tree = http://install-tree.com/$arch/fedora23/
         format = locker,mocker
         disk_size = 20
@@ -528,7 +526,7 @@ def test_image_build_overwrites(tmpdir, architectures, architecture, reactor_con
         'my-name',
         '1.0',
         sorted(config_arch),
-        'guest-fedora-23-docker',
+        'guest-fedora-23-docker-candidate',
         'http://install-tree.com/$arch/fedora23/',
     ]
     assert opts['opts'] == {
@@ -620,3 +618,45 @@ def test_image_download(tmpdir, docker_tasker, architecture, architectures, down
     else:
         assert plugin_result['base-image-id'] is None
         assert plugin_result['filesystem-koji-task-id'] is None
+
+
+@pytest.mark.parametrize(('koji_target'), [None, '', 'guest-fedora-23-docker'])  # noqa:F811
+@responses.activate
+def test_image_build_overwrites_target(tmpdir, koji_target, reactor_config_map):
+    plugin = create_plugin_instance(tmpdir,
+                                    reactor_config_map=reactor_config_map,
+                                    koji_target=koji_target)
+    image_build_conf = dedent("""\
+        [image-build]
+        name = my-name
+        target = guest-fedora-23-docker-candidate
+        version = 1.0
+        install_tree = http://install-tree.com/$arch/fedora23/
+        """)
+
+    file_name = mock_image_build_file(str(tmpdir), contents=image_build_conf)
+    _, config, _ = plugin.parse_image_build_config(file_name)
+    assert config == [
+        'my-name',
+        '1.0',
+        ['x86_64'],
+        'guest-fedora-23-docker-candidate',
+        'http://install-tree.com/$arch/fedora23/'
+    ]
+
+
+def test_no_target_set(tmpdir, reactor_config_map):  # noqa:F811
+    plugin = create_plugin_instance(tmpdir,
+                                    reactor_config_map=reactor_config_map,
+                                    koji_target='')
+    image_build_conf = dedent("""\
+        [image-build]
+        name = my-name
+        version = 1.0
+        install_tree = http://install-tree.com/$arch/fedora23/
+        """)
+
+    file_name = mock_image_build_file(str(tmpdir), contents=image_build_conf)
+    with pytest.raises(ValueError) as exc:
+        plugin.parse_image_build_config(file_name)
+    assert 'target cannot be empty' in str(exc)

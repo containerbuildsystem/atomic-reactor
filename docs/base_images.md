@@ -37,8 +37,13 @@ file used for Koji's CLI client image build subcommand:
 For convenience, defaults are provided to minimize the size of the configuration
 file. See the `DEFAULT_IMAGE_BUILD_CONF` variable in `add_filesystem` plugin's
 [source](/atomic_reactor/plugins/pre_add_filesystem.py) for all defaults.
-Most notably, the `ksurl` item is by default dynamically mapped to the current
-branch and commit.
+Most notably,
+
+- the `ksurl` item is by default dynamically mapped to the current branch and
+  commit;
+- the `target` item is by default set to the koji target parameter and should
+  be omitted from the config file. If explicitly set in the file, the default
+  value is overridden.
 
 It's important to note that currently in the `[factory-parameters]` section,
 the `create_docker_metadata` parameter must be set to `False`. Setting this
