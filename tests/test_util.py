@@ -57,6 +57,7 @@ from tests.constants import (DOCKERFILE_GIT, DOCKERFILE_SHA1,
                              REACTOR_CONFIG_MAP)
 import atomic_reactor.util
 from atomic_reactor.constants import INSPECT_CONFIG, PLUGIN_BUILD_ORCHESTRATE_KEY
+from atomic_reactor.source import SourceConfig
 
 from tests.util import requires_internet
 from tests.stubs import StubInsideBuilder
@@ -1401,9 +1402,15 @@ def test_get_platforms_in_limits(tmpdir, platforms, config_dict, result, valid, 
     class MockSource(object):
         def __init__(self, build_dir):
             self.build_dir = build_dir
+            self._config = None
 
         def get_build_file_path(self):
             return self.build_dir, self.build_dir
+
+        @property
+        def config(self):
+            self._config = self._config or SourceConfig(self.build_dir)
+            return self._config
 
     class MockWorkflow(object):
         def __init__(self, build_dir):
