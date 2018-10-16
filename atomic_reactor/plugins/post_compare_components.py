@@ -99,7 +99,7 @@ class CompareComponentsPlugin(PostBuildPlugin):
                     continue
 
                 if t not in SUPPORTED_TYPES:
-                    raise ValueError("Type %s not supported")
+                    raise ValueError("Type %s not supported" % t)
 
                 identifier = (t, name)
                 if identifier not in master_comp:
