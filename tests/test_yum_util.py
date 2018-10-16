@@ -13,16 +13,17 @@ from atomic_reactor.yum_util import YumRepo
 import pytest
 
 
-@pytest.mark.parametrize(('repourl', 'filename'), (
-    ('http://example.com/a/b/c/myrepo.repo', 'myrepo-d0856.repo'),
-    ('http://example.com/a/b/c/myrepo', 'myrepo-d0856.repo'),
-    ('http://example.com/repo-2.repo', 'repo-2-ba4b3.repo'),
-    ('http://example.com/repo-2', 'repo-2-ba4b3.repo'),
-    ('http://example.com/spam/myrepo.repo', 'myrepo-608de.repo'),
-    ('http://example.com/bacon/myrepo', 'myrepo-a1f78.repo'),
+@pytest.mark.parametrize(('repourl', 'add_hash', 'filename'), (
+    ('http://example.com/a/b/c/myrepo.repo', True, 'myrepo-d0856.repo'),
+    ('http://example.com/a/b/c/myrepo', True, 'myrepo-d0856.repo'),
+    ('http://example.com/repo-2.repo', True, 'repo-2-ba4b3.repo'),
+    ('http://example.com/repo-2', True, 'repo-2-ba4b3.repo'),
+    ('http://example.com/spam/myrepo.repo', True, 'myrepo-608de.repo'),
+    ('http://example.com/bacon/myrepo', True, 'myrepo-a1f78.repo'),
+    ('http://example.com/spam/myrepo-608de.repo', False, 'myrepo-608de.repo'),
 ))
-def test_add_repo_to_url(repourl, filename):
-    repo = YumRepo(repourl)
+def test_add_repo_to_url(repourl, add_hash, filename):
+    repo = YumRepo(repourl, add_hash=add_hash)
     assert repo.filename == filename
 
 

@@ -239,7 +239,7 @@ def test_single_repourl(tmpdir):
         df.lines = df_content.lines_before_add + df_content.lines_before_remove
         tasker, workflow = prepare(df.dockerfile_path,
                                    df_content.inherited_user)
-        filename = 'test.repo'
+        filename = 'test-ccece.repo'
         unique_filename = 'test-ccece.repo'
         repo_path = os.path.join(YUM_REPOS_DIR, filename)
         workflow.files[repo_path] = repocontent
@@ -288,8 +288,8 @@ def test_multiple_repourls(tmpdir):
         df.lines = df_content.lines_before_add + df_content.lines_before_remove
         tasker, workflow = prepare(df.dockerfile_path,
                                    df_content.inherited_user)
-        filename1 = 'myrepo.repo'
-        filename2 = 'repo-2.repo'
+        filename1 = 'myrepo-457b5.repo'
+        filename2 = 'repo-2-7c47d.repo'
         unique_filename1 = 'myrepo-457b5.repo'
         unique_filename2 = 'repo-2-7c47d.repo'
         repo_path1 = os.path.join(YUM_REPOS_DIR, filename1)
