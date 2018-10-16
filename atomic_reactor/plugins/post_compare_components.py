@@ -5,13 +5,24 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import logging
+
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_package_comparison_exceptions
 from atomic_reactor.constants import (PLUGIN_COMPARE_COMPONENTS_KEY,
                                       PLUGIN_FETCH_WORKER_METADATA_KEY)
 
 
-SUPPORTED_TYPES = ("rpm",)
+T_RPM = "rpm"
+SUPPORTED_TYPES = (T_RPM,)
+
+
+def filter_components_by_name(name, components_list, type_=T_RPM):
+    """Generator filters components from components_list by name"""
+    for components in components_list:
+        for component in components:
+            if component['type'] == type_ and component['name'] == name:
+                yield component
 
 
 class CompareComponentsPlugin(PostBuildPlugin):
@@ -63,6 +74,15 @@ class CompareComponentsPlugin(PostBuildPlugin):
 
         return comp_list
 
+    def log_rpm_component(self, component, loglevel=logging.WARNING):
+        assert component['type'] == T_RPM
+        self.log.log(
+            loglevel,
+            "%s: %s-%s-%s (%s)",  # platform: name-version-release (signature)
+            component['arch'], component['name'], component['version'],
+            component['release'], component['signature']
+        )
+
     def run(self):
         """
         Run the plugin.
@@ -106,14 +126,19 @@ class CompareComponentsPlugin(PostBuildPlugin):
                     master_comp[identifier] = component
                     continue
 
-                try:
+                if t == T_RPM:
                     mc = master_comp[identifier]
-
-                    if t == 'rpm':
+                    try:
                         self.rpm_compare(mc, component)
-                except ValueError as ex:
-                    self.log.warn("Comparison mismatch for component %s: %s", name, ex)
-                    failed = True
+                    except ValueError as ex:
+                        self.log.debug("Mismatch details: %s", ex)
+                        self.log.warning(
+                            "Comparison mismatch for component %s:", name)
+
+                        # use all components to provide complete list
+                        for comp in filter_components_by_name(name, comp_list):
+                            self.log_rpm_component(comp)
+                        failed = True
 
         if failed:
             raise ValueError("Failed component comparison")
