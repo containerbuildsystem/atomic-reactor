@@ -21,6 +21,9 @@ from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
+from atomic_reactor.plugins.post_compare_components import (
+    filter_components_by_name
+)
 from atomic_reactor.util import ImageName
 
 from tests.constants import MOCK_SOURCE, TEST_IMAGE, INPUT_IMAGE, FILES
@@ -91,6 +94,25 @@ def mock_metadatas():
     }
 
     return worker_metadatas
+
+
+def test_filter_components_by_name():
+    """Test function filter_components_by_name"""
+    worker_metadatas = mock_metadatas()
+    component_name = 'openssl'
+
+    component_list = [
+        worker_metadata['output'][2]['components']
+        for worker_metadata in worker_metadatas.values()
+    ]
+
+    filtered = list(filter_components_by_name(component_name, component_list))
+
+    expected_count = len(worker_metadatas.keys())
+    assert len(filtered) == expected_count
+
+    expected_platforms = set(worker_metadatas.keys())
+    assert set(f['arch'] for f in filtered) == expected_platforms
 
 
 @pytest.mark.parametrize(('mismatch', 'exception', 'fail'), (
@@ -175,3 +197,46 @@ def test_bad_component_type(tmpdir):
 
     with pytest.raises(PluginFailedException):
         runner.run()
+
+
+@pytest.mark.parametrize('mismatch', (True, False))
+def test_mismatch_reporting(tmpdir, caplog, mismatch):
+    """Test if expected log entries are reported when components mismatch"""
+    workflow = mock_workflow(tmpdir)
+    worker_metadatas = mock_metadatas()
+
+    component_name = "openssl"
+    component = worker_metadatas['ppc64le']['output'][2]['components'][4]
+    assert component['name'] == component_name, "Error in test data"
+
+    if mismatch:
+        component['version'] = 'bacon'
+
+    workflow.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
+
+    runner = PostBuildPluginsRunner(
+        None,
+        workflow,
+        [{
+            'name': PLUGIN_COMPARE_COMPONENTS_KEY,
+            "args": {}
+        }]
+    )
+
+    log_entries = (
+        'Comparison mismatch for component openssl:',
+        'ppc64le: openssl-bacon-8.el7 (199e2f91fd431d51)',
+        'x86_64: openssl-1.0.2k-8.el7 (199e2f91fd431d51)',
+    )
+
+    if mismatch:
+        # mismatch detected, failure and log entries are expected
+        with pytest.raises(PluginFailedException):
+            runner.run()
+        for entry in log_entries:
+            assert entry in caplog.text()
+    else:
+        # no mismatch, no failure, no log entries
+        runner.run()
+        for entry in log_entries:
+            assert entry not in caplog.text()
