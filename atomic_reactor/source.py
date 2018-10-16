@@ -37,13 +37,18 @@ class SourceConfig(object):
 
     def __init__(self, build_path):
         self.data = {}
-        file_path = os.path.join(build_path, REPO_CONTAINER_CONFIG)
-        if os.path.exists(file_path):
+        self.file_path = os.path.join(build_path, REPO_CONTAINER_CONFIG)
+        if os.path.exists(self.file_path):
             try:
                 # read file and validate against schema
-                self.data = read_yaml_from_file_path(file_path, 'schemas/container.json') or {}
+                self.data = read_yaml_from_file_path(
+                    self.file_path, 'schemas/container.json'
+                ) or {}
             except Exception:
-                logger.exception("Failed to load and validate source config YAML from " + file_path)
+                logger.exception(
+                    "Failed to load and validate source config YAML from %s",
+                    self.file_path
+                )
                 raise
 
         self.autorebuild = self.data.get('autorebuild') or {}

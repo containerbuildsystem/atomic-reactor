@@ -18,6 +18,7 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.util import ImageName
+from atomic_reactor.source import SourceConfig
 from atomic_reactor import util
 from flexmock import flexmock
 import pytest
@@ -61,9 +62,15 @@ class MockSource(object):
     def __init__(self, tmpdir):
         self.path = str(tmpdir)
         self.dockerfile_path = str(tmpdir)
+        self._config = None
 
     def get_build_file_path(self):
         return self.path, self.path
+
+    @property
+    def config(self):
+        self._config = self._config or SourceConfig(self.path)
+        return self._config
 
 
 class MockClusterConfig(object):

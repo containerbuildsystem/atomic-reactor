@@ -1511,22 +1511,22 @@ def get_platforms_in_limits(workflow, input_platforms=None):
     if not input_platforms:
         return None
     excluded_platforms = set()
-    only_platforms = set()
+
     if not isinstance(input_platforms, set):
         expected_platforms = set(input_platforms)
     else:
         expected_platforms = deepcopy(input_platforms)
-    build_file_dir = workflow.source.get_build_file_path()[1]
-    container_path = os.path.join(build_file_dir, REPO_CONTAINER_CONFIG)
-    if os.path.exists(container_path):
-        with open(container_path) as f:
-            data = yaml.safe_load(f)
-            if data and 'platforms' in data and data['platforms']:
-                excluded_platforms = set(make_list(data['platforms'].get('not', [])))
-                only_platforms = set(make_list(data['platforms'].get('only', [])))
-                if only_platforms:
-                    if excluded_platforms == only_platforms:
-                        logger.warn('only and not platforms are the same in %s',
-                                    container_path)
-                    expected_platforms = expected_platforms & only_platforms
+
+    data = workflow.source.config.data
+
+    if data and 'platforms' in data and data['platforms']:
+        excluded_platforms = set(make_list(data['platforms'].get('not', [])))
+        only_platforms = set(make_list(data['platforms'].get('only', [])))
+        if only_platforms:
+            if excluded_platforms == only_platforms:
+                logger.warning(
+                    'only and not platforms are the same in %s',
+                    workflow.source.config.file_path
+                )
+            expected_platforms = expected_platforms & only_platforms
     return expected_platforms - excluded_platforms
