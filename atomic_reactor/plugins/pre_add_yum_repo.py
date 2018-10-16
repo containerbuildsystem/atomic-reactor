@@ -33,7 +33,8 @@ class AddYumRepoPlugin(PreBuildPlugin):
         """
         # call parent constructor
         super(AddYumRepoPlugin, self).__init__(tasker, workflow)
-        self.repo = YumRepo(baseurl=baseurl, name=repo_name, enabled=True)
+        self.repo_name = repo_name
+        self.baseurl = baseurl
 
     def run(self):
         """

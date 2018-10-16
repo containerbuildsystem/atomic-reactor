@@ -77,7 +77,8 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         os.mkdir(host_repos_path)
 
         for repo, repo_content in self.workflow.files.items():
-            yum_repo = YumRepo(repourl=repo, content=repo_content, dst_repos_dir=host_repos_path)
+            yum_repo = YumRepo(repourl=repo, content=repo_content, dst_repos_dir=host_repos_path,
+                               add_hash=False)
             repos_host_cont_mapping[repo] = yum_repo.write_and_return_content()
 
         # Find out the USER inherited from the base image
