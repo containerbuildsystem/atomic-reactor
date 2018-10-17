@@ -5,6 +5,7 @@ set -eux
 OS=${OS:="centos"}
 OS_VERSION=${OS_VERSION:="7"}
 PYTHON_VERSION=${PYTHON_VERSION:="2"}
+ACTION=${ACTION:="test"}
 IMAGE="$OS:$OS_VERSION"
 # Pull fedora images from registry.fedoraproject.org
 if [[ $OS == "fedora" ]]; then
@@ -116,8 +117,25 @@ $RUN $PIP install -r tests/requirements.txt
 # CentOS needs to have setuptools updates to make pytest-cov work
 if [[ $OS != "fedora" ]]; then $RUN $PIP install -U setuptools; fi
 
+case ${ACTION} in
+"test")
+  TEST_CMD="pytest -vv tests --cov atomic_reactor --cov-report html"
+  ;;
+"pylint")
+  # This can run only at fedora because pylint is not packaged in centos
+  # use distro pylint to not get too new pylint version
+  $RUN $PKG install -y "${PYTHON}-pylint"
+  PACKAGES='atomic_reactor tests integration-tests'
+  TEST_CMD="${PYTHON} -m pylint ${PACKAGES}"
+  ;;
+*)
+  echo "Unknown action: ${ACTION}"
+  exit 2
+  ;;
+esac
+
 # Run tests
-$RUN pytest -vv tests --cov atomic_reactor --cov-report html "$@"
+$RUN ${TEST_CMD} "$@"
 
 echo "To run tests again:"
-echo "$RUN pytest -vv tests --cov atomic_reactor --cov-report html"
+echo "$RUN ${TEST_CMD}"

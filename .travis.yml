@@ -7,6 +7,14 @@ services:
   - docker
 env:
   matrix:
+    - ACTION=pylint
+      OS=fedora
+      OS_VERSION=28
+      PYTHON_VERSION=2
+    - ACTION=pylint
+      OS=fedora
+      OS_VERSION=28
+      PYTHON_VERSION=3
     - OS=centos
       OS_VERSION=7
       PYTHON_VERSION=2

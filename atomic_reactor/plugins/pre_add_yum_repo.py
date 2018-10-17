@@ -11,6 +11,10 @@ Add arbitrary yum repo to a list of repos which should be injected into built im
 This plugin has to run _BEFORE_ the inject_yum_repo plugin, which
 actually places the repo file in the build environment.
 """
+
+# deprecated, will be removed
+# pylint: disable=unexpected-keyword-arg, no-value-for-parameter, no-member
+
 import os
 from atomic_reactor.constants import YUM_REPOS_DIR
 from atomic_reactor.plugin import PreBuildPlugin
