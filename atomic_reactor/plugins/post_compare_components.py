@@ -108,7 +108,7 @@ class CompareComponentsPlugin(PostBuildPlugin):
         # list to compare with.
 
         # Keep everything separated by component type
-        failed = False
+        failed_components = set()
         for components in comp_list:
             for component in components:
                 t = component['type']
@@ -138,7 +138,12 @@ class CompareComponentsPlugin(PostBuildPlugin):
                         # use all components to provide complete list
                         for comp in filter_components_by_name(name, comp_list):
                             self.log_rpm_component(comp)
-                        failed = True
+                        failed_components.add(name)
 
-        if failed:
-            raise ValueError("Failed component comparison")
+        if failed_components:
+            raise ValueError(
+                "Failed component comparison for components: "
+                "{components}".format(
+                    components=', '.join(sorted(failed_components))
+                )
+            )

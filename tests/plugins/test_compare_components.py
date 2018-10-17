@@ -232,7 +232,12 @@ def test_mismatch_reporting(tmpdir, caplog, mismatch):
     if mismatch:
         # mismatch detected, failure and log entries are expected
         with pytest.raises(PluginFailedException):
-            runner.run()
+            try:
+                runner.run()
+            except PluginFailedException as e:
+                assert 'Failed component comparison for components: openssl' in str(e)
+                raise
+
         for entry in log_entries:
             assert entry in caplog.text()
     else:
