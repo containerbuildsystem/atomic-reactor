@@ -223,8 +223,10 @@ class PulpSyncPlugin(PostBuildPlugin):
 
         # We only want the hostname[:port]
         hostname_and_port = re.compile(r'^https?://([^/]*)/?.*')
-        pulp_registry = hostname_and_port.sub(lambda m: m.groups()[0],
-                                              pulp.registry)
+        pulp_registry = hostname_and_port.sub(
+            lambda m: m.groups()[0],
+            pulp.registry  # pylint: disable=no-member
+        )
 
         # Store the registry URI in the push configuration
         self.workflow.push_conf.add_pulp_registry(self.pulp_registry_name,

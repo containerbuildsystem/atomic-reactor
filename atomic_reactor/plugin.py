@@ -370,7 +370,7 @@ class BuildPluginsRunner(PluginsRunner):
             sig = inspect.getargspec(plugin_class.__init__)
             kwargs = sig.keywords
         else:
-            sig = inspect.getfullargspec(plugin_class.__init__)
+            sig = inspect.getfullargspec(plugin_class.__init__)  # pylint: disable=no-member
             kwargs = sig.varkw
 
         # Constructor defines **kwargs, it'll take any parameter
