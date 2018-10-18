@@ -126,7 +126,7 @@ def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=Fals
      .with_args(**config_kwargs))
 
     flexmock(os)
-    os.should_receive("environ").and_return(new_environ)
+    os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
 
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, "test-image")
 
@@ -163,7 +163,9 @@ def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=Fals
         ]
     workflow.source.lg = LazyGit(None, commit="commit")
     flexmock(workflow.source.lg)
+    # pylint: disable=no-member
     workflow.source.lg.should_receive("_commit_id").and_return("commit")
+    # pylint: enable=no-member
 
     return workflow
 

@@ -226,7 +226,10 @@ class PulpHandler(object):
         self.p.watch_tasks(task_ids)
 
     def get_registry_hostname(self):
-        return re.sub(r'^https?://([^/]*)/?.*', lambda m: m.groups()[0], self.p.registry)
+        return re.sub(
+            r'^https?://([^/]*)/?.*', lambda m: m.groups()[0],
+            self.p.registry  # pylint: disable=no-member
+        )
 
     def get_pulp_instance(self):
         return self.pulp_instance
