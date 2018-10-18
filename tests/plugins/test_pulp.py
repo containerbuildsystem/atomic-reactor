@@ -30,6 +30,7 @@ except (ImportError):
 
 import subprocess
 
+import six
 import pytest
 from flexmock import flexmock
 from tests.constants import INPUT_IMAGE, SOURCE, MOCK
@@ -95,38 +96,40 @@ def prepare(check_repo_retval=0, existing_layers=[],
     if unsupported:
         (flexmock(dockpulp.Pulp)
          .should_receive('upload')
-         .with_args(unicode, unicode)
+         .with_args(six.text_type, six.text_type)
          .and_raise(TypeError)
          .at_most()
          .times(image_count)
          .ordered())
         (flexmock(dockpulp.Pulp)
          .should_receive('upload')
-         .with_args(unicode)
+         .with_args(six.text_type)
          .and_return(True)
          .at_most()
          .times(image_count)
          .ordered())
         (flexmock(dockpulp.Pulp)
          .should_receive('copy_filters')
-         .with_args(unicode, v1=True, v2=False, filters={'unit': {'$or': [{'image_id': 'foo'}]}})
+         .with_args(six.text_type, v1=True, v2=False,
+                    filters={'unit': {'$or': [{'image_id': 'foo'}]}})
          .at_most()
          .times(image_count))
     else:
         (flexmock(dockpulp.Pulp)
          .should_receive('upload')
-         .with_args(unicode, unicode)
+         .with_args(six.text_type, six.text_type)
          .and_return(False)
          .at_most()
          .times(image_count))
         (flexmock(dockpulp.Pulp)
          .should_receive('copy_filters')
-         .with_args(unicode, v1=True, v2=False, filters={'unit': {'$or': [{'image_id': 'foo'}]}})
+         .with_args(six.text_type, v1=True, v2=False,
+                    filters={'unit': {'$or': [{'image_id': 'foo'}]}})
          .at_most()
          .once())
     (flexmock(dockpulp.Pulp)
      .should_receive('updateRepo')
-     .with_args(unicode, dict))
+     .with_args(six.text_type, dict))
     (flexmock(dockpulp.Pulp)
      .should_receive('crane')
      .with_args(list, wait=True)

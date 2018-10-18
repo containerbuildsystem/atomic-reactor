@@ -67,6 +67,7 @@ disable=I,
         relative-import,  # nice to have
         super-init-not-called,  # nice to have
         undefined-loop-variable,  # should be enabled
+        unicode-builtin,
         unreachable,  # should be enabled, dead code
         unnecessary-lambda,  # nice to have
         unused-argument,  # nice to have

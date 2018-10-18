@@ -30,6 +30,7 @@ try:
 except (ImportError):
     dockpulp = None
 
+import six
 import pytest
 from flexmock import flexmock
 from tests.constants import INPUT_IMAGE, SOURCE, MOCK
@@ -92,10 +93,10 @@ def prepare(success=True, v1_image_ids={}):
      .should_receive('createRepo'))
     (flexmock(dockpulp.Pulp)
      .should_receive('copy')
-     .with_args(unicode, unicode))
+     .with_args(six.text_type, six.text_type))
     (flexmock(dockpulp.Pulp)
      .should_receive('updateRepo')
-     .with_args(unicode, dict))
+     .with_args(six.text_type, dict))
     (flexmock(dockpulp.Pulp)
      .should_receive('')
      .with_args(object, object)
@@ -199,7 +200,7 @@ def test_pulp_publish_delete(worker_builds_created, v1_image_ids,
 
     (flexmock(dockpulp.Pulp).should_receive('crane').never())
     if expected:
-        (flexmock(dockpulp.Pulp).should_receive('remove').with_args(unicode, unicode))
+        (flexmock(dockpulp.Pulp).should_receive('remove').with_args(six.text_type, six.text_type))
     else:
         (flexmock(dockpulp.Pulp).should_receive('remove').never())
 
