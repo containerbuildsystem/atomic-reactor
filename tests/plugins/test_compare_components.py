@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import print_function, unicode_literals
 
+import copy
 import os
 import json
 
@@ -206,11 +207,19 @@ def test_mismatch_reporting(tmpdir, caplog, mismatch):
     worker_metadatas = mock_metadatas()
 
     component_name = "openssl"
-    component = worker_metadatas['ppc64le']['output'][2]['components'][4]
-    assert component['name'] == component_name, "Error in test data"
+    component_ppc64le = worker_metadatas['ppc64le']['output'][2]['components'][4]
+    assert component_ppc64le['name'] == component_name, "Error in test data"
+
+    # add extra fake worker for s390x to having 3 different platforms
+    # we care about only one component
+    worker_metadatas['s390x'] = copy.deepcopy(worker_metadatas['ppc64le'])
+    component_s390x = copy.deepcopy(component_ppc64le)
+    component_s390x['arch'] = 's390x'
+    worker_metadatas['s390x']['output'][2]['components'] = [component_s390x]
 
     if mismatch:
-        component['version'] = 'bacon'
+        component_ppc64le['version'] = 'bacon'
+        component_s390x['version'] = 'sandwich'
 
     workflow.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
 
@@ -227,6 +236,7 @@ def test_mismatch_reporting(tmpdir, caplog, mismatch):
         'Comparison mismatch for component openssl:',
         'ppc64le: openssl-bacon-8.el7 (199e2f91fd431d51)',
         'x86_64: openssl-1.0.2k-8.el7 (199e2f91fd431d51)',
+        's390x: openssl-sandwich-8.el7 (199e2f91fd431d51)',
     )
 
     if mismatch:
@@ -239,7 +249,8 @@ def test_mismatch_reporting(tmpdir, caplog, mismatch):
                 raise
 
         for entry in log_entries:
-            assert entry in caplog.text()
+            # component mismatch must be reported only once
+            assert caplog.text().count(entry) == 1
     else:
         # no mismatch, no failure, no log entries
         runner.run()
