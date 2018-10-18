@@ -22,7 +22,6 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin, Reac
 from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.constants import INSPECT_CONFIG
 from tests.constants import (MOCK_SOURCE, MOCK, IMPORTED_IMAGE_ID)
-from tests.fixtures import docker_tasker  # noqa
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -203,7 +202,7 @@ def test_tag_parse(tmpdir, docker_tasker, unique_tags, primary_tags, expected):
             runner.run()
 
 
-@pytest.mark.parametrize(('name', 'organization', 'expected'), (  # noqa:F811
+@pytest.mark.parametrize(('name', 'organization', 'expected'), (
     ('etcd', None, 'etcd'),
     ('etcd', 'org', 'org/etcd'),
     ('custom/etcd', None, 'custom/etcd'),

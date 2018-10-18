@@ -11,8 +11,13 @@ from __future__ import unicode_literals
 
 import pytest
 import requests
+import uuid
 
 from six import string_types
+
+
+def uuid_value():
+    return uuid.uuid4().hex
 
 
 def is_string_type(obj):

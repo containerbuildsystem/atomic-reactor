@@ -20,7 +20,6 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
 from atomic_reactor.util import ImageName, df_parser
-from tests.fixtures import docker_tasker, reactor_config_map  # noqa
 from tests.constants import SOURCE
 from tests.stubs import StubInsideBuilder
 from textwrap import dedent
@@ -45,7 +44,7 @@ def mock_workflow():
     return workflow
 
 
-def run_plugin(workflow, reactor_config_map, allow_failure=False, organization=None):  # noqa
+def run_plugin(workflow, reactor_config_map, docker_tasker, allow_failure=False, organization=None):
     if reactor_config_map:
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
@@ -53,7 +52,7 @@ def run_plugin(workflow, reactor_config_map, allow_failure=False, organization=N
                            'registries_organization': organization})
 
     result = PreBuildPluginsRunner(
-       docker_tasker(), workflow,
+       docker_tasker, workflow,
        [{
           'name': ChangeFromPlugin.key,
           'args': {},
@@ -66,8 +65,8 @@ def run_plugin(workflow, reactor_config_map, allow_failure=False, organization=N
     return result[ChangeFromPlugin.key]
 
 
-@pytest.mark.parametrize('organization', [None, 'my_organization'])  # noqa
-def test_update_base_image(organization, tmpdir, reactor_config_map):
+@pytest.mark.parametrize('organization', [None, 'my_organization'])
+def test_update_base_image(organization, tmpdir, reactor_config_map, docker_tasker):
     df_content = dedent("""\
         FROM {}
         LABEL horses=coconuts
@@ -90,12 +89,12 @@ def test_update_base_image(organization, tmpdir, reactor_config_map):
     workflow.builder.set_parent_inspection_data(base_str, dict(Id=base_str))
     workflow.builder.tasker.inspect_image = lambda *_: dict(Id=base_str)
 
-    run_plugin(workflow, reactor_config_map=reactor_config_map, organization=organization)
+    run_plugin(workflow, reactor_config_map, docker_tasker, organization=organization)
     expected_df = df_content.format(base_str)
     assert dfp.content == expected_df
 
 
-def test_update_base_image_inspect_broken(tmpdir, caplog):
+def test_update_base_image_inspect_broken(tmpdir, caplog, docker_tasker):
     """exercise code branch where the base image inspect comes back without an Id"""
     df_content = "FROM base:image"
     dfp = df_parser(str(tmpdir))
@@ -110,13 +109,13 @@ def test_update_base_image_inspect_broken(tmpdir, caplog):
     workflow.builder.set_parent_inspection_data(image_str, dict(no_id="here"))
 
     with pytest.raises(NoIdInspection):
-        ChangeFromPlugin(docker_tasker(), workflow).run()
+        ChangeFromPlugin(docker_tasker, workflow).run()
     assert dfp.content == df_content  # nothing changed
     assert "missing in inspection" in caplog.text()
 
 
 @pytest.mark.parametrize('organization', [None, 'my_organization'])  # noqa
-def test_update_parent_images(organization, tmpdir, reactor_config_map):
+def test_update_parent_images(organization, tmpdir, reactor_config_map, docker_tasker):
     """test the happy path for updating multiple parents"""
     df_content = dedent("""\
         FROM first:parent AS builder1
@@ -169,11 +168,11 @@ def test_update_parent_images(organization, tmpdir, reactor_config_map):
     for image_name, image_id in img_ids.items():
         workflow.builder.set_parent_inspection_data(image_name, dict(Id=image_id))
 
-    run_plugin(workflow, reactor_config_map=reactor_config_map, organization=organization)
+    run_plugin(workflow, reactor_config_map, docker_tasker, organization=organization)
     assert dfp.content == expected_df_content
 
 
-def test_parent_images_unresolved(tmpdir):
+def test_parent_images_unresolved(tmpdir, docker_tasker):
     """test when parent_images hasn't been filled in with unique tags."""
     dfp = df_parser(str(tmpdir))
     dfp.content = "FROM spam"
@@ -188,10 +187,10 @@ def test_parent_images_unresolved(tmpdir):
     }
 
     with pytest.raises(ParentImageUnresolved):
-        ChangeFromPlugin(docker_tasker(), workflow).run()
+        ChangeFromPlugin(docker_tasker, workflow).run()
 
 
-def test_parent_images_missing(tmpdir):
+def test_parent_images_missing(tmpdir, docker_tasker):
     """test when parent_images has been mangled and lacks parents compared to dockerfile."""
     dfp = df_parser(str(tmpdir))
     dfp.content = dedent("""\
@@ -206,10 +205,10 @@ def test_parent_images_missing(tmpdir):
     workflow.builder.base_image = ImageName.parse("build-name:3")
 
     with pytest.raises(ParentImageMissing):
-        ChangeFromPlugin(docker_tasker(), workflow).run()
+        ChangeFromPlugin(docker_tasker, workflow).run()
 
 
-def test_parent_images_mismatch_base_image(tmpdir):
+def test_parent_images_mismatch_base_image(tmpdir, docker_tasker):
     """test when base_image has been updated differently from parent_images."""
     dfp = df_parser(str(tmpdir))
     dfp.content = "FROM base:image"
@@ -221,4 +220,4 @@ def test_parent_images_mismatch_base_image(tmpdir):
     }
 
     with pytest.raises(BaseImageMismatch):
-        ChangeFromPlugin(docker_tasker(), workflow).run()
+        ChangeFromPlugin(docker_tasker, workflow).run()

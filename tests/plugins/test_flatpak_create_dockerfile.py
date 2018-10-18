@@ -27,7 +27,6 @@ from atomic_reactor.source import VcsInfo, SourceConfig
 from atomic_reactor.util import ImageName
 
 from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
-from tests.fixtures import docker_tasker, reactor_config_map  # noqa
 from tests.flatpak import MODULEMD_AVAILABLE, build_flatpak_test_configs, setup_flatpak_compose_info
 
 if MODULEMD_AVAILABLE:

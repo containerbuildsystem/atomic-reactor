@@ -37,7 +37,6 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        ReactorConfig)
 from atomic_reactor.constants import PLUGIN_PULP_PUSH_KEY
 from atomic_reactor.pulp_util import PulpLogWrapper
-from tests.fixtures import reactor_config_map  # noqa
 
 from flexmock import flexmock
 import json

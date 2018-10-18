@@ -47,7 +47,6 @@ except ImportError:
     import koji
 
 from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
-from tests.fixtures import docker_tasker  # noqa
 from tests.flatpak import FLATPAK_APP_MODULEMD, FLATPAK_APP_RPMS
 from tests.retry_mock import mock_get_retry_session
 

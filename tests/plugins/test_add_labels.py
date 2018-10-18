@@ -27,7 +27,6 @@ import pytest
 from copy import deepcopy
 from flexmock import flexmock
 from tests.constants import MOCK_SOURCE, DOCKERFILE_GIT, DOCKERFILE_SHA1, MOCK
-from tests.fixtures import docker_tasker, reactor_config_map  # noqa
 if MOCK:
     from tests.docker_mock import mock_docker
 

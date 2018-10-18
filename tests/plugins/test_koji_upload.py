@@ -44,7 +44,6 @@ from atomic_reactor.rpm_util import parse_rpm_output
 from atomic_reactor.source import GitSource
 from atomic_reactor.build import BuildResult
 from tests.constants import SOURCE, MOCK
-from tests.fixtures import reactor_config_map  # noqa
 
 from flexmock import flexmock
 import pytest

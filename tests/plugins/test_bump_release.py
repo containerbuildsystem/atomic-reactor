@@ -31,7 +31,6 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
 from atomic_reactor.util import df_parser
-from tests.fixtures import docker_tasker, reactor_config_map  # noqa
 from flexmock import flexmock
 import pytest
 

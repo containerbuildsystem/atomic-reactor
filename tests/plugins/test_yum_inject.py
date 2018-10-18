@@ -29,7 +29,6 @@ import os.path
 from collections import namedtuple
 import requests
 from flexmock import flexmock
-from tests.fixtures import docker_tasker  # noqa
 from tests.constants import SOURCE, MOCK
 from tests.util import requires_internet
 from tests.stubs import StubInsideBuilder

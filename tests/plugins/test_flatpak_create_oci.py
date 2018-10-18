@@ -25,7 +25,6 @@ from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
 from atomic_reactor.util import ImageName
 
 from tests.constants import TEST_IMAGE
-from tests.fixtures import docker_tasker  # noqa
 from tests.flatpak import (MODULEMD_AVAILABLE, FLATPAK_APP_FINISH_ARGS,
                            setup_flatpak_source_info, build_flatpak_test_configs)
 

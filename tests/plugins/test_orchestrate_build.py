@@ -32,7 +32,6 @@ from osbs.build.build_response import BuildResponse
 from osbs.exceptions import OsbsException
 from osbs.core import Openshift
 from tests.constants import MOCK_SOURCE, TEST_IMAGE, INPUT_IMAGE, SOURCE
-from tests.fixtures import reactor_config_map  # noqa
 from tests.docker_mock import mock_docker
 from textwrap import dedent
 from copy import deepcopy

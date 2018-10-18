@@ -38,7 +38,6 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        ReactorConfig)
 from atomic_reactor.util import ImageName
 from tests.constants import MOCK_SOURCE, MOCK
-from tests.fixtures import docker_tasker, reactor_config_map  # noqa
 from textwrap import dedent
 
 if MOCK:

@@ -61,7 +61,6 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
                                       PARENT_IMAGES_KOJI_BUILDS, BASE_IMAGE_BUILD_ID_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY, PARENT_IMAGE_BUILDS_KEY)
 from tests.constants import SOURCE, MOCK
-from tests.fixtures import reactor_config_map  # noqa
 from tests.flatpak import MODULEMD_AVAILABLE, setup_flatpak_source_info
 
 from flexmock import flexmock

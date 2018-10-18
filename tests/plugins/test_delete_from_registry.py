@@ -23,7 +23,6 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
 from tests.constants import LOCALHOST_REGISTRY, DOCKER0_REGISTRY, MOCK, TEST_IMAGE, INPUT_IMAGE
-from tests.fixtures import reactor_config_map  # noqa
 
 from tempfile import mkdtemp
 import os
