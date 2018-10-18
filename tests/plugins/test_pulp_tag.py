@@ -34,6 +34,7 @@ except (ImportError):
     dockpulp = None
 
 import pytest
+import six
 from flexmock import flexmock
 from tests.constants import INPUT_IMAGE, SOURCE, MOCK
 if MOCK:
@@ -98,10 +99,10 @@ def prepare(v1_image_ids={}):
      .should_receive('deleteRepo'))
     (flexmock(dockpulp.Pulp)
      .should_receive('upload')
-     .with_args(unicode)).at_most().once()
+     .with_args(six.text_type)).at_most().once()
     (flexmock(dockpulp.Pulp)
      .should_receive('copy')
-     .with_args(unicode, unicode))
+     .with_args(six.text_type, six.text_type))
     (flexmock(dockpulp.Pulp)
      .should_receive('updateRepo')
      .with_args('redhat-image-name1', {'tag': 'latest:ppc64le_v1_image_id'}))
