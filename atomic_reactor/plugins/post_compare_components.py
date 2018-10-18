@@ -121,6 +121,10 @@ class CompareComponentsPlugin(PostBuildPlugin):
                 if t not in SUPPORTED_TYPES:
                     raise ValueError("Type %s not supported" % t)
 
+                if name in failed_components:
+                    # report a failed component only once
+                    continue
+
                 identifier = (t, name)
                 if identifier not in master_comp:
                     master_comp[identifier] = component
