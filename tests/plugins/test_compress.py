@@ -13,10 +13,7 @@ from atomic_reactor.util import ImageName
 
 from tests.constants import INPUT_IMAGE, MOCK
 
-try:
-    from six import integer_types
-except ImportError:
-    integer_types = (int, long)
+from six import integer_types
 
 if MOCK:
     from tests.docker_mock import mock_docker
