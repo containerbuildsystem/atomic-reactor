@@ -19,7 +19,6 @@ from atomic_reactor.rpm_util import parse_rpm_output
 from atomic_reactor.util import ImageName
 from tests.constants import DOCKERFILE_GIT
 from tests.docker_mock import mock_docker
-from tests.fixtures import docker_tasker  # noqa
 from tests.stubs import StubInsideBuilder
 from tests.test_inner import FakeLogger
 import atomic_reactor.core
@@ -127,7 +126,7 @@ def test_rpmqa_plugin_exception(docker_tasker):  # noqa
         runner.run()
 
 
-def test_dangling_volumes_removed(docker_tasker, request):  # noqa:F811
+def test_dangling_volumes_removed(docker_tasker, request):
     fake_logger = FakeLogger()
     existing_logger = atomic_reactor.core.logger
 

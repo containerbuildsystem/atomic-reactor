@@ -16,7 +16,6 @@ from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
 from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.constants import INSPECT_CONFIG
 from tests.constants import MOCK_SOURCE, MOCK
-from tests.fixtures import docker_tasker  # noqa
 if MOCK:
     from tests.docker_mock import mock_docker
 

@@ -37,7 +37,6 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
 from atomic_reactor.util import ImageName
 from flexmock import flexmock
 from tests.constants import MOCK, MOCK_SOURCE
-from tests.fixtures import reactor_config_map  # noqa
 from osbs.utils import graceful_chain_del
 
 import copy

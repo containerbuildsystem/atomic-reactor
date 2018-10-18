@@ -50,7 +50,6 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        NO_FALLBACK)
 from tests.constants import TEST_IMAGE, REACTOR_CONFIG_MAP
 from tests.docker_mock import mock_docker
-from tests.fixtures import reactor_config_map  # noqa
 from flexmock import flexmock
 
 
@@ -214,7 +213,7 @@ class TestReactorConfigPlugin(object):
         captured_errs = [x.message for x in caplog.records()]
         assert any("cannot validate" in x for x in captured_errs)
 
-    @pytest.mark.parametrize(('config', 'errors'), [  # noqa:F811
+    @pytest.mark.parametrize(('config', 'errors'), [
         ("""\
           clusters:
             foo:
@@ -334,7 +333,7 @@ class TestReactorConfigPlugin(object):
         with pytest.raises(ValueError):
             plugin.run()
 
-    @pytest.mark.parametrize(('config', 'clusters'), [  # noqa:F811
+    @pytest.mark.parametrize(('config', 'clusters'), [
         # Empty config
         ("", []),
 
@@ -384,7 +383,7 @@ class TestReactorConfigPlugin(object):
         assert set([(x.name, x.max_concurrent_builds)
                     for x in enabled]) == set(clusters)
 
-    @pytest.mark.parametrize(('extra_config', 'fallback', 'error'), [  # noqa:F811
+    @pytest.mark.parametrize(('extra_config', 'fallback', 'error'), [
         ('clusters_client_config_dir: /the/path', None, None),
         ('clusters_client_config_dir: /the/path', '/unused/path', None),
         (None, '/the/path', None),

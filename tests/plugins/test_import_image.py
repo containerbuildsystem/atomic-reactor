@@ -27,7 +27,6 @@ from osbs.exceptions import OsbsResponseException
 from flexmock import flexmock
 import pytest
 from tests.constants import INPUT_IMAGE, SOURCE, MOCK
-from tests.fixtures import reactor_config_map  # noqa
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -57,7 +56,7 @@ class ImageStreamResponse:
 DEFAULT_TAGS_AMOUNT = 6
 
 
-def prepare(tmpdir, insecure_registry=None, namespace=None,  # noqa:F811
+def prepare(tmpdir, insecure_registry=None, namespace=None,
             primary_images_tag_conf=DEFAULT_TAGS_AMOUNT,
             primary_images_annotations=DEFAULT_TAGS_AMOUNT, build_process_failed=False,
             organization=None, reactor_config_map=False,):

@@ -18,7 +18,6 @@ from atomic_reactor import start_time as atomic_reactor_start_time
 
 from datetime import datetime as dt
 from tests.constants import MOCK_SOURCE
-from tests.fixtures import docker_tasker  # noqa
 
 from textwrap import dedent
 from flexmock import flexmock

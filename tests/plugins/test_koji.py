@@ -33,7 +33,6 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.util import ImageName
-from tests.fixtures import reactor_config_map  # noqa
 from flexmock import flexmock
 import pytest
 from tests.constants import SOURCE, MOCK

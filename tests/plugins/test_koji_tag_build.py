@@ -38,7 +38,6 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import ImageName
 from atomic_reactor.build import BuildResult
 from tests.constants import SOURCE, MOCK
-from tests.fixtures import reactor_config_map  # noqa
 
 from flexmock import flexmock
 import pytest
@@ -131,7 +130,7 @@ def mock_environment(tmpdir, session=None, build_process_failed=False,
     return tasker, workflow
 
 
-def create_runner(tasker, workflow, ssl_certs=False, principal=None,  # noqa:F811
+def create_runner(tasker, workflow, ssl_certs=False, principal=None,
                   keytab=None, poll_interval=0.01, proxy_user=None,
                   reactor_config_map=False, use_args=True):
     args = {
@@ -197,7 +196,7 @@ class TestKojiPromote(object):
         result = runner.run()
         assert result[KojiTagBuildPlugin.key] is None
 
-    @pytest.mark.parametrize('params', [  # noqa:F811
+    @pytest.mark.parametrize('params', [
         {
             'should_raise': False,
             'principal': None,
@@ -265,7 +264,7 @@ class TestKojiPromote(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    @pytest.mark.parametrize('task_states', [  # noqa:F811
+    @pytest.mark.parametrize('task_states', [
         ['FREE', 'ASSIGNED', 'FAILED'],
         ['CANCELED'],
         [None],
@@ -278,7 +277,7 @@ class TestKojiPromote(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    @pytest.mark.parametrize('use_import', [  # noqa:F811
+    @pytest.mark.parametrize('use_import', [
         (True, False)
     ])
     def test_koji_tag_build_success(self, tmpdir, use_import, reactor_config_map):

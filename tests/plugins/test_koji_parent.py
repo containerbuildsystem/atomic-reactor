@@ -38,7 +38,6 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        ReactorConfig)
 from atomic_reactor.util import ImageName
 from flexmock import flexmock
-from tests.fixtures import reactor_config_map  # noqa
 from tests.constants import MOCK, MOCK_SOURCE
 
 import pytest

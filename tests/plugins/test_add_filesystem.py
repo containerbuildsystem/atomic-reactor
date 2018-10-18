@@ -44,7 +44,6 @@ from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_CHECK_AND
 from atomic_reactor import koji_util, util
 from tests.constants import (MOCK_SOURCE, DOCKERFILE_GIT, DOCKERFILE_SHA1,
                              MOCK, IMPORTED_IMAGE_ID)
-from tests.fixtures import docker_tasker, reactor_config_map  # noqa
 if MOCK:
     from tests.docker_mock import mock_docker
     from tests.retry_mock import mock_get_retry_session
@@ -356,7 +355,7 @@ def test_missing_yum_repourls(tmpdir, reactor_config_map):  # noqa
 ])
 @pytest.mark.parametrize('raise_error', [True, False])
 def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_error, caplog,
-                            reactor_config_map):
+                            reactor_config_map, docker_tasker):
     if MOCK:
         mock_docker()
 
@@ -620,7 +619,7 @@ def test_image_download(tmpdir, docker_tasker, architecture, architectures, down
         assert plugin_result['filesystem-koji-task-id'] is None
 
 
-@pytest.mark.parametrize(('koji_target'), [None, '', 'guest-fedora-23-docker'])  # noqa:F811
+@pytest.mark.parametrize(('koji_target'), [None, '', 'guest-fedora-23-docker'])
 @responses.activate
 def test_image_build_overwrites_target(tmpdir, koji_target, reactor_config_map):
     plugin = create_plugin_instance(tmpdir,
@@ -645,7 +644,7 @@ def test_image_build_overwrites_target(tmpdir, koji_target, reactor_config_map):
     ]
 
 
-def test_no_target_set(tmpdir, reactor_config_map):  # noqa:F811
+def test_no_target_set(tmpdir, reactor_config_map):
     plugin = create_plugin_instance(tmpdir,
                                     reactor_config_map=reactor_config_map,
                                     koji_target='')

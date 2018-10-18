@@ -28,7 +28,6 @@ from atomic_reactor.plugins.post_group_manifests import GroupManifestsPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from tests.fixtures import reactor_config_map  # noqa
 
 if MOCK:
     from tests.docker_mock import mock_docker

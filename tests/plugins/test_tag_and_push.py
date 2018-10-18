@@ -20,7 +20,6 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
 from atomic_reactor.util import ImageName, ManifestDigest, get_exported_image_metadata
 from tests.constants import (LOCALHOST_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME, INPUT_IMAGE, MOCK,
                              DOCKER0_REGISTRY)
-from tests.fixtures import reactor_config_map  # noqa
 
 import json
 import logging

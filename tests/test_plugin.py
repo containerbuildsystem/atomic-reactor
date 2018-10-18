@@ -28,7 +28,6 @@ from atomic_reactor.plugin import (BuildPluginsRunner, PreBuildPluginsRunner,
 from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
 from atomic_reactor.util import ImageName
 
-from tests.fixtures import docker_tasker  # noqa
 from tests.constants import DOCKERFILE_GIT, MOCK
 if MOCK:
     from tests.docker_mock import mock_docker

@@ -23,7 +23,6 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
 from atomic_reactor.constants import PLUGIN_PULP_TAG_KEY
-from tests.fixtures import reactor_config_map  # noqa
 
 try:
     if sys.version_info.major > 2:

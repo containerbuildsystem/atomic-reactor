@@ -19,7 +19,6 @@ from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefa
 from atomic_reactor.util import ImageName
 from flexmock import flexmock
 from tests.constants import INPUT_IMAGE, MOCK, MOCK_SOURCE
-from tests.fixtures import docker_tasker  # noqa
 if MOCK:
     from tests.docker_mock import mock_docker  # noqa
 

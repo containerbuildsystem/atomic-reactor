@@ -41,7 +41,6 @@ import pytest
 from tests.constants import (LOCALHOST_REGISTRY, DOCKER0_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME,
                              INPUT_IMAGE)
 from tests.util import is_string_type
-from tests.fixtures import reactor_config_map  # noqa
 
 DIGEST1 = "sha256:1da9b9e1c6bf6ab40f1627d76e2ad58e9b2be14351ef4ff1ed3eb4a156138189"
 DIGEST2 = "sha256:0000000000000000000000000000000000000000000000000000000000000000"

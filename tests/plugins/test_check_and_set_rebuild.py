@@ -24,7 +24,6 @@ from osbs.api import OSBS
 import osbs.conf
 from flexmock import flexmock
 from tests.constants import MOCK, MOCK_SOURCE
-from tests.fixtures import docker_tasker, reactor_config_map  # noqa
 from textwrap import dedent
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -109,7 +108,7 @@ class TestCheckRebuild(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_check_no_buildconfig(self, tmpdir, monkeypatch):
+    def test_check_no_buildconfig(self, tmpdir, monkeypatch, reactor_config_map):
         key = 'is_autorebuild'
         value = 'true'
         workflow, runner = self.prepare(tmpdir, key, value, reactor_config_map=reactor_config_map)

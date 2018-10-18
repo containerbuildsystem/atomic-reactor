@@ -22,7 +22,7 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugin import InputPluginsRunner
 import atomic_reactor.cli.main
 
-from tests.fixtures import is_registry_running, temp_image_name, get_uuid  # noqa
+from tests.util import uuid_value
 from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, DOCKERFILE_OK_PATH, FILES, MOCK
 
 if MOCK:
@@ -49,8 +49,8 @@ with_all_sources = pytest.mark.parametrize('source_provider, uri', [
 
 def setup_module(module):
     global PRIV_BUILD_IMAGE, DH_BUILD_IMAGE
-    PRIV_BUILD_IMAGE = get_uuid()
-    DH_BUILD_IMAGE = get_uuid()
+    PRIV_BUILD_IMAGE = uuid_value()
+    DH_BUILD_IMAGE = uuid_value()
     if MOCK:
         return
 

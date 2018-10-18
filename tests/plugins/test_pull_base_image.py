@@ -26,7 +26,6 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
 from requests.exceptions import HTTPError, RetryError, Timeout
-from tests.fixtures import reactor_config_map, inspect_only  # noqa
 from tests.constants import MOCK, MOCK_SOURCE, LOCALHOST_REGISTRY
 
 if MOCK:

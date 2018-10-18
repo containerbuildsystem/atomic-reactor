@@ -8,11 +8,11 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import print_function, unicode_literals
 
-import uuid
 import pytest
 import requests
 import requests.exceptions
 from tests.constants import LOCALHOST_REGISTRY_HTTP, DOCKER0_REGISTRY_HTTP, MOCK
+from tests.util import uuid_value
 
 from atomic_reactor.util import ImageName
 from atomic_reactor.core import DockerTasker
@@ -21,13 +21,9 @@ if MOCK:
     from tests.docker_mock import mock_docker
 
 
-def get_uuid():
-    return uuid.uuid4().hex
-
-
 @pytest.fixture()
 def temp_image_name():
-    return ImageName(repo=("atomic-reactor-tests-%s" % get_uuid()))
+    return ImageName(repo=("atomic-reactor-tests-%s" % uuid_value()))
 
 
 @pytest.fixture()

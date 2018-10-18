@@ -8,7 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import print_function, unicode_literals
 
-from tests.fixtures import temp_image_name, docker_tasker  # noqa
 
 from atomic_reactor.core import DockerTasker, retry, RetryGeneratorException
 from atomic_reactor.util import ImageName, clone_git_repo, CommandResult

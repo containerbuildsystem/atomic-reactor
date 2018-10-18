@@ -37,7 +37,6 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
 from atomic_reactor import util
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
-from tests.fixtures import reactor_config_map  # noqa
 from smtplib import SMTPException
 
 MS, MF = SendMailPlugin.MANUAL_SUCCESS, SendMailPlugin.MANUAL_FAIL
@@ -236,7 +235,7 @@ class TestSendMailPlugin(object):
         p = SendMailPlugin(None, workflow, **kwargs)
         assert p._should_send(rebuild, success, auto_canceled, manual_canceled) == expected
 
-    @pytest.mark.parametrize(('additional_addresses', 'expected_receivers'), [  # noqa:F811
+    @pytest.mark.parametrize(('additional_addresses', 'expected_receivers'), [
         ('', None),
         ([], None),
         ([''], []),

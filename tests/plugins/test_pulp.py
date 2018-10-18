@@ -33,7 +33,6 @@ import subprocess
 import pytest
 from flexmock import flexmock
 from tests.constants import INPUT_IMAGE, SOURCE, MOCK
-from tests.fixtures import reactor_config_map  # noqa
 if MOCK:
     from tests.docker_mock import mock_docker
 
