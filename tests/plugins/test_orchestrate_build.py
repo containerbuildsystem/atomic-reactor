@@ -1007,9 +1007,6 @@ def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
     if fail_at == 'first':
         flexmock_chain.and_return(['a', 'b'])
 
-    if fail_at == 'build_canceled':
-        flexmock_chain.and_raise(OsbsException(cause=BuildCanceledException()))
-
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
         workflow,
@@ -1036,8 +1033,6 @@ def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
         if fail_at == 'all':
             assert 'Could not find appropriate cluster for worker build.' \
                 in build_result.fail_reason
-        elif fail_at == 'build_canceled':
-            assert 'BuildCanceledException()' in str(exc)  # noqa F821
 
 
 @pytest.mark.parametrize('is_auto', [
