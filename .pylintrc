@@ -24,14 +24,16 @@ confidence=
 enable=all,
        python3
 disable=I,
-        C,  # code style checks
         R,  # refactoring checks
         abstract-method,  # nice to have
         anomalous-backslash-in-string,  # should be enabled
         arguments-differ,  # nice to have
         attribute-defined-outside-init,  # should be enabled
+        bad-continuation,  # pep8
+        bad-whitespace,  # pep8, nice to have
         broad-except,
         cell-var-from-loop,  # should be enabled
+        consider-using-enumerate, # should be enabled
         dangerous-default-value,  # should be enabled
         deprecated-lambda,  # nice to have
         deprecated-method,  # should be enabled
@@ -45,15 +47,21 @@ disable=I,
         import-error,  # requires to having all modules installed
         invalid-format-index,  # should be enabled
         invalid-name,
+        len-as-condition,  # nice to have
+        line-too-long,  # pep8, should be enabled
         logging-format-interpolation,  # should be enabled
         logging-not-lazy,  # should be enabled
         method-hidden,  # should be enabled
+        missing-docstring,
+        misplaced-comparison-constant,
+        multiple-statements,  # nice to have
         no-absolute-import,  # py2/3 compatibility
         no-init,
         no-self-argument,  # nice to have
         not-callable,  # disabled due to flexmock module
         not-context-manager,  # causes false positives
         old-division,  # py2/3 compatibility
+        old-style-class,  # py2/3 compatibility
         pointless-statement,  # should be enabled
         pointless-string-statement,  # should be enabled
         print-statement,  # py2/3 compatibility
@@ -66,14 +74,21 @@ disable=I,
         reimported,  # should be enabled
         relative-import,  # nice to have
         super-init-not-called,  # nice to have
+        superfluous-parens,  # nice to have
+        too-many-lines,
         undefined-loop-variable,  # should be enabled
         unicode-builtin,
+        unidiomatic-typecheck,  # nice to have
+        ungrouped-imports,
         unreachable,  # should be enabled, dead code
         unnecessary-lambda,  # nice to have
+        unneeded-not,  # nice to have
         unused-argument,  # nice to have
         unused-import,  # should be enabled
         unused-variable,  # should be enabled
-        useless-super-delegation  # nice to have
+        useless-super-delegation,  # nice to have
+        wrong-import-order,
+        wrong-import-position
 
 [REPORTS]
 
