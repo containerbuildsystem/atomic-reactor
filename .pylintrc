@@ -6,6 +6,9 @@ jobs=1
 # Pickle collected data for later comparisons.
 persistent=no
 
+# Activate the evaluation score.
+score=no
+
 [MESSAGES CONTROL]
 
 # Only show warnings with the listed confidence levels. Leave empty to show
