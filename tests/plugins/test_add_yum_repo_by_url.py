@@ -12,9 +12,10 @@ from atomic_reactor.constants import YUM_REPOS_DIR
 
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PreBuildPluginsRunner
+from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
 from atomic_reactor.util import ImageName
+from atomic_reactor.yum_util import YumRepo
 import requests
 import pytest
 from flexmock import flexmock
@@ -169,3 +170,24 @@ def test_multiple_same_repourls_no_suffix(inject_proxy):
     assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)] == repo_content
 
     assert len(workflow.files) == 1
+
+
+def test_invalid_repourl():
+    """Plugin should raise RuntimeError with repo details when invalid URL
+       is used
+    """
+    WRONG_REPO_URL = "http://example.com/nope/repo"
+    tasker, workflow = prepare()
+    runner = PreBuildPluginsRunner(tasker, workflow, [{
+        'name': AddYumRepoByUrlPlugin.key,
+        'args': {'repourls': [WRONG_REPO_URL], 'inject_proxy': None}}])
+
+    (flexmock(YumRepo)
+        .should_receive('fetch')
+        .and_raise(Exception, 'Oh noes, repo is not working!'))
+
+    with pytest.raises(PluginFailedException) as exc:
+        runner.run()
+
+    msg = "Failed to fetch repo {repo}".format(repo=WRONG_REPO_URL)
+    assert msg in str(exc)
