@@ -52,8 +52,15 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
         if self.repourls:
             for repourl in self.repourls:
                 yumrepo = YumRepo(repourl)
-                yumrepo.fetch()
-                self.log.info("fetched repo from '%s'", yumrepo.repourl)
+                self.log.info("fetching repo from '%s'", yumrepo.repourl)
+                try:
+                    yumrepo.fetch()
+                except Exception as e:
+                    msg = "Failed to fetch repo {repo}: {exc}".format(repo=yumrepo.repourl, exc=e)
+                    raise RuntimeError(msg)
+                else:
+                    self.log.info("fetched repo from '%s'", yumrepo.repourl)
+
                 if self.inject_proxy:
                     if yumrepo.is_valid():
                         yumrepo.set_proxy_for_all_repos(self.inject_proxy)
