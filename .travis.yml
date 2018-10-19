@@ -30,9 +30,10 @@ env:
     - OS=fedora
       OS_VERSION=28
       PYTHON_VERSION=3
+install:
+  - pip install coveralls
 script:
- - pip install coveralls
- - ./test.sh
+  - ./test.sh
 after_success: coveralls
 notifications:
   email: false
