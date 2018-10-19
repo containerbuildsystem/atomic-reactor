@@ -52,18 +52,19 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
         if self.repourls:
             for repourl in self.repourls:
                 yumrepo = YumRepo(repourl)
-                self.log.info("fetching repo from '%s'", yumrepo.repourl)
+                self.log.info("fetching yum repo from '%s'", yumrepo.repourl)
                 try:
                     yumrepo.fetch()
                 except Exception as e:
-                    msg = "Failed to fetch repo {repo}: {exc}".format(repo=yumrepo.repourl, exc=e)
+                    msg = "Failed to fetch yum repo {repo}: {exc}".format(
+                        repo=yumrepo.repourl, exc=e)
                     raise RuntimeError(msg)
                 else:
-                    self.log.info("fetched repo from '%s'", yumrepo.repourl)
+                    self.log.info("fetched yum repo from '%s'", yumrepo.repourl)
 
                 if self.inject_proxy:
                     if yumrepo.is_valid():
                         yumrepo.set_proxy_for_all_repos(self.inject_proxy)
                 self.workflow.files[yumrepo.dst_filename] = yumrepo.content
-                self.log.debug("saving repo '%s', length %d", yumrepo.dst_filename,
+                self.log.debug("saving yum repo '%s', length %d", yumrepo.dst_filename,
                                len(yumrepo.content))

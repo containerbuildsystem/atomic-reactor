@@ -189,5 +189,5 @@ def test_invalid_repourl():
     with pytest.raises(PluginFailedException) as exc:
         runner.run()
 
-    msg = "Failed to fetch repo {repo}".format(repo=WRONG_REPO_URL)
+    msg = "Failed to fetch yum repo {repo}".format(repo=WRONG_REPO_URL)
     assert msg in str(exc)
