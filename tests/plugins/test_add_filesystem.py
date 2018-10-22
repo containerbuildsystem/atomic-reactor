@@ -411,7 +411,7 @@ def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_err
 def test_image_build_defaults(tmpdir, task_id, reactor_config_map):
     repos = [
         'http://install-tree.com/fedora23.repo',
-        'http://repo.com/fedora/os.repo',
+        'http://repo.com/fedora/os',
     ]
     responses.add(responses.GET, 'http://install-tree.com/fedora23.repo',
                   body=dedent("""\
@@ -471,7 +471,7 @@ def test_image_build_defaults(tmpdir, task_id, reactor_config_map):
 @responses.activate
 def test_image_build_overwrites(tmpdir, architectures, architecture, reactor_config_map):
     repos = [
-        'http://default-install-tree.com/fedora23.repo',
+        'http://default-install-tree.com/fedora23',
         'http://default-repo.com/fedora/os.repo',
     ]
     responses.add(responses.GET, 'http://default-install-tree.com/fedora23.repo',
@@ -541,6 +541,60 @@ def test_image_build_overwrites(tmpdir, architectures, architecture, reactor_con
             'http://repo.com/fedora/$arch/os/',
         ],
     }
+
+
+@responses.activate
+def test_extract_base_url_many_base_urls(tmpdir, reactor_config_map):  # noqa
+    repos = [
+        'http://default-install-tree.com/fedora23',
+        'http://default-repo.com/fedora/os.repo',
+    ]
+    architectures = 'x86_64'
+    responses.add(responses.GET, 'http://default-install-tree.com/fedora23.repo',
+                  body=dedent("""\
+                    [fedora-23]
+                    baseurl = http://default-install-tree.com/$basearch/fedora23
+                    [fedora-os]
+                    baseurl = http://default-repo.com/fedora/$basearch/os.repo
+                    [fedora-nonsense]
+                    notaurl = http://default-repo.com/fedora/$basearch/os.repo
+                    """))
+    responses.add(responses.GET, 'http://default-repo.com/fedora/os.repo',
+                  body=dedent("""\
+                    [fedora-os]
+                    baseurl = http://default-repo.com/fedora/$basearch/os.repo
+                    [fedora-23]
+                    baseurl = http://default-install-tree.com/$basearch/fedora23
+                    """))
+    expected_base_urls = [
+        "http://default-install-tree.com/$basearch/fedora23",
+        "http://default-repo.com/fedora/$basearch/os.repo"
+    ]
+    plugin = create_plugin_instance(tmpdir, {
+        'repos': repos,
+        'architecture': None
+    }, reactor_config_map=reactor_config_map, architectures=architectures)
+    for repo_url in repos:
+        assert sorted(plugin.extract_base_url(repo_url)) == sorted(expected_base_urls)
+
+
+@responses.activate
+def test_extract_base_url_bad_repo_config(tmpdir, reactor_config_map):  # noqa
+    repos = [
+        'http://default-install-tree.com/fedora23',
+        'http://default-repo.com/fedora/os.repo',
+    ]
+    architectures = 'x86_64'
+    responses.add(responses.GET, 'http://default-install-tree.com/fedora23.repo',
+                  body="This is not right")
+    responses.add(responses.GET, 'http://default-repo.com/fedora/os.repo',
+                  body="Its not even wrong")
+    plugin = create_plugin_instance(tmpdir, {
+        'repos': repos,
+        'architecture': None
+    }, reactor_config_map=reactor_config_map, architectures=architectures)
+    for repo_url in repos:
+        assert plugin.extract_base_url(repo_url) == []
 
 
 def test_build_filesystem_missing_conf(tmpdir, reactor_config_map):  # noqa

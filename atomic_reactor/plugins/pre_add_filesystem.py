@@ -31,7 +31,8 @@ from atomic_reactor.plugin import PreBuildPlugin, BuildCanceledException
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 from atomic_reactor.koji_util import TaskWatcher, stream_task_output
-from atomic_reactor.util import get_platforms, get_retrying_requests_session
+from atomic_reactor.yum_util import YumRepo
+from atomic_reactor.util import get_platforms
 from atomic_reactor import util
 
 
@@ -133,12 +134,11 @@ class AddFilesystemPlugin(PreBuildPlugin):
         return base_image.strip().lower() == 'koji/image-build'
 
     def extract_base_url(self, repo_url):
-        session = get_retrying_requests_session()
-        response = session.get(repo_url)
-        response.raise_for_status()
-        repo = ConfigParser()
-        repo.readfp(StringIO(response.text))
-
+        yum_repo = YumRepo(repo_url)
+        yum_repo.fetch()
+        if not yum_repo.is_valid():
+            return []
+        repo = yum_repo.config
         return [repo.get(section, 'baseurl') for section in repo.sections()
                 if repo.has_option(section, 'baseurl')]
 
