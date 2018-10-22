@@ -14,6 +14,7 @@ import json
 import jsonschema
 import os
 import re
+import sys
 from pipes import quote
 import requests
 from requests.exceptions import ConnectionError, SSLError, HTTPError, RetryError, Timeout
@@ -28,6 +29,8 @@ import yaml
 import codecs
 import string
 import time
+import signal
+import traceback
 from collections import namedtuple
 from copy import deepcopy
 
@@ -57,6 +60,29 @@ from requests.utils import guess_json_utf
 
 from osbs.exceptions import OsbsException
 from tempfile import NamedTemporaryFile
+try:
+    # py3
+    from faulthandler import dump_traceback
+except ImportError:
+    # py2
+    import thread
+
+    def dump_traceback():
+        frames = sys._current_frames()
+        th_traces = []
+        for th_ident, frame in frames.items():
+            trace_entries = traceback.format_stack(frame)
+            # Comply with faulthandler output
+            context_str = 'Thread'
+            if th_ident == thread.get_ident():
+                context_str = 'Current thread'
+            trace_header = '%s 0x%x (most recent call first):' % (context_str, th_ident)
+            trace_entries.append(trace_header)
+            trace_entries.reverse()
+            pretty_trace_entries = [s.split('\n')[0] for s in trace_entries]
+            th_traces.append('\n'.join(pretty_trace_entries))
+        print('\n\n'.join(th_traces), file=sys.stderr)
+
 Output = namedtuple('Output', ['file', 'metadata'])
 
 logger = logging.getLogger(__name__)
@@ -1530,3 +1556,11 @@ def get_platforms_in_limits(workflow, input_platforms=None):
                 )
             expected_platforms = expected_platforms & only_platforms
     return expected_platforms - excluded_platforms
+
+
+def dump_stacktraces(sig, frame):
+    dump_traceback()
+
+
+def setup_introspection_signal_handler():
+    signal.signal(signal.SIGUSR1, dump_stacktraces)

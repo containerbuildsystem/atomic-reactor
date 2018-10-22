@@ -18,6 +18,8 @@ import responses
 from requests.exceptions import ConnectionError
 import subprocess
 import time
+import inspect
+import signal
 from collections import namedtuple
 
 from tempfile import mkdtemp
@@ -50,7 +52,8 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_image_upload_filename,
                                  split_module_spec, ModuleSpec,
                                  read_yaml, read_yaml_from_file_path, OSBSLogs,
-                                 get_platforms_in_limits, get_orchestrator_platforms)
+                                 get_platforms_in_limits, get_orchestrator_platforms,
+                                 dump_stacktraces, setup_introspection_signal_handler)
 from atomic_reactor import util
 from tests.constants import (DOCKERFILE_GIT, DOCKERFILE_SHA1,
                              INPUT_IMAGE, MOCK, MOCK_SOURCE,
@@ -1543,3 +1546,27 @@ def test_get_inspect_for_image(insecure, found_versions, type_in_list, will_rais
     else:
         inspected = get_inspect_for_image(image, image.registry, insecure)
         assert inspected == expect_inspect
+
+
+def test_dump_stacktraces(capfd):
+    log_msg = '(most recent call first)'
+    func_name = inspect.currentframe().f_code.co_name
+    _, err = capfd.readouterr()
+    assert log_msg not in err
+    assert func_name not in err
+    dump_stacktraces(signal.SIGUSR1, inspect.currentframe())
+    _, err = capfd.readouterr()
+    assert log_msg in err
+    assert func_name in err
+
+
+def test_introspection_signal_handler(capfd):
+    log_msg = '(most recent call first)'
+    _, err = capfd.readouterr()
+    assert log_msg not in err
+    pid = os.getpid()
+    sig = signal.SIGUSR1
+    setup_introspection_signal_handler()
+    os.kill(pid, sig)
+    _, err = capfd.readouterr()
+    assert log_msg in err
