@@ -11,7 +11,7 @@
 %endif
 
 %if (0%{?fedora} >= 22 || 0%{?rhel} >= 8)
-%global with_python3 1
+%{!?with_python3:%global with_python3 1}
 %global binaries_py_version %{python3_version}
 %else
 %global binaries_py_version %{python2_version}

@@ -48,7 +48,8 @@ fi
 
 # Install dependencies
 $RUN $PKG install -y $PKG_EXTRA
-$RUN $BUILDDEP -y atomic-reactor.spec
+[[ ${PYTHON_VERSION} == '3' ]] && WITH_PY3=1 || WITH_PY3=0
+$RUN $BUILDDEP --define "with_python3 ${WITH_PY3}" -y atomic-reactor.spec
 if [[ $OS == "fedora" ]]; then
   # Remove python-docker-py because docker-squash will pull
   # in the latest version from PyPI. Don't remove the dependencies
@@ -93,7 +94,7 @@ fi
 # This would also ensure all the deps are specified in the spec
 $RUN rm -rf /tmp/osbs-client
 $RUN git clone https://github.com/projectatomic/osbs-client /tmp/osbs-client
-$RUN $BUILDDEP -y /tmp/osbs-client/osbs-client.spec
+$RUN $BUILDDEP --define "with_python3 ${WITH_PY3}" -y /tmp/osbs-client/osbs-client.spec
 $RUN $PIP install --upgrade --no-deps --force-reinstall git+https://github.com/projectatomic/osbs-client
 
 $RUN $PIP install --upgrade --no-deps --force-reinstall git+https://github.com/DBuildService/dockerfile-parse
