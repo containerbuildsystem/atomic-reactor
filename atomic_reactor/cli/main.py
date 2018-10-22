@@ -20,7 +20,7 @@ from atomic_reactor.api import (build_image_here, build_image_in_privileged_cont
 from atomic_reactor.constants import CONTAINER_BUILD_JSON_PATH, DESCRIPTION, PROG
 from atomic_reactor.buildimage import BuildImageBuilder
 from atomic_reactor.inner import build_inside, BuildResults
-from atomic_reactor.util import process_substitutions
+from atomic_reactor.util import process_substitutions, setup_introspection_signal_handler
 
 
 logger = logging.getLogger('atomic_reactor')
@@ -306,6 +306,7 @@ class CLI(object):
 
 def run():
     cli = CLI()
+    setup_introspection_signal_handler()
     cli.run()
 
 
