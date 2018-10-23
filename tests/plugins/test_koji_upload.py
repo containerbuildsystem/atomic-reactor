@@ -634,7 +634,7 @@ class TestKojiUpload(object):
             assert is_string_type(component_rpm['arch'])
             assert component_rpm['signature'] != '(none)'
 
-    def validate_buildroot(self, buildroot):
+    def validate_buildroot(self, buildroot, expect_koji_build_id):
         assert isinstance(buildroot, dict)
 
         assert set(buildroot.keys()) == set([
@@ -711,10 +711,25 @@ class TestKojiUpload(object):
         assert set(osbs.keys()) == set([
             'build_id',
             'builder_image_id',
+            'koji',
         ])
 
         assert is_string_type(osbs['build_id'])
         assert is_string_type(osbs['builder_image_id'])
+
+        koji = osbs['koji']
+        assert isinstance(koji, dict)
+        assert set(koji.keys()) == set([
+            'build_name',
+            'builder_image_id',
+        ])
+        assert is_string_type(koji['build_name'])
+        builder_image_id = koji['builder_image_id']
+        assert isinstance(builder_image_id, dict)
+        if expect_koji_build_id:
+            assert isinstance(builder_image_id, dict)
+            for key in builder_image_id:
+                assert is_string_type(builder_image_id[key])
 
     def validate_output(self, output, has_config,
                         expect_digest):
@@ -941,6 +956,7 @@ class TestKojiUpload(object):
         name = 'ns/name'
         version = '1.0'
         release = '1'
+        expected_build_name = 'ns/name:1.0-1'
 
         if has_config and not docker_registry:
             # Not a valid combination
@@ -981,7 +997,8 @@ class TestKojiUpload(object):
         assert isinstance(output_files, list)
 
         for buildroot in buildroots:
-            self.validate_buildroot(buildroot)
+            self.validate_buildroot(buildroot, expect_koji_build_id=docker_registry)
+            assert buildroot['extra']['osbs']['koji']['build_name'] == expected_build_name
 
             # Unique within buildroots in this metadata
             assert len([b for b in buildroots

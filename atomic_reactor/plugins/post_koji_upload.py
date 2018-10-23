@@ -24,7 +24,7 @@ from atomic_reactor.constants import PROG, PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json, get_docker_architecture,
                                  get_image_upload_filename,
-                                 get_manifest_media_type)
+                                 get_manifest_media_type, ImageName)
 from atomic_reactor.rpm_util import parse_rpm_output, rpm_qf_args
 from osbs.exceptions import OsbsException
 
@@ -444,6 +444,25 @@ class KojiUploadPlugin(PostBuildPlugin):
 
         return output_files
 
+    def update_buildroot_koji(self, buildroot, output):
+        """
+        put the final koji information in the buildroot under extra.osbs
+        """
+        docker = output[1]['extra']['docker']
+
+        name = ''
+        for tag in docker['tags']:
+            for repo in docker['repositories']:
+                if tag in repo:
+                    iname = ImageName.parse(repo)
+                    name = iname.to_str(registry=False)
+                    break
+
+        buildroot['extra']['osbs']['koji'] = {
+            'build_name': name,
+            'builder_image_id': docker.get('digests', {})
+        }
+
     def get_metadata(self):
         """
         Build the metadata needed for importing the build
@@ -475,11 +494,13 @@ class KojiUploadPlugin(PostBuildPlugin):
         buildroot = self.get_buildroot(build_id=self.build_id)
         output_files = self.get_output(buildroot['id'])
 
+        output = [output.metadata for output in output_files]
         koji_metadata = {
             'metadata_version': metadata_version,
             'buildroots': [buildroot],
-            'output': [output.metadata for output in output_files],
+            'output': output,
         }
+        self.update_buildroot_koji(buildroot, output)
 
         return koji_metadata, output_files
 
