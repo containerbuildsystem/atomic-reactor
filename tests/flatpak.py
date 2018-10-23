@@ -335,7 +335,9 @@ def setup_flatpak_compose_info(workflow, config=APP_CONFIG):
     compose = ComposeInfo(source_spec,
                           42, base_module,
                           modules,
-                          repo_url)
+                          repo_url,
+                          'unsigned',
+                          False)
     set_compose_info(workflow, compose)
 
     return compose
