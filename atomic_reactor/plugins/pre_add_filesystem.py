@@ -209,7 +209,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         for option, value in config.items(section):
             if option in ('repo', 'format'):
                 value = [v for v in value.split(',') if v]
-            elif option in ('disk_size'):
+            elif option in ('disk_size',):
                 value = int(value)
             opts[option] = value
 
