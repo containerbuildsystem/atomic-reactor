@@ -57,6 +57,14 @@ DEFAULT_DOCKERFILE = dedent("""\
     RUN dnf install -y python-django
     """)
 
+DOCKERFILE_WITH_LABELS = dedent("""\
+    FROM koji/image-build
+    RUN dnf install -y python-django
+    LABEL "com.redhat.component"="testproject" \\
+          "name"="testproject_baseimage" \\
+          "version"="8.0"
+    """)
+
 
 class MockSource(object):
     def __init__(self, tmpdir):
@@ -176,6 +184,7 @@ def mock_image_build_file(tmpdir, contents=None):
 
     with open(file_path, 'w') as f:
         f.write(dedent(contents))
+        f.flush()
 
     return file_path
 
@@ -196,10 +205,11 @@ def mock_workflow(tmpdir, dockerfile=DEFAULT_DOCKERFILE):
 
 
 def create_plugin_instance(tmpdir, kwargs=None, scratch=False, reactor_config_map=False,  # noqa
-                           architectures=None, koji_target=KOJI_TARGET):
+                           architectures=None, koji_target=KOJI_TARGET,
+                           dockerfile=DEFAULT_DOCKERFILE):
     flexmock(util).should_receive('is_scratch_build').and_return(scratch)
     tasker = flexmock()
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, dockerfile=dockerfile)
 
     if architectures:
         workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(architectures)
@@ -461,6 +471,39 @@ def test_image_build_defaults(tmpdir, task_id, reactor_config_map):
             'http://repo.com/fedora/$arch/os2',
         ],
     }
+
+
+def test_image_build_dockerfile_defaults(tmpdir, reactor_config_map):
+    """Test if default name and version are taken from the Dockerfile"""
+    image_build_conf = dedent("""\
+        [image-build]
+
+        # name and version intentionally omitted for purpose of this test
+
+        install_tree = http://install-tree.com/$arch/fedora23/
+
+        format = docker
+        distro = Fedora-23
+        repo = http://repo.com/fedora/$arch/os/
+
+        ksurl = git+http://ksrul.com/git/spin-kickstarts.git?fedora23#b232f73e
+        ksversion = FEDORA23
+        kickstart = fedora-23.ks
+        """)
+    plugin = create_plugin_instance(
+        tmpdir, reactor_config_map=reactor_config_map,
+        dockerfile=DOCKERFILE_WITH_LABELS
+    )
+    file_name = mock_image_build_file(str(tmpdir), contents=image_build_conf)
+    image_name, config, _ = plugin.parse_image_build_config(file_name)
+    assert image_name == 'testproject'  # from Dockerfile
+    assert config == [
+        'testproject',  # from Dockerfile
+        '8.0',  # from Dockerfile
+        ['x86_64'],
+        'guest-fedora-23-docker',
+        'http://install-tree.com/$arch/fedora23/'
+    ]
 
 
 @pytest.mark.parametrize(('architectures', 'architecture'), [
