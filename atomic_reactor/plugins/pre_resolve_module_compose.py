@@ -35,17 +35,21 @@ from gi.repository import Modulemd
 from atomic_reactor.koji_util import get_koji_module_build
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import split_module_spec
-from atomic_reactor.plugins.pre_reactor_config import (get_koji_session, get_odcs_session,
+from atomic_reactor.plugins.pre_reactor_config import (get_config,
+                                                       get_koji_session, get_odcs_session,
                                                        get_odcs, NO_FALLBACK)
 
 
 class ComposeInfo(object):
-    def __init__(self, source_spec, compose_id, base_module, modules, repo_url):
+    def __init__(self, source_spec, compose_id, base_module, modules, repo_url,
+                 signing_intent, signing_intent_overridden):
         self.source_spec = source_spec
         self.compose_id = compose_id
         self.base_module = base_module
         self.modules = modules
         self.repo_url = repo_url
+        self.signing_intent = signing_intent
+        self.signing_intent_overridden = signing_intent_overridden
 
     def koji_metadata(self):
         sorted_modules = [self.modules[k] for k in sorted(self.modules.keys())]
@@ -55,7 +59,11 @@ class ComposeInfo(object):
         return {
             'source_modules': [self.source_spec],
             'modules': ['-'.join((m.name, m.stream, m.version)) for
-                        m in sorted_modules if m.name != 'platform']
+                        m in sorted_modules if m.name != 'platform'],
+            'odcs': {
+                'signing_intent': self.signing_intent,
+                'signing_intent_overridden': self.signing_intent_overridden,
+            }
         }
 
 
@@ -85,6 +93,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
                  compose_ids=tuple(),
                  odcs_url=None, odcs_insecure=False,
                  odcs_openidc_secret_path=None,
+                 signing_intent=None,
                  pdc_url=None, pdc_insecure=False):
         """
         constructor
@@ -95,6 +104,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
         :param odcs_url: URL of ODCS (On Demand Compose Service)
         :param odcs_insecure: If True, don't check SSL certificates for `odcs_url`
         :param odcs_openidc_secret_path: directory to look in for a `token` file (optional)
+        :param signing_intent: override the signing intent from git repo configuration
         :param pdc_url: unused
         :param pdc_insecure: unused
         :
@@ -102,6 +112,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
         # call parent constructor
         super(ResolveModuleComposePlugin, self).__init__(tasker, workflow)
 
+        self.signing_intent_name = signing_intent
         self.compose_ids = compose_ids
         self.compose_id = None
 
@@ -152,6 +163,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
         return resolved_modules
 
     def _resolve_compose(self):
+        odcs_config = get_config(self.workflow).get_odcs_config()
         odcs_client = get_odcs_session(self.workflow, self.odcs_fallback)
         self.read_configs_general()
 
@@ -176,9 +188,17 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
                 self.log.info("Multiple compose_ids, using first compose %d", self.compose_ids[0])
             self.compose_id = self.compose_ids[0]
 
+        if self.signing_intent_name is not None:
+            signing_intent_name = self.signing_intent_name
+        else:
+            signing_intent_name = self.data.get('signing_intent',
+                                                odcs_config.default_signing_intent)
+        signing_intent = odcs_config.get_signing_intent_by_name(signing_intent_name)
+
         if self.compose_id is None:
             self.compose_id = odcs_client.start_compose(source_type='module',
-                                                        source=noprofile_spec)['id']
+                                                        source=noprofile_spec,
+                                                        sigkeys=signing_intent['keys'])['id']
 
         compose_info = odcs_client.wait_for_compose(self.compose_id)
         if compose_info['state_name'] != "done":
@@ -198,7 +218,9 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
                            compose_id=self.compose_id,
                            base_module=base_module,
                            modules=resolved_modules,
-                           repo_url=compose_info['result_repo'] + '/$basearch/os/')
+                           repo_url=compose_info['result_repo'] + '/$basearch/os/',
+                           signing_intent=signing_intent_name,
+                           signing_intent_overridden=self.signing_intent_name is not None)
 
     def run(self):
         """

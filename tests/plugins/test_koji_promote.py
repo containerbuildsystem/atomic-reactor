@@ -1456,6 +1456,10 @@ class TestKojiPromote(object):
         assert image.get('modules') == ['eog-f28-20170629213428',
                                         'flatpak-runtime-f28-20170701152209']
         assert image.get('source_modules') == ['eog:f28']
+        assert image.get('odcs') == {
+            'signing_intent': 'unsigned',
+            'signing_intent_overridden': False,
+        }
 
     @pytest.mark.parametrize('logs_return_bytes', [
         True,

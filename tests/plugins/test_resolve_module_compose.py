@@ -203,7 +203,13 @@ def mock_koji_session():
     [MODULE_NSV],
     [MODULE_NSV, 'mod_name2-mod_stream2-mod_version2'],
 ))
-def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules):
+@pytest.mark.parametrize(('signing_intent', 'signing_intent_source', 'sigkeys'), [
+    ('unsigned', 'default', []),
+    ('release', 'container_yaml', ['R123', 'R234']),
+    ('beta', 'command_line', ['R123', 'B456', 'B457']),
+])
+def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules,
+                                signing_intent, signing_intent_source, sigkeys):
     secrets_path = os.path.join(str(tmpdir), "secret")
     os.mkdir(secrets_path)
     with open(os.path.join(secrets_path, "token"), "w") as f:
@@ -214,6 +220,8 @@ def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules):
         data += "    modules:\n"
         for mod in modules:
             data += "    - {}\n".format(mod)
+        if signing_intent_source == 'container_yaml':
+            data += '    signing_intent: ' + signing_intent
         tmpdir.join(REPO_CONTAINER_CONFIG).write(data)
 
     module = None
@@ -234,6 +242,7 @@ def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules):
         body_json = json.loads(body)
         assert body_json['source']['type'] == 'module'
         assert body_json['source']['source'] == module
+        assert body_json['source']['sigkeys'] == sigkeys
         return (200, {}, compose_json(0, 'wait'))
 
     responses.add_callback(responses.POST, ODCS_URL + '/composes/',
@@ -263,11 +272,29 @@ def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules):
         'compose_ids': compose_ids
     }
 
+    if signing_intent_source == 'command_line':
+        args['signing_intent'] = signing_intent
+
     workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
     workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
         ReactorConfig({'version': 1,
                        'odcs': {'api_url': ODCS_URL,
-                                'auth': {'openidc_dir': secrets_path}},
+                                'auth': {'openidc_dir': secrets_path},
+                                'signing_intents': [
+                                    {
+                                        'name': 'unsigned',
+                                        'keys': [],
+                                    },
+                                    {
+                                        'name': 'release',
+                                        'keys': ['R123', 'R234'],
+                                    },
+                                    {
+                                        'name': 'beta',
+                                        'keys': ['R123', 'B456', 'B457'],
+                                    },
+                                ],
+                                'default_signing_intent': 'unsigned'},
                        'koji':  {'auth': {},
                                  'hub_url': 'https://koji.example.com/hub'}})
 
