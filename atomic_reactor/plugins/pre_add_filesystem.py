@@ -32,8 +32,9 @@ from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 from atomic_reactor.koji_util import TaskWatcher, stream_task_output
 from atomic_reactor.yum_util import YumRepo
-from atomic_reactor.util import get_platforms
+from atomic_reactor.util import get_platforms, df_parser
 from atomic_reactor import util
+from osbs.utils import Labels
 
 
 class AddFilesystemPlugin(PreBuildPlugin):
@@ -143,6 +144,11 @@ class AddFilesystemPlugin(PreBuildPlugin):
                 if repo.has_option(section, 'baseurl')]
 
     def get_default_image_build_conf(self):
+        """Create a default image build config
+
+        :rtype: ConfigParser
+        :return: Initialized config with defaults
+        """
         target = self.koji_target
 
         vcs_info = self.workflow.source.get_vcs_info()
@@ -165,8 +171,35 @@ class AddFilesystemPlugin(PreBuildPlugin):
             'install_tree': install_tree,
             'repo': repo,
         }
+        config_fp = StringIO(self.DEFAULT_IMAGE_BUILD_CONF.format(**kwargs))
 
-        return StringIO(self.DEFAULT_IMAGE_BUILD_CONF.format(**kwargs))
+        config = ConfigParser()
+        config.readfp(config_fp)
+
+        self.update_config_from_dockerfile(config)
+
+        return config
+
+    def update_config_from_dockerfile(self, config):
+        """Updates build config with values from the Dockerfile
+
+        Updates:
+          * set "name" from LABEL com.redhat.component (if exists)
+          * set "version" from LABEL version (if exists)
+
+        :param config: ConfigParser object
+        """
+        labels = Labels(df_parser(self.workflow.builder.df_path).labels)
+        for config_key, label in (
+            ('name', Labels.LABEL_TYPE_COMPONENT),
+            ('version', Labels.LABEL_TYPE_VERSION),
+        ):
+            try:
+                _, value = labels.get_name_and_value(label)
+            except KeyError:
+                pass
+            else:
+                config.set('image-build', config_key, value)
 
     def parse_image_build_config(self, config_file_name):
 
@@ -178,8 +211,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         args = []
         opts = {}
 
-        config = ConfigParser()
-        config.readfp(self.get_default_image_build_conf())
+        config = self.get_default_image_build_conf()
         config.read(config_file_name)
 
         if self.architectures:
