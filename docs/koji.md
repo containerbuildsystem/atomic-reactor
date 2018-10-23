@@ -70,6 +70,9 @@ In each buildroot, the extra.osbs key is used to define a map that contains thes
 
 - `build_id` (string): the build ID which resulted in the buildroot currently running atomic-reactor (**currently incorrect**)
 - `builder_image_id` (string): the docker pull-by-digest specification for the buildroot currently running atomic-reactor
+- `koji` (dict): a dictionary containing the following items
+- `name` (string): the koji name-nvr of the build
+- `builder_image_id` (dict): the docker digests of the build if availble or an empty dict otherwise.
 
 # Type-specific output metadata:
 
@@ -126,6 +129,12 @@ Example type-specific content generator metadata in context:
         "osbs": {
           "build_id": "(should be build which created the buildroot image)",
           "builder_image_id": "docker-pullable://.../buildroot@sha256:abcdef..."
+          "koji": {
+            "name": package-name:1.0.0-1",
+            "builder_image_id": {
+              "application/vnd.docker.distribution.manifest.v1+json": "sha256:123abc",
+              "application/vnd.docker.distribution.manifest.v2+json": "sha256:123def"
+            }
         }
       },
       "content_generator": {
