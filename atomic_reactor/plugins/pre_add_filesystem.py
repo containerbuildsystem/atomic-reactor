@@ -301,8 +301,8 @@ class AddFilesystemPlugin(PreBuildPlugin):
     def run_image_task(self, image_build_conf):
         task_id, filesystem_regex = self.build_filesystem(image_build_conf)
 
+        task = TaskWatcher(self.session, task_id, self.poll_interval)
         try:
-            task = TaskWatcher(self.session, task_id, self.poll_interval)
             task.wait()
         except BuildCanceledException:
             self.log.info("Build was canceled, canceling task %s", task_id)
