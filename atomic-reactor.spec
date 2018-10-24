@@ -287,7 +287,6 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_koji_parent.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_inject_parent_image.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_fetch_maven_artifacts.py*
-%exclude %{python2_sitelib}/integration-tests
 
 %{python2_sitelib}/atomic_reactor-%{version}-py2.*.egg-info
 %dir %{_datadir}/%{name}
@@ -359,7 +358,6 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji_parent*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_inject_parent_image*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_fetch_maven_artifacts*.py*
-%exclude %{python3_sitelib}/integration-tests
 
 %{python3_sitelib}/atomic_reactor-%{version}-py3.*.egg-info
 %dir %{_datadir}/%{name}
