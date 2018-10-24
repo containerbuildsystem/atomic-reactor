@@ -125,7 +125,7 @@ case ${ACTION} in
   # This can run only at fedora because pylint is not packaged in centos
   # use distro pylint to not get too new pylint version
   $RUN $PKG install -y "${PYTHON}-pylint"
-  PACKAGES='atomic_reactor tests integration-tests'
+  PACKAGES='atomic_reactor tests'
   TEST_CMD="${PYTHON} -m pylint ${PACKAGES}"
   ;;
 *)
