@@ -228,7 +228,7 @@ def get_koji_module_build(session, module_spec):
         # The easy case - we can build the koji "name-version-release" out of the
         # module spec.
         koji_nvr = "{}-{}-{}.{}".format(module_spec.name,
-                                        module_spec.stream,
+                                        module_spec.stream.replace("-", "_"),
                                         module_spec.version,
                                         module_spec.context)
         logger.info("Looking up module build %s in Koji", koji_nvr)
