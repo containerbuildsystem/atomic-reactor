@@ -326,12 +326,12 @@ class TestGetKojiModuleBuild(object):
              ]))
 
     def test_with_context(self):
-        module = 'eog:master:20180821163756:775baa8e'
-        module_koji_nvr = 'eog-master-20180821163756.775baa8e'
+        module = 'eog:my-stream:20180821163756:775baa8e'
+        module_koji_nvr = 'eog-my_stream-20180821163756.775baa8e'
         koji_return = {
             'build_id': 1138198,
             'name': 'eog',
-            'version': 'master',
+            'version': 'my_stream',
             'release': '20180821163756.775baa8e',
             'extra': {
                 'typeinfo': {
