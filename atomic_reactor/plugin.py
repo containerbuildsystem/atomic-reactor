@@ -114,7 +114,7 @@ class PluginsRunner(object):
         constructor
 
         :param plugin_class_name: str, name of plugin class to filter (e.g. 'PreBuildPlugin')
-        :param plugins_conf: dict, configuration for plugins
+        :param plugins_conf: list of dicts, configuration for plugins
         """
         self.plugins_results = getattr(self, "plugins_results", {})
         self.plugins_conf = plugins_conf or []
@@ -319,7 +319,7 @@ class BuildPluginsRunner(PluginsRunner):
         :param dt: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param plugin_class_name: str, name of plugin class to filter (e.g. 'PreBuildPlugin')
-        :param plugins_conf: dict, configuration for plugins
+        :param plugins_conf: list of dicts, configuration for plugins
         """
         self.dt = dt
         self.workflow = workflow
