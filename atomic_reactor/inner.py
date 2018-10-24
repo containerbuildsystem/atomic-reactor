@@ -330,14 +330,15 @@ class DockerBuildWorkflow(object):
         """
         :param source: dict, where/how to get source code to put in image
         :param image: str, tag for built image ([registry/]image_name[:tag])
-        :param prebuild_plugins: dict, arguments for pre-build plugins
-        :param prepublish_plugins: dict, arguments for test-build plugins
-        :param postbuild_plugins: dict, arguments for post-build plugins
+        :param prebuild_plugins: list of dicts, arguments for pre-build plugins
+        :param prepublish_plugins: list of dicts, arguments for test-build plugins
+        :param postbuild_plugins: list of dicts, arguments for post-build plugins
+        :param exit_plugins: list of dicts, arguments for exit plugins
         :param plugin_files: list of str, load plugins also from these files
         :param openshift_build_selflink: str, link to openshift build (if we're actually running
             on openshift) without the actual hostname/IP address
         :param client_version: str, osbs-client version used to render build json
-        :param buildstep_plugins: dict, arguments for build-step plugins
+        :param buildstep_plugins: list of dicts, arguments for build-step plugins
         """
         self.source = get_source_instance_for(source, tmpdir=tempfile.mkdtemp())
         self.image = image

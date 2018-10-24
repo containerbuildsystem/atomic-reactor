@@ -39,7 +39,7 @@ class PrePublishSquashPlugin(PrePublishPlugin):
             "dont_load": false
           }
         }
-      }
+      ]
     ```
 
     The `tag` argument specifes the tag under which the new squashed image will
