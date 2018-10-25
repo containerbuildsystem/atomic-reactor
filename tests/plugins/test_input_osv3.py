@@ -378,3 +378,28 @@ def test_validate_reactor_config_override(override, valid, buildtype):
     else:
         with pytest.raises(ValidationError):
             plugin.run()
+
+
+@pytest.mark.parametrize('plugins_type', ['prebuild_plugins',
+                                          'buildstep_plugins',
+                                          'postbuild_plugins',
+                                          'prepublish_plugins',
+                                          'exit_plugins'
+                                          ])
+def test_fails_on_invalid_plugin_request(plugins_type):
+    # no name plugin request
+    plugins_json = {plugins_type: [{'args': {}}, {'name': 'foobar'}]},
+
+    mock_env = {
+        'BUILD': '{}',
+        'SOURCE_URI': 'https://github.com/foo/bar.git',
+        'SOURCE_REF': 'master',
+        'OUTPUT_IMAGE': 'asdf:fdsa',
+        'OUTPUT_REGISTRY': 'localhost:5000',
+        'ATOMIC_REACTOR_PLUGINS': json.dumps(plugins_json),
+    }
+    flexmock(os, environ=mock_env)
+
+    plugin = OSv3InputPlugin()
+    with pytest.raises(ValidationError):
+        plugin.run()

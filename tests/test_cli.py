@@ -21,6 +21,7 @@ from atomic_reactor.buildimage import BuildImageBuilder
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugin import InputPluginsRunner
 import atomic_reactor.cli.main
+from atomic_reactor.constants import BUILD_JSON_ENV
 
 from tests.util import uuid_value
 from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, DOCKERFILE_OK_PATH, FILES, MOCK
@@ -187,6 +188,7 @@ class TestCLISuite(object):
             .and_raise(RuntimeError))
 
         monkeypatch.setenv('LC_ALL', 'en_US.UTF-8')
+        monkeypatch.setenv(BUILD_JSON_ENV, '{}')
         command = [
             "main.py",
             "--verbose",
