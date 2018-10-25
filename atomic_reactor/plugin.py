@@ -13,12 +13,14 @@ plugins are supposed to be run when image is built and we need to extract some i
 import copy
 import logging
 import os
+import sys
 import traceback
 import imp
 import datetime
 import inspect
 import time
 from six import PY2
+from collections import namedtuple
 
 from atomic_reactor.build import BuildResult
 from atomic_reactor.util import process_substitutions
@@ -120,10 +122,14 @@ class PluginsRunner(object):
         self.plugins_conf = plugins_conf or []
         self.plugin_files = kwargs.get("plugin_files", [])
         self.plugin_classes = self.load_plugins(plugin_class_name)
+        self.available_plugins = self.get_available_plugins()
 
     def load_plugins(self, plugin_class_name):
         """
         load all available plugins
+
+        :param plugin_class_name: str, name of plugin class (e.g. 'PreBuildPlugin')
+        :return: dict, bindings for plugins of the plugin_class_name class
         """
         # imp.findmodule('atomic_reactor') doesn't work
         plugins_dir = os.path.join(os.path.dirname(__file__), 'plugins')
@@ -137,13 +143,17 @@ class PluginsRunner(object):
         plugin_class = globals()[plugin_class_name]
         plugin_classes = {}
         for f in files:
-            logger.debug("load file '%s'", f)
             module_name = os.path.basename(f).rsplit('.', 1)[0]
-            try:
-                f_module = imp.load_source(module_name, f)
-            except (IOError, OSError, ImportError, SyntaxError) as ex:
-                logger.warning("can't load module '%s': %r", f, ex)
-                continue
+            # Do not reload plugins
+            if module_name in sys.modules.keys():
+                f_module = sys.modules[module_name]
+            else:
+                try:
+                    logger.debug("load file '%s'", f)
+                    f_module = imp.load_source(module_name, f)
+                except (IOError, OSError, ImportError, SyntaxError) as ex:
+                    logger.warning("can't load module '%s': %r", f, ex)
+                    continue
             for name in dir(f_module):
                 binding = getattr(f_module, name, None)
                 try:
@@ -181,33 +191,17 @@ class PluginsRunner(object):
     def save_plugin_duration(self, plugin, duration):
         pass
 
-    def run(self, keep_going=False, buildstep_phase=False):
+    def get_available_plugins(self):
         """
-        run all requested plugins
+        check requested plugins availability
+        and handle missing plugins
 
-        :param keep_going: bool, whether to keep going after unexpected
-                                 failure (only used for exit plugins)
-        :param buildstep_phase: bool, when True remaining plugins will
-                                not be executed after a plugin completes
-                                (only used for build-step plugins)
+        :return: list of namedtuples, runnable plugins data
         """
-        failed_msgs = []
-        plugin_successful = False
-        plugin_response = None
+        available_plugins = []
+        PluginData = namedtuple('PluginData', 'name, plugin_class, conf, is_allowed_to_fail')
         for plugin_request in self.plugins_conf:
-            plugin_successful = False
-            try:
-                plugin_name = plugin_request['name']
-            except (TypeError, KeyError):
-                msg = "invalid plugin request, no key 'name': %s" % plugin_request
-                exc = None if keep_going else PluginFailedException(msg)
-                self.on_plugin_failed('?', exc)
-                logger.error(msg)
-                if keep_going:
-                    continue
-                raise exc
-
-            plugin_conf = plugin_request.get("args", {})
+            plugin_name = plugin_request['name']
             try:
                 plugin_class = self.plugin_classes[plugin_name]
             except KeyError:
@@ -223,31 +217,55 @@ class PluginsRunner(object):
                     logger.warning("plugin '%s' requested but not available",
                                    plugin_name)
                     continue
-            try:
-                plugin_is_allowed_to_fail = plugin_request['is_allowed_to_fail']
-            except (TypeError, KeyError):
-                plugin_is_allowed_to_fail = getattr(plugin_class, "is_allowed_to_fail", True)
+            plugin_is_allowed_to_fail = plugin_request.get('is_allowed_to_fail',
+                                                           getattr(plugin_class,
+                                                                   "is_allowed_to_fail", True))
+            plugin_conf = plugin_request.get("args", {})
+            plugin = PluginData(plugin_name,
+                                plugin_class,
+                                plugin_conf,
+                                plugin_is_allowed_to_fail)
+            available_plugins.append(plugin)
+        return available_plugins
 
-            logger.debug("running plugin '%s'", plugin_name)
+    def run(self, keep_going=False, buildstep_phase=False):
+        """
+        run all requested plugins
+
+        :param keep_going: bool, whether to keep going after unexpected
+                                 failure (only used for exit plugins)
+        :param buildstep_phase: bool, when True remaining plugins will
+                                not be executed after a plugin completes
+                                (only used for build-step plugins)
+        """
+        failed_msgs = []
+        plugin_successful = False
+        plugin_response = None
+        available_plugins = self.available_plugins
+        for plugin in available_plugins:
+            plugin_successful = False
+
+            logger.debug("running plugin '%s'", plugin.name)
             start_time = datetime.datetime.now()
 
             plugin_response = None
             skip_response = False
             try:
-                plugin_instance = self.create_instance_from_plugin(plugin_class, plugin_conf)
-                self.save_plugin_timestamp(plugin_class.key, start_time)
+                plugin_instance = self.create_instance_from_plugin(plugin.plugin_class,
+                                                                   plugin.conf)
+                self.save_plugin_timestamp(plugin.plugin_class.key, start_time)
                 plugin_response = plugin_instance.run()
                 plugin_successful = True
                 if buildstep_phase:
                     assert isinstance(plugin_response, BuildResult)
                     if plugin_response.is_failed():
                         logger.error("Build step plugin %s failed: %s",
-                                     plugin_class.key,
+                                     plugin.plugin_class.key,
                                      plugin_response.fail_reason)
-                        self.on_plugin_failed(plugin_class.key,
+                        self.on_plugin_failed(plugin.plugin_class.key,
                                               plugin_response.fail_reason)
                         plugin_successful = False
-                        self.plugins_results[plugin_class.key] = plugin_response
+                        self.plugins_results[plugin.plugin_class.key] = plugin_response
                         break
 
             except AutoRebuildCanceledException as ex:
@@ -258,21 +276,21 @@ class PluginsRunner(object):
                 #   AutoRebuildCanceledException was raised here)
                 raise
             except InappropriateBuildStepError:
-                logger.debug('Build step %s is not appropriate', plugin_class.key)
+                logger.debug('Build step %s is not appropriate', plugin.plugin_class.key)
                 # don't put None, in results for InappropriateBuildStepError
                 skip_response = True
                 if not buildstep_phase:
                     raise
             except Exception as ex:
-                msg = "plugin '%s' raised an exception: %r" % (plugin_class.key, ex)
+                msg = "plugin '%s' raised an exception: %r" % (plugin.plugin_class.key, ex)
                 logger.debug(traceback.format_exc())
-                if not plugin_is_allowed_to_fail:
-                    self.on_plugin_failed(plugin_class.key, ex)
+                if not plugin.is_allowed_to_fail:
+                    self.on_plugin_failed(plugin.plugin_class.key, ex)
 
-                if plugin_is_allowed_to_fail or keep_going:
+                if plugin.is_allowed_to_fail or keep_going:
                     logger.warning(msg)
                     logger.info("error is not fatal, continuing...")
-                    if not plugin_is_allowed_to_fail:
+                    if not plugin.is_allowed_to_fail:
                         failed_msgs.append(msg)
                 else:
                     logger.error(msg)
@@ -285,13 +303,13 @@ class PluginsRunner(object):
                     finish_time = datetime.datetime.now()
                     duration = finish_time - start_time
                     seconds = duration.total_seconds()
-                    logger.debug("plugin '%s' finished in %ds", plugin_name, seconds)
-                    self.save_plugin_duration(plugin_class.key, seconds)
+                    logger.debug("plugin '%s' finished in %ds", plugin.name, seconds)
+                    self.save_plugin_duration(plugin.plugin_class.key, seconds)
             except Exception:
                 logger.exception("failed to save plugin duration")
 
             if not skip_response:
-                self.plugins_results[plugin_class.key] = plugin_response
+                self.plugins_results[plugin.plugin_class.key] = plugin_response
 
             if plugin_successful and buildstep_phase:
                 logger.debug('stopping further execution of plugins '
@@ -542,21 +560,20 @@ class InputPlugin(Plugin):
 
 class InputPluginsRunner(PluginsRunner):
     def __init__(self, plugins_conf, *args, **kwargs):
-        super(InputPluginsRunner, self).__init__('InputPlugin', plugins_conf, *args, **kwargs)
-        self.plugins_results = {}
-        self.autoinput = self.plugins_conf[0]['name'] == 'auto'
-
-    def run(self, *args, **kwargs):
-        """Wrap `PluginsRunner.run()` while implementing the `auto` input behaviour.
+        """Wrap `PluginsRunner.__init__()` while implementing the `auto` input behaviour.
 
         If input plugin name is `auto`, then call `is_autousable` on all input plugins.
         Assuming exactly one of these returns `True`, then use that as input plugin, else raise.
         """
+        plugin_class_name = 'InputPlugin'
+        self.autoinput = plugins_conf[0]['name'] == 'auto'
         # implement the "auto" input behavior
         if self.autoinput:
             logger.debug('"auto" input used, determining what input plugin to use.')
             autousable = None
-            for clsname, clsobj in self.plugin_classes.items():
+            self.plugin_files = kwargs.get("plugin_files", [])
+            plugin_classes = self.load_plugins(plugin_class_name)
+            for clsname, clsobj in plugin_classes.items():
                 logger.debug('checking if "%s" plugin is autousable ...', clsname)
                 if clsobj.is_autousable():
                     if autousable:
@@ -569,11 +586,16 @@ class InputPluginsRunner(PluginsRunner):
                 raise PluginFailedException('No autousable input plugin. '
                                             'Please specify --input explicitly')
             logger.debug('using "%s" for input', autousable)
-            self.plugins_conf[0]['name'] = autousable
+            plugins_conf[0]['name'] = autousable
 
+        super(InputPluginsRunner, self).__init__(plugin_class_name, plugins_conf, *args, **kwargs)
+        self.plugins_results = {}
+
+    def run(self, *args, **kwargs):
         result = super(InputPluginsRunner, self).run(*args, **kwargs)
 
         if self.autoinput:
+            autousable = self.plugins_conf[0]['name']
             result['auto'] = result.pop(autousable)
         return result
 

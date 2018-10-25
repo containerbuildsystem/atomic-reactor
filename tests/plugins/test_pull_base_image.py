@@ -11,6 +11,7 @@ from __future__ import unicode_literals
 import docker
 import flexmock
 import json
+import sys
 import pytest
 import atomic_reactor
 import atomic_reactor.util
@@ -79,6 +80,10 @@ def set_build_json(monkeypatch):
             'name': UNIQUE_ID,
         },
     }))
+
+
+def teardown_function(function):
+    sys.modules.pop('pre_pull_base_image', None)
 
 
 @pytest.mark.parametrize(('parent_registry',
@@ -410,6 +415,9 @@ def test_try_with_library_pull_base_image(library, reactor_config_map):
 
 
 class TestValidateBaseImage(object):
+
+    def teardown_method(self, method):
+        sys.modules.pop('pre_pull_base_image', None)
 
     def test_manifest_list_verified(self, caplog):
         log_message = 'manifest list for all required platforms'

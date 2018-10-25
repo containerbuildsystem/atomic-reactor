@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals
 import os
+import sys
 import yaml
 
 from atomic_reactor.constants import (PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, REPO_CONTAINER_CONFIG,
@@ -126,6 +127,10 @@ def prepare(tmpdir):
     setattr(workflow, 'source', source)
 
     return tasker, workflow
+
+
+def teardown_function(function):
+    sys.modules.pop('pre_check_and_set_platforms', None)
 
 
 @pytest.mark.parametrize(('platforms', 'platform_exclude', 'platform_only', 'result'), [

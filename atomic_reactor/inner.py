@@ -419,14 +419,29 @@ class DockerBuildWorkflow(object):
         """
         exception_being_handled = False
         self.builder = InsideBuilder(self.source, self.image)
+        # Make sure exit_runner is defined for finally block
+        exit_runner = None
         try:
             self.fs_watcher.start()
             signal.signal(signal.SIGTERM, self.throw_canceled_build_exception)
-            # time to run pre-build plugins, so they can access cloned repo
-            logger.info("running pre-build plugins")
             prebuild_runner = PreBuildPluginsRunner(self.builder.tasker, self,
                                                     self.prebuild_plugins_conf,
                                                     plugin_files=self.plugin_files)
+            buildstep_runner = BuildStepPluginsRunner(self.builder.tasker, self,
+                                                      self.buildstep_plugins_conf,
+                                                      plugin_files=self.plugin_files)
+            prepublish_runner = PrePublishPluginsRunner(self.builder.tasker, self,
+                                                        self.prepublish_plugins_conf,
+                                                        plugin_files=self.plugin_files)
+            postbuild_runner = PostBuildPluginsRunner(self.builder.tasker, self,
+                                                      self.postbuild_plugins_conf,
+                                                      plugin_files=self.plugin_files)
+            exit_runner = ExitPluginsRunner(self.builder.tasker, self,
+                                            self.exit_plugins_conf,
+                                            keep_going=True,
+                                            plugin_files=self.plugin_files)
+            # time to run pre-build plugins, so they can access cloned repo
+            logger.info("running pre-build plugins")
             try:
                 prebuild_runner.run()
             except PluginFailedException as ex:
@@ -438,9 +453,6 @@ class DockerBuildWorkflow(object):
                 raise
 
             logger.info("running buildstep plugins")
-            buildstep_runner = BuildStepPluginsRunner(self.builder.tasker, self,
-                                                      self.buildstep_plugins_conf,
-                                                      plugin_files=self.plugin_files)
             try:
                 self.build_result = buildstep_runner.run()
 
@@ -456,9 +468,6 @@ class DockerBuildWorkflow(object):
                 self.builder.image_id = self.build_result.image_id
 
             # run prepublish plugins
-            prepublish_runner = PrePublishPluginsRunner(self.builder.tasker, self,
-                                                        self.prepublish_plugins_conf,
-                                                        plugin_files=self.plugin_files)
             try:
                 prepublish_runner.run()
             except PluginFailedException as ex:
@@ -476,9 +485,6 @@ class DockerBuildWorkflow(object):
                 self.layer_sizes = [{"diff_id": diff_id, "size": layer['Size']}
                                     for (diff_id, layer) in zip(diff_ids, reversed(history))]
 
-            postbuild_runner = PostBuildPluginsRunner(self.builder.tasker, self,
-                                                      self.postbuild_plugins_conf,
-                                                      plugin_files=self.plugin_files)
             try:
                 postbuild_runner.run()
             except PluginFailedException as ex:
@@ -493,9 +499,11 @@ class DockerBuildWorkflow(object):
         finally:
             # We need to make sure all exit plugins are executed
             signal.signal(signal.SIGTERM, lambda *args: None)
-            exit_runner = ExitPluginsRunner(self.builder.tasker, self,
-                                            self.exit_plugins_conf,
-                                            plugin_files=self.plugin_files)
+            if exit_runner is None:
+                exit_runner = ExitPluginsRunner(self.builder.tasker, self,
+                                                self.exit_plugins_conf,
+                                                keep_going=True,
+                                                plugin_files=self.plugin_files)
             try:
                 exit_runner.run(keep_going=True)
             except PluginFailedException as ex:

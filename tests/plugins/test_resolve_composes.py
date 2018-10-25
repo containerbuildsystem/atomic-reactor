@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 import os
+import sys
 from copy import deepcopy
 
 try:
@@ -245,6 +246,9 @@ def mock_koji_session():
 
 
 class TestResolveComposes(object):
+
+    def teardown_method(self, method):
+        sys.modules.pop('pre_resolve_composes', None)
 
     def test_request_compose(self, workflow, reactor_config_map):
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)

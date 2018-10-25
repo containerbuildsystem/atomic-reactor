@@ -11,6 +11,7 @@ from __future__ import unicode_literals
 import json
 import os
 import time
+import inspect
 
 from dockerfile_parse import DockerfileParser
 from flexmock import flexmock
@@ -23,8 +24,8 @@ from atomic_reactor.plugin import (BuildPluginsRunner, PreBuildPluginsRunner,
                                    PluginFailedException, PrePublishPluginsRunner,
                                    ExitPluginsRunner, BuildStepPluginsRunner,
                                    PluginsRunner, InappropriateBuildStepError,
-                                   BuildStepPlugin, PreBuildPlugin,
-                                   PreBuildSleepPlugin)
+                                   BuildStepPlugin, PreBuildPlugin, ExitPlugin,
+                                   PreBuildSleepPlugin, PrePublishPlugin, PostBuildPlugin)
 from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
 from atomic_reactor.util import ImageName
 
@@ -139,20 +140,83 @@ def test_required_plugin_failure(tmpdir, docker_tasker, runner_type, required):
     """
     workflow = mock_workflow(tmpdir)
     assert workflow.plugin_failed is False
-    runner = runner_type(docker_tasker, workflow,
-                         [{"name": "no_such_plugin",
-                           "required": required}])
+    params = (docker_tasker, workflow,
+              [{"name": "no_such_plugin",
+               "required": required}])
 
     if required or runner_type == BuildStepPluginsRunner:
         with pytest.raises(PluginFailedException):
+            runner = runner_type(*params)
             runner.run()
     else:
+        runner = runner_type(*params)
         runner.run()
     if runner_type == BuildStepPluginsRunner:
         assert workflow.plugin_failed is True
     else:
         assert workflow.plugin_failed is required
 
+
+@pytest.mark.parametrize('runner_type, plugin_type', [  # noqa
+    (PreBuildPluginsRunner, PreBuildPlugin),
+    (PrePublishPluginsRunner, PrePublishPlugin),
+    (PostBuildPluginsRunner, PostBuildPlugin),
+    (ExitPluginsRunner, ExitPlugin),
+    (BuildStepPluginsRunner, BuildStepPlugin),
+])
+@pytest.mark.parametrize('required', [
+    True,
+    False,
+])
+def test_verify_required_plugins_before_first_run(caplog, tmpdir, docker_tasker, runner_type,
+                                                  plugin_type, required):
+    """
+    test plugin availability checks before running any plugins
+    """
+    class MyPlugin(plugin_type):
+        key = 'MyPlugin'
+
+        def run(self):
+            return DUMMY_BUILD_RESULT
+
+    flexmock(PluginsRunner, load_plugins=lambda x: {
+                                        MyPlugin.key: MyPlugin})
+    workflow = mock_workflow(tmpdir)
+    params = (docker_tasker, workflow,
+              [{"name": MyPlugin.key, "required": False},
+               {"name": "no_such_plugin", "required": required}])
+    expected_log_message = "running plugin '%s'" % MyPlugin.key
+
+    # build step plugins set "required" to False
+    if required and (runner_type != BuildStepPluginsRunner):
+        with pytest.raises(PluginFailedException):
+            runner = runner_type(*params)
+            runner.run()
+        assert all(expected_log_message not in l.getMessage() for l in caplog.records())
+    else:
+        runner = runner_type(*params)
+        runner.run()
+        assert any(expected_log_message in l.getMessage() for l in caplog.records())
+
+
+def test_check_no_reload(caplog, tmpdir, docker_tasker):
+    """
+    test if plugins are not reloaded
+    """
+    workflow = mock_workflow(tmpdir)
+    this_file = inspect.getfile(MyBsPlugin1)
+    expected_log_message = "load file '%s'" % this_file
+    BuildStepPluginsRunner(docker_tasker,
+                           workflow,
+                           [{"name": "MyBsPlugin1"}],
+                           plugin_files=[this_file])
+    assert any(expected_log_message in l.getMessage() for l in caplog.records())
+    log_len = len(caplog.records())
+    BuildStepPluginsRunner(docker_tasker,
+                           workflow,
+                           [{"name": "MyBsPlugin1"}],
+                           plugin_files=[this_file])
+    assert all(expected_log_message not in l.getMessage() for l in caplog.records()[log_len:])
 
 @pytest.mark.parametrize('success1', [True, False])  # noqa
 @pytest.mark.parametrize('success2', [True, False])
@@ -386,18 +450,16 @@ class TestInputPluginsRunner(object):
 
     def test_autoinput_no_autousable(self):
         flexmock(os, environ={})
-        runner = InputPluginsRunner([{'name': 'auto', 'args': {}}])
         with pytest.raises(PluginFailedException) as e:
-            runner.run()
+            InputPluginsRunner([{'name': 'auto', 'args': {}}])
         assert 'No autousable input plugin' in str(e)
 
     def test_autoinput_more_autousable(self):
         # mock env vars checked by both env and osv3 input plugins
         flexmock(os, environ={'BUILD': 'a', 'SOURCE_URI': 'b', 'OUTPUT_IMAGE': 'c',
                               'BUILD_JSON': 'd'})
-        runner = InputPluginsRunner([{'name': 'auto', 'args': {}}])
         with pytest.raises(PluginFailedException) as e:
-            runner.run()
+            InputPluginsRunner([{'name': 'auto', 'args': {}}])
         assert 'More than one usable plugin with "auto" input' in str(e)
         assert 'osv3, env' in str(e) or 'env, osv3' in str(e)
 

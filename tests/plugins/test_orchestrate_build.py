@@ -38,6 +38,7 @@ from copy import deepcopy
 
 import json
 import os
+import sys
 import pytest
 import time
 import platform
@@ -255,6 +256,10 @@ def make_worker_build_kwargs(**overrides):
     }
     kwargs.update(overrides)
     return kwargs
+
+
+def teardown_function(function):
+    sys.modules.pop('build_orchestrate_build', None)
 
 
 @pytest.mark.parametrize('config_kwargs', [

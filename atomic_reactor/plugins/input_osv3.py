@@ -195,6 +195,8 @@ class OSv3InputPlugin(InputPlugin):
                 raise RuntimeError("No plugin configuration found!")
 
         self.plugins_json = json.loads(self.plugins_json)
+        # validate json before performing any changes
+        read_yaml(json.dumps(self.plugins_json), 'schemas/plugins.json')
 
         input_json = {
             'source': {
