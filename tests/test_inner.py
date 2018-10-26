@@ -280,14 +280,14 @@ class ExitCompat(WatchedMixIn, ExitPlugin):
 
 
 class Watcher(object):
-    def __init__(self, raise_exc=False):
+    def __init__(self, raise_exc=None):
         self.called = False
         self.raise_exc = raise_exc
 
     def call(self):
         self.called = True
         if self.raise_exc:
-            raise Exception
+            raise self.raise_exc
 
     def was_called(self):
         return self.called
@@ -968,7 +968,7 @@ def test_workflow_docker_build_error():
     fake_builder = MockInsideBuilder(failed=True)
     flexmock(InsideBuilder).new_instances(fake_builder)
     watch_pre = Watcher()
-    watch_buildstep = Watcher(raise_exc=True)
+    watch_buildstep = Watcher(raise_exc=Exception())
     watch_prepub = Watcher()
     watch_post = Watcher()
     watch_exit = Watcher()
@@ -1004,6 +1004,82 @@ def test_workflow_docker_build_error():
     assert not watch_prepub.was_called()
     assert not watch_post.was_called()
     assert watch_exit.was_called()
+
+
+@pytest.mark.parametrize('steps_to_fail,step_reported', (
+    # single failures
+    ({'pre'}, 'pre'),
+    ({'buildstep'}, 'buildstep'),
+    ({'prepub'}, 'prepub'),
+    ({'post'}, 'post'),
+    ({'exit'}, 'exit'),
+    # non-exit + exit failure
+    ({'pre', 'exit'}, 'pre'),
+    ({'buildstep', 'exit'}, 'buildstep'),
+    ({'prepub', 'exit'}, 'prepub'),
+    ({'post', 'exit'}, 'post'),
+    # 2 non-exit failures
+    ({'pre', 'buildstep'}, 'pre'),
+    ({'pre', 'prepub'}, 'pre'),
+    ({'pre', 'post'}, 'pre'),
+    ({'buildstep', 'prepub'}, 'buildstep'),
+    ({'buildstep', 'post'}, 'buildstep'),
+    ({'prepub', 'post'}, 'prepub'),
+))
+def test_workflow_docker_build_error_reports(steps_to_fail, step_reported):
+    """
+    Test if first error is reported properly. (i.e. exit plugins are not
+    hiding the original root cause)
+    """
+    def exc_string(step):
+        return 'test_workflow_docker_build_error_reports.{}'.format(step)
+
+    def construct_watcher(step):
+        watcher = Watcher(raise_exc=Exception(exc_string(step)) if step in steps_to_fail else None)
+        return watcher
+
+    flexmock(DockerfileParser, content='df_content')
+    this_file = inspect.getfile(PreRaises)
+    mock_docker()
+    fake_builder = MockInsideBuilder(failed=True)
+    flexmock(InsideBuilder).new_instances(fake_builder)
+    watch_pre = construct_watcher('pre')
+    watch_buildstep = construct_watcher('buildstep')
+    watch_prepub = construct_watcher('prepub')
+    watch_post = construct_watcher('post')
+    watch_exit = construct_watcher('exit')
+
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+                                   prebuild_plugins=[{'name': 'pre_watched',
+                                                      'is_allowed_to_fail': False,
+                                                      'args': {
+                                                          'watcher': watch_pre
+                                                      }}],
+                                   buildstep_plugins=[{'name': 'buildstep_watched',
+                                                       'is_allowed_to_fail': False,
+                                                       'args': {
+                                                           'watcher': watch_buildstep,
+                                                       }}],
+                                   prepublish_plugins=[{'name': 'prepub_watched',
+                                                        'is_allowed_to_fail': False,
+                                                        'args': {
+                                                            'watcher': watch_prepub,
+                                                        }}],
+                                   postbuild_plugins=[{'name': 'post_watched',
+                                                       'is_allowed_to_fail': False,
+                                                       'args': {
+                                                           'watcher': watch_post
+                                                       }}],
+                                   exit_plugins=[{'name': 'exit_watched',
+                                                  'is_allowed_to_fail': False,
+                                                  'args': {
+                                                      'watcher': watch_exit
+                                                  }}],
+                                   plugin_files=[this_file])
+
+    with pytest.raises(Exception) as exc:
+        workflow.build_docker_image()
+    assert exc_string(step_reported) in str(exc)
 
 
 class ExitUsesSource(ExitWatched):
