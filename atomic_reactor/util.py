@@ -1104,7 +1104,8 @@ def get_inspect_for_image(image, registry, insecure=False, dockercfg_path=None):
         else:
             blob_config = json.loads(v1_json['history'][0]['v1Compatibility'])
     else:
-        raise RuntimeError("No v2 schema 1 image, or v2 schema 2 image or list, found")
+        raise RuntimeError("Image {image_name} not found: No v2 schema 1 image, or v2 schema 2 "
+                           "image or list, found".format(image_name=image))
 
     # dictionary to convert config keys to inspect keys
     config_2_inspect = {

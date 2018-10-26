@@ -1477,10 +1477,13 @@ def test_get_inspect_for_image(insecure, found_versions, type_in_list, will_rais
     image = ImageName.parse(image_with_reg)
 
     if not found_versions:
-        raise_exception = NotImplementedError
-        error_msg = 'No v2 schema 1 image, or v2 schema 2 image or list, found'
+        raise_exception = RuntimeError
+        error_msg = (
+            'Image {image_name} not found: No v2 schema 1 image, '
+            'or v2 schema 2 image or list, found'.format(image_name=image)
+        )
     elif 'v2_list' in found_versions and will_raise:
-        raise_exception = NotImplementedError
+        raise_exception = RuntimeError
         error_msg = 'v2 schema 1 in manifest list'
 
     inspect_data = {
