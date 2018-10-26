@@ -12,9 +12,6 @@ from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
 from atomic_reactor.util import get_build_json
 
-import os
-import yaml
-
 
 def is_rebuild(workflow):
     return (CheckAndSetRebuildPlugin.key in workflow.prebuild_results and

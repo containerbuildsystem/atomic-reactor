@@ -39,5 +39,6 @@ def has_connection():
     except requests.ConnectionError:
         return False
 
+
 # In case we run tests in an environment without internet connection.
 requires_internet = pytest.mark.skipif(not has_connection(), reason="requires internet connection")

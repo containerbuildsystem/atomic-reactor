@@ -24,7 +24,6 @@ from osbs.api import OSBS
 import osbs.conf
 from flexmock import flexmock
 from tests.constants import MOCK, MOCK_SOURCE
-from textwrap import dedent
 if MOCK:
     from tests.docker_mock import mock_docker
 

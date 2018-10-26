@@ -106,7 +106,6 @@ class OSv3InputPlugin(InputPlugin):
         phases = ('postbuild_plugins', 'exit_plugins')
         pulp_registry = self.get_value('pulp')
         koji_hub = self.get_value('koji', {}).get('hub_url')
-        has_pulp_pull = False
         for phase in phases:
             if not (pulp_registry and koji_hub):
                 self.remove_plugin(phase, PLUGIN_PULP_PULL_KEY, 'no pulp or koji available')
