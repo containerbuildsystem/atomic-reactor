@@ -417,6 +417,7 @@ class DockerBuildWorkflow(object):
 
         :return: BuildResult
         """
+        exception_being_handled = False
         self.builder = InsideBuilder(self.source, self.image)
         try:
             self.fs_watcher.start()
@@ -487,6 +488,7 @@ class DockerBuildWorkflow(object):
             return self.build_result
         except Exception as ex:
             logger.debug("caught exception (%r) so running exit plugins", ex)
+            exception_being_handled = True
             raise
         finally:
             # We need to make sure all exit plugins are executed
@@ -498,7 +500,12 @@ class DockerBuildWorkflow(object):
                 exit_runner.run(keep_going=True)
             except PluginFailedException as ex:
                 logger.error("one or more exit plugins failed: %s", ex)
-                raise
+
+                # raise exception only in case that there is no previous exception being already
+                # handled to prevent replacing original exceptions (root cause) with exceptions
+                # from exit plugins
+                if not exception_being_handled:
+                    raise ex
             finally:
                 self.source.remove_tmpdir()
                 self.fs_watcher.finish()
