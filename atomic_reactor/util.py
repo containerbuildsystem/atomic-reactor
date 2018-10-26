@@ -1083,7 +1083,8 @@ def get_inspect_for_image(image, registry, insecure=False, dockercfg_path=None):
     if 'v2_list' in all_man_digests:
         man_list_json = all_man_digests['v2_list'].json()
         if man_list_json['manifests'][0]['mediaType'] != MEDIA_TYPE_DOCKER_V2_SCHEMA2:
-            raise RuntimeError('v2 schema 1 in manifest list')
+            raise RuntimeError('Image {image_name}: v2 schema 1 '
+                               'in manifest list'.format(image_name=image))
 
         v2_digest = man_list_json['manifests'][0]['digest']
         blob_config, config_digest = get_config_and_id_from_registry(image, registry, v2_digest,
@@ -1118,7 +1119,8 @@ def get_inspect_for_image(image, registry, insecure=False, dockercfg_path=None):
     }
 
     if not blob_config:
-        raise RuntimeError("Couldn't get inspect data from digest config")
+        raise RuntimeError("Image {image_name}: Couldn't get inspect data "
+                           "from digest config".format(image_name=image))
 
     # set Id, which isn't in config blob, won't be set for v1, as for that image has to be pulled
     image_inspect['Id'] = config_digest
