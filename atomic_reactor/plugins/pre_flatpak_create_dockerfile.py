@@ -30,6 +30,11 @@ from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.rpm_util import rpm_qf_args
 from atomic_reactor.util import render_yum_repo, split_module_spec
 
+# /var/tmp/flatpak-build is the final image we'll turn into a Flaptak
+# In order for 'dnf module enable' to work correctly, we need an
+# /etc/os-release in the install root with the correct PLATFORM_ID
+# for our base package set. To make that work, we install system-release
+# into a *different* install root and copy /etc/os-release over.
 DOCKERFILE_TEMPLATE = '''FROM {base_image}
 
 LABEL name="{name}"
@@ -43,16 +48,18 @@ RUN mkdir -p /var/tmp/flatpak-build/dev && \
     for i in null zero random urandom ; do cp -a /dev/$i /var/tmp/flatpak-build/dev ; done
 
 RUN cat /tmp/atomic-reactor-includepkgs >> /etc/dnf/dnf.conf && \\
+    INSTALLDIR=/var/tmp/flatpak-build && \\
+    DNF='\\
     dnf -y --nogpgcheck \\
     --disablerepo=* \\
     --enablerepo=atomic-reactor-koji-plugin-* \\
     --enablerepo=atomic-reactor-module-* \\
-    --installroot=/var/tmp/flatpak-build module enable {modules} && \\
-    dnf -y --nogpgcheck \\
-    --disablerepo=* \\
-    --enablerepo=atomic-reactor-koji-plugin-* \\
-    --enablerepo=atomic-reactor-module-* \\
-    --installroot=/var/tmp/flatpak-build install {packages}
+    ' && \\
+    $DNF --installroot=$INSTALLDIR-init install system-release && \\
+    mkdir -p $INSTALLDIR/etc/ && \\
+    cp $INSTALLDIR-init/etc/os-release $INSTALLDIR/etc/os-release && \\
+    $DNF --installroot=$INSTALLDIR module enable {modules} && \\
+    $DNF --installroot=$INSTALLDIR install {packages}
 RUN rpm --root=/var/tmp/flatpak-build {rpm_qf_args} > /var/tmp/flatpak-build.rpm_qf
 COPY cleanup.sh /var/tmp/flatpak-build/tmp/
 RUN chroot /var/tmp/flatpak-build/ /bin/sh /tmp/cleanup.sh
