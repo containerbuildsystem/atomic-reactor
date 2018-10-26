@@ -1083,7 +1083,7 @@ def get_inspect_for_image(image, registry, insecure=False, dockercfg_path=None):
     if 'v2_list' in all_man_digests:
         man_list_json = all_man_digests['v2_list'].json()
         if man_list_json['manifests'][0]['mediaType'] != MEDIA_TYPE_DOCKER_V2_SCHEMA2:
-            raise NotImplementedError('v2 schema 1 in manifest list')
+            raise RuntimeError('v2 schema 1 in manifest list')
 
         v2_digest = man_list_json['manifests'][0]['digest']
         blob_config, config_digest = get_config_and_id_from_registry(image, registry, v2_digest,
@@ -1104,7 +1104,7 @@ def get_inspect_for_image(image, registry, insecure=False, dockercfg_path=None):
         else:
             blob_config = json.loads(v1_json['history'][0]['v1Compatibility'])
     else:
-        raise NotImplementedError("No v2 schema 1 image, or v2 schema 2 image or list, found")
+        raise RuntimeError("No v2 schema 1 image, or v2 schema 2 image or list, found")
 
     # dictionary to convert config keys to inspect keys
     config_2_inspect = {
