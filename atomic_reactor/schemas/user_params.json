@@ -20,7 +20,6 @@
     "customize_conf": {"type": "string"},
     "filesystem_koji_task_id": {"type": "integer"},
     "flatpak": {"type": "boolean"},
-    "flatpak_base_image": {"type": "string"},
     "git_branch": {"type": "string"},
     "git_ref": {"type": "string"},
     "git_uri": {"type": "string"},
