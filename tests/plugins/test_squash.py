@@ -59,10 +59,7 @@ class MockInsideBuilder(object):
 
     @property
     def base_image_inspect(self):
-        try:
-            return self.tasker.inspect_image(self.base_image)
-        except:
-            raise KeyError()
+        return self.tasker.inspect_image(self.base_image)
 
 
 class TestSquashPlugin(object):

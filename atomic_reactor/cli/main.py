@@ -17,7 +17,7 @@ import locale
 from atomic_reactor import set_logging
 from atomic_reactor.api import (build_image_here, build_image_in_privileged_container,
                                 build_image_using_hosts_docker)
-from atomic_reactor.constants import CONTAINER_BUILD_JSON_PATH, DESCRIPTION, PROG
+from atomic_reactor.constants import DESCRIPTION, PROG
 from atomic_reactor.buildimage import BuildImageBuilder
 from atomic_reactor.inner import build_inside, BuildResults
 from atomic_reactor.util import process_substitutions, setup_introspection_signal_handler

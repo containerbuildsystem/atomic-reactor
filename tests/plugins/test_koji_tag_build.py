@@ -286,7 +286,7 @@ class TestKojiPromote(object):
         result = runner.run()
         assert result[KojiTagBuildPlugin.key] == 'images-candidate'
 
-    @pytest.mark.parametrize('use_import', [ # noqa
+    @pytest.mark.parametrize('use_import', [  # noqa
         (True, False)
     ])
     def test_koji_tag_build_success_no_args(self, tmpdir, use_import, reactor_config_map):

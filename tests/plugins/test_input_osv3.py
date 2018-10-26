@@ -32,8 +32,7 @@ from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
                                       PLUGIN_PULP_SYNC_KEY,
                                       PLUGIN_PULP_TAG_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY,
-                                      PLUGIN_SENDMAIL_KEY,
-                                      PLUGIN_VERIFY_MEDIA_KEY)
+                                      PLUGIN_SENDMAIL_KEY)
 import pytest
 from flexmock import flexmock
 from jsonschema import ValidationError

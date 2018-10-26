@@ -1531,19 +1531,17 @@ def test_get_inspect_for_image(insecure, found_versions, type_in_list, will_rais
      .and_return(return_list)
      .once())
 
-    if (found_versions and ('v2' in found_versions or 'v2_list' in found_versions)
-            and not will_raise):
-        (flexmock(atomic_reactor.util)
-         .should_receive('get_config_and_id_from_registry')
-         .and_return(inspect_data, config_digest)
-         .once())
-
     if will_raise:
         with pytest.raises(raise_exception) as e:
             get_inspect_for_image(image, image.registry, insecure)
         assert error_msg in str(e)
 
     else:
+        if found_versions and ('v2' in found_versions or 'v2_list' in found_versions):
+            (flexmock(atomic_reactor.util)
+             .should_receive('get_config_and_id_from_registry')
+             .and_return(inspect_data, config_digest)
+             .once())
         inspected = get_inspect_for_image(image, image.registry, insecure)
         assert inspected == expect_inspect
 

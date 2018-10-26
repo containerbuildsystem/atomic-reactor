@@ -71,6 +71,7 @@ class MockBuilder(object):
             parent_images[key] = val
         self.parent_images = parent_images
 
+
 @pytest.fixture(autouse=True)
 def set_build_json(monkeypatch):
     monkeypatch.setenv("BUILD", json.dumps({
@@ -271,6 +272,7 @@ def test_pull_base_library(reactor_config_map, caplog):  # noqa
     assert "not found" in str(exc.value)
     assert "RetryGeneratorException" in str(exc.value)
     assert "trying" not in caplog.text()  # don't retry with "library/library-only:latest"
+
 
 def test_pull_base_base_parse(reactor_config_map, inspect_only):  # noqa
     flexmock(ImageName).should_receive('parse').and_raise(AttributeError)
