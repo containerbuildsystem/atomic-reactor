@@ -1484,7 +1484,7 @@ def test_get_inspect_for_image(insecure, found_versions, type_in_list, will_rais
         )
     elif 'v2_list' in found_versions and will_raise:
         raise_exception = RuntimeError
-        error_msg = 'v2 schema 1 in manifest list'
+        error_msg = 'Image {image_name}: v2 schema 1 in manifest list'.format(image_name=image)
 
     inspect_data = {
         'created': 'create_time',
