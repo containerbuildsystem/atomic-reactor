@@ -731,14 +731,15 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
 
     export_generator = stream_to_generator(export_stream)
 
+    (flexmock(docker_tasker.d)
+     .should_receive('export')
+     .with_args(CONTAINER_ID)
+     .and_return(export_generator))
+
     (flexmock(docker_tasker.d.wrapped)
      .should_receive('create_container')
      .with_args(workflow.image, command=["/bin/bash"])
      .and_return({'Id': CONTAINER_ID}))
-    (flexmock(docker_tasker.d.wrapped)
-     .should_receive('export')
-     .with_args(CONTAINER_ID)
-     .and_return(export_generator))
     (flexmock(docker_tasker.d.wrapped)
      .should_receive('remove_container')
      .with_args(CONTAINER_ID))
