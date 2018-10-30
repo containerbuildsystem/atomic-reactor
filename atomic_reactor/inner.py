@@ -551,8 +551,13 @@ def build_inside(input_method, input_args=None, substitutions=None):
         raise RuntimeError("Input plugin did not return valid build json: {}".format(build_json))
 
     dbw = DockerBuildWorkflow(**build_json)
-    build_result = dbw.build_docker_image()
-    if not build_result or build_result.is_failed():
-        raise RuntimeError("no image built")
+    try:
+        build_result = dbw.build_docker_image()
+    except Exception as e:
+        logger.error('image build failed: %s', e)
+        raise
     else:
-        logger.info("build has finished successfully \\o/")
+        if not build_result or build_result.is_failed():
+            raise RuntimeError("no image built")
+        else:
+            logger.info("build has finished successfully \\o/")
