@@ -262,6 +262,20 @@ class WrappedDocker(object):
         else:
             return orig_attr
 
+    def _export(self, container, chunk_size):
+        # Older versions of docker-python don't handle streaming responses
+        # efficiently. Emulate the fix in:
+        # https://github.com/docker/docker-py/commit/581ccc9f7e8e189248054268c98561ca775bd3d7
+        # by going straight to the responses API.
+
+        url = self.wrapped._url("/containers/{0}/export", container)
+        res = self.wrapped.get(url, stream=True)
+        self.wrapped._raise_for_status(res)
+        return res.iter_content(chunk_size=chunk_size)
+
+    def export(self, container, chunk_size=1024*2048):
+        return retry(self._export, container, chunk_size, retry=self.retry_times)
+
 
 class DockerTasker(LastLogger):
     def __init__(self, base_url=None, retry_times=DOCKER_MAX_RETRIES,

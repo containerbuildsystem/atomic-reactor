@@ -318,6 +318,27 @@ def test_get_info():
     assert isinstance(response, dict)
 
 
+@pytest.mark.parametrize('no_container', (False, True))
+def test_export(no_container):
+    if MOCK:
+        mock_docker()
+
+    t = DockerTasker()
+    container_dict = t.d.create_container(INPUT_IMAGE, command=["/bin/bash"])
+    container_id = container_dict['Id']
+
+    try:
+        if no_container:
+            with pytest.raises(docker.errors.APIError):
+                t.d.export('NOT_THERE')
+        else:
+            export_generator = t.d.export(container_id)
+            for chunk in export_generator:
+                pass
+    finally:
+        t.d.remove_container(container_id)
+
+
 def test_get_version():
     if MOCK:
         mock_docker()
