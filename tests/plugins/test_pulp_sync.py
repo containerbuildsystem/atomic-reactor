@@ -593,42 +593,6 @@ class TestPostPulpSync(object):
         plugin.run()
         assert len(workflow.push_conf.pulp_registries) == 1
 
-    def test_delete_not_implemented(self, caplog, reactor_config_map):  # noqa
-        """
-        Should log an error (but not raise an exception) when
-        delete_from_registry is True.
-        """
-        mockpulp = MockPulp()
-        (flexmock(mockpulp)
-            .should_receive('getRepos')
-            .with_args(['redhat-prod-myrepository'], fields=['id'])
-            .and_return([{'id': 'redhat-prod-myrepository'}])
-            .once()
-            .ordered())
-        (flexmock(mockpulp)
-            .should_receive('syncRepo')
-            .and_return(([], [])))
-        flexmock(dockpulp).should_receive('Pulp').and_return(mockpulp)
-
-        if reactor_config_map:
-            self.workflow.plugin_workspace = {}
-            self.workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-            self.workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig({'version': 1, 'pulp': {'name': 'pulp'}})
-
-        plugin = PulpSyncPlugin(tasker=None,
-                                workflow=self.workflow(['prod/myrepository']),
-                                pulp_registry_name='pulp',
-                                docker_registry='http://registry.example.com',
-                                delete_from_registry=True)
-        plugin.run()
-
-        errors = [record.getMessage() for record in caplog.records()
-                  if record.levelname == 'ERROR']
-
-        assert [message for message in errors
-                if 'not implemented' in message]
-
     def test_create_missing_repo(self, reactor_config_map):  # noqa
         docker_registry = 'http://registry.example.com'
         docker_repository = 'prod/myrepository'
