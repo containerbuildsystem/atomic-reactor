@@ -88,7 +88,6 @@ class PulpSyncPlugin(PostBuildPlugin):
     def __init__(self, tasker, workflow,
                  pulp_registry_name=None,
                  docker_registry=None,
-                 delete_from_registry=False,
                  pulp_secret_path=None,
                  registry_secret_path=None,
                  insecure_registry=None,
@@ -104,8 +103,6 @@ class PulpSyncPlugin(PostBuildPlugin):
                specified in /etc/dockpulp.conf
         :param docker_registry: str, URL of docker registry to sync from
                including scheme e.g. https://registry.example.com
-        :param delete_from_registry: bool, whether to delete the image
-               from the docker v2 registry after sync
         :param pulp_secret_path: path to pulp.cer and pulp.key
         :param registry_secret_path: path to .dockercfg for the V2 registry
         :param insecure_registry: True if SSL validation should be skipped
@@ -147,10 +144,6 @@ class PulpSyncPlugin(PostBuildPlugin):
             except (ValueError, TypeError) as ex:
                 self.log.error("Can't set provided log level %r: %r",
                                loglevel, ex)
-
-        if delete_from_registry:
-            self.log.error("will not delete from registry as instructed: "
-                           "not implemented")
 
         self.publish = (publish and
                         not are_plugins_in_order(self.workflow.postbuild_plugins_conf,
