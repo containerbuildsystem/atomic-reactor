@@ -17,6 +17,9 @@ from atomic_reactor.constants import DOCKER_SOCKET_PATH
 from atomic_reactor.util import ImageName
 from tests.constants import COMMAND, IMPORTED_IMAGE_ID
 
+
+BASE_URL = 'unix://var/run/docker.sock'
+
 old_ope = os.path.exists
 
 mock_containers = \
@@ -294,6 +297,19 @@ def mock_docker(build_should_fail=False,
     flexmock(docker.APIClient, commit=lambda cid, **kwargs: mock_containers[0])
     flexmock(docker.APIClient, containers=lambda **kwargs: mock_containers)
     flexmock(docker.APIClient, create_container=lambda img, **kwargs: mock_containers[0])
+
+    def mock_iter_content(chunk_size=1):
+        assert chunk_size == 1024*2048
+        for i in range(0, 10):
+            yield 'XXXXXXXXXX'
+
+    def mock_get(url, **kwargs):
+        if url == BASE_URL + "/containers/" + mock_containers[0]['Id'] + "/export":
+            return flexmock(status_code=200, iter_content=mock_iter_content)
+        else:
+            return flexmock(status_code=404, content='not found')
+
+    flexmock(docker.APIClient, get=mock_get)
     flexmock(docker.APIClient, images=lambda **kwargs: [mock_image])
 
     def mock_inspect_image(image_id):
@@ -317,6 +333,17 @@ def mock_docker(build_should_fail=False,
     flexmock(docker.APIClient, info=lambda **kwargs: mock_info)
     flexmock(docker.APIClient, import_image_from_data=lambda url: mock_import_image)
     flexmock(docker.APIClient, import_image_from_stream=lambda url: mock_import_image)
+
+    def mock__raise_for_status(res):
+        if res.status_code != 200:
+            raise docker.errors.APIError("HTTP Error {}".format(res.status_code), res)
+
+    flexmock(docker.APIClient, _raise_for_status=mock__raise_for_status)
+
+    def mock__url(pathfmt, *args, **kwargs):
+        return BASE_URL + pathfmt.format(*args)
+
+    flexmock(docker.APIClient, _url=mock__url)
 
     class GetImageResult(object):
         data = ''
