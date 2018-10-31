@@ -61,8 +61,6 @@ class MockBuilder(object):
     def set_base_image(self, base_image, parents_pulled=True, insecure=False):
         self.base_image = ImageName.parse(base_image)
         self.original_base_image = self.original_base_image or self.base_image
-        if parents_pulled:
-            assert base_image.startswith(UNIQUE_ID + ":")
 
     def recreate_parent_images(self):
         # recreate parent_images to update hashes
@@ -187,6 +185,8 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
         return
 
     runner.run()
+    if not inspect_only:
+        assert workflow.builder.base_image.to_str().startswith(UNIQUE_ID + ":")
 
     for image in expected:
         if inspect_only:

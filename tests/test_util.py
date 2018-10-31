@@ -63,7 +63,7 @@ from atomic_reactor.constants import INSPECT_CONFIG, PLUGIN_BUILD_ORCHESTRATE_KE
 from atomic_reactor.source import SourceConfig
 
 from tests.util import requires_internet
-from tests.stubs import StubInsideBuilder
+from tests.stubs import StubInsideBuilder, StubSource
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -950,6 +950,7 @@ def test_df_parser_parent_env_wf(tmpdir, caplog, env_arg):
         """)
     env_conf = {INSPECT_CONFIG: {"Env": env_arg}}
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    workflow.source = StubSource()
     workflow.builder = StubInsideBuilder()
     workflow.builder.set_inspection_data(env_conf)
     df = df_parser(str(tmpdir), workflow=workflow)

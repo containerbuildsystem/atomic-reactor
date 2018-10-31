@@ -44,6 +44,7 @@ from atomic_reactor.rpm_util import parse_rpm_output
 from atomic_reactor.source import GitSource
 from atomic_reactor.build import BuildResult
 from tests.constants import SOURCE, MOCK
+from tests.stubs import StubInsideBuilder, StubSource
 
 from flexmock import flexmock
 import pytest
@@ -246,14 +247,10 @@ def mock_environment(tmpdir, session=None, name=None,
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     base_image_id = '123456parent-id'
-    setattr(workflow, 'builder', X())
-    setattr(workflow.builder, 'image_id', '123456imageid')
-    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='22'))
-    setattr(workflow.builder, 'source', X())
-    setattr(workflow.builder, 'built_image_info', {'ParentId': base_image_id})
-    setattr(workflow.builder, 'base_image_inspect', {'Id': base_image_id})
-    setattr(workflow.builder.source, 'dockerfile_path', None)
-    setattr(workflow.builder.source, 'path', None)
+    workflow.source = StubSource()
+    workflow.builder = StubInsideBuilder().for_workflow(workflow)
+    workflow.builder.image_id = '123456imageid'
+    workflow.builder.set_inspection_data({'Id': base_image_id})
     setattr(workflow, 'tag_conf', TagConf())
     with open(os.path.join(str(tmpdir), 'Dockerfile'), 'wt') as df:
         df.write('FROM base\n'
@@ -261,7 +258,7 @@ def mock_environment(tmpdir, session=None, name=None,
                  'LABEL Version={version} version={version}\n'
                  'LABEL Release={release} release={release}\n'
                  .format(component=component, version=version, release=release))
-        setattr(workflow.builder, 'df_path', df.name)
+        workflow.builder.set_df_path(df.name)
     if name and version:
         workflow.tag_conf.add_unique_image('user/test-image:{v}-timestamp'
                                            .format(v=version))
@@ -732,7 +729,7 @@ class TestKojiUpload(object):
                 assert is_string_type(builder_image_id[key])
 
     def validate_output(self, output, has_config,
-                        expect_digest):
+                        expect_digest, base_from_scratch=False):
         assert isinstance(output, dict)
         assert 'buildroot_id' in output
         assert 'filename' in output
@@ -804,13 +801,18 @@ class TestKojiUpload(object):
                 'layer_sizes',
                 'tags',
             ])
+            if base_from_scratch:
+                expected_keys_set.remove('parent_id')
+                assert 'parent_id' not in docker
+            else:
+                assert is_string_type(docker['parent_id'])
+
             if has_config:
                 expected_keys_set.add('config')
             if expect_digest:
                 expected_keys_set.add('digests')
             assert set(docker.keys()) == expected_keys_set
 
-            assert is_string_type(docker['parent_id'])
             assert is_string_type(docker['id'])
             repositories = docker['repositories']
             assert isinstance(repositories, list)
@@ -945,11 +947,12 @@ class TestKojiUpload(object):
 
     ])
     @pytest.mark.parametrize('has_config', (True, False))
-    @pytest.mark.parametrize('prefer_schema1_digest', (False, True))
+    @pytest.mark.parametrize('prefer_schema1_digest', (True, False))
+    @pytest.mark.parametrize('base_from_scratch', (True, False))
     def test_koji_upload_success(self, tmpdir, apis, docker_registry,
                                  pulp_registries, blocksize, target,
                                  os_env, has_config, prefer_schema1_digest,
-                                 reactor_config_map):
+                                 base_from_scratch, reactor_config_map):
         osbs = MockedOSBS()
         session = MockedClientSession('')
         component = 'component'
@@ -974,6 +977,7 @@ class TestKojiUpload(object):
                                             has_config=has_config,
                                             prefer_schema1_digest=prefer_schema1_digest,
                                             )
+        workflow.builder.base_from_scratch = base_from_scratch
         runner = create_runner(tasker, workflow, blocksize=blocksize, target=target,
                                prefer_schema1_digest=prefer_schema1_digest, platform=LOCAL_ARCH,
                                reactor_config_map=reactor_config_map)
@@ -1006,7 +1010,8 @@ class TestKojiUpload(object):
 
         for output in output_files:
             self.validate_output(output, has_config,
-                                 expect_digest=docker_registry)
+                                 expect_digest=docker_registry,
+                                 base_from_scratch=base_from_scratch)
             buildroot_id = output['buildroot_id']
 
             # References one of the buildroots

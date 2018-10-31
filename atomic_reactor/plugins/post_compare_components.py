@@ -87,6 +87,9 @@ class CompareComponentsPlugin(PostBuildPlugin):
         """
         Run the plugin.
         """
+        if self.workflow.builder.base_from_scratch:
+            self.log.info("Skipping comparing components: unsupported for FROM-scratch images")
+            return
 
         worker_metadatas = self.workflow.postbuild_results.get(PLUGIN_FETCH_WORKER_METADATA_KEY)
         comp_list = self.get_component_list_from_workers(worker_metadatas)

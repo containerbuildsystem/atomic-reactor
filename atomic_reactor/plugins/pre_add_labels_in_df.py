@@ -261,7 +261,8 @@ class AddLabelsPlugin(PreBuildPlugin):
 
         lines = dockerfile.lines
 
-        if re.match('^koji/image-build(:.*)?$', dockerfile.baseimage):
+        if (re.match('^koji/image-build(:.*)?$', dockerfile.baseimage) or
+                self.workflow.builder.base_from_scratch):
             base_image_labels = {}
         else:
             try:

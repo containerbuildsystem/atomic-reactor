@@ -49,7 +49,8 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
                                       PLUGIN_KOJI_PARENT_KEY,
                                       PARENT_IMAGE_BUILDS_KEY, PARENT_IMAGES_KOJI_BUILDS,
-                                      BASE_IMAGE_KOJI_BUILD, BASE_IMAGE_BUILD_ID_KEY)
+                                      BASE_IMAGE_KOJI_BUILD, BASE_IMAGE_BUILD_ID_KEY,
+                                      PARENT_IMAGES_KEY, SCRATCH_FROM)
 from atomic_reactor.auth import HTTPRegistryAuth
 
 from dockerfile_parse import DockerfileParser
@@ -645,6 +646,10 @@ def is_isolated_build():
     except KeyError:
         logger.error('metadata.labels not found in build json')
         raise
+
+
+def base_image_is_scratch(base_image_name):
+    return SCRATCH_FROM == base_image_name
 
 
 def get_orchestrator_platforms(workflow):
@@ -1382,6 +1387,13 @@ def get_parent_image_koji_data(workflow):
         else:
             parents[str(img)] = {key: val for key, val in build.items() if key in ('id', 'nvr')}
     image_metadata[PARENT_IMAGE_BUILDS_KEY] = parents
+
+    # ordered list of parent images
+    image_metadata[PARENT_IMAGES_KEY] = workflow.builder.parents_ordered
+
+    # don't add parent image id key for scratch
+    if workflow.builder.base_from_scratch:
+        return image_metadata
 
     base_info = koji_parent.get(BASE_IMAGE_KOJI_BUILD) or {}
     parent_id = base_info.get('id')

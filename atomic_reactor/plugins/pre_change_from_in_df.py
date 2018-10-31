@@ -10,8 +10,9 @@ Pre-build plugin that changes the parent images used in FROM instructions
 to the more specific names given by the builder.
 """
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import ImageName, df_parser
+from atomic_reactor.util import ImageName, df_parser, base_image_is_scratch
 from atomic_reactor.plugins.pre_reactor_config import get_registries_organization
+from atomic_reactor.constants import SCRATCH_FROM
 
 
 class BaseImageMismatch(RuntimeError):
@@ -43,6 +44,15 @@ class ChangeFromPlugin(PreBuildPlugin):
         # call parent constructor
         super(ChangeFromPlugin, self).__init__(tasker, workflow)
 
+    def _sanity_check(self, df_base, builder_base, builder):
+        if builder_base != builder.parent_images[df_base]:
+            # something updated parent_images entry for base without updating
+            # the build's base_image; treat it as an error
+            raise BaseImageMismatch(
+                "Parent image '{}' for df_base {} does not match base_image '{}'"
+                .format(builder.parent_images[df_base], df_base, builder_base)
+            )
+
     def run(self):
         builder = self.workflow.builder
         dfp = df_parser(builder.df_path)
@@ -53,15 +63,10 @@ class ChangeFromPlugin(PreBuildPlugin):
             df_base.enclose(organization)
         build_base = builder.base_image
 
-        # do some sanity checks to defend against bugs and rogue plugins
+        if not self.workflow.builder.base_from_scratch:
+            # do some sanity checks to defend against bugs and rogue plugins
+            self._sanity_check(df_base, build_base, builder)
 
-        if build_base != builder.parent_images[df_base]:
-            # something updated parent_images entry for base without updating
-            # the build's base_image; treat it as an error
-            raise BaseImageMismatch(
-                "Parent image '{}' for df_base {} does not match base_image '{}'"
-                .format(builder.parent_images[df_base], df_base, build_base)
-            )
         self.log.info("parent_images '%s'", builder.parent_images)
         unresolved = [key for key, val in builder.parent_images.items() if not val]
         if unresolved:
@@ -72,6 +77,9 @@ class ChangeFromPlugin(PreBuildPlugin):
         # enclose images from dfp
         enclosed_parent_images = []
         for df_img in dfp.parent_images:
+            if base_image_is_scratch(df_img):
+                enclosed_parent_images.append(df_img)
+                continue
             parent = ImageName.parse(df_img)
             if organization:
                 parent.enclose(organization)
@@ -79,10 +87,13 @@ class ChangeFromPlugin(PreBuildPlugin):
 
         missing = [df_img for df_img in enclosed_parent_images
                    if df_img not in builder.parent_images]
-        if missing:
+        missing_set = set(missing)
+        if SCRATCH_FROM in missing_set:
+            missing_set.remove(SCRATCH_FROM)
+        if missing_set:
             # this would indicate another plugin modified parent_images out of sync
             # with the Dockerfile or some other code bug
-            raise ParentImageMissing("Lost parent image(s) from Dockerfile: {}".format(missing))
+            raise ParentImageMissing("Lost parent image(s) from Dockerfile: {}".format(missing_set))
 
         # docker inspect all parent images so we can address them by Id
         parent_image_ids = {}
@@ -99,6 +110,9 @@ class ChangeFromPlugin(PreBuildPlugin):
         # update the parents in Dockerfile
         new_parents = []
         for parent in enclosed_parent_images:
+            if base_image_is_scratch(parent):
+                new_parents.append(parent)
+                continue
             pid = parent_image_ids[parent]
             self.log.info("changed FROM: '%s' -> '%s'", parent, pid)
             new_parents.append(pid)
@@ -106,8 +120,12 @@ class ChangeFromPlugin(PreBuildPlugin):
 
         # update builder's representation of what will be built
         builder.parent_images = parent_image_ids
+
+        if self.workflow.builder.base_from_scratch:
+            return
+
         builder.set_base_image(parent_image_ids[df_base])
         self.log.debug(
             "for base image '%s' using local image '%s', id '%s'",
-            df_base, build_base, build_base
+            df_base, build_base, parent_image_ids[df_base]
         )

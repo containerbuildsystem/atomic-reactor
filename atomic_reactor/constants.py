@@ -108,6 +108,8 @@ BASE_IMAGE_KOJI_BUILD = 'parent-image-koji-build'  # from when the base image wa
 PARENT_IMAGES_KOJI_BUILDS = 'parent-images-koji-builds'
 BASE_IMAGE_BUILD_ID_KEY = 'parent_build_id'  # from when the base image was the only parent
 PARENT_IMAGE_BUILDS_KEY = 'parent_image_builds'
+PARENT_IMAGES_KEY = 'parent_images'
+SCRATCH_FROM = 'scratch'
 
 # max retries for docker requests
 DOCKER_MAX_RETRIES = 3

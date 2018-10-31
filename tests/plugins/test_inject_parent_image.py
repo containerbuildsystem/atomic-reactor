@@ -76,6 +76,7 @@ class MockInsideBuilder(object):
     def __init__(self):
         self.tasker = DockerTasker()
         self.base_image = ImageName(repo='fedora', tag='26')
+        self.base_from_scratch = False
         self.image_id = 'image_id'
         self.image = 'image'
         self.df_path = 'df_path'
@@ -127,10 +128,20 @@ def koji_session(koji_build_id=KOJI_BUILD_ID, koji_build_info=USE_DEFAULT_KOJI_B
 
 class TestKojiParent(object):
 
-    def test_parent_image_injected(self, workflow, koji_session, reactor_config_map):  # noqa
+    @pytest.mark.parametrize('base_from_scratch', [True, False])  # noqa
+    def test_parent_image_injected(self, caplog, workflow, koji_session, reactor_config_map,
+                                   base_from_scratch):
         previous_parent_image = workflow.builder.base_image
-        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
-        assert str(previous_parent_image) != str(workflow.builder.base_image)
+        workflow.builder.base_from_scratch = base_from_scratch
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
+                                  base_from_scratch=base_from_scratch)
+        if base_from_scratch:
+            assert str(previous_parent_image) == str(workflow.builder.base_image)
+
+            log_msg = "from scratch can't inject parent image"
+            assert log_msg in caplog.text()
+        else:
+            assert str(previous_parent_image) != str(workflow.builder.base_image)
 
     @pytest.mark.parametrize('koji_build', (KOJI_BUILD_ID, KOJI_BUILD_NVR, str(KOJI_BUILD_ID)))
     def test_koji_build_identifier(self, workflow, koji_build, reactor_config_map):
@@ -253,7 +264,7 @@ class TestKojiParent(object):
         assert 'not found' in str(exc_info.value)
 
     def run_plugin_with_args(self, workflow, plugin_args=None, reactor_config_map=False,  # noqa
-                             organization=None):
+                             organization=None, base_from_scratch=False):
         plugin_args = plugin_args or {}
         plugin_args.setdefault('koji_parent_build', KOJI_BUILD_ID)
         plugin_args.setdefault('koji_hub', KOJI_HUB)
@@ -277,9 +288,12 @@ class TestKojiParent(object):
         )
 
         result = runner.run()
-        # Koji build ID is always used, even when NVR is given.
-        assert result[InjectParentImage.key] == KOJI_BUILD_ID
-        self.assert_images_to_remove(workflow)
+        if base_from_scratch:
+            assert result[InjectParentImage.key] is None
+        else:
+            # Koji build ID is always used, even when NVR is given.
+            assert result[InjectParentImage.key] == KOJI_BUILD_ID
+            self.assert_images_to_remove(workflow)
 
     def assert_images_to_remove(self, workflow):
         expected = set([str(workflow.builder.base_image)])

@@ -17,7 +17,7 @@ import pytest
 
 
 class TestDistributionScope(object):
-    def instantiate_plugin(self, tmpdir, parent_labels, current_scope):
+    def instantiate_plugin(self, tmpdir, parent_labels, current_scope, base_from_scratch=False):
         workflow = flexmock()
         setattr(workflow, 'builder', flexmock())
         filename = os.path.join(str(tmpdir), 'Dockerfile')
@@ -27,16 +27,21 @@ class TestDistributionScope(object):
                 df.write('LABEL distribution-scope={}\n'.format(current_scope))
 
         setattr(workflow.builder, 'df_path', filename)
-        setattr(workflow.builder, 'base_image_inspect', {
-            INSPECT_CONFIG: {
-                'Labels': parent_labels,
-            }
-        })
+
+        setattr(workflow.builder, 'base_image_inspect', {})
+        if not base_from_scratch:
+            setattr(workflow.builder, 'base_image_inspect', {
+                INSPECT_CONFIG: {
+                    'Labels': parent_labels,
+                }
+            })
+        setattr(workflow.builder, 'base_from_scratch', base_from_scratch)
 
         plugin = DistributionScopePlugin(None, workflow)
         plugin.log = logging.getLogger('plugin')
         return plugin
 
+    @pytest.mark.parametrize('base_from_scratch', [True, False])
     @pytest.mark.parametrize(('parent_scope', 'current_scope', 'allowed'), [
         (None, None, True),
         (None, 'private', True),
@@ -49,17 +54,22 @@ class TestDistributionScope(object):
         ('private', 'restricted', False),
         ('private', 'public', False),
     ])
-    def test_distribution_scope_allowed(self, tmpdir, parent_scope,
+    def test_distribution_scope_allowed(self, tmpdir, base_from_scratch, parent_scope,
                                         current_scope, allowed, caplog):
         plugin = self.instantiate_plugin(tmpdir,
                                          {'distribution-scope': parent_scope},
-                                         current_scope)
+                                         current_scope,
+                                         base_from_scratch=base_from_scratch)
+        if base_from_scratch:
+            allowed = True
         if allowed:
             with caplog.atLevel(logging.ERROR):
                 plugin.run()
 
             # No errors logged
             assert not caplog.records()
+            if base_from_scratch:
+                "no distribution scope set for" in caplog.text()
         else:
             with pytest.raises(DisallowedDistributionScope):
                 plugin.run()

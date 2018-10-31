@@ -45,6 +45,7 @@ class MockInsideBuilder(object):
     def __init__(self):
         self.tasker = DockerTasker(retry_times=0)
         self.base_image = ImageName(repo='Fedora', tag='22')
+        self.base_from_scratch = False
         self.image_id = 'image_id'
         self.image = 'image'
         self.df_path = 'df_path'
@@ -79,8 +80,10 @@ class TestSquashPlugin(object):
         self.workflow.build_result = BuildResult(image_id="spam", skip_layer_squash=True)
         self.run_plugin_with_args({})
 
-    def test_default_parameters(self):
-        self.should_squash_with_kwargs()
+    @pytest.mark.parametrize('base_from_scratch', (True, False))
+    def test_default_parameters(self, base_from_scratch):
+        self.should_squash_with_kwargs(base_from_scratch=base_from_scratch)
+        self.workflow.builder.base_from_scratch = base_from_scratch
         self.run_plugin_with_args({})
 
     @pytest.mark.parametrize(('plugin_tag', 'squash_tag'), (
@@ -129,7 +132,7 @@ class TestSquashPlugin(object):
         self.should_squash_with_kwargs(output_path=None)
         self.run_plugin_with_args({'save_archive': False})
 
-    def should_squash_with_kwargs(self, new_id='abc', **kwargs):
+    def should_squash_with_kwargs(self, new_id='abc', base_from_scratch=False, **kwargs):
         kwargs.setdefault('image', self.workflow.builder.image_id)
         kwargs.setdefault('load_image', True)
         kwargs.setdefault('log', logging.Logger)
@@ -145,6 +148,9 @@ class TestSquashPlugin(object):
 
         if kwargs.get('from_layer') == SET_DEFAULT_LAYER_ID:
             kwargs['from_layer'] = self.workflow.builder.base_image_inspect['Id']
+
+        if base_from_scratch:
+            kwargs['from_layer'] = None
 
         def mock_run():
             if not kwargs['output_path'] is None:

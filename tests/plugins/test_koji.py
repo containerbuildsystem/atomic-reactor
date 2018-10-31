@@ -32,16 +32,12 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
-from atomic_reactor.util import ImageName
 from flexmock import flexmock
 import pytest
 from tests.constants import SOURCE, MOCK
+from tests.stubs import StubInsideBuilder, StubSource
 if MOCK:
     from tests.docker_mock import mock_docker
-
-
-class X(object):
-    pass
 
 
 KOJI_TARGET = "target"
@@ -110,13 +106,8 @@ def prepare():
         mock_docker()
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
-    setattr(workflow, 'builder', X())
-
-    setattr(workflow.builder, 'image_id', "asd123")
-    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
-    setattr(workflow.builder, 'source', X())
-    setattr(workflow.builder.source, 'dockerfile_path', None)
-    setattr(workflow.builder.source, 'path', None)
+    workflow.source = StubSource()
+    workflow.builder = StubInsideBuilder().for_workflow(workflow)
 
     session = MockedClientSession(hub='', opts=None)
     workflow.koji_session = session
@@ -128,6 +119,8 @@ def prepare():
 
 
 class TestKoji(object):
+    @pytest.mark.parametrize('parent_images', [True, False])
+    @pytest.mark.parametrize('base_from_scratch', [True, False])
     @pytest.mark.parametrize(('target', 'expect_success'), [
         (KOJI_TARGET, True),
         (KOJI_TARGET_BROKEN_TAG, False),
@@ -186,11 +179,12 @@ class TestKoji(object):
 
 
     ])
-    def test_koji_plugin(self,
-                         target, expect_success,
-                         tmpdir, root, koji_ssl_certs,
+    def test_koji_plugin(self, tmpdir, caplog, parent_images, base_from_scratch,
+                         target, expect_success, root, koji_ssl_certs,
                          expected_string, expected_file, proxy, reactor_config_map):
         tasker, workflow = prepare()
+        workflow.builder.base_from_scratch = base_from_scratch
+        workflow.builder.parent_images = parent_images
 
         args = {'target': target}
 
@@ -228,6 +222,10 @@ class TestKoji(object):
 
         runner.run()
 
+        if base_from_scratch and not parent_images:
+            log_msg = "from scratch single stage can't add repos from koji target"
+            assert log_msg in caplog.text()
+            return
         if not expect_success:
             return
 

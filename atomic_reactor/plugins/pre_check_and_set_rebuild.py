@@ -76,6 +76,10 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
         """
         run the plugin
         """
+        if self.workflow.builder.base_from_scratch:
+            self.log.info("Skipping check and set rebuild: unsupported for FROM-scratch images")
+            return False
+
         metadata = get_build_json().get("metadata", {})
         self.build_labels = metadata.get("labels", {})
         buildconfig = self.build_labels["buildconfig"]

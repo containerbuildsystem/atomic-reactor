@@ -31,7 +31,7 @@ import requests
 from flexmock import flexmock
 from tests.constants import SOURCE, MOCK
 from tests.util import requires_internet
-from tests.stubs import StubInsideBuilder
+from tests.stubs import StubInsideBuilder, StubSource
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -41,6 +41,7 @@ def prepare(df_path, inherited_user=''):
         mock_docker()
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
+    workflow.source = StubSource()
     workflow.builder = (StubInsideBuilder()
                         .for_workflow(workflow)
                         .set_df_path(df_path)
@@ -331,7 +332,8 @@ def test_multiple_repourls(tmpdir):
                                   [filename1, filename2])
 
 
-@pytest.mark.parametrize('name, inherited_user, dockerfile, expect_cleanup_lines', [
+@pytest.mark.parametrize(('name, inherited_user, dockerfile, expect_cleanup_lines,'
+                          'base_from_scratch'), [
     (
         'single_stage',
         '',
@@ -341,6 +343,7 @@ def test_multiple_repourls(tmpdir):
             RUN yum -y update
         """),
         ["RUN rm ...\n"],
+        False,
     ),
     (
         'multiple_stages',
@@ -355,6 +358,7 @@ def test_multiple_repourls(tmpdir):
             COPY --from=0 /some/stuff /bin/stuff
         """),
         ["RUN rm ...\n"],
+        False,
     ),
     (
         'multistage_with_user_confusion',
@@ -382,9 +386,117 @@ def test_multiple_repourls(tmpdir):
             RUN rm ...
             USER johncleese
         """).splitlines(True),
+        False,
+    ),
+    (
+        'multistage_with_scratch',
+        '',
+        dedent("""\
+            FROM golang:1.9 AS builder1
+              ### ADD HERE
+            USER grahamchapman
+            RUN build /spam/eggs
+
+            FROM scratch
+            USER somebody
+            RUN yum install rpm
+            RUN build /somebody
+
+            FROM jdk:1.8 AS builder2
+              ### ADD HERE
+            USER ericidle
+            RUN yum -y update
+            RUN build /bacon/beans
+
+            FROM base
+              ### ADD HERE
+            COPY --from=builder1 /some/stuff /bin/spam
+            COPY --from=builder2 /some/stuff /bin/eggs
+            # users in other stages should be ignored
+        """),
+        dedent("""\
+            RUN rm ...
+        """).splitlines(True),
+        False,
+    ),
+    (
+        'multistage_with_scratch_with_user',
+        'inher_user',
+        dedent("""\
+            FROM golang:1.9 AS builder1
+              ### ADD HERE
+            USER grahamchapman
+            RUN build /spam/eggs
+
+            FROM scratch
+            USER somebody
+            RUN yum install rpm
+            RUN build /somebody
+
+            FROM jdk:1.8 AS builder2
+              ### ADD HERE
+            USER ericidle
+            RUN yum -y update
+            RUN build /bacon/beans
+
+            FROM base
+              ### ADD HERE
+            COPY --from=builder1 /some/stuff /bin/spam
+            COPY --from=builder2 /some/stuff /bin/eggs
+            # users in other stages should be ignored
+        """),
+        dedent("""\
+            USER root
+            RUN rm ...
+            USER inher_user
+        """).splitlines(True),
+        False,
+    ),
+    (
+        'multistage_with_scratch_last',
+        '',
+        dedent("""\
+            FROM golang:1.9 AS builder1
+              ### ADD HERE
+            USER grahamchapman
+            RUN build /spam/eggs
+
+            FROM scratch
+            USER somebody
+            RUN yum install rpm
+            RUN build /somebody
+
+            FROM jdk:1.8 AS builder2
+              ### ADD HERE
+            USER ericidle
+            RUN yum -y update
+            RUN build /bacon/beans
+
+            FROM base
+              ### ADD HERE
+            COPY --from=builder1 /some/stuff /bin/spam
+            COPY --from=builder2 /some/stuff /bin/eggs
+
+            FROM scratch
+            USER for_scratch
+            RUN yum install python
+        """),
+        [],
+        True,
+    ),
+    (
+        'single_scratch',
+        '',
+        dedent("""\
+            FROM scratch
+            RUN yum -y update
+        """),
+        [],
+        True,
     ),
 ])
-def test_multistage_dockerfiles(name, inherited_user, dockerfile, expect_cleanup_lines, tmpdir):
+def test_multistage_dockerfiles(name, inherited_user, dockerfile, expect_cleanup_lines,
+                                base_from_scratch, tmpdir):
     # expect repo ADD instructions where indicated in the content, and RUN rm at the end.
     # begin by splitting on "### ADD HERE" so we know where to expect changes.
     segments = re.split(r'^.*ADD HERE.*$\n?', dockerfile, flags=re.M)
@@ -399,6 +511,7 @@ def test_multistage_dockerfiles(name, inherited_user, dockerfile, expect_cleanup
     df = df_parser(str(tmpdir))
     df.content = ''.join(segments)  # dockerfile without the "### ADD HERE" lines
     tasker, workflow = prepare(df.dockerfile_path, inherited_user)
+    workflow.builder.set_base_from_scratch(base_from_scratch)
     repo_file = 'myrepo.repo'
     repo_path = os.path.join(YUM_REPOS_DIR, repo_file)
     workflow.files[repo_path] = repocontent
@@ -420,5 +533,5 @@ def test_empty_dockerfile(tmpdir):
     df = df_parser(str(tmpdir))
     df.content = ''
     with pytest.raises(RuntimeError) as exc:
-        add_yum_repos_to_dockerfile([], df, '')
+        add_yum_repos_to_dockerfile([], df, '', False)
     assert "No FROM" in str(exc.value)

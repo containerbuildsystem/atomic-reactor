@@ -396,7 +396,9 @@ class KojiUploadPlugin(PostBuildPlugin):
 
         # Parent of squashed built image is base image
         image_id = self.workflow.builder.image_id
-        parent_id = self.workflow.builder.base_image_inspect['Id']
+        parent_id = None
+        if not self.workflow.builder.base_from_scratch:
+            parent_id = self.workflow.builder.base_image_inspect['Id']
 
         # Read config from the registry using v2 schema 2 digest
         registries = self.workflow.push_conf.docker_registries
@@ -433,6 +435,8 @@ class KojiUploadPlugin(PostBuildPlugin):
             },
         })
 
+        if self.workflow.builder.base_from_scratch:
+            del metadata['extra']['docker']['parent_id']
         if not config:
             del metadata['extra']['docker']['config']
         if not typed_digests:
