@@ -144,7 +144,7 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
         df_path = os.path.join(self.workflow.builder.df_dir, DOCKERFILE_FILENAME)
         with open(df_path, 'w') as fp:
             fp.write(DOCKERFILE_TEMPLATE.format(name=module_info.name,
-                                                stream=module_info.stream,
+                                                stream=module_info.stream.replace('-', '_'),
                                                 version=module_info.version,
                                                 base_image=self.base_image,
                                                 modules=modules_str,
