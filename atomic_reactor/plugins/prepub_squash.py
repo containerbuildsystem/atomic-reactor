@@ -73,14 +73,18 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         self.tag = tag or str(self.workflow.builder.image)
         self.from_layer = from_layer
         if from_base and from_layer is None:
-            try:
-                base_image_id = self.workflow.builder.base_image_inspect['Id']
-            except KeyError:
-                self.log.error("Missing Id in inspection: '%s'",
-                               self.workflow.builder.base_image_inspect)
-                raise
-            self.log.info("will squash from base-image: '%s'", base_image_id)
-            self.from_layer = base_image_id
+            if not self.workflow.builder.base_from_scratch:
+                try:
+                    base_image_id = self.workflow.builder.base_image_inspect['Id']
+                except KeyError:
+                    self.log.error("Missing Id in inspection: '%s'",
+                                   self.workflow.builder.base_image_inspect)
+                    raise
+                self.log.info("will squash from base-image: '%s'", base_image_id)
+                self.from_layer = base_image_id
+            else:
+                self.log.info("from scratch, will squash all layers")
+
         self.dont_load = dont_load
         self.save_archive = save_archive
 

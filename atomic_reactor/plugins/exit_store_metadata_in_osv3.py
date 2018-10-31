@@ -24,7 +24,7 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY,
                                       PLUGIN_PULP_PULL_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
-                                      MEDIA_TYPE_DOCKER_V1)
+                                      MEDIA_TYPE_DOCKER_V1, SCRATCH_FROM)
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import get_build_json
 
@@ -210,7 +210,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             base_image = self.workflow.builder.original_base_image
         else:
             base_image = self.workflow.builder.base_image
-        if base_image is not None:
+        if base_image is not None and not self.workflow.builder.base_from_scratch:
             base_image_name = base_image.to_str()
             try:
                 base_image_id = self.workflow.builder.base_image_inspect['Id']
@@ -226,6 +226,10 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         except AttributeError:
             dockerfile_contents = ""
 
+        parent_images_strings = self.workflow.builder.parent_images_to_str()
+        if self.workflow.builder.base_from_scratch:
+            parent_images_strings[SCRATCH_FROM] = SCRATCH_FROM
+
         annotations = {
             "dockerfile": dockerfile_contents,
             "repositories": json.dumps(self.get_repositories()),
@@ -234,7 +238,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             "base-image-name": base_image_name,
             "image-id": self.workflow.builder.image_id or '',
             "digests": json.dumps(self.get_pullspecs(self.get_digests())),
-            "parent_images": json.dumps(self.workflow.builder.parent_images_to_str()),
+            "parent_images": json.dumps(parent_images_strings),
             "plugins-metadata": json.dumps(self.get_plugin_metadata()),
             "filesystem": json.dumps(self.get_filesystem_metadata()),
         }

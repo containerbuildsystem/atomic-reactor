@@ -50,6 +50,7 @@ from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.build import BuildResult
 from tests.constants import SOURCE, MOCK
 from tests.flatpak import MODULEMD_AVAILABLE, setup_flatpak_source_info
+from tests.stubs import StubInsideBuilder, StubSource
 
 try:
     import atomic_reactor.plugins.post_pulp_sync  # noqa:F401
@@ -211,14 +212,11 @@ def mock_environment(tmpdir, session=None, name=None,
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     base_image_id = '123456parent-id'
-    setattr(workflow, 'builder', X())
-    setattr(workflow.builder, 'image_id', '123456imageid')
-    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='22'))
-    setattr(workflow.builder, 'source', X())
-    setattr(workflow.builder, 'built_image_info', {'ParentId': base_image_id})
-    setattr(workflow.builder, 'base_image_inspect', {'Id': base_image_id})
-    setattr(workflow.builder.source, 'dockerfile_path', None)
-    setattr(workflow.builder.source, 'path', None)
+    workflow.source = StubSource()
+    workflow.builder = StubInsideBuilder().for_workflow(workflow)
+    workflow.builder.image_id = '123456imageid'
+    workflow.builder.base_image = ImageName(repo='Fedora', tag='22')
+    workflow.builder.set_inspection_data({'Id': base_image_id})
     setattr(workflow, 'tag_conf', TagConf())
     with open(os.path.join(str(tmpdir), 'Dockerfile'), 'wt') as df:
         df.write('FROM base\n'
@@ -772,7 +770,7 @@ class TestKojiPromote(object):
         assert is_string_type(osbs['builder_image_id'])
 
     def validate_output(self, output, metadata_only, has_config,
-                        expect_digest, expected_digests, docker_registry):
+                        expect_digest, expected_digests, docker_registry, base_from_scratch):
         if metadata_only:
             mdonly = set()
         else:
@@ -852,13 +850,17 @@ class TestKojiPromote(object):
                 'layer_sizes',
                 'tags',
             ])
+            if base_from_scratch:
+                expected_keys_set.remove('parent_id')
+                'parent_id' not in docker
+            else:
+                assert is_string_type(docker['parent_id'])
             if has_config:
                 expected_keys_set.add('config')
             if not docker_registry:
                 expected_keys_set.remove('digests')
             assert set(docker.keys()) == expected_keys_set
 
-            assert is_string_type(docker['parent_id'])
             assert is_string_type(docker['id'])
             repositories = docker['repositories']
             assert isinstance(repositories, list)
@@ -1108,12 +1110,13 @@ class TestKojiPromote(object):
          False),
     ])
     @pytest.mark.parametrize('tag_later', (True, False))
+    @pytest.mark.parametrize('base_from_scratch', (True, False))
     def test_koji_promote_success(self, tmpdir, apis, docker_registry,
                                   pulp_registries, pulp_supports_schema2,
                                   registry_digests,
                                   metadata_only, blocksize,
                                   target, os_env, has_config, is_autorebuild,
-                                  tag_later, reactor_config_map):  # noqa
+                                  tag_later, base_from_scratch, reactor_config_map):  # noqa
         session = MockedClientSession('')
         # When target is provided koji build will always be tagged,
         # either by koji_promote or koji_tag_build.
@@ -1143,6 +1146,7 @@ class TestKojiPromote(object):
                                             registry_digests=registry_digests,
                                             blocksize=blocksize,
                                             has_config=has_config)
+        workflow.builder.base_from_scratch = base_from_scratch
         workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_autorebuild
         runner = create_runner(tasker, workflow, metadata_only=metadata_only,
                                blocksize=blocksize, target=target,
@@ -1246,7 +1250,8 @@ class TestKojiPromote(object):
         for output in output_files:
             self.validate_output(output, metadata_only, has_config,
                                  expect_digest=expect_digest,
-                                 expected_digests=registry_digests, docker_registry=docker_registry)
+                                 expected_digests=registry_digests, docker_registry=docker_registry,
+                                 base_from_scratch=base_from_scratch)
             buildroot_id = output['buildroot_id']
 
             # References one of the buildroots

@@ -23,6 +23,7 @@ DOCKERFILE_GIT = "https://github.com/TomasTomecek/docker-hello-world.git"
 DOCKERFILE_SHA1 = "6e592f1420efcd331cd28b360a7e02f669caf540"
 DOCKERFILE_OK_PATH = os.path.join(FILES, 'docker-hello-world')
 DOCKERFILE_MULTISTAGE_PATH = os.path.join(FILES, 'docker-hello-world-multistage')
+DOCKERFILE_MULTISTAGE_SCRATCH_PATH = os.path.join(FILES, 'docker-hello-world-multistage-scratch')
 DOCKERFILE_ERROR_BUILD_PATH = os.path.join(FILES, 'docker-hello-world-error-build')
 SOURCE_CONFIG_ERROR_PATH = os.path.join(FILES, 'docker-hello-world-error-config')
 DOCKERFILE_SUBDIR_PATH = os.path.join(FILES, 'df-in-subdir')

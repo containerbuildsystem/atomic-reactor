@@ -59,9 +59,11 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
                                       PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY, BASE_IMAGE_KOJI_BUILD,
                                       PARENT_IMAGES_KOJI_BUILDS, BASE_IMAGE_BUILD_ID_KEY,
-                                      PLUGIN_VERIFY_MEDIA_KEY, PARENT_IMAGE_BUILDS_KEY)
+                                      PLUGIN_VERIFY_MEDIA_KEY, PARENT_IMAGE_BUILDS_KEY,
+                                      PARENT_IMAGES_KEY)
 from tests.constants import SOURCE, MOCK
 from tests.flatpak import MODULEMD_AVAILABLE, setup_flatpak_source_info
+from tests.stubs import StubInsideBuilder, StubSource
 
 from flexmock import flexmock
 import pytest
@@ -236,14 +238,12 @@ def mock_environment(tmpdir, session=None, name=None,
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     base_image_id = '123456parent-id'
-    setattr(workflow, '_base_image_inspect', {'Id': base_image_id})
-    setattr(workflow, 'builder', X())
-    setattr(workflow.builder, 'image_id', '123456imageid')
-    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='22'))
-    setattr(workflow.builder, 'source', X())
-    setattr(workflow.builder, 'built_image_info', {'ParentId': base_image_id})
-    setattr(workflow.builder.source, 'dockerfile_path', None)
-    setattr(workflow.builder.source, 'path', None)
+
+    workflow.source = StubSource()
+    workflow.builder = StubInsideBuilder().for_workflow(workflow)
+    workflow.builder.image_id = '123456imageid'
+    workflow.builder.base_image = ImageName(repo='Fedora', tag='22')
+    workflow.builder.set_inspection_data({'ParentId': base_image_id})
     setattr(workflow, 'tag_conf', TagConf())
     with open(os.path.join(str(tmpdir), 'Dockerfile'), 'wt') as df:
         df.write('FROM base\n'
@@ -1100,8 +1100,9 @@ class TestKojiImport(object):
             if 'image' in extra:
                 assert BASE_IMAGE_BUILD_ID_KEY not in extra['image']
 
-    def test_produces_metadata_for_parent_images(  # noqa: F811
-            self, tmpdir, os_env, reactor_config_map
+    @pytest.mark.parametrize('base_from_scratch', [True, False])  # noqa: F811
+    def test_produces_metadata_for_parent_images(
+            self, tmpdir, os_env, reactor_config_map, base_from_scratch
         ):
 
         koji_session = MockedClientSession('')
@@ -1116,6 +1117,9 @@ class TestKojiImport(object):
             },
         }
         workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = koji_parent_result
+        workflow.builder.base_from_scratch = base_from_scratch
+        parents_ordered = ['base:latest', 'scratch', 'some:1.0']
+        workflow.builder.parents_ordered = parents_ordered
 
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
         runner.run()
@@ -1126,8 +1130,14 @@ class TestKojiImport(object):
         assert image_metadata[key]['base:latest'] == dict(nvr='base-16.0-1', id=16)
         assert 'extra' not in image_metadata[key]['base:latest']
         key = BASE_IMAGE_BUILD_ID_KEY
+        if base_from_scratch:
+            assert key not in image_metadata
+        else:
+            assert key in image_metadata
+            assert image_metadata[key] == 16
+        key = PARENT_IMAGES_KEY
         assert key in image_metadata
-        assert image_metadata[key] == 16
+        assert image_metadata[key] == parents_ordered
 
     @pytest.mark.parametrize(('task_id', 'expect_success'), [
         (1234, True),

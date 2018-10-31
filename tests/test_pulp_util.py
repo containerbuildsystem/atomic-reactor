@@ -22,7 +22,7 @@ import copy
 import time
 from flexmock import flexmock
 from tests.constants import SOURCE, MOCK
-from tests.stubs import StubInsideBuilder, StubTagConf
+from tests.stubs import StubInsideBuilder, StubTagConf, StubSource
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -45,6 +45,7 @@ def prepare(testfile="test-image", check_repo_retval=0):
         mock_docker()
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, testfile)
+    workflow.source = StubSource()
     workflow.builder = StubInsideBuilder()
     workflow.tag_conf = StubTagConf().set_images([
         ImageName(repo="image-name1"),

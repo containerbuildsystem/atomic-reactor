@@ -1,6 +1,6 @@
 docker-py
 docker-squash>=1.0.7
-dockerfile-parse>=0.0.11
+dockerfile-parse>=0.0.13
 jsonschema==2.3.0  # to match available in RHEL/CentOS 7
 PyYAML
 six

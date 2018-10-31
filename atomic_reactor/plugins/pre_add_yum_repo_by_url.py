@@ -49,6 +49,10 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
         """
         run the plugin
         """
+        if self.workflow.builder.base_from_scratch and not self.workflow.builder.parent_images:
+            self.log.info("Skipping add yum repo by url: unsupported for FROM-scratch images")
+            return
+
         if self.repourls:
             for repourl in self.repourls:
                 yumrepo = YumRepo(repourl)

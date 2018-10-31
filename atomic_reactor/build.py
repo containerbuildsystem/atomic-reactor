@@ -17,7 +17,8 @@ import logging
 import docker.errors
 import atomic_reactor.util
 from atomic_reactor.core import DockerTasker, LastLogger
-from atomic_reactor.util import (ImageName, print_version_of_tools, df_parser)
+from atomic_reactor.util import (ImageName, print_version_of_tools, df_parser,
+                                 base_image_is_scratch)
 from atomic_reactor.constants import DOCKERFILE_FILENAME
 
 logger = logging.getLogger(__name__)
@@ -147,12 +148,14 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         self.base_image = None
         self.original_base_image = None
         self._base_image_inspect = None
-        self._parents_pulled = False
+        self.parents_pulled = False
         self.parent_images = {}  # dockerfile ImageName => locally available ImageName
         self._parent_images_inspect = {}  # locally available image => inspect
+        self.parents_ordered = []
         self.image_id = None
         self.built_image_info = None
         self.image = ImageName.parse(image)
+        self.base_from_scratch = False
 
         # get info about base image from dockerfile
         build_file_path, build_file_dir = self.source.get_build_file_path()
@@ -183,7 +186,13 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         logger.debug("base image specified in dockerfile = '%s'", self.base_image)
         self.parent_images.clear()
         for image in dfp.parent_images:
-            self.parent_images[ImageName.parse(image)] = None
+            image_name = ImageName.parse(image)
+            if base_image_is_scratch(image_name.get_repo()):
+                image_name.tag = None
+                self.parents_ordered.append(image_name.to_str())
+                continue
+            self.parents_ordered.append(image_name.to_str())
+            self.parent_images[image_name] = None
 
         # validate user has not specified COPY --from=image
         builders = []
@@ -222,13 +231,15 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         self.parent_images = parent_images
 
     def set_base_image(self, base_image, parents_pulled=True, insecure=False):
+        self.base_from_scratch = base_image_is_scratch(base_image)
         self.base_image = ImageName.parse(base_image)
         self.original_base_image = self.original_base_image or self.base_image
         self.recreate_parent_images()
 
-        self.parent_images[self.original_base_image] = self.base_image
-        self._parents_pulled = parents_pulled
-        self._base_image_insecure = insecure
+        if not self.base_from_scratch:
+            self.parent_images[self.original_base_image] = self.base_image
+        self.parents_pulled = parents_pulled
+        self.base_image_insecure = insecure
         logger.info("set base image to '%s' with original base '%s'", self.base_image,
                     self.original_base_image)
 
@@ -241,7 +252,9 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         :return: dict
         """
         if self._base_image_inspect is None:
-            if self._parents_pulled:
+            if self.base_from_scratch:
+                self._base_image_inspect = {}
+            elif self.parents_pulled:
                 try:
                     self._base_image_inspect = self.tasker.inspect_image(self.base_image)
 
@@ -253,7 +266,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
                 self._base_image_inspect =\
                     atomic_reactor.util.get_inspect_for_image(self.base_image,
                                                               self.base_image.registry,
-                                                              self._base_image_insecure)
+                                                              self.base_image_insecure)
 
             base_image_str = str(self.base_image)
             if base_image_str not in self._parent_images_inspect:
@@ -269,13 +282,13 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         """
         image_name = ImageName.parse(image)
         if image_name not in self._parent_images_inspect:
-            if self._parents_pulled:
+            if self.parents_pulled:
                 self._parent_images_inspect[image_name] = self.tasker.inspect_image(image)
             else:
                 self._parent_images_inspect[image_name] =\
                     atomic_reactor.util.get_inspect_for_image(image_name,
                                                               image_name.registry,
-                                                              self._base_image_insecure)
+                                                              self.base_image_insecure)
 
         return self._parent_images_inspect[image_name]
 
@@ -297,6 +310,8 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
 
         :return dict
         """
+        if self.base_from_scratch:
+            return
         logger.info("getting information about base image '%s'", self.base_image)
         image_info = self.tasker.get_image_info_by_image_name(self.base_image)
         items_count = len(image_info)

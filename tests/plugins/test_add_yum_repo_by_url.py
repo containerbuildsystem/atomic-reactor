@@ -21,6 +21,7 @@ import pytest
 from flexmock import flexmock
 import os.path
 from tests.constants import DOCKERFILE_GIT, MOCK
+from tests.stubs import StubInsideBuilder, StubSource
 if MOCK:
     from tests.retry_mock import mock_get_retry_session
     from tests.docker_mock import mock_docker
@@ -29,22 +30,13 @@ if MOCK:
 repocontent = b'''[repo]\n'''
 
 
-class X(object):
-    pass
-
-
 def prepare():
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow({"provider": "git", "uri": DOCKERFILE_GIT}, "test-image")
-    setattr(workflow, 'builder', X())
-
-    setattr(workflow.builder, 'image_id', "asd123")
-    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
-    setattr(workflow.builder, 'source', X())
-    setattr(workflow.builder.source, 'dockerfile_path', None)
-    setattr(workflow.builder.source, 'path', None)
+    workflow.source = StubSource()
+    workflow.builder = StubInsideBuilder().for_workflow(workflow)
     (flexmock(requests.Response, content=repocontent)
         .should_receive('raise_for_status')
         .and_return(None))
@@ -83,6 +75,8 @@ def test_single_repourl(inject_proxy):
     assert len(workflow.files) == 1
 
 
+@pytest.mark.parametrize('base_from_scratch', [True, False])
+@pytest.mark.parametrize('parent_images', [True, False])
 @pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
 @pytest.mark.parametrize(('repos', 'filenames'), (
     (['http://example.com/a/b/c/myrepo.repo', 'http://example.com/repo-2.repo'],
@@ -90,21 +84,31 @@ def test_single_repourl(inject_proxy):
     (['http://example.com/spam/myrepo.repo', 'http://example.com/bacon/myrepo.repo'],
      ['myrepo-608de.repo', 'myrepo-a1f78.repo']),
 ))
-def test_multiple_repourls(inject_proxy, repos, filenames):
+def test_multiple_repourls(caplog, base_from_scratch, parent_images, inject_proxy, repos,
+                           filenames):
     tasker, workflow = prepare()
+    workflow.builder.base_from_scratch = base_from_scratch
+    workflow.builder.parent_images = parent_images
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': AddYumRepoByUrlPlugin.key,
         'args': {'repourls': repos, 'inject_proxy': inject_proxy}}])
     runner.run()
-    repo_content = repocontent
-    if inject_proxy:
-        repo_content = '%sproxy = %s\n\n' % (repocontent.decode('utf-8'), inject_proxy)
 
-    for filename in filenames:
-        assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)]
-        assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)] == repo_content
+    if base_from_scratch and not parent_images:
+        assert AddYumRepoByUrlPlugin.key is not None
+        assert workflow.files == {}
+        log_msg = "Skipping add yum repo by url: unsupported for FROM-scratch images"
+        assert log_msg in caplog.text()
+    else:
+        repo_content = repocontent
+        if inject_proxy:
+            repo_content = '%sproxy = %s\n\n' % (repocontent.decode('utf-8'), inject_proxy)
 
-    assert len(workflow.files) == 2
+        for filename in filenames:
+            assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)]
+            assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)] == repo_content
+
+        assert len(workflow.files) == 2
 
 
 @pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])

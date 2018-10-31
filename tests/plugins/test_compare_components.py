@@ -50,6 +50,7 @@ class MockInsideBuilder(object):
         mock_docker()
         self.tasker = DockerTasker()
         self.base_image = ImageName(repo='fedora', tag='25')
+        self.base_from_scratch = False
         self.image_id = 'image_id'
         self.image = INPUT_IMAGE
         self.df_path = 'df_path'
@@ -116,13 +117,14 @@ def test_filter_components_by_name():
     assert set(f['arch'] for f in filtered) == expected_platforms
 
 
+@pytest.mark.parametrize('base_from_scratch', (True, False))
 @pytest.mark.parametrize(('mismatch', 'exception', 'fail'), (
     (False, False, False),
     (True, False, True),
     (False, True, False),
     (True, True, False),
 ))
-def test_compare_components_plugin(tmpdir, mismatch, exception, fail):
+def test_compare_components_plugin(tmpdir, caplog, base_from_scratch, mismatch, exception, fail):
     workflow = mock_workflow(tmpdir)
     worker_metadatas = mock_metadatas()
 
@@ -138,6 +140,7 @@ def test_compare_components_plugin(tmpdir, mismatch, exception, fail):
         }
 
     workflow.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
+    workflow.builder.base_from_scratch = base_from_scratch
 
     runner = PostBuildPluginsRunner(
         None,
@@ -148,11 +151,15 @@ def test_compare_components_plugin(tmpdir, mismatch, exception, fail):
         }]
     )
 
-    if fail:
+    if fail and not base_from_scratch:
         with pytest.raises(PluginFailedException):
             runner.run()
     else:
         runner.run()
+        if base_from_scratch:
+            log_msg = "Skipping comparing components: unsupported for FROM-scratch images"
+            assert log_msg in caplog.text()
+
 
 
 def test_no_components(tmpdir):

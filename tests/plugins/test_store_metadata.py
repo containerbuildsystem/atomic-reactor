@@ -62,6 +62,7 @@ class X(object):
        ImageName.parse("sha256:spamneggs"): None,
     }
     original_base_image = base_image.copy()
+    base_from_scratch = False
     # image = ImageName.parse("test-image:unique_tag_123")
 
     def parent_images_to_str(self):
@@ -72,12 +73,14 @@ class X(object):
 
 
 class XBeforeDockerfile(object):
-    image_id = INPUT_IMAGE
-    source = Y()
-    source.dockerfile_path = None
-    source.path = None
-    base_image = None
-    parent_images = {}
+    def __init__(self):
+        self.image_id = INPUT_IMAGE
+        self.source = Y()
+        self.source.dockerfile_path = None
+        self.source.path = None
+        self.base_image = None
+        self.parent_images = {}
+        self.base_from_scratch = False
 
     def parent_images_to_str(self):
         return {}
@@ -180,17 +183,17 @@ def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=Fals
     ('bacon', 'bacon'),
     (123, '123'),
 ))
-@pytest.mark.parametrize(('koji'), (True, False))
-@pytest.mark.parametrize(('help_results', 'expected_help_results'), (
-    ({}, False),
+@pytest.mark.parametrize('koji', [True, False])
+@pytest.mark.parametrize(('help_results', 'expected_help_results', 'base_from_scratch'), (
+    ({}, False, False),
     ({
         'help_file': None,
         'status': AddHelpPlugin.NO_HELP_FILE_FOUND,
-    }, None),
+    }, None, False),
     ({
         'help_file': 'help.md',
         'status': AddHelpPlugin.HELP_GENERATED,
-    }, 'help.md'),
+    }, 'help.md', True),
 ))
 @pytest.mark.parametrize(('pulp_push_results', 'expected_pulp_push_results'), (
     (None, False),
@@ -216,17 +219,27 @@ def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=Fals
 ))
 def test_metadata_plugin(tmpdir, br_annotations, expected_br_annotations,
                          br_labels, expected_br_labels, koji,
-                         help_results, expected_help_results,
+                         help_results, expected_help_results, base_from_scratch,
                          pulp_push_results, expected_pulp_push_results,
                          pulp_pull_results, expected_pulp_pull_results,
                          verify_media_results, expected_media_results,
                          reactor_config_map):
     initial_timestamp = datetime.now()
     workflow = prepare(reactor_config_map=reactor_config_map)
-    df_content = """
+    if base_from_scratch:
+        df_content = """
+FROM fedora
+RUN yum install -y python-django
+CMD blabla
+FROM scratch
+RUN yum install -y python"""
+        workflow.builder.base_from_scratch = base_from_scratch
+    else:
+        df_content = """
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
+
     df = df_parser(str(tmpdir))
     df.content = df_content
     workflow.builder.df_path = df.dockerfile_path
@@ -288,13 +301,20 @@ CMD blabla"""
     assert is_string_type(annotations['repositories'])
     assert "commit_id" in annotations
     assert is_string_type(annotations['commit_id'])
+
     assert "base-image-id" in annotations
     assert is_string_type(annotations['base-image-id'])
     assert "base-image-name" in annotations
-    assert annotations["base-image-name"] == workflow.builder.original_base_image.to_str()
     assert is_string_type(annotations['base-image-name'])
     assert "parent_images" in annotations
     assert is_string_type(annotations['parent_images'])
+    if base_from_scratch:
+        assert annotations["base-image-name"] == ""
+        assert annotations["base-image-id"] == ""
+        assert '"scratch": "scratch"' in annotations['parent_images']
+    else:
+        assert annotations["base-image-name"] == workflow.builder.original_base_image.to_str()
+        assert annotations["base-image-id"] != ""
     assert workflow.builder.original_base_image.to_str() in annotations['parent_images']
     assert "image-id" in annotations
     assert is_string_type(annotations['image-id'])

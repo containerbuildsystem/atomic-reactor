@@ -15,7 +15,7 @@ from atomic_reactor.util import df_parser
 from atomic_reactor.yum_util import YumRepo
 
 
-def add_yum_repos_to_dockerfile(yumrepos, df, inherited_user):
+def add_yum_repos_to_dockerfile(yumrepos, df, inherited_user, base_from_scratch):
     if df.baseimage is None:
         raise RuntimeError("No FROM line in Dockerfile")
 
@@ -32,7 +32,7 @@ def add_yum_repos_to_dockerfile(yumrepos, df, inherited_user):
     # Insert the ADD line at the beginning of each stage
     df.add_lines(
         "ADD %s* '%s'" % (RELATIVE_REPOS_PATH, YUM_REPOS_DIR),
-        all_stages=True, at_start=True
+        all_stages=True, at_start=True, skip_scratch=True
     )
 
     # Insert line(s) to remove the repos
@@ -45,7 +45,8 @@ def add_yum_repos_to_dockerfile(yumrepos, df, inherited_user):
         cleanup_lines.insert(0, "USER root")
         cleanup_lines.append(final_user_line)
 
-    df.add_lines(*cleanup_lines)
+    if not base_from_scratch:
+        df.add_lines(*cleanup_lines)
 
 
 class InjectYumRepoPlugin(PreBuildPlugin):
@@ -83,6 +84,9 @@ class InjectYumRepoPlugin(PreBuildPlugin):
 
         # Find out the USER inherited from the base image
         inspect = self.workflow.builder.base_image_inspect
-        inherited_user = inspect[INSPECT_CONFIG].get('User', '')
+        inherited_user = ''
+        if not self.workflow.builder.base_from_scratch:
+            inherited_user = inspect.get(INSPECT_CONFIG).get('User', '')
         df = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
-        add_yum_repos_to_dockerfile(repos_host_cont_mapping, df, inherited_user)
+        add_yum_repos_to_dockerfile(repos_host_cont_mapping, df, inherited_user,
+                                    self.workflow.builder.base_from_scratch)

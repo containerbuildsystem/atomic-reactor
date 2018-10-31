@@ -19,6 +19,9 @@ class StubSource(object):
     dockerfile_path = None
     path = ''
 
+    def get_vcs_info(self):
+        return None
+
 
 class StubTagConf(object):
     def __init__(self):
@@ -55,12 +58,18 @@ class StubInsideBuilder(object):
         self.image_id = None
         self.source = StubSource()
         self.tag_conf = StubTagConf()
+        self.base_from_scratch = False
+        self.parents_ordered = []
 
         self._inspection_data = None
         self._parent_inspection_data = {}
 
     def for_workflow(self, workflow):
         return self.set_source(workflow.source).set_image(workflow.image)
+
+    def set_base_from_scratch(self, base_from_scratch):
+        self.base_from_scratch = base_from_scratch
+        return self
 
     def set_df_path(self, df_path):
         self.df_path = df_path

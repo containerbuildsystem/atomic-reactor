@@ -21,7 +21,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        ReactorConfig)
 from atomic_reactor.util import ImageName, df_parser
 from tests.constants import SOURCE
-from tests.stubs import StubInsideBuilder
+from tests.stubs import StubInsideBuilder, StubSource
 from textwrap import dedent
 
 
@@ -33,6 +33,7 @@ def mock_workflow():
     """
 
     workflow = DockerBuildWorkflow(SOURCE, "mock:default_built")
+    workflow.source = StubSource()
     builder = StubInsideBuilder().for_workflow(workflow)
     builder.set_df_path('/mock-path')
     base_image_name = ImageName.parse("mock:tag")
@@ -115,26 +116,86 @@ def test_update_base_image_inspect_broken(tmpdir, caplog, docker_tasker):
 
 
 @pytest.mark.parametrize('organization', [None, 'my_organization'])  # noqa
-def test_update_parent_images(organization, tmpdir, reactor_config_map, docker_tasker):
+@pytest.mark.parametrize(('df_content, expected_df_content, base_from_scratch'), [
+    (
+        dedent("""\
+            FROM first:parent AS builder1
+            CMD build /spam/eggs
+            FROM second:parent AS builder2
+            CMD build /vikings
+            FROM monty
+            COPY --from=builder1 /spam/eggs /bin/eggs
+            COPY --from=builder2 /vikings /bin/vikings
+        """),
+        dedent("""\
+            FROM id:1 AS builder1
+            CMD build /spam/eggs
+            FROM id:2 AS builder2
+            CMD build /vikings
+            FROM id:3
+            COPY --from=builder1 /spam/eggs /bin/eggs
+            COPY --from=builder2 /vikings /bin/vikings
+        """),
+        False,
+    ),
+    (
+        dedent("""\
+            FROM first:parent AS builder1
+            CMD build /spam/eggs
+            FROM second:parent AS builder2
+            CMD build /vikings
+            FROM scratch
+            CMD build /from_scratch
+            FROM monty
+            COPY --from=builder1 /spam/eggs /bin/eggs
+            COPY --from=builder2 /vikings /bin/vikings
+        """),
+        dedent("""\
+            FROM id:1 AS builder1
+            CMD build /spam/eggs
+            FROM id:2 AS builder2
+            CMD build /vikings
+            FROM scratch
+            CMD build /from_scratch
+            FROM id:3
+            COPY --from=builder1 /spam/eggs /bin/eggs
+            COPY --from=builder2 /vikings /bin/vikings
+        """),
+        False,
+    ),
+    (
+        dedent("""\
+            FROM first:parent AS builder1
+            CMD build /spam/eggs
+            FROM second:parent AS builder2
+            CMD build /vikings
+            FROM scratch
+            CMD build /from_scratch
+            FROM monty
+            COPY --from=builder1 /spam/eggs /bin/eggs
+            COPY --from=builder2 /vikings /bin/vikings
+            FROM scratch
+            CMD build /from_scratch2
+        """),
+        dedent("""\
+            FROM id:1 AS builder1
+            CMD build /spam/eggs
+            FROM id:2 AS builder2
+            CMD build /vikings
+            FROM scratch
+            CMD build /from_scratch
+            FROM id:3
+            COPY --from=builder1 /spam/eggs /bin/eggs
+            COPY --from=builder2 /vikings /bin/vikings
+            FROM scratch
+            CMD build /from_scratch2
+        """),
+        True,
+    ),
+])
+def test_update_parent_images(organization, df_content, expected_df_content, base_from_scratch,
+                              tmpdir, reactor_config_map, docker_tasker):
     """test the happy path for updating multiple parents"""
-    df_content = dedent("""\
-        FROM first:parent AS builder1
-        CMD build /spam/eggs
-        FROM second:parent AS builder2
-        CMD build /vikings
-        FROM monty
-        COPY --from=builder1 /spam/eggs /bin/eggs
-        COPY --from=builder2 /vikings /bin/vikings
-    """)
-    expected_df_content = dedent("""\
-        FROM id:1 AS builder1
-        CMD build /spam/eggs
-        FROM id:2 AS builder2
-        CMD build /vikings
-        FROM id:3
-        COPY --from=builder1 /spam/eggs /bin/eggs
-        COPY --from=builder2 /vikings /bin/vikings
-    """)
     dfp = df_parser(str(tmpdir))
     dfp.content = df_content
 
@@ -162,14 +223,18 @@ def test_update_parent_images(organization, tmpdir, reactor_config_map, docker_t
 
     workflow = mock_workflow()
     workflow.builder.set_df_path(dfp.dockerfile_path)
+    workflow.builder.set_base_from_scratch(base_from_scratch)
     workflow.builder.base_image = ImageName.parse('build-name:3')
     workflow.builder.parent_images = pimgs
     workflow.builder.tasker.inspect_image = lambda img: dict(Id=img_ids[img])
     for image_name, image_id in img_ids.items():
         workflow.builder.set_parent_inspection_data(image_name, dict(Id=image_id))
 
+    original_base = workflow.builder.base_image
     run_plugin(workflow, reactor_config_map, docker_tasker, organization=organization)
     assert dfp.content == expected_df_content
+    if base_from_scratch:
+        assert original_base == workflow.builder.base_image
 
 
 def test_parent_images_unresolved(tmpdir, docker_tasker):

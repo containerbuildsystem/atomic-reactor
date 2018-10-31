@@ -106,8 +106,9 @@ class PullBaseImagePlugin(PreBuildPlugin):
                     # we want to be sure we have original_base_image enclosed as well
                     self.workflow.builder.original_base_image.enclose(organization)
                 self.workflow.builder.set_base_image(str(new_image),
-                                                     parents_pulled=not self.inspect_only,
                                                      insecure=self.parent_registry_insecure)
+        self.workflow.builder.parents_pulled = not self.inspect_only
+        self.workflow.builder.base_image_insecure = self.parent_registry_insecure
 
     def _get_image_for_different_arch(self, image, platform):
         manifest_list = self._get_manifest_list(image)

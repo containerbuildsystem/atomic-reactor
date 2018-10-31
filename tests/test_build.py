@@ -18,6 +18,7 @@ from atomic_reactor.util import ImageName, df_parser
 from tests.constants import (
     LOCALHOST_REGISTRY, MOCK, SOURCE,
     DOCKERFILE_OK_PATH, DOCKERFILE_MULTISTAGE_PATH,
+    DOCKERFILE_MULTISTAGE_SCRATCH_PATH
 )
 from tests.util import requires_internet
 from flexmock import flexmock
@@ -37,6 +38,7 @@ with_all_sources = pytest.mark.parametrize('source_params', [
     SOURCE,
     {'provider': 'path', 'uri': 'file://' + DOCKERFILE_OK_PATH},
     {'provider': 'path', 'uri': 'file://' + DOCKERFILE_MULTISTAGE_PATH},
+    {'provider': 'path', 'uri': 'file://' + DOCKERFILE_MULTISTAGE_SCRATCH_PATH},
 ])
 
 
@@ -50,11 +52,12 @@ def test_parent_images(parents_pulled, tmpdir, source_params):
     b = InsideBuilder(s, '')
 
     orig_base = b.base_image
-    assert orig_base in b.parent_images
-    assert b.parent_images[orig_base] is None
-    b.set_base_image("spam:eggs", parents_pulled=parents_pulled)
-    assert b.parent_images[orig_base] == ImageName.parse("spam:eggs")
-    assert b._parents_pulled == parents_pulled
+    if not b.base_from_scratch:
+        assert orig_base in b.parent_images
+        assert b.parent_images[orig_base] is None
+        b.set_base_image("spam:eggs", parents_pulled=parents_pulled)
+        assert b.parent_images[orig_base] == ImageName.parse("spam:eggs")
+        assert b.parents_pulled == parents_pulled
 
 
 @requires_internet
@@ -85,7 +88,7 @@ def test_parent_image_inspect(parents_pulled, tmpdir, source_params):
     source_params.update({'tmpdir': str(tmpdir)})
     s = get_source_instance_for(source_params)
     b = InsideBuilder(s, provided_image)
-    b._parents_pulled = parents_pulled
+    b.parents_pulled = parents_pulled
 
     if not parents_pulled:
         (flexmock(atomic_reactor.util)
@@ -102,25 +105,32 @@ def test_parent_image_inspect(parents_pulled, tmpdir, source_params):
 @with_all_sources
 @pytest.mark.parametrize('parents_pulled', [True, False])
 @pytest.mark.parametrize('base_exist', [True, False])
-def test_base_image_inspect(parents_pulled, base_exist, tmpdir, source_params):
+def test_base_image_inspect(tmpdir, source_params, parents_pulled,
+                            base_exist):
     if MOCK:
         mock_docker()
 
     source_params.update({'tmpdir': str(tmpdir)})
     s = get_source_instance_for(source_params)
     b = InsideBuilder(s, '')
-    b._parents_pulled = parents_pulled
+    b.parents_pulled = parents_pulled
+    if b.base_from_scratch:
+        base_exist = True
 
     if base_exist:
-        if not parents_pulled:
-            (flexmock(atomic_reactor.util)
-             .should_receive('get_inspect_for_image')
-             .and_return({'Id': 123}))
+        if b.base_from_scratch:
+            built_inspect = b.base_image_inspect
+            assert built_inspect == {}
+        else:
+            if not parents_pulled:
+                (flexmock(atomic_reactor.util)
+                 .should_receive('get_inspect_for_image')
+                 .and_return({'Id': 123}))
 
-        built_inspect = b.base_image_inspect
+            built_inspect = b.base_image_inspect
 
-        assert built_inspect is not None
-        assert built_inspect["Id"] is not None
+            assert built_inspect is not None
+            assert built_inspect["Id"] is not None
     else:
         if parents_pulled:
             response = flexmock(content="not found", status_code=404)
@@ -156,15 +166,20 @@ def test_get_base_image_info(tmpdir, source_params, image, will_raise):
     source_params.update({'tmpdir': str(tmpdir)})
     s = get_source_instance_for(source_params)
     b = InsideBuilder(s, image)
+    if b.base_from_scratch:
+        will_raise = False
 
     if will_raise:
         with pytest.raises(Exception):
             built_inspect = b.get_base_image_info()
     else:
         built_inspect = b.get_base_image_info()
-        assert built_inspect is not None
-        assert built_inspect["Id"] is not None
-        assert built_inspect["RepoTags"] is not None
+        if b.base_from_scratch:
+            assert built_inspect is None
+        else:
+            assert built_inspect is not None
+            assert built_inspect["Id"] is not None
+            assert built_inspect["RepoTags"] is not None
 
 
 def test_no_base_image(tmpdir):

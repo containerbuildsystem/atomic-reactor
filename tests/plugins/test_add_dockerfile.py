@@ -12,23 +12,18 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_dockerfile import AddDockerfilePlugin
 from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
-from atomic_reactor.util import ImageName, df_parser
+from atomic_reactor.util import df_parser
 from atomic_reactor.constants import INSPECT_CONFIG
 from tests.constants import MOCK_SOURCE, MOCK
+from tests.stubs import StubInsideBuilder, StubSource
 if MOCK:
     from tests.docker_mock import mock_docker
 
 
-class Y(object):
-    pass
-
-
-class X(object):
-    image_id = "xxx"
-    source = Y()
-    source.dockerfile_path = None
-    source.path = None
-    base_image = ImageName(repo="qwe", tag="asd")
+def prepare(workflow, df_path):
+    workflow.source = StubSource()
+    workflow.builder = StubInsideBuilder().for_workflow(workflow)
+    workflow.builder.set_df_path(df_path)
 
 
 def test_adddockerfile_plugin(tmpdir, docker_tasker):  # noqa
@@ -40,9 +35,7 @@ CMD blabla"""
     df.content = df_content
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
-    workflow.builder = X
-    workflow.builder.df_path = df.dockerfile_path
-    workflow.builder.df_dir = str(tmpdir)
+    prepare(workflow, df.dockerfile_path)
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -72,9 +65,7 @@ CMD blabla"""
     df.content = df_content
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
-    workflow.builder = X
-    workflow.builder.df_path = df.dockerfile_path
-    workflow.builder.df_dir = str(tmpdir)
+    prepare(workflow, df.dockerfile_path)
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -106,9 +97,7 @@ CMD blabla"""
     df.content = df_content
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
-    workflow.builder = X
-    workflow.builder.df_path = df.dockerfile_path
-    workflow.builder.df_dir = str(tmpdir)
+    prepare(workflow, df.dockerfile_path)
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -135,10 +124,8 @@ CMD blabla"""
         mock_docker()
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
-    workflow.builder = X
-    workflow.builder.df_path = df.dockerfile_path
-    workflow.builder.df_dir = str(tmpdir)
-    setattr(workflow.builder, 'base_image_inspect', {INSPECT_CONFIG: {"Labels": {}}})
+    prepare(workflow, df.dockerfile_path)
+    workflow.builder.set_inspection_data({INSPECT_CONFIG: {"Labels": {}}})
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -169,9 +156,7 @@ CMD blabla"""
     df.content = df_content
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
-    workflow.builder = X
-    workflow.builder.df_path = df.dockerfile_path
-    workflow.builder.df_dir = str(tmpdir)
+    prepare(workflow, df.dockerfile_path)
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -193,9 +178,7 @@ CMD blabla"""
     df.content = df_content
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
-    workflow.builder = X
-    workflow.builder.df_path = df.dockerfile_path
-    workflow.builder.df_dir = str(tmpdir)
+    prepare(workflow, df.dockerfile_path)
 
     runner = PreBuildPluginsRunner(
         docker_tasker,

@@ -55,6 +55,10 @@ class KojiPlugin(PreBuildPlugin):
         """
         run the plugin
         """
+        if self.workflow.builder.base_from_scratch and not self.workflow.builder.parent_images:
+            self.log.info("from scratch single stage can't add repos from koji target")
+            return
+
         target_info = self.xmlrpc.getBuildTarget(self.target)
         if target_info is None:
             self.log.error("provided target '%s' doesn't exist", self.target)
