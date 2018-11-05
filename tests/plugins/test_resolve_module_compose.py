@@ -28,7 +28,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        ReactorConfig)
 from atomic_reactor.source import VcsInfo, SourceConfig
 from atomic_reactor.util import ImageName
-from atomic_reactor.constants import REPO_CONTAINER_CONFIG
+from atomic_reactor.constants import REPO_CONTAINER_CONFIG, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 
 try:
     import koji
@@ -90,6 +90,7 @@ def mock_workflow(tmpdir):
     setattr(workflow, 'builder', MockBuilder())
     workflow.builder.source = mock_source
     flexmock(workflow, source=mock_source)
+    workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(['x86_64', 'ppc64le'])
 
     setattr(workflow.builder, 'df_dir', str(tmpdir))
 
@@ -243,6 +244,7 @@ def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules,
         assert body_json['source']['type'] == 'module'
         assert body_json['source']['source'] == module
         assert body_json['source']['sigkeys'] == sigkeys
+        assert body_json['arches'] == ['ppc64le', 'x86_64']
         return (200, {}, compose_json(0, 'wait'))
 
     responses.add_callback(responses.POST, ODCS_URL + '/composes/',
