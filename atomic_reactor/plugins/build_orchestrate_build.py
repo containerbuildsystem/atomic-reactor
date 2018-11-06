@@ -10,6 +10,7 @@ from __future__ import unicode_literals, division
 from collections import namedtuple
 from copy import deepcopy
 from multiprocessing.pool import ThreadPool
+import warnings
 
 import json
 import os
@@ -289,6 +290,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         self.config_kwargs = config_kwargs or {}
 
         self.adjust_build_kwargs()
+        self.validate_arrangement_version()
         self.adjust_config_kwargs()
         self.reactor_config = get_config(self.workflow)
 
@@ -411,6 +413,27 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     def adjust_build_kwargs(self):
         self.build_kwargs['arrangement_version'] =\
             get_arrangement_version(self.workflow, self.build_kwargs['arrangement_version'])
+
+    def validate_arrangement_version(self):
+        """Validate if the arrangement_version is supported
+
+        This is for autorebuilds to fail early otherwise they may failed
+        on workers because of osbs-client validation checks.
+
+        Method should be called after self.adjust_build_kwargs
+
+        Shows a warning when version is deprecated
+
+        :raises ValueError: when version is not supported
+        """
+        arrangement_version = self.build_kwargs['arrangement_version']
+        if arrangement_version is None:
+            return
+
+        if arrangement_version <= 5:
+            # TODO: raise as ValueError in release 1.6.38+
+            warnings.warn("arrangement_version <= 5 is deprecated and will be removed"
+                          " in release 1.6.38", DeprecationWarning)
 
     def get_current_builds(self, osbs):
         field_selector = ','.join(['status!={status}'.format(status=status.capitalize())
