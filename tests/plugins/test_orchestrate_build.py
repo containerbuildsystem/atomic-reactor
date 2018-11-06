@@ -251,7 +251,7 @@ def make_worker_build_kwargs(**overrides):
         'git_ref': 'master',
         'git_branch': 'master',
         'user': 'bacon',
-        'arrangement_version': 1
+        'arrangement_version': 6
     }
     kwargs.update(overrides)
     return kwargs
@@ -300,7 +300,7 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
     clusters = deepcopy(DEFAULT_CLUSTERS)
 
     if reactor_config_map:
-        reactor_dict = {'version': 1, 'arrangement_version': 1}
+        reactor_dict = {'version': 1, 'arrangement_version': 6}
         if config_kwargs and 'sources_command' in config_kwargs:
             reactor_dict['sources_command'] = 'fedpkg source'
 
@@ -1049,7 +1049,7 @@ def test_orchestrate_build_worker_build_kwargs(tmpdir, caplog, is_auto):
         'is_auto': is_auto,
         'platform': 'x86_64',
         'release': '10',
-        'arrangement_version': 1
+        'arrangement_version': 6
     }
 
     reactor_config_override = mock_reactor_config(tmpdir)
@@ -1098,7 +1098,7 @@ def test_orchestrate_override_build_kwarg(tmpdir, overrides):
         'is_auto': False,
         'platform': 'x86_64',
         'release': '4242',
-        'arrangement_version': 1
+        'arrangement_version': 6
     }
     reactor_config_override = mock_reactor_config(tmpdir)
     reactor_config_override['openshift'] = {
@@ -1152,7 +1152,7 @@ def test_orchestrate_override_content_versions(tmpdir, caplog, enable_v1, conten
         'is_auto': False,
         'platform': 'x86_64',
         'release': '10',
-        'arrangement_version': 1
+        'arrangement_version': 6
     }
     add_config = {
         'platform_descriptors': [{
@@ -1667,3 +1667,37 @@ def test_no_platforms(tmpdir):
     with pytest.raises(PluginFailedException) as exc:
         runner.run()
     assert 'No enabled platform to build on' in str(exc)
+
+
+@pytest.mark.parametrize('version,warning,exception', (
+    (5, "arrangement_version <= 5 is deprecated and will be removed in release 1.6.38", None),
+    (6, None, None),
+))
+def test_orchestrate_build_validate_arrangements(tmpdir, recwarn, version, warning, exception):
+    workflow = mock_workflow(tmpdir)
+    mock_osbs()  # Current builds is a constant 2
+    mock_manifest_list()
+
+    mock_reactor_config(tmpdir)
+
+    runner = BuildStepPluginsRunner(
+        workflow.builder.tasker,
+        workflow,
+        [{
+            'name': OrchestrateBuildPlugin.key,
+            'args': {
+                'platforms': ['x86_64', 'ppc64le'],
+                'build_kwargs': make_worker_build_kwargs(arrangement_version=version),
+                'osbs_client_config': str(tmpdir),
+                'goarch': {'x86_64': 'amd64'},
+            }
+        }]
+    )
+    if exception:
+        with pytest.raises(exception):
+            runner.run()
+    else:
+        runner.run()
+
+    if warning:
+        assert warning in str(recwarn.pop(DeprecationWarning))
