@@ -51,7 +51,11 @@ BuildRequires:  python-setuptools
 %if 0%{?with_check}
 BuildRequires:  pytest
 BuildRequires:  python-dockerfile-parse >= 0.0.11
+%if (0%{?fedora} >= 29)
+BuildRequires:  python2-docker
+%else
 BuildRequires:  python-docker-py
+%endif  # fedora 29+
 BuildRequires:  python-flexmock >= 0.10.2
 BuildRequires:  python-six
 BuildRequires:  python-osbs >= 0.48
@@ -72,7 +76,11 @@ BuildRequires:  python3-setuptools
 %if 0%{?with_check}
 BuildRequires:  python3-pytest
 BuildRequires:  python3-dockerfile-parse >= 0.0.11
+%if (0%{?fedora} >= 29)
+BuildRequires:  python3-docker
+%else
 BuildRequires:  python3-docker-py
+%endif # fedora 29+
 BuildRequires:  python3-flexmock >= 0.10.2
 BuildRequires:  python3-six
 BuildRequires:  python3-osbs >= 0.48
@@ -94,7 +102,11 @@ infrastructure.
 Summary:        Python 2 Atomic Reactor library
 Group:          Development/Tools
 License:        BSD
-Requires:       python-docker-py
+%if (0%{?fedora} >= 29)
+Requires:  python2-docker
+%else
+Requires:  python-docker-py
+%endif # fedora 29+
 Requires:       python-requests
 Requires:       python-setuptools
 Requires:       python-dockerfile-parse >= 0.0.11
@@ -158,7 +170,11 @@ Plugins for automated rebuilds
 Summary:        Python 3 Atomic Reactor library
 Group:          Development/Tools
 License:        BSD
-Requires:       python3-docker-py
+%if (0%{?fedora} >= 29)
+Requires:  python3-docker
+%else
+Requires:  python3-docker-py
+%endif # fedora 29+
 Requires:       python3-requests
 Requires:       python3-setuptools
 Requires:       python3-dockerfile-parse >= 0.0.11
