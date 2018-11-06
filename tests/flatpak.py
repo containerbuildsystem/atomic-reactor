@@ -214,6 +214,7 @@ compose:
     - flatpak-runtime:f28
 flatpak:
     id: org.fedoraproject.Platform
+    component: flatpak-runtime-container
     branch: f28
     sdk: org.fedoraproject.Sdk
     cleanup-commands: >
@@ -228,6 +229,8 @@ compose:
     - flatpak-runtime:f28/sdk
 flatpak:
     id: org.fedoraproject.Sdk
+    name: flatpak-sdk
+    component: flatpak-sdk-container
     branch: f28
     runtime: org.fedoraproject.Platform
     cleanup-commands: >
@@ -259,6 +262,8 @@ APP_CONFIG = {
         },
     },
     'container_yaml': FLATPAK_APP_CONTAINER_YAML,
+    'name': 'eog',
+    'component': 'eog',
 }
 
 RUNTIME_CONFIG = {
@@ -278,6 +283,8 @@ RUNTIME_CONFIG = {
         },
     },
     'container_yaml': FLATPAK_RUNTIME_CONTAINER_YAML,
+    'name': 'flatpak-runtime',
+    'component': 'flatpak-runtime-container',
 }
 
 SDK_CONFIG = {
@@ -298,6 +305,8 @@ SDK_CONFIG = {
         },
     },
     'container_yaml': FLATPAK_SDK_CONTAINER_YAML,
+    'name': 'flatpak-sdk',
+    'component': 'flatpak-sdk-container',
 }
 
 

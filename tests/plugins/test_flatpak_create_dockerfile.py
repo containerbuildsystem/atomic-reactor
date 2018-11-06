@@ -150,6 +150,8 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker, config_name, breakage,
             df = f.read()
 
         assert "FROM " + base_image in df
+        assert 'name="{}"'.format(config['name']) in df
+        assert 'com.redhat.component="{}"'.format(config['component']) in df
 
         m = re.search(r'module enable\s*(.*?)\s*&&', df)
         assert m

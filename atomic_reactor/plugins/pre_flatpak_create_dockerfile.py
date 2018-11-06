@@ -40,7 +40,7 @@ from atomic_reactor.yum_util import YumRepo
 DOCKERFILE_TEMPLATE = '''FROM {base_image}
 
 LABEL name="{name}"
-LABEL com.redhat.component="{name}"
+LABEL com.redhat.component="{component}"
 LABEL version="{stream}"
 LABEL release="{version}"
 
@@ -141,9 +141,13 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
 
         install_packages_str = ' '.join(builder.get_install_packages())
 
+        name = source.flatpak_yaml.get('name', module_info.name)
+        component = source.flatpak_yaml.get('component', module_info.name)
+
         df_path = os.path.join(self.workflow.builder.df_dir, DOCKERFILE_FILENAME)
         with open(df_path, 'w') as fp:
-            fp.write(DOCKERFILE_TEMPLATE.format(name=module_info.name,
+            fp.write(DOCKERFILE_TEMPLATE.format(name=name,
+                                                component=component,
                                                 stream=module_info.stream.replace('-', '_'),
                                                 version=module_info.version,
                                                 base_image=self.base_image,

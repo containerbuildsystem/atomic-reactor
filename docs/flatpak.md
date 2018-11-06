@@ -31,6 +31,10 @@ The `flatpak` section of container.yaml contains extra information needed to cre
 
 **id**: (required) The ID of the application or runtime
 
+**name**: (optional). `name` label in generated Dockerfile. Used for the repository when pushing to a registry. Defaults to the module name.
+
+**component**: (optional). `com.redhat.component` label in generated Dockerfile. Used to name the build when uploading to Koji. Defaults to the module name.
+
 **branch**: (required) The branch of the application or runtime. In many cases, this will match the stream name of the module.
 
 **cleanup-commands**: (optional, runtime only). A shell script that is run after installing all packages.
