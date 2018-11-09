@@ -1673,7 +1673,7 @@ def test_no_platforms(tmpdir):
     (5, "arrangement_version <= 5 is deprecated and will be removed in release 1.6.38", None),
     (6, None, None),
 ))
-def test_orchestrate_build_validate_arrangements(tmpdir, recwarn, version, warning, exception):
+def test_orchestrate_build_validate_arrangements(tmpdir, caplog, version, warning, exception):
     workflow = mock_workflow(tmpdir)
     mock_osbs()  # Current builds is a constant 2
     mock_manifest_list()
@@ -1700,4 +1700,4 @@ def test_orchestrate_build_validate_arrangements(tmpdir, recwarn, version, warni
         runner.run()
 
     if warning:
-        assert warning in str(recwarn.pop(DeprecationWarning))
+        assert warning in caplog.text()
