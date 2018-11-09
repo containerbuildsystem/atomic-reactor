@@ -10,7 +10,6 @@ from __future__ import unicode_literals, division
 from collections import namedtuple
 from copy import deepcopy
 from multiprocessing.pool import ThreadPool
-import warnings
 
 import json
 import os
@@ -432,8 +431,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         if arrangement_version <= 5:
             # TODO: raise as ValueError in release 1.6.38+
-            warnings.warn("arrangement_version <= 5 is deprecated and will be removed"
-                          " in release 1.6.38", DeprecationWarning)
+            self.log.warning("arrangement_version <= 5 is deprecated and will be removed"
+                             " in release 1.6.38")
 
     def get_current_builds(self, osbs):
         field_selector = ','.join(['status!={status}'.format(status=status.capitalize())
