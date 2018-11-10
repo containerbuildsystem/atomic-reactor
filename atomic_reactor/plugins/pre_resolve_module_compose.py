@@ -35,6 +35,7 @@ from gi.repository import Modulemd
 from atomic_reactor.koji_util import get_koji_module_build
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import get_platforms, split_module_spec
+from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.plugins.pre_reactor_config import (get_config,
                                                        get_koji_session, get_odcs_session,
                                                        get_odcs, NO_FALLBACK)
@@ -233,3 +234,4 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
 
         compose_info = self._resolve_compose()
         set_compose_info(self.workflow, compose_info)
+        override_build_kwarg(self.workflow, 'compose_ids', [compose_info.compose_id])
