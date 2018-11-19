@@ -21,7 +21,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY)
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
-from atomic_reactor.util import ImageName, df_parser
+from atomic_reactor.util import ImageName, df_parser, DigestCollector
 import atomic_reactor.util
 from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from flexmock import flexmock
@@ -90,6 +90,7 @@ class MockInsideBuilder(object):
         self.image = INPUT_IMAGE
         self.df_path = 'df_path'
         self.df_dir = 'df_dir'
+        self.parent_images_digests = DigestCollector()
 
         def simplegen(x, y):
             yield "some\u2018".encode('utf-8')
@@ -1054,7 +1055,8 @@ def test_orchestrate_build_worker_build_kwargs(tmpdir, caplog, is_auto):
         'is_auto': is_auto,
         'platform': 'x86_64',
         'release': '10',
-        'arrangement_version': 6
+        'arrangement_version': 6,
+        'parent_images_digests': {},
     }
 
     reactor_config_override = mock_reactor_config(tmpdir)
@@ -1103,7 +1105,8 @@ def test_orchestrate_override_build_kwarg(tmpdir, overrides):
         'is_auto': False,
         'platform': 'x86_64',
         'release': '4242',
-        'arrangement_version': 6
+        'arrangement_version': 6,
+        'parent_images_digests': {},
     }
     reactor_config_override = mock_reactor_config(tmpdir)
     reactor_config_override['openshift'] = {
@@ -1157,7 +1160,8 @@ def test_orchestrate_override_content_versions(tmpdir, caplog, enable_v1, conten
         'is_auto': False,
         'platform': 'x86_64',
         'release': '10',
-        'arrangement_version': 6
+        'arrangement_version': 6,
+        'parent_images_digests': {},
     }
     add_config = {
         'platform_descriptors': [{
@@ -1706,3 +1710,56 @@ def test_orchestrate_build_validate_arrangements(tmpdir, caplog, version, warnin
 
     if warning:
         assert warning in caplog.text
+
+
+def test_parent_images_digests(tmpdir, caplog):
+    """Test if digests of parent images are propagated correctly to OSBS
+    client"""
+    PARENT_IMAGES_DATA = {
+        'registry.fedoraproject.org/fedora:latest': {
+            'x86_64': 'registry.fedoraproject.org/fedora@sha256:123456789abcdef'
+        }
+    }
+
+    workflow = mock_workflow(tmpdir, platforms=['x86_64'])
+    workflow.builder.parent_images_digests.update_from_dict(PARENT_IMAGES_DATA)
+    expected_kwargs = {
+        'git_uri': SOURCE['uri'],
+        'git_ref': 'master',
+        'git_branch': 'master',
+        'user': 'bacon',
+        'is_auto': False,
+        'platform': 'x86_64',
+        'release': '10',
+        'arrangement_version': 6,
+        'parent_images_digests': PARENT_IMAGES_DATA,
+    }
+
+    reactor_config_override = mock_reactor_config(tmpdir)
+    reactor_config_override['openshift'] = {
+        'auth': {'enable': None},
+        'build_json_dir': None,
+        'insecure': False,
+        'url': 'https://worker_x86_64.com/'
+    }
+    expected_kwargs['reactor_config_override'] = reactor_config_override
+    mock_osbs(worker_expect=expected_kwargs)
+
+    plugin_args = {
+        'platforms': ['x86_64'],
+        'build_kwargs': make_worker_build_kwargs(),
+        'worker_build_image': 'fedora:latest',
+        'osbs_client_config': str(tmpdir),
+    }
+
+    runner = BuildStepPluginsRunner(
+        workflow.builder.tasker,
+        workflow,
+        [{
+            'name': OrchestrateBuildPlugin.key,
+            'args': plugin_args,
+        }]
+    )
+
+    build_result = runner.run()
+    assert not build_result.is_failed()

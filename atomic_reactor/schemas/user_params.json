@@ -31,6 +31,26 @@
     "koji_task_id": {"type": "integer"},
     "koji_upload_dir": {"type": "string"},
     "name": {"type": "string"},
+    "parent_images_digests": {
+      "type": "object",
+      "patternProperties": {
+        "^.+:.+$": {
+          "description": "Image with tags",
+          "type": "object",
+          "patternProperties": {
+            "^.": {
+              "description": "Platform specific image",
+              "type": "string",
+              "pattern": "@.+:"
+            }
+          },
+          "uniqueItems": true,
+          "additionalProperties": false
+        }
+      },
+      "uniqueItems": true,
+      "additionalProperties": false
+    },
     "platform": {"type": "string"},
     "platforms": {
       "type": "array",

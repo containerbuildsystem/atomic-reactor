@@ -1580,3 +1580,108 @@ def dump_stacktraces(sig, frame):
 
 def setup_introspection_signal_handler():
     signal.signal(signal.SIGUSR1, dump_stacktraces)
+
+
+class DigestCollector(object):
+    """Collect platform specific digests of images"""
+
+    def __init__(self, images_digests=None):
+        self._images_digests = images_digests or {}
+
+    def __repr__(self):
+        return "DigestCollector(images_digests={!r})".format(self._images_digests)
+
+    def _key(self, image):
+        """
+        :param ImageName image:
+        :rtype: str
+        :return: image name in format name:tag
+        """
+        return image.to_str(tag=True)
+
+    def __contains__(self, image):
+        """Check if collector contains digests of the specified image
+
+        :param ImageName image: image
+        :rtype: bool
+        :return: True if collector contains digests of the specified image
+        """
+        image_name_tag = self._key(image)
+        return image_name_tag in self._images_digests
+
+    def __bool__(self):
+        """Non-emptiness test
+
+        :rtype: bool
+        :return: True if object contains data otherwise False
+        """
+        return bool(self._images_digests)
+
+    if PY2:
+        def __nonzero__(self):  # pylint: disable=nonzero-method
+            return self.__bool__()
+
+    def update_image_digest(self, image, platform, digest):
+        """Update parent image digest for specific platform
+
+        :param ImageName image: image
+        :param str platform: name of the platform/arch (x86_64, ppc64le, ...)
+        :param str digest: digest of the specified image (sha256:...)
+        """
+        image_name_tag = self._key(image)
+
+        image_name = image.to_str(tag=False)
+        name_digest = '{}@{}'.format(image_name, digest)
+
+        image_digests = self._images_digests.setdefault(image_name_tag, {})
+        image_digests[platform] = name_digest
+
+    def get_image_digests(self, image):
+        """Get platform digests of specified image
+
+        :param ImageName image: image
+        :raises KeyError: when image is not found
+        :rtype: dict
+        :return: mapping platform:digest of the specified image
+        """
+        image_name_tag = self._key(image)
+        image_digests = self._images_digests.get(image_name_tag)
+        if image_digests is None:
+            raise KeyError('Image {} has no digest records'.format(image_name_tag))
+        return image_digests
+
+    def get_image_platform_digest(self, image, platform):
+        """Get digest of specified image and platform
+
+        :param ImageName image: image
+        :param str platform: name of the platform/arch (x86_64, ppc64le, ...)
+        :raises KeyError: when digest is not found
+        :rtype: str
+        :return: digest of the specified image (fedora@sha256:...)
+        """
+        image_digests = self.get_image_digests(image)
+        digest = image_digests.get(platform)
+        if digest is None:
+            raise KeyError(
+                'Image {} has no digest record for platform {}'.format(image, platform)
+            )
+
+        return digest
+
+    def update_from_dict(self, source):
+        """Update records of the digests of images from a dictionary
+        (no validation is performed)
+
+        :param dict source: data
+        """
+        assert isinstance(source, dict)
+        source_copy = deepcopy(source)  # no mutable side effects
+        self._images_digests.update(source_copy)
+
+    def to_dict(self):
+        """Return collected digests
+
+        :rtype: dict
+        :return: Collected images and digests
+        """
+        return deepcopy(self._images_digests)

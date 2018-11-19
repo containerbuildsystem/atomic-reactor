@@ -20,7 +20,7 @@ from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.util import ImageName, CommandResult
+from atomic_reactor.util import ImageName, CommandResult, DigestCollector
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
@@ -58,6 +58,9 @@ class MockBuilder(object):
     base_image = None
     original_base_image = None
     parent_images = {UNIQUE_ID_NAME: None}
+
+    def __init__(self):
+        self.parent_images_digests = DigestCollector()
 
     def set_base_image(self, base_image, parents_pulled=True, insecure=False):
         self.base_image = ImageName.parse(base_image)
@@ -139,7 +142,8 @@ def teardown_function(function):
 ])
 def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected,
                                 reactor_config_map, inspect_only, workflow_callback=None,
-                                check_platforms=False, parent_images=None, organization=None):
+                                check_platforms=False, parent_images=None, organization=None,
+                                parent_images_digests=None):
     if MOCK:
         mock_docker(remember_images=True)
 
@@ -180,7 +184,9 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
             'args': {'parent_registry': parent_registry,
                      'parent_registry_insecure': True,
                      'check_platforms': check_platforms,
-                     'inspect_only': inspect_only}
+                     'inspect_only': inspect_only,
+                     'parent_images_digests': parent_images_digests,
+                     }
         }]
     )
 
@@ -660,6 +666,120 @@ class TestValidateBaseImage(object):
         tagging_msg = "tagging image " + new_image + " as '" + UNIQUE_ID
         assert pulling_msg in caplog.text
         assert tagging_msg in caplog.text
+
+    @pytest.mark.parametrize('fail', (True, False))
+    def test_parent_images_digests_orchestrator(self, caplog, fail):
+        """Testing processing of parent_images_digests at an orchestrator"""
+
+        reg_image_no_tag = 'registry.example.com/{}'.format(BASE_IMAGE_NAME.to_str(tag=False))
+
+        test_vals = {
+            'workflow': None,
+            'expected_digests': {}
+        }
+        if not fail:
+            test_vals['expected_digests'] = {
+                'registry.example.com/{}'.format(BASE_IMAGE): {
+                    'x86_64': '{}@sha256:123456'.format(reg_image_no_tag),
+                    'ppc64le': '{}@sha256:654321'.format(reg_image_no_tag)
+                }
+            }
+
+        def workflow_callback(workflow):
+            workflow = self.prepare(workflow)
+            if fail:
+                # fail to provide x86_64 platform specific digest
+                manifest_list = {
+                    'manifests': []
+                }
+
+                (flexmock(atomic_reactor.util)
+                 .should_receive('get_manifest_list')
+                 .and_return(flexmock(json=lambda: manifest_list))
+                 )
+            test_vals['workflow'] = workflow
+            return workflow
+
+        try:
+            test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+                                        [], [], reactor_config_map=True,
+                                        inspect_only=False,
+                                        workflow_callback=workflow_callback,
+                                        check_platforms=True,  # orchestrator
+                                        )
+        except PluginFailedException as e:
+            if fail and "Missing arches in manifest list" in str(e):
+                # when manifest_list is empty _validate_platforms_in_image raises an assertion
+                # error. We don't care about that in this test
+                pass
+            else:
+                raise
+
+        for platform, digest in (('x86_64', 'sha256:123456'), ('ppc64le', 'sha256:654321')):
+            collecting_msg = (
+                "Collecting digest for image 'registry.example.com/{}' ('{}'): '{}'".format(
+                    BASE_IMAGE, platform, digest)
+            )
+            if fail:
+                assert collecting_msg not in caplog.text
+            else:
+                assert collecting_msg in caplog.text
+
+        if fail:
+            replacing_msg = (
+                "Cannot resolve platform 'x86_64' specific digest for image "
+                "'registry.example.com/{}'".format(BASE_IMAGE))
+        else:
+            replacing_msg = ("Replacing image 'registry.example.com/{}' with "
+                             "'{}@sha256:123456'".format(
+                                BASE_IMAGE, reg_image_no_tag))
+        assert replacing_msg in caplog.text
+
+        # check if worker.builder has set correct values
+        builder_digests_dict = test_vals['workflow'].builder.parent_images_digests.to_dict()
+        assert builder_digests_dict == test_vals['expected_digests']
+
+    @pytest.mark.parametrize('fail', (True, False))
+    def test_parent_images_digests_worker(self, caplog, fail):
+        """Testing processing of parent_images_digests at a worker"""
+        reg_image_no_tag = 'registry.example.com/{}'.format(BASE_IMAGE_NAME.to_str(tag=False))
+
+        def workflow_callback(workflow):
+            workflow = self.prepare(workflow)
+            return workflow
+
+        if fail:
+            parent_images_digests = None
+        else:
+            parent_images_digests = {
+                'registry.example.com/{}'.format(BASE_IMAGE): {
+                    'x86_64': '{}@sha256:123456'.format(reg_image_no_tag),
+                    'ppc64le': '{}@sha256:654321'.format(reg_image_no_tag),
+                }
+            }
+
+        test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+                                    [], [], reactor_config_map=True,
+                                    inspect_only=False,
+                                    workflow_callback=workflow_callback,
+                                    check_platforms=False,  # worker
+                                    parent_images_digests=parent_images_digests)
+
+        for platform, digest in (('x86_64', 'sha256:123456'), ('ppc64le', 'sha256:654321')):
+            msg = "Collecting digest for image 'registry.example.com/{}' ('{}'): '{}'".format(
+                BASE_IMAGE, platform, digest)
+            # don't collect digests at workers
+            assert msg not in caplog.text
+
+        if fail:
+            replacing_msg = (
+                "Cannot resolve platform 'x86_64' specific digest for image "
+                "'registry.example.com/{}'".format(BASE_IMAGE))
+        else:
+            replacing_msg = ("Replacing image 'registry.example.com/{}' with "
+                             "'{}@sha256:123456'".format(
+                                BASE_IMAGE, reg_image_no_tag))
+        assert replacing_msg in caplog.text
 
     def prepare(self, workflow):
         # Setup expected platforms
