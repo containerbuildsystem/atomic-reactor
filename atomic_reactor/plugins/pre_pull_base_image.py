@@ -37,7 +37,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow, parent_registry=None, parent_registry_insecure=False,
-                 check_platforms=False, inspect_only=False):
+                 check_platforms=False, inspect_only=False, parent_images_digests=None):
         """
         constructor
 
@@ -62,6 +62,8 @@ class PullBaseImagePlugin(PreBuildPlugin):
         else:
             self.parent_registry = None
             self.parent_registry_insecure = False
+        if parent_images_digests:
+            self._load_parent_images_digests(parent_images_digests)
 
     def run(self):
         """
@@ -82,6 +84,19 @@ class PullBaseImagePlugin(PreBuildPlugin):
                 image = self._resolve_base_image(build_json)
 
             image = self._ensure_image_registry(image)
+
+            if self.check_platforms:
+                # run only at orchestrator
+                self._collect_image_digests(image)
+
+            # try to stay with digests
+            image_with_digest = self._get_image_with_digest(image, current_platform)
+            if image_with_digest is None:
+                self.log.warning("Cannot resolve platform '%s' specific digest for image '%s'",
+                                 current_platform, image)
+            else:
+                self.log.info("Replacing image '%s' with '%s'", image, image_with_digest)
+                image = image_with_digest
 
             if organization:
                 image.enclose(organization)
@@ -110,32 +125,76 @@ class PullBaseImagePlugin(PreBuildPlugin):
         self.workflow.builder.parents_pulled = not self.inspect_only
         self.workflow.builder.base_image_insecure = self.parent_registry_insecure
 
-    def _get_image_for_different_arch(self, image, platform):
+    def _get_image_with_digest(self, image, platform):
+        parents_digests = self.workflow.builder.parent_images_digests
+
+        try:
+            new_image = ImageName.parse(parents_digests.get_image_platform_digest(image, platform))
+        except KeyError:
+            return None
+        else:
+            return new_image
+
+    def _load_parent_images_digests(self, images_digests):
+        assert isinstance(images_digests, dict)
+        parents_digests = self.workflow.builder.parent_images_digests
+        parents_digests.update_from_dict(images_digests)
+
+    def _collect_image_digests(self, image):
+        parents_digests = self.workflow.builder.parent_images_digests
+
+        if image in parents_digests:
+            # we already have recorded digests for the image, keep it the same
+            # to prevent race conditions at workers
+            return
+
         manifest_list = self._get_manifest_list(image)
-        new_image = None
 
-        if manifest_list:
-            manifest_list_dict = manifest_list.json()
-            arch_digests = {}
-            build_image_digests = {}
-            image_name = image.to_str(tag=False)
+        if not manifest_list:
+            self.log.warning(
+                "Empty manifest list for image %s. Collected image digests will be "
+                "incomplete and may cause race conditions during build", image
+            )
+            return
 
+        manifest_list_dict = manifest_list.json()
+
+        try:
+            arch_to_platform = get_goarch_to_platform_mapping(self.workflow)
+        except KeyError:
+            self.log.warning('Cannot collect platforms digests for parent images '
+                             'because platform descriptors are not defined')
+        else:
             for manifest in manifest_list_dict['manifests']:
                 arch = manifest['platform']['architecture']
-                arch_digests[arch] = image_name + '@' + manifest['digest']
-
-            present_platform = None
-            try:
-                arch_to_platform = get_goarch_to_platform_mapping(self.workflow)
-                for arch, digest in arch_digests.items():
+                try:
                     present_platform = arch_to_platform[arch]
-                    build_image_digests[present_platform] = digest
+                except KeyError:
+                    self.log.warning("Cannot map architecture='{}' to platform".format(arch))
+                    continue
+                else:
+                    digest = manifest['digest']
+                    self.log.info("Collecting digest for image '%s' ('%s'): '%s'",
+                                  image, present_platform, digest)
+                    parents_digests.update_image_digest(
+                        image, present_platform, digest
+                    )
 
-                if platform not in build_image_digests:
-                    new_image = ImageName.parse(build_image_digests[present_platform])
-            except KeyError:
-                self.log.info('Cannot validate available platforms for base image '
-                              'because platform descriptors are not defined')
+    def _get_image_for_different_arch(self, image, platform):
+        new_image = None
+        parents_digests = self.workflow.builder.parent_images_digests
+        try:
+            digests = parents_digests.get_image_digests(image)
+        except KeyError:
+            pass
+        else:
+            if not digests:
+                return None
+            platform_digest = digests.get(platform)
+            if platform_digest is None:
+                # exact match is not found, get random platform
+                platform_digest = tuple(digests.values())[0]
+            new_image = ImageName.parse(platform_digest)
         return new_image
 
     def _resolve_base_image(self, build_json):
