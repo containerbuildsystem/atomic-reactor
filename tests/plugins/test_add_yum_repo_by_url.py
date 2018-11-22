@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015, 2018 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -19,6 +19,7 @@ from atomic_reactor.yum_util import YumRepo
 import requests
 import pytest
 from flexmock import flexmock
+from fnmatch import fnmatch
 import os.path
 from tests.constants import DOCKERFILE_GIT, MOCK
 if MOCK:
@@ -111,7 +112,7 @@ def test_multiple_repourls(inject_proxy, repos, filenames):
 def test_single_repourl_no_suffix(inject_proxy):
     tasker, workflow = prepare()
     url = 'http://example.com/example%20repo'
-    filename = 'example repo-4ca91.repo'
+    pattern = 'example repo-?????.repo'
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': AddYumRepoByUrlPlugin.key,
         'args': {'repourls': [url], 'inject_proxy': inject_proxy}}])
@@ -120,23 +121,27 @@ def test_single_repourl_no_suffix(inject_proxy):
     if inject_proxy:
         repo_content = '%sproxy = %s\n\n' % (repocontent.decode('utf-8'), inject_proxy)
     # next(iter(...)) is for py 2/3 compatibility
-    assert next(iter(workflow.files.keys())) == os.path.join(YUM_REPOS_DIR, filename)
+    assert fnmatch(next(iter(workflow.files.keys())), os.path.join(YUM_REPOS_DIR, pattern))
     assert next(iter(workflow.files.values())) == repo_content
     assert len(workflow.files) == 1
 
 
 @pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
-@pytest.mark.parametrize(('repos', 'filenames'), (
+@pytest.mark.parametrize(('repos', 'patterns'), (
     (['http://example.com/a/b/c/myrepo', 'http://example.com/repo-2.repo'],
-     ['myrepo-d0856.repo', 'repo-2-ba4b3.repo']),
+     ['myrepo-?????.repo', 'repo-2-?????.repo']),
     (['http://example.com/a/b/c/myrepo', 'http://example.com/repo-2'],
-     ['myrepo-d0856.repo', 'repo-2-ba4b3.repo']),
+     ['myrepo-?????.repo', 'repo-2-?????.repo']),
     (['http://example.com/a/b/c/myrepo.repo', 'http://example.com/repo-2'],
-     ['myrepo-d0856.repo', 'repo-2-ba4b3.repo']),
+     ['myrepo-?????.repo', 'repo-2-?????.repo']),
     (['http://example.com/spam/myrepo.repo', 'http://example.com/bacon/myrepo'],
-     ['myrepo-608de.repo', 'myrepo-a1f78.repo']),
+     ['myrepo-?????.repo', 'myrepo-?????.repo']),
+    (['http://example.com/a/b/c/myrepo.repo?blab=bla', 'http://example.com/a/b/c/repo-2?blab=bla'],
+     ['myrepo-?????.repo', 'repo-2-?????.repo']),
+    (['http://example.com/a/b/c/myrepo', 'http://example.com/a/b/c/myrepo.repo'],
+     ['myrepo-?????.repo', 'myrepo-?????.repo']),
 ))
-def test_multiple_repourls_no_suffix(inject_proxy, repos, filenames):
+def test_multiple_repourls_no_suffix(inject_proxy, repos, patterns):
     tasker, workflow = prepare()
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': AddYumRepoByUrlPlugin.key,
@@ -145,31 +150,17 @@ def test_multiple_repourls_no_suffix(inject_proxy, repos, filenames):
     repo_content = repocontent
     if inject_proxy:
         repo_content = '%sproxy = %s\n\n' % (repocontent.decode('utf-8'), inject_proxy)
-
-    for filename in filenames:
-        assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)]
-        assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)] == repo_content
 
     assert len(workflow.files) == 2
-
-
-@pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
-def test_multiple_same_repourls_no_suffix(inject_proxy):
-    tasker, workflow = prepare()
-    repos = ['http://example.com/a/b/c/myrepo', 'http://example.com/a/b/c/myrepo.repo']
-    filename = 'myrepo-d0856.repo'
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
-        'name': AddYumRepoByUrlPlugin.key,
-        'args': {'repourls': repos, 'inject_proxy': inject_proxy}}])
-    runner.run()
-    repo_content = repocontent
-    if inject_proxy:
-        repo_content = '%sproxy = %s\n\n' % (repocontent.decode('utf-8'), inject_proxy)
-
-    assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)]
-    assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)] == repo_content
-
-    assert len(workflow.files) == 1
+    for pattern in patterns:
+        for filename, content in workflow.files.items():
+            if fnmatch(filename, os.path.join(YUM_REPOS_DIR, pattern)):
+                assert content == repo_content  # only because they're all the same
+                del workflow.files[filename]
+                break
+        else:
+            raise RuntimeError("no filename in %s matching pattern %s" %
+                               (list(workflow.files.keys()), pattern))
 
 
 def test_invalid_repourl():

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2016 Red Hat, Inc
+Copyright (c) 2016, 2018 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -428,7 +428,7 @@ def test_image_build_defaults(tmpdir, task_id, reactor_config_map):
                     [fedora-23]
                     baseurl = http://install-tree.com/$basearch/fedora23
                     """))
-    responses.add(responses.GET, 'http://repo.com/fedora/os.repo',
+    responses.add(responses.GET, 'http://repo.com/fedora/os',
                   body=dedent("""\
                     [fedora-os]
                     baseurl = http://repo.com/fedora/$basearch/os
@@ -517,7 +517,7 @@ def test_image_build_overwrites(tmpdir, architectures, architecture, reactor_con
         'http://default-install-tree.com/fedora23',
         'http://default-repo.com/fedora/os.repo',
     ]
-    responses.add(responses.GET, 'http://default-install-tree.com/fedora23.repo',
+    responses.add(responses.GET, 'http://default-install-tree.com/fedora23',
                   body=dedent("""\
                     [fedora-23]
                     baseurl = http://default-install-tree.com/$basearch/fedora23
@@ -593,7 +593,7 @@ def test_extract_base_url_many_base_urls(tmpdir, reactor_config_map):  # noqa
         'http://default-repo.com/fedora/os.repo',
     ]
     architectures = 'x86_64'
-    responses.add(responses.GET, 'http://default-install-tree.com/fedora23.repo',
+    responses.add(responses.GET, 'http://default-install-tree.com/fedora23',
                   body=dedent("""\
                     [fedora-23]
                     baseurl = http://default-install-tree.com/$basearch/fedora23
@@ -628,7 +628,7 @@ def test_extract_base_url_bad_repo_config(tmpdir, reactor_config_map):  # noqa
         'http://default-repo.com/fedora/os.repo',
     ]
     architectures = 'x86_64'
-    responses.add(responses.GET, 'http://default-install-tree.com/fedora23.repo',
+    responses.add(responses.GET, 'http://default-install-tree.com/fedora23',
                   body="This is not right")
     responses.add(responses.GET, 'http://default-repo.com/fedora/os.repo',
                   body="Its not even wrong")

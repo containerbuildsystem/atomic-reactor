@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015, 2018 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -34,6 +34,7 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.util import ImageName
 from flexmock import flexmock
+from fnmatch import fnmatch
 import pytest
 from tests.constants import SOURCE, MOCK
 if MOCK:
@@ -239,9 +240,10 @@ class TestKoji(object):
                 with open(file_path, 'r') as fd:
                     assert fd.read() == expected
 
-        repofile = '/etc/yum.repos.d/target-df7bc.repo'
-        assert repofile in workflow.files
-        content = workflow.files[repofile]
+        repofile = '/etc/yum.repos.d/target-?????.repo'
+        assert len(workflow.files) == 1
+        assert fnmatch(next(iter(workflow.files.keys())), repofile)
+        content = next(iter(workflow.files.values()))
         assert content.startswith("[atomic-reactor-koji-plugin-target]\n")
         assert "gpgcheck=0\n" in content
         assert "enabled=1\n" in content
