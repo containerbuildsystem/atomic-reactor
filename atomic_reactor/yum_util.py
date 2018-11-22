@@ -36,8 +36,6 @@ REPO_SUFFIX = ".repo"
 
 class YumRepo(object):
     def __init__(self, repourl, content='', dst_repos_dir=YUM_REPOS_DIR, add_hash=True):
-        if not repourl.endswith(REPO_SUFFIX):
-            repourl += REPO_SUFFIX
         self.add_hash = add_hash
         self.repourl = repourl
         self.dst_repos_dir = dst_repos_dir
@@ -55,6 +53,8 @@ class YumRepo(object):
         '''
         urlpath = unquote(urlsplit(self.repourl, allow_fragments=False).path)
         basename = os.path.basename(urlpath)
+        if not basename.endswith(REPO_SUFFIX):
+            basename += REPO_SUFFIX
         if self.add_hash:
             suffix = '-' + md5(self.repourl.encode('utf-8')).hexdigest()[:5]
         else:
