@@ -18,7 +18,7 @@
 %endif
 
 %if 0%{?fedora}
-# rhel/epel has no flexmock, pytest-capturelog
+# rhel/epel has no flexmock
 %global with_check 1
 %endif
 
@@ -50,7 +50,6 @@ BuildRequires:  python2-devel
 BuildRequires:  python-setuptools
 %if 0%{?with_check}
 BuildRequires:  pytest
-BuildRequires:  python-pytest-capturelog
 BuildRequires:  python-dockerfile-parse >= 0.0.11
 BuildRequires:  python-docker-py
 BuildRequires:  python-flexmock >= 0.10.2
@@ -72,7 +71,6 @@ BuildRequires:  python3-devel
 BuildRequires:  python3-setuptools
 %if 0%{?with_check}
 BuildRequires:  python3-pytest
-BuildRequires:  python3-pytest-capturelog
 BuildRequires:  python3-dockerfile-parse >= 0.0.11
 BuildRequires:  python3-docker-py
 BuildRequires:  python3-flexmock >= 0.10.2
@@ -407,6 +405,9 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 
 %changelog
+* Fri Nov 23 2018 Athos Ribeiro <athos@redhat.com>
+- Remove pytest-capturelog dependency
+
 * Thu Nov 22 2018 Robert Cerven <rcerven@redhat.com> - 1.6.36.1-1
 - new upstream release: 1.6.36.1
 

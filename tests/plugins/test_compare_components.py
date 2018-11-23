@@ -158,7 +158,7 @@ def test_compare_components_plugin(tmpdir, caplog, base_from_scratch, mismatch, 
         runner.run()
         if base_from_scratch:
             log_msg = "Skipping comparing components: unsupported for FROM-scratch images"
-            assert log_msg in caplog.text()
+            assert log_msg in caplog.text
 
 
 
@@ -257,9 +257,9 @@ def test_mismatch_reporting(tmpdir, caplog, mismatch):
 
         for entry in log_entries:
             # component mismatch must be reported only once
-            assert caplog.text().count(entry) == 1
+            assert caplog.text.count(entry) == 1
     else:
         # no mismatch, no failure, no log entries
         runner.run()
         for entry in log_entries:
-            assert entry not in caplog.text()
+            assert entry not in caplog.text

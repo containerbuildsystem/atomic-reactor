@@ -226,7 +226,7 @@ def test_add_labels_plugin(tmpdir, docker_tasker,
         with pytest.raises(PluginFailedException):
             runner.run()
         assert "plugin 'add_labels_in_dockerfile' raised an exception: RuntimeError" \
-            in caplog.text()
+            in caplog.text
 
     else:
         runner.run()
@@ -447,7 +447,7 @@ def test_add_labels_aliases(tmpdir, docker_tasker, caplog,
     assert result_new == exp_new
 
     if exp_log:
-        assert exp_log in caplog.text()
+        assert exp_log in caplog.text
 
 
 @pytest.mark.parametrize('base_l, df_l, expected, expected_log', [  # noqa
@@ -531,7 +531,7 @@ def test_add_labels_equal_aliases(tmpdir, docker_tasker, caplog,
     assert result_snd == expected[1]
 
     if expected_log:
-        assert expected_log in caplog.text()
+        assert expected_log in caplog.text
 
 
 @pytest.mark.parametrize('base_l, df_l, expected, expected_log', [  # noqa
@@ -621,7 +621,7 @@ def test_add_labels_equal_aliases2(tmpdir, docker_tasker, caplog, base_l,
         assert result_trd == expected[2]
 
         if expected_log:
-            assert expected_log in caplog.text()
+            assert expected_log in caplog.text
 
 
 @pytest.mark.parametrize("parent_scope, docker_scope, result_scope, dont_overwrite", [  # noqa
@@ -836,12 +836,12 @@ def test_add_labels_base_image(tmpdir, docker_tasker, parent, should_fail,
     )
 
     if should_fail:
-        with caplog.atLevel(logging.ERROR):
+        with caplog.at_level(logging.ERROR):
             with pytest.raises(PluginFailedException):
                 runner.run()
 
         msg = "base image was not inspected"
-        assert msg in [x.message for x in caplog.records()]
+        assert msg in [x.message for x in caplog.records]
     else:
         runner.run()
         assert df.labels['release'] == '5'
@@ -919,4 +919,4 @@ def test_release_label(tmpdir, docker_tasker, caplog,
     assert result_new == expected_in_df
 
     if expected_log:
-        assert expected_log in caplog.text()
+        assert expected_log in caplog.text

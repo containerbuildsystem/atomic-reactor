@@ -338,9 +338,9 @@ def test_pulp_publish_only_without_sync(before_name, after_name, publish,
     plugin.run()
 
     if should_publish:
-        assert 'to be published' in caplog.text()
+        assert 'to be published' in caplog.text
     else:
-        assert 'publishing deferred' in caplog.text()
+        assert 'publishing deferred' in caplog.text
 
 
 @pytest.mark.skipif(dockpulp is None,

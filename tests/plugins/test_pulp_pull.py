@@ -538,7 +538,7 @@ class TestPostPulpPull(object):
             expected_media_types.append(MEDIA_TYPE_DOCKER_V2_SCHEMA1)
             expected_media_types.append(MEDIA_TYPE_DOCKER_V2_SCHEMA2)
         else:
-            assert "Only V2 schema 2 manifest list is expected, " in caplog.text()
+            assert "Only V2 schema 2 manifest list is expected, " in caplog.text
         assert set(media_types) == set(expected_media_types)
 
     @responses.activate
@@ -649,7 +649,7 @@ class TestPostPulpPull(object):
                 with pytest.raises(Exception):
                     plugin.run()
                 if manifest_list_warn:
-                    assert "Expected schema 2 manifest list" in caplog.text()
+                    assert "Expected schema 2 manifest list" in caplog.text
         else:
             if expect_success:
                 media_types = plugin.run()
@@ -657,17 +657,17 @@ class TestPostPulpPull(object):
                 with pytest.raises(Exception):
                     plugin.run()
                 if manifest_list_warn:
-                    assert "Expected schema 2 manifest list" in caplog.text()
+                    assert "Expected schema 2 manifest list" in caplog.text
                 elif manifest2_warn:
-                    assert "Expected schema 2 manifest" in caplog.text()
+                    assert "Expected schema 2 manifest" in caplog.text
 
         if media_types:
             expected_media_types = [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]
             if not manifest_list_only:
                 expected_media_types.append(MEDIA_TYPE_DOCKER_V2_SCHEMA1)
                 expected_media_types.append(MEDIA_TYPE_DOCKER_V2_SCHEMA2)
-                assert "V2 schema 2 digest found, leaving image ID unchanged" in caplog.text()
+                assert "V2 schema 2 digest found, leaving image ID unchanged" in caplog.text
             else:
-                assert "Only V2 schema 2 manifest list is expected, " in caplog.text()
+                assert "Only V2 schema 2 manifest list is expected, " in caplog.text
 
             assert set(media_types) == set(expected_media_types)

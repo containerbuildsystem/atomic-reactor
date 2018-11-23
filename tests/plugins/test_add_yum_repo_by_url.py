@@ -99,7 +99,7 @@ def test_multiple_repourls(caplog, base_from_scratch, parent_images, inject_prox
         assert AddYumRepoByUrlPlugin.key is not None
         assert workflow.files == {}
         log_msg = "Skipping add yum repo by url: unsupported for FROM-scratch images"
-        assert log_msg in caplog.text()
+        assert log_msg in caplog.text
     else:
         repo_content = repocontent
         if inject_proxy:

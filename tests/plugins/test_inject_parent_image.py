@@ -104,7 +104,6 @@ def workflow():
     return workflow
 
 
-@pytest.fixture()
 def koji_session(koji_build_id=KOJI_BUILD_ID, koji_build_info=USE_DEFAULT_KOJI_BUILD_INFO,
                  archives=USE_DEFAULT_ARCHIVES):
     if archives == USE_DEFAULT_ARCHIVES:
@@ -129,8 +128,9 @@ def koji_session(koji_build_id=KOJI_BUILD_ID, koji_build_info=USE_DEFAULT_KOJI_B
 class TestKojiParent(object):
 
     @pytest.mark.parametrize('base_from_scratch', [True, False])  # noqa
-    def test_parent_image_injected(self, caplog, workflow, koji_session, reactor_config_map,
+    def test_parent_image_injected(self, caplog, workflow, reactor_config_map,
                                    base_from_scratch):
+        koji_session()
         previous_parent_image = workflow.builder.base_image
         workflow.builder.base_from_scratch = base_from_scratch
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
@@ -139,7 +139,7 @@ class TestKojiParent(object):
             assert str(previous_parent_image) == str(workflow.builder.base_image)
 
             log_msg = "from scratch can't inject parent image"
-            assert log_msg in caplog.text()
+            assert log_msg in caplog.text
         else:
             assert str(previous_parent_image) != str(workflow.builder.base_image)
 
@@ -149,7 +149,8 @@ class TestKojiParent(object):
         self.run_plugin_with_args(workflow, plugin_args={'koji_parent_build': koji_build},
                                   reactor_config_map=reactor_config_map)
 
-    def test_unknown_koji_build(self, workflow, koji_session, reactor_config_map):  # noqa
+    def test_unknown_koji_build(self, workflow, reactor_config_map):  # noqa
+        koji_session()
         unknown_build = KOJI_BUILD_ID + 1
         with pytest.raises(PluginFailedException) as exc_info:
             self.run_plugin_with_args(workflow, plugin_args={'koji_parent_build': unknown_build},
@@ -229,7 +230,8 @@ class TestKojiParent(object):
                 self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
             assert 'differs from repository for existing parent image' in str(exc_info.value)
 
-    def test_koji_ssl_certs_used(self, tmpdir, workflow, koji_session, reactor_config_map):  # noqa
+    def test_koji_ssl_certs_used(self, tmpdir, workflow, reactor_config_map):  # noqa
+        session = koji_session()
         serverca = tmpdir.join('serverca')
         serverca.write('spam')
         expected_ssl_login_args = {
@@ -237,7 +239,7 @@ class TestKojiParent(object):
             'serverca': str(serverca),
             'ca': None,
         }
-        (flexmock(koji_session)
+        (flexmock(session)
             .should_receive('ssl_login')
             .with_args(**expected_ssl_login_args)
             .and_return(True)

@@ -194,12 +194,12 @@ class TestCLISuite(object):
             "--verbose",
             "inside-build",
         ]
-        with caplog.atLevel(logging.INFO):
+        with caplog.at_level(logging.INFO):
             with pytest.raises(RuntimeError):
                 self.exec_cli(command)
 
         # first message should be 'log encoding: <encoding>'
-        match = caplog.records()[0].message.split(':')
+        match = caplog.records[0].message.split(':')
         if not match:
             raise RuntimeError
 

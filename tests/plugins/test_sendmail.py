@@ -1106,7 +1106,7 @@ class TestSendMailPlugin(object):
                                                                            ['foo/bar:baz',
                                                                             'foo/bar:spam']))
         p.run()
-        assert 'no valid addresses in requested addresses. Doing nothing' in caplog.text()
+        assert 'no valid addresses in requested addresses. Doing nothing' in caplog.text
 
     def test_run_does_nothing_if_conditions_not_met(self, reactor_config_map):  # noqa
         class WF(object):

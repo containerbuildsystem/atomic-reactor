@@ -260,6 +260,7 @@ def test_ensure_repos(auto_publish, unsupported):
 ])
 def test_upload(unsupported, caplog):
     log = logging.getLogger("tests.test_pulp_util")
+    caplog.set_level(logging.DEBUG, logger='tests.test_pulp_util')
     pulp_registry_name = 'registry.example.com'
     testfile = 'foo'
     upload_file = 'test_file'
@@ -292,11 +293,11 @@ def test_upload(unsupported, caplog):
 
     handler.upload(upload_file, repo_id)
 
-    assert "Uploading %s to %s" % (upload_file, repo_id) in caplog.text()
+    assert "Uploading %s to %s" % (upload_file, repo_id) in caplog.text
 
     if unsupported:
         assert "Falling back to uploading %s to redhat-everything repo" %\
-               upload_file in caplog.text()
+               upload_file in caplog.text
 
 
 class TestLockedPulpRepository(object):

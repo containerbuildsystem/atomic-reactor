@@ -192,7 +192,7 @@ class TestCheckRebuild(object):
             assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] is False
             assert not is_rebuild(workflow)
             log_msg = "Skipping check and set rebuild: unsupported for FROM-scratch images"
-            assert log_msg in caplog.text()
+            assert log_msg in caplog.text
         else:
             assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] is True
             assert is_rebuild(workflow)

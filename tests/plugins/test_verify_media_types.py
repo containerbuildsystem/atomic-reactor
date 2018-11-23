@@ -523,7 +523,7 @@ class TestVerifyImageTypes(object):
         plugin = VerifyMediaTypesPlugin(tasker, workflow)
         results = plugin.run()
         assert not results
-        assert "pulp registry configure, verify_media_types should not run" in caplog.text()
+        assert "pulp registry configure, verify_media_types should not run" in caplog.text
 
     """
     Build was unsuccessful, return an empty list

@@ -512,14 +512,14 @@ def test_tag_and_push_plugin_oci(
         }]
     )
 
-    with caplog.atLevel(logging.DEBUG):
+    with caplog.at_level(logging.DEBUG):
         if fail_push:
             with pytest.raises(PluginFailedException):
                 output = runner.run()
         else:
             output = runner.run()
 
-    for r in caplog.records():
+    for r in caplog.records:
         assert 'mypassword' not in r.getMessage()
 
     if not fail_push:
