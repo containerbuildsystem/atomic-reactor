@@ -82,4 +82,4 @@ class TestCompress(object):
         assert metadata['type'] == IMAGE_TYPE_DOCKER_ARCHIVE
         assert 'uncompressed_size' in metadata
         assert isinstance(metadata['uncompressed_size'], integer_types)
-        assert ", ratio: " in caplog.text()
+        assert ", ratio: " in caplog.text

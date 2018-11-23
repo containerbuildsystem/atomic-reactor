@@ -120,9 +120,9 @@ def test_image_name_format():
 def test_image_name_parse_image_name(caplog):
     warning = 'Attempting to parse ImageName test:latest as an ImageName'
     test = ImageName.parse("test")
-    assert warning not in caplog.text()
+    assert warning not in caplog.text
     image_test = ImageName.parse(test)
-    assert warning in caplog.text()
+    assert warning in caplog.text
     assert test is image_test
 
 
@@ -610,7 +610,7 @@ def test_get_manifest_digests(tmpdir, caplog, image, registry, insecure, creds,
         expected_result['v2_list'] = True
 
     # Only capture errors, since we want to be sure none are reported
-    with caplog.atLevel(logging.ERROR):
+    with caplog.at_level(logging.ERROR, logger='atomic_reactor'):
         if expected_versions:
             actual_digests = get_manifest_digests(**kwargs)
 
@@ -628,7 +628,7 @@ def test_get_manifest_digests(tmpdir, caplog, image, registry, insecure, creds,
             get_manifest_digests(**kwargs)
 
     # there should be no errors reported
-    assert not caplog.records()
+    assert not caplog.records
 
 
 @pytest.mark.parametrize('has_content_type_header', [
@@ -958,7 +958,7 @@ def test_df_parser_parent_env_wf(tmpdir, caplog, env_arg):
 
     if isinstance(env_arg, list) and ('=' not in env_arg[0]):
         expected_log_message = "Unable to parse all of Parent Config ENV"
-        assert expected_log_message in [l.getMessage() for l in caplog.records()]
+        assert expected_log_message in [l.getMessage() for l in caplog.records]
     elif isinstance(env_arg, dict):
         assert df.labels.get('label') == ('foobar ' + env_arg['test_env'])
     else:
@@ -1445,7 +1445,7 @@ def test_get_platforms_in_limits(tmpdir, platforms, config_dict, result, valid, 
         workflow = MockWorkflow(str(tmpdir))
         final_platforms = get_platforms_in_limits(workflow, platforms)
         if configured_same_not_and_only(config_dict):
-            assert 'only and not platforms are the same' in caplog.text()
+            assert 'only and not platforms are the same' in caplog.text
         assert final_platforms == set(result)
     elif valid:
         workflow = MockWorkflow(str(tmpdir))

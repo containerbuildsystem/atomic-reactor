@@ -322,4 +322,4 @@ def test_parent_images_to_str(tmpdir, caplog):
         "fedora:latest": "spam:latest"
     }
     assert b.parent_images_to_str() == expected_results
-    assert "None in: base bacon has parent None" in caplog.text()
+    assert "None in: base bacon has parent None" in caplog.text

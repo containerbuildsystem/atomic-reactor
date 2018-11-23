@@ -225,7 +225,7 @@ class TestKoji(object):
 
         if base_from_scratch and not parent_images:
             log_msg = "from scratch single stage can't add repos from koji target"
-            assert log_msg in caplog.text()
+            assert log_msg in caplog.text
             return
         if not expect_success:
             return

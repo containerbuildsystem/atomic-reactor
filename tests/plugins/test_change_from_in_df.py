@@ -112,7 +112,7 @@ def test_update_base_image_inspect_broken(tmpdir, caplog, docker_tasker):
     with pytest.raises(NoIdInspection):
         ChangeFromPlugin(docker_tasker, workflow).run()
     assert dfp.content == df_content  # nothing changed
-    assert "missing in inspection" in caplog.text()
+    assert "missing in inspection" in caplog.text
 
 
 @pytest.mark.parametrize('organization', [None, 'my_organization'])  # noqa

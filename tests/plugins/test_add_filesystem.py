@@ -394,7 +394,8 @@ def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_err
         }]
     )
 
-    with caplog.atLevel(logging.INFO), pytest.raises(PluginFailedException) as exc:
+    with caplog.at_level(logging.INFO,
+                         logger='atomic_reactor'), pytest.raises(PluginFailedException) as exc:
         runner.run()
 
     assert task_result in str(exc)
@@ -403,16 +404,16 @@ def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_err
 
     if build_cancel:
         msg = "Build was canceled, canceling task %s" % FILESYSTEM_TASK_ID
-        assert msg in [x.message for x in caplog.records()]
+        assert msg in [x.message for x in caplog.records]
 
         if error_during_cancel:
             # We're checking last but one message, as the last one is
             # 'plugin 'add_filesystem' raised an exception'
             assert "Exception while canceling a task (ignored): Exception("\
-                in caplog.records()[-2].message
+                in caplog.records[-2].message
         else:
             msg = "task %s canceled" % FILESYSTEM_TASK_ID
-            assert msg in [x.message for x in caplog.records()]
+            assert msg in [x.message for x in caplog.records]
 
 
 # with a task_id is the new standard, None is legacy-mode support

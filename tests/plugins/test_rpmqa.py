@@ -91,7 +91,7 @@ def test_rpmqa_plugin(caplog, docker_tasker, base_from_scratch, remove_container
     results = runner.run()
     if base_from_scratch:
         log_msg = "from scratch can't run rpmqa"
-        assert log_msg in caplog.text()
+        assert log_msg in caplog.text
         assert results[PostBuildRPMqaPlugin.key] is None
         assert workflow.image_components is None
     else:

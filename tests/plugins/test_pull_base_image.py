@@ -276,7 +276,7 @@ def test_pull_base_library(reactor_config_map, caplog):  # noqa
         )
     assert "not found" in str(exc.value)
     assert "RetryGeneratorException" in str(exc.value)
-    assert "trying" not in caplog.text()  # don't retry with "library/library-only:latest"
+    assert "trying" not in caplog.text  # don't retry with "library/library-only:latest"
 
 
 def test_pull_base_base_parse(reactor_config_map, inspect_only):  # noqa
@@ -426,7 +426,7 @@ class TestValidateBaseImage(object):
                                     inspect_only=False,
                                     workflow_callback=self.prepare,
                                     check_platforms=True)
-        assert log_message in caplog.text()
+        assert log_message in caplog.text
 
     def test_expected_platforms_unknown(self, caplog):
 
@@ -442,7 +442,7 @@ class TestValidateBaseImage(object):
                                     inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
-        assert log_message in caplog.text()
+        assert log_message in caplog.text
 
     def test_single_platform_build(self, caplog):
 
@@ -457,7 +457,7 @@ class TestValidateBaseImage(object):
                                     inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
-        assert log_message in caplog.text()
+        assert log_message in caplog.text
 
     def test_registry_undefined(self, caplog):
         def workflow_callback(workflow):
@@ -472,7 +472,7 @@ class TestValidateBaseImage(object):
                                     inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
-        assert log_message in caplog.text()
+        assert log_message in caplog.text
 
     def test_platform_descriptors_undefined(self, caplog):
         def workflow_callback(workflow):
@@ -487,7 +487,7 @@ class TestValidateBaseImage(object):
                                     inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
-        assert log_message in caplog.text()
+        assert log_message in caplog.text
 
     def test_manifest_list_with_no_response(self, caplog):
         def workflow_callback(workflow):
@@ -658,8 +658,8 @@ class TestValidateBaseImage(object):
         new_image = "'registry.example.com/busybox@sha256:654321'"
         pulling_msg = "pulling image " + new_image + " from registry"
         tagging_msg = "tagging image " + new_image + " as '" + UNIQUE_ID
-        assert pulling_msg in caplog.text()
-        assert tagging_msg in caplog.text()
+        assert pulling_msg in caplog.text
+        assert tagging_msg in caplog.text
 
     def prepare(self, workflow):
         # Setup expected platforms
