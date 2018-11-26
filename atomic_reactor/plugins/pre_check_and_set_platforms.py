@@ -82,4 +82,7 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
                 self.log.warning(
                     "No cluster found for platform '%s' in reactor config map, skipping", p)
 
-        return get_platforms_in_limits(self.workflow, enabled_platforms)
+        final_platforms = get_platforms_in_limits(self.workflow, enabled_platforms)
+
+        self.log.info("platforms in limits : %s", final_platforms)
+        return final_platforms

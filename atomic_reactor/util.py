@@ -1560,6 +1560,7 @@ def get_platforms_in_limits(workflow, input_platforms=None):
 
     data = workflow.source.config.data
 
+    logger.info("%s contains: %s", REPO_CONTAINER_CONFIG, data)
     if data and 'platforms' in data and data['platforms']:
         excluded_platforms = set(make_list(data['platforms'].get('not', [])))
         only_platforms = set(make_list(data['platforms'].get('only', [])))
