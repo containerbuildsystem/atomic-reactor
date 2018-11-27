@@ -9,6 +9,8 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals
 
 import os
+from copy import deepcopy
+from textwrap import dedent
 
 try:
     import koji as koji
@@ -143,28 +145,30 @@ class TestBumpRelease(object):
         False
     ])
     @pytest.mark.parametrize('next_release', [
-        {'actual': '1', 'builds': [], 'expected': '1'},
-        {'actual': '1', 'builds': ['1'], 'expected': '2'},
-        {'actual': '1', 'builds': ['1', '2'], 'expected': '3'},
-        {'actual': '20', 'builds': ['19.1'], 'expected': '20'},
-        {'actual': '20', 'builds': ['20', '20.1'], 'expected': '21'},
-        {'actual': '20.1', 'builds': ['19.1'], 'expected': '20'},
-        {'actual': '20.1', 'builds': ['19.1', '20'], 'expected': '21'},
-        {'actual': '20.1', 'builds': ['20'], 'expected': '21'},
-        {'actual': '20.1', 'builds': ['20', '20.1'], 'expected': '21'},
-        {'actual': '20.2', 'builds': ['20', '20.1'], 'expected': '21'},
-        {'actual': '20.2', 'builds': ['20', '20.1', '20.2'], 'expected': '21'},
-        {'actual': '20.fc25', 'builds': ['20.fc24'], 'expected': '20.fc25'},
-        {'actual': '20.fc25', 'builds': ['20.fc25'], 'expected': '21.fc25'},
+        {'actual': '1', 'builds': [], 'expected': '1', 'scratch': False},
+        {'actual': '1', 'builds': ['1'], 'expected': '2', 'scratch': False},
+        {'actual': '1', 'builds': ['1', '2'], 'expected': '3', 'scratch': False},
+        {'actual': '20', 'builds': ['19.1'], 'expected': '20', 'scratch': False},
+        {'actual': '20', 'builds': ['20', '20.1'], 'expected': '21', 'scratch': False},
+        {'actual': '20.1', 'builds': ['19.1'], 'expected': '20', 'scratch': False},
+        {'actual': '20.1', 'builds': ['19.1', '20'], 'expected': '21', 'scratch': False},
+        {'actual': '20.1', 'builds': ['20'], 'expected': '21', 'scratch': False},
+        {'actual': '20.1', 'builds': ['20', '20.1'], 'expected': '21', 'scratch': False},
+        {'actual': '20.2', 'builds': ['20', '20.1'], 'expected': '21', 'scratch': False},
+        {'actual': '20.2', 'builds': ['20', '20.1', '20.2'], 'expected': '21', 'scratch': False},
+        {'actual': '20.fc25', 'builds': ['20.fc24'], 'expected': '20.fc25', 'scratch': False},
+        {'actual': '20.fc25', 'builds': ['20.fc25'], 'expected': '21.fc25', 'scratch': False},
         {'actual': '20.foo.fc25',
          'builds': ['20.foo.fc25'],
-         'expected': '21.foo.fc25'},
+         'expected': '21.foo.fc25', 'scratch': False},
         {'actual': '20.1.fc25',
          'builds': ['20.fc25', '20.1.fc25'],
-         'expected': '21.fc25'},
+         'expected': '21.fc25', 'scratch': False},
         {'actual': '20.1.fc25',
          'builds': ['20.fc25', '20.1.fc25', '21.fc25'],
-         'expected': '22.fc25'},
+         'expected': '22.fc25', 'scratch': False},
+        {'build_name': False, 'expected': '1', 'scratch': True},
+        {'build_name': True, 'expected': 'scratch-123456', 'scratch': True},
     ])
     def test_increment(self, tmpdir, component, version, next_release,
                        include_target, reactor_config_map):
@@ -206,6 +210,36 @@ class TestBumpRelease(object):
                               include_target=include_target,
                               certs=True,
                               reactor_config_map=reactor_config_map)
+
+        new_environ = deepcopy(os.environ)
+        new_environ["BUILD"] = dedent('''\
+            {
+              "metadata": {
+              "labels": {}
+              }
+            }
+            ''')
+        if next_release['scratch']:
+            new_environ = deepcopy(os.environ)
+            new_environ["BUILD"] = dedent('''\
+                {
+                  "metadata": {
+                    "labels": {"scratch": "true"}
+                  }
+                }
+                ''')
+            if next_release['build_name']:
+                new_environ["BUILD"] = dedent('''\
+                    {
+                      "metadata": {
+                        "name": "scratch-123456",
+                        "labels": {"scratch": "true"}
+                      }
+                    }
+                    ''')
+        flexmock(os)
+        os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
+
         plugin.run()
 
         for file_path, expected in [(session.cert_path, 'cert'),
