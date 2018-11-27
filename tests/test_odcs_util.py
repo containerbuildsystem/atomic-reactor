@@ -82,12 +82,13 @@ def compose_json(state, state_name, source_type='module', source=MODULE_NSV,
     ['x86_64'],
     ['breakfast', 'lunch'],
 ))
-@pytest.mark.parametrize(('source', 'source_type', 'packages', 'sigkeys'), (
-    (MODULE_NSV, 'module', None, None),
-    ('my-tag', 'tag', ['spam', 'bacon', 'eggs'], None),
-    ('my-tag', 'tag', ['spam', 'bacon', 'eggs'], ['B456', 'R123']),
-    ('my-tag', 'tag', ['spam', 'bacon', 'eggs'], ""),
-    ('my-tag', 'tag', ['spam', 'bacon', 'eggs'], []),
+@pytest.mark.parametrize(('source', 'source_type', 'packages', 'expected_packages', 'sigkeys'), (
+    (MODULE_NSV, 'module', None, None, None),
+    ('my-tag', 'tag', None, [], None),
+    ('my-tag', 'tag', ['spam', 'bacon', 'eggs'], ['spam', 'bacon', 'eggs'], None),
+    ('my-tag', 'tag', ['spam', 'bacon', 'eggs'], ['spam', 'bacon', 'eggs'], ['B456', 'R123']),
+    ('my-tag', 'tag', ['spam', 'bacon', 'eggs'], ['spam', 'bacon', 'eggs'], ""),
+    ('my-tag', 'tag', ['spam', 'bacon', 'eggs'], ['spam', 'bacon', 'eggs'], []),
 ))
 @pytest.mark.parametrize('flags', (
     None,
@@ -101,8 +102,8 @@ def compose_json(state, state_name, source_type='module', source=MODULE_NSV,
     (['breakfast', 'lunch'], ['some', 'random'], ['some', 'random']),
     (['breakfast', 'lunch'], [], MULTILIB_METHOD_DEFAULT)
 ))
-def test_create_compose(odcs_client, source, source_type, packages, sigkeys, arches, flags,
-                        multilib_arches, multilib_method, expected_method):
+def test_create_compose(odcs_client, source, source_type, packages, expected_packages, sigkeys,
+                        arches, flags, multilib_arches, multilib_method, expected_method):
 
     def handle_composes_post(request):
         assert_request_token(request, odcs_client.session)
@@ -115,7 +116,7 @@ def test_create_compose(odcs_client, source, source_type, packages, sigkeys, arc
 
         assert body_json['source']['type'] == source_type
         assert body_json['source']['source'] == source
-        assert body_json['source'].get('packages') == packages
+        assert body_json['source'].get('packages') == expected_packages
         assert body_json['source'].get('sigkeys') == sigkeys
         assert body_json.get('flags') == flags
         assert body_json.get('arches') == arches

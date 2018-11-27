@@ -76,8 +76,8 @@ class ODCSClient(object):
                 'source': source
             }
         }
-        if packages:
-            body['source']['packages'] = packages
+        if source_type == "tag":
+            body['source']['packages'] = packages or []
 
         if sigkeys is not None:
             body['source']['sigkeys'] = sigkeys
