@@ -181,6 +181,16 @@ class PullBaseImagePlugin(PreBuildPlugin):
                     )
 
     def _get_image_for_different_arch(self, image, platform):
+        """Get image from random arch
+
+        This is a workaround for aarch64 platform, because orchestrator cannot
+        get this arch from manifests lists so we have to provide digest of a
+        random platform to get image metadata for orchestrator.
+
+        For standard platforms like x86_64, ppc64le, ... this method returns
+        the corresponding digest
+
+        """
         new_image = None
         parents_digests = self.workflow.builder.parent_images_digests
         try:
