@@ -290,6 +290,34 @@ class TestResolveComposes(object):
 
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
+    @pytest.mark.parametrize(('with_modules'), (True, False))
+    def test_request_compose_empty_packages(self, workflow, reactor_config_map, with_modules):
+        repo_config = dedent("""\
+            compose:
+                packages:
+            """)
+        if with_modules:
+            repo_config = dedent("""\
+                compose:
+                    packages:
+                    modules:
+                    - spam_modules
+                    - bacon_modules
+                    - eggs_modules
+                """)
+        mock_repo_config(workflow._tmpdir, repo_config)
+
+        (flexmock(ODCSClient)
+            .should_receive('start_compose')
+            .with_args(source_type='tag',
+                       source='test-tag',
+                       sigkeys=['R123'],
+                       packages=None,
+                       arches=['x86_64'])
+            .and_return(ODCS_COMPOSE))
+
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
+
     @pytest.mark.parametrize(('compose_arches', 'pulp_arches', 'multilib_arches',
                               'request_multilib'), [
         (['i686'], None, None, None),
@@ -765,11 +793,6 @@ class TestResolveComposes(object):
     @pytest.mark.parametrize(('config', 'error_message'), (
         (dedent("""\
             compose:
-                packages: []
-            """), 'Nothing to compose'),
-
-        (dedent("""\
-            compose:
                 modules: []
             """), 'Nothing to compose'),
 
@@ -791,6 +814,15 @@ class TestResolveComposes(object):
         mock_repo_config(workflow._tmpdir, config)
         self.run_plugin_with_args(workflow, expect_error=error_message,
                                   reactor_config_map=reactor_config_map)
+
+    def test_empty_compose_request(self, caplog, workflow, reactor_config_map):
+        config = dedent("""\
+            compose:
+            """)
+        mock_repo_config(workflow._tmpdir, config)
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
+        msg = 'Aborting plugin execution: "compose" config not set and compose_ids not given'
+        assert msg in (x.message for x in caplog.records)
 
     def test_only_pulp_repos(self, workflow, reactor_config_map):
         mock_repo_config(workflow._tmpdir,

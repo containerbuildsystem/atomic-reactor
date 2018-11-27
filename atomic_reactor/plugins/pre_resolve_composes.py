@@ -315,6 +315,7 @@ class ComposeConfig(object):
 
     def __init__(self, data, pulp_data, odcs_config, koji_tag=None, arches=None):
         data = data or {}
+        self.use_packages = 'packages' in data
         self.packages = data.get('packages', [])
         self.modules = data.get('modules', [])
         self.pulp = {}
@@ -352,7 +353,7 @@ class ComposeConfig(object):
         self.validate_for_request()
 
         requests = []
-        if self.packages:
+        if self.use_packages:
             requests.append(self.render_packages_request())
         elif self.modules:
             requests.append(self.render_modules_request())
@@ -398,7 +399,7 @@ class ComposeConfig(object):
 
     def validate_for_request(self):
         """Verify enough information is available for requesting compose."""
-        if not self.packages and not self.modules and not self.pulp:
+        if not self.use_packages and not self.modules and not self.pulp:
             raise ValueError("Nothing to compose (no packages, modules, or enabled pulp repos)")
 
         if self.packages and self.modules:
