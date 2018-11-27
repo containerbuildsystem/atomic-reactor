@@ -13,6 +13,7 @@ from atomic_reactor.util import df_parser
 from osbs.utils import Labels
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 from atomic_reactor.constants import PLUGIN_BUMP_RELEASE_KEY
+from atomic_reactor.util import get_build_json, is_scratch_build
 
 
 class BumpReleasePlugin(PreBuildPlugin):
@@ -137,6 +138,9 @@ class BumpReleasePlugin(PreBuildPlugin):
 
         if self.append:
             next_release = self.get_next_release_append(component, version, release)
+        elif is_scratch_build():
+            metadata = get_build_json().get("metadata", {})
+            next_release = metadata.get("name", "1")
         else:
             next_release = self.get_next_release_standard(component, version)
 
