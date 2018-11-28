@@ -221,10 +221,9 @@ class TestKojiParent(object):
 
         if special_base == 'scratch':
             workflow.builder.set_base_image(SCRATCH_FROM)
-            flexmock(workflow.builder, base_image_inspect={})
         elif special_base == 'custom':
             workflow.builder.set_base_image('koji/image-build')
-            flexmock(workflow.builder, base_image_inspect={})
+            parent_images[ImageName.parse('koji/image-build')] = None
         else:
             workflow.builder.set_base_image('basetag')
             workflow.builder.base_image_inspect.update(image_inspects['base'])

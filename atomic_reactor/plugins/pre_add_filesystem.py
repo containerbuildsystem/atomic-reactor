@@ -32,7 +32,7 @@ from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 from atomic_reactor.koji_util import TaskWatcher, stream_task_output
 from atomic_reactor.yum_util import YumRepo
-from atomic_reactor.util import get_platforms, df_parser
+from atomic_reactor.util import get_platforms, df_parser, base_image_is_custom, ImageName
 from atomic_reactor import util
 from osbs.utils import Labels
 
@@ -358,21 +358,46 @@ class AddFilesystemPlugin(PreBuildPlugin):
     def stream_filesystem(self, task_id, filesystem_regex):
         filesystem = self.download_filesystem(task_id, filesystem_regex)
 
-        new_base_image = self.import_base_image(filesystem)
-        self.workflow.builder.set_base_image(new_base_image)
-        defer_removal(self.workflow, new_base_image)
+        new_parent_image = self.import_base_image(filesystem)
+        new_imagename = ImageName.parse(new_parent_image)
 
-        return new_base_image
+        if self.workflow.builder.custom_base_image:
+            self.workflow.builder.set_base_image(new_imagename)
 
-    def run(self):
+        for parent in self.workflow.builder.parent_images.keys():
+            if base_image_is_custom(parent.to_str()):
+                self.workflow.builder.parent_images[parent] = new_imagename
+                break
+
+        defer_removal(self.workflow, new_parent_image)
+
+        return new_parent_image
+
+    def get_image_build_conf(self):
+        image_build_conf = None
         base_image = self.workflow.builder.base_image
-        if not self.workflow.builder.custom_base_image:
-            self.log.info('Base image not supported: %s', base_image)
-            return
 
-        image_build_conf = base_image.tag
+        if self.workflow.builder.custom_base_image:
+            image_build_conf = base_image.tag
+        # when custom base image isn't last parent, get tag (configuration file)
+        # from latest specified custom base image
+        else:
+            for parent in reversed(self.workflow.builder.parents_ordered):
+                if base_image_is_custom(parent):
+                    parent_image = ImageName.parse(parent)
+                    image_build_conf = parent_image.tag
+                    break
+
         if not image_build_conf or image_build_conf == 'latest':
             image_build_conf = 'image-build.conf'
+        return image_build_conf
+
+    def run(self):
+        if not self.workflow.builder.custom_parent_image:
+            self.log.info('Nothing to do for non-custom base images')
+            return
+
+        image_build_conf = self.get_image_build_conf()
 
         self.session = get_koji_session(self.workflow, self.koji_fallback)
 

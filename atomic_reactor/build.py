@@ -157,7 +157,12 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         self.built_image_info = None
         self.image = ImageName.parse(image)
         self.base_from_scratch = False
+        # last parent in Dockerfile is custom base image,
+        # used for plugins custom base image handling
         self.custom_base_image = False
+        # any parent in Dockerfile is custom base image,
+        # used for plugins custom base image handling
+        self.custom_parent_image = False
 
         # get info about base image from dockerfile
         build_file_path, build_file_dir = self.source.get_build_file_path()
@@ -187,14 +192,23 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         self.set_base_image(base)
         logger.debug("base image specified in dockerfile = '%s'", self.base_image)
         self.parent_images.clear()
+        custom_base_images = set()
         for image in dfp.parent_images:
             image_name = ImageName.parse(image)
             if base_image_is_scratch(image_name.get_repo()):
                 image_name.tag = None
                 self.parents_ordered.append(image_name.to_str())
                 continue
-            self.parents_ordered.append(image_name.to_str())
+            image_str = image_name.to_str()
+            if base_image_is_custom(image_str):
+                custom_base_images.add(image_str)
+                self.custom_parent_image = True
+            self.parents_ordered.append(image_str)
             self.parent_images[image_name] = None
+
+        if len(custom_base_images) > 1:
+            raise NotImplementedError("multiple different custom base images"
+                                      " aren't allowed in Dockerfile")
 
         # validate user has not specified COPY --from=image
         builders = []
@@ -256,9 +270,10 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         :return: dict
         """
         if self._base_image_inspect is None:
+
             if self.base_from_scratch:
                 self._base_image_inspect = {}
-            elif self.parents_pulled:
+            elif self.parents_pulled or self.custom_base_image:
                 try:
                     self._base_image_inspect = self.tasker.inspect_image(self.base_image)
 
