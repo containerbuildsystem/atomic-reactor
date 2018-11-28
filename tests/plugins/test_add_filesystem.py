@@ -80,10 +80,14 @@ class MockSource(object):
 
 
 class X(object):
-    image_id = "xxx"
-    base_image = ImageName.parse("koji/image-build")
-    custom_base_image = True
-    set_base_image = flexmock()
+    def __init__(self):
+        self.image_id = "xxx"
+        self.base_image = ImageName.parse("koji/image-build")
+        self.parent_images = {self.base_image: None}
+        self.parents_ordered = "koji/image-build"
+        self.custom_base_image = True
+        self.custom_parent_image = True
+        self.set_base_image = flexmock()
 
 
 def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
@@ -111,7 +115,6 @@ def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
 
         return FILESYSTEM_TASK_ID
 
-    flexmock(util).should_receive('is_scratch_build').and_return(scratch)
     session.should_receive('buildImageOz').replace_with(_mockBuildImageOz)
 
     session.should_receive('taskFinished').and_return(True)
@@ -190,10 +193,11 @@ def mock_image_build_file(tmpdir, contents=None):
     return file_path
 
 
-def mock_workflow(tmpdir, dockerfile=DEFAULT_DOCKERFILE):
+def mock_workflow(tmpdir, dockerfile=DEFAULT_DOCKERFILE, scratch=False):
+    flexmock(util).should_receive('is_scratch_build').and_return(scratch)
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     mock_source = MockSource(tmpdir)
-    setattr(workflow, 'builder', X)
+    setattr(workflow, 'builder', X())
     workflow.builder.source = mock_source
     flexmock(workflow, source=mock_source)
 
@@ -208,9 +212,8 @@ def mock_workflow(tmpdir, dockerfile=DEFAULT_DOCKERFILE):
 def create_plugin_instance(tmpdir, kwargs=None, scratch=False, reactor_config_map=False,  # noqa
                            architectures=None, koji_target=KOJI_TARGET,
                            dockerfile=DEFAULT_DOCKERFILE):
-    flexmock(util).should_receive('is_scratch_build').and_return(scratch)
     tasker = flexmock()
-    workflow = mock_workflow(tmpdir, dockerfile=dockerfile)
+    workflow = mock_workflow(tmpdir, dockerfile=dockerfile, scratch=scratch)
 
     if architectures:
         workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(architectures)
@@ -244,7 +247,7 @@ def test_add_filesystem_plugin_generated(tmpdir, docker_tasker, scratch, reactor
     if MOCK:
         mock_docker()
 
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, scratch=scratch)
     task_id = FILESYSTEM_TASK_ID
     mock_koji_session(scratch=scratch)
     mock_image_build_file(str(tmpdir))
@@ -281,7 +284,7 @@ def test_add_filesystem_plugin_legacy(tmpdir, docker_tasker, scratch, reactor_co
     if MOCK:
         mock_docker()
 
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, scratch=scratch)
     mock_koji_session(scratch=scratch)
     mock_image_build_file(str(tmpdir))
 
@@ -671,20 +674,40 @@ def test_build_filesystem_from_task_id(tmpdir, prefix, architecture, suffix, rea
     assert match.group(0) == pattern
 
 
+@pytest.mark.parametrize(('parents', 'skip_plugin'), [
+    (('koji/image-build'), False),
+    (('non-custom-image'), True),
+    (('scratch', 'non-custom-image'), True),
+    (('non-custom-image', 'koji/image-build'), False),
+    (('non-custom-image', 'koji/image-build', 'non-custom-image'), False),
+    (('non-custom-image', 'koji/image-build:wont_be_used', 'koji/image-build', 'non-custom-image'),
+     False),
+])
 @pytest.mark.parametrize(('architecture', 'architectures', 'download_filesystem'), [
     ('x86_64', None, True),
     (None, ['x86_64'], False),
     ('x86_64', ['x86_64', 'aarch64'], False),
     (None, None, True),
 ])
-def test_image_download(tmpdir, docker_tasker, architecture, architectures, download_filesystem,
-                        reactor_config_map):
+def test_image_download(tmpdir, docker_tasker, parents, skip_plugin, architecture,
+                        architectures, download_filesystem, reactor_config_map, caplog):
     if MOCK:
         mock_docker()
 
     workflow = mock_workflow(tmpdir)
-    mock_koji_session(download_filesystem=download_filesystem)
+    if not skip_plugin:
+        mock_koji_session(download_filesystem=download_filesystem)
     mock_image_build_file(str(tmpdir))
+
+    workflow.builder.base_image = ImageName.parse(parents[-1])
+    workflow.builder.parents_ordered = parents
+    workflow.builder.custom_parent_image = 'koji/image-build' in parents
+    workflow.builder.custom_base_image = 'koji/image-build' == parents[-1]
+    workflow.builder.parent_images = {}
+    for image in parents:
+        if image == 'scratch':
+            continue
+        workflow.builder.parent_images[ImageName.parse(image)] = None
 
     if architectures:
         workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(architectures)
@@ -706,6 +729,12 @@ def test_image_download(tmpdir, docker_tasker, architecture, architectures, down
 
     results = runner.run()
     plugin_result = results[PLUGIN_ADD_FILESYSTEM_KEY]
+
+    if skip_plugin:
+        message = 'Nothing to do for non-custom base images'
+        assert message in caplog.text
+        assert plugin_result is None
+        return
 
     assert 'base-image-id' in plugin_result
     assert 'filesystem-koji-task-id' in plugin_result

@@ -22,7 +22,7 @@ import platform
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (get_build_json, get_manifest_list,
                                  get_config_from_registry, ImageName,
-                                 get_platforms)
+                                 get_platforms, base_image_is_custom)
 from atomic_reactor.core import RetryGeneratorException
 from atomic_reactor.plugins.pre_reactor_config import (get_source_registry,
                                                        get_platform_to_goarch_mapping,
@@ -69,10 +69,6 @@ class PullBaseImagePlugin(PreBuildPlugin):
         """
         Pull parent images and retag them uniquely for this build.
         """
-        if self.workflow.builder.custom_base_image:
-            self.log.info("custom base image builds can't retag parent images")
-            return
-
         build_json = get_build_json()
         current_platform = platform.processor() or 'x86_64'
         self.manifest_list_cache = {}
@@ -80,6 +76,9 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
         for nonce, parent in enumerate(sorted(self.workflow.builder.parent_images.keys(),
                                               key=str)):
+            if base_image_is_custom(parent.to_str()):
+                continue
+
             image = parent
             is_base_image = False
             # original_base_image is an ImageName, so compare parent as an ImageName also

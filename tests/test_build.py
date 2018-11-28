@@ -18,7 +18,8 @@ from atomic_reactor.util import ImageName, df_parser
 from tests.constants import (
     LOCALHOST_REGISTRY, MOCK, SOURCE,
     DOCKERFILE_OK_PATH, DOCKERFILE_MULTISTAGE_PATH,
-    DOCKERFILE_MULTISTAGE_SCRATCH_PATH
+    DOCKERFILE_MULTISTAGE_SCRATCH_PATH, DOCKERFILE_MULTISTAGE_CUSTOM_PATH,
+    DOCKERFILE_MULTISTAGE_CUSTOM_BAD_PATH
 )
 from tests.util import requires_internet
 from flexmock import flexmock
@@ -39,7 +40,21 @@ with_all_sources = pytest.mark.parametrize('source_params', [
     {'provider': 'path', 'uri': 'file://' + DOCKERFILE_OK_PATH},
     {'provider': 'path', 'uri': 'file://' + DOCKERFILE_MULTISTAGE_PATH},
     {'provider': 'path', 'uri': 'file://' + DOCKERFILE_MULTISTAGE_SCRATCH_PATH},
+    {'provider': 'path', 'uri': 'file://' + DOCKERFILE_MULTISTAGE_CUSTOM_PATH},
 ])
+
+
+@requires_internet
+def test_different_custom_base_images(tmpdir):
+    if MOCK:
+        mock_docker()
+    source_params = {'provider': 'path', 'uri': 'file://' + DOCKERFILE_MULTISTAGE_CUSTOM_BAD_PATH,
+                     'tmpdir': str(tmpdir)}
+    s = get_source_instance_for(source_params)
+    with pytest.raises(NotImplementedError) as exc:
+        InsideBuilder(s, '')
+    message = "multiple different custom base images aren't allowed in Dockerfile"
+    assert message in str(exc.value)
 
 
 @requires_internet
@@ -132,7 +147,7 @@ def test_base_image_inspect(tmpdir, source_params, parents_pulled,
             assert built_inspect is not None
             assert built_inspect["Id"] is not None
     else:
-        if parents_pulled:
+        if parents_pulled or b.custom_base_image:
             response = flexmock(content="not found", status_code=404)
             (flexmock(docker.APIClient)
              .should_receive('inspect_image')
@@ -160,6 +175,8 @@ def test_base_image_inspect(tmpdir, source_params, parents_pulled,
     ),
 ])
 def test_get_base_image_info(tmpdir, source_params, image, will_raise):
+    if DOCKERFILE_MULTISTAGE_CUSTOM_PATH in source_params['uri']:
+        return
     if MOCK:
         mock_docker(provided_image_repotags=image)
 

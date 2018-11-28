@@ -12,6 +12,7 @@ from atomic_reactor.constants import (
     INSPECT_CONFIG, PLUGIN_KOJI_PARENT_KEY, BASE_IMAGE_KOJI_BUILD, PARENT_IMAGES_KOJI_BUILDS
 )
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
+from atomic_reactor.util import base_image_is_custom
 from osbs.utils import Labels
 
 import time
@@ -82,6 +83,9 @@ class KojiParentPlugin(PreBuildPlugin):
                 self._base_image_build = self.wait_for_parent_image_build(nvr)
 
         for img, local_tag in self.workflow.builder.parent_images.items():
+            if base_image_is_custom(img.to_str()):
+                continue
+
             nvr = self.detect_parent_image_nvr(local_tag) if local_tag else None
             if nvr == self._base_image_nvr:  # don't look up base image a second time
                 self._parent_builds[img] = self._base_image_build

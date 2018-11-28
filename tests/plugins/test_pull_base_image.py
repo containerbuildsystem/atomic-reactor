@@ -98,15 +98,17 @@ def teardown_function(function):
     sys.modules.pop('pre_pull_base_image', None)
 
 
-@pytest.mark.parametrize(('special_image', 'quit_early'), [
-    ('koji/image-build', True),
-    (SCRATCH_FROM, False)
+@pytest.mark.parametrize('add_another_parent', [True, False])
+@pytest.mark.parametrize(('special_image', 'change_base', 'skip_parent'), [
+    ('koji/image-build', False, 1),
+    (SCRATCH_FROM, False, 0),
+    (BASE_IMAGE_W_REGISTRY, True, 0)
 ])
-def test_pull_base_image_special(special_image, quit_early,
-                                 reactor_config_map, caplog, monkeypatch):
+def test_pull_base_image_special(add_another_parent, special_image, change_base, skip_parent,
+                                 reactor_config_map, monkeypatch):
     monkeypatch.setenv("BUILD", json.dumps({
         'metadata': {
-            'name': special_image,
+            'name': UNIQUE_ID,
         },
     }))
 
@@ -122,12 +124,13 @@ def test_pull_base_image_special(special_image, quit_early,
     builder = workflow.builder = MockBuilder()
     builder.parent_images = {}
     builder.set_base_image(special_image)
+    if add_another_parent:
+        builder.parent_images[BASE_IMAGE_NAME_W_SHA] = None
     parent_images = builder.parent_images
 
     expected = set([])
-    if not quit_early:
-        for nonce in range(len(parent_images)):
-            expected.add("{}:{}".format(UNIQUE_ID, nonce))
+    for nonce in range(len(parent_images) - skip_parent):
+        expected.add("{}:{}".format(UNIQUE_ID, nonce))
     for image in expected:
         assert not tasker.image_exists(image)
 
@@ -151,10 +154,10 @@ def test_pull_base_image_special(special_image, quit_early,
     )
 
     runner.run()
-    if quit_early:
-        msg = "custom base image builds can't retag parent images"
-        assert msg in caplog.text
-    assert workflow.builder.base_image.to_str().startswith(special_image)
+    if change_base:
+        assert workflow.builder.base_image.to_str().startswith(UNIQUE_ID)
+    else:
+        assert workflow.builder.base_image.to_str().startswith(special_image)
     for image in expected:
         assert tasker.image_exists(image)
         assert image in workflow.pulled_base_images
@@ -165,7 +168,6 @@ def test_pull_base_image_special(special_image, quit_early,
     for df, tagged in workflow.builder.parent_images.items():
         assert tagged is not None, "Did not tag parent image " + str(df)
     assert len(set(workflow.builder.parent_images.values())) == len(workflow.builder.parent_images)
-
 
 @pytest.mark.parametrize(('parent_registry',
                           'df_base',       # unique ID is always expected
