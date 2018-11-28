@@ -71,6 +71,9 @@ class InjectParentImage(PreBuildPlugin):
         if self.workflow.builder.base_from_scratch:
             self.log.info("from scratch can't inject parent image")
             return
+        if self.workflow.builder.custom_base_image:
+            self.log.info("custom base image builds can't inject parent image")
+            return
 
         self.find_repositories()
         self.select_new_parent_image()

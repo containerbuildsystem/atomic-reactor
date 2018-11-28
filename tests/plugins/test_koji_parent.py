@@ -77,6 +77,7 @@ class MockInsideBuilder(InsideBuilder):
         self.base_image = ImageName(repo='Fedora', tag='22')
         self.original_base_image = ImageName(repo='Fedora', tag='22')
         self.base_from_scratch = False
+        self.custom_base_image = False
         self.parent_images = {}  # don't want to handle inspections in most tests
         self._parent_images_inspect = {}
         self.image_id = 'image_id'
@@ -185,9 +186,9 @@ class TestKojiParent(object):
         self.run_plugin_with_args(workflow, expect_result=exp_result,
                                   reactor_config_map=reactor_config_map)
 
-    @pytest.mark.parametrize('base_from_scratch', [True, False])  # noqa: F811
+    @pytest.mark.parametrize('special_base', [False, 'scratch', 'custom'])  # noqa: F811
     def test_multiple_parent_images(self, workflow, koji_session, reactor_config_map,
-                                    base_from_scratch):
+                                    special_base):
         parent_images = {
             ImageName.parse('somebuilder'): ImageName.parse('b1tag'),
             ImageName.parse('otherbuilder'): ImageName.parse('b2tag'),
@@ -218,8 +219,11 @@ class TestKojiParent(object):
                 .and_return(koji_builds[img]))
             koji_expects[ImageName.parse(img)] = build
 
-        if base_from_scratch:
+        if special_base == 'scratch':
             workflow.builder.set_base_image(SCRATCH_FROM)
+            flexmock(workflow.builder, base_image_inspect={})
+        elif special_base == 'custom':
+            workflow.builder.set_base_image('koji/image-build')
             flexmock(workflow.builder, base_image_inspect={})
         else:
             workflow.builder.set_base_image('basetag')
@@ -230,7 +234,7 @@ class TestKojiParent(object):
             BASE_IMAGE_KOJI_BUILD: koji_builds['base'],
             PARENT_IMAGES_KOJI_BUILDS: koji_expects,
         }
-        if base_from_scratch:
+        if special_base:
             del expected[BASE_IMAGE_KOJI_BUILD]
 
         self.run_plugin_with_args(
