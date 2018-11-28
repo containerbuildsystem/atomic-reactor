@@ -33,6 +33,7 @@ class MockInsideBuilder(object):
         self.tasker = DockerTasker()
         self.base_image = ImageName(repo='Fedora', tag='22')
         self.base_from_scratch = False
+        self.custom_base_image = False
         self.image_id = 'image_id'
         self.image = 'image'
         self.source = MockSource(tmpdir)
@@ -54,7 +55,7 @@ class MockSource(object):
 
 class TestCheckRebuild(object):
     def prepare(self, tmpdir, key, value, update_labels_args=None, update_labels_kwargs=None,
-                reactor_config_map=False, base_from_scratch=False):
+                reactor_config_map=False, base_from_scratch=False, custom_base=False):
         if MOCK:
             mock_docker()
         tasker = DockerTasker()
@@ -62,6 +63,7 @@ class TestCheckRebuild(object):
         workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
         workflow.builder = MockInsideBuilder(tmpdir)
         workflow.builder.base_from_scratch = base_from_scratch
+        workflow.builder.custom_base_image = custom_base
         workflow.source = workflow.builder.source
         setattr(workflow.builder, 'base_image_inspect', {})
 
@@ -155,15 +157,17 @@ class TestCheckRebuild(object):
         assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] is False
         assert not is_rebuild(workflow)
 
+    @pytest.mark.parametrize('custom_base', (True, False))
     @pytest.mark.parametrize('base_from_scratch', (True, False))
     @pytest.mark.parametrize('from_latest', (None, True, False))
     def test_check_is_rebuild(self, caplog, tmpdir, monkeypatch, reactor_config_map,
-                              base_from_scratch, from_latest):
+                              base_from_scratch, custom_base, from_latest):
         key = 'is_autorebuild'
         value = 'true'
 
         workflow, runner = self.prepare(tmpdir, key, value, reactor_config_map=reactor_config_map,
-                                        base_from_scratch=base_from_scratch)
+                                        base_from_scratch=base_from_scratch,
+                                        custom_base=custom_base)
 
         monkeypatch.setenv("BUILD", json.dumps({
             "metadata": {
@@ -175,14 +179,15 @@ class TestCheckRebuild(object):
             }
         }))
 
+        mock_times = 1 if from_latest and not (base_from_scratch or custom_base) else 0
         (flexmock(workflow.source)
             .should_call('reset')
-            .times(1 if (from_latest is True and not base_from_scratch) else 0)
+            .times(mock_times)
             .with_args('origin/the-branch'))
 
         (flexmock(build_orchestrate_build)
             .should_receive('override_build_kwarg')
-            .times(1 if (from_latest is True and not base_from_scratch) else 0)
+            .times(mock_times)
             .with_args(workflow, 'git_ref', 'HEAD-OF-origin/the-branch'))
 
         workflow.source.config.autorebuild = dict(from_latest=from_latest)
@@ -192,6 +197,11 @@ class TestCheckRebuild(object):
             assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] is False
             assert not is_rebuild(workflow)
             log_msg = "Skipping check and set rebuild: unsupported for FROM-scratch images"
+            assert log_msg in caplog.text
+        elif custom_base:
+            assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] is False
+            assert not is_rebuild(workflow)
+            log_msg = "Skipping check and set rebuild: unsupported for custom base images"
             assert log_msg in caplog.text
         else:
             assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] is True

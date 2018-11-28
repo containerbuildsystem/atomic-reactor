@@ -17,10 +17,12 @@ import atomic_reactor
 import atomic_reactor.util
 
 from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
-                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
+                                      SCRATCH_FROM)
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.util import ImageName, CommandResult, DigestCollector
+from atomic_reactor.util import (ImageName, CommandResult, DigestCollector, base_image_is_scratch,
+                                 base_image_is_custom)
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
@@ -58,13 +60,22 @@ class MockBuilder(object):
     base_image = None
     original_base_image = None
     parent_images = {UNIQUE_ID_NAME: None}
+    custom_base_image = False
+    base_from_scratch = False
 
     def __init__(self):
         self.parent_images_digests = DigestCollector()
 
     def set_base_image(self, base_image, parents_pulled=True, insecure=False):
+        self.base_from_scratch = base_image_is_scratch(base_image)
+        if not self.custom_base_image:
+            self.custom_base_image = base_image_is_custom(base_image)
         self.base_image = ImageName.parse(base_image)
         self.original_base_image = self.original_base_image or self.base_image
+        self.recreate_parent_images()
+
+        if not self.base_from_scratch:
+            self.parent_images[self.original_base_image] = self.base_image
 
     def recreate_parent_images(self):
         # recreate parent_images to update hashes
@@ -85,6 +96,75 @@ def set_build_json(monkeypatch):
 
 def teardown_function(function):
     sys.modules.pop('pre_pull_base_image', None)
+
+
+@pytest.mark.parametrize(('special_image', 'quit_early'), [
+    ('koji/image-build', True),
+    (SCRATCH_FROM, False)
+])
+def test_pull_base_image_special(special_image, quit_early,
+                                 reactor_config_map, caplog, monkeypatch):
+    monkeypatch.setenv("BUILD", json.dumps({
+        'metadata': {
+            'name': special_image,
+        },
+    }))
+
+    if MOCK:
+        mock_docker(remember_images=True)
+
+    tasker = DockerTasker(retry_times=0)
+    buildstep_plugin = [{
+        'name': PLUGIN_BUILD_ORCHESTRATE_KEY,
+        'args': {'platforms': ['x86_64']},
+    }]
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, special_image, buildstep_plugins=buildstep_plugin,)
+    builder = workflow.builder = MockBuilder()
+    builder.parent_images = {}
+    builder.set_base_image(special_image)
+    parent_images = builder.parent_images
+
+    expected = set([])
+    if not quit_early:
+        for nonce in range(len(parent_images)):
+            expected.add("{}:{}".format(UNIQUE_ID, nonce))
+    for image in expected:
+        assert not tasker.image_exists(image)
+
+    if reactor_config_map:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1,
+                           'source_registry': {'url': LOCALHOST_REGISTRY,
+                                               'insecure': True},
+                           'registries_organization': None})
+
+    runner = PreBuildPluginsRunner(
+        tasker,
+        workflow,
+        [{
+            'name': PullBaseImagePlugin.key,
+            'args': {'parent_registry': LOCALHOST_REGISTRY,
+                     'parent_registry_insecure': True,
+                     }
+        }]
+    )
+
+    runner.run()
+    if quit_early:
+        msg = "custom base image builds can't retag parent images"
+        assert msg in caplog.text
+    assert workflow.builder.base_image.to_str().startswith(special_image)
+    for image in expected:
+        assert tasker.image_exists(image)
+        assert image in workflow.pulled_base_images
+
+    for image in workflow.pulled_base_images:
+        assert tasker.image_exists(image)
+
+    for df, tagged in workflow.builder.parent_images.items():
+        assert tagged is not None, "Did not tag parent image " + str(df)
+    assert len(set(workflow.builder.parent_images.values())) == len(workflow.builder.parent_images)
 
 
 @pytest.mark.parametrize(('parent_registry',

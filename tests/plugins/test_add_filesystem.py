@@ -82,6 +82,7 @@ class MockSource(object):
 class X(object):
     image_id = "xxx"
     base_image = ImageName.parse("koji/image-build")
+    custom_base_image = True
     set_base_image = flexmock()
 
 

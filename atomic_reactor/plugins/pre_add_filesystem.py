@@ -366,7 +366,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
 
     def run(self):
         base_image = self.workflow.builder.base_image
-        if base_image.namespace != 'koji' or base_image.repo != 'image-build':
+        if not self.workflow.builder.custom_base_image:
             self.log.info('Base image not supported: %s', base_image)
             return
 

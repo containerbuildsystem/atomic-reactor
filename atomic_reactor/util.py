@@ -652,6 +652,10 @@ def base_image_is_scratch(base_image_name):
     return SCRATCH_FROM == base_image_name
 
 
+def base_image_is_custom(base_image_name):
+    return bool(re.match('^koji/image-build(:.*)?$', base_image_name))
+
+
 def get_orchestrator_platforms(workflow):
     for plugin in workflow.buildstep_plugins_conf or []:
         if plugin['name'] == PLUGIN_BUILD_ORCHESTRATE_KEY:

@@ -69,6 +69,10 @@ class PullBaseImagePlugin(PreBuildPlugin):
         """
         Pull parent images and retag them uniquely for this build.
         """
+        if self.workflow.builder.custom_base_image:
+            self.log.info("custom base image builds can't retag parent images")
+            return
+
         build_json = get_build_json()
         current_platform = platform.processor() or 'x86_64'
         self.manifest_list_cache = {}

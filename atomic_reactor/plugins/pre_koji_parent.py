@@ -73,7 +73,7 @@ class KojiParentPlugin(PreBuildPlugin):
         self._poll_start = None
 
     def run(self):
-        if not self.workflow.builder.base_from_scratch:
+        if not (self.workflow.builder.base_from_scratch or self.workflow.builder.custom_base_image):
             nvr = self._base_image_nvr = self.detect_parent_image_nvr(
                 self.workflow.builder.base_image,
                 inspect_data=self.workflow.builder.base_image_inspect,

@@ -44,6 +44,7 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_manifest_list, get_all_manifests,
                                  get_inspect_for_image,
                                  get_build_json, is_scratch_build, is_isolated_build, df_parser,
+                                 base_image_is_custom,
                                  are_plugins_in_order, LabelFormatter,
                                  guess_manifest_media_type,
                                  get_manifest_media_type,
@@ -868,6 +869,18 @@ def test_is_scratch_build(build_json, scratch):
             is_scratch_build()
     else:
         assert is_scratch_build() == scratch
+
+
+@pytest.mark.parametrize(('base_image', 'is_custom'), [
+    ('fedora', False),
+    ('fedora:latest', False),
+    ('koji/image-build', True),
+    ('koji/image-build:spam.conf', True),
+    ('koji/image-build:latest', True),
+    ('scratch', False),
+])
+def test_is_custom_base_build(base_image, is_custom):
+    assert base_image_is_custom(base_image) == is_custom
 
 
 @pytest.mark.parametrize(('build_json', 'isolated'), [
