@@ -85,8 +85,13 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
             image = self._ensure_image_registry(image)
 
+            if organization:
+                image.enclose(organization)
+                parent.enclose(organization)
+
             if self.check_platforms:
                 # run only at orchestrator
+                self._validate_platforms_in_image(image)
                 self._collect_image_digests(image)
 
             # try to stay with digests
@@ -98,13 +103,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
                 self.log.info("Replacing image '%s' with '%s'", image, image_with_digest)
                 image = image_with_digest
 
-            if organization:
-                image.enclose(organization)
-                parent.enclose(organization)
-
             if self.check_platforms:
-                self._validate_platforms_in_image(image)
-
                 new_arch_image = self._get_image_for_different_arch(image, current_platform)
                 if new_arch_image:
                     image = new_arch_image
