@@ -131,8 +131,8 @@ class PullBaseImagePlugin(PreBuildPlugin):
             new_image = ImageName.parse(parents_digests.get_image_platform_digest(image, platform))
         except KeyError:
             return None
-        else:
-            return new_image
+
+        return new_image
 
     def _load_parent_images_digests(self, images_digests):
         assert isinstance(images_digests, dict)
@@ -163,21 +163,22 @@ class PullBaseImagePlugin(PreBuildPlugin):
         except KeyError:
             self.log.warning('Cannot collect platforms digests for parent images '
                              'because platform descriptors are not defined')
-        else:
-            for manifest in manifest_list_dict['manifests']:
-                arch = manifest['platform']['architecture']
-                try:
-                    present_platform = arch_to_platform[arch]
-                except KeyError:
-                    self.log.warning("Cannot map architecture='{}' to platform".format(arch))
-                    continue
-                else:
-                    digest = manifest['digest']
-                    self.log.info("Collecting digest for image '%s' ('%s'): '%s'",
-                                  image, present_platform, digest)
-                    parents_digests.update_image_digest(
-                        image, present_platform, digest
-                    )
+            return
+
+        for manifest in manifest_list_dict['manifests']:
+            arch = manifest['platform']['architecture']
+            try:
+                present_platform = arch_to_platform[arch]
+            except KeyError:
+                self.log.warning("Cannot map architecture='{}' to platform".format(arch))
+                continue
+            else:
+                digest = manifest['digest']
+                self.log.info("Collecting digest for image '%s' ('%s'): '%s'",
+                              image, present_platform, digest)
+                parents_digests.update_image_digest(
+                    image, present_platform, digest
+                )
 
     def _get_image_for_different_arch(self, image, platform):
         """Get image from random arch
@@ -190,20 +191,20 @@ class PullBaseImagePlugin(PreBuildPlugin):
         the corresponding digest
 
         """
-        new_image = None
         parents_digests = self.workflow.builder.parent_images_digests
         try:
             digests = parents_digests.get_image_digests(image)
         except KeyError:
-            pass
-        else:
-            if not digests:
-                return None
-            platform_digest = digests.get(platform)
-            if platform_digest is None:
-                # exact match is not found, get random platform
-                platform_digest = tuple(digests.values())[0]
-            new_image = ImageName.parse(platform_digest)
+            return None
+
+        if not digests:
+            return None
+        platform_digest = digests.get(platform)
+        if platform_digest is None:
+            # exact match is not found, get random platform
+            platform_digest = tuple(digests.values())[0]
+
+        new_image = ImageName.parse(platform_digest)
         return new_image
 
     def _resolve_base_image(self, build_json):
