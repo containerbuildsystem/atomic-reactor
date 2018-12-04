@@ -50,7 +50,6 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  get_manifest_media_version,
                                  get_primary_images,
                                  get_image_upload_filename,
-                                 split_module_spec, ModuleSpec,
                                  read_yaml, read_yaml_from_file_path, OSBSLogs,
                                  get_platforms_in_limits, get_orchestrator_platforms,
                                  dump_stacktraces, setup_introspection_signal_handler,
@@ -1061,40 +1060,6 @@ def test_clone_git_repo_retry(tmpdir, retry_times, raise_exc):
     exception = subprocess.CalledProcessError if raise_exc else CustomTestException
     with pytest.raises(exception):
         clone_git_repo(DOCKERFILE_GIT, tmpdir_path, retry_times=retry_times)
-
-
-@pytest.mark.parametrize(('module', 'should_raise', 'expected'), [
-    ('eog', "must include at least NAME:STREAM", None),
-    ('eog:f26', False, ModuleSpec('eog', 'f26')),
-    ('eog:f26/default', False, ModuleSpec('eog', 'f26', profile='default')),
-    ('eog:f26:20170629213428', False, ModuleSpec('eog', 'f26', '20170629213428')),
-    ('eog:f26:20170629213428:12345678', False,
-     ModuleSpec('eog', 'f26', '20170629213428', '12345678')),
-    ('eog:f26:20170629213428/default', False,
-     ModuleSpec('eog', 'f26', '20170629213428', profile='default')),
-    ('a:b:c:d:e', "should be NAME:STREAM[:VERSION[:CONTEXT]][/PROFILE]", None),
-    ('a:b::d', "contains empty components", None),
-    ('a:b:c:d/', "contains empty components", None),
-])
-def test_split_module_spec(module, should_raise, expected):
-    if should_raise:
-        with pytest.raises(RuntimeError) as e:
-            split_module_spec(module)
-        assert should_raise in str(e)
-    else:
-        assert split_module_spec(module) == expected
-
-
-@pytest.mark.parametrize(('as_str', 'as_str_no_profile'), [
-    ('a:b', 'a:b'),
-    ('a:b/p', 'a:b'),
-    ('a:b:c', 'a:b:c'),
-    ('a:b:c/p', 'a:b:c'),
-])
-def test_module_spec_to_str(as_str, as_str_no_profile):
-    spec = split_module_spec(as_str)
-    assert spec.to_str() == as_str
-    assert spec.to_str(include_profile=False) == as_str_no_profile
 
 
 @pytest.mark.parametrize('from_file', [True, False])

@@ -1,6 +1,6 @@
 import yaml
 
-from atomic_reactor.util import split_module_spec
+from osbs.repo_utils import ModuleSpec
 
 try:
     from atomic_reactor.plugins.pre_resolve_module_compose import (ComposeInfo,
@@ -357,7 +357,7 @@ def setup_flatpak_source_info(workflow, config=APP_CONFIG):
 
     flatpak_yaml = yaml.safe_load(config['container_yaml'])['flatpak']
 
-    module_spec = split_module_spec(compose.source_spec)
+    module_spec = ModuleSpec.from_str(compose.source_spec)
 
     source = FlatpakSourceInfo(flatpak_yaml, compose.modules, compose.base_module,
                                module_spec.profile)

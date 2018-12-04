@@ -31,10 +31,11 @@ except ValueError as e:
     # Normalize to ImportError to simplify handling
     raise ImportError(str(e))
 from gi.repository import Modulemd
+from osbs.repo_utils import ModuleSpec
 
 from atomic_reactor.koji_util import get_koji_module_build
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import get_platforms, split_module_spec
+from atomic_reactor.util import get_platforms
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.plugins.pre_reactor_config import (get_config,
                                                        get_koji_session, get_odcs_session,
@@ -140,7 +141,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
 
         resolved_modules = {}
         for module in compose_source.strip().split():
-            module_spec = split_module_spec(module)
+            module_spec = ModuleSpec.from_str(module)
             build, rpm_list = get_koji_module_build(koji_session, module_spec)
 
             # The returned RPM list contains source RPMs and RPMs for all
@@ -178,7 +179,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
             self.log.info("compose config contains multiple modules,"
                           "using first module %s", source_spec)
 
-        module = split_module_spec(source_spec)
+        module = ModuleSpec.from_str(source_spec)
         self.log.info("Resolving module compose for name=%s, stream=%s, version=%s",
                       module.name, module.stream, module.version)
 
