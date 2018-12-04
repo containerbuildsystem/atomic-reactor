@@ -28,13 +28,13 @@ except ImportError:
     del koji
     import koji
 
+from osbs.repo_utils import ModuleSpec
 from atomic_reactor.koji_util import (koji_login, create_koji_session,
                                       TaskWatcher, tag_koji_build,
                                       get_koji_module_build)
 from atomic_reactor import koji_util
 from atomic_reactor.plugin import BuildCanceledException
 from atomic_reactor.constants import HTTP_MAX_RETRIES
-from atomic_reactor.util import split_module_spec
 import flexmock
 import pytest
 
@@ -342,7 +342,7 @@ class TestGetKojiModuleBuild(object):
             }
         }
 
-        spec = split_module_spec(module)
+        spec = ModuleSpec.from_str(module)
         session = flexmock()
         (session
             .should_receive('getBuild')
@@ -383,7 +383,7 @@ class TestGetKojiModuleBuild(object):
     ])
     def test_without_context(self, koji_return, should_raise):
         module = 'eog:master:20180821163756'
-        spec = split_module_spec(module)
+        spec = ModuleSpec.from_str(module)
 
         session = flexmock()
         (session

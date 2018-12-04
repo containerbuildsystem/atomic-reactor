@@ -21,13 +21,14 @@ Example configuration:
 import os
 
 from flatpak_module_tools.flatpak_builder import FlatpakSourceInfo, FlatpakBuilder
+from osbs.repo_utils import ModuleSpec
 
 from atomic_reactor.constants import DOCKERFILE_FILENAME, YUM_REPOS_DIR
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_flatpak_base_image
 from atomic_reactor.plugins.pre_resolve_module_compose import get_compose_info
 from atomic_reactor.rpm_util import rpm_qf_args
-from atomic_reactor.util import render_yum_repo, split_module_spec
+from atomic_reactor.util import render_yum_repo
 from atomic_reactor.yum_util import YumRepo
 
 
@@ -111,7 +112,7 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
             raise RuntimeError(
                 "resolve_module_compose must be run before flatpak_create_dockerfile")
 
-        module_spec = split_module_spec(compose_info.source_spec)
+        module_spec = ModuleSpec.from_str(compose_info.source_spec)
 
         return FlatpakSourceInfo(flatpak_yaml,
                                  compose_info.modules,
