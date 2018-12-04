@@ -697,23 +697,21 @@ class TestValidateBaseImage(object):
                  .should_receive('get_manifest_list')
                  .and_return(flexmock(json=lambda: manifest_list))
                  )
+
+                # platform validation will fail if manifest is missing
+                # setting only one platform to skip platform validation and test negative case
+                workflow.buildstep_plugins_conf[0]['args']['platforms'] = ['x86_64']
+                workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(['x86_64'])
+
             test_vals['workflow'] = workflow
             return workflow
 
-        try:
-            test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
-                                        [], [], reactor_config_map=True,
-                                        inspect_only=False,
-                                        workflow_callback=workflow_callback,
-                                        check_platforms=True,  # orchestrator
-                                        )
-        except PluginFailedException as e:
-            if fail and "Missing arches in manifest list" in str(e):
-                # when manifest_list is empty _validate_platforms_in_image raises an assertion
-                # error. We don't care about that in this test
-                pass
-            else:
-                raise
+        test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+                                    [], [], reactor_config_map=True,
+                                    inspect_only=False,
+                                    workflow_callback=workflow_callback,
+                                    check_platforms=True,  # orchestrator
+                                    )
 
         for platform, digest in (('x86_64', 'sha256:123456'), ('ppc64le', 'sha256:654321')):
             collecting_msg = (
