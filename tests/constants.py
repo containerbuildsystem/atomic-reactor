@@ -133,7 +133,7 @@ registries:
 - url: https://container-registry.example.com/v2
   auth:
       cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
-- url: https://v1-container-registry.example.com/v1
+- url: https://another-container-registry.example.com
   insecure: True
 - url: https://better-container-registry.example.com/v2
   expected_media_types:

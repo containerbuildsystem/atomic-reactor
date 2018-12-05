@@ -30,6 +30,7 @@ import atomic_reactor.odcs_util
 import osbs.conf
 import osbs.api
 from osbs.utils import RegistryURI
+from osbs.exceptions import OsbsValidationException
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        ReactorConfigPlugin,
                                                        get_config, WORKSPACE_CONF_KEY,
@@ -77,12 +78,12 @@ class TestReactorConfigPlugin(object):
         ("""\
             version: 1
             registries:
-            - url: https://old-container-registry.example.com/v1
-              auth:
-                  cfg_path: /var/run/secrets/atomic-reactor/v1-registry-dockercfg
             - url: https://container-registry.example.com/v2
               auth:
                   cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
+            - url: https://another-container-registry.example.com/
+              auth:
+                  cfg_path: /var/run/secrets/atomic-reactor/another-registry-dockercfg
          """,
          True),
         ("""\
@@ -131,7 +132,7 @@ class TestReactorConfigPlugin(object):
                 with pytest.raises(KeyError):
                     get_docker_registry(workflow, docker_fallback)
             else:
-                with pytest.raises(RuntimeError):
+                with pytest.raises(OsbsValidationException):
                     get_docker_registry(workflow, docker_fallback)
 
     def test_no_config(self):
