@@ -14,6 +14,7 @@ from textwrap import dedent
 
 from atomic_reactor.plugins.input_osv3 import OSv3InputPlugin
 from osbs.api import OSBS
+from osbs.exceptions import OsbsValidationException
 from tests.constants import REACTOR_CONFIG_MAP
 from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
                                       PLUGIN_DELETE_FROM_REG_KEY,
@@ -284,7 +285,7 @@ def test_remove_v1_pulp_and_exit_delete():
         ]
 
 
-def test_remove_v2_pulp():
+def test_invalid_v1_registry():
     plugins_json = {
         'build_json_dir': 'inputs',
         'build_type': 'orchestrator',
@@ -302,6 +303,7 @@ def test_remove_v2_pulp():
             {'name': 'after', },
         ],
     }
+    # v1 registry URL is no longer supported
     minimal_config = dedent("""\
         version: 1
         pulp:
@@ -328,11 +330,8 @@ def test_remove_v2_pulp():
     enable_plugins_configuration(plugins_json)
 
     plugin = OSv3InputPlugin()
-    plugins = plugin.run()
-    assert plugins['postbuild_plugins'] == [
-        {'name': 'before', },
-        {'name': 'after', },
-    ]
+    with pytest.raises(OsbsValidationException):
+        plugin.run()
 
 
 @pytest.mark.parametrize(('override', 'valid'), [

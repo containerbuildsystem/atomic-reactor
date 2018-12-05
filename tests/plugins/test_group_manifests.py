@@ -432,7 +432,6 @@ def test_group_manifests(tmpdir, test_name,
     }
 
     all_registry_conf = {
-        REGISTRY_V1: {'version': 'v1', 'insecure': True},
         REGISTRY_V2: {'version': 'v2', 'insecure': True},
         OTHER_V2: {'version': 'v2', 'insecure': False},
     }
