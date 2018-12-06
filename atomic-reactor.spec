@@ -405,6 +405,9 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 
 
 %changelog
+* Thu Dec 06 2018 Athos Ribeiro <athos@redhat.com>
+- Fix changelog bogus dates
+
 * Fri Nov 23 2018 Athos Ribeiro <athos@redhat.com>
 - Remove pytest-capturelog dependency
 
@@ -498,10 +501,10 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 * Mon Feb 6 2017 Vadim Rutkovsky <vrutkovs@redhat.com> - 1.16.20-1
 - 1.6.20 release
 
-* Wed Nov 29 2016 Vadim Rutkovsky <vrutkovs@redhat.com> - 1.16.19-1
+* Tue Nov 29 2016 Vadim Rutkovsky <vrutkovs@redhat.com> - 1.16.19-1
 - 1.6.19 release
 
-* Wed Nov 11 2016 Vadim Rutkovsky <vrutkovs@redhat.com> - 1.16.18-1
+* Fri Nov 11 2016 Vadim Rutkovsky <vrutkovs@redhat.com> - 1.16.18-1
 - 1.6.18 release
 
 * Wed Sep 21 2016 Vadim Rutkovsky <vrutkovs@redhat.com> - 1.16.17-1
