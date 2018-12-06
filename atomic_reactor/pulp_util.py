@@ -277,7 +277,8 @@ class LockedPulpRepository(object):
                     # avoids a stale lock preventing builds.
                     logger.info("got error, breaking lock: %s", exc)
                 else:
-                    logger.info("got error, will retry in %s: %s", retry, exc)
+                    logger.info("got error, will retry in %s seconds: %s",
+                                retry, exc)
                     retry = self.retry_delay * (2 ** counter)
 
         return self
