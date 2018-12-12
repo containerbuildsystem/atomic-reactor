@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017, 2018 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -358,7 +358,9 @@ class GroupManifestsPlugin(PostBuildPlugin):
         insecure = registry_conf.get('insecure', False)
         secret_path = registry_conf.get('secret')
 
-        return RegistrySession(registry, insecure=insecure, dockercfg_path=secret_path)
+        return RegistrySession(registry, insecure=insecure,
+                               dockercfg_path=secret_path,
+                               access=('pull', 'push'))
 
     def run(self):
         digests = dict()
