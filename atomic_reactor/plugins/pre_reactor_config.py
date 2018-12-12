@@ -230,6 +230,7 @@ def get_registries(workflow, fallback=NO_FALLBACK):
         raise
 
     registries_cm = {}
+    registry_for_import = False
     for registry in all_registries:
         reguri = RegistryURI(registry.get('url'))
         regdict = {}
@@ -238,6 +239,11 @@ def get_registries(workflow, fallback=NO_FALLBACK):
             regdict['secret'] = registry['auth']['cfg_path']
         regdict['insecure'] = registry.get('insecure', False)
         regdict['expected_media_types'] = registry.get('expected_media_types', [])
+        if registry_for_import:
+            regdict['for_import'] = False
+        else:
+            regdict['for_import'] = True
+            registry_for_import = True
 
         registries_cm[reguri.docker_uri] = regdict
 

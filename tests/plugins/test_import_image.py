@@ -116,7 +116,7 @@ def prepare(tmpdir, insecure_registry=None, namespace=None,
             'insecure': insecure_registry,
             'build_json_dir': '/var/json_dir',
         }
-        source_registry_map = {
+        registry_map = {
             'url': TEST_REGISTRY,
             'insecure': insecure_registry
         }
@@ -125,7 +125,7 @@ def prepare(tmpdir, insecure_registry=None, namespace=None,
             ReactorConfig({
                 'version': 1,
                 'openshift': openshift_map,
-                'source_registry': source_registry_map,
+                'registries': [registry_map],
                 'registries_organization': organization,
             })
     else:
@@ -215,6 +215,7 @@ def test_create_image(tmpdir, insecure_registry, namespace, organization,
      .should_receive('import_image_tags')
      .once()
      .and_return(True))
+
     runner.run()
 
 

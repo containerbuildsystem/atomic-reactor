@@ -544,6 +544,7 @@ class TestReactorConfigPlugin(object):
 
         if method == 'registries':
             registries_cm = {}
+            reg_for_import = False
             for registry in expected:
                 reguri = RegistryURI(registry.get('url'))
                 regdict = {}
@@ -552,6 +553,11 @@ class TestReactorConfigPlugin(object):
                     regdict['secret'] = registry['auth']['cfg_path']
                 regdict['insecure'] = registry.get('insecure', False)
                 regdict['expected_media_types'] = registry.get('expected_media_types', [])
+                if reg_for_import:
+                    regdict['for_import'] = False
+                else:
+                    regdict['for_import'] = True
+                    reg_for_import = True
 
                 registries_cm[reguri.docker_uri] = regdict
 

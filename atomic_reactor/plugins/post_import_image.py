@@ -12,8 +12,8 @@ from osbs.exceptions import OsbsResponseException
 
 from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
 from atomic_reactor.util import get_primary_images, ImageName
-from atomic_reactor.plugins.pre_reactor_config import (get_openshift_session, get_source_registry,
-                                                       get_registries_organization)
+from atomic_reactor.plugins.pre_reactor_config import (get_openshift_session,
+                                                       get_registries_organization, get_registries)
 
 
 # Note: We use multiple inheritance here only to make it explicit that
@@ -57,8 +57,14 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
             'build_json_dir': build_json_dir
         }
 
-        self.insecure_registry = get_source_registry(
-            self.workflow, {'insecure': insecure_registry})['insecure']
+        registries = get_registries(self.workflow, {})
+        self.insecure_registry = insecure_registry
+        self.import_registry_uri = None
+        for registry, regdict in registries.items():
+            if regdict['for_import']:
+                self.insecure_registry = regdict.get('insecure', insecure_registry)
+                self.import_registry_uri = registry
+                break
 
         self.osbs = None
         self.imagestream = None
@@ -134,14 +140,12 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
         # The plugin parameter docker_image_repo is actually a combination
         # of source_registry_uri and name label. Thus, the fallback case must
         # be handled in a non-generic way.
-        try:
-            source_registry = get_source_registry(self.workflow)
-        except KeyError:
-            image = ImageName.parse(self.docker_image_repo_fallback)
-        else:
-            registry = source_registry['uri'].docker_uri
+        if self.import_registry_uri:
+            registry = self.import_registry_uri
             image = self.primary_images[0]
             image.registry = registry
+        else:
+            image = ImageName.parse(self.docker_image_repo_fallback)
 
         organization = get_registries_organization(self.workflow)
         if organization:
