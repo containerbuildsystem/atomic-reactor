@@ -31,7 +31,7 @@ class HTTPBearerAuth(AuthBase):
     BEARER_PATTERN = re.compile(r'bearer ', flags=re.IGNORECASE)
     V2_REPO_PATTERN = re.compile(r'^/v2/(.*)/(manifests|tags|blobs)/')
 
-    def __init__(self, username=None, password=None, verify=True, access=('pull',)):
+    def __init__(self, username=None, password=None, verify=True, access=None):
         """Initialize HTTPBearerAuth object.
 
         :param username: str, username to be used for authentication
@@ -39,12 +39,13 @@ class HTTPBearerAuth(AuthBase):
         :param verify: bool, whether or not to verify server identity when
             fetching Bearer token from realm
         :param access: iter<str>, iterable (list, tuple, etc) of access to be
-            requested; possible values to be included are 'pull' and/or 'push'
+            requested; possible values to be included are 'pull' and/or 'push';
+            defaults to ('pull',)
         """
         self.username = username
         self.password = password
         self.verify = verify
-        self.access = access
+        self.access = access or ('pull',)
 
         self._token_cache = {}
 
@@ -133,9 +134,10 @@ class HTTPRegistryAuth(AuthBase):
     V1_URL = re.compile(r'^/v1/')
     V2_URL = re.compile(r'^/v2/')
 
-    def __init__(self, username=None, password=None):
+    def __init__(self, username=None, password=None, access=None):
         self.username = username
         self.password = password
+        self.access = access
 
         self.v1_auth = None
         self.v2_auths = []
@@ -158,7 +160,8 @@ class HTTPRegistryAuth(AuthBase):
             if not self.v2_auths:
                 # It's safe to always add bearer auth handler because
                 # it's only activated if indicated by www-authenticate response header
-                self.v2_auths.append(HTTPBearerAuth(self.username, self.password))
+                self.v2_auths.append(HTTPBearerAuth(self.username, self.password,
+                                                    access=self.access))
 
                 if self.username and self.password:
                     self.v2_auths.append(HTTPBasicAuth(self.username, self.password))
