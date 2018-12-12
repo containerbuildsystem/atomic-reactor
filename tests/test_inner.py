@@ -1238,19 +1238,22 @@ def test_cancel_build(request, fail_at):
                                                       'watcher': watch_exit
                                                   }}],
                                    plugin_files=[this_file])
+    # BaseException repr does not include trailing comma in Python >= 3.7
+    # we look for a partial match in log strings for Python < 3.7 compatibility
+    expected_entry = (
+        "plugin '{}_watched' raised an exception: BuildCanceledException('Build was canceled'"
+    )
     if fail_at == 'buildstep':
         with pytest.raises(PluginFailedException):
             workflow.build_docker_image()
         assert workflow.build_canceled
-        assert ("plugin '%s_watched' raised an exception:" % fail_at +
-                " BuildCanceledException('Build was canceled',)",) in fake_logger.errors
+        assert any(expected_entry.format(fail_at) in entry[0] for entry in fake_logger.errors)
     else:
         workflow.build_docker_image()
 
         if fail_at != 'exit':
             assert workflow.build_canceled
-            assert ("plugin '%s_watched' raised an exception:" % fail_at +
-                    " BuildCanceledException('Build was canceled',)",) in fake_logger.warnings
+            assert any(expected_entry.format(fail_at) in entry[0] for entry in fake_logger.warnings)
         else:
             assert not workflow.build_canceled
 
