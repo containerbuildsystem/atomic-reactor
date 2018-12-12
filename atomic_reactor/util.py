@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015, 2018 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -738,7 +738,7 @@ class Dockercfg(object):
 
 
 class RegistrySession(object):
-    def __init__(self, registry, insecure=False, dockercfg_path=None):
+    def __init__(self, registry, insecure=False, dockercfg_path=None, access=None):
         self.registry = registry
         self._resolved = None
         self.insecure = insecure
@@ -750,7 +750,7 @@ class RegistrySession(object):
 
             username = dockercfg.get('username')
             password = dockercfg.get('password')
-        self.auth = HTTPRegistryAuth(username, password)
+        self.auth = HTTPRegistryAuth(username, password, access=access)
 
         self._fallback = None
         if re.match('http(s)?://', self.registry):
