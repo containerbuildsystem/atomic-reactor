@@ -98,8 +98,9 @@ class YumRepo(object):
             self.config.write(output)
             self.content = output.getvalue()
 
-    def write_and_return_content(self):
+    def write_content(self):
         logger.info("writing repo to '%s'", self.dst_filename)
         with open(self.dst_filename, "wb") as fp:
             fp.write(self.content.encode("utf-8"))
+            fp.flush()
         logger.debug("%s\n%s", self.repourl, self.content.strip())
