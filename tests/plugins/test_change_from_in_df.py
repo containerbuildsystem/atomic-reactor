@@ -144,6 +144,56 @@ def test_update_base_image_inspect_broken(tmpdir, caplog, docker_tasker):
             CMD build /spam/eggs
             FROM second:parent AS builder2
             CMD build /vikings
+            FROM monty
+            COPY --from=builder1 /spam/eggs /bin/eggs
+            COPY --from=builder2 /vikings /bin/vikings
+            FROM koji/image-build
+            CMD build /custom
+        """),
+        dedent("""\
+            FROM id:1 AS builder1
+            CMD build /spam/eggs
+            FROM id:2 AS builder2
+            CMD build /vikings
+            FROM id:3
+            COPY --from=builder1 /spam/eggs /bin/eggs
+            COPY --from=builder2 /vikings /bin/vikings
+            FROM id:3
+            CMD build /custom
+        """),
+        False,
+    ),
+    (
+        dedent("""\
+            FROM first:parent AS builder1
+            CMD build /spam/eggs
+            FROM second:parent AS builder2
+            CMD build /vikings
+            FROM koji/image-build
+            CMD build /custom
+            FROM monty
+            COPY --from=builder1 /spam/eggs /bin/eggs
+            COPY --from=builder2 /vikings /bin/vikings
+        """),
+        dedent("""\
+            FROM id:1 AS builder1
+            CMD build /spam/eggs
+            FROM id:2 AS builder2
+            CMD build /vikings
+            FROM id:3
+            CMD build /custom
+            FROM id:3
+            COPY --from=builder1 /spam/eggs /bin/eggs
+            COPY --from=builder2 /vikings /bin/vikings
+        """),
+        False,
+    ),
+    (
+        dedent("""\
+            FROM first:parent AS builder1
+            CMD build /spam/eggs
+            FROM second:parent AS builder2
+            CMD build /vikings
             FROM scratch
             CMD build /from_scratch
             FROM monty
@@ -203,6 +253,7 @@ def test_update_parent_images(organization, df_content, expected_df_content, bas
     first = ImageName.parse("first:parent")
     second = ImageName.parse("second:parent")
     monty = ImageName.parse("monty")
+    custom = ImageName.parse("koji/image-build")
     build1 = ImageName.parse('build-name:1')
     build2 = ImageName.parse('build-name:2')
     build3 = ImageName.parse('build-name:3')
@@ -214,6 +265,7 @@ def test_update_parent_images(organization, df_content, expected_df_content, bas
         first: build1,
         second: build2,
         monty: build3,
+        custom: build3,
     }
     img_ids = {
         'build-name:1': 'id:1',

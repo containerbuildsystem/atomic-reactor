@@ -10,7 +10,7 @@ Pre-build plugin that changes the parent images used in FROM instructions
 to the more specific names given by the builder.
 """
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import ImageName, df_parser, base_image_is_scratch
+from atomic_reactor.util import ImageName, df_parser, base_image_is_scratch, base_image_is_custom
 from atomic_reactor.plugins.pre_reactor_config import get_registries_organization
 from atomic_reactor.constants import SCRATCH_FROM
 
@@ -59,7 +59,7 @@ class ChangeFromPlugin(PreBuildPlugin):
 
         organization = get_registries_organization(self.workflow)
         df_base = ImageName.parse(dfp.baseimage)
-        if organization:
+        if organization and not base_image_is_custom(dfp.baseimage):
             df_base.enclose(organization)
         build_base = builder.base_image
 
@@ -81,7 +81,7 @@ class ChangeFromPlugin(PreBuildPlugin):
                 enclosed_parent_images.append(df_img)
                 continue
             parent = ImageName.parse(df_img)
-            if organization:
+            if organization and not base_image_is_custom(df_img):
                 parent.enclose(organization)
             enclosed_parent_images.append(parent)
 
