@@ -72,7 +72,6 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         if not yum_repos:
             return
         # absolute path in containers -> relative path within context
-        repos_host_cont_mapping = {}
         host_repos_path = os.path.join(self.workflow.builder.df_dir, RELATIVE_REPOS_PATH)
         self.log.info("creating directory for yum repos: %s", host_repos_path)
         os.mkdir(host_repos_path)
@@ -80,7 +79,7 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         for repo, repo_content in self.workflow.files.items():
             yum_repo = YumRepo(repourl=repo, content=repo_content, dst_repos_dir=host_repos_path,
                                add_hash=False)
-            repos_host_cont_mapping[repo] = yum_repo.write_and_return_content()
+            yum_repo.write_content()
 
         # Find out the USER inherited from the base image
         inspect = self.workflow.builder.base_image_inspect
@@ -88,5 +87,6 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         if not self.workflow.builder.base_from_scratch:
             inherited_user = inspect.get(INSPECT_CONFIG).get('User', '')
         df = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
-        add_yum_repos_to_dockerfile(repos_host_cont_mapping, df, inherited_user,
+        yum_repos = list(self.workflow.files)
+        add_yum_repos_to_dockerfile(yum_repos, df, inherited_user,
                                     self.workflow.builder.base_from_scratch)

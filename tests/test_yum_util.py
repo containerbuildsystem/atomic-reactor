@@ -9,6 +9,7 @@ Very small subset of tests for the YumRepo class. Most testing
 is done in test_add_yum_repo_by_url
 """
 from fnmatch import fnmatch
+import os
 import sys
 from atomic_reactor.yum_util import YumRepo
 import pytest
@@ -35,3 +36,15 @@ def test_invalid_config():
         assert not repo.is_valid()
     else:
         assert True
+
+
+def test_write_content(tmpdir):
+    test_content = 'test_content'
+    repo = YumRepo(
+        repourl='http://example.com/a/b/c/myrepo.repo', content=test_content,
+        dst_repos_dir=str(tmpdir)
+    )
+    repo.write_content()
+
+    with open(os.path.join(str(tmpdir), repo.filename)) as f:
+        assert f.read() == test_content
