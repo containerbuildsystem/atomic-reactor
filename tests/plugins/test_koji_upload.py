@@ -332,6 +332,7 @@ def os_env(monkeypatch):
             "creationTimestamp": "2015-07-27T09:24:00Z",
             "namespace": NAMESPACE,
             "name": BUILD_ID,
+            "labels": {},
         }
     }))
     monkeypatch.setenv('OPENSHIFT_CUSTOM_BUILD_BASE_IMAGE', 'buildroot:latest')
@@ -1073,6 +1074,10 @@ class TestKojiUpload(object):
         nvr_tag = '{}:{}-{}'.format(name, version, release)
         assert pullspec.endswith(nvr_tag)
 
+    @pytest.mark.parametrize('is_scratch', [
+        True,
+        False,
+    ])
     @pytest.mark.parametrize('logs_return_bytes', [
         True,
         False,
@@ -1081,7 +1086,7 @@ class TestKojiUpload(object):
         (None, set(['x86_64-build.log'])),
         ('foo', set(['foo-build.log'])),
     ])
-    def test_koji_upload_logs(self, tmpdir, os_env, logs_return_bytes,
+    def test_koji_upload_logs(self, tmpdir, monkeypatch, os_env, is_scratch, logs_return_bytes,
                               platform, expected_logs, reactor_config_map):
         MockedOSBS(logs_return_bytes=logs_return_bytes)
         session = MockedClientSession('')
@@ -1090,6 +1095,14 @@ class TestKojiUpload(object):
                                             name='name',
                                             version='1.0',
                                             release='1')
+        monkeypatch.setenv('BUILD', json.dumps({
+            "metadata": {
+                "creationTimestamp": "2015-07-27T09:24:00Z",
+                "namespace": NAMESPACE,
+                "name": BUILD_ID,
+                "labels": {'scratch': is_scratch},
+            }
+        }))
         runner = create_runner(tasker, workflow, platform=platform,
                                reactor_config_map=reactor_config_map)
         runner.run()
@@ -1097,16 +1110,22 @@ class TestKojiUpload(object):
         log_files = set(f for f in session.uploaded_files
                         if f.endswith('.log'))
 
+        if is_scratch:
+            expected_logs = set([])
         assert log_files == expected_logs
 
         images = [f for f in session.uploaded_files
                   if f not in log_files]
-        assert len(images) == 1
+        if is_scratch:
+            assert len(images) == 0
+        else:
+            assert len(images) == 1
 
         if platform is None:
             platform = 'x86_64'
 
-        assert images[0].endswith(platform + ".tar.xz")
+        if not is_scratch:
+            assert images[0].endswith(platform + ".tar.xz")
 
     @pytest.mark.parametrize('multiple', [False, True])
     def test_koji_upload_multiple_digests(self, tmpdir, os_env,
