@@ -496,6 +496,7 @@ def os_env(monkeypatch):
             "creationTimestamp": "2015-07-27T09:24:00Z",
             "namespace": NAMESPACE,
             "name": BUILD_ID,
+            "labels": {},
         }
     }))
     monkeypatch.setenv('OPENSHIFT_CUSTOM_BUILD_BASE_IMAGE', 'buildroot:latest')
@@ -1734,11 +1735,13 @@ class TestKojiImport(object):
                 expected_digests = {expected_media_type: expected_digest_value}
                 assert output['extra']['docker']['digests'] == expected_digests
 
+    @pytest.mark.parametrize('is_scratch', [True, False])
     @pytest.mark.parametrize('digest', [
         None,
         ManifestDigest(v2_list='sha256:e6593f3e'),
     ])
-    def test_koji_import_set_manifest_list_info(self, tmpdir, os_env, digest, reactor_config_map):
+    def test_koji_import_set_manifest_list_info(self, caplog, tmpdir, monkeypatch, os_env,
+                                                is_scratch, digest, reactor_config_map):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
                                             name='ns/name',
@@ -1746,15 +1749,37 @@ class TestKojiImport(object):
                                             release='1',
                                             session=session,
                                             docker_registry=True,
-                                            pulp_registries=1)
+                                            pulp_registries=1,
+                                            add_tag_conf_primaries=not is_scratch)
         group_manifest_result = {'myproject/hello-world': digest} if digest else {}
         workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = group_manifest_result
         orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
         orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = BuildInfo()
+        monkeypatch.setenv('BUILD', json.dumps({
+            "metadata": {
+                "creationTimestamp": "2015-07-27T09:24:00Z",
+                "namespace": NAMESPACE,
+                "name": BUILD_ID,
+                "labels": {'scratch': is_scratch},
+            }
+        }))
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
         runner.run()
 
-        data = session.metadata
+        if is_scratch:
+            medata_tag = '_metadata_'
+            metadata_file = 'metadata.json'
+            assert metadata_file in session.uploaded_files
+            data = json.loads(session.uploaded_files[metadata_file])
+            meta_rec = {x.arch: x.message for x in caplog.records if x.arch == medata_tag}
+            assert medata_tag in meta_rec
+            upload_dir = \
+                workflow.plugin_workspace[OrchestrateBuildPlugin.key][WORKSPACE_KEY_UPLOAD_DIR]
+            dest_file = os.path.join(upload_dir, metadata_file)
+            assert dest_file == meta_rec[medata_tag]
+        else:
+            data = session.metadata
+
         assert 'build' in data
         build = data['build']
         assert isinstance(build, dict)
@@ -1765,8 +1790,13 @@ class TestKojiImport(object):
         image = extra['image']
         assert isinstance(image, dict)
         expected_results = {}
-        expected_results['tags'] = [tag.tag
-                                    for tag in workflow.tag_conf.primary_images]
+        if is_scratch:
+            expected_results['tags'] = [tag.tag
+                                        for tag in workflow.tag_conf.images]
+        else:
+            expected_results['tags'] = [tag.tag
+                                        for tag in workflow.tag_conf.primary_images]
+
         for tag in expected_results['tags']:
             if '-' in tag:
                 version_release = tag

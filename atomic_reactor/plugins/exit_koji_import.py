@@ -11,6 +11,8 @@ from __future__ import unicode_literals
 import json
 import os
 import time
+import logging
+from tempfile import NamedTemporaryFile
 
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import ExitPlugin
@@ -40,12 +42,11 @@ except ImportError:
 from atomic_reactor.constants import (
     PLUGIN_KOJI_IMPORT_PLUGIN_KEY, PLUGIN_PULP_PULL_KEY, PLUGIN_PULP_SYNC_KEY,
     PLUGIN_FETCH_WORKER_METADATA_KEY, PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
-    PLUGIN_VERIFY_MEDIA_KEY
-)
+    PLUGIN_VERIFY_MEDIA_KEY, METADATA_TAG)
 from atomic_reactor.util import (Output, get_build_json,
                                  df_parser, ImageName, get_primary_images,
                                  get_manifest_media_type,
-                                 get_digests_map_from_annotations)
+                                 get_digests_map_from_annotations, is_scratch_build)
 from atomic_reactor.koji_util import (KojiUploadLogger, get_koji_task_owner)
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 from osbs.utils import Labels
@@ -251,8 +252,12 @@ class KojiImportPlugin(ExitPlugin):
                 version_release = image.tag
                 break
 
-        assert version_release is not None, 'Unable to find version-release image'
-        tags = [image.tag for image in primary_images]
+        if is_scratch_build():
+            tags = [image.tag for image in self.workflow.tag_conf.images]
+            version_release = tags[0]
+        else:
+            assert version_release is not None, 'Unable to find version-release image'
+            tags = [image.tag for image in primary_images]
 
         manifest_list_digests = self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY)
         if manifest_list_digests:
@@ -450,6 +455,22 @@ class KojiImportPlugin(ExitPlugin):
         self.log.debug("uploaded %r", path)
         return path
 
+    def upload_scratch_metadata(self, koji_metadata, koji_upload_dir, koji_session):
+        metadata_file = NamedTemporaryFile(prefix="metadata", suffix=".json", mode='wb')
+        metadata_file.write(json.dumps(koji_metadata, indent=2).encode('utf-8'))
+        metadata_file.flush()
+
+        filename = "metadata.json"
+        meta_output = Output(file=metadata_file, metadata={'filename': filename})
+
+        try:
+            self.upload_file(koji_session, meta_output, koji_upload_dir)
+            path = os.path.join(koji_upload_dir, filename)
+            log = logging.LoggerAdapter(self.log, {'arch': METADATA_TAG})
+            log.info(path)
+        finally:
+            meta_output.file.close()
+
     def run(self):
         """
         Run the plugin.
@@ -464,6 +485,10 @@ class KojiImportPlugin(ExitPlugin):
         server_dir = get_koji_upload_dir(self.workflow)
 
         koji_metadata, output_files = self.combine_metadata_fragments()
+
+        if is_scratch_build():
+            self.upload_scratch_metadata(koji_metadata, server_dir, self.session)
+            return
 
         try:
             for output in output_files:

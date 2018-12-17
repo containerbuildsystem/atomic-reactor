@@ -13,6 +13,7 @@ DOCKERFILE_FILENAME = 'Dockerfile'
 BUILD_JSON = 'build.json'
 BUILD_JSON_ENV = 'BUILD_JSON'
 RESULTS_JSON = 'results.json'
+METADATA_TAG = "_metadata_"
 
 CONTAINER_SHARE_PATH = '/run/share/'
 CONTAINER_SHARE_SOURCE_SUBDIR = 'source'

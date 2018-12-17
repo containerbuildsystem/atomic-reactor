@@ -24,7 +24,7 @@ from atomic_reactor.constants import PROG, PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json, get_docker_architecture,
                                  get_image_upload_filename,
-                                 get_manifest_media_type, ImageName)
+                                 get_manifest_media_type, ImageName, is_scratch_build)
 from atomic_reactor.rpm_util import parse_rpm_output, rpm_qf_args
 from osbs.exceptions import OsbsException
 
@@ -541,15 +541,16 @@ class KojiUploadPlugin(PostBuildPlugin):
 
         koji_metadata, output_files = self.get_metadata()
 
-        try:
-            session = get_koji_session(self.workflow, self.koji_fallback)
-            for output in output_files:
-                if output.file:
-                    self.upload_file(session, output, self.koji_upload_dir)
-        finally:
-            for output in output_files:
-                if output.file:
-                    output.file.close()
+        if not is_scratch_build():
+            try:
+                session = get_koji_session(self.workflow, self.koji_fallback)
+                for output in output_files:
+                    if output.file:
+                        self.upload_file(session, output, self.koji_upload_dir)
+            finally:
+                for output in output_files:
+                    if output.file:
+                        output.file.close()
 
         md_fragment = "{}-md".format(get_build_json()['metadata']['name'])
         md_fragment_key = 'metadata.json'
