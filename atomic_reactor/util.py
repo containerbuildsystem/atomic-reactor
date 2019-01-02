@@ -33,6 +33,7 @@ import signal
 import traceback
 from collections import namedtuple
 from copy import deepcopy
+from base64 import b64decode
 
 from six.moves.urllib.parse import urlparse
 from six import PY2
@@ -736,6 +737,24 @@ class Dockercfg(object):
             logger.warn('%s not found in .dockercfg', docker_registry)
             return {}
 
+    def unpack_auth_b64(self, docker_registry):
+        """Decode and unpack base64 'auth' credentials from config file.
+
+        :param docker_registry: str, registry reference in config file
+
+        :return: namedtuple, UnpackedAuth (or None if no 'auth' is available)
+        """
+        UnpackedAuth = namedtuple('UnpackedAuth', ['raw_str', 'username', 'password'])
+        credentials = self.get_credentials(docker_registry)
+        auth_b64 = credentials.get('auth')
+        if auth_b64:
+            raw_str = b64decode(auth_b64).decode('utf-8')
+            unpacked_credentials = raw_str.split(':', 1)
+            if len(unpacked_credentials) == 2:
+                return UnpackedAuth(raw_str, *unpacked_credentials)
+            else:
+                raise ValueError("Failed to parse 'auth' in '%s'" % self.json_secret_path)
+
 
 class RegistrySession(object):
     def __init__(self, registry, insecure=False, dockercfg_path=None, access=None):
@@ -745,12 +764,14 @@ class RegistrySession(object):
 
         username = None
         password = None
+        auth_b64 = None
         if dockercfg_path:
             dockercfg = Dockercfg(dockercfg_path).get_credentials(registry)
 
             username = dockercfg.get('username')
             password = dockercfg.get('password')
-        self.auth = HTTPRegistryAuth(username, password, access=access)
+            auth_b64 = dockercfg.get('auth')
+        self.auth = HTTPRegistryAuth(username, password, access=access, auth_b64=auth_b64)
 
         self._fallback = None
         if re.match('http(s)?://', self.registry):

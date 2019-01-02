@@ -576,7 +576,14 @@ class DockerTasker(LastLogger):
         logger.info("logging in: registry '%s', secret path '%s'", registry, docker_secret_path)
         # Docker-py needs username
         dockercfg = Dockercfg(docker_secret_path)
-        username = dockercfg.get_credentials(registry)['username']
+        credentials = dockercfg.get_credentials(registry)
+        unpacked_auth = dockercfg.unpack_auth_b64(registry)
+        username = credentials.get('username')
+        if unpacked_auth:
+            username = unpacked_auth.username
+        if not username:
+            raise RuntimeError("Failed to extract a username from '%s'" % dockercfg)
+
         logger.info("found username %s for registry %s", username, registry)
 
         response = self.d.login(registry=registry, username=username,

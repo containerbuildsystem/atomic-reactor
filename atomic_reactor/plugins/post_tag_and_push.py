@@ -65,11 +65,25 @@ class TagAndPushPlugin(PostBuildPlugin):
         cmd = ['skopeo', 'copy']
         if docker_push_secret is not None:
             dockercfg = Dockercfg(docker_push_secret)
-            credentials = dockercfg.get_credentials(registry_image.registry)
-            username = credentials['username']
-            password = credentials['password']
+            dest_creds = None
+            unpacked_auth_b64 = None
+            try:
+                unpacked_auth_b64 = dockercfg.unpack_auth_b64(registry_image.registry)
+            except ValueError:
+                self.log.warning("Invalid 'auth' value in '%s'", docker_push_secret)
+            if unpacked_auth_b64:
+                dest_creds = unpacked_auth_b64.raw_str
+            else:
+                credentials = dockercfg.get_credentials(registry_image.registry)
+                username = credentials.get('username')
+                password = credentials.get('password')
+                if username and password:
+                    dest_creds = username + ':' + password
 
-            cmd.append('--dest-creds=' + username + ':' + password)
+            if dest_creds:
+                cmd.append('--dest-creds=' + dest_creds)
+            else:
+                self.log.warning("No credentials found in '%s'", docker_push_secret)
 
         if insecure:
             cmd.append('--dest-tls-verify=false')

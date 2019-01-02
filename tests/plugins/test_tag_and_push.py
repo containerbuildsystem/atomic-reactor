@@ -28,6 +28,7 @@ from tempfile import mkdtemp
 import requests
 import subprocess
 import tarfile
+from base64 import b64encode
 
 if MOCK:
     import docker
@@ -108,6 +109,8 @@ class X(object):
     (TEST_IMAGE_NAME, PUSH_ERROR_LOGS, True, False),
 ])
 @pytest.mark.parametrize(("file_name", "dockerconfig_contents"), [
+    (".dockercfg", {LOCALHOST_REGISTRY: {"email": "test@example.com",
+                                         "auth": b64encode(b'user:mypassword').decode('utf-8')}}),
     (".dockercfg", {LOCALHOST_REGISTRY: {"username": "user",
                                          "email": "test@example.com",
                                          "password": "mypassword"}}),

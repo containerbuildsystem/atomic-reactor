@@ -7,7 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 from __future__ import unicode_literals
 
-from atomic_reactor.auth import HTTPBearerAuth, HTTPRegistryAuth
+from atomic_reactor.auth import HTTPBearerAuth, HTTPRegistryAuth, HTTPBasicAuthWithB64
 from requests.auth import HTTPBasicAuth
 import base64
 import json
@@ -40,29 +40,36 @@ class TestHTTPBearerAuth(object):
     def test_initialization(self, verify):
         username = 'the-user'
         password = 'top-secret'
+        auth_b64 = b64encode(username, password)
         access = ('pull', 'push')
 
-        auth = HTTPBearerAuth(username=username, password=password, verify=verify, access=access)
+        auth = HTTPBearerAuth(username=username, password=password, verify=verify, access=access,
+                              auth_b64=auth_b64)
 
         assert auth.username == username
         assert auth.password == password
         assert auth.verify == verify
         assert auth.access == access
+        assert auth.auth_b64 == auth_b64
 
     @responses.activate
-    @pytest.mark.parametrize(('username', 'password', 'basic_auth'), (
-        (None, None, False),
-        ('spam', None, False),
-        (None, 'bacon', False),
-        ('spam', 'bacon', True),
+    @pytest.mark.parametrize(('auth_b64', 'username', 'password', 'basic_auth'), (
+        (None, None, None, False),
+        (None, 'spam', None, False),
+        (None, None, 'bacon', False),
+        (None, 'spam', 'bacon', True),
+        (b64encode('spam', 'bacon'), None, None, True),
+        (b64encode('spam', 'bacon'), 'spam', None, True),
+        (b64encode('spam', 'bacon'), 'spam', 'bacon', True),
+        (b64encode('spam', 'bacon'), None, 'bacon', True),
     ))
-    def test_token_negotiation(self, username, password, basic_auth):
+    def test_token_negotiation(self, auth_b64, username, password, basic_auth):
 
         def bearer_realm_callback(request):
             # Verify if username and password were provided, token is negotiated
             # with realm via basic auth.
             if basic_auth:
-                creds = b64encode(username, password)
+                creds = auth_b64 or b64encode(username, password)
                 assert request.headers['authorization'] == 'Basic {}'.format(creds)
             else:
                 assert 'authorization' not in request.headers
@@ -77,7 +84,7 @@ class TestHTTPBearerAuth(object):
         responses.add_callback(responses.GET, url, callback=bearer_unauthorized_callback)
         responses.add_callback(responses.GET, url, callback=bearer_success_callback)
 
-        auth = HTTPBearerAuth(username=username, password=password)
+        auth = HTTPBearerAuth(username=username, password=password, auth_b64=auth_b64)
 
         assert requests.get(url, auth=auth).json() == 'success'
         assert len(responses.calls) == 3
@@ -191,24 +198,32 @@ class TestHTTPBearerAuth(object):
 class TestHTTPRegistryAuth(object):
 
     def test_initialization(self):
-        auth = HTTPRegistryAuth(username='the-user', password='top-secret')
+        username = 'the-user'
+        password = 'top-secret'
+        auth_b64 = b64encode(username, password)
+        auth = HTTPRegistryAuth(username=username, password=password, auth_b64=auth_b64)
         assert auth.username == 'the-user'
         assert auth.password == 'top-secret'
+        assert auth.auth_b64 == auth_b64
 
     @responses.activate
-    @pytest.mark.parametrize(('username', 'password', 'basic_auth'), (
-        ('spam', 'bacon', True),
-        (None, 'bacon', False),
-        ('spam', None, False),
-        (None, None, False),
+    @pytest.mark.parametrize(('auth_b64', 'username', 'password', 'basic_auth'), (
+        (None, 'spam', 'bacon', True),
+        (None, None, 'bacon', False),
+        (None, 'spam', None, False),
+        (None, None, None, False),
+        (b64encode('spam', 'bacon'), None, None, True),
+        (b64encode('spam', 'bacon'), 'spam', None, True),
+        (b64encode('spam', 'bacon'), 'spam', 'bacon', True),
+        (b64encode('spam', 'bacon'), None, 'bacon', True),
     ))
-    def test_v1(self, username, password, basic_auth):
+    def test_v1(self, auth_b64, username, password, basic_auth):
         url = 'https://registry.example.com/v1/repositories/fedora/tags/latest'
 
         def auth_callback(request):
             # Verify if username and password were provided, basic auth is used
             if basic_auth:
-                creds = b64encode(username, password)
+                creds = auth_b64 or b64encode(username, password)
                 assert request.headers['authorization'] == 'Basic {}'.format(creds)
             else:
                 assert 'authorization' not in request.headers
@@ -217,25 +232,33 @@ class TestHTTPRegistryAuth(object):
 
         responses.add_callback(responses.GET, url, callback=auth_callback)
 
-        auth = HTTPRegistryAuth(username=username, password=password)
+        auth = HTTPRegistryAuth(username=username, password=password, auth_b64=auth_b64)
         assert requests.get(url, auth=auth).json() == 'success'
         if basic_auth:
-            assert isinstance(auth.v1_auth, HTTPBasicAuth)
+            assert isinstance(auth.v1_auth, (HTTPBasicAuth, HTTPBasicAuthWithB64))
         else:
             assert auth.v1_auth is None
 
     @responses.activate
-    @pytest.mark.parametrize(('username', 'password', 'auth_type'), (
-        ('spam', 'bacon', 'basic'),
-        (None, 'bacon', None),
-        ('spam', None, None),
-        (None, None, None),
-        ('spam', 'bacon', 'bearer'),
-        (None, 'bacon', 'bearer'),
-        ('spam', None, 'bearer'),
-        (None, None, 'bearer'),
+    @pytest.mark.parametrize(('auth_b64', 'username', 'password', 'auth_type'), (
+        (None, 'spam', 'bacon', 'basic'),
+        (None, None, 'bacon', None),
+        (None, 'spam', None, None),
+        (None, None, None, None),
+        (None, 'spam', 'bacon', 'bearer'),
+        (None, None, 'bacon', 'bearer'),
+        (None, 'spam', None, 'bearer'),
+        (None, None, None, 'bearer'),
+        (b64encode('spam', 'bacon'), None, None, 'basic'),
+        (b64encode('spam', 'bacon'), 'spam', None, 'basic'),
+        (b64encode('spam', 'bacon'), None, 'bacon', 'basic'),
+        (b64encode('spam', 'bacon'), 'spam', 'bacon', 'basic'),
+        (b64encode('spam', 'bacon'), None, None, 'bearer'),
+        (b64encode('spam', 'bacon'), 'spam', None, 'bearer'),
+        (b64encode('spam', 'bacon'), None, 'bacon', 'bearer'),
+        (b64encode('spam', 'bacon'), 'spam', 'bacon', 'bearer'),
     ))
-    def test_v2(self, username, password, auth_type):
+    def test_v2(self, auth_b64, username, password, auth_type):
         bearer_token = 'the-bearer-token'
         realm_url = 'https://registry.example.com/v2/auth'
 
@@ -244,7 +267,7 @@ class TestHTTPRegistryAuth(object):
 
         def auth_callback(request):
             if auth_type == 'basic':
-                creds = b64encode(username, password)
+                creds = auth_b64 or b64encode(username, password)
                 assert request.headers['authorization'] == 'Basic {}'.format(creds)
                 return (200, {}, json.dumps('success'))
 
@@ -262,12 +285,12 @@ class TestHTTPRegistryAuth(object):
         repo_url = 'https://registry.example.com/v2/fedora/tags/list'
         responses.add_callback(responses.GET, repo_url, callback=auth_callback)
 
-        auth = HTTPRegistryAuth(username=username, password=password)
+        auth = HTTPRegistryAuth(username=username, password=password, auth_b64=auth_b64)
         assert requests.get(repo_url, auth=auth).json() == 'success'
-        if username and password:
+        if (username and password) or auth_b64:
             assert len(auth.v2_auths) == 2
             assert isinstance(auth.v2_auths[0], HTTPBearerAuth)
-            assert isinstance(auth.v2_auths[1], HTTPBasicAuth)
+            assert isinstance(auth.v2_auths[1], (HTTPBasicAuth, HTTPBasicAuthWithB64))
         else:
             assert len(auth.v2_auths) == 1
             assert isinstance(auth.v2_auths[0], HTTPBearerAuth)

@@ -20,6 +20,7 @@ import subprocess
 import time
 import inspect
 import signal
+from base64 import b64encode
 from collections import namedtuple
 
 from tempfile import mkdtemp
@@ -404,6 +405,10 @@ def test_registry_hostname(registry, expected):
     assert registry_hostname(registry) == expected
 
 
+@pytest.mark.parametrize(('config_content'), [
+    ({'username': 'john.doe', 'password': 'letmein'}),
+    ({'auth': b64encode(b'john.doe:letmein').decode('utf-8')}),
+])
 @pytest.mark.parametrize(('in_config', 'lookup', 'expected'), [
     ('example.com', 'example.com', True),
     ('example.com', 'https://example.com/v2', True),
@@ -411,16 +416,18 @@ def test_registry_hostname(registry, expected):
     ('example.com', 'https://example.com/v2', True),
     ('example.com', 'notexample.com', False),
 ])
-def test_dockercfg(tmpdir, in_config, lookup, expected):
+def test_dockercfg(tmpdir, in_config, config_content, lookup, expected):
     temp_dir = mkdtemp(dir=str(tmpdir))
     with open(os.path.join(temp_dir, '.dockercfg'), 'w+') as dockerconfig:
         dockerconfig.write(json.dumps({
-            in_config: {
-                'username': 'john.doe', 'password': 'letmein'
-            }
+            in_config: config_content
         }))
-    creds = Dockercfg(temp_dir).get_credentials(lookup)
-    found = creds.get('username') == 'john.doe' and creds.get('password') == 'letmein'
+    if 'auth' in config_content:
+        unpacked = Dockercfg(temp_dir).unpack_auth_b64(lookup)
+        found = unpacked == ('john.doe:letmein', 'john.doe', 'letmein')
+    else:
+        creds = Dockercfg(temp_dir).get_credentials(lookup)
+        found = creds.get('username') == 'john.doe' and creds.get('password') == 'letmein'
 
     assert found == expected
 
@@ -436,14 +443,16 @@ def test_dockercfg(tmpdir, in_config, lookup, expected):
     (RegistrySession.put, responses.PUT),
     (RegistrySession.delete, responses.DELETE),
 ])
+@pytest.mark.parametrize(('config_content'), [
+    ({'username': 'john.doe', 'password': 'letmein'}),
+    ({'auth': b64encode(b'john.doe:letmein').decode('utf-8')}),
+])
 @responses.activate
-def test_registry_session(tmpdir, registry, insecure, method, responses_method):
+def test_registry_session(tmpdir, registry, insecure, method, responses_method, config_content):
     temp_dir = mkdtemp(dir=str(tmpdir))
     with open(os.path.join(temp_dir, '.dockercfg'), 'w+') as dockerconfig:
         dockerconfig.write(json.dumps({
-            registry_hostname(registry): {
-                'username': 'john.doe', 'password': 'letmein'
-            }
+            registry_hostname(registry): config_content
         }))
     session = RegistrySession(registry, insecure=insecure, dockercfg_path=temp_dir)
 
