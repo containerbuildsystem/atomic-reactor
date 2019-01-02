@@ -257,7 +257,6 @@ def test_figure_out_build_file(tmpdir, contents, local_path, expected_path, expe
     else:
         with pytest.raises(Exception) as e:
             figure_out_build_file(tmpdir_path, local_path=local_path)
-        print(e)
         assert expected_exception in str(e)
 
 

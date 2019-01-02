@@ -68,7 +68,6 @@ disable=I,
         old-style-class,  # py2/3 compatibility
         pointless-statement,  # should be enabled
         pointless-string-statement,  # should be enabled
-        print-statement,  # py2/3 compatibility
         protected-access,
         raising-bad-type,  # should be enabled
         raising-format-tuple,  # should be enabled
