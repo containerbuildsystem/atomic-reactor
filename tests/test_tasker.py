@@ -15,6 +15,9 @@ from tests.constants import LOCALHOST_REGISTRY, INPUT_IMAGE, DOCKERFILE_GIT, MOC
 from requests.packages.urllib3.exceptions import ProtocolError
 from tests.util import requires_internet
 
+from base64 import b64encode
+import json
+import os
 import docker
 import docker.errors
 import requests
@@ -483,3 +486,39 @@ def test_retry_generator(exc, in_init, retry_times):
     else:
         t.retry_generator(lambda *args, **kwargs: simplegen(),
                           *my_args, **my_kwargs)
+
+
+@pytest.mark.parametrize(("dockerconfig_contents", "should_raise"), [
+    ({LOCALHOST_REGISTRY: {"foo": "bar"}}, True),
+    ({LOCALHOST_REGISTRY: {"auth": b64encode(b'user').decode('utf-8')}}, True),
+    ({LOCALHOST_REGISTRY: {"auth": b64encode(b'user:mypassword').decode('utf-8')}}, False),
+    ({LOCALHOST_REGISTRY: {"username": "user", "password": "mypassword"}}, False)])
+def test_login(tmpdir, dockerconfig_contents, should_raise):
+    if MOCK:
+        mock_docker()
+        fake_api = flexmock(docker.APIClient, login=lambda username, registry,
+                            dockercfg_path: {'Status': 'Login Succeeded'})
+
+    tmpdir_path = str(tmpdir.realpath())
+    file_name = '.dockercfg'
+    dockercfg_path = os.path.join(tmpdir_path, file_name)
+    with open(dockercfg_path, "w+") as dockerconfig:
+        dockerconfig.write(json.dumps(dockerconfig_contents))
+        dockerconfig.flush()
+    t = DockerTasker()
+    if should_raise:
+        if 'auth' in dockerconfig_contents[LOCALHOST_REGISTRY]:
+            with pytest.raises(ValueError) as exc:
+                t.login(LOCALHOST_REGISTRY, tmpdir_path)
+                assert "Failed to parse 'auth'" in str(exc)
+        else:
+            with pytest.raises(RuntimeError) as exc:
+                t.login(LOCALHOST_REGISTRY, tmpdir_path)
+                assert "Failed to extract a username" in str(exc)
+    else:
+        if MOCK:
+            (fake_api
+             .should_receive('login')
+             .with_args(username='user', registry=LOCALHOST_REGISTRY, dockercfg_path=dockercfg_path)
+             .once().and_return({'Status': 'Login Succeeded'}))
+        t.login(LOCALHOST_REGISTRY, tmpdir_path)

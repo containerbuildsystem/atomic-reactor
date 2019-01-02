@@ -22,6 +22,9 @@ class HTTPBearerAuth(AuthBase):
     when fetching the Bearer token from realm. Otherwise, Bearer token
     is retrivied with anonymous access.
 
+    auth_b64 may be provided for authentication (instead of username and
+    password).
+
     Once Bearer token is retrieved, it will be cached and used in subsequent
     requests. Since tokens are specific to repositories, the token cache may
     store multiple tokens.
@@ -31,7 +34,7 @@ class HTTPBearerAuth(AuthBase):
     BEARER_PATTERN = re.compile(r'bearer ', flags=re.IGNORECASE)
     V2_REPO_PATTERN = re.compile(r'^/v2/(.*)/(manifests|tags|blobs)/')
 
-    def __init__(self, username=None, password=None, verify=True, access=None):
+    def __init__(self, username=None, password=None, verify=True, access=None, auth_b64=None):
         """Initialize HTTPBearerAuth object.
 
         :param username: str, username to be used for authentication
@@ -41,9 +44,11 @@ class HTTPBearerAuth(AuthBase):
         :param access: iter<str>, iterable (list, tuple, etc) of access to be
             requested; possible values to be included are 'pull' and/or 'push';
             defaults to ('pull',)
+        :param auth_b64: str, base64 credendials as described in RFC 7617
         """
         self.username = username
         self.password = password
+        self.auth_b64 = auth_b64
         self.verify = verify
         self.access = access or ('pull',)
 
@@ -98,7 +103,9 @@ class HTTPBearerAuth(AuthBase):
         realm = bearer_info.pop('realm')
 
         realm_auth = None
-        if self.username and self.password:
+        if self.auth_b64:
+            realm_auth = HTTPBasicAuthWithB64(self.auth_b64)
+        elif self.username and self.password:
             realm_auth = HTTPBasicAuth(self.username, self.password)
 
         realm_response = requests.get(realm, params=bearer_info, verify=self.verify,
@@ -118,6 +125,25 @@ class HTTPBearerAuth(AuthBase):
         return repo
 
 
+class HTTPBasicAuthWithB64(AuthBase):
+    """Performs Basic authentication for the given Request object.
+
+    As in requests.auth.HTTPBasicAuth, but instead of converting
+    'username:password' to a base64 string (as per RFC 7617), this class does
+    it by receiving the base64 string.
+    """
+    def __init__(self, auth):
+        """Initialize HTTPBasicAuthWithB64 object.
+
+        :param auth_b64: str, base64 credendials as described in RFC 7617
+        """
+        self.auth = auth
+
+    def __call__(self, response):
+        response.headers['Authorization'] = 'Basic {}'.format(self.auth)
+        return response
+
+
 class HTTPRegistryAuth(AuthBase):
     """Custom requests auth handler for constainer registries.
 
@@ -134,24 +160,31 @@ class HTTPRegistryAuth(AuthBase):
     V1_URL = re.compile(r'^/v1/')
     V2_URL = re.compile(r'^/v2/')
 
-    def __init__(self, username=None, password=None, access=None):
+    def __init__(self, username=None, password=None, access=None, auth_b64=None):
         self.username = username
         self.password = password
         self.access = access
+        self.auth_b64 = auth_b64
 
         self.v1_auth = None
         self.v2_auths = []
 
     def __call__(self, request):
         url_parts = urlparse(request.url)
+        if self.auth_b64:
+            basic_auth = HTTPBasicAuthWithB64(self.auth_b64)
+        elif self.username and self.password:
+            basic_auth = HTTPBasicAuth(self.username, self.password)
+        else:
+            basic_auth = None
 
         if self.V1_URL.search(url_parts.path):
-            if not self.username or not self.password:
+            if (not self.username or not self.password) and not self.auth_b64:
                 # V1 API only supports basic auth which requires user/pass
                 return request
 
-            if not self.v1_auth:
-                self.v1_auth = HTTPBasicAuth(self.username, self.password)
+            if not self.v1_auth and basic_auth:
+                self.v1_auth = basic_auth
 
             return self.v1_auth(request)
 
@@ -161,10 +194,10 @@ class HTTPRegistryAuth(AuthBase):
                 # It's safe to always add bearer auth handler because
                 # it's only activated if indicated by www-authenticate response header
                 self.v2_auths.append(HTTPBearerAuth(self.username, self.password,
-                                                    access=self.access))
+                                                    access=self.access, auth_b64=self.auth_b64))
 
-                if self.username and self.password:
-                    self.v2_auths.append(HTTPBasicAuth(self.username, self.password))
+                if basic_auth:
+                    self.v2_auths.append(basic_auth)
 
             for auth in self.v2_auths:
                 request = auth(request)
