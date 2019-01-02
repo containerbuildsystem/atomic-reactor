@@ -1122,8 +1122,9 @@ class TestKojiUpload(object):
                                multiple=multiple, reactor_config_map=reactor_config_map)
         runner.run()
 
-        for data in server.configmap.values():
-            break
+        data_list = list(server.configmap.values())
+        if data_list:
+            data = data_list[0]
         else:
             raise RuntimeError("no configmap found")
 

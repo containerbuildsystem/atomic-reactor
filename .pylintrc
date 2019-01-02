@@ -78,7 +78,6 @@ disable=I,
         super-init-not-called,  # nice to have
         superfluous-parens,  # nice to have
         too-many-lines,
-        undefined-loop-variable,  # should be enabled
         unicode-builtin,
         unidiomatic-typecheck,  # nice to have
         ungrouped-imports,
