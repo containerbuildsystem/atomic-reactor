@@ -338,7 +338,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
             return image_info[0]
         elif items_count <= 0:
             logger.error("image '%s' not found", self.base_image)
-            raise RuntimeError("image '%s' not found", self.base_image)
+            raise RuntimeError("image '%s' not found" % self.base_image)
         else:
             logger.error("multiple (%d) images found for image '%s'", items_count,
                          self.base_image)

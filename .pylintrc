@@ -70,7 +70,6 @@ disable=I,
         pointless-string-statement,  # should be enabled
         protected-access,
         raising-bad-type,  # should be enabled
-        raising-format-tuple,  # should be enabled
         range-builtin-not-iterating,  # py2/3 compatibility
         redefined-builtin,  # should be enabled
         redefined-outer-name,  # nice to have

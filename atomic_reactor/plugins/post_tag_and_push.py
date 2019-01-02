@@ -79,7 +79,7 @@ class TagAndPushPlugin(PostBuildPlugin):
         elif image['type'] == IMAGE_TYPE_DOCKER_ARCHIVE:
             source_img = 'docker-archive://{path}'.format(**image)
         else:
-            raise RuntimeError("Attempt to push unsupported image type %s with skopeo",
+            raise RuntimeError("Attempt to push unsupported image type %s with skopeo" %
                                image['type'])
 
         dest_img = 'docker://' + registry_image.to_str()

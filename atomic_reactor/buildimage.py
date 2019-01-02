@@ -58,7 +58,7 @@ class BuildImageBuilder(object):
         logger.debug("creating build image: df_dir_path = '%s', image = '%s'", df_dir_path, image)
 
         if not os.path.isdir(df_dir_path):
-            raise RuntimeError("Directory '%s' does not exist.", df_dir_path)
+            raise RuntimeError("Directory '%s' does not exist." % df_dir_path)
 
         tmpdir = tempfile.mkdtemp()
         df_tmpdir = os.path.join(tmpdir, 'df-%s' % uuid.uuid4())

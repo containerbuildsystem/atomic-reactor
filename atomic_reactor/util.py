@@ -512,8 +512,8 @@ def _process_plugin_substitution(mapping, key_parts, value):
     else:
         logger.error("there is no configuration for plugin '%s'",
                      plugin_name)
-        raise RuntimeError("plugin '%s' was specified multiple (%d) times, can't pick one",
-                           plugin_name, plugins_num)
+        raise RuntimeError("plugin '%s' was specified multiple (%d) times, can't pick one" %
+                           (plugin_name, plugins_num))
 
 
 def get_checksums(path, algorithms):
@@ -819,7 +819,7 @@ class ManifestDigest(dict):
 
     def __getattr__(self, attr):
         if attr not in self.content_type:
-            raise AttributeError("Unknown version: %s", attr)
+            raise AttributeError("Unknown version: %s" % attr)
         else:
             return self.get(attr, None)
 
