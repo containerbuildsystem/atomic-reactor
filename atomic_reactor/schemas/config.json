@@ -482,7 +482,7 @@
     },
     "default_image_build_method": {
         "description": "Specify different default buildstep plugin for worker builds",
-        "enum": ["docker_api", "imagebuilder"]
+        "enum": ["docker_api", "imagebuilder", "buildah"]
     },
     "flatpak": {
         "description": "Flatpak specific properties",
