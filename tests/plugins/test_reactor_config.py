@@ -609,6 +609,11 @@ class TestReactorConfigPlugin(object):
     @pytest.mark.parametrize(('config', 'expect'), [
         ("""\
           version: 1
+          default_image_build_method: buildah
+         """,
+         "buildah"),
+        ("""\
+          version: 1
           default_image_build_method: imagebuilder
          """,
          "imagebuilder"),

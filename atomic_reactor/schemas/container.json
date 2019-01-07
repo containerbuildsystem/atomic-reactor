@@ -115,7 +115,7 @@
       "type": ["object", "null"]
     },
     "image_build_method": {
-      "enum": ["docker_api", "imagebuilder"]
+      "enum": ["docker_api", "imagebuilder", "buildah"]
     },
     "tags": {
       "type": "array"
