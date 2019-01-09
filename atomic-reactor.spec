@@ -58,7 +58,7 @@ BuildRequires:  python-docker-py
 %endif  # fedora 29+
 BuildRequires:  python-flexmock >= 0.10.2
 BuildRequires:  python-six
-BuildRequires:  python-osbs >= 0.48
+BuildRequires:  python-osbs >= 0.53
 BuildRequires:  python-backports-lzma
 BuildRequires:  python2-responses
 %endif # with_check
@@ -83,7 +83,7 @@ BuildRequires:  python3-docker-py
 %endif # fedora 29+
 BuildRequires:  python3-flexmock >= 0.10.2
 BuildRequires:  python3-six
-BuildRequires:  python3-osbs >= 0.48
+BuildRequires:  python3-osbs >= 0.53
 BuildRequires:  python3-responses
 %endif # with_check
 %endif # with_python3
