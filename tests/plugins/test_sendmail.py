@@ -57,8 +57,21 @@ MOCK_KOJI_SUBMITTER_NAME = "baz"
 MOCK_KOJI_SUBMITTER_EMAIL = "baz@bar.com"
 MOCK_KOJI_SUBMITTER_GENERATED = "@".join([MOCK_KOJI_SUBMITTER_NAME, MOCK_EMAIL_DOMAIN])
 MOCK_ADDITIONAL_EMAIL = "spam@bar.com"
+MOCK_NAME_LABEL = 'foo/bar_in_df'
+MOCK_DOCKERFILE = ('FROM base\n'
+                   'LABEL Name={name}\n'
+                   .format(name=MOCK_NAME_LABEL))
 
 LogEntry = namedtuple('LogEntry', ['platform', 'line'])
+
+
+class mock_source(object):
+    def get_vcs_info(self):
+        return None
+
+
+class mock_builder(object):
+    df_path = None
 
 
 class MockedClientSession(object):
@@ -326,7 +339,7 @@ class TestSendMailPlugin(object):
     @pytest.mark.parametrize(('has_store_metadata_results', 'annotations', 'has_repositories',
                               'expect_error'), [
         (True, True, True, False),
-        (True, True, False, True),
+        (True, True, False, False),
         (True, False, False, True),
         (False, False, False, True)
     ])
@@ -358,7 +371,7 @@ class TestSendMailPlugin(object):
         (False, True, False, False, False),
         (False, False, True, False, False),
     ])
-    def test_render_mail(self, monkeypatch, autorebuild, auto_cancel,
+    def test_render_mail(self, monkeypatch, tmpdir, autorebuild, auto_cancel,
                          manual_cancel, to_koji_submitter, has_koji_logs,
                          koji_integration, success, reactor_config_map,
                          has_store_metadata_results, annotations, has_repositories,
@@ -378,6 +391,10 @@ class TestSendMailPlugin(object):
         class TagConf(object):
             unique_images = []
 
+        git_source_url = 'git_source_url'
+        git_source_ref = '123423431234123'
+        VcsInfo = namedtuple('VcsInfo', ['vcs_type', 'vcs_url', 'vcs_ref'])
+
         class WF(object):
             image = util.ImageName.parse('foo/bar:baz')
             openshift_build_selflink = '/builds/blablabla'
@@ -390,6 +407,20 @@ class TestSendMailPlugin(object):
             }
             prebuild_results = {}
             plugin_workspace = {}
+            builder = mock_builder()
+
+            class mock_source(object):
+                def get_vcs_info(self):
+                    return VcsInfo(
+                        vcs_type='git',
+                        vcs_url=git_source_url,
+                        vcs_ref=git_source_ref
+                    )
+            source = mock_source()
+
+            with open(os.path.join(str(tmpdir), 'Dockerfile'), 'wt') as df:
+                df.write(MOCK_DOCKERFILE)
+                setattr(builder, 'df_path', df.name)
 
         monkeypatch.setenv("BUILD", json.dumps({
             'metadata': {
@@ -490,28 +521,41 @@ class TestSendMailPlugin(object):
             # Full logs are only generated on a failed autorebuild
             assert autorebuild == bool(logs)
 
-        exp_subject = '%s building image foo/bar' % status
-        exp_body = [
-            'Image Name: foo/bar',
-            'Repositories: ',
-            '    foo/bar:baz',
-            '    foo/bar:spam',
+        if has_repositories:
+            exp_subject = '%s building image foo/bar' % status
+            exp_body = [
+                'Image Name: foo/bar',
+                'Repositories: ',
+                '    foo/bar:baz',
+                '    foo/bar:spam',
+            ]
+        else:
+            exp_subject = '%s building image %s' % (status, MOCK_NAME_LABEL)
+            exp_body = [
+                'Image Name: ' + MOCK_NAME_LABEL,
+                'Repositories: ',
+            ]
+
+        common_body = [
             'Status: ' + status,
             'Submitted by: ',
+            'Source url: ' + git_source_url,
+            'Source ref: ' + git_source_ref,
         ]
+        exp_body.extend(common_body)
+
         if autorebuild:
-            exp_body[-1] += '<autorebuild>'
+            exp_body[-3] += '<autorebuild>'
         elif koji_integration and to_koji_submitter:
-            exp_body[-1] += MOCK_KOJI_SUBMITTER_EMAIL
+            exp_body[-3] += MOCK_KOJI_SUBMITTER_EMAIL
         else:
-            exp_body[-1] += SendMailPlugin.DEFAULT_SUBMITTER
+            exp_body[-3] += SendMailPlugin.DEFAULT_SUBMITTER
 
         if log_url_cases[(koji_integration, autorebuild, success)]:
             if has_koji_logs:
-                exp_body.append("Logs: https://koji/work/tasks/12345")
+                exp_body.insert(-2, "Logs: https://koji/work/tasks/12345")
             else:
-                exp_body.append("Logs: "
-                                "https://something.com/builds/blablabla/log")
+                exp_body.insert(-2, "Logs: https://something.com/builds/blablabla/log")
 
         assert subject == exp_subject
         assert body == '\n'.join(exp_body)
@@ -520,7 +564,7 @@ class TestSendMailPlugin(object):
         TypeError,
         OsbsException, 'unable to get build logs from OSBS',
     ])
-    def test_failed_logs(self, monkeypatch, error_type, reactor_config_map):  # noqa
+    def test_failed_logs(self, tmpdir, monkeypatch, error_type, reactor_config_map):  # noqa
         # just test a random combination of the method inputs and hope it's ok for other
         #   combinations
         class TagConf(object):
@@ -538,6 +582,11 @@ class TestSendMailPlugin(object):
             }
             prebuild_results = {}
             plugin_workspace = {}
+            source = mock_source()
+            builder = mock_builder()
+            with open(os.path.join(str(tmpdir), 'Dockerfile'), 'wt') as df:
+                df.write(MOCK_DOCKERFILE)
+                setattr(builder, 'df_path', df.name)
 
         monkeypatch.setenv("BUILD", json.dumps({
             'metadata': {
@@ -920,7 +969,7 @@ class TestSendMailPlugin(object):
         else:
             p._send_mail(['spam@spam.com'], 'subject', 'body')
 
-    def test_run_ok(self, reactor_config_map):  # noqa
+    def test_run_ok(self, tmpdir, reactor_config_map):  # noqa
         class TagConf(object):
             unique_images = []
 
@@ -933,6 +982,11 @@ class TestSendMailPlugin(object):
             tag_conf = TagConf()
             exit_results = {}
             plugin_workspace = {}
+            source = mock_source()
+            builder = mock_builder()
+            with open(os.path.join(str(tmpdir), 'Dockerfile'), 'wt') as df:
+                df.write(MOCK_DOCKERFILE)
+                setattr(builder, 'df_path', df.name)
 
         receivers = ['foo@bar.com', 'x@y.com']
 
@@ -974,6 +1028,7 @@ class TestSendMailPlugin(object):
             tag_conf = TagConf()
             exit_results = {}
             plugin_workspace = {}
+            source = mock_source()
 
         class SMTP(object):
             def sendmail(self, from_addr, to, msg):
@@ -1035,6 +1090,7 @@ class TestSendMailPlugin(object):
             tag_conf = TagConf()
             exit_results = {}
             plugin_workspace = {}
+            source = mock_source()
 
         error_addresses = ['error@address.com']
         workflow = WF()
@@ -1079,6 +1135,7 @@ class TestSendMailPlugin(object):
             tag_conf = TagConf()
             exit_results = {}
             plugin_workspace = {}
+            source = mock_source()
 
         error_addresses = ['error@address.com']
         workflow = WF()

@@ -28,8 +28,9 @@ from atomic_reactor.plugins.pre_reactor_config import (get_smtp_session, get_koj
                                                        get_smtp, get_koji, get_openshift,
                                                        get_openshift_session, get_koji_path_info)
 from atomic_reactor.koji_util import get_koji_task_owner
-from atomic_reactor.util import get_build_json, OSBSLogs, ImageName
+from atomic_reactor.util import get_build_json, OSBSLogs, ImageName, df_parser
 from atomic_reactor.constants import PLUGIN_SENDMAIL_KEY
+from osbs.utils import Labels
 
 
 # an email address consisting of local name, an @ sign, and a domain name
@@ -219,6 +220,10 @@ class SendMailPlugin(ExitPlugin):
     def _get_image_name_and_repos(self):
 
         repos = []
+        dockerfile = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
+        labels = Labels(dockerfile.labels)
+        _, image_name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)
+
         stored_data = self.workflow.exit_results.get(StoreMetadataInOSv3Plugin.key)
         if not stored_data or 'annotations' not in stored_data:
             raise ValueError('Stored Metadata not found')
@@ -228,11 +233,9 @@ class SendMailPlugin(ExitPlugin):
         repos.extend(repo_data.get('unique', []))
         repos.extend(repo_data.get('primary', []))
 
-        if not repos:
-            raise ValueError('Repositories not found in stored Metadata')
-
-        image_name_obj = ImageName.parse(repos[0])
-        image_name = image_name_obj.get_repo()
+        if repos:
+            image_name_obj = ImageName.parse(repos[0])
+            image_name = image_name_obj.get_repo()
 
         return (image_name, repos)
 
@@ -273,6 +276,16 @@ class SendMailPlugin(ExitPlugin):
             'user': '<autorebuild>' if rebuild else self.submitter,
             'logs': url
         }
+
+        vcs = self.workflow.source.get_vcs_info()
+        if vcs:
+            body_template = '\n'.join([
+                body_template,
+                'Source url: %(vcs-url)s',
+                'Source ref: %(vcs-ref)s',
+            ])
+            formatting_dict['vcs-url'] = vcs.vcs_url
+            formatting_dict['vcs-ref'] = vcs.vcs_ref
 
         log_files = None
         if rebuild and endstate == 'Failed':
