@@ -15,6 +15,7 @@ import pkg_resources
 import locale
 
 from atomic_reactor import set_logging
+from osbs import set_logging as set_logging_osbs
 from atomic_reactor.api import (build_image_here, build_image_in_privileged_container,
                                 build_image_using_hosts_docker)
 from atomic_reactor.constants import DESCRIPTION, PROG
@@ -284,10 +285,13 @@ class CLI(object):
 
         if args.verbose:
             set_logging(level=logging.DEBUG)
+            set_logging_osbs(level=logging.DEBUG)
         elif args.quiet:
             set_logging(level=logging.WARNING)
+            set_logging_osbs(level=logging.WARNING)
         else:
             set_logging(level=logging.INFO)
+            set_logging_osbs(level=logging.INFO)
         try:
             args.func(args)
         except AttributeError:
