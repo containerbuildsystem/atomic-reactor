@@ -5,6 +5,10 @@
 
   "type": ["object", "null"],
   "properties": {
+    "additional_tags": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
     "arrangement_version": {"type": "integer"},
     "base_image": {"type": "string"},
     "build_from": {"type": "string"},
@@ -21,6 +25,7 @@
     "filesystem_koji_task_id": {"type": "integer"},
     "flatpak": {"type": "boolean"},
     "git_branch": {"type": "string"},
+    "git_commit_depth": {"type": "integer"},
     "git_ref": {"type": "string"},
     "git_uri": {"type": "string"},
     "image_tag": {"type": "string"},
@@ -61,6 +66,7 @@
     "release": {"type": "string"},
     "scratch": {"type": "boolean"},
     "signing_intent": {"type": "string"},
+    "tags_from_yaml": {"type": "boolean"},
     "trigger_imagestreamtag": {"type": "string"},
     "user": {"type": "string"},
     "yum_repourls": {

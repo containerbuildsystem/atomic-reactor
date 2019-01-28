@@ -314,7 +314,7 @@ class LazyGit(object):
         lazy_git = LazyGit(git_url="...", tmpdir=tmp_dir)
         lazy_git.git_path
     """
-    def __init__(self, git_url, commit=None, tmpdir=None):
+    def __init__(self, git_url, commit=None, tmpdir=None, branch=None, depth=None):
         self.git_url = git_url
         # provided commit ID/reference to check out
         self.commit = commit
@@ -322,7 +322,8 @@ class LazyGit(object):
         self._commit_id = None
         self.provided_tmpdir = tmpdir
         self._git_path = None
-        self._git_depth = None
+        self._branch = branch
+        self._git_depth = depth
 
     @property
     def _tmpdir(self):
@@ -335,7 +336,8 @@ class LazyGit(object):
     @property
     def git_path(self):
         if self._git_path is None:
-            repo_data = clone_git_repo(self.git_url, self._tmpdir, self.commit)
+            repo_data = clone_git_repo(self.git_url, self._tmpdir, self.commit,
+                                       branch=self._branch, depth=self._git_depth)
             self._commit_id = repo_data.commit_id
             self._git_path = repo_data.repo_path
             self._git_depth = repo_data.commit_depth

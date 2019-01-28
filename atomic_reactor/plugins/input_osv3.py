@@ -44,15 +44,17 @@ class OSv3InputPlugin(InputPlugin):
         # call parent constructor
         super(OSv3InputPlugin, self).__init__(**kwargs)
 
-    def get_plugins_with_user_params(self, build_json, user_params):
+    def validate_user_data(self, user_params):
+        # make sure the input json is valid
+        read_yaml(user_params, 'schemas/user_params.json')
+        return json.loads(user_params)
+
+    def get_plugins_with_user_data(self, user_params, user_data):
         #  get the reactor config map and derive an osbs instance from it
 
         from osbs.api import OSBS
         from osbs.conf import Configuration
 
-        # make sure the input json is valid
-        read_yaml(user_params, 'schemas/user_params.json')
-        user_data = json.loads(user_params)
         reactor_config_override = user_data.get('reactor_config_override')
         if reactor_config_override:
             read_yaml(json.dumps(reactor_config_override), 'schemas/config.json')
@@ -182,9 +184,14 @@ class OSv3InputPlugin(InputPlugin):
         self.target_registry = os.environ.get('OUTPUT_REGISTRY', None)
         self.reactor_env = None
 
+        git_commit_depth = None
+        git_branch = None
         try:
             user_params = os.environ['USER_PARAMS']
-            self.plugins_json = self.get_plugins_with_user_params(build_json, user_params)
+            user_data = self.validate_user_data(user_params)
+            git_commit_depth = user_data.get('git_commit_depth', None)
+            git_branch = user_data.get('git_branch', None)
+            self.plugins_json = self.get_plugins_with_user_data(user_params, user_data)
             # if we get the USER_PARAMS, we'd better get the REACTOR_CONFIG too
             reactor_config_map = os.environ['REACTOR_CONFIG']
             self.reactor_env = read_yaml(reactor_config_map, 'schemas/config.json')
@@ -202,7 +209,11 @@ class OSv3InputPlugin(InputPlugin):
             'source': {
                 'provider': 'git',
                 'uri': git_url,
-                'provider_params': {'git_commit': git_ref}
+                'provider_params': {
+                    'git_commit': git_ref,
+                    'git_commit_depth': git_commit_depth,
+                    'git_branch': git_branch,
+                },
             },
             'image': image,
             'openshift_build_selflink': build_json.get('metadata', {}).get('selfLink', None)
