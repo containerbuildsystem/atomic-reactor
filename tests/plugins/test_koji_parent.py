@@ -53,7 +53,13 @@ KOJI_BUILD_ID = 123456789
 
 KOJI_BUILD_NVR = 'base-image-1.0-99'
 
-KOJI_BUILD = {'nvr': KOJI_BUILD_NVR, 'id': KOJI_BUILD_ID}
+KOJI_STATE_COMPLETE = koji.BUILD_STATES['COMPLETE']
+
+KOJI_STATE_DELETED = koji.BUILD_STATES['DELETED']
+
+KOJI_BUILD = {'nvr': KOJI_BUILD_NVR, 'id': KOJI_BUILD_ID, 'state': KOJI_STATE_COMPLETE}
+
+DELETED_KOJI_BUILD = {'nvr': KOJI_BUILD_NVR, 'id': KOJI_BUILD_ID, 'state': KOJI_STATE_DELETED}
 
 BASE_IMAGE_LABELS = {
     'com.redhat.component': 'base-image',
@@ -159,6 +165,17 @@ class TestKojiParent(object):
                                       reactor_config_map=reactor_config_map)
         assert 'KojiParentBuildMissing' in str(exc_info.value)
 
+    def test_koji_build_deleted(self, workflow, koji_session, reactor_config_map):  # noqa
+        (flexmock(koji_session)
+            .should_receive('getBuild')
+            .with_args(KOJI_BUILD_NVR)
+            .and_return(DELETED_KOJI_BUILD))
+
+        with pytest.raises(PluginFailedException) as exc_info:
+            self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
+        assert 'KojiParentBuildMissing' in str(exc_info.value)
+        assert 'state is not COMPLETE' in str(exc_info.value)
+
     def test_base_image_not_inspected(self, workflow, koji_session, reactor_config_map):  # noqa
         del workflow.builder.base_image_inspect[INSPECT_CONFIG]
         with pytest.raises(PluginFailedException) as exc_info:
@@ -195,9 +212,9 @@ class TestKojiParent(object):
             ImageName.parse('base'): ImageName.parse('basetag'),
         }
         koji_builds = dict(
-            somebuilder=dict(nvr='somebuilder-1.0-1', id=42),
-            otherbuilder=dict(nvr='otherbuilder-2.0-1', id=43),
-            base=dict(nvr='base-16.0-1', id=16),
+            somebuilder=dict(nvr='somebuilder-1.0-1', id=42, state=KOJI_STATE_COMPLETE),
+            otherbuilder=dict(nvr='otherbuilder-2.0-1', id=43, state=KOJI_STATE_COMPLETE),
+            base=dict(nvr='base-16.0-1', id=16, state=KOJI_STATE_COMPLETE),
             unresolved=None,
         )
         image_inspects = {}
