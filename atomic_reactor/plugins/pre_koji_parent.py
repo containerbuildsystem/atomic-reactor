@@ -15,6 +15,7 @@ from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 from atomic_reactor.util import base_image_is_custom
 from osbs.utils import Labels
 
+import koji
 import time
 
 
@@ -137,6 +138,9 @@ class KojiParentPlugin(PreBuildPlugin):
             build = self.koji_session.getBuild(nvr)
             if build:
                 self.log.info('Parent image Koji build found with id %s', build.get('id'))
+                if build['state'] != koji.BUILD_STATES['COMPLETE']:
+                    exc_msg = ('Parent image Koji build for {} with id {} state is not COMPLETE.')
+                    raise KojiParentBuildMissing(exc_msg.format(nvr, build.get('id')))
                 return build
             time.sleep(self.poll_interval)
         raise KojiParentBuildMissing('Parent image Koji build NOT found for {}!'.format(nvr))
