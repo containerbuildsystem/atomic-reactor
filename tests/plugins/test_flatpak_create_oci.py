@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -8,7 +8,9 @@ of the BSD license. See the LICENSE file for details.
 
 from six.moves import configparser
 from flexmock import flexmock
+from io import BytesIO
 import os
+import png
 import pytest
 import re
 import stat
@@ -16,7 +18,6 @@ import shutil
 import subprocess
 import tarfile
 from textwrap import dedent
-
 
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.inner import DockerBuildWorkflow
@@ -38,7 +39,7 @@ CONTAINER_ID = 'CONTAINER-ID'
 
 ROOT = '/var/tmp/flatpak-build'
 
-DESKTOP_FILE_CONTENTS = """[Desktop Entry]
+DESKTOP_FILE_CONTENTS = b"""[Desktop Entry]
 Name=Image Viewer
 Comment=Browse and rotate images
 TryExec=eog
@@ -54,7 +55,7 @@ Keywords=Picture;Slideshow;Graphics;"""
 
 # The list of RPMs inherited from the runtime is abbreviated; we just need one
 # (abattis-cantarell-fonts) to check that they are properly ignored.
-APP_MANIFEST_CONTENTS = """eog;3.24.1;1.module_7b96ed10;x86_64;(none);42;sigmd5;1491914281;sigpgp;siggpg
+APP_MANIFEST_CONTENTS = b"""eog;3.24.1;1.module_7b96ed10;x86_64;(none);42;sigmd5;1491914281;sigpgp;siggpg
 exempi;2.4.2;4.module_7b96ed10;x86_64;(none);42;sigmd5;1491914281;sigpgp;siggpg
 libexif;0.6.21;11.module_7b96ed10;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
 libpeas;1.20.0;5.module_7b96ed10;x86_64;1;42;sigmd5;1491914281;sigpgp;siggpg
@@ -62,12 +63,18 @@ libpeas-gtk;1.20.0;5.module_7b96ed10;x86_64;1;42;sigmd5;0;42;1491914281;sigpgp;s
 abattis-cantarell-fonts;0.0.25;2.module_e15740c0;noarch;(none);42;sigmd5;1491914281;sigpgp;siggpg
 """
 
+ICON = BytesIO()
+# create minimal 256x256 RGBA PNG
+png.Writer(256, 256, alpha=True).write(ICON,
+                                       [[0 for _ in range(4 * 256)]
+                                        for _ in range(256)])
+
 APP_FILESYSTEM_CONTENTS = {
-    '/usr/bin/not_eog': 'SHOULD_IGNORE',
-    ROOT + '/usr/bin/also_not_eog': 'SHOULD_IGNORE',
-    ROOT + '/app/bin/eog': 'MY_PROGRAM',
+    '/usr/bin/not_eog': b'SHOULD_IGNORE',
+    ROOT + '/usr/bin/also_not_eog': b'SHOULD_IGNORE',
+    ROOT + '/app/bin/eog': b'MY_PROGRAM',
     ROOT + '/app/share/applications/eog.desktop': DESKTOP_FILE_CONTENTS,
-    ROOT + '/app/share/icons/hicolor/256x256/apps/eog.png': 'MY_ICON',
+    ROOT + '/app/share/icons/hicolor/256x256/apps/eog.png': ICON.getvalue(),
     '/var/tmp/flatpak-build.rpm_qf': APP_MANIFEST_CONTENTS
 }
 
@@ -88,7 +95,7 @@ APP_CONFIG = {
     'unexpected_components': ['abattis-cantarell-fonts'],
 }
 
-RUNTIME_MANIFEST_CONTENTS = """abattis-cantarell-fonts;0.0.25;2.module_e15740c0;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
+RUNTIME_MANIFEST_CONTENTS = b"""abattis-cantarell-fonts;0.0.25;2.module_e15740c0;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
 acl;2.2.52;13.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
 adwaita-cursor-theme;3.24.0;2.module_e15740c0;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
 adwaita-gtk2-theme;3.22.3;2.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
@@ -295,12 +302,12 @@ zlib;1.2.11;2.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
 """
 
 RUNTIME_FILESYSTEM_CONTENTS = {
-    '/usr/bin/not_eog': 'SHOULD_IGNORE',
-    ROOT + '/etc/passwd': 'SOME_CONFIG_FILE',
-    ROOT + '/etc/shadow:0444': 'FUNNY_PERMISSIONS',
-    ROOT + '/usr/bin/bash': 'SOME_BINARY',
-    ROOT + '/usr/bin/mount:1755': 'SOME_SETUID_BINARY',
-    ROOT + '/usr/lib64/libfoo.so.1.0.0': 'SOME_LIB',
+    '/usr/bin/not_eog': b'SHOULD_IGNORE',
+    ROOT + '/etc/passwd': b'SOME_CONFIG_FILE',
+    ROOT + '/etc/shadow:0444': b'FUNNY_PERMISSIONS',
+    ROOT + '/usr/bin/bash': b'SOME_BINARY',
+    ROOT + '/usr/bin/mount:1755': b'SOME_SETUID_BINARY',
+    ROOT + '/usr/lib64/libfoo.so.1.0.0': b'SOME_LIB',
     ROOT + '/usr/share/foo:0777': None,  # writeable directory
     '/var/tmp/flatpak-build.rpm_qf': RUNTIME_MANIFEST_CONTENTS,
 }
@@ -321,11 +328,11 @@ RUNTIME_CONFIG = {
     'unexpected_components': [],
 }
 
-SDK_MANIFEST_CONTENTS = """gcc;7.3.1;2.fc27;x86_64;(none);54142500;sigmd5;1517331292;sigpgp;siggpg
+SDK_MANIFEST_CONTENTS = b"""gcc;7.3.1;2.fc27;x86_64;(none);54142500;sigmd5;1517331292;sigpgp;siggpg
 """
 
 SDK_FILESYSTEM_CONTENTS = {
-    ROOT + '/usr/bin/gcc': 'SOME_BINARY',
+    ROOT + '/usr/bin/gcc': b'SOME_BINARY',
     '/var/tmp/flatpak-build.rpm_qf': SDK_MANIFEST_CONTENTS,
 }
 
@@ -647,7 +654,7 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
                 have_flatpak = True
 
         except (subprocess.CalledProcessError, OSError):
-            pass
+            pytest.skip(msg='flatpak not available')
 
         if not have_flatpak:
             return
@@ -685,7 +692,7 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
         if contents is None:
             os.mkdir(fullpath)
         else:
-            with open(fullpath, 'w') as f:
+            with open(fullpath, 'wb') as f:
                 f.write(contents)
 
         if mode is not None:
