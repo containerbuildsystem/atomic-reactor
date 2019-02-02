@@ -378,11 +378,14 @@ class ComposeConfig(object):
         return request
 
     def render_modules_request(self):
-        return {
+        request = {
             'source_type': 'module',
             'source': ' '.join(self.modules),
             'sigkeys': self.signing_intent['keys'],
         }
+        if self.arches:
+            request['arches'] = self.arches
+        return request
 
     def render_pulp_request(self, arch):
         request = {
