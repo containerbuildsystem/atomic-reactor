@@ -254,7 +254,7 @@ class TestResolveComposes(object):
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
     @pytest.mark.parametrize('arches', (
-        ['x86_64', 'ppc64le'],
+        ['ppc64le', 'x86_64'],
         ['x86_64'],
     ))
     def test_request_compose_for_multiarch_tag(self, workflow, reactor_config_map, arches):
@@ -266,11 +266,16 @@ class TestResolveComposes(object):
                 packages=['spam', 'bacon', 'eggs'],
                 sigkeys=['R123'],
                 arches=arches)
+            .once()
             .and_return(ODCS_COMPOSE))
-        workflow.buildstep_plugins_conf[0]['args']['platforms'] = arches
+        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = arches
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
-    def test_request_compose_for_modules(self, workflow, reactor_config_map):
+    @pytest.mark.parametrize('arches', (
+        ['ppc64le', 'x86_64'],
+        ['x86_64'],
+    ))
+    def test_request_compose_for_modules(self, workflow, reactor_config_map, arches):
         repo_config = dedent("""\
             compose:
                 modules:
@@ -285,9 +290,11 @@ class TestResolveComposes(object):
             .with_args(
                 source_type='module',
                 source='spam bacon eggs',
-                sigkeys=['R123'])
+                sigkeys=['R123'],
+                arches=arches)
+            .once()
             .and_return(ODCS_COMPOSE))
-
+        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = arches
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
     @pytest.mark.parametrize(('with_modules'), (True, False))
