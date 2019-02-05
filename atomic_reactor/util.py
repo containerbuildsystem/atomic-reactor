@@ -15,20 +15,17 @@ import jsonschema
 import os
 import re
 import sys
-from pipes import quote
 import requests
 from requests.exceptions import ConnectionError, SSLError, HTTPError, RetryError, Timeout
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util import Retry
 import shutil
-import subprocess
 import tempfile
 import logging
 import uuid
 import yaml
 import codecs
 import string
-import time
 import signal
 import traceback
 from collections import namedtuple
@@ -45,7 +42,7 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG
                                       HTTP_CLIENT_STATUS_RETRY, HTTP_REQUEST_TIMEOUT,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST, MEDIA_TYPE_OCI_V1,
-                                      MEDIA_TYPE_OCI_V1_INDEX, GIT_MAX_RETRIES, GIT_BACKOFF_FACTOR,
+                                      MEDIA_TYPE_OCI_V1_INDEX,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
                                       PLUGIN_KOJI_PARENT_KEY,
@@ -61,6 +58,7 @@ from importlib import import_module
 from requests.utils import guess_json_utf
 
 from osbs.exceptions import OsbsException
+from osbs.utils import clone_git_repo, reset_git_repo
 from tempfile import NamedTemporaryFile
 try:
     # py3
@@ -303,61 +301,6 @@ def wait_for_command(logs_generator):
     return cr
 
 
-def clone_git_repo(git_url, target_dir, commit=None, retry_times=GIT_MAX_RETRIES):
-    """
-    clone provided git repo to target_dir, optionally checkout provided commit
-
-    :param git_url: str, git repo to clone
-    :param target_dir: str, filesystem path where the repo should be cloned
-    :param commit: str, commit to checkout, SHA-1 or ref
-    :param retry_times: int, number of retries for git clone
-    :return: str, commit ID of HEAD
-    """
-    retry_delay = GIT_BACKOFF_FACTOR
-
-    commit = commit or "master"
-    logger.info("cloning git repo '%s'", git_url)
-    logger.debug("url = '%s', dir = '%s', commit = '%s'",
-                 git_url, target_dir, commit)
-
-    cmd = ["git", "clone", git_url, quote(target_dir)]
-
-    logger.debug("cloning '%s'", cmd)
-    for counter in range(retry_times + 1):
-        try:
-            # we are using check_output, even though we aren't using
-            # the return value, but we will get 'output' in exception
-            subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-            break
-        except subprocess.CalledProcessError as exc:
-            if counter != retry_times:
-                logger.info("retrying command '%s':\n '%s'", cmd, exc.output)
-                time.sleep(retry_delay * (2 ** counter))
-            else:
-                raise
-
-    return reset_git_repo(target_dir, commit)
-
-
-def reset_git_repo(target_dir, git_reference):
-    """
-    hard reset git clone in target_dir to given git_reference
-
-    :param target_dir: str, filesystem path where the repo is cloned
-    :param git_reference: str, any valid git reference
-    :return: str, commit ID of HEAD
-    """
-    cmd = ["git", "reset", "--hard", git_reference]
-    logger.debug("Resetting current HEAD: '%s'", cmd)
-    subprocess.check_call(cmd, cwd=target_dir)
-    cmd = ["git", "rev-parse", "HEAD"]
-    logger.debug("getting SHA-1 of provided ref '%s'", cmd)
-    commit_id = subprocess.check_output(cmd, cwd=target_dir, universal_newlines=True)
-    commit_id = commit_id.strip()
-    logger.info("commit ID = %s", commit_id)
-    return commit_id
-
-
 class LazyGit(object):
     """
     usage:
@@ -379,6 +322,7 @@ class LazyGit(object):
         self._commit_id = None
         self.provided_tmpdir = tmpdir
         self._git_path = None
+        self._git_depth = None
 
     @property
     def _tmpdir(self):
@@ -391,8 +335,10 @@ class LazyGit(object):
     @property
     def git_path(self):
         if self._git_path is None:
-            self._commit_id = clone_git_repo(self.git_url, self._tmpdir, self.commit)
-            self._git_path = self._tmpdir
+            repo_data = clone_git_repo(self.git_url, self._tmpdir, self.commit)
+            self._commit_id = repo_data.commit_id
+            self._git_path = repo_data.repo_path
+            self._git_depth = repo_data.commit_depth
         return self._git_path
 
     def __enter__(self):
@@ -405,7 +351,7 @@ class LazyGit(object):
                 shutil.rmtree(self.our_tmpdir)
 
     def reset(self, git_reference):
-        self._commit_id = reset_git_repo(self.git_path, git_reference)
+        self._commit_id, _ = reset_git_repo(self.git_path, git_reference)
         self.commit = git_reference
 
 
