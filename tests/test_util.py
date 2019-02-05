@@ -16,8 +16,6 @@ import pytest
 import requests
 import responses
 from requests.exceptions import ConnectionError
-import subprocess
-import time
 import inspect
 import signal
 from base64 import b64encode
@@ -34,7 +32,7 @@ from atomic_reactor.build import BuildResult
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2)
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
+from atomic_reactor.util import (ImageName, wait_for_command,
                                  LazyGit, figure_out_build_file,
                                  render_yum_repo, process_substitutions,
                                  get_checksums, print_version_of_tools,
@@ -57,7 +55,7 @@ from atomic_reactor.util import (ImageName, wait_for_command, clone_git_repo,
                                  dump_stacktraces, setup_introspection_signal_handler,
                                  DigestCollector)
 from atomic_reactor import util
-from tests.constants import (DOCKERFILE_GIT, DOCKERFILE_SHA1,
+from tests.constants import (DOCKERFILE_GIT,
                              INPUT_IMAGE, MOCK, MOCK_SOURCE,
                              REACTOR_CONFIG_MAP)
 import atomic_reactor.util
@@ -179,15 +177,6 @@ def test_wait_for_command():
     assert wait_for_command(logs_gen) is not None
 
 
-@requires_internet
-def test_clone_git_repo(tmpdir):
-    tmpdir_path = str(tmpdir.realpath())
-    commit_id = clone_git_repo(DOCKERFILE_GIT, tmpdir_path)
-    assert commit_id is not None
-    assert len(commit_id) == 40  # current git hashes are this long
-    assert os.path.isdir(os.path.join(tmpdir_path, '.git'))
-
-
 class TestCommandResult(object):
     @pytest.mark.parametrize(('item', 'expected'), [
         ({"stream": "Step 0 : FROM ebbc51b7dfa5bcd993a[...]"},
@@ -200,16 +189,6 @@ class TestCommandResult(object):
         cr = CommandResult()
         cr.parse_item(item)
         assert cr.logs == [expected]
-
-
-@requires_internet
-def test_clone_git_repo_by_sha1(tmpdir):
-    tmpdir_path = str(tmpdir.realpath())
-    commit_id = clone_git_repo(DOCKERFILE_GIT, tmpdir_path, commit=DOCKERFILE_SHA1)
-    assert commit_id is not None
-    assert commit_id == DOCKERFILE_SHA1
-    assert len(commit_id) == 40  # current git hashes are this long
-    assert os.path.isdir(os.path.join(tmpdir_path, '.git'))
 
 
 BUILD_FILE_CONTENTS_DOCKER = {
@@ -1051,36 +1030,6 @@ def test_get_primary_images(tag_conf, tag_annotation, expected):
         assert primary_image.repo == template_image.repo
 
         assert primary_image.tag == expected[index]
-
-
-@pytest.mark.parametrize('retry_times', [0, 1, 2, 3])
-@pytest.mark.parametrize('raise_exc', [True, False])
-def test_clone_git_repo_retry(tmpdir, retry_times, raise_exc):
-    tmpdir_path = str(tmpdir.realpath())
-    (flexmock(time)
-        .should_receive('sleep')
-        .and_return(None))
-
-    if raise_exc:
-        (flexmock(subprocess)
-            .should_receive('check_output')
-            .times(retry_times + 1)
-            .and_raise(subprocess.CalledProcessError, 1, "git clone", output="error"))
-
-    else:
-        (flexmock(subprocess)
-            .should_receive('check_output')
-            .once()
-            .and_return(True))
-
-        (flexmock(subprocess)
-            .should_receive('check_call')
-            .once()
-            .and_raise(CustomTestException))
-
-    exception = subprocess.CalledProcessError if raise_exc else CustomTestException
-    with pytest.raises(exception):
-        clone_git_repo(DOCKERFILE_GIT, tmpdir_path, retry_times=retry_times)
 
 
 @pytest.mark.parametrize('from_file', [True, False])

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -34,12 +34,12 @@ import atomic_reactor.util
 from docker.errors import APIError
 from functools import wraps
 
-from atomic_reactor.constants import CONTAINER_SHARE_PATH, CONTAINER_SHARE_SOURCE_SUBDIR,\
-        BUILD_JSON, DOCKER_SOCKET_PATH, DOCKER_MAX_RETRIES, DOCKER_BACKOFF_FACTOR,\
-        DOCKER_CLIENT_STATUS_RETRY
+from atomic_reactor.constants import (CONTAINER_SHARE_PATH, CONTAINER_SHARE_SOURCE_SUBDIR,
+                                      BUILD_JSON, DOCKER_SOCKET_PATH, DOCKER_MAX_RETRIES,
+                                      DOCKER_BACKOFF_FACTOR, DOCKER_CLIENT_STATUS_RETRY)
 from atomic_reactor.source import get_source_instance_for
-from atomic_reactor.util import (
-    ImageName, clone_git_repo, figure_out_build_file, Dockercfg)
+from atomic_reactor.util import ImageName, figure_out_build_file, Dockercfg
+from osbs.utils import clone_git_repo
 
 from requests.packages.urllib3.exceptions import InsecureRequestWarning, ProtocolError
 
