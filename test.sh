@@ -120,7 +120,7 @@ if [[ $OS != "fedora" ]]; then $RUN $PIP install -U setuptools; fi
 
 case ${ACTION} in
 "test")
-  TEST_CMD="pytest -vv tests --cov atomic_reactor --cov-report html"
+  TEST_CMD="pytest tests --cov atomic_reactor --cov-report html"
   ;;
 "pylint")
   # This can run only at fedora because pylint is not packaged in centos
