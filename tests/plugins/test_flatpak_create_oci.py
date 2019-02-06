@@ -474,7 +474,8 @@ COMMAND_PATTERNS = [
     (['flatpak', 'build-bundle', '@repo',
       '--oci', '@filename', '@name', '@branch'],
      MockFlatpak.build_bundle),
-    (['flatpak', 'build-export', '@repo', '@directory', '@branch'],
+    # For build-export, we assume the latest flatpak version for flatpak_module_tools compatibility
+    (['flatpak', 'build-export', '@repo', '@directory', '@branch', '--disable-sandbox'],
      MockFlatpak.build_export),
     (['flatpak', 'build-finish', '--command', '@command'] +
      FLATPAK_APP_FINISH_ARGS + ['@directory'],
