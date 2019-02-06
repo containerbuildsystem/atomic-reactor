@@ -22,6 +22,7 @@ if [[ $OS == "fedora" ]]; then
   PIP_PKG="python$PYTHON_VERSION-pip"
   PIP="pip$PYTHON_VERSION"
   PKG="dnf"
+  ENABLE_REPO="--enablerepo=updates-testing"
   PKG_EXTRA="dnf-plugins-core desktop-file-utils flatpak libmodulemd ostree python$PYTHON_VERSION-gobject-base"
   BUILDDEP="dnf builddep"
   PYTHON="python$PYTHON_VERSION"
@@ -29,6 +30,7 @@ else
   PIP_PKG="python-pip"
   PIP="pip"
   PKG="yum"
+  ENABLE_REPO=
   PKG_EXTRA="yum-utils epel-release git-core desktop-file-utils"
   BUILDDEP="yum-builddep"
   PYTHON="python"
@@ -48,7 +50,7 @@ if [[ $OS == "centos" ]]; then
 fi
 
 # Install dependencies
-$RUN $PKG install -y $PKG_EXTRA
+$RUN $PKG $ENABLE_REPO install -y $PKG_EXTRA
 [[ ${PYTHON_VERSION} == '3' ]] && WITH_PY3=1 || WITH_PY3=0
 $RUN $BUILDDEP --define "with_python3 ${WITH_PY3}" -y atomic-reactor.spec
 if [[ $OS == "fedora" ]]; then
