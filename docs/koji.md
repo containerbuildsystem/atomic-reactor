@@ -57,12 +57,20 @@ Data which is placed here includes:
 - `build.extra.image.odcs.signing_intent_overridden` (boolean): Whether or not the signing intent used is different than the one defined in container.yaml
 - `build.extra.submitter` (string): username that submitted the build via content generator API
 - `build.owner` (string or null): username that started the task
+- `build.extra.image.go` (map): information about container first Go modules
+- `build.extra.image.go.modules` (map list): entries with Go modules information
 
 The index map has these entries:
 
 - `pull` (str list): docker pull specifications for the manifest list, by tag and by digest
 - `tags` (str list): tags applied to the manifest list when it was created
 - `digests` (map): a map of media type (such as “application/vnd.docker.distribution.manifest.list.v2+json”) to manifest digest (a string usually starting “sha256:”), for each grouped object; note that this will include manifest lists but not image manifests
+
+The `build.extra.image.go.modules` entries are maps composed of the following entries:
+
+- `module` (str): module name for the top-level Go language package to be built, as in `example.com/go/packagename`
+- `archive` (str): possibly-compressed archive containing full source code including dependencies
+- `path` (str): path to directory containing source code (or its parent), possibly within archive
 
 # Type-specific buildroot metadata:
 

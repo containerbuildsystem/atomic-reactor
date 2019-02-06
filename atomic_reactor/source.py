@@ -54,6 +54,7 @@ class SourceConfig(object):
         self.autorebuild = self.data.get('autorebuild') or {}
         self.flatpak = self.data.get('flatpak')
         self.compose = self.data.get('compose')
+        self.go = self.data.get('go') or {}
         self.image_build_method = meth = self.data.get('image_build_method')
         assert meth is None or meth in CONTAINER_BUILD_METHODS, (
                "unknown build method '{}' specified in {}; also, schema validated it."

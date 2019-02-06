@@ -227,7 +227,7 @@ def mock_environment(tmpdir, session=None, name=None,
                      pulp_registries=0, blocksize=None,
                      task_states=None, additional_tags=None,
                      has_config=None, add_tag_conf_primaries=True,
-                     add_build_result_primaries=False):
+                     add_build_result_primaries=False, container_first=False):
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -252,6 +252,11 @@ def mock_environment(tmpdir, session=None, name=None,
                  'LABEL Release={release} release={release}\n'
                  .format(component=component, version=version, release=release))
         setattr(workflow.builder, 'df_path', df.name)
+    if container_first:
+        with open(os.path.join(str(tmpdir), 'container.yaml'), 'wt') as container_conf:
+            container_conf.write('go:\n'
+                                 '  modules:\n'
+                                 '    - module: example.com/packagename\n')
     if name and version:
         workflow.tag_conf.add_unique_image('user/test-image:{v}-timestamp'
                                            .format(v=version))
@@ -283,6 +288,7 @@ def mock_environment(tmpdir, session=None, name=None,
     setattr(workflow, 'source', source)
     setattr(workflow.source, 'lg', X())
     setattr(workflow.source.lg, 'commit_id', '123456')
+    setattr(workflow.source.lg, 'git_path', tmpdir.strpath)
     setattr(workflow, 'push_conf', PushConf())
     if docker_registry:
         docker_reg = workflow.push_conf.add_docker_registry('docker.example.com')
@@ -2008,3 +2014,39 @@ class TestKojiImport(object):
         image = extra['image']
         assert isinstance(image, dict)
         assert 'odcs' not in image
+
+    @pytest.mark.parametrize('container_first', [True, False])
+    def test_go_metadata(self, tmpdir, os_env, container_first, reactor_config_map):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            session=session,
+                                            container_first=container_first)
+
+        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
+        assert 'image' in extra
+        image = extra['image']
+        assert isinstance(image, dict)
+        if container_first:
+            assert 'go' in image
+            go = image['go']
+            assert isinstance(go, dict)
+            assert 'modules' in go
+            modules = go['modules']
+            assert isinstance(modules, list)
+            assert len(modules) == 1
+            module = modules[0]
+            assert module['module'] == 'example.com/packagename'
+        else:
+            assert 'go' not in image

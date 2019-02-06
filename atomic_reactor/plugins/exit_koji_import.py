@@ -216,6 +216,12 @@ class KojiImportPlugin(ExitPlugin):
         if media_types:
             extra['image']['media_types'] = sorted(list(set(media_types)))
 
+    def set_go_metadata(self, extra):
+        go = self.workflow.source.config.go
+        if go:
+            self.log.debug("Setting Go metadata: %s", go)
+            extra['image']['go'] = go
+
     def remove_unavailable_manifest_digests(self, worker_metadatas):
         try:
             available = get_manifests_in_pulp_repository(self.workflow)
@@ -379,6 +385,7 @@ class KojiImportPlugin(ExitPlugin):
 
         self.set_help(extra, worker_metadatas)
         self.set_media_types(extra, worker_metadatas)
+        self.set_go_metadata(extra)
         self.remove_unavailable_manifest_digests(worker_metadatas)
         self.set_group_manifest_info(extra, worker_metadatas)
 
