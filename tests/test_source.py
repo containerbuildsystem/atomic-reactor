@@ -98,7 +98,8 @@ class TestSourceConfigSchemaValidation(object):
     SOURCE_CONFIG_EMPTY = {
         'autorebuild': {},
         'flatpak': None,
-        'compose': None
+        'compose': None,
+        'go': {}
     }
 
     def _create_source_config(self, tmpdir, yml_config):
@@ -197,6 +198,32 @@ class TestSourceConfigSchemaValidation(object):
             compose:
             """,
             {}
+        ), (
+            """\
+            go:
+              modules:
+                - module: example.com/go/package
+            """,
+            {'go': {'modules': [{'module': 'example.com/go/package'}]}}
+        ), (
+            """\
+            go:
+              modules:
+                - module: example.com/go/package
+                  archive: foo
+                  path: bar
+            """,
+            {'go': {'modules': [{'module': 'example.com/go/package',
+                                 'archive': 'foo', 'path': 'bar'}]}}
+        ), (
+            """\
+            go:
+              modules:
+                - module: example.com/go/package
+                - module: example.com/go/package2
+            """,
+            {'go': {'modules': [{'module': 'example.com/go/package'},
+                                {'module': 'example.com/go/package2'}]}}
         ),
     ])
     def test_valid_source_config(self, tmpdir, yml_config, attrs_updated):
@@ -238,6 +265,16 @@ class TestSourceConfigSchemaValidation(object):
 
         """\
         compose: not_an_object
+        """,
+        """\
+        go: not_an_object
+        """,
+        """\
+        go:
+          extra_key: not_allowed
+        """,
+        """\
+        go:
         """,
     ])
     def test_invalid_source_config_validation_error(self, tmpdir, yml_config):
