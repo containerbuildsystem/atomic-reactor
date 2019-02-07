@@ -5,6 +5,34 @@
 
   "type": ["object", "null"],
   "properties": {
+    "go": {
+      "type": "object",
+      "properties": {
+        "modules": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "object",
+            "properties": {
+              "module": {
+                "type": "string",
+                "description": "Top-level Go module (package) name which will be built"
+              },
+              "archive": {
+                "type": "string",
+                "description": "Possibly-compressed archive containing full source code including dependencies"
+              },
+              "path": {
+                "type": "string",
+                "description": "Path to directory containing source code (or its parent), possibly within archive"
+              }
+            },
+            "additionalProperties": false,
+            "required": ["module"]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "platforms": {
       "type": ["object", "null"],
       "properties": {
