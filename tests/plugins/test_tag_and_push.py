@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function, unicode_literals
 
 import pytest
+import time
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
@@ -97,16 +98,20 @@ class X(object):
     True,
     False,
 ])
-@pytest.mark.parametrize(("image_name", "logs", "should_raise", "has_config"), [
-    (TEST_IMAGE_NAME, PUSH_LOGS_1_X, False, False),
-    (TEST_IMAGE_NAME, PUSH_LOGS_1_9, False, False),
-    (TEST_IMAGE_NAME, PUSH_LOGS_1_10, False, True),
-    (TEST_IMAGE_NAME, PUSH_LOGS_1_10_NOT_IN_STATUS, False, False),
-    (DOCKER0_REGISTRY + '/' + TEST_IMAGE_NAME, PUSH_LOGS_1_X, True, False),
-    (DOCKER0_REGISTRY + '/' + TEST_IMAGE_NAME, PUSH_LOGS_1_9, True, False),
-    (DOCKER0_REGISTRY + '/' + TEST_IMAGE_NAME, PUSH_LOGS_1_10, True, True),
-    (DOCKER0_REGISTRY + '/' + TEST_IMAGE_NAME, PUSH_LOGS_1_10_NOT_IN_STATUS, True, True),
-    (TEST_IMAGE_NAME, PUSH_ERROR_LOGS, True, False),
+@pytest.mark.parametrize(("image_name", "logs", "should_raise", "has_config", "missing_v2"), [
+    (TEST_IMAGE_NAME, PUSH_LOGS_1_X, False, False, False),
+    (TEST_IMAGE_NAME, PUSH_LOGS_1_9, False, False, False),
+    (TEST_IMAGE_NAME, PUSH_LOGS_1_10, False, True, False),
+    (TEST_IMAGE_NAME, PUSH_LOGS_1_10_NOT_IN_STATUS, False, False, False),
+    (TEST_IMAGE_NAME, PUSH_LOGS_1_X, False, False, True),
+    (TEST_IMAGE_NAME, PUSH_LOGS_1_9, False, False, True),
+    (TEST_IMAGE_NAME, PUSH_LOGS_1_10, False, False, True),
+    (TEST_IMAGE_NAME, PUSH_LOGS_1_10_NOT_IN_STATUS, False, False, True),
+    (DOCKER0_REGISTRY + '/' + TEST_IMAGE_NAME, PUSH_LOGS_1_X, True, False, False),
+    (DOCKER0_REGISTRY + '/' + TEST_IMAGE_NAME, PUSH_LOGS_1_9, True, False, False),
+    (DOCKER0_REGISTRY + '/' + TEST_IMAGE_NAME, PUSH_LOGS_1_10, True, True, False),
+    (DOCKER0_REGISTRY + '/' + TEST_IMAGE_NAME, PUSH_LOGS_1_10_NOT_IN_STATUS, True, True, False),
+    (TEST_IMAGE_NAME, PUSH_ERROR_LOGS, True, False, False),
 ])
 @pytest.mark.parametrize(("file_name", "dockerconfig_contents"), [
     (".dockercfg", {LOCALHOST_REGISTRY: {"email": "test@example.com",
@@ -119,8 +124,8 @@ class X(object):
                                                           "password": "mypassword"}}}),
 ])
 def test_tag_and_push_plugin(
-        tmpdir, monkeypatch, image_name, logs, should_raise, has_config, use_secret,
-        reactor_config_map, file_name, dockerconfig_contents):
+        tmpdir, monkeypatch, caplog, image_name, logs, should_raise, has_config, missing_v2,
+        use_secret, reactor_config_map, file_name, dockerconfig_contents):
 
     if MOCK:
         mock_docker()
@@ -240,12 +245,22 @@ def test_tag_and_push_plugin(
     config_blob_response = requests.Response()
     (flexmock(config_blob_response, status_code=200, json=config_json))
 
+    manifest_unknown_response = requests.Response()
+    (flexmock(manifest_unknown_response,
+              status_code=404,
+              json={
+                  "errors": [{"code": "MANIFEST_UNKNOWN"}]
+              }))
+
     def custom_get(method, url, headers, **kwargs):
         if url == manifest_latest_url:
             # For a manifest stored as v2 or v1, the docker registry defaults to
             # returning a v1 manifest if a v2 manifest is not explicitly requested
             if headers['Accept'] == 'application/vnd.docker.distribution.manifest.v2+json':
-                return manifest_response_v2
+                if missing_v2:
+                    return manifest_unknown_response
+                else:
+                    return manifest_response_v2
             else:
                 return manifest_response_v1
 
@@ -253,16 +268,21 @@ def test_tag_and_push_plugin(
                 return manifest_response_v2_list
 
         if url == manifest_url:
-            return manifest_response_v2
+            if missing_v2:
+                return manifest_unknown_response
+            else:
+                return manifest_response_v2
 
         if url == config_blob_url:
             return config_blob_response
 
     mock_get_retry_session()
-
     (flexmock(requests.Session)
         .should_receive('request')
         .replace_with(custom_get))
+    (flexmock(time)
+        .should_receive('sleep')
+        .and_return(None))
 
     if reactor_config_map:
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
@@ -270,8 +290,8 @@ def test_tag_and_push_plugin(
             ReactorConfig({'version': 1, 'registries': [{
                 'url': LOCALHOST_REGISTRY,
                 'insecure': True,
-                'auth': {'cfg_path': secret_path},
-            }]})
+                'auth': {'cfg_path': secret_path}}],
+                           'group_manifests': missing_v2})
 
     runner = PostBuildPluginsRunner(
         tasker,
@@ -301,11 +321,19 @@ def test_tag_and_push_plugin(
         if MOCK:
             # we only test this when mocking docker because we don't expect
             # running actual docker against v2 registry
-            expected_digest = ManifestDigest(v1=DIGEST_V1, v2=DIGEST_V2, oci=None)
+            if missing_v2:
+                expected_digest = ManifestDigest(v1=DIGEST_V1, v2=None, oci=None)
+                if reactor_config_map:
+                    assert "Retrying push because V2 schema 2" in caplog.text
+                else:
+                    assert "Retrying push because V2 schema 2" not in caplog.text
+            else:
+                expected_digest = ManifestDigest(v1=DIGEST_V1, v2=DIGEST_V2, oci=None)
+                assert workflow.push_conf.docker_registries[0].digests[image_name].v2 == \
+                    expected_digest.v2
+
             assert workflow.push_conf.docker_registries[0].digests[image_name].v1 == \
                 expected_digest.v1
-            assert workflow.push_conf.docker_registries[0].digests[image_name].v2 == \
-                expected_digest.v2
             assert workflow.push_conf.docker_registries[0].digests[image_name].oci == \
                 expected_digest.oci
 

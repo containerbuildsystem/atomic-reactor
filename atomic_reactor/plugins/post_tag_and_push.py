@@ -9,11 +9,14 @@ of the BSD license. See the LICENSE file for details.
 from copy import deepcopy
 import re
 import subprocess
+import time
 
-from atomic_reactor.constants import IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
+from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,
+                                      MEDIA_TYPE_DOCKER_V2_SCHEMA2, DOCKER_PUSH_MAX_RETRIES,
+                                      DOCKER_PUSH_BACKOFF_FACTOR)
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
-from atomic_reactor.plugins.pre_reactor_config import get_registries
+from atomic_reactor.plugins.pre_reactor_config import get_registries, get_group_manifests
 from atomic_reactor.util import (get_manifest_digests, get_config_from_registry, Dockercfg)
 
 
@@ -46,6 +49,8 @@ class TagAndPushPlugin(PostBuildPlugin):
         super(TagAndPushPlugin, self).__init__(tasker, workflow)
 
         self.registries = get_registries(self.workflow, deepcopy(registries or {}))
+        self.group = get_group_manifests(self.workflow, False)
+
 
     def need_skopeo_push(self):
         if len(self.workflow.exported_image_sequence) > 0:
@@ -134,18 +139,41 @@ class TagAndPushPlugin(PostBuildPlugin):
 
                 registry_image = image.copy()
                 registry_image.registry = registry
-                if self.need_skopeo_push():
-                    self.push_with_skopeo(registry_image, insecure, docker_push_secret)
-                else:
-                    self.tasker.tag_and_push_image(self.workflow.builder.image_id,
-                                                   registry_image, insecure=insecure,
-                                                   force=True, dockercfg=docker_push_secret)
-                    defer_removal(self.workflow, registry_image)
+                max_retries = DOCKER_PUSH_MAX_RETRIES
+
+                expect_v2s2 = False
+                for registry in self.registries:
+                    media_types = self.registries[registry].get('expected_media_types', [])
+                    if MEDIA_TYPE_DOCKER_V2_SCHEMA2 in media_types:
+                        expect_v2s2 = True
+
+                if not (self.group or expect_v2s2):
+                    max_retries = 0
+
+                for retry in range(max_retries + 1):
+                    if self.need_skopeo_push():
+                        self.push_with_skopeo(registry_image, insecure, docker_push_secret)
+                    else:
+                        self.tasker.tag_and_push_image(self.workflow.builder.image_id,
+                                                       registry_image, insecure=insecure,
+                                                       force=True, dockercfg=docker_push_secret)
+
+                    digests = get_manifest_digests(registry_image, registry,
+                                                   insecure, docker_push_secret)
+
+                    if (not (digests.v2 or digests.oci) and (retry < max_retries)):
+                        sleep_time = DOCKER_PUSH_BACKOFF_FACTOR * (2 ** retry)
+                        self.log.info("Retrying push because V2 schema 2 or "
+                                      "OCI manifest not found in %is", sleep_time)
+
+                        time.sleep(sleep_time)
+                    else:
+                        if not self.need_skopeo_push():
+                            defer_removal(self.workflow, registry_image)
+                        break
 
                 pushed_images.append(registry_image)
 
-                digests = get_manifest_digests(registry_image, registry,
-                                               insecure, docker_push_secret)
                 tag = registry_image.to_str(registry=False)
                 push_conf_registry.digests[tag] = digests
 
