@@ -71,11 +71,6 @@ fi
 # Install package
 $RUN $PKG install -y $PIP_PKG
 
-if [[ $PYTHON_VERSION == 3 && $OS_VERSION == rawhide ]]; then
-  # https://fedoraproject.org/wiki/Changes/Making_sudo_pip_safe
-  $RUN mkdir -p /usr/local/lib/python3.6/site-packages/
-fi
-
 if [[ $OS == centos && $OS_VERSION == 7 ]]; then
   # Older versions of setuptools don't understand the environment
   # markers used by docker-squash's requirements
