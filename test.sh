@@ -71,14 +71,6 @@ fi
 # Install package
 $RUN $PKG install -y $PIP_PKG
 
-# fix biscuits installation (dependency of responses)
-# pip installation requires newer version of responses than provided by F27
-# so it is build by pip locally and needs gcc+devel packages to build
-# successfully
-if [[ ${PYTHON_VERSION} == 3 && ${OS_VERSION} == 27 ]]; then
-    ${RUN} ${PKG} install -y gcc redhat-rpm-config "${PYTHON}-devel"
-fi
-
 if [[ $PYTHON_VERSION == 3 && $OS_VERSION == rawhide ]]; then
   # https://fedoraproject.org/wiki/Changes/Making_sudo_pip_safe
   $RUN mkdir -p /usr/local/lib/python3.6/site-packages/
