@@ -995,6 +995,35 @@ def get_manifest(image, registry_session, version):
     return response, saved_not_found
 
 
+def check_digest_availability(image, registry, digests, versions=('v1', 'v2'),
+                              insecure=False, dockercfg_path=None):
+    """Return whether image manifests can be fetched by digest for the given schema versions.
+
+    :param image: ImageName, the remote image to inspect
+    :param registry: str, URI for registry
+    :param digests: dict, maps a tag (str) to a ManifestDigest instance
+    :param versions: tuple, manifest schema versions to be tested
+    :param insecure: bool, when True registry's cert is not verified
+    :param dockercfg_path: str, dirname of .dockercfg location
+
+    :return: bool, False if any of the manifest schema versions could not be retrieved
+    """
+    if not digests:
+        raise ValueError("No 'digests' provided")
+
+    registry_session = RegistrySession(registry, insecure=insecure, dockercfg_path=dockercfg_path)
+    for version in versions:
+        try:
+            query_registry(registry_session, image, getattr(digests, version), version=version)
+        except (HTTPError, RetryError) as ex:
+            if ex.response.status_code == requests.codes.not_found:
+                logger.debug("%s manifest for %s cannot be fetched from registry by digest %s",
+                             version, image.to_str(), getattr(digests, version))
+                return False
+            raise
+    return True
+
+
 def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
                          versions=('v1', 'v2', 'v2_list', 'oci', 'oci_index'), require_digest=True):
     """Return manifest digest for image.

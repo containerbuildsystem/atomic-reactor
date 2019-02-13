@@ -19,11 +19,11 @@ from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_reactor_config import (get_openshift_session,
                                                        get_prefer_schema1_digest,
-                                                       get_koji_session)
+                                                       get_koji_session, get_registries)
 from atomic_reactor.constants import PROG, PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json, get_docker_architecture,
-                                 get_image_upload_filename,
+                                 get_image_upload_filename, check_digest_availability,
                                  get_manifest_media_type, ImageName, is_scratch_build)
 from atomic_reactor.rpm_util import parse_rpm_output, rpm_qf_args
 from osbs.exceptions import OsbsException
@@ -334,12 +334,18 @@ class KojiUploadPlugin(PostBuildPlugin):
         """
         digests = {}  # image -> digests
         typed_digests = {}  # media_type -> digests
+        registries_conf = copy.deepcopy(get_registries(self.workflow, {}))
         for registry in self.workflow.push_conf.docker_registries:
+            registry_conf = registries_conf.get(registry.uri, {})
+            secret = registry_conf.get('secret', None)
             for image in self.workflow.tag_conf.images:
                 image_str = image.to_str()
                 if image_str in registry.digests:
                     image_digests = registry.digests[image_str]
-                    if self.report_multiple_digests:
+                    if (self.report_multiple_digests and
+                        check_digest_availability(image, registry.uri, image_digests,
+                                                  insecure=registry.insecure,
+                                                  dockercfg_path=secret)):
                         digest_list = [digest for digest in (image_digests.v1,
                                                              image_digests.v2)
                                        if digest]
