@@ -227,7 +227,8 @@ def mock_environment(tmpdir, session=None, name=None,
                      pulp_registries=0, blocksize=None,
                      task_states=None, additional_tags=None,
                      has_config=None, add_tag_conf_primaries=True,
-                     add_build_result_primaries=False, container_first=False):
+                     add_build_result_primaries=False, container_first=False,
+                     yum_repourls=None):
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -240,6 +241,8 @@ def mock_environment(tmpdir, session=None, name=None,
     base_image_id = '123456parent-id'
 
     workflow.source = StubSource()
+    if yum_repourls:
+        workflow.all_yum_repourls = yum_repourls
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
     workflow.builder.image_id = '123456imageid'
     workflow.builder.base_image = ImageName(repo='Fedora', tag='22')
@@ -2050,3 +2053,39 @@ class TestKojiImport(object):
             assert module['module'] == 'example.com/packagename'
         else:
             assert 'go' not in image
+
+    @pytest.mark.parametrize('yum_repourl', [
+        None,
+        [],
+        ["http://example.com/my.repo", ],
+        ["http://example.com/my.repo", "http://example.com/other.repo"],
+    ])
+    def test_yum_repourls_metadata(self, tmpdir, os_env, yum_repourl, reactor_config_map):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            session=session,
+                                            yum_repourls=yum_repourl)
+
+        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
+        assert 'image' in extra
+        image = extra['image']
+        assert isinstance(image, dict)
+        if yum_repourl:
+            assert 'yum_repourls' in image
+            repourls = image['yum_repourls']
+            assert isinstance(repourls, list)
+            assert repourls == yum_repourl
+        else:
+            assert 'yum_repourls' not in image

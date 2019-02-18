@@ -382,6 +382,8 @@ class KojiImportPlugin(ExitPlugin):
                 'signing_intent': resolve_comp_result['signing_intent'],
                 'signing_intent_overridden': resolve_comp_result['signing_intent_overridden'],
             }
+        if self.workflow.all_yum_repourls:
+            extra['image']['yum_repourls'] = self.workflow.all_yum_repourls
 
         self.set_help(extra, worker_metadatas)
         self.set_media_types(extra, worker_metadatas)
