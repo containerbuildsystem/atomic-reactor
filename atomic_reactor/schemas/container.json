@@ -78,6 +78,10 @@
         },
         "signing_intent": {
           "type": "string"
+        },
+        "inherit": {
+          "description": "enable inheritance of yum repourls and composes from baseimage build (disabled by default)",
+          "type": "boolean"
         }
       },
       "additionalProperties": true

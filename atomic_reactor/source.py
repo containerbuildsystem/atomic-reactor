@@ -56,6 +56,7 @@ class SourceConfig(object):
         self.compose = self.data.get('compose')
         self.go = self.data.get('go') or {}
         self.image_build_method = meth = self.data.get('image_build_method')
+        self.inherit = self.compose.get('inherit', False) if self.compose else False
         assert meth is None or meth in CONTAINER_BUILD_METHODS, (
                "unknown build method '{}' specified in {}; also, schema validated it."
                .format(meth, REPO_CONTAINER_CONFIG)

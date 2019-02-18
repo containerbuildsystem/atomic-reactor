@@ -55,6 +55,7 @@ Data which is placed here includes:
 - `build.extra.image.odcs.compose_ids` (int list): List of each ODCS compose used
 - `build.extra.image.odcs.signing_intent` (str): Final signing intent of the ODCS composes after adjusting for CLI parameter
 - `build.extra.image.odcs.signing_intent_overridden` (boolean): Whether or not the signing intent used is different than the one defined in container.yaml
+- `build.extra.image.yum_repourls` (str list): provided and inherited yum repourls
 - `build.extra.submitter` (string): username that submitted the build via content generator API
 - `build.owner` (string or null): username that started the task
 - `build.extra.image.go` (map): information about container first Go modules

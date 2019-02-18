@@ -394,6 +394,11 @@ class DockerBuildWorkflow(object):
         # List of RPMs that go into the final result, as per rpm_util.parse_rpm_output
         self.image_components = None
 
+        # List of all yum repos. The provided repourls might be changed (by resolve_composes) when
+        # inheritance is enabled. This property holds the updated list of repos, allowing
+        # post-build plugins (such as koji_import) to record them.
+        self.all_yum_repourls = None
+
         if client_version:
             logger.debug("build json was built by osbs-client %s", client_version)
 

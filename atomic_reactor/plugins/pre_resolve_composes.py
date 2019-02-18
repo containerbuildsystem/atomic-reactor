@@ -21,7 +21,7 @@ from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.pre_reactor_config import (get_config,
                                                        get_odcs_session,
                                                        get_koji_session, get_koji)
-from atomic_reactor.util import get_platforms
+from atomic_reactor.util import get_platforms, is_isolated_build, is_scratch_build
 
 ODCS_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 MINIMUM_TIME_TO_EXPIRE = timedelta(hours=2).total_seconds()
@@ -49,6 +49,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
                  koji_ssl_certs_dir=None,
                  signing_intent=None,
                  compose_ids=tuple(),
+                 repourls=None,
                  minimum_time_to_expire=MINIMUM_TIME_TO_EXPIRE,
                  ):
         """
@@ -65,6 +66,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
                                    used when Koji's identity certificate is not trusted
         :param signing_intent: override the signing intent from git repo configuration
         :param compose_ids: use the given compose_ids instead of requesting a new one
+        :param repourls: list of str, URLs to the repo files
         :param minimum_time_to_expire: int, used in deciding when to extend compose's time
                                        to expire in seconds
         """
@@ -103,10 +105,18 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self.compose_config = None
         self.composes_info = None
         self._parent_signing_intent = None
+        self.repourls = repourls or []
+        self.inherit = self.workflow.source.config.inherit
+        self.plugin_result = self.workflow.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY)
+        self.allow_inheritance = self.inherit and not (is_scratch_build() or is_isolated_build())
+        self.all_compose_ids = list(self.compose_ids)
 
     def run(self):
         try:
             self.adjust_for_autorebuild()
+            if self.allow_inheritance:
+                self.adjust_for_inherit()
+            self.workflow.all_yum_repourls = self.repourls
             self.read_configs()
             self.adjust_compose_config()
             self.request_compose_if_needed()
@@ -115,6 +125,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
             self.forward_composes()
             return self.make_result()
         except SkipResolveComposesPlugin as abort_exc:
+            override_build_kwarg(self.workflow, 'yum_repourls', self.repourls, None)
             self.log.info('Aborting plugin execution: %s', abort_exc)
 
     def adjust_for_autorebuild(self):
@@ -134,6 +145,35 @@ class ResolveComposesPlugin(PreBuildPlugin):
         if self.compose_ids:
             self.log.info('Autorebuild detected: Ignoring compose_ids plugin parameter')
             self.compose_ids = tuple()
+            self.all_compose_ids = []
+
+    def adjust_for_inherit(self):
+        if not self.plugin_result:
+            return
+        build_info = self.plugin_result[BASE_IMAGE_KOJI_BUILD]
+        parent_compose_ids = []
+        parent_repourls = []
+
+        try:
+            parent_compose_ids = build_info['extra']['image']['odcs']['compose_ids']
+        except (KeyError, TypeError):
+            self.log.debug('Parent koji build, %s(%s), does not define compose_ids.'
+                           'Cannot add compose_ids for inheritance from parent.',
+                           build_info['nvr'], build_info['id'])
+        try:
+            parent_repourls = build_info['extra']['image']['yum_repourls']
+        except (KeyError, TypeError):
+            self.log.debug('Parent koji build, %s(%s), does not define yum_repourls. '
+                           'Cannot add yum_repourls for inheritance from parent.',
+                           build_info['nvr'], build_info['id'])
+
+        all_compose_ids = set(self.compose_ids)
+        all_compose_ids.update(parent_compose_ids)
+        self.all_compose_ids = list(all_compose_ids)
+
+        all_yum_repos = set(self.repourls)
+        all_yum_repos.update(parent_repourls)
+        self.repourls = list(all_yum_repos)
 
     def read_configs(self):
         self.odcs_config = get_config(self.workflow).get_odcs_config()
@@ -169,13 +209,12 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self.adjust_signing_intent_from_parent()
 
     def adjust_signing_intent_from_parent(self):
-        plugin_result = self.workflow.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY)
-        if not plugin_result:
+        if not self.plugin_result:
             self.log.debug("%s plugin didn't run, signing intent will not be adjusted",
                            PLUGIN_KOJI_PARENT_KEY)
             return
 
-        build_info = plugin_result[BASE_IMAGE_KOJI_BUILD]
+        build_info = self.plugin_result[BASE_IMAGE_KOJI_BUILD]
 
         try:
             parent_signing_intent_name = build_info['extra']['image']['odcs']['signing_intent']
@@ -206,15 +245,14 @@ class ResolveComposesPlugin(PreBuildPlugin):
 
         self.compose_config.validate_for_request()
 
-        self.compose_ids = []
         for compose_request in self.compose_config.render_requests():
             compose_info = self.odcs_client.start_compose(**compose_request)
-            self.compose_ids.append(compose_info['id'])
+            self.all_compose_ids.append(compose_info['id'])
 
     def wait_for_composes(self):
-        self.log.debug('Waiting for ODCS composes to be available: %s', self.compose_ids)
+        self.log.debug('Waiting for ODCS composes to be available: %s', self.all_compose_ids)
         self.composes_info = []
-        for compose_id in self.compose_ids:
+        for compose_id in self.all_compose_ids:
             compose_info = self.odcs_client.wait_for_compose(compose_id)
 
             if self._needs_renewal(compose_info):
@@ -224,7 +262,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
 
             self.composes_info.append(compose_info)
 
-        self.compose_ids = [item['id'] for item in self.composes_info]
+        self.all_compose_ids = [item['id'] for item in self.composes_info]
 
     def _needs_renewal(self, compose_info):
         if compose_info['state_name'] == 'removed':
@@ -273,8 +311,11 @@ class ResolveComposesPlugin(PreBuildPlugin):
                 for arch in arches.split():
                     repos_by_arch[arch].append(result_repofile)
 
-        # we should almost never have a None entry, but if we do, we need to merge
+        # we should almost never have a None entry from composes,
+        # but we can have yum_repos added, so if we do, we need to merge
         # it with all other repos.
+        if self.repourls:
+            repos_by_arch[None].extend(self.repourls)
         try:
             noarch_repos = repos_by_arch.pop(None)
         except KeyError:
@@ -282,6 +323,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
         else:
             for repos in repos_by_arch.values():
                 repos.extend(noarch_repos)
+
         for arch, repofiles in repos_by_arch.items():
             override_build_kwarg(self.workflow, 'yum_repourls', repofiles, arch)
         # Only set the None override if there are no other repos

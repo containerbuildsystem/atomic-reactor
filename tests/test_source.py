@@ -198,6 +198,13 @@ class TestSourceConfigSchemaValidation(object):
             compose:
             """,
             {}
+
+        ), (
+            """\
+            compose:
+              inherit: true
+            """,
+            {'compose': {'inherit': True}}
         ), (
             """\
             go:
@@ -266,15 +273,23 @@ class TestSourceConfigSchemaValidation(object):
         """\
         compose: not_an_object
         """,
+
         """\
         go: not_an_object
         """,
+
         """\
         go:
           extra_key: not_allowed
         """,
+
         """\
         go:
+        """,
+
+        """\
+        compose:
+          inherit: not_a_boolean
         """,
     ])
     def test_invalid_source_config_validation_error(self, tmpdir, yml_config):
