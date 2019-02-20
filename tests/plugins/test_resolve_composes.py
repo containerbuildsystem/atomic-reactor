@@ -322,6 +322,13 @@ class TestResolveComposes(object):
                        packages=None,
                        arches=['x86_64'])
             .and_return(ODCS_COMPOSE))
+        (flexmock(ODCSClient)
+            .should_receive('start_compose')
+            .with_args(source_type='module',
+                       source='spam_modules bacon_modules eggs_modules',
+                       sigkeys=['R123'],
+                       arches=['x86_64'])
+            .and_return(ODCS_COMPOSE))
 
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
@@ -807,14 +814,6 @@ class TestResolveComposes(object):
             compose:
                 pulp_repos: true
             """), 'Nothing to compose'),
-
-        (dedent("""\
-            compose:
-                packages:
-                - pkg1
-                modules:
-                - module1
-            """), 'cannot contain both'),
     ))
     def test_invalid_compose_request(self, workflow, config, error_message,
                                      reactor_config_map):

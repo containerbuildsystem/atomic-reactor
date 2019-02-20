@@ -355,7 +355,7 @@ class ComposeConfig(object):
         requests = []
         if self.use_packages:
             requests.append(self.render_packages_request())
-        elif self.modules:
+        if self.modules:
             requests.append(self.render_modules_request())
 
         for arch in self.pulp:
@@ -404,9 +404,6 @@ class ComposeConfig(object):
         """Verify enough information is available for requesting compose."""
         if not self.use_packages and not self.modules and not self.pulp:
             raise ValueError("Nothing to compose (no packages, modules, or enabled pulp repos)")
-
-        if self.packages and self.modules:
-            raise ValueError('Compose config cannot contain both packages and modules')
 
         if self.packages and not self.koji_tag:
             raise ValueError('koji_tag is required when packages are used')
