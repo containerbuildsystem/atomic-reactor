@@ -414,6 +414,9 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             get_arrangement_version(self.workflow, self.build_kwargs['arrangement_version'])
         self.build_kwargs['parent_images_digests'] =\
             self.workflow.builder.parent_images_digests.to_dict()
+        # All platforms should generate the same operator manifests. We can use any of them
+        if self.platforms:
+            self.build_kwargs['operator_manifests_extract_platform'] = list(self.platforms)[0]
 
     def validate_arrangement_version(self):
         """Validate if the arrangement_version is supported

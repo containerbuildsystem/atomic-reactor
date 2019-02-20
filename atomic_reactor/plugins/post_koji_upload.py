@@ -20,7 +20,9 @@ from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_reactor_config import (get_openshift_session,
                                                        get_prefer_schema1_digest,
                                                        get_koji_session, get_pulp)
-from atomic_reactor.constants import PROG, PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
+from atomic_reactor.constants import (PROG, PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
+                                      PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
+                                      OPERATOR_MANIFESTS_ARCHIVE)
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json, get_docker_architecture,
                                  get_image_upload_filename,
@@ -447,6 +449,20 @@ class KojiUploadPlugin(PostBuildPlugin):
         # Add the 'docker save' image to the output
         image = add_buildroot_id(output)
         output_files.append(image)
+
+        # add operator manifests to output
+        operator_manifests_path = (self.workflow.postbuild_results
+                                   .get(PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY))
+        if operator_manifests_path:
+            operator_manifests_file = open(operator_manifests_path)
+            manifests_metadata = self.get_output_metadata(operator_manifests_path,
+                                                          OPERATOR_MANIFESTS_ARCHIVE)
+            operator_manifests_output = Output(file=operator_manifests_file,
+                                               metadata=manifests_metadata)
+            # We use log type here until a more appropriate type name is supported by koji
+            operator_manifests_output.metadata.update({'arch': arch, 'type': 'log'})
+            operator_manifests = add_buildroot_id(operator_manifests_output)
+            output_files.append(operator_manifests)
 
         return output_files
 

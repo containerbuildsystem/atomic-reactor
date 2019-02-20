@@ -1057,6 +1057,7 @@ def test_orchestrate_build_worker_build_kwargs(tmpdir, caplog, is_auto):
         'release': '10',
         'arrangement_version': 6,
         'parent_images_digests': {},
+        'operator_manifests_extract_platform': 'x86_64',
     }
 
     reactor_config_override = mock_reactor_config(tmpdir)
@@ -1107,6 +1108,7 @@ def test_orchestrate_override_build_kwarg(tmpdir, overrides):
         'release': '4242',
         'arrangement_version': 6,
         'parent_images_digests': {},
+        'operator_manifests_extract_platform': 'x86_64',
     }
     reactor_config_override = mock_reactor_config(tmpdir)
     reactor_config_override['openshift'] = {
@@ -1162,6 +1164,7 @@ def test_orchestrate_override_content_versions(tmpdir, caplog, enable_v1, conten
         'release': '10',
         'arrangement_version': 6,
         'parent_images_digests': {},
+        'operator_manifests_extract_platform': 'x86_64',
     }
     add_config = {
         'platform_descriptors': [{
@@ -1733,6 +1736,7 @@ def test_parent_images_digests(tmpdir, caplog):
         'release': '10',
         'arrangement_version': 6,
         'parent_images_digests': PARENT_IMAGES_DATA,
+        'operator_manifests_extract_platform': 'x86_64',
     }
 
     reactor_config_override = mock_reactor_config(tmpdir)

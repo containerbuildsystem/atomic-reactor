@@ -60,7 +60,7 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
                                       PLUGIN_RESOLVE_COMPOSES_KEY, BASE_IMAGE_KOJI_BUILD,
                                       PARENT_IMAGES_KOJI_BUILDS, BASE_IMAGE_BUILD_ID_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY, PARENT_IMAGE_BUILDS_KEY,
-                                      PARENT_IMAGES_KEY)
+                                      PARENT_IMAGES_KEY, OPERATOR_MANIFESTS_ARCHIVE)
 from tests.constants import SOURCE, MOCK
 from tests.flatpak import MODULEMD_AVAILABLE, setup_flatpak_source_info
 from tests.stubs import StubInsideBuilder, StubSource
@@ -228,7 +228,7 @@ def mock_environment(tmpdir, session=None, name=None,
                      task_states=None, additional_tags=None,
                      has_config=None, add_tag_conf_primaries=True,
                      add_build_result_primaries=False, container_first=False,
-                     yum_repourls=None):
+                     yum_repourls=None, has_operator_manifests=False):
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -486,6 +486,14 @@ def mock_environment(tmpdir, session=None, name=None,
             ]
         }
     }
+    if has_operator_manifests:
+        manifests_entry = {
+            'type': 'log',
+            'filename': OPERATOR_MANIFESTS_ARCHIVE,
+            'buildroot_id': 1}
+        (workflow.postbuild_results[FetchWorkerMetadataPlugin.key]['x86_64']['output']
+         .append(manifests_entry))
+
     workflow.plugin_workspace = {
         OrchestrateBuildPlugin.key: {
             WORKSPACE_KEY_UPLOAD_DIR: 'test-dir',
@@ -2089,3 +2097,31 @@ class TestKojiImport(object):
             assert repourls == yum_repourl
         else:
             assert 'yum_repourls' not in image
+
+    @pytest.mark.parametrize('has_manifests', [True, False])
+    def test_set_operators_metadata(self, tmpdir, os_env, has_manifests, reactor_config_map):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            session=session,
+                                            has_operator_manifests=has_manifests)
+
+        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
+        if has_manifests:
+            assert 'operator_manifests_archive' in extra
+            operator_manifests = extra['operator_manifests_archive']
+            assert isinstance(operator_manifests, str)
+            assert operator_manifests == OPERATOR_MANIFESTS_ARCHIVE
+        else:
+            assert 'operator_manifests_archive' not in extra
