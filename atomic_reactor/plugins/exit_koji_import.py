@@ -42,7 +42,7 @@ except ImportError:
 from atomic_reactor.constants import (
     PLUGIN_KOJI_IMPORT_PLUGIN_KEY, PLUGIN_PULP_PULL_KEY, PLUGIN_PULP_SYNC_KEY,
     PLUGIN_FETCH_WORKER_METADATA_KEY, PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
-    PLUGIN_VERIFY_MEDIA_KEY, METADATA_TAG)
+    PLUGIN_VERIFY_MEDIA_KEY, METADATA_TAG, OPERATOR_MANIFESTS_ARCHIVE)
 from atomic_reactor.util import (Output, get_build_json,
                                  df_parser, ImageName, get_primary_images,
                                  get_manifest_media_type,
@@ -222,6 +222,13 @@ class KojiImportPlugin(ExitPlugin):
             self.log.debug("Setting Go metadata: %s", go)
             extra['image']['go'] = go
 
+    def set_operators_metadata(self, extra, worker_metadatas):
+        for platform, metadata in worker_metadatas.items():
+            for output in metadata['output']:
+                if output.get('filename') == OPERATOR_MANIFESTS_ARCHIVE:
+                    extra['operator_manifests_archive'] = OPERATOR_MANIFESTS_ARCHIVE
+                    break
+
     def remove_unavailable_manifest_digests(self, worker_metadatas):
         try:
             available = get_manifests_in_pulp_repository(self.workflow)
@@ -388,6 +395,7 @@ class KojiImportPlugin(ExitPlugin):
         self.set_help(extra, worker_metadatas)
         self.set_media_types(extra, worker_metadatas)
         self.set_go_metadata(extra)
+        self.set_operators_metadata(extra, worker_metadatas)
         self.remove_unavailable_manifest_digests(worker_metadatas)
         self.set_group_manifest_info(extra, worker_metadatas)
 

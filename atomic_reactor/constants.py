@@ -101,6 +101,7 @@ PLUGIN_REMOVE_WORKER_METADATA_KEY = 'remove_worker_metadata'
 PLUGIN_RESOLVE_COMPOSES_KEY = 'resolve_composes'
 PLUGIN_SENDMAIL_KEY = 'sendmail'
 PLUGIN_VERIFY_MEDIA_KEY = 'verify_media'
+PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY = 'export_operator_manifests'
 
 # some shared dict keys for build metadata that gets recorded with koji.
 # for consistency of metadata in historical builds, these values basically cannot change.
@@ -151,3 +152,6 @@ REPO_CONTAINER_CONFIG = 'container.yaml'
 REPO_CONTENT_SETS_CONFIG = 'content_sets.yml'
 
 DOCKERIGNORE = '.dockerignore'
+
+# Operator manifest constants
+OPERATOR_MANIFESTS_ARCHIVE = 'operator_manifests.zip'

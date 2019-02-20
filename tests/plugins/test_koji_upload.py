@@ -12,6 +12,8 @@ import json
 import os
 import platform
 import sys
+import tempfile
+import zipfile
 
 try:
     import koji
@@ -29,7 +31,10 @@ except ImportError:
     del koji
     import koji
 
-from atomic_reactor.constants import IMAGE_TYPE_DOCKER_ARCHIVE
+from atomic_reactor.constants import (
+    IMAGE_TYPE_DOCKER_ARCHIVE,
+    PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
+    OPERATOR_MANIFESTS_ARCHIVE)
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.post_koji_upload import (KojiUploadLogger,
                                                      KojiUploadPlugin)
@@ -1201,3 +1206,28 @@ class TestKojiUpload(object):
         else:
             expected = (2, 2 + multiple)
         assert (len(digests), len(repositories)) == expected
+
+    @pytest.mark.parametrize('has_operator_manifests', [False, True])
+    def test_koji_upload_operator_manifests(self, tmpdir, monkeypatch, os_env,
+                                            reactor_config_map, has_operator_manifests):
+        MockedOSBS()
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir, session=session,
+                                            name='name', version='1.0', release='1')
+        op_manifests_path = os.path.join(str(tmpdir), OPERATOR_MANIFESTS_ARCHIVE)
+        with tempfile.NamedTemporaryFile() as stub:
+            stub.write(b'stub')
+            stub.flush()
+            with zipfile.ZipFile(op_manifests_path, 'w') as archive:
+                archive.write(stub.name, 'stub.yml')
+
+        if has_operator_manifests:
+            workflow.postbuild_results[PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY] = op_manifests_path
+        runner = create_runner(tasker, workflow, platform='x86_64',
+                               reactor_config_map=reactor_config_map)
+        runner.run()
+
+        if has_operator_manifests:
+            assert OPERATOR_MANIFESTS_ARCHIVE in session.uploaded_files
+        else:
+            assert OPERATOR_MANIFESTS_ARCHIVE not in session.uploaded_files

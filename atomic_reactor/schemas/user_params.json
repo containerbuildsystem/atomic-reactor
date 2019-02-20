@@ -56,6 +56,7 @@
       "uniqueItems": true,
       "additionalProperties": false
     },
+    "operator_manifests_extract_platform": {"type": "string"},
     "platform": {"type": "string"},
     "platforms": {
       "type": "array",
