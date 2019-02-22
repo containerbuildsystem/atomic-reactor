@@ -97,7 +97,7 @@ The docker map has these entries:
 - `config` (map): the [v2 schema 2 'config' object](https://docs.docker.com/registry/spec/manifest-v2-2/#image-manifest-field-descriptions) but with the 'container_config' entry removed
 - `tags` (string list): the image tags (i.e. the part after the ":") applied to this image when it was tagged and pushed
 - `layer_sizes` (map list): the image layer uncompressed sizes, the oldest layer first (the size information comes from docker history command)
-- `digests` (map): a map of media type (such as “application/vnd.docker.distribution.manifest.v2+json”) to manifest digest (a string usually starting “sha256:”), for each available media type for which a digest is available.
+- `digests` (map): a map of media type (such as “application/vnd.docker.distribution.manifest.v2+json”) to manifest digest (a string usually starting “sha256:”), for each available media type which can be retrieved by digest (media types only reachable by tag are not included).
 
 ## Example
 
