@@ -17,7 +17,7 @@ try:
     import koji
 except ImportError:
     import inspect
-    import sys  # noqa: F811
+    import sys
 
     # Find our mocked koji module
     import tests.koji as koji
@@ -39,7 +39,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
-from atomic_reactor.util import ImageName, ManifestDigest, RegistrySession
+from atomic_reactor.util import ImageName, ManifestDigest
 from atomic_reactor.rpm_util import parse_rpm_output
 from atomic_reactor.source import GitSource
 from atomic_reactor.build import BuildResult
@@ -52,7 +52,6 @@ from tests.docker_mock import mock_docker
 import subprocess
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
-from requests.exceptions import HTTPError
 from six import string_types
 
 NAMESPACE = 'mynamespace'
@@ -178,19 +177,6 @@ class MockedClientSession(object):
             pass
 
         return self.tag_task_state in ['CLOSED', 'FAILED', 'CANCELED', None]
-
-
-class MockedResponse(object):
-    def __init__(self, status_code=200):
-        self.history = []
-        self.url = ''
-        self.headers = ''
-        self.status_code = status_code
-
-    def raise_for_status(self):
-        if self.status_code != 200:
-            raise HTTPError(response=self)
-        return None
 
 
 FAKE_SIGMD5 = b'0' * 32
@@ -1142,20 +1128,10 @@ class TestKojiUpload(object):
             assert images[0].endswith(platform + ".tar.xz")
 
     @pytest.mark.parametrize('multiple', [False, True])
-    @pytest.mark.parametrize('manifest_available_with_digest', [False, True])
-    def test_koji_upload_multiple_digests(self, tmpdir, os_env, multiple,
-                                          manifest_available_with_digest, reactor_config_map):
-        if manifest_available_with_digest:
-            status_code = 200
-        else:
-            status_code = 404
-
+    def test_koji_upload_multiple_digests(self, tmpdir, os_env,
+                                          multiple, reactor_config_map):
         server = MockedOSBS()
         session = MockedClientSession('')
-        (flexmock(RegistrySession)
-            .should_receive('get')
-            .and_return(MockedResponse(status_code))
-            .and_return(MockedResponse()))
         tasker, workflow = mock_environment(tmpdir,
                                             session=session,
                                             name='name',
@@ -1176,7 +1152,7 @@ class TestKojiUpload(object):
         repositories = output['extra']['docker']['repositories']
         pullspecs = [pullspec for pullspec in repositories
                      if '@' in pullspec]
-        if multiple and manifest_available_with_digest:
+        if multiple:
             assert len(pullspecs) > 1
         else:
             assert len(pullspecs) == 1
