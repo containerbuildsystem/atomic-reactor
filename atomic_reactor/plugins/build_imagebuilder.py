@@ -11,7 +11,7 @@ import subprocess
 from six import PY2
 import os
 
-from atomic_reactor.util import get_exported_image_metadata
+from atomic_reactor.util import get_exported_image_metadata, allow_repo_dir_in_dockerignore
 from atomic_reactor.plugin import BuildStepPlugin
 from atomic_reactor.build import BuildResult
 from atomic_reactor.constants import CONTAINER_IMAGEBUILDER_BUILD_METHOD
@@ -42,6 +42,8 @@ class ImagebuilderPlugin(BuildStepPlugin):
         encoding_params = dict(encoding='utf-8', errors='replace')
         if not PY2:
             kwargs.update(encoding_params)
+
+        allow_repo_dir_in_dockerignore(builder.df_dir)
         ib_process = subprocess.Popen(['imagebuilder', '-t', image, builder.df_dir], **kwargs)
 
         self.log.debug('imagebuilder build has begun; waiting for it to finish')

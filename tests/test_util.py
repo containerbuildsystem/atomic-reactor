@@ -30,7 +30,8 @@ import docker
 import yaml
 from atomic_reactor.build import BuildResult
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,
-                                      MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2)
+                                      MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
+                                      DOCKERIGNORE, RELATIVE_REPOS_PATH)
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import (ImageName, wait_for_command,
                                  LazyGit, figure_out_build_file,
@@ -53,7 +54,7 @@ from atomic_reactor.util import (ImageName, wait_for_command,
                                  read_yaml, read_yaml_from_file_path, OSBSLogs,
                                  get_platforms_in_limits, get_orchestrator_platforms,
                                  dump_stacktraces, setup_introspection_signal_handler,
-                                 DigestCollector)
+                                 DigestCollector, allow_repo_dir_in_dockerignore)
 from atomic_reactor import util
 from tests.constants import (DOCKERFILE_GIT,
                              INPUT_IMAGE, MOCK, MOCK_SOURCE,
@@ -1508,6 +1509,29 @@ def test_introspection_signal_handler(capfd):
     os.kill(pid, sig)
     _, err = capfd.readouterr()
     assert log_msg in err
+
+
+@pytest.mark.parametrize('dockerignore_exists', [True, False])
+def test_allow_repo_dir_in_dockerignore(tmpdir, dockerignore_exists):
+    docker_ignore_file = os.path.join(str(tmpdir), DOCKERIGNORE)
+
+    ignore_content = ["# Ignore everything so we can just have a whitelist of things to copy\n",
+                      "** / *\n"]
+    added_lines = "!%s\n" % RELATIVE_REPOS_PATH
+
+    if dockerignore_exists:
+        with open(docker_ignore_file, "w") as f:
+            for line in ignore_content:
+                f.write(line)
+
+    allow_repo_dir_in_dockerignore(tmpdir)
+
+    if dockerignore_exists:
+        with open(docker_ignore_file, "r") as f:
+            ignore_lines = f.readlines()
+
+        assert ignore_lines[0:len(ignore_content)] == ignore_content
+        assert ignore_lines[-1] == added_lines
 
 
 class TestDigestCollector(object):
