@@ -9,7 +9,7 @@ from __future__ import print_function, unicode_literals
 
 import docker
 from atomic_reactor.plugin import BuildStepPlugin
-from atomic_reactor.util import wait_for_command
+from atomic_reactor.util import wait_for_command, allow_repo_dir_in_dockerignore
 from atomic_reactor.build import BuildResult
 
 
@@ -38,6 +38,7 @@ class DockerApiPlugin(BuildStepPlugin):
         """
         builder = self.workflow.builder
 
+        allow_repo_dir_in_dockerignore(builder.df_dir)
         logs_gen = self.tasker.build_image_from_path(builder.df_dir,
                                                      builder.image)
 
