@@ -339,7 +339,7 @@ class KojiUploadPlugin(PostBuildPlugin):
                 image_str = image.to_str()
                 if image_str in registry.digests:
                     image_digests = registry.digests[image_str]
-                    if self.report_multiple_digests:
+                    if self.report_multiple_digests and self.workflow.push_conf.pulp_registries:
                         digest_list = [digest for digest in (image_digests.v1,
                                                              image_digests.v2)
                                        if digest]
@@ -348,6 +348,8 @@ class KojiUploadPlugin(PostBuildPlugin):
                     digests[image.to_str(registry=False)] = digest_list
                     for digest_version in image_digests.content_type:
                         if digest_version not in image_digests:
+                            continue
+                        if not self.workflow.push_conf.pulp_registries and digest_version == 'v1':
                             continue
                         digest_type = get_manifest_media_type(digest_version)
                         typed_digests[digest_type] = image_digests[digest_version]

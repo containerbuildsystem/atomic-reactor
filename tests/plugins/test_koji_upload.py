@@ -17,7 +17,7 @@ try:
     import koji
 except ImportError:
     import inspect
-    import sys
+    import sys  # noqa: F811
 
     # Find our mocked koji module
     import tests.koji as koji
@@ -1128,7 +1128,8 @@ class TestKojiUpload(object):
             assert images[0].endswith(platform + ".tar.xz")
 
     @pytest.mark.parametrize('multiple', [False, True])
-    def test_koji_upload_multiple_digests(self, tmpdir, os_env,
+    @pytest.mark.parametrize('pulp_registries', [False, True])
+    def test_koji_upload_multiple_digests(self, tmpdir, os_env, pulp_registries,
                                           multiple, reactor_config_map):
         server = MockedOSBS()
         session = MockedClientSession('')
@@ -1136,7 +1137,8 @@ class TestKojiUpload(object):
                                             session=session,
                                             name='name',
                                             version='1.0',
-                                            release='1')
+                                            release='1',
+                                            pulp_registries=pulp_registries)
         runner = create_runner(tasker, workflow, platform='x86_64',
                                multiple=multiple, reactor_config_map=reactor_config_map)
         runner.run()
@@ -1152,7 +1154,39 @@ class TestKojiUpload(object):
         repositories = output['extra']['docker']['repositories']
         pullspecs = [pullspec for pullspec in repositories
                      if '@' in pullspec]
-        if multiple:
+        if multiple and pulp_registries:
             assert len(pullspecs) > 1
         else:
             assert len(pullspecs) == 1
+
+    @pytest.mark.parametrize('multiple', [False, True])
+    @pytest.mark.parametrize('pulp_registries', [False, True])
+    def test_koji_upload_available_references(self, tmpdir, os_env, pulp_registries,
+                                              multiple, reactor_config_map):
+        server = MockedOSBS()
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
+                                            name='name',
+                                            version='1.0',
+                                            release='1',
+                                            pulp_registries=pulp_registries)
+        runner = create_runner(tasker, workflow, platform='x86_64',
+                               multiple=multiple, reactor_config_map=reactor_config_map)
+        runner.run()
+
+        data_list = list(server.configmap.values())
+        if data_list:
+            data = data_list[0]
+        else:
+            raise RuntimeError("no configmap found")
+
+        outputs = data['metadata.json']['output']
+        output = [op for op in outputs if op['type'] == 'docker-image'][0]
+        repositories = output['extra']['docker']['repositories']
+        digests = output['extra']['docker']['digests']
+        if not pulp_registries:
+            expected = 1, 2
+        else:
+            expected = 2, 2 + multiple
+        assert len(digests), len(repositories) == expected
