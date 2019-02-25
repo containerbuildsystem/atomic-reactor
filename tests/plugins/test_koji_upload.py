@@ -423,6 +423,13 @@ def get_metadata(workflow, osbs):
     return cm_data[cm_frag_key]
 
 
+class MockedReactorConfig(object):
+    conf = {}
+
+    def __getitem__(self, *args):
+        return self
+
+
 class TestKojiUploadLogger(object):
     @pytest.mark.parametrize('totalsize', [0, 1024])
     def test_with_zero(self, totalsize):
@@ -1128,7 +1135,7 @@ class TestKojiUpload(object):
             assert images[0].endswith(platform + ".tar.xz")
 
     @pytest.mark.parametrize('multiple', [False, True])
-    @pytest.mark.parametrize('pulp_registries', [False, True])
+    @pytest.mark.parametrize('pulp_registries', [0, 1])
     def test_koji_upload_multiple_digests(self, tmpdir, os_env, pulp_registries,
                                           multiple, reactor_config_map):
         server = MockedOSBS()
@@ -1141,6 +1148,8 @@ class TestKojiUpload(object):
                                             pulp_registries=pulp_registries)
         runner = create_runner(tasker, workflow, platform='x86_64',
                                multiple=multiple, reactor_config_map=reactor_config_map)
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = MockedReactorConfig()
+        workflow.plugin_workspace[ReactorConfigPlugin.key].conf['pulp'] = pulp_registries
         runner.run()
 
         data_list = list(server.configmap.values())
@@ -1160,7 +1169,7 @@ class TestKojiUpload(object):
             assert len(pullspecs) == 1
 
     @pytest.mark.parametrize('multiple', [False, True])
-    @pytest.mark.parametrize('pulp_registries', [False, True])
+    @pytest.mark.parametrize('pulp_registries', [0, 1])
     def test_koji_upload_available_references(self, tmpdir, os_env, pulp_registries,
                                               multiple, reactor_config_map):
         server = MockedOSBS()
@@ -1173,6 +1182,8 @@ class TestKojiUpload(object):
                                             pulp_registries=pulp_registries)
         runner = create_runner(tasker, workflow, platform='x86_64',
                                multiple=multiple, reactor_config_map=reactor_config_map)
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = MockedReactorConfig()
+        workflow.plugin_workspace[ReactorConfigPlugin.key].conf['pulp'] = pulp_registries
         runner.run()
 
         data_list = list(server.configmap.values())
@@ -1186,7 +1197,7 @@ class TestKojiUpload(object):
         repositories = output['extra']['docker']['repositories']
         digests = output['extra']['docker']['digests']
         if not pulp_registries:
-            expected = 1, 2
+            expected = (1, 2)
         else:
-            expected = 2, 2 + multiple
-        assert len(digests), len(repositories) == expected
+            expected = (2, 2 + multiple)
+        assert (len(digests), len(repositories)) == expected

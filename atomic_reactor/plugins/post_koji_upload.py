@@ -19,7 +19,7 @@ from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_reactor_config import (get_openshift_session,
                                                        get_prefer_schema1_digest,
-                                                       get_koji_session)
+                                                       get_koji_session, get_pulp)
 from atomic_reactor.constants import PROG, PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
 from atomic_reactor.util import (get_version_of_tools, get_checksums,
                                  get_build_json, get_docker_architecture,
@@ -339,7 +339,7 @@ class KojiUploadPlugin(PostBuildPlugin):
                 image_str = image.to_str()
                 if image_str in registry.digests:
                     image_digests = registry.digests[image_str]
-                    if self.report_multiple_digests and self.workflow.push_conf.pulp_registries:
+                    if self.report_multiple_digests and get_pulp(self.workflow, None):
                         digest_list = [digest for digest in (image_digests.v1,
                                                              image_digests.v2)
                                        if digest]
@@ -349,7 +349,7 @@ class KojiUploadPlugin(PostBuildPlugin):
                     for digest_version in image_digests.content_type:
                         if digest_version not in image_digests:
                             continue
-                        if not self.workflow.push_conf.pulp_registries and digest_version == 'v1':
+                        if not get_pulp(self.workflow, None) and digest_version == 'v1':
                             continue
                         digest_type = get_manifest_media_type(digest_version)
                         typed_digests[digest_type] = image_digests[digest_version]
