@@ -116,7 +116,7 @@ class GitSource(Source):
         super(GitSource, self).__init__(provider, uri, dockerfile_path,
                                         provider_params, tmpdir)
         self.git_commit = self.provider_params.get('git_commit', None)
-        branch = self.provider_params.get('git_commit', None)
+        branch = self.provider_params.get('git_branch', None)
         depth = self.provider_params.get('git_commit_depth', None)
         self.lg = util.LazyGit(self.uri, self.git_commit, self.source_path, branch=branch,
                                depth=depth)
