@@ -57,6 +57,10 @@ class SourceConfig(object):
         self.go = self.data.get('go') or {}
         self.image_build_method = meth = self.data.get('image_build_method')
         self.inherit = self.compose.get('inherit', False) if self.compose else False
+        if self.compose:
+            # removing inherit from compose so it can be evaluated as a bool in order
+            # to decide whether any ODCS composes will be created
+            self.compose.pop('inherit', None)
         assert meth is None or meth in CONTAINER_BUILD_METHODS, (
                "unknown build method '{}' specified in {}; also, schema validated it."
                .format(meth, REPO_CONTAINER_CONFIG)

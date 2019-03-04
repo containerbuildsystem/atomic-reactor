@@ -204,7 +204,7 @@ class TestSourceConfigSchemaValidation(object):
             compose:
               inherit: true
             """,
-            {'compose': {'inherit': True}}
+            {'compose': {}, 'inherit': True}
         ), (
             """\
             go:
