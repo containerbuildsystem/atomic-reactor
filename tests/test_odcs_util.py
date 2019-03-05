@@ -82,13 +82,16 @@ def compose_json(state, state_name, source_type='module', source=MODULE_NSV,
     ['x86_64'],
     ['breakfast', 'lunch'],
 ))
-@pytest.mark.parametrize(('source', 'source_type', 'packages', 'expected_packages', 'sigkeys'), (
-    (MODULE_NSV, 'module', None, None, None),
-    ('my-tag', 'tag', None, [], None),
-    ('my-tag', 'tag', ['spam', 'bacon', 'eggs'], ['spam', 'bacon', 'eggs'], None),
-    ('my-tag', 'tag', ['spam', 'bacon', 'eggs'], ['spam', 'bacon', 'eggs'], ['B456', 'R123']),
-    ('my-tag', 'tag', ['spam', 'bacon', 'eggs'], ['spam', 'bacon', 'eggs'], ""),
-    ('my-tag', 'tag', ['spam', 'bacon', 'eggs'], ['spam', 'bacon', 'eggs'], []),
+@pytest.mark.parametrize(('source', 'source_type', 'packages', 'expected_packages', 'sigkeys',
+                          'modular_koji_tags', 'expected_koji_tags'), (
+    (MODULE_NSV, 'module', None, None, None, [], None),
+    (MODULE_NSV, 'module', None, None, None, ['release'], ['release']),
+    ('my-tag', 'tag', None, [], None, ['release'], None),
+    ('my-tag', 'tag', ['spam', 'bacon', 'eggs'], ['spam', 'bacon', 'eggs'], None, None, None),
+    ('my-tag', 'tag', ['spam', 'bacon', 'eggs'], ['spam', 'bacon', 'eggs'], ['B456', 'R123'],
+     ['release'], None),
+    ('my-tag', 'tag', ['spam', 'bacon', 'eggs'], ['spam', 'bacon', 'eggs'], "", None, None),
+    ('my-tag', 'tag', ['spam', 'bacon', 'eggs'], ['spam', 'bacon', 'eggs'], [], ['release'], None),
 ))
 @pytest.mark.parametrize('flags', (
     None,
@@ -103,6 +106,7 @@ def compose_json(state, state_name, source_type='module', source=MODULE_NSV,
     (['breakfast', 'lunch'], [], MULTILIB_METHOD_DEFAULT)
 ))
 def test_create_compose(odcs_client, source, source_type, packages, expected_packages, sigkeys,
+                        modular_koji_tags, expected_koji_tags,
                         arches, flags, multilib_arches, multilib_method, expected_method):
 
     def handle_composes_post(request):
@@ -121,6 +125,7 @@ def test_create_compose(odcs_client, source, source_type, packages, expected_pac
         assert body_json.get('flags') == flags
         assert body_json.get('arches') == arches
         assert body_json.get('multilib_arches') == multilib_arches
+        assert body_json.get('modular_koji_tags') == expected_koji_tags
         if expected_method is not None:
             assert sorted(body_json.get('multilib_method')) == sorted(expected_method)
         else:
@@ -133,7 +138,8 @@ def test_create_compose(odcs_client, source, source_type, packages, expected_pac
 
     odcs_client.start_compose(source_type=source_type, source=source, packages=packages,
                               sigkeys=sigkeys, arches=arches, flags=flags,
-                              multilib_arches=multilib_arches, multilib_method=multilib_method)
+                              multilib_arches=multilib_arches, multilib_method=multilib_method,
+                              modular_koji_tags=modular_koji_tags)
 
 
 @responses.activate
