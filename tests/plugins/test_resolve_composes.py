@@ -271,30 +271,48 @@ class TestResolveComposes(object):
         workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = arches
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
-    @pytest.mark.parametrize(('parent_compose', 'parent_repourls'), [
-        (True, True),
-        (True, False),
-        (False, True),
-        (False, False),
+    @pytest.mark.parametrize(('parent_compose', 'parent_repourls', 'repo_provided'), [
+        (True, True, False),
+        (True, False, False),
+        (False, True, False),
+        (False, False, False),
+        (True, True, True),
+        (True, False, True),
+        (False, True, True),
+        (False, False, True),
     ])
-    @pytest.mark.parametrize(('inherit_parent', 'scratch', 'isolated', 'allow_inherit', 'ids'), [
-        (True, True, False, False, True),
-        (True, False, True, False, True),
-        (True, False, False, True, True),
-        (False, True, False, False, True),
-        (False, False, True, False, True),
-        (False, False, False, False, True),
-        (True, True, False, False, False),
-        (True, False, True, False, False),
-        (True, False, False, True, False),
-        (False, True, False, False, False),
-        (False, False, True, False, False),
-        (False, False, False, False, False),
+    @pytest.mark.parametrize(('inherit_parent', 'scratch', 'isolated', 'allow_inherit', 'ids',
+                              'compose_defined'), [
+        (True, True, False, False, True, True),
+        (True, False, True, False, True, True),
+        (True, False, False, True, True, True),
+        (False, True, False, False, True, True),
+        (False, False, True, False, True, True),
+        (False, False, False, False, True, True),
+        (True, True, False, False, False, True),
+        (True, False, True, False, False, True),
+        (True, False, False, True, False, True),
+        (False, True, False, False, False, True),
+        (False, False, True, False, False, True),
+        (False, False, False, False, False, True),
+        (True, True, False, False, True, False),
+        (True, False, True, False, True, False),
+        (True, False, False, True, True, False),
+        (False, True, False, False, True, False),
+        (False, False, True, False, True, False),
+        (False, False, False, False, True, False),
+        (True, True, False, False, False, False),
+        (True, False, True, False, False, False),
+        (True, False, False, True, False, False),
+        (False, True, False, False, False, False),
+        (False, False, True, False, False, False),
+        (False, False, False, False, False, False),
     ])
     def test_inherit_parents(self, workflow, reactor_config_map, parent_compose, parent_repourls,
-                             inherit_parent, scratch, isolated, allow_inherit, ids):
+                             repo_provided, inherit_parent, scratch, isolated, allow_inherit,
+                             compose_defined, ids):
         arches = ['ppc64le', 'x86_64']
-        if inherit_parent:
+        if inherit_parent and compose_defined:
             repo_config = dedent("""\
                 compose:
                     packages:
@@ -304,6 +322,14 @@ class TestResolveComposes(object):
                     inherit: true
                 """)
             mock_repo_config(workflow._tmpdir, repo_config)
+        elif inherit_parent:
+            repo_config = dedent("""\
+                compose:
+                    inherit: true
+                """)
+            mock_repo_config(workflow._tmpdir, repo_config)
+        elif not compose_defined:
+            workflow._tmpdir.join('container.yaml').write("")
 
         new_environ = {}
         new_environ["BUILD"] = dedent('''\
@@ -355,7 +381,7 @@ class TestResolveComposes(object):
             (flexmock(ODCSClient)
              .should_receive('start_compose')
              .never())
-        else:
+        elif compose_defined:
             sigkeys = []
             if not parent_compose:
                 sigkeys = ['R123']
@@ -377,8 +403,10 @@ class TestResolveComposes(object):
 
         compose_ids = []
         current_repourl = ["http://example.com/current.repo"]
-        expected_yum_repourls = list(current_repourl)
-        if not ids:
+        expected_yum_repourls = []
+        if repo_provided:
+            expected_yum_repourls = list(current_repourl)
+        if not ids and compose_defined:
             expected_yum_repourls.append(ODCS_COMPOSE['result_repofile'])
         if allow_inherit and parent_repourls:
             expected_yum_repourls.extend(parent_repo)
@@ -413,16 +441,26 @@ class TestResolveComposes(object):
 
         workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = arches
 
-        plugin_args = {'repourls': current_repourl}
+        plugin_args = {}
+        if repo_provided:
+            plugin_args['repourls'] = current_repourl
         if ids:
             plugin_args['compose_ids'] = compose_ids
 
         self.run_plugin_with_args(workflow, plugin_args, reactor_config_map=reactor_config_map,
                                   check_for_default_id=False)
 
-        assert set(self.get_override_yum_repourls(workflow)) == set(expected_yum_repourls)
+        archspecific_repuruls = self.get_override_yum_repourls(workflow)
+        nonearch_repourls = self.get_override_yum_repourls(workflow, arch=None)
 
-        all_yum_repourls = list(current_repourl)
+        if compose_defined or ids or (parent_compose and allow_inherit):
+            assert set(archspecific_repuruls) == set(expected_yum_repourls)
+        else:
+            assert set(nonearch_repourls) == set(expected_yum_repourls)
+
+        all_yum_repourls = []
+        if repo_provided:
+            all_yum_repourls = list(current_repourl)
         if allow_inherit and parent_repourls:
             all_yum_repourls.extend(parent_repo)
         assert set(workflow.all_yum_repourls) == set(all_yum_repourls)
