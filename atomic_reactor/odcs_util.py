@@ -45,7 +45,8 @@ class ODCSClient(object):
         self.session = session
 
     def start_compose(self, source_type, source, packages=None, sigkeys=None, arches=None,
-                      flags=None, multilib_arches=None, multilib_method=None):
+                      flags=None, multilib_arches=None, multilib_method=None,
+                      modular_koji_tags=None):
         """Start a new ODCS compose
 
         :param source_type: str, the type of compose to request (tag, module, pulp)
@@ -67,6 +68,9 @@ class ODCSClient(object):
                         be included in a multilib compose. Defaults to none, but the value
                         of ['devel', 'runtime] will be passed to ODCS if multilib_arches is
                         not empty and no mulitlib_method value is provided.
+        :param modular_koji_tags: list<str>, the koji tags which are tagged to builds from the
+                        modular Koji Content Generator.  Builds with matching tags will be
+                        included in the compose.
 
         :return: dict, status of compose being created by request.
         """
@@ -91,6 +95,9 @@ class ODCSClient(object):
         if multilib_arches:
             body['multilib_arches'] = multilib_arches
             body['multilib_method'] = multilib_method or MULTILIB_METHOD_DEFAULT
+
+        if source_type == "module" and modular_koji_tags:
+            body['modular_koji_tags'] = modular_koji_tags
 
         logger.info("Starting compose: %s", body)
         response = self.session.post('{}composes/'.format(self.url),
