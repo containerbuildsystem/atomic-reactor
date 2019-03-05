@@ -181,7 +181,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
             raise SkipResolveComposesPlugin('ODCS config not found')
 
         data = self.workflow.source.config.compose
-        if not data and not self.compose_ids:
+        if not data and not self.all_compose_ids:
             raise SkipResolveComposesPlugin('"compose" config not set and compose_ids not given')
 
         workdir = self.workflow.source.get_build_file_path()[1]
@@ -241,6 +241,10 @@ class ResolveComposesPlugin(PreBuildPlugin):
     def request_compose_if_needed(self):
         if self.compose_ids:
             self.log.debug('ODCS compose not requested, using given compose IDs')
+            return
+
+        if not self.workflow.source.config.compose:
+            self.log.debug('ODCS compose not provided, using parents compose IDs')
             return
 
         self.compose_config.validate_for_request()
