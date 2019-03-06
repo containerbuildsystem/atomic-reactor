@@ -83,6 +83,24 @@
           "description": "enable inheritance of yum repourls and composes from baseimage build (disabled by default)",
           "type": "boolean"
         },
+        "include_unpublished_pulp_repos": {
+          "description": "include unpublished repos in pulp input content-sets",
+          "type": "boolean"
+        },
+        "multilib_method": {
+          "description": "list of options to decide if a package is multilib",
+          "type": ["array", "null"],
+          "items": {
+              "enum": ["none", "iso", "runtime", "devel", "all"]
+          }
+        },
+        "multilib_arches": {
+          "description": "list of arches which will get multilib composes",
+          "type": ["array", "null"],
+          "items": {
+              "type": "string"
+          }
+        },
         "modular_koji_tags": {
           "description": "tags of modular Koji content to include in the build",
           "type": ["array", "null"],
@@ -91,7 +109,7 @@
           }
         }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "flatpak": {
       "type": ["object", "null"]
