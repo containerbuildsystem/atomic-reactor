@@ -60,6 +60,7 @@ Data which is placed here includes:
 - `build.owner` (string or null): username that started the task
 - `build.extra.image.go` (map): information about container first Go modules
 - `build.extra.image.go.modules` (map list): entries with Go modules information
+- `build.extra.operator_manifests_archive` (string): name of the archive containing operator manifest files
 
 The index map has these entries:
 
