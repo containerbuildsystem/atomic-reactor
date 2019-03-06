@@ -491,6 +491,36 @@ class TestResolveComposes(object):
         workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = arches
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
+    @pytest.mark.parametrize('arches', (
+        ['ppc64le', 'x86_64'],
+        ['x86_64'],
+    ))
+    def test_request_compose_for_modular_tags(self, workflow, reactor_config_map, arches):
+        repo_config = dedent("""\
+            compose:
+                modules:
+                - spam
+                - bacon
+                - eggs
+                modular_koji_tags:
+                - earliest
+                - latest
+            """)
+        mock_repo_config(workflow._tmpdir, repo_config)
+
+        (flexmock(ODCSClient)
+            .should_receive('start_compose')
+            .with_args(
+                source_type='module',
+                source='spam bacon eggs',
+                sigkeys=['R123'],
+                arches=arches,
+                modular_koji_tags=['earliest', 'latest'])
+            .once()
+            .and_return(ODCS_COMPOSE))
+        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = arches
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
+
     @pytest.mark.parametrize(('with_modules'), (True, False))
     def test_request_compose_empty_packages(self, workflow, reactor_config_map, with_modules):
         repo_config = dedent("""\
