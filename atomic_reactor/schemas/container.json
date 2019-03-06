@@ -82,6 +82,13 @@
         "inherit": {
           "description": "enable inheritance of yum repourls and composes from baseimage build (disabled by default)",
           "type": "boolean"
+        },
+        "modular_koji_tags": {
+          "description": "tags of modular Koji content to include in the build",
+          "type": ["array", "null"],
+          "items": {
+              "type": "string"
+          }
         }
       },
       "additionalProperties": true

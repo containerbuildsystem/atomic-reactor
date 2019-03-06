@@ -368,6 +368,7 @@ class ComposeConfig(object):
         self.arches = arches or []
         self.multilib_arches = []
         self.multilib_method = None
+        self.modular_tags = data.get('modular_koji_tags', [])
 
         if data.get('pulp_repos'):
             for arch in pulp_data or {}:
@@ -431,6 +432,8 @@ class ComposeConfig(object):
         }
         if self.arches:
             request['arches'] = self.arches
+        if self.modular_tags:
+            request['modular_koji_tags'] = self.modular_tags
         return request
 
     def render_pulp_request(self, arch):
