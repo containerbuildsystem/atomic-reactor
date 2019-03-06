@@ -664,9 +664,9 @@ class TestResolveComposes(object):
         (['x86_64', 'ppce64le', 'arm64'], None, 'beta', 'beta'),
     ))
     @pytest.mark.parametrize(('flags', 'expected_flags'), [
-        ({}, None,),
+        ({}, None),
         ({UNPUBLISHED_REPOS: False}, None),
-        ({UNPUBLISHED_REPOS: True, 'some_flag': True}, [UNPUBLISHED_REPOS])
+        ({UNPUBLISHED_REPOS: True}, [UNPUBLISHED_REPOS])
     ])
     def test_request_pulp_and_multiarch(self, workflow, reactor_config_map, pulp_arches, arches,
                                         signing_intent, expected_intent, flags, expected_flags):
@@ -760,6 +760,26 @@ class TestResolveComposes(object):
                                                   platforms=arches, is_pulp=pulp_arches)
 
         assert plugin_result['signing_intent'] == expected_intent
+
+    def test_invalid_flag(self, workflow, reactor_config_map):
+        expect_error = "Additional properties are not allowed ('some_invalid_flag' was unexpected)"
+        arches = ['x86_64']
+        repo_config = dedent("""\
+            compose:
+                pulp_repos: true
+                packages:
+                - spam
+                - bacon
+                - eggs
+                signing_intent: unsigned
+                some_invalid_flag: true
+            """)
+        mock_repo_config(workflow._tmpdir, repo_config)
+        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(arches)
+        with pytest.raises(PluginFailedException) as exc:
+            self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
+                                      platforms=arches, is_pulp=False)
+        assert expect_error in str(exc.value)
 
     def test_request_compose_for_pulp_no_content_sets(self, workflow, reactor_config_map):
         (flexmock(ODCSClient)

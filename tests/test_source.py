@@ -190,9 +190,9 @@ class TestSourceConfigSchemaValidation(object):
         ), (
             """\
             compose:
-              extra_key: allowed
+              include_unpublished_pulp_repos: true
             """,
-            {'compose': {'extra_key': 'allowed'}}
+            {'compose': {'include_unpublished_pulp_repos': True}}
         ), (
             """\
             compose:
