@@ -452,6 +452,18 @@
             "insecure": {
                 "description": "Don't check SSL certificate for url",
                 "type": "boolean"
+            },
+            "auth": {
+                "description": "Authentication information",
+                "type": "object",
+                   "properties": {
+                    "cfg_path": {
+                        "description": "Path to directory  containing .dockercfg for registry auth",
+                        "type": "string"
+                    }
+                },
+                "additionalProperties": false,
+                "required": ["cfg_path"]
             }
         },
         "additionalProperties": false,

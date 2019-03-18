@@ -59,9 +59,11 @@ class PullBaseImagePlugin(PreBuildPlugin):
         if source_registry.get('uri'):
             self.parent_registry = source_registry['uri'].docker_uri
             self.parent_registry_insecure = source_registry['insecure']
+            self.parent_registry_dockercfg_path = source_registry.get('dockercfg_path', None)
         else:
             self.parent_registry = None
             self.parent_registry_insecure = False
+            self.parent_registry_dockercfg_path = None
         if parent_images_digests:
             self._load_parent_images_digests(parent_images_digests)
 
@@ -122,8 +124,10 @@ class PullBaseImagePlugin(PreBuildPlugin):
                 if organization:
                     # we want to be sure we have original_base_image enclosed as well
                     self.workflow.builder.original_base_image.enclose(organization)
-                self.workflow.builder.set_base_image(str(new_image),
-                                                     insecure=self.parent_registry_insecure)
+                self.workflow.builder.set_base_image(
+                    str(new_image), insecure=self.parent_registry_insecure,
+                    dockercfg_path=self.parent_registry_dockercfg_path
+                )
         self.workflow.builder.parents_pulled = not self.inspect_only
         self.workflow.builder.base_image_insecure = self.parent_registry_insecure
 
@@ -252,7 +256,8 @@ class PullBaseImagePlugin(PreBuildPlugin):
             # should never require 20 retries but there's a race condition at work.
             # just in case something goes wildly wrong, limit to 20 so it terminates.
             try:
-                self.tasker.pull_image(image, insecure=self.parent_registry_insecure)
+                self.tasker.pull_image(image, insecure=self.parent_registry_insecure,
+                                       dockercfg_path=self.parent_registry_dockercfg_path)
                 self.workflow.pulled_base_images.add(image.to_str())
             except RetryGeneratorException as exc:
                 # getting here means the pull itself failed. we may want to retry if the
@@ -303,14 +308,17 @@ class PullBaseImagePlugin(PreBuildPlugin):
             return self.manifest_list_cache[image]
 
         manifest_list = get_manifest_list(image, image.registry,
-                                          insecure=self.parent_registry_insecure)
+                                          insecure=self.parent_registry_insecure,
+                                          dockercfg_path=self.parent_registry_dockercfg_path)
         if '@sha256:' in str(image) and not manifest_list:
             # we want to adjust the tag only for manifest list fetching
             image = image.copy()
 
             try:
-                config_blob = get_config_from_registry(image, image.registry, image.tag,
-                                                       insecure=self.parent_registry_insecure)
+                config_blob = get_config_from_registry(
+                    image, image.registry, image.tag, insecure=self.parent_registry_insecure,
+                    dockercfg_path=self.parent_registry_dockercfg_path
+                )
             except (HTTPError, RetryError, Timeout) as ex:
                 self.log.warning('Unable to fetch config for %s, got error %s',
                                  image, ex.response.status_code)
@@ -322,7 +330,8 @@ class PullBaseImagePlugin(PreBuildPlugin):
             image.tag = docker_tag
 
             manifest_list = get_manifest_list(image, image.registry,
-                                              insecure=self.parent_registry_insecure)
+                                              insecure=self.parent_registry_insecure,
+                                              dockercfg_path=self.parent_registry_dockercfg_path)
         self.manifest_list_cache[image] = manifest_list
         return self.manifest_list_cache[image]
 

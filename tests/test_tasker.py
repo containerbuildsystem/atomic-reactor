@@ -230,16 +230,30 @@ def test_tag_and_push(temp_image_name):  # noqa
     t.remove_image(temp_image_name)
 
 
-def test_pull_image():
+@pytest.mark.parametrize(('insecure', 'dockercfg'), [
+    (True, None),
+    (False, None),
+    (False, {LOCALHOST_REGISTRY: {"auth": b64encode(b'user:mypassword').decode('utf-8')}}),
+])
+def test_pull_image(tmpdir, insecure, dockercfg):
     if MOCK:
         mock_docker()
+
+    dockercfg_path = None
+    if dockercfg:
+        dockercfg_path = str(tmpdir.realpath())
+        file_name = '.dockercfg'
+        dockercfg_secret_path = os.path.join(dockercfg_path, file_name)
+        with open(dockercfg_secret_path, "w+") as dockerconfig:
+            dockerconfig.write(json.dumps(dockercfg))
+            dockerconfig.flush()
 
     t = DockerTasker()
     local_img = input_image_name
     remote_img = local_img.copy()
     remote_img.registry = LOCALHOST_REGISTRY
-    t.tag_and_push_image(local_img, remote_img, insecure=True)
-    got_image = t.pull_image(remote_img, insecure=True)
+    t.tag_and_push_image(local_img, remote_img, insecure=insecure, dockercfg=dockercfg_path)
+    got_image = t.pull_image(remote_img, insecure=insecure, dockercfg_path=dockercfg_path)
     assert remote_img.to_str() == got_image
     assert len(t.last_logs) > 0
     t.remove_image(remote_img)

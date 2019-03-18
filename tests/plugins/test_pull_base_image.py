@@ -66,7 +66,7 @@ class MockBuilder(object):
     def __init__(self):
         self.parent_images_digests = DigestCollector()
 
-    def set_base_image(self, base_image, parents_pulled=True, insecure=False):
+    def set_base_image(self, base_image, parents_pulled=True, insecure=False, dockercfg_path=None):
         self.base_from_scratch = base_image_is_scratch(base_image)
         if not self.custom_base_image:
             self.custom_base_image = base_image_is_custom(base_image)
@@ -168,6 +168,7 @@ def test_pull_base_image_special(add_another_parent, special_image, change_base,
     for df, tagged in workflow.builder.parent_images.items():
         assert tagged is not None, "Did not tag parent image " + str(df)
     assert len(set(workflow.builder.parent_images.values())) == len(workflow.builder.parent_images)
+
 
 @pytest.mark.parametrize(('parent_registry',
                           'df_base',       # unique ID is always expected
@@ -636,7 +637,8 @@ class TestValidateBaseImage(object):
             manifest_image = base_image_result.copy()
             (flexmock(atomic_reactor.util)
              .should_receive('get_manifest_list')
-             .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True)
+             .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True,
+                        dockercfg_path=None)
              .and_return(None)
              .once())
             return workflow
@@ -678,13 +680,15 @@ class TestValidateBaseImage(object):
             if sha_is_manifest_list:
                 (flexmock(atomic_reactor.util)
                  .should_receive('get_manifest_list')
-                 .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True)
+                 .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True,
+                            dockercfg_path=None)
                  .and_return(flexmock(json=lambda: manifest_list))
                  .once())
             else:
                 (flexmock(atomic_reactor.util)
                  .should_receive('get_manifest_list')
-                 .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True)
+                 .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True,
+                            dockercfg_path=None)
                  .and_return(None)
                  .once()
                  .ordered())
@@ -697,7 +701,8 @@ class TestValidateBaseImage(object):
                 manifest_image = base_image_result.copy()
                 (flexmock(atomic_reactor.util)
                  .should_receive('get_manifest_list')
-                 .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True)
+                 .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True,
+                            dockercfg_path=None)
                  .and_return(flexmock(json=lambda: manifest_list))
                  .once()
                  .ordered())
@@ -733,7 +738,8 @@ class TestValidateBaseImage(object):
 
             (flexmock(atomic_reactor.util)
              .should_receive('get_manifest_list')
-             .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True)
+             .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True,
+                        dockercfg_path=None)
              .and_return(flexmock(json=lambda: manifest_list))
              .once())
             return workflow

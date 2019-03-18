@@ -248,7 +248,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
             parent_images[key] = val
         self.parent_images = parent_images
 
-    def set_base_image(self, base_image, parents_pulled=True, insecure=False):
+    def set_base_image(self, base_image, parents_pulled=True, insecure=False, dockercfg_path=None):
         self.base_from_scratch = base_image_is_scratch(base_image)
         if not self.custom_base_image:
             self.custom_base_image = base_image_is_custom(base_image)
@@ -260,6 +260,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
             self.parent_images[self.original_base_image] = self.base_image
         self.parents_pulled = parents_pulled
         self.base_image_insecure = insecure
+        self.base_image_dockercfg_path = dockercfg_path
         logger.info("set base image to '%s' with original base '%s'", self.base_image,
                     self.original_base_image)
 
@@ -287,7 +288,8 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
                 self._base_image_inspect =\
                     atomic_reactor.util.get_inspect_for_image(self.base_image,
                                                               self.base_image.registry,
-                                                              self.base_image_insecure)
+                                                              self.base_image_insecure,
+                                                              self.base_image_dockercfg_path)
 
             base_image_str = str(self.base_image)
             if base_image_str not in self._parent_images_inspect:
@@ -309,7 +311,8 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
                 self._parent_images_inspect[image_name] =\
                     atomic_reactor.util.get_inspect_for_image(image_name,
                                                               image_name.registry,
-                                                              self.base_image_insecure)
+                                                              self.base_image_insecure,
+                                                              self.base_image_dockercfg_path)
 
         return self._parent_images_inspect[image_name]
 

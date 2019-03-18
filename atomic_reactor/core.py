@@ -519,17 +519,21 @@ class DockerTasker(LastLogger):
         logger.debug("%d matching images found", len(images))
         return images
 
-    def pull_image(self, image, insecure=False):
+    def pull_image(self, image, insecure=False, dockercfg_path=None):
         """
         pull provided image from registry
 
         :param image_name: ImageName, image to pull
         :param insecure: bool, allow connecting to registry over plain http
+        :param dockercfg_path: str, path to dockercfg
         :return: str, image (reg.om/img:v1)
         """
         logger.info("pulling image '%s' from registry", image)
         logger.debug("image = '%s', insecure = '%s'", image, insecure)
         tag = image.tag
+
+        if dockercfg_path:
+            self.login(registry=image.registry, docker_secret_path=dockercfg_path)
         try:
             command_result = self.retry_generator(self.d.pull,
                                                   image.to_str(tag=False),

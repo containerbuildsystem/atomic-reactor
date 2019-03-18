@@ -280,10 +280,14 @@ def get_source_registry(workflow, fallback=NO_FALLBACK):
             return fallback
         raise
 
-    return {
+    regdict = {
         'uri': RegistryURI(source_registry['url']),
-        'insecure': source_registry.get('insecure', False)
+        'insecure': source_registry.get('insecure', False),
+        'dockercfg_path': None
     }
+    if source_registry.get('auth'):
+        regdict['dockercfg_path'] = source_registry['auth']['cfg_path']
+    return regdict
 
 
 def get_sources_command(workflow, fallback=NO_FALLBACK):
