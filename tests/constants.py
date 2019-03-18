@@ -145,6 +145,9 @@ registries:
 source_registry:
     url: https://registry.private.example.com
     insecure: True
+    auth:
+        cfg_path: /var/run/secrets/atomic-reactor/private-registry-dockercfg
+
 
 sources_command: "fedpkg sources"
 
