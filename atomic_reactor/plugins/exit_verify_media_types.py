@@ -13,7 +13,9 @@ from __future__ import unicode_literals
 from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_VERIFY_MEDIA_KEY,
                                       MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_SCHEMA1,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
-                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
+                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
+                                      MEDIA_TYPE_OCI_V1,
+                                      MEDIA_TYPE_OCI_V1_INDEX)
 
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import get_manifest_digests, get_platforms, RegistrySession
@@ -35,10 +37,11 @@ def verify_v1_image(image, registry, log, insecure=False, dockercfg_path=None):
         log.debug("verify_v1_image: [%s] %s", r.status_code, r.url)
 
     log.debug("verify_v1_image: response headers: %s", response.headers)
-    response.raise_for_status()
-
-    # if we returned ok, then everything is fine.
-    return True
+    try:
+        response.raise_for_status()
+        return True
+    except Exception:
+        return False
 
 
 class VerifyMediaTypesPlugin(ExitPlugin):
@@ -59,77 +62,90 @@ class VerifyMediaTypesPlugin(ExitPlugin):
             return
         image = self.workflow.tag_conf.unique_images[0]
 
-        media_types = set()
         registries = deepcopy(get_registries(self.workflow, {}))
-        for registry_name, registry in registries.items():
-            initial_media_types = registry.get('expected_media_types', [])
-            if not initial_media_types:
-                continue
+        media_in_registry = {}
+        expect_list_only = self.get_manifest_list_only_expectation()
 
-            expected_media_types = self.set_manifest_list_expectations(initial_media_types)
+        for registry_name, registry in registries.items():
+            expected_media_types = set(registry.get('expected_media_types', []))
+            media_types = set()
+
+            if expect_list_only:
+                expected_media_types = set([MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST])
+
+            media_in_registry[registry_name] = {'expected': expected_media_types}
 
             pullspec = image.copy()
             pullspec.registry = registry_name
             insecure = registry.get('insecure', False)
             secret = registry.get('secret', None)
 
-            check_digests = (MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST in expected_media_types or
-                             MEDIA_TYPE_DOCKER_V2_SCHEMA2 in expected_media_types or
-                             MEDIA_TYPE_DOCKER_V2_SCHEMA1 in expected_media_types)
-            if check_digests:
-                digests = get_manifest_digests(pullspec, registry_name, insecure, secret,
-                                               require_digest=False)
-                if digests:
-                    if digests.v2_list:
-                        self.log.info("Manifest list found")
-                        if MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST in expected_media_types:
-                            media_types.add(MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
-                    if digests.v2:
-                        self.log.info("V2 schema 2 digest found")
-                        if MEDIA_TYPE_DOCKER_V2_SCHEMA2 in expected_media_types:
-                            media_types.add(MEDIA_TYPE_DOCKER_V2_SCHEMA2)
-                    if digests.v1:
-                        self.log.info("V2 schema 1 digest found")
-                        if MEDIA_TYPE_DOCKER_V2_SCHEMA1 in expected_media_types:
-                            media_types.add(MEDIA_TYPE_DOCKER_V2_SCHEMA1)
+            digests = get_manifest_digests(pullspec, registry_name, insecure, secret,
+                                           require_digest=False)
+            if digests:
+                if digests.v2_list:
+                    media_types.add(MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
+                if digests.v2:
+                    media_types.add(MEDIA_TYPE_DOCKER_V2_SCHEMA2)
+                if digests.v1:
+                    media_types.add(MEDIA_TYPE_DOCKER_V2_SCHEMA1)
+                if digests.oci:
+                    media_types.add(MEDIA_TYPE_OCI_V1)
+                if digests.oci_index:
+                    media_types.add(MEDIA_TYPE_OCI_V1_INDEX)
 
-            if MEDIA_TYPE_DOCKER_V1 in expected_media_types:
-                if verify_v1_image(pullspec, registry_name, self.log, insecure, secret):
-                    media_types.add(MEDIA_TYPE_DOCKER_V1)
+            if verify_v1_image(pullspec, registry_name, self.log, insecure, secret):
+                media_types.add(MEDIA_TYPE_DOCKER_V1)
 
-            # sorting the media type here so the failure message is predictable for unit tests
-            missing_types = []
-            for media_type in sorted(expected_media_types):
-                if media_type not in media_types:
-                    missing_types.append(media_type)
-            if missing_types:
-                raise KeyError("expected media types {0} ".format(missing_types) +
-                               "not in available media types {0}".format(sorted(media_types)))
-        return sorted(media_types)
+            media_in_registry[registry_name]['found'] = media_types
 
-    def set_manifest_list_expectations(self, expected_media_types):
+        should_raise = False
+        all_found = set()
+        for registry_name, manifests in media_in_registry.items():
+            all_found.update(manifests['found'])
+            if manifests['expected'] - manifests['found']:
+                should_raise = True
+                self.log.error("expected media types %s not in available media types %s,"
+                               " for registry %s",
+                               sorted(manifests['expected'] - manifests['found']),
+                               sorted(manifests['found']),
+                               registry_name)
+
+        if should_raise:
+            raise KeyError("expected media types were not found")
+
+        if expect_list_only:
+            return [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]
+        return sorted(all_found)
+
+    def get_manifest_list_only_expectation(self):
+        """
+        Get expectation for manifest list only
+
+        :return: bool, expect manifest list only?
+        """
         if not self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY):
             self.log.debug('Cannot check if only manifest list digest should be returned '
                            'because group manifests plugin did not run')
-            return expected_media_types
+            return False
 
         platforms = get_platforms(self.workflow)
         if not platforms:
             self.log.debug('Cannot check if only manifest list digest should be returned '
                            'because we have no platforms list')
-            return expected_media_types
+            return False
 
         try:
             platform_to_goarch = get_platform_to_goarch_mapping(self.workflow)
         except KeyError:
             self.log.debug('Cannot check if only manifest list digest should be returned '
                            'because there are no platform descriptors')
-            return expected_media_types
+            return False
 
         for plat in platforms:
             if platform_to_goarch[plat] == 'amd64':
                 self.log.debug('amd64 was built, all media types available')
-                return expected_media_types
+                return False
 
         self.log.debug('amd64 was not built, only manifest list digest is available')
-        return [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]
+        return True
