@@ -70,25 +70,7 @@ class TagAndPushPlugin(PostBuildPlugin):
         cmd = ['skopeo', 'copy']
         if docker_push_secret is not None:
             dockercfg = Dockercfg(docker_push_secret)
-            dest_creds = None
-            unpacked_auth_b64 = None
-            try:
-                unpacked_auth_b64 = dockercfg.unpack_auth_b64(registry_image.registry)
-            except ValueError:
-                self.log.warning("Invalid 'auth' value in '%s'", docker_push_secret)
-            if unpacked_auth_b64:
-                dest_creds = unpacked_auth_b64.raw_str
-            else:
-                credentials = dockercfg.get_credentials(registry_image.registry)
-                username = credentials.get('username')
-                password = credentials.get('password')
-                if username and password:
-                    dest_creds = username + ':' + password
-
-            if dest_creds:
-                cmd.append('--dest-creds=' + dest_creds)
-            else:
-                self.log.warning("No credentials found in '%s'", docker_push_secret)
+            cmd.append('--authfile=' + dockercfg.json_secret_path)
 
         if insecure:
             cmd.append('--dest-tls-verify=false')
@@ -103,17 +85,13 @@ class TagAndPushPlugin(PostBuildPlugin):
 
         dest_img = 'docker://' + registry_image.to_str()
 
-        # Make sure we don't log the credentials
         cmd += [source_img, dest_img]
-        log_cmd = [re.sub(r'^--dest-creds=.*', '--dest-creds=<HIDDEN>', arg)
-                   for arg in cmd]
 
-        self.log.info("Calling: %s", ' '.join(log_cmd))
+        self.log.info("Calling: %s", ' '.join(cmd))
         try:
             subprocess.check_output(cmd, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
             self.log.error("push failed with output:\n%s", e.output)
-            e.cmd = log_cmd  # hide credentials
             raise
 
     def run(self):
