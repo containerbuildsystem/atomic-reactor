@@ -12,7 +12,7 @@ from __future__ import print_function, unicode_literals
 from atomic_reactor.core import DockerTasker, retry, RetryGeneratorException
 from atomic_reactor.util import ImageName, clone_git_repo, CommandResult
 from tests.constants import LOCALHOST_REGISTRY, INPUT_IMAGE, DOCKERFILE_GIT, MOCK, COMMAND
-from requests.packages.urllib3.exceptions import ProtocolError
+from requests.packages.urllib3.exceptions import ProtocolError, ReadTimeoutError
 from tests.util import requires_internet
 
 from base64 import b64encode
@@ -430,7 +430,7 @@ def test_retry_method(retry_times):
         retry(my_func, *my_args, retry=retry_times, **my_kwargs)
 
 
-@pytest.mark.parametrize('exc', [ProtocolError, APIError, False])
+@pytest.mark.parametrize('exc', [ProtocolError, APIError, ReadTimeoutError, False])
 @pytest.mark.parametrize('in_init', [True, False])
 @pytest.mark.parametrize('retry_times', [-1, 0, 1, 2, 3])
 def test_retry_generator(exc, in_init, retry_times):
@@ -470,6 +470,14 @@ def test_retry_generator(exc, in_init, retry_times):
             .should_receive('wait_for_command')
             .times(retry_times + 1)
             .and_raise(ProtocolError, error_message))
+    elif exc == ReadTimeoutError:
+        pool = 'pool'
+        message = 'read_timeout_error'
+        error_message = '{}: {}'.format(pool, message)
+        (flexmock(atomic_reactor.util)
+            .should_receive('wait_for_command')
+            .times(retry_times + 1)
+            .and_raise(ReadTimeoutError, pool, 'url', message))
     else:
         (flexmock(atomic_reactor.util)
             .should_receive('wait_for_command')

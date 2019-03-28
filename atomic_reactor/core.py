@@ -41,7 +41,8 @@ from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.util import ImageName, figure_out_build_file, Dockercfg
 from osbs.utils import clone_git_repo
 
-from requests.packages.urllib3.exceptions import InsecureRequestWarning, ProtocolError
+from requests.packages.urllib3.exceptions import (InsecureRequestWarning, ProtocolError,
+                                                  ReadTimeoutError)
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
@@ -318,6 +319,9 @@ class DockerTasker(LastLogger):
             except APIError as e:
                 exc = e
                 context = e.response.content
+            except ReadTimeoutError as e:
+                exc = e
+                context = e.args
             else:
                 if cmd_result.is_failed():
                     exc = cmd_result.error_detail
