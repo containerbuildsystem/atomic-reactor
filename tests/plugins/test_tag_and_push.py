@@ -461,7 +461,7 @@ def test_tag_and_push_plugin_oci(
             raise subprocess.CalledProcessError(returncode=1, cmd=args, output="Failed")
         assert args[0] == 'skopeo'
         if use_secret:
-            assert '--dest-creds=user:mypassword' in args
+            assert '--authfile=' + os.path.join(secret_path, '.dockercfg') in args
         assert '--dest-tls-verify=false' in args
         assert args[-2] == 'oci:' + oci_dir + ':' + REF_NAME
         assert args[-1] == 'docker://' + LOCALHOST_REGISTRY + '/' + TEST_IMAGE_NAME
@@ -549,9 +549,6 @@ def test_tag_and_push_plugin_oci(
                 output = runner.run()
         else:
             output = runner.run()
-
-    for r in caplog.records:
-        assert 'mypassword' not in r.getMessage()
 
     if not fail_push:
         image = output[TagAndPushPlugin.key][0]
