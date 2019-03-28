@@ -486,11 +486,11 @@ def test_retry_generator(exc, in_init, retry_times):
         error_message = 'cmd_error'
 
     if retry_times >= 0:
-        with pytest.raises(RetryGeneratorException) as exc:
+        with pytest.raises(RetryGeneratorException) as ex:
             t.retry_generator(lambda *args, **kwargs: simplegen(),
                               *my_args, **my_kwargs)
 
-        assert repr(error_message) in repr(exc.value)
+        assert repr(error_message) in repr(ex.value)
     else:
         t.retry_generator(lambda *args, **kwargs: simplegen(),
                           *my_args, **my_kwargs)
