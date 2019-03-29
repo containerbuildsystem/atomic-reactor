@@ -29,19 +29,19 @@ class KojiParentBuildMissing(ValueError):
 
 
 class KojiParentPlugin(PreBuildPlugin):
-    """Wait for Koji build of parent image to be available
+    """Wait for Koji build of parent images to be available
 
-    Uses inspected parent image config to determine the
-    nvr (Name-Version-Release) of the parent image. It uses
+    Uses inspected parent image configs to determine the
+    nvrs (Name-Version-Release) of the parent images. It uses
     this information to check if the corresponding Koji
-    build exists. This check is performed periodically until
-    the Koji build is found, or timeout expires.
+    builds exist. This check is performed periodically until
+    the Koji builds are all found, or timeout expires.
 
     This check is required due to a timing issue that may
     occur after the image is pushed to registry, but it
     has not been yet uploaded and tagged in Koji. This plugin
-    ensures that the layered image is only built with a parent
-    image that is known in Koji.
+    ensures that the layered image is only built with parent
+    images that are known in Koji.
     """
 
     key = PLUGIN_KOJI_PARENT_KEY
