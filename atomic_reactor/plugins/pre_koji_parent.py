@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -29,7 +29,7 @@ class KojiParentBuildMissing(ValueError):
 
 
 class KojiParentPlugin(PreBuildPlugin):
-    """Wait for Koji build of parent image to be avaialable
+    """Wait for Koji build of parent image to be available
 
     Uses inspected parent image config to determine the
     nvr (Name-Version-Release) of the parent image. It uses
