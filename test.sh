@@ -102,6 +102,11 @@ if [[ $OS == "fedora" ]]; then
   $RUN $PIP install -r requirements-flatpak.txt
 fi
 
+# install dependencies for rpm-py-installer (dependency of koji)
+$RUN $PKG install -y gcc krb5-devel python-devel popt-devel
+# install with RPM_PY_SYS=true to avoid error caused by installing on system python
+$RUN sh -c "RPM_PY_SYS=true $PIP install rpm-py-installer"
+
 $RUN $PIP install docker-squash
 $RUN $PYTHON setup.py install
 
