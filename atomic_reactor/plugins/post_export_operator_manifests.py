@@ -21,6 +21,7 @@ from osbs.utils import Labels
 from platform import machine
 
 MANIFESTS_DIR_NAME = 'manifests'
+IMG_MANIFESTS_PATH = os.path.join('/', MANIFESTS_DIR_NAME)
 
 
 class ExportOperatorManifestsPlugin(PostBuildPlugin):
@@ -107,10 +108,14 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
         container_id = container_dict['Id']
         try:
             bits, stat = self.tasker.d.get_archive(container_id,
-                                                   os.path.join('/', MANIFESTS_DIR_NAME))
+                                                   IMG_MANIFESTS_PATH)
         except APIError as ex:
-            self.log.error('Could not extract operator manifest files: %s', ex)
-            raise RuntimeError('Could not extract operator manifest files: %s' % ex)
+            msg = ('Could not extract operator manifest files. '
+                   'Is there a %s path in the image?' % (IMG_MANIFESTS_PATH))
+            self.log.debug('Error while trying to extract %s from image: %s',
+                           IMG_MANIFESTS_PATH, ex)
+            self.log.error(msg)
+            raise RuntimeError('%s %s' % (msg, ex))
         finally:
             self.tasker.d.remove_container(container_id)
 
