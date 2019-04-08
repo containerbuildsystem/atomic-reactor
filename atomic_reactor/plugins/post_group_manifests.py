@@ -21,7 +21,8 @@ from atomic_reactor.plugins.pre_reactor_config import (get_group_manifests,
                                                        get_platform_descriptors,
                                                        get_registries)
 from atomic_reactor.util import (RegistrySession, registry_hostname, ManifestDigest,
-                                 get_manifest_media_type)
+                                 get_manifest_media_type, get_primary_images,
+                                 get_manifest_list)
 from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST, MEDIA_TYPE_OCI_V1,
                                       MEDIA_TYPE_OCI_V1_INDEX)
@@ -208,6 +209,40 @@ class GroupManifestsPlugin(PostBuildPlugin):
                 ],
         }, indent=4)
 
+    def check_existing_vr_tag(self):
+        """
+        Checks if version-release tag (primary not floating tag) exists already,
+        and fails plugin if it does.
+        """
+        primary_images = get_primary_images(self.workflow)
+
+        if not primary_images:
+            return
+
+        vr_image = None
+        for image in primary_images:
+            if '-' in image.tag:
+                vr_image = image
+                break
+        if not vr_image:
+            return
+
+        should_fail = False
+        for registry_name, registry in self.registries.items():
+            pullspec = vr_image.copy()
+            pullspec.registry = registry_name
+            insecure = registry.get('insecure', False)
+            secret = registry.get('secret', None)
+
+            manifest_list = get_manifest_list(pullspec, registry_name, insecure, secret)
+
+            if manifest_list:
+                self.log.error("Primary tag already exists in registry: %s", pullspec)
+                should_fail = True
+
+        if should_fail:
+            raise RuntimeError("Primary tag already exists in registry")
+
     def group_manifests_and_tag(self, session, worker_digests):
         """
         Creates a manifest list or OCI image index that groups the different manifests
@@ -364,6 +399,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
 
     def run(self):
         digests = dict()
+        self.check_existing_vr_tag()
         for registry, source in self.sort_annotations().items():
             session = self.get_registry_session(registry)
 

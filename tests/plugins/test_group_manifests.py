@@ -122,7 +122,7 @@ class MockRegistry(object):
             try:
                 ref = repo['tags'][ref]
             except KeyError:
-                return (requests.codes.NOT_FOUND, {}, {'error': 'NOT_FOUND'})
+                return (requests.codes.NOT_FOUND, {}, b"{'error': 'NOT_FOUND'}")
 
         try:
             blob = repo['manifests'][ref]
@@ -186,7 +186,8 @@ class MockRegistry(object):
             return (202, headers, '')
 
 
-def mock_registries(registries, config, schema_version='v2', foreign_layers=False):
+def mock_registries(registries, config, schema_version='v2', foreign_layers=False,
+                    manifest_list_tag=None):
     """
     Creates MockRegistries objects and fills them in based on config, which specifies
     which registries should be prefilled (as if by workers) with platform-specific
@@ -197,6 +198,22 @@ def mock_registries(registries, config, schema_version='v2', foreign_layers=Fals
         reg_map[reg] = MockRegistry(reg)
 
     worker_builds = {}
+
+    manifest_list = {
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.docker.distribution.manifest.list.v2+json",
+        "manifests": [
+            {
+                "platform": {
+                    "os": "linux",
+                    "architecture": "amd64"
+                },
+                "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+                "digest": make_digest('v2digest-amd64'),
+                # 'size': required by spec, skipped for test
+            }
+        ]
+    }
 
     for platform, regs in config.items():
         digests = []
@@ -269,6 +286,10 @@ def mock_registries(registries, config, schema_version='v2', foreign_layers=Fals
                     'digest': 'not-used',
                     'version': 'v1'
                 })
+            if manifest_list_tag:
+                name, tag = manifest_list_tag.split(':')
+                manifest_bytes = to_bytes(json.dumps(manifest_list))
+                registry.add_manifest(name, tag, manifest_bytes)
 
         worker_builds[platform] = {
             'digests': digests
@@ -322,6 +343,8 @@ OTHER_V2 = 'registry.example.com:5001'
 
 
 @pytest.mark.parametrize('schema_version', ('v2', 'oci'))
+@pytest.mark.parametrize('vr_tag', (True, False))
+@pytest.mark.parametrize('manifest_list_exists', (True, False))
 @pytest.mark.parametrize(('test_name', 'group', 'foreign_layers',
                           'registries', 'workers', 'expected_exception'), [
     # Basic manifest grouping, v1 registry should be ignored
@@ -417,14 +440,19 @@ OTHER_V2 = 'registry.example.com:5001'
      None)
 ])
 @responses.activate  # noqa
-def test_group_manifests(tmpdir, test_name,
-                         schema_version, group, foreign_layers, registries, workers,
+def test_group_manifests(tmpdir, schema_version, vr_tag, manifest_list_exists,
+                         test_name, group, foreign_layers, registries, workers,
                          expected_exception, reactor_config_map):
     if MOCK:
         mock_docker()
 
+    manifest_list_tag = 'namespace/httpd:3-1'
     test_images = ['namespace/httpd:2.4',
                    'namespace/httpd:latest']
+    if vr_tag:
+        test_images.append(manifest_list_tag)
+    else:
+        manifest_list_tag = None
 
     goarch = {
         'ppc64le': 'powerpc',
@@ -460,9 +488,15 @@ def test_group_manifests(tmpdir, test_name,
         },
     }]
 
+    if manifest_list_exists and vr_tag:
+        if workers:
+            expected_exception = 'Primary tag already exists in registry'
+    else:
+        manifest_list_tag = None
     mocked_registries, annotations = mock_registries(registry_conf, workers,
                                                      schema_version=schema_version,
-                                                     foreign_layers=foreign_layers)
+                                                     foreign_layers=foreign_layers,
+                                                     manifest_list_tag=manifest_list_tag)
     tasker, workflow = mock_environment(tmpdir, primary_images=test_images,
                                         annotations=annotations)
 

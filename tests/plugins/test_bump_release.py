@@ -104,17 +104,59 @@ class TestBumpRelease(object):
         with pytest.raises(RuntimeError):
             plugin.run()
 
+    @pytest.mark.parametrize('scratch', [True, False])
+    @pytest.mark.parametrize('build_exists', [True, False])
     @pytest.mark.parametrize('release_label', [
          'release',
          'Release',
     ])
-    def test_release_label_already_set(self, tmpdir, caplog, release_label,
-                                       reactor_config_map):
-        session = MockedClientSessionGeneral('')
+    def test_release_label_already_set(self, tmpdir, caplog, scratch, build_exists,
+                                       release_label, reactor_config_map):
+        class MockedClientSession(object):
+            def __init__(self, hub, opts=None):
+                pass
+
+            def getBuild(self, build_info):
+                if build_exists:
+                    return {'id': 12345}
+                return build_exists
+
+            def krb_login(self, *args, **kwargs):
+                return True
+
+        session = MockedClientSession('')
         flexmock(koji, ClientSession=session)
-        plugin = self.prepare(tmpdir, labels={release_label: '1'},
+
+        new_environ = deepcopy(os.environ)
+        new_environ["BUILD"] = dedent('''\
+            {
+              "metadata": {
+              "labels": {}
+              }
+            }
+            ''')
+        if scratch:
+            new_environ["BUILD"] = dedent('''\
+                {
+                  "metadata": {
+                    "labels": {"scratch": "true"}
+                  }
+                }
+                ''')
+        flexmock(os)
+        os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
+
+        plugin = self.prepare(tmpdir, labels={release_label: '1',
+                                              'com.redhat.component': 'component',
+                                              'version': 'version'},
                               reactor_config_map=reactor_config_map)
-        plugin.run()
+
+        if build_exists and not scratch:
+            with pytest.raises(RuntimeError) as exc:
+                plugin.run()
+            assert 'build already exists in Koji: ' in str(exc)
+        else:
+            plugin.run()
         assert 'not incrementing' in caplog.text
 
     @pytest.mark.parametrize('labels', [
