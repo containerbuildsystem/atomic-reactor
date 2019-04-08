@@ -466,41 +466,48 @@ def _process_plugin_substitution(mapping, key_parts, value):
                            (plugin_name, plugins_num))
 
 
-def get_checksums(path, algorithms):
+def _compute_checksums(fd, hash_objs, blocksize=65536):
+    """
+    Compute file checksums in given hash objects.
+
+    :param fd: file-like object
+    :param hash_objs: dict, maps algorithms to its hash objects from hashlib
+    :param blocksize: block size used to read fd
+    """
+    buf = fd.read(blocksize)
+    while len(buf) > 0:
+        for _, hash_object in hash_objs.items():
+            hash_object.update(buf)
+        buf = fd.read(blocksize)
+
+
+def get_checksums(filename, algorithms):
     """
     Compute a checksum(s) of given file using specified algorithms.
 
-    :param path: path to file
+    :param filename: path to file or file-like object
     :param algorithms: list of cryptographic hash functions, currently supported: md5, sha256
     :return: dictionary
     """
     if not algorithms:
         return {}
 
-    compute_md5 = 'md5' in algorithms
-    compute_sha256 = 'sha256' in algorithms
+    allowed_algorithms = ['md5', 'sha256']
+    if not all(elem in allowed_algorithms for elem in algorithms):
+        raise ValueError('Algorithms supported {}. Found {}'.format(allowed_algorithms, algorithms))
 
-    if compute_md5:
-        md5 = hashlib.md5()
-    if compute_sha256:
-        sha256 = hashlib.sha256()
-    blocksize = 65536
-    with open(path, mode='rb') as f:
-        buf = f.read(blocksize)
-        while len(buf) > 0:
-            if compute_md5:
-                md5.update(buf)
-            if compute_sha256:
-                sha256.update(buf)
-            buf = f.read(blocksize)
+    hash_objs = {algorithm: getattr(hashlib, algorithm)() for algorithm in algorithms}
+    if hasattr(filename, 'read'):
+        _compute_checksums(filename, hash_objs)
+    else:
+        with open(filename, mode='rb') as f:
+            _compute_checksums(f, hash_objs)
 
     checksums = {}
-    if compute_md5:
-        checksums['md5sum'] = md5.hexdigest()
-        logger.debug('md5sum: %s', checksums['md5sum'])
-    if compute_sha256:
-        checksums['sha256sum'] = sha256.hexdigest()
-        logger.debug('sha256sum: %s', checksums['sha256sum'])
+    for algorithm in algorithms:
+        sum_name = '{}sum'.format(algorithm)
+        checksums[sum_name] = hash_objs[algorithm].hexdigest()
+        logger.debug('%s: %s', sum_name, checksums[sum_name])
     return checksums
 
 

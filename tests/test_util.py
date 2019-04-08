@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals, absolute_import
 
+import io
 import json
 import logging
 import os
@@ -308,19 +309,33 @@ def test_process_substitutions(dct, subst, expected):
         assert dct == expected
 
 
-@pytest.mark.parametrize('content, algorithms, expected', [
+@pytest.mark.parametrize('write_to_file', [True, False])
+@pytest.mark.parametrize('content, algorithms, expected, should_fail', [
     (b'abc', ['md5', 'sha256'],
      {'md5sum': '900150983cd24fb0d6963f7d28e17f72',
-      'sha256sum': 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'}),
-    (b'abc', ['md5'], {'md5sum': '900150983cd24fb0d6963f7d28e17f72'}),
-    (b'abc', [], {})
+      'sha256sum': 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'},
+     False),
+    (b'abc', ['md5'], {'md5sum': '900150983cd24fb0d6963f7d28e17f72'}, False),
+    (b'abc', [], {}, False),
+    (b'abc', [''], {}, True),
+    (b'abc', ['invalid'], {}, True),
+    (b'abc', ['md5', 'invalid'], {}, True)
 ])
-def test_get_hexdigests(tmpdir, content, algorithms, expected):
-    with tempfile.NamedTemporaryFile(dir=str(tmpdir)) as tmpfile:
-        tmpfile.write(content)
-        tmpfile.flush()
+def test_get_hexdigests(tmpdir, content, algorithms, expected, write_to_file, should_fail):
+    if should_fail:
+        with pytest.raises(ValueError):
+            checksums = get_checksums('/invalid/path', algorithms)
+    else:
+        if write_to_file:
+            with tempfile.NamedTemporaryFile(dir=str(tmpdir)) as tmpfile:
+                tmpfile.write(content)
+                tmpfile.flush()
+                filename = tmpfile.name
+                checksums = get_checksums(filename, algorithms)
+        else:
+            filename = io.BytesIO(content)
+            checksums = get_checksums(filename, algorithms)
 
-        checksums = get_checksums(tmpfile.name, algorithms)
         assert checksums == expected
 
 
