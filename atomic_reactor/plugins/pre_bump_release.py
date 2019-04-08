@@ -106,6 +106,14 @@ class BumpReleasePlugin(PreBuildPlugin):
 
             suffix += 1
 
+    def check_build_existence_for_explicit_release(self, component, version, release):
+        build_info = {'name': component, 'version': version, 'release': release}
+        self.log.debug('checking that the build does not exist: %s', build_info)
+        build = self.xmlrpc.getBuild(build_info)
+        if build:
+            raise RuntimeError('build already exists in Koji: {}-{}-{} ({})'
+                               .format(component, version, release, build.get('id')))
+
     def run(self):
         """
         run the plugin
@@ -114,14 +122,6 @@ class BumpReleasePlugin(PreBuildPlugin):
         parser = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
         dockerfile_labels = parser.labels
         labels = Labels(dockerfile_labels)
-
-        try:
-            _, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
-            if not self.append:
-                self.log.debug("release set explicitly so not incrementing")
-                return
-        except KeyError:
-            release = None
 
         component_label = labels.get_name(Labels.LABEL_TYPE_COMPONENT)
 
@@ -135,6 +135,18 @@ class BumpReleasePlugin(PreBuildPlugin):
             version = dockerfile_labels[version_label]
         except KeyError:
             raise RuntimeError('missing label: {}'.format(version_label))
+
+        try:
+            _, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
+        except KeyError:
+            release = None
+
+        if release:
+            if not self.append:
+                self.log.debug("release set explicitly so not incrementing")
+                if not is_scratch_build():
+                    self.check_build_existence_for_explicit_release(component, version, release)
+                return
 
         if self.append:
             next_release = self.get_next_release_append(component, version, release)
