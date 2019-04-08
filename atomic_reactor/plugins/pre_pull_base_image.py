@@ -46,6 +46,8 @@ class PullBaseImagePlugin(PreBuildPlugin):
         :param parent_registry: registry to enforce pulling from
         :param parent_registry_insecure: allow connecting to the registry over plain http
         :param check_platforms: validate parent images provide all platforms expected for the build
+        :param inspect_only: bool, if set to True, base images will not be pulled
+        :param parent_images_digests: dict, parent images digests for all platforms
         """
         # call parent constructor
         super(PullBaseImagePlugin, self).__init__(tasker, workflow)
