@@ -6,6 +6,8 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+from __future__ import absolute_import
+
 from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1,

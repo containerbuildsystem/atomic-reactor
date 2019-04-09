@@ -14,7 +14,7 @@ Tag each image to a unique name (the build name plus a nonce) to be used during
 this build so that it isn't removed by other builds doing clean-up.
 """
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
 import docker
 import platform

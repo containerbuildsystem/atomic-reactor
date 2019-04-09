@@ -10,6 +10,8 @@ pre_flatpak_create_dockerfile, extracts the tree at /var/tmp/flatpak-build
 and turns it into a Flatpak application or runtime.
 """
 
+from __future__ import absolute_import
+
 from flatpak_module_tools.flatpak_builder import FlatpakBuilder
 
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR

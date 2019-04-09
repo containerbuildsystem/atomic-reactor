@@ -9,6 +9,8 @@ of the BSD license. See the LICENSE file for details.
 Classes which implement tasks which builder has to be capable of doing.
 Logic above these classes has to set the workflow itself.
 """
+from __future__ import absolute_import
+
 import json
 import re
 from textwrap import dedent

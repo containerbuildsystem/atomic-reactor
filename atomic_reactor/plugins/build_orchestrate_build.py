@@ -5,7 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-from __future__ import unicode_literals, division
+from __future__ import unicode_literals, division, absolute_import
 
 from collections import namedtuple
 from copy import deepcopy

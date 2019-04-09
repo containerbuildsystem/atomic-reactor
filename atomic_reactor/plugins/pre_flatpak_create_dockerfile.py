@@ -18,6 +18,8 @@ Example configuration:
 }
 """
 
+from __future__ import absolute_import
+
 import os
 
 from flatpak_module_tools.flatpak_builder import FlatpakSourceInfo, FlatpakBuilder

@@ -9,6 +9,8 @@ Utility functions to manipulate a yum repo. Guarantees that a yum repo will have
 name and the .repo suffix.
 
 """
+from __future__ import absolute_import
+
 from atomic_reactor.constants import YUM_REPOS_DIR
 from atomic_reactor.util import get_retrying_requests_session
 from hashlib import md5

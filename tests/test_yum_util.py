@@ -8,6 +8,8 @@ of the BSD license. See the LICENSE file for details.
 Very small subset of tests for the YumRepo class. Most testing
 is done in test_add_yum_repo_by_url
 """
+from __future__ import absolute_import
+
 from fnmatch import fnmatch
 import os
 import sys

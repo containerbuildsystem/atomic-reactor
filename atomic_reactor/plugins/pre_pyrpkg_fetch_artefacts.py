@@ -10,6 +10,8 @@ To have everything for a build in dist-git you need to fetch artefacts using 'fe
 
 This plugin should do it.
 """
+from __future__ import absolute_import
+
 import os
 import subprocess
 

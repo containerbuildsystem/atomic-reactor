@@ -38,7 +38,7 @@ pulp_secret_path:
 }
 """
 
-from __future__ import print_function, unicode_literals
+from __future__ import print_function, unicode_literals, absolute_import
 
 from atomic_reactor.constants import PLUGIN_PULP_PUBLISH_KEY
 from atomic_reactor.plugins.build_orchestrate_build import get_worker_build_info

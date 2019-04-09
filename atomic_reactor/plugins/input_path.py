@@ -8,6 +8,8 @@ of the BSD license. See the LICENSE file for details.
 
 Reads input from provided path
 """
+from __future__ import absolute_import
+
 import json
 import os
 
