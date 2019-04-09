@@ -10,6 +10,8 @@ definition of plugin system
 
 plugins are supposed to be run when image is built and we need to extract some information
 """
+from __future__ import absolute_import
+
 import copy
 import logging
 import os

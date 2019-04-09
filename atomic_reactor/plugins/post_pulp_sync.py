@@ -48,7 +48,7 @@ pulp_secret_path:
 
 """
 
-from __future__ import print_function, unicode_literals
+from __future__ import print_function, unicode_literals, absolute_import
 
 from atomic_reactor.constants import PLUGIN_PULP_SYNC_KEY, PLUGIN_PULP_PUSH_KEY
 from atomic_reactor.plugin import PostBuildPlugin

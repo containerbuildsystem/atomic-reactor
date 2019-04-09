@@ -22,6 +22,8 @@ Example configuration:
 """
 
 
+from __future__ import absolute_import
+
 from flatpak_module_tools.flatpak_builder import ModuleInfo
 
 import gi

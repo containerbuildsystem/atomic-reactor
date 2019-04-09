@@ -13,7 +13,7 @@ we will need to remove that local image and re-pull it from Crane to
 discover the image ID Docker will give it.
 """
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
 from atomic_reactor.constants import (PLUGIN_PULP_PUSH_KEY, PLUGIN_PULP_SYNC_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY,

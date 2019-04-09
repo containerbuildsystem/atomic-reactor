@@ -17,6 +17,8 @@ Example configuration:
 }
 """
 
+from __future__ import absolute_import
+
 import errno
 import os
 from subprocess import check_output, CalledProcessError, STDOUT

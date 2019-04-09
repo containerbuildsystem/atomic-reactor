@@ -8,6 +8,8 @@ of the BSD license. See the LICENSE file for details.
 
 Reads input from OpenShift v3
 """
+from __future__ import absolute_import
+
 import json
 import os
 

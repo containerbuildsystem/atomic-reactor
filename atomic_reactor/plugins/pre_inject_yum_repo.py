@@ -8,6 +8,8 @@ of the BSD license. See the LICENSE file for details.
 
 Pre build plugin which injects custom yum repository in dockerfile.
 """
+from __future__ import absolute_import
+
 import os
 from atomic_reactor.constants import YUM_REPOS_DIR, RELATIVE_REPOS_PATH, INSPECT_CONFIG
 from atomic_reactor.plugin import PreBuildPlugin

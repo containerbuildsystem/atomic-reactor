@@ -54,7 +54,7 @@ with different values, the value from the first in the list will be used
 to set value for the missing ones.
 """
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PreBuildPlugin
