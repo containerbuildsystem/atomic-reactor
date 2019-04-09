@@ -41,11 +41,7 @@ disable=I,
         dangerous-default-value,  # should be enabled
         deprecated-lambda,  # nice to have
         deprecated-method,  # should be enabled
-        dict-keys-not-iterating,  # py2/3 compatibility
-        eq-without-hash,  # py2/3 compatibility
-        exception-message-attribute,  # py2/3 compatibility
         expression-not-assigned,  # should be enabled
-        filter-builtin-not-iterating,  # py2/3 compatibility
         fixme,
         global-statement,  # should be enabled, we have fixtures in test
         import-error,  # requires to having all modules installed
@@ -59,18 +55,14 @@ disable=I,
         missing-docstring,
         misplaced-comparison-constant,
         multiple-statements,  # nice to have
-        no-absolute-import,  # py2/3 compatibility
         no-init,
         no-self-argument,  # nice to have
         not-callable,  # disabled due to flexmock module
         not-context-manager,  # causes false positives
-        old-division,  # py2/3 compatibility
-        old-style-class,  # py2/3 compatibility
         pointless-statement,  # should be enabled
         pointless-string-statement,  # should be enabled
         protected-access,
         raising-bad-type,  # should be enabled
-        range-builtin-not-iterating,  # py2/3 compatibility
         redefined-builtin,  # should be enabled
         redefined-outer-name,  # nice to have
         reimported,  # should be enabled
