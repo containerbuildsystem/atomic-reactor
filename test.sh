@@ -94,6 +94,7 @@ $RUN $PIP install --upgrade --no-deps --force-reinstall git+https://github.com/p
 $RUN $PIP install --upgrade --no-deps --force-reinstall git+https://github.com/DBuildService/dockerfile-parse
 if [[ $PYTHON_VERSION == 2* ]]; then
   $RUN $PIP install git+https://github.com/release-engineering/dockpulp
+  $RUN $PIP install -r requirements-py2.txt
 fi
 
 # Install flatpak dependencies only on fedora

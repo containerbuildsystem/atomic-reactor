@@ -1,9 +1,6 @@
-backports.lzma;python_version<="2.7" # to match available in RHEL/CentOS 7
-docker;python_version>="3.6" # to match available in Fedora
-docker-py;python_version<="2.7" # to match available in RHEL/CentOS 7
+docker-py
 docker-squash>=1.0.7
 dockerfile-parse>=0.0.13
-jsonschema;python_version>="3.6" # to match availabe in Fedora
-jsonschema==2.3.0;python_version<="2.7"  # to match available in RHEL/CentOS 7
+jsonschema==2.3.0  # to match available in RHEL/CentOS 7
 PyYAML
 six
