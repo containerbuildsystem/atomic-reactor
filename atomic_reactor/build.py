@@ -20,7 +20,7 @@ import docker.errors
 import atomic_reactor.util
 from atomic_reactor.core import DockerTasker, LastLogger
 from atomic_reactor.util import (ImageName, print_version_of_tools, df_parser,
-                                 base_image_is_scratch, DigestCollector, base_image_is_custom)
+                                 base_image_is_scratch, base_image_is_custom)
 from atomic_reactor.constants import DOCKERFILE_FILENAME
 
 logger = logging.getLogger(__name__)
@@ -154,7 +154,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         self.parent_images = {}  # dockerfile ImageName => locally available ImageName
         self._parent_images_inspect = {}  # locally available image => inspect
         self.parents_ordered = []
-        self.parent_images_digests = DigestCollector()
+        self.parent_images_digests = {}
         self.image_id = None
         self.built_image_info = None
         self.image = ImageName.parse(image)
