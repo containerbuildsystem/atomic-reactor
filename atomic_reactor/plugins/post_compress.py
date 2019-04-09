@@ -6,7 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 
 import gzip
 try:
@@ -96,7 +96,7 @@ class CompressPlugin(PostBuildPlugin):
 
         if self.uncompressed_size != 0:
             metadata['uncompressed_size'] = self.uncompressed_size
-            savings = 1 - metadata['size'] / float(metadata['uncompressed_size'])
+            savings = 1 - metadata['size'] / metadata['uncompressed_size']
             self.log.debug('uncompressed: %s, compressed: %s, ratio: %.2f %% saved',
                            human_size(metadata['uncompressed_size']),
                            human_size(metadata['size']),

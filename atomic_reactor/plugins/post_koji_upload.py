@@ -6,7 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from __future__ import unicode_literals, absolute_import
+from __future__ import unicode_literals, absolute_import, division
 
 from collections import namedtuple
 import os
@@ -42,12 +42,12 @@ class KojiUploadLogger(object):
 
     def callback(self, offset, totalsize, size, t1, t2):  # pylint: disable=W0613
         if offset == 0:
-            self.logger.debug("upload size: %.1fMiB", totalsize / 1024.0 / 1024)
+            self.logger.debug("upload size: %.1fMiB", totalsize / 1024 / 1024)
 
         if not totalsize or not t1:
             return
 
-        percent_done = 100 * offset / totalsize
+        percent_done = 100 * offset // totalsize
         if (percent_done >= 99 or
                 percent_done - self.last_percent_done >= self.notable_percent):
             self.last_percent_done = percent_done
