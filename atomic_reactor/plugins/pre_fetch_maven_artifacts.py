@@ -56,7 +56,7 @@ class NvrRequest(object):
         return False
 
     def match_all(self, build_archives):
-        return filter(self.match, build_archives)
+        return [archive for archive in build_archives if self.match(archive)]
 
     def unmatched(self):
         return [archive for archive in self.archives if not archive['matched']]

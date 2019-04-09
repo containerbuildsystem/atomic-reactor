@@ -147,7 +147,7 @@ class PluginsRunner(object):
         for f in files:
             module_name = os.path.basename(f).rsplit('.', 1)[0]
             # Do not reload plugins
-            if module_name in sys.modules.keys():
+            if module_name in sys.modules:
                 f_module = sys.modules[module_name]
             else:
                 try:
