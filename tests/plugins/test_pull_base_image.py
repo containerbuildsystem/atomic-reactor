@@ -21,13 +21,14 @@ from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       SCRATCH_FROM)
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.util import (ImageName, CommandResult, DigestCollector, base_image_is_scratch,
-                                 base_image_is_custom)
+from atomic_reactor.util import (ImageName, CommandResult, base_image_is_scratch,
+                                 base_image_is_custom, get_checksums)
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
+from io import BytesIO
 from requests.exceptions import HTTPError, RetryError, Timeout
 from tests.constants import MOCK, MOCK_SOURCE, LOCALHOST_REGISTRY
 
@@ -64,7 +65,7 @@ class MockBuilder(object):
     base_from_scratch = False
 
     def __init__(self):
-        self.parent_images_digests = DigestCollector()
+        self.parent_images_digests = {}
 
     def set_base_image(self, base_image, parents_pulled=True, insecure=False, dockercfg_path=None):
         self.base_from_scratch = base_image_is_scratch(base_image)
@@ -73,7 +74,6 @@ class MockBuilder(object):
         self.base_image = ImageName.parse(base_image)
         self.original_base_image = self.original_base_image or self.base_image
         self.recreate_parent_images()
-
         if not self.base_from_scratch:
             self.parent_images[self.original_base_image] = self.base_image
 
@@ -533,20 +533,45 @@ class TestValidateBaseImage(object):
                                     check_platforms=True)
         assert log_message in caplog.text
 
-    def test_single_platform_build(self, caplog):
+    @pytest.mark.parametrize('has_manifest_list', (True, False))
+    @pytest.mark.parametrize('has_v2s2_manifest', (True, False))
+    def test_single_platform_build(self, caplog, has_manifest_list, has_v2s2_manifest):
+
+        class StubResponse(object):
+            content = b'stubContent'
 
         def workflow_callback(workflow):
             workflow = self.prepare(workflow)
             workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(['x86_64'])
+            if not has_manifest_list:
+                resp = {'v2': StubResponse()} if has_v2s2_manifest else {}
+                flexmock(atomic_reactor.util).should_receive('get_manifest_list').and_return(None)
+                flexmock(atomic_reactor.util).should_receive('get_all_manifests').and_return(resp)
+                if has_v2s2_manifest:
+                    dgst = {'sha256sum': 'stubDigest'}
+                    flexmock(atomic_reactor.util).should_receive('get_checksums').and_return(dgst)
+
             return workflow
 
-        log_message = 'single platform build'
-        test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
-                                    [], [], reactor_config_map=True,
-                                    inspect_only=False,
-                                    workflow_callback=workflow_callback,
-                                    check_platforms=True)
-        assert log_message in caplog.text
+        if has_manifest_list or has_v2s2_manifest:
+            list_msg = 'Base image is a manifest list for all required platforms'
+            v2s2_msg = 'base image has no manifest list'
+            log_message = list_msg if has_manifest_list else v2s2_msg
+            test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+                                        [], [], reactor_config_map=True,
+                                        inspect_only=False,
+                                        workflow_callback=workflow_callback,
+                                        check_platforms=True)
+            assert log_message in caplog.text
+        else:
+            no_manifest_msg = 'Could not extract manifest list or v2 schema 2 digest'
+            with pytest.raises(PluginFailedException) as exc:
+                test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+                                            [], [], reactor_config_map=True,
+                                            inspect_only=False,
+                                            workflow_callback=workflow_callback,
+                                            check_platforms=True)
+            assert no_manifest_msg in str(exc)
 
     def test_registry_undefined(self, caplog):
         def workflow_callback(workflow):
@@ -682,7 +707,8 @@ class TestValidateBaseImage(object):
                  .should_receive('get_manifest_list')
                  .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True,
                             dockercfg_path=None)
-                 .and_return(flexmock(json=lambda: manifest_list))
+                 .and_return(flexmock(json=lambda: manifest_list,
+                                      content=json.dumps(manifest_list).encode('utf-8')))
                  .once())
             else:
                 (flexmock(atomic_reactor.util)
@@ -715,6 +741,14 @@ class TestValidateBaseImage(object):
                                     check_platforms=True)
 
     def test_manifest_list_doesnt_have_current_platform(self, caplog):
+        manifest_list = {
+            'manifests': [
+                {'platform': {'architecture': 'ppc64le'}, 'digest': 'sha256:654321'},
+            ]
+        }
+        manifest_list_digest = get_checksums(BytesIO(json.dumps(manifest_list).encode('utf-8')),
+                                             ['sha256'])['sha256sum']
+
         def workflow_callback(workflow):
             workflow = self.prepare(workflow)
             workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(['ppc64le'])
@@ -726,12 +760,6 @@ class TestValidateBaseImage(object):
              .and_return(config_blob)
              .times(0))
 
-            manifest_list = {
-                'manifests': [
-                    {'platform': {'architecture': 'ppc64le'}, 'digest': 'sha256:654321'},
-                ]
-            }
-
             manifest_tag = 'registry.example.com' + '/' + BASE_IMAGE_W_SHA
             base_image_result = ImageName.parse(manifest_tag)
             manifest_image = base_image_result.copy()
@@ -740,7 +768,8 @@ class TestValidateBaseImage(object):
              .should_receive('get_manifest_list')
              .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True,
                         dockercfg_path=None)
-             .and_return(flexmock(json=lambda: manifest_list))
+             .and_return(flexmock(json=lambda: manifest_list,
+                                  content=json.dumps(manifest_list).encode('utf-8')))
              .once())
             return workflow
 
@@ -749,7 +778,7 @@ class TestValidateBaseImage(object):
                                     inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
-        new_image = "'registry.example.com/busybox@sha256:654321'"
+        new_image = "'registry.example.com/busybox@sha256:{}'".format(manifest_list_digest)
         pulling_msg = "pulling image " + new_image + " from registry"
         tagging_msg = "tagging image " + new_image + " as '" + UNIQUE_ID
         assert pulling_msg in caplog.text
@@ -763,13 +792,21 @@ class TestValidateBaseImage(object):
 
         test_vals = {
             'workflow': None,
-            'expected_digests': {}
+            'expected_digest': {}
         }
         if not fail:
-            test_vals['expected_digests'] = {
+            manifest_list = {
+                'manifests': [
+                    {'platform': {'architecture': 'amd64'}, 'digest': 'sha256:123456'},
+                    {'platform': {'architecture': 'ppc64le'}, 'digest': 'sha256:654321'},
+                ]
+            }
+            manifest_list_digest = get_checksums(BytesIO(json.dumps(manifest_list).encode('utf-8')),
+                                                 ['sha256'])['sha256sum']
+            digest = 'sha256:{}'.format(manifest_list_digest)
+            test_vals['expected_digest'] = {
                 'registry.example.com/{}'.format(BASE_IMAGE): {
-                    'x86_64': '{}@sha256:123456'.format(reg_image_no_tag),
-                    'ppc64le': '{}@sha256:654321'.format(reg_image_no_tag)
+                    'application/vnd.docker.distribution.manifest.list.v2+json': digest
                 }
             }
 
@@ -783,7 +820,8 @@ class TestValidateBaseImage(object):
 
                 (flexmock(atomic_reactor.util)
                  .should_receive('get_manifest_list')
-                 .and_return(flexmock(json=lambda: manifest_list))
+                 .and_return(flexmock(json=lambda: manifest_list,
+                                      content=json.dumps(manifest_list).encode('utf-8')))
                  )
 
                 # platform validation will fail if manifest is missing
@@ -794,38 +832,33 @@ class TestValidateBaseImage(object):
             test_vals['workflow'] = workflow
             return workflow
 
-        test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
-                                    [], [], reactor_config_map=True,
-                                    inspect_only=False,
-                                    workflow_callback=workflow_callback,
-                                    check_platforms=True,  # orchestrator
-                                    )
-
-        for platform, digest in (('x86_64', 'sha256:123456'), ('ppc64le', 'sha256:654321')):
-            collecting_msg = (
-                "Collecting digest for image 'registry.example.com/{}' ('{}'): '{}'".format(
-                    BASE_IMAGE, platform, digest)
-            )
-            if fail:
-                assert collecting_msg not in caplog.text
-            else:
-                assert collecting_msg in caplog.text
-
         if fail:
-            replacing_msg = (
-                "Cannot resolve platform 'x86_64' specific digest for image "
-                "'registry.example.com/{}'".format(BASE_IMAGE))
+            with pytest.raises(PluginFailedException) as exc:
+                test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+                                            [], [], reactor_config_map=True,
+                                            inspect_only=False,
+                                            workflow_callback=workflow_callback,
+                                            check_platforms=True,  # orchestrator
+                                            )
+            assert 'Missing arches in manifest list for base image' in str(exc)
         else:
-            replacing_msg = ("Replacing image 'registry.example.com/{}' with "
-                             "'{}@sha256:123456'".format(
-                                BASE_IMAGE, reg_image_no_tag))
-        assert replacing_msg in caplog.text
+            test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+                                        [], [], reactor_config_map=True,
+                                        inspect_only=False,
+                                        workflow_callback=workflow_callback,
+                                        check_platforms=True,  # orchestrator
+                                        )
 
-        # check if worker.builder has set correct values
-        builder_digests_dict = test_vals['workflow'].builder.parent_images_digests.to_dict()
-        assert builder_digests_dict == test_vals['expected_digests']
+            # replacing_msg = ("Replacing image 'registry.example.com/{}'".format(BASE_IMAGE))
+            replacing_msg = ("Replacing image 'registry.example.com/{}' with '{}@sha256:{}'"
+                             .format(BASE_IMAGE, reg_image_no_tag, manifest_list_digest))
+            assert replacing_msg in caplog.text
 
-    @pytest.mark.parametrize('fail', (True, False))
+            # check if worker.builder has set correct values
+            builder_digests_dict = test_vals['workflow'].builder.parent_images_digests
+            assert builder_digests_dict == test_vals['expected_digest']
+
+    @pytest.mark.parametrize('fail', ('no_expected_type', 'no_digests', False))
     def test_parent_images_digests_worker(self, caplog, fail):
         """Testing processing of parent_images_digests at a worker"""
         reg_image_no_tag = 'registry.example.com/{}'.format(BASE_IMAGE_NAME.to_str(tag=False))
@@ -834,13 +867,18 @@ class TestValidateBaseImage(object):
             workflow = self.prepare(workflow)
             return workflow
 
-        if fail:
+        if fail == 'no_expected_type':
+            parent_images_digests = {
+                'registry.example.com/{}'.format(BASE_IMAGE): {
+                    'unexpected_type': 'sha256:123456'
+                }
+            }
+        elif fail == 'no_digests':
             parent_images_digests = None
         else:
             parent_images_digests = {
                 'registry.example.com/{}'.format(BASE_IMAGE): {
-                    'x86_64': '{}@sha256:123456'.format(reg_image_no_tag),
-                    'ppc64le': '{}@sha256:654321'.format(reg_image_no_tag),
+                    'application/vnd.docker.distribution.manifest.list.v2+json': 'sha256:123456'
                 }
             }
 
@@ -851,15 +889,9 @@ class TestValidateBaseImage(object):
                                     check_platforms=False,  # worker
                                     parent_images_digests=parent_images_digests)
 
-        for platform, digest in (('x86_64', 'sha256:123456'), ('ppc64le', 'sha256:654321')):
-            msg = "Collecting digest for image 'registry.example.com/{}' ('{}'): '{}'".format(
-                BASE_IMAGE, platform, digest)
-            # don't collect digests at workers
-            assert msg not in caplog.text
-
         if fail:
             replacing_msg = (
-                "Cannot resolve platform 'x86_64' specific digest for image "
+                "Cannot resolve manifest digest for image "
                 "'registry.example.com/{}'".format(BASE_IMAGE))
         else:
             replacing_msg = ("Replacing image 'registry.example.com/{}' with "
@@ -889,6 +921,7 @@ class TestValidateBaseImage(object):
         }
         (flexmock(atomic_reactor.util)
          .should_receive('get_manifest_list')
-         .and_return(flexmock(json=lambda: manifest_list)))
+         .and_return(flexmock(json=lambda: manifest_list,
+                              content=json.dumps(manifest_list).encode('utf-8'))))
 
         return workflow

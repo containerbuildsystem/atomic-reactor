@@ -43,10 +43,10 @@
           "description": "Image with tags",
           "type": "object",
           "patternProperties": {
-            "^.": {
-              "description": "Platform specific image",
+            "^application/.*json$": {
+              "description": "Manifest digest",
               "type": "string",
-              "pattern": "@.+:"
+              "pattern": "^sha256:.+"
             }
           },
           "uniqueItems": true,
