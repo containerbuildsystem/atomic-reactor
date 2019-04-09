@@ -110,7 +110,7 @@ def test_filter_components_by_name():
 
     filtered = list(filter_components_by_name(component_name, component_list))
 
-    expected_count = len(worker_metadatas.keys())
+    expected_count = len(worker_metadatas)
     assert len(filtered) == expected_count
 
     expected_platforms = set(worker_metadatas.keys())

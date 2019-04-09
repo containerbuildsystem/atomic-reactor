@@ -188,7 +188,7 @@ class PulpPushPlugin(PostBuildPlugin):
 
         # Only publish if we don't the pulp_sync plugin also configured
         if self.publish:
-            self.pulp_handler.publish(pulp_repos.keys())
+            self.pulp_handler.publish(list(pulp_repos))
         else:
             self.log.info("publishing deferred until %s plugin runs", PLUGIN_PULP_SYNC_KEY)
 

@@ -71,7 +71,7 @@ def test_tag_by_labels_plugin(tmpdir, args):
         }]
     )
     output = runner.run()
-    assert TagByLabelsPlugin.key in output.keys()
+    assert TagByLabelsPlugin.key in output
 
     images = [i.to_str() for i in workflow.tag_conf.images]
     primary_images = [i.to_str() for i in workflow.tag_conf.primary_images]

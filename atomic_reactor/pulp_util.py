@@ -147,7 +147,7 @@ class PulpHandler(object):
     def get_tar_metadata(self, tarfile):
         metadata = dockpulp.imgutils.get_metadata(tarfile)
         pulp_md = dockpulp.imgutils.get_metadata_pulp(metadata)
-        layers = pulp_md.keys()
+        layers = list(pulp_md)
         top_layer = dockpulp.imgutils.get_top_layer(pulp_md)
 
         return top_layer, layers

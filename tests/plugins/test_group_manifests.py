@@ -563,7 +563,7 @@ def test_group_manifests(tmpdir, test_name,
 
         else:
             platforms = annotations['worker-builds']
-            assert len(platforms.keys()) == 1
+            assert len(platforms) == 1
             platform = list(platforms.keys())[0]
 
             source_build = annotations['worker-builds'][platform]['digests'][0]

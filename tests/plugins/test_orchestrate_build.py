@@ -196,7 +196,7 @@ def mock_orchestrator_platfrom(plat='x86_64'):
 def mock_osbs(current_builds=2, worker_builds=1, logs_return_bytes=False, worker_expect=None):
     (flexmock(OSBS)
         .should_receive('list_builds')
-        .and_return(range(current_builds)))
+        .and_return(list(range(current_builds))))
 
     koji_upload_dirs = set()
 
