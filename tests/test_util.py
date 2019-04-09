@@ -56,7 +56,7 @@ from atomic_reactor.util import (ImageName, wait_for_command,
                                  read_yaml, read_yaml_from_file_path, OSBSLogs,
                                  get_platforms_in_limits, get_orchestrator_platforms,
                                  dump_stacktraces, setup_introspection_signal_handler,
-                                 DigestCollector, allow_repo_dir_in_dockerignore)
+                                 allow_repo_dir_in_dockerignore)
 from atomic_reactor import util
 from tests.constants import (DOCKERFILE_GIT,
                              INPUT_IMAGE, MOCK, MOCK_SOURCE,
@@ -1568,84 +1568,3 @@ def test_allow_repo_dir_in_dockerignore(tmpdir, dockerignore_exists):
 
         assert ignore_lines[0:len(ignore_content)] == ignore_content
         assert ignore_lines[-1] == added_lines
-
-
-class TestDigestCollector(object):
-    """Tests related to DigestCollector class"""
-
-    IMAGE_NAME = ImageName(registry='registry.fedoraproject.org', repo='fedora', tag='latest')
-    IMAGE_STR = IMAGE_NAME.to_str(tag=True)
-    IMAGE_STR_NO_TAG = IMAGE_NAME.to_str(tag=False)
-    IMAGE_PLATFORM = 'x86_64'
-    IMAGE_DIGEST = 'sha256:1dea7f21b45f566ba844b923e5047ab7cad640998fd0fa02938f81b4a3f56b60'
-    DATA = {
-        IMAGE_STR: {
-            IMAGE_PLATFORM: '{}@{}'.format(IMAGE_STR_NO_TAG, IMAGE_DIGEST)
-        }
-    }
-
-    def test_update_image_digest(self):
-        """Tests methods update_image_digest and to_dict"""
-        dc = DigestCollector()
-        assert dc.to_dict() == {}
-
-        dc.update_image_digest(self.IMAGE_NAME, self.IMAGE_PLATFORM, self.IMAGE_DIGEST)
-        assert dc.to_dict() == self.DATA
-
-    def test_bool(self):
-        """Test __bool__ method"""
-        dc = DigestCollector()
-
-        assert not dc
-
-        dc.update_image_digest(self.IMAGE_NAME, self.IMAGE_PLATFORM, self.IMAGE_DIGEST)
-        assert dc
-
-    def test_contains(self):
-        """Test operator *in*"""
-        dc = DigestCollector()
-
-        assert self.IMAGE_NAME not in dc
-
-        dc.update_image_digest(self.IMAGE_NAME, self.IMAGE_PLATFORM, self.IMAGE_DIGEST)
-        assert self.IMAGE_NAME in dc
-
-    def test_get_image_digests(self):
-        """Test method get_image_digests"""
-        dc = DigestCollector()
-
-        # test empty
-        with pytest.raises(KeyError):
-            dc.get_image_digests(self.IMAGE_NAME)
-
-        dc.update_image_digest(self.IMAGE_NAME, self.IMAGE_PLATFORM, self.IMAGE_DIGEST)
-        expected = self.DATA[self.IMAGE_STR]
-        assert dc.get_image_digests(self.IMAGE_NAME) == expected
-
-    def test_get_image_platform_digest(self):
-        """Test method get_image_platform_digests"""
-        dc = DigestCollector()
-
-        # test empty
-        with pytest.raises(KeyError):
-            dc.get_image_platform_digest(self.IMAGE_NAME, self.IMAGE_PLATFORM)
-
-        dc.update_image_digest(self.IMAGE_NAME, self.IMAGE_PLATFORM, self.IMAGE_DIGEST)
-
-        expected = self.DATA[self.IMAGE_STR][self.IMAGE_PLATFORM]
-        assert dc.get_image_platform_digest(self.IMAGE_NAME, self.IMAGE_PLATFORM) == expected
-
-        # test undefined platform
-        with pytest.raises(KeyError):
-            dc.get_image_platform_digest(self.IMAGE_NAME, "unknown")
-
-    def test_update_from_dict(self):
-        """Test method update_from_dict"""
-        dc = DigestCollector()
-        dc.update_from_dict(self.DATA)
-
-        assert dc.to_dict() == self.DATA
-        assert self.IMAGE_NAME in dc
-
-        expected = self.DATA[self.IMAGE_STR][self.IMAGE_PLATFORM]
-        assert dc.get_image_platform_digest(self.IMAGE_NAME, self.IMAGE_PLATFORM) == expected

@@ -12,7 +12,8 @@ from atomic_reactor.constants import (
     INSPECT_CONFIG, PLUGIN_KOJI_PARENT_KEY, BASE_IMAGE_KOJI_BUILD, PARENT_IMAGES_KOJI_BUILDS
 )
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
-from atomic_reactor.util import base_image_is_custom
+from atomic_reactor.util import base_image_is_custom, get_manifest_media_type
+from copy import copy
 from osbs.utils import Labels
 
 import koji
@@ -76,24 +77,74 @@ class KojiParentPlugin(PreBuildPlugin):
 
     def run(self):
         if not (self.workflow.builder.base_from_scratch or self.workflow.builder.custom_base_image):
-            nvr = self._base_image_nvr = self.detect_parent_image_nvr(
+            self._base_image_nvr = self.detect_parent_image_nvr(
                 self.workflow.builder.base_image,
                 inspect_data=self.workflow.builder.base_image_inspect,
             )
-            if nvr:
-                self._base_image_build = self.wait_for_parent_image_build(nvr)
 
+        manifest_mismatches = []
         for img, local_tag in self.workflow.builder.parent_images.items():
             if base_image_is_custom(img.to_str()):
                 continue
 
             nvr = self.detect_parent_image_nvr(local_tag) if local_tag else None
-            if nvr == self._base_image_nvr:  # don't look up base image a second time
-                self._parent_builds[img] = self._base_image_build
-                continue
             self._parent_builds[img] = self.wait_for_parent_image_build(nvr) if nvr else None
+            if nvr == self._base_image_nvr:
+                self._base_image_build = self._parent_builds[img]
 
+            if self._parent_builds[img]:
+                # we need the possible floating tag
+                check_img = copy(local_tag)
+                check_img.tag = img.tag
+                try:
+                    self.check_manifest_digest(check_img, self._parent_builds[img])
+                except ValueError as exc:
+                    manifest_mismatches.append(exc)
+            else:
+                err_msg = ('Could not get koji build info for parent image {}. '
+                           'Was this image built in OSBS?'.format(img.to_str()))
+                self.log.error(err_msg)
+                raise RuntimeError(err_msg)
+
+        if manifest_mismatches:
+            raise RuntimeError('Error while comparing parent images manifest digests in koji with '
+                               'related values from registries: {}'.format(manifest_mismatches))
         return self.make_result()
+
+    def check_manifest_digest(self, image, build_info):
+        image_str = image.to_str()
+        v2_list_type = get_manifest_media_type('v2_list')
+        v2_type = get_manifest_media_type('v2')
+        image_digest_data = self.workflow.builder.parent_images_digests[image_str]
+        if v2_list_type in image_digest_data:
+            media_type = v2_list_type
+        elif v2_type in image_digest_data:
+            media_type = v2_type
+        else:
+            # This should not happen - raise just to be safe:
+            raise RuntimeError('Unexpected parent image digest data for {}. '
+                               'v2 or v2_list expected, got {}'.format(image, image_digest_data))
+
+        digest = image_digest_data[media_type]
+
+        try:
+            koji_digest = build_info['extra']['image']['index']['digests'][media_type]
+        except KeyError:
+            err_msg = ("Koji build ({}) for parent image '{}' does not have manifest digest data "
+                       "for the expected media type '{}'. This parent image MUST be rebuilt"
+                       .format(build_info['id'], image_str, media_type))
+            self.log.error(err_msg)
+            raise ValueError(err_msg)
+
+        expected_digest = koji_digest
+        self.log.info('Verifying manifest digest ({}) for parent {} against its '
+                      'koji reference ({})'.format(digest, image_str, expected_digest))
+        if not digest == expected_digest:
+            err_msg = ('Manifest digest ({}) for parent image {} does not match value in its '
+                       'koji reference ({}). This parent image MUST be rebuilt'
+                       .format(digest, image_str, expected_digest))
+            self.log.error(err_msg)
+            raise ValueError(err_msg)
 
     def detect_parent_image_nvr(self, image_name, inspect_data=None):
         """

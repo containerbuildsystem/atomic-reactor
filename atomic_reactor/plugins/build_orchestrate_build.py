@@ -412,8 +412,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     def adjust_build_kwargs(self):
         self.build_kwargs['arrangement_version'] =\
             get_arrangement_version(self.workflow, self.build_kwargs['arrangement_version'])
-        self.build_kwargs['parent_images_digests'] =\
-            self.workflow.builder.parent_images_digests.to_dict()
+        self.build_kwargs['parent_images_digests'] = self.workflow.builder.parent_images_digests
         # All platforms should generate the same operator manifests. We can use any of them
         if self.platforms:
             self.build_kwargs['operator_manifests_extract_platform'] = list(self.platforms)[0]
