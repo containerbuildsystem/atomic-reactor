@@ -9,7 +9,7 @@ of the BSD license. See the LICENSE file for details.
 Script for building docker image. This is expected to run inside container.
 """
 
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 
 import json
 import logging
@@ -298,9 +298,9 @@ class FSWatcher(threading.Thread):
 
         mb = 1000 ** 2  # sadly storage is generally expressed in decimal units
         new_data = dict(
-            mb_free=st.f_bfree * st.f_frsize / mb,
-            mb_total=st.f_blocks * st.f_frsize / mb,
-            mb_used=(st.f_blocks - st.f_bfree) * st.f_frsize / mb,
+            mb_free=st.f_bfree * st.f_frsize // mb,
+            mb_total=st.f_blocks * st.f_frsize // mb,
+            mb_used=(st.f_blocks - st.f_bfree) * st.f_frsize // mb,
             inodes_free=st.f_ffree,
             inodes_total=st.f_files,
             inodes_used=st.f_files - st.f_ffree,
