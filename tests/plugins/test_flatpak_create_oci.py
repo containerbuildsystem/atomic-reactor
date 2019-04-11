@@ -374,7 +374,7 @@ default_check_call = subprocess.check_call
 
 # Instead of having <repo>/refs/<refname> pointing into <repo>/objects,
 # just store the file tree at <repo>/<refname>
-class MockOSTree:
+class MockOSTree(object):
     @staticmethod
     def commit(repo, branch, subject, tar_tree, dir_tree):
         branch_path = os.path.join(repo, branch)
@@ -402,7 +402,7 @@ class MockOSTree:
 # OSTree format from MockOSTree, and when we 'flatpak build-bundle', we
 # create a fake 'OCI Image' where we just have <dir>/tree with the filesystem
 # contents, instead of having an index.json, tarred layers, etc.
-class MockFlatpak:
+class MockFlatpak(object):
     @staticmethod
     def default_arch():
         return TEST_ARCH
