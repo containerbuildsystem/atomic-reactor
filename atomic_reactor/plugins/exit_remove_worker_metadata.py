@@ -38,4 +38,4 @@ class RemoveWorkerMetadataPlugin(ExitPlugin):
                 osbs.delete_config_map(cm_key)
                 self.log.debug("ConfigMap %s deleted", cm_key)
             except OsbsResponseException as ex:
-                self.log.warning("Failed to delete ConfigMap %s: %s", cm_key, ex.message)
+                self.log.warning("Failed to delete ConfigMap %s: %s", cm_key, ex)
