@@ -45,7 +45,7 @@ class X(object):
     base_image = ImageName(repo="qwe", tag="asd")
 
 
-class ImageStreamResponse:
+class ImageStreamResponse(object):
     '''
     Mocks a get_image_stream response
     '''
