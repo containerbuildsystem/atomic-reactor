@@ -80,7 +80,7 @@ class AddLabelsPlugin(PreBuildPlugin):
                               "vcs-ref",
                               "com.redhat.build-host"),
                  aliases=None,
-                 dont_overwrite_if_in_dockerfile=("distribution-scope",),
+                 dont_overwrite_if_in_dockerfile=("distribution-scope", "com.redhat.license_terms"),
                  info_url_format=None,
                  equal_labels=None):
         """

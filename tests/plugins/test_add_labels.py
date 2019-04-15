@@ -624,30 +624,32 @@ def test_add_labels_equal_aliases2(tmpdir, docker_tasker, caplog, base_l,
             assert expected_log in caplog.text
 
 
-@pytest.mark.parametrize("parent_scope, docker_scope, result_scope, dont_overwrite", [  # noqa
-    (None, None, "restricted", False),
-    ("public", None, "restricted", False),
-    ("private", None, "restricted", False),
-    ("restricted", "public", "public", False),
-    ("restricted", "restricted", "restricted", False),
-    ("restricted", "private", "private", False),
-    (None, None, "restricted", True),
-    ("public", None, "restricted", True),
-    ("private", None, "restricted", True),
-    ("restricted", "public", "public", True),
-    ("restricted", "restricted", "restricted", True),
-    ("restricted", "private", "private", True),
-    ("public", "private", "private", True)
+@pytest.mark.parametrize("label_names", [  # noqa
+    ("distribution-scope", ),
+    ("com.redhat.license_terms", ),
+    ("distribution-scope", "com.redhat.license_terms"),
 ])
-def test_dont_overwrite_distribution_scope(tmpdir, docker_tasker, parent_scope,
-                                           docker_scope, result_scope, dont_overwrite,
-                                           reactor_config_map):
+@pytest.mark.parametrize("dont_overwrite", [True, False])
+@pytest.mark.parametrize("parent_val, docker_val, result_val", [
+    (None, None, "default_value"),
+    ("parent_value", "docker_value", "docker_value"),
+    ("parent_value", None, "default_value"),
+    (None, "docker_value", "docker_value"),
+    ("parent_value", "parent_value", "parent_value"),
+])
+def test_dont_overwrite_if_in_dockerfile(tmpdir, docker_tasker, label_names, dont_overwrite,
+                                         parent_val, docker_val, result_val, reactor_config_map):
+    default_value = 'default_value'
     df_content = "FROM fedora\n"
-    if docker_scope:
-        df_content += 'LABEL distribution-scope="{0}"'.format(docker_scope)
+    if docker_val:
+        for label_name in label_names:
+            df_content += 'LABEL {0}="{1}"\n'.format(label_name, docker_val)
 
-    if parent_scope:
-        labels_conf_base = {INSPECT_CONFIG: {"Labels": {"distribution-scope": parent_scope}}}
+    if parent_val:
+        labels_conf_base = {INSPECT_CONFIG: {"Labels": {}}}
+
+        for label_name in label_names:
+            labels_conf_base[INSPECT_CONFIG]["Labels"][label_name] = parent_val
     else:
         labels_conf_base = {INSPECT_CONFIG: {"Labels": {}}}
 
@@ -662,17 +664,19 @@ def test_dont_overwrite_distribution_scope(tmpdir, docker_tasker, parent_scope,
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', labels_conf_base)
 
+    image_labels = {}
+    for label_name in label_names:
+        image_labels[label_name] = default_value
     wf_args = {
-        'labels': {"distribution-scope": "restricted"},
+        'labels': image_labels,
         'auto_labels': [],
         'aliases': {},
     }
     if dont_overwrite:
-        wf_args["dont_overwrite_if_in_dockerfile"] = ("distribution-scope",)
+        wf_args["dont_overwrite_if_in_dockerfile"] = label_names
 
     if reactor_config_map:
-        make_and_store_reactor_config_map(workflow,
-                                          {'image_labels': {"distribution-scope": "restricted"}})
+        make_and_store_reactor_config_map(workflow, {'image_labels': image_labels})
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -685,8 +689,9 @@ def test_dont_overwrite_distribution_scope(tmpdir, docker_tasker, parent_scope,
 
     runner.run()
 
-    result = df.labels.get("distribution-scope")
-    assert result == result_scope
+    for label_name in label_names:
+        result = df.labels.get(label_name)
+        assert result == result_val
 
 
 @pytest.mark.parametrize('url_format, info_url', [  # noqa
