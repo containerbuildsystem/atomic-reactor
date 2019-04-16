@@ -75,8 +75,16 @@ class ImagebuilderPlugin(BuildStepPlugin):
         # since we need no squash, export the image for local operations like squash would have
         self.log.info("fetching image %s from docker", image)
         output_path = os.path.join(self.workflow.source.workdir, EXPORTED_SQUASHED_IMAGE_NAME)
-        with open(output_path, "w") as image_file:
-            image_file.write(self.tasker.d.get_image(image).data)
+        try:
+            # docker-py 1.x
+            with open(output_path, "w") as image_file:
+                image_file.write(self.tasker.d.get_image(image).data)
+        except AttributeError:
+            # docker-py 3.x
+            with open(output_path, "wb") as image_file:
+                for chunk in self.tasker.d.get_image(image):
+                    image_file.write(chunk)
+
         img_metadata = get_exported_image_metadata(output_path, IMAGE_TYPE_DOCKER_ARCHIVE)
         self.workflow.exported_image_sequence.append(img_metadata)
 
