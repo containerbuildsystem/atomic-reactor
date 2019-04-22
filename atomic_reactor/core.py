@@ -24,9 +24,11 @@ I've tried to be as much consistent (man pages were source) with docker as possi
 """
 from __future__ import absolute_import
 
+from six import BytesIO
 import os
 import shutil
 import logging
+import tarfile
 import tempfile
 import json
 import requests
@@ -415,7 +417,52 @@ class DockerTasker(LastLogger):
         :param start_kwargs: dict, kwargs for docker.start
         :return: str, container id
         """
-        logger.info("creating container from image '%s' and running it", image)
+        container_id = self._create_container(
+            image, command=command, create_kwargs=create_kwargs, volume_bindings=volume_bindings,
+            privileged=privileged)
+        logger.info("running container")
+
+        start_kwargs = start_kwargs or {}
+        logger.debug("start_kwargs = '%s'", start_kwargs)
+        self.d.start(container_id, **start_kwargs)  # returns None
+        return container_id
+
+    def copy_file(self, image, src_path, dest_path, create_kwargs=None):
+        """
+        create container from provided image and copy file from it to host
+
+        :param image: ImageName or string, name or id of the image
+        :param src_path: str, full path of file to be copied from container
+        :param dest_path: src, full path of where to copy file from container
+        :param create_kwargs: dict, kwargs for docker.create_container
+        :return: str, container id
+        """
+        container_id = self._create_container(image, create_kwargs=create_kwargs)
+        logger.info("copying '%s' from container" % src_path)
+        bits, _ = self.d.get_archive(container_id, src_path)
+
+        buffer = BytesIO()
+        for chunk in bits:
+            buffer.write(chunk)
+        buffer.seek(0)
+        archive = tarfile.TarFile(fileobj=buffer)
+        archive.extractall(dest_path)
+        return container_id
+
+    def _create_container(self, image, command=None, create_kwargs=None, volume_bindings=None,
+                          privileged=None):
+        """
+        create container from provided image
+
+        for more info, see documentation of REST API calls:
+         * container/create
+
+        :param image: ImageName or string, name or id of the image
+        :param command: str
+        :param create_kwargs: dict, kwargs for docker.create_container
+        :return: str, container id
+        """
+        logger.info("creating container from image '%s'", image)
         create_kwargs = create_kwargs or {}
 
         if 'host_config' not in create_kwargs:
@@ -428,15 +475,13 @@ class DockerTasker(LastLogger):
 
             create_kwargs['host_config'] = self.d.create_host_config(**conf)
 
-        start_kwargs = start_kwargs or {}
-        logger.debug("image = '%s', command = '%s', create_kwargs = '%s', start_kwargs = '%s'",
-                     image, command, create_kwargs, start_kwargs)
+        logger.debug("image = '%s', command = '%s', create_kwargs = '%s'",
+                     image, command, create_kwargs)
         if isinstance(image, ImageName):
             image = image.to_str()
         container_dict = self.d.create_container(image, command=command, **create_kwargs)
         container_id = container_dict['Id']
         logger.debug("container_id = '%s'", container_id)
-        self.d.start(container_id, **start_kwargs)  # returns None
         return container_id
 
     def commit_container(self, container_id, image=None, message=None):
