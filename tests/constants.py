@@ -165,6 +165,10 @@ prefer_schema1_digest: True
 
 yum_proxy: http://proxy.example.com
 
+yum_proxies:
+- proxied: src.example.com
+  proxy: proxy.example.com
+
 clusters:
   foo:
    - name: blah

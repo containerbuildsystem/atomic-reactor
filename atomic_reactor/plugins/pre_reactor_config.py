@@ -272,6 +272,10 @@ def get_yum_proxy(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'yum_proxy', fallback)
 
 
+def get_yum_proxies(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'yum_proxies', fallback)
+
+
 def get_source_registry(workflow, fallback=NO_FALLBACK):
     try:
         source_registry = get_config(workflow).conf['source_registry']

@@ -441,6 +441,22 @@
         "description": "Proxy to access yum repositories",
         "type": "string"
     },
+    "yum_proxies": {
+        "description": "Proxies to access yum repositories",
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {
+                "proxied": {
+                    "description": "Host name to be proxied",
+                    "type": "string"
+                },
+                "proxy": {
+                    "description": "Proxy to be used"
+                }
+            }
+        }
+    },
     "source_registry": {
         "description": "Container registry to pull parent images",
         "type": "object",
