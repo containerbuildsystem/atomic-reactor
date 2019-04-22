@@ -35,7 +35,6 @@ class YumProxyPlugin(PreBuildPlugin):
         self.all_yum_repo_files = {}
         self.updated_yum_repo_files = {}
         self.yum_proxies = None
-        # TODO: Clean up containers and its volumes.
         self._container_ids = []
 
     def run(self):
@@ -54,6 +53,8 @@ class YumProxyPlugin(PreBuildPlugin):
             # TODO: will this ^ ignore SCRATCH_FROM ? Needs testing, but it looks like
             # SCRATCH_FROM are exluded from parent_images .
             self.all_yum_repo_files[parent_image_id] = self._get_yum_repos(parent_image_id)
+
+        self.tasker.remove_containers(*self._container_ids)
 
         self._generate_new_yum_repo_files()
         self._update_dockerfile()

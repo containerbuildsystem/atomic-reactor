@@ -508,6 +508,27 @@ class DockerTasker(LastLogger):
             logger.error("ID missing from commit response")
             raise RuntimeError("ID missing from commit response")
 
+    def remove_containers(self, *container_ids):
+        """
+        remove the containers of given IDs and their associated volumes.
+
+        This method will NOT raise an exception if operation fails.
+        """
+        volumes = []
+        for container_id in container_ids:
+            volumes.extend(self.get_volumes_for_container(container_id))
+
+            try:
+                self.remove_container(container_id)
+            except APIError:
+                logger.warning("error removing container %s (ignored):", container_id)
+
+        for volume_name in volumes:
+            try:
+                self.remove_volume(volume_name)
+            except APIError:
+                logger.warning("error removing volume %s (ignored):", volume_name)
+
     def get_image_info_by_image_id(self, image_id):
         """
         using `docker images`, provide information about an image
