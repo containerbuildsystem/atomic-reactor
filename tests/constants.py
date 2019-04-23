@@ -165,6 +165,12 @@ prefer_schema1_digest: True
 
 yum_proxy: http://proxy.example.com
 
+hide_files:
+    tmpdir: /tmp
+    files:
+    - /etc/yum.repos.d/repo_ignore_1.repo
+    - /etc/yum.repos.d/repo_ignore_2.repo
+
 clusters:
   foo:
    - name: blah
