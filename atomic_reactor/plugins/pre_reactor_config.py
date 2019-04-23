@@ -354,6 +354,10 @@ def get_package_comparison_exceptions(workflow):
     return set(get_config(workflow).conf.get('package_comparison_exceptions', []))
 
 
+def get_hide_files(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'hide_files', fallback)
+
+
 class ClusterConfig(object):
     """
     Configuration relating to a particular cluster

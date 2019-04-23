@@ -441,6 +441,29 @@
         "description": "Proxy to access yum repositories",
         "type": "string"
     },
+    "hide_files": {
+        "description": "Hide files during build for each stage",
+        "type": "object",
+        "properties": {
+            "tmpdir": {
+                "description": "Temporary location, where files will be hidden",
+                "type": "string",
+                "minLength": 1
+            },
+            "files": {
+                "description": "List of files to hide",
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "minItems": 1,
+                "uniqueItems": true
+            }
+        },
+        "additionalProperties": false,
+        "required": ["tmpdir", "files"]
+    },
     "source_registry": {
         "description": "Container registry to pull parent images",
         "type": "object",
