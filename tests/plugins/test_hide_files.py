@@ -52,27 +52,101 @@ class TestHideFilesPlugin(object):
         # Verify Dockerfile contents have not changed
         assert df.content == df_content
 
-    @pytest.mark.parametrize('inherited_user', (None, "custom_user"))
-    @pytest.mark.parametrize('user_in_df', (None, "custom_docker_user"))
-    def test_hide_files(self, tmpdir, inherited_user, user_in_df):
-        if user_in_df:
-            df_content = dedent("""\
-                FROM sha256:123456
-                RUN yum install -y python-flask
-                USER {0}
-                CMD /bin/bash
-                """.format(user_in_df))
-        else:
-            df_content = dedent("""\
+    @pytest.mark.parametrize(('df_content', 'expected_df', 'inherited_user'), [
+        (
+            dedent("""\
                 FROM sha256:123456
                 RUN yum install -y python-flask
                 CMD /bin/bash
-                """)
+            """),
+            dedent("""\
+                FROM sha256:123456
+                RUN mv -f /etc/yum.repos.d/repo_ignore_1.repo /tmp || :
+                RUN mv -f /etc/yum.repos.d/repo_ignore_2.repo /tmp || :
+                RUN yum install -y python-flask
+                CMD /bin/bash
+                RUN mv -fZ /tmp/repo_ignore_1.repo /etc/yum.repos.d/repo_ignore_1.repo || :
+                RUN mv -fZ /tmp/repo_ignore_2.repo /etc/yum.repos.d/repo_ignore_2.repo || :
+            """),
+            None
+        ),
+
+        (
+            dedent("""\
+                FROM sha256:123456
+                RUN yum install -y python-flask
+                USER custom_docker_user
+                CMD /bin/bash
+            """),
+            dedent("""\
+                FROM sha256:123456
+                RUN mv -f /etc/yum.repos.d/repo_ignore_1.repo /tmp || :
+                RUN mv -f /etc/yum.repos.d/repo_ignore_2.repo /tmp || :
+                RUN yum install -y python-flask
+                USER custom_docker_user
+                CMD /bin/bash
+                USER root
+                RUN mv -fZ /tmp/repo_ignore_1.repo /etc/yum.repos.d/repo_ignore_1.repo || :
+                RUN mv -fZ /tmp/repo_ignore_2.repo /etc/yum.repos.d/repo_ignore_2.repo || :
+                USER custom_docker_user
+            """),
+            None
+        ),
+
+        (
+            dedent("""\
+                FROM sha256:123456
+                RUN yum install -y python-flask
+                CMD /bin/bash
+            """),
+            dedent("""\
+                FROM sha256:123456
+                USER root
+                RUN mv -f /etc/yum.repos.d/repo_ignore_1.repo /tmp || :
+                RUN mv -f /etc/yum.repos.d/repo_ignore_2.repo /tmp || :
+                USER inherited_user
+                RUN yum install -y python-flask
+                CMD /bin/bash
+                USER root
+                RUN mv -fZ /tmp/repo_ignore_1.repo /etc/yum.repos.d/repo_ignore_1.repo || :
+                RUN mv -fZ /tmp/repo_ignore_2.repo /etc/yum.repos.d/repo_ignore_2.repo || :
+                USER inherited_user
+            """),
+            "inherited_user"
+        ),
+
+        (
+            dedent("""\
+                FROM sha256:123456
+                RUN yum install -y python-flask
+                USER custom_docker_user
+                CMD /bin/bash
+            """),
+            dedent("""\
+                FROM sha256:123456
+                USER root
+                RUN mv -f /etc/yum.repos.d/repo_ignore_1.repo /tmp || :
+                RUN mv -f /etc/yum.repos.d/repo_ignore_2.repo /tmp || :
+                USER inherited_user
+                RUN yum install -y python-flask
+                USER custom_docker_user
+                CMD /bin/bash
+                USER root
+                RUN mv -fZ /tmp/repo_ignore_1.repo /etc/yum.repos.d/repo_ignore_1.repo || :
+                RUN mv -fZ /tmp/repo_ignore_2.repo /etc/yum.repos.d/repo_ignore_2.repo || :
+                USER custom_docker_user
+            """),
+            "inherited_user"
+        ),
+    ])
+    def test_hide_files(self, tmpdir, df_content, expected_df, inherited_user):
         df = df_parser(str(tmpdir))
         df.content = df_content
         hide_files = {'tmpdir': '/tmp', 'files': ['/etc/yum.repos.d/repo_ignore_1.repo',
                                                   '/etc/yum.repos.d/repo_ignore_2.repo']}
-        parent_images = ['sha256:123456']
+        parent_images = [
+            'sha256:123456',
+        ]
 
         tasker, workflow = self.prepare(
             df.dockerfile_path, hide_files=hide_files, parent_images=parent_images,
@@ -83,60 +157,7 @@ class TestHideFilesPlugin(object):
         ])
         runner.run()
 
-        if inherited_user and user_in_df:
-            expected_df_content = dedent("""\
-                FROM sha256:123456
-                USER root
-                RUN mv -f /etc/yum.repos.d/repo_ignore_1.repo /tmp || :
-                RUN mv -f /etc/yum.repos.d/repo_ignore_2.repo /tmp || :
-                USER {0}
-                RUN yum install -y python-flask
-                USER {1}
-                CMD /bin/bash
-                USER root
-                RUN mv -fZ /tmp/repo_ignore_1.repo /etc/yum.repos.d/repo_ignore_1.repo || :
-                RUN mv -fZ /tmp/repo_ignore_2.repo /etc/yum.repos.d/repo_ignore_2.repo || :
-                USER {1}
-                """.format(inherited_user, user_in_df))
-        elif inherited_user:
-            expected_df_content = dedent("""\
-                FROM sha256:123456
-                USER root
-                RUN mv -f /etc/yum.repos.d/repo_ignore_1.repo /tmp || :
-                RUN mv -f /etc/yum.repos.d/repo_ignore_2.repo /tmp || :
-                USER {0}
-                RUN yum install -y python-flask
-                CMD /bin/bash
-                USER root
-                RUN mv -fZ /tmp/repo_ignore_1.repo /etc/yum.repos.d/repo_ignore_1.repo || :
-                RUN mv -fZ /tmp/repo_ignore_2.repo /etc/yum.repos.d/repo_ignore_2.repo || :
-                USER {0}
-                """.format(inherited_user))
-        elif user_in_df:
-            expected_df_content = dedent("""\
-                FROM sha256:123456
-                RUN mv -f /etc/yum.repos.d/repo_ignore_1.repo /tmp || :
-                RUN mv -f /etc/yum.repos.d/repo_ignore_2.repo /tmp || :
-                RUN yum install -y python-flask
-                USER {0}
-                CMD /bin/bash
-                USER root
-                RUN mv -fZ /tmp/repo_ignore_1.repo /etc/yum.repos.d/repo_ignore_1.repo || :
-                RUN mv -fZ /tmp/repo_ignore_2.repo /etc/yum.repos.d/repo_ignore_2.repo || :
-                USER {0}
-                """.format(user_in_df))
-        else:
-            expected_df_content = dedent("""\
-                FROM sha256:123456
-                RUN mv -f /etc/yum.repos.d/repo_ignore_1.repo /tmp || :
-                RUN mv -f /etc/yum.repos.d/repo_ignore_2.repo /tmp || :
-                RUN yum install -y python-flask
-                CMD /bin/bash
-                RUN mv -fZ /tmp/repo_ignore_1.repo /etc/yum.repos.d/repo_ignore_1.repo || :
-                RUN mv -fZ /tmp/repo_ignore_2.repo /etc/yum.repos.d/repo_ignore_2.repo || :
-                """)
-
-        assert df.content == expected_df_content
+        assert df.content == expected_df
 
     def test_hide_files_multi_stage(self, tmpdir):
         df_content = dedent("""\
