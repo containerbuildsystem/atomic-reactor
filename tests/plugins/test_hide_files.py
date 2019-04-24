@@ -72,9 +72,7 @@ class TestHideFilesPlugin(object):
         df.content = df_content
         hide_files = {'tmpdir': '/tmp', 'files': ['/etc/yum.repos.d/repo_ignore_1.repo',
                                                   '/etc/yum.repos.d/repo_ignore_2.repo']}
-        parent_images = {
-            ImageName.parse('fedora'): ImageName.parse("sha256:123456")
-        }
+        parent_images = ['sha256:123456']
 
         tasker, workflow = self.prepare(
             df.dockerfile_path, hide_files=hide_files, parent_images=parent_images,
@@ -147,7 +145,10 @@ class TestHideFilesPlugin(object):
             USER custom_user
             RUN bluh
 
-            FROM sha256:654321
+            FROM sha256:654321 as unused
+            RUN bleh
+
+            FROM sha256:123456
             RUN yum install -y python-flask
             USER custom_user2
             CMD /bin/bash
@@ -156,10 +157,10 @@ class TestHideFilesPlugin(object):
         df.content = df_content
         hide_files = {'tmpdir': '/tmp', 'files': ['/etc/yum.repos.d/repo_ignore_1.repo',
                                                   '/etc/yum.repos.d/repo_ignore_2.repo']}
-        parent_images = {
-            ImageName.parse('fedora'): ImageName.parse('sha256:123456'),
-            ImageName.parse('python'): ImageName.parse('sha256:654321'),
-        }
+        parent_images = [
+            'sha256:123456',
+            'sha256:654321',
+        ]
 
         tasker, workflow = self.prepare(
             df.dockerfile_path, hide_files=hide_files, parent_images=parent_images,
@@ -184,7 +185,18 @@ class TestHideFilesPlugin(object):
             RUN mv -fZ /tmp/repo_ignore_2.repo /etc/yum.repos.d/repo_ignore_2.repo || :
             USER custom_user
 
-            FROM sha256:654321
+            FROM sha256:654321 as unused
+            USER root
+            RUN mv -f /etc/yum.repos.d/repo_ignore_1.repo /tmp || :
+            RUN mv -f /etc/yum.repos.d/repo_ignore_2.repo /tmp || :
+            USER inherited_user
+            RUN bleh
+            USER root
+            RUN mv -fZ /tmp/repo_ignore_1.repo /etc/yum.repos.d/repo_ignore_1.repo || :
+            RUN mv -fZ /tmp/repo_ignore_2.repo /etc/yum.repos.d/repo_ignore_2.repo || :
+            USER inherited_user
+
+            FROM sha256:123456
             USER root
             RUN mv -f /etc/yum.repos.d/repo_ignore_1.repo /tmp || :
             RUN mv -f /etc/yum.repos.d/repo_ignore_2.repo /tmp || :
@@ -209,13 +221,12 @@ class TestHideFilesPlugin(object):
                             .for_workflow(workflow)
                             .set_df_path(df_path))
 
-        if parent_images:
-            for parent in parent_images.values():
-                workflow.builder.set_parent_inspection_data(parent, {
-                    INSPECT_CONFIG: {
-                        'User': inherited_user,
-                    },
-                })
+        for parent in parent_images or []:
+            workflow.builder.set_parent_inspection_data(parent, {
+                INSPECT_CONFIG: {
+                    'User': inherited_user,
+                },
+            })
 
         if hide_files is not None:
             reactor_config = ReactorConfig({
@@ -225,9 +236,6 @@ class TestHideFilesPlugin(object):
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {
                 WORKSPACE_CONF_KEY: reactor_config
             }
-
-        if parent_images:
-            workflow.builder.parent_images = parent_images
 
         return tasker, workflow
 

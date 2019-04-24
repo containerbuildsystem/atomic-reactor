@@ -11,7 +11,7 @@ import os
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_hide_files
-from atomic_reactor.util import df_parser, ImageName
+from atomic_reactor.util import df_parser
 from atomic_reactor.constants import INSPECT_CONFIG
 
 
@@ -29,6 +29,7 @@ class HideFilesPlugin(PreBuildPlugin):
         super(HideFilesPlugin, self).__init__(tasker, workflow)
         self.start_lines = []
         self.end_lines = []
+        self.dfp = None
 
     def run(self):
         """
@@ -43,8 +44,33 @@ class HideFilesPlugin(PreBuildPlugin):
         self._populate_start_file_lines()
         self._populate_end_file_lines()
 
-        for parent_image_id in self.workflow.builder.parent_images.values():
-            self._update_dockerfile(parent_image_id)
+        self.dfp = df_parser(self.workflow.builder.df_path)
+        stages = self._find_stages()
+
+        # For each stage, wrap it with the extra lines we want.
+        # Work backwards to preserve line numbers.
+        for stage in reversed(stages):
+            self._update_dockerfile(**stage)
+
+    def _find_stages(self):
+        """Find limits of each Dockerfile stage"""
+        stages = []
+        end = last_user_found = None
+        for part in reversed(self.dfp.structure):
+            if end is None:
+                end = part
+
+            if part['instruction'] == 'USER' and not last_user_found:
+                # we will reuse the line verbatim
+                last_user_found = part['content']
+
+            if part['instruction'] == 'FROM':
+                stages.insert(0, {'from_structure': part,
+                                  'end_structure': end,
+                                  'stage_user': last_user_found})
+                end = last_user_found = None
+
+        return stages
 
     def _populate_start_file_lines(self):
         for file_to_hide in self.hide_files['files']:
@@ -58,11 +84,13 @@ class HideFilesPlugin(PreBuildPlugin):
 
             self.end_lines.append('RUN mv -fZ {} {} || :'.format(tmp_dest, file_to_hide))
 
-    def _update_dockerfile(self, parent_image_id):
-        dfp = df_parser(self.workflow.builder.df_path)
+    def _update_dockerfile(self, from_structure, end_structure, stage_user):
+        self.log.debug("updating stage starting line %d, ending at %d",
+                       from_structure['startline'], end_structure['endline'])
         add_start_lines = []
         add_end_lines = []
 
+        parent_image_id = from_structure['value'].split(' ', 1)[0]
         inspect = self.workflow.builder.parent_image_inspect(parent_image_id)
         inherited_user = inspect.get(INSPECT_CONFIG).get('User', '')
 
@@ -74,25 +102,10 @@ class HideFilesPlugin(PreBuildPlugin):
         if inherited_user:
             add_start_lines.append('USER {}'.format(inherited_user))
 
-        parent_structure = self._find_parent_structure(dfp, parent_image_id)
-        dfp.add_lines_at(parent_structure, *add_start_lines, after=True)
-
         final_user_line = "USER " + inherited_user if inherited_user else None
 
-        last_user_found = None
-        for insndesc in reversed(dfp.structure):
-            if insndesc['instruction'] == 'USER' and not last_user_found:
-                last_user_found = insndesc['content']  # we will reuse the line verbatim
-
-            if insndesc['instruction'] == 'FROM':
-                found_parent_image_id = ImageName.parse(insndesc['value'].split(' ')[0])
-                if found_parent_image_id == parent_image_id:
-                    break  # found last user for specific stage
-                else:
-                    last_user_found = None  # this wasn't our stage, resetting user
-
-        if last_user_found:
-            final_user_line = last_user_found
+        if stage_user:
+            final_user_line = stage_user
 
         if final_user_line:
             add_end_lines.append('USER root')
@@ -102,24 +115,7 @@ class HideFilesPlugin(PreBuildPlugin):
         if final_user_line:
             add_end_lines.append(final_user_line)
 
-        last_stage_structure = self._find_last_stage_structure(dfp, parent_structure)
-        dfp.add_lines_at(last_stage_structure, *add_end_lines, after=True)
-
-    def _find_parent_structure(self, dfp, parent_image_id):
-        for structure in dfp.structure:
-            if structure['instruction'] != 'FROM':
-                continue
-            found_parent_image_id = ImageName.parse(structure['value'].split(' ')[0])
-            if found_parent_image_id == parent_image_id:
-                return structure
-
-        raise RuntimeError('Unable to find parent image instruction')
-
-    def _find_last_stage_structure(self, dfp, parent_structure):
-        partial_structure = dfp.structure[dfp.structure.index(parent_structure)+1:]
-        last_structure = parent_structure
-        for structure in partial_structure:
-            if structure['instruction'] == 'FROM':
-                break
-            last_structure = structure
-        return last_structure
+        self.log.debug("append after: %r", add_end_lines)
+        self.log.debug("insert before: %r", add_start_lines)
+        self.dfp.add_lines_at(end_structure, *add_end_lines, after=True)
+        self.dfp.add_lines_at(from_structure, *add_start_lines, after=True)
