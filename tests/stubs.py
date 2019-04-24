@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Copyright (c) 2018 Red Hat, Inc
+Copyright (c) 2018, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -99,7 +99,8 @@ class StubInsideBuilder(object):
         return self._inspection_data
 
     def parent_image_inspect(self, image):
-        return self._parent_inspection_data[image]
+        image_name = ImageName.parse(image)
+        return self._parent_inspection_data[image_name]
 
     def set_base_image(self, image):
         # likely run as side effect; ignore. tests that want stateful results must mock.
