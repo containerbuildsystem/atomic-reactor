@@ -55,6 +55,7 @@ class TagFromConfigPlugin(PostBuildPlugin):
     def parse_and_add_tags(self):
         tags = []
         name = self.get_component_name()
+        floating_defined = 'floating' in self.tag_suffixes
 
         for tag_suffix in self.tag_suffixes.get('unique', []):
             tag = '{}:{}'.format(name, tag_suffix)
@@ -63,13 +64,29 @@ class TagFromConfigPlugin(PostBuildPlugin):
                 self.log.debug('Using additional unique tag %s', tag)
                 self.workflow.tag_conf.add_unique_image(tag)
 
-        for tag_suffix in self.tag_suffixes.get('primary', []):
+        for tag_suffix in self.tag_suffixes.get('floating', []):
             p_suffix = LabelFormatter().vformat(tag_suffix, [], self.labels)
             p_tag = '{}:{}'.format(name, p_suffix)
             if p_tag not in tags:
                 tags.append(p_tag)
-                self.log.debug('Using additional primary tag %s', p_tag)
-                self.workflow.tag_conf.add_primary_image(p_tag)
+                self.log.debug('Using additional floating tag %s', p_tag)
+                self.workflow.tag_conf.add_floating_image(p_tag)
+
+        for tag_suffix in self.tag_suffixes.get('primary', []):
+            p_suffix = LabelFormatter().vformat(tag_suffix, [], self.labels)
+            p_tag = '{}:{}'.format(name, p_suffix)
+            if p_tag not in tags:
+                add_primary = True
+                if not floating_defined and '-' not in p_suffix:
+                    add_primary = False
+
+                tags.append(p_tag)
+                if add_primary:
+                    self.log.debug('Using additional primary tag %s', p_tag)
+                    self.workflow.tag_conf.add_primary_image(p_tag)
+                else:
+                    self.log.debug('Using additional floating tag %s', p_tag)
+                    self.workflow.tag_conf.add_floating_image(p_tag)
 
         return tags
 

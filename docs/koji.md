@@ -185,9 +185,7 @@ Example type-specific content generator metadata in context:
           ...
         },
         "tags": [
-          "latest",
-          "1.0.0-1",
-          "1.0.0"
+          "1.0.0-1"
         ],
         "digests": {
           "application/vnd.docker.distribution.manifest.v1+json": "sha256:123abc",

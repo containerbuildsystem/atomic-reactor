@@ -11,7 +11,7 @@ from __future__ import unicode_literals, absolute_import
 from osbs.exceptions import OsbsResponseException
 
 from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
-from atomic_reactor.util import get_primary_images, ImageName
+from atomic_reactor.util import get_floating_images, ImageName
 from atomic_reactor.plugins.pre_reactor_config import (get_openshift_session, get_source_registry,
                                                        get_registries_organization)
 
@@ -62,7 +62,7 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
 
         self.osbs = None
         self.imagestream = None
-        self.primary_images = None
+        self.floating_images = None
         self.docker_image_repo = None
         self.docker_image_repo_fallback = docker_image_repo
 
@@ -72,9 +72,9 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
             self.log.info("Not importing failed build")
             return
 
-        self.primary_images = get_primary_images(self.workflow)
-        if not self.primary_images:
-            raise RuntimeError('Could not find primary images in workflow')
+        self.floating_images = get_floating_images(self.workflow)
+        if not self.floating_images:
+            raise RuntimeError('Could not find floating images in workflow')
 
         self.resolve_docker_image_repo()
 
@@ -121,11 +121,8 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
 
     def get_trackable_tags(self):
         tags = []
-        for primary_image in self.primary_images:
-            tag = primary_image.tag
-            if '-' in tag:
-                self.log.info('Skipping non-transient tag, %s', tag)
-                continue
+        for floating_image in self.floating_images:
+            tag = floating_image.tag
             tags.append(tag)
 
         return tags
@@ -140,7 +137,7 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
             image = ImageName.parse(self.docker_image_repo_fallback)
         else:
             registry = source_registry['uri'].docker_uri
-            image = self.primary_images[0]
+            image = self.floating_images[0]
             image.registry = registry
 
         organization = get_registries_organization(self.workflow)

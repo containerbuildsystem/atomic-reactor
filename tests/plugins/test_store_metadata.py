@@ -146,7 +146,9 @@ def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=Fals
     for name, crane_uri in pulp_registries:
         workflow.push_conf.add_pulp_registry(name, crane_uri)
 
-    workflow.tag_conf.add_primary_image(TEST_IMAGE)
+    workflow.tag_conf.add_floating_image(TEST_IMAGE)
+    workflow.tag_conf.add_primary_image("namespace/image:version-release")
+
     workflow.tag_conf.add_unique_image("namespace/image:asd123")
 
     for docker_registry in docker_registries:
@@ -747,18 +749,22 @@ CMD blabla"""
 
 @pytest.mark.parametrize(('pulp_registries', 'docker_registries', 'is_orchestrator', 'expected'), [
     ([], [], False,
-     {'unique': [], 'primary': []}),
+     {'unique': [], 'primary': [], 'floating': []}),
     ([('spam', 'spam:8888')], ['docker:9999'], False,
-     {'primary': ['docker:9999/atomic-reactor-test-image:latest',
+     {'floating': ['docker:9999/atomic-reactor-test-image:latest',
                   'spam:8888/atomic-reactor-test-image:latest'],
       'unique': ['docker:9999/namespace/image:asd123',
-                 'spam:8888/namespace/image:asd123']}),
+                 'spam:8888/namespace/image:asd123'],
+      'primary': ['docker:9999/namespace/image:version-release',
+                  'spam:8888/namespace/image:version-release']}),
     ([('spam', 'spam:8888')], ['docker:9999'], True,
-     {'primary': ['spam:8888/atomic-reactor-test-image:latest'],
-      'unique': ['spam:8888/namespace/image:asd123']}),
+     {'floating': ['spam:8888/atomic-reactor-test-image:latest'],
+      'unique': ['spam:8888/namespace/image:asd123'],
+      'primary': ['spam:8888/namespace/image:version-release']}),
     ([], ['docker:9999'], True,
-     {'primary': ['docker:9999/atomic-reactor-test-image:latest'],
-      'unique': ['docker:9999/namespace/image:asd123']}),
+     {'floating': ['docker:9999/atomic-reactor-test-image:latest'],
+      'unique': ['docker:9999/namespace/image:asd123'],
+      'primary': ['docker:9999/namespace/image:version-release']}),
 ])
 def test_filter_nonpulp_repositories(tmpdir, pulp_registries, docker_registries,
                                      is_orchestrator, expected, reactor_config_map):

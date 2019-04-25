@@ -234,6 +234,7 @@ class SendMailPlugin(ExitPlugin):
 
         repos.extend(repo_data.get('unique', []))
         repos.extend(repo_data.get('primary', []))
+        repos.extend(repo_data.get('floating', []))
 
         if repos:
             image_name_obj = ImageName.parse(repos[0])

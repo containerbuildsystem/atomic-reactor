@@ -1355,7 +1355,18 @@ def get_primary_images(workflow):
         primary_images = [
             ImageName.parse(primary) for primary in
             workflow.build_result.annotations['repositories']['primary']]
+
     return primary_images
+
+
+def get_floating_images(workflow):
+    floating_images = workflow.tag_conf.floating_images
+    if not floating_images:
+        floating_images = [
+            ImageName.parse(floating) for floating in
+            workflow.build_result.annotations['repositories']['floating']]
+
+    return floating_images
 
 
 def get_parent_image_koji_data(workflow):

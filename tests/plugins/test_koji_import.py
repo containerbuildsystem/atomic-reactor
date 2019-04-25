@@ -264,14 +264,13 @@ def mock_environment(tmpdir, session=None, name=None,
         workflow.tag_conf.add_unique_image('user/test-image:{v}-timestamp'
                                            .format(v=version))
     if name and version and release and add_tag_conf_primaries:
-        workflow.tag_conf.add_primary_images(["{0}:{1}-{2}".format(name,
-                                                                   version,
-                                                                   release),
-                                              "{0}:{1}".format(name, version),
-                                              "{0}:latest".format(name)])
-
+        workflow.tag_conf.add_primary_image("{0}:{1}-{2}".format(name,
+                                                                 version,
+                                                                 release))
+        workflow.tag_conf.add_floating_images(["{0}:{1}".format(name, version),
+                                               "{0}:latest".format(name)])
     if additional_tags:
-        workflow.tag_conf.add_primary_images(["{0}:{1}".format(name, tag)
+        workflow.tag_conf.add_floating_images(["{0}:{1}".format(name, tag)
                                               for tag in additional_tags])
 
     flexmock(subprocess, Popen=fake_Popen)
@@ -338,15 +337,18 @@ def mock_environment(tmpdir, session=None, name=None,
         },
         'repositories': {
             'unique': ['brew-pulp-docker:8888/myproject/hello-world:0.0.1-9'],
-            'primary': []
+            'primary': [],
+            'floating': [],
         }
     }
 
     if name and version and release and add_build_result_primaries:
-        annotations['repositories']['primary'] = [
-            'brew-pulp-docker:8888/{0}:{1}-{2}'.format(name, version, release),
+        annotations['repositories']['floating'] = [
             'brew-pulp-docker:8888/{0}:{1}'.format(name, version),
             'brew-pulp-docker:8888/{0}:latest'.format(name),
+        ]
+        annotations['repositories']['primary'] = [
+            'brew-pulp-docker:8888/{0}:{1}-{2}'.format(name, version, release),
         ]
 
     if build_process_failed:

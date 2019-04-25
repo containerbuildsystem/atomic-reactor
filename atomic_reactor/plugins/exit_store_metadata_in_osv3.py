@@ -121,9 +121,18 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
                 registry_image.registry = registry.uri
                 unique_repositories.append(registry_image.to_str())
 
+        # floating repositories
+        # these should be used for pulling and layering
+        floating_repositories = []
+        for registry in self._get_registries():
+            for image in self.workflow.tag_conf.floating_images:
+                registry_image = image.copy()
+                registry_image.registry = registry.uri
+                floating_repositories.append(registry_image.to_str())
         return {
             "primary": primary_repositories,
             "unique": unique_repositories,
+            "floating": floating_repositories,
         }
 
     def get_pullspecs(self, digests):

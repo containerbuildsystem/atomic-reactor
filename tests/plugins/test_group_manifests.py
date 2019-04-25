@@ -296,7 +296,8 @@ def mock_registries(registries, config, schema_version='v2', foreign_layers=Fals
         }
 
     return reg_map, {
-        'worker-builds': worker_builds
+        'worker-builds': worker_builds,
+        'repositories': {'primary': [], 'floating': []}
     }
 
 
@@ -329,7 +330,9 @@ def mock_environment(tmpdir, primary_images=None,
     setattr(workflow.builder.source, 'path', None)
     setattr(workflow, 'tag_conf', TagConf())
     if primary_images:
-        workflow.tag_conf.add_primary_images(primary_images)
+        for image in primary_images:
+            if '-' in ImageName.parse(image).tag:
+                workflow.tag_conf.add_primary_image(image)
         workflow.tag_conf.add_unique_image(primary_images[0])
 
     workflow.build_result = BuildResult(image_id='123456', annotations=annotations)
@@ -628,7 +631,7 @@ def test_group_manifests(tmpdir, schema_version, vr_tag, manifest_list_exists,
         if group:
             # Check that plugin returns correct list of repos
             actual_repos = sorted(plugin_result.keys())
-            expected_repos = sorted(set([x.get_repo() for x in workflow.tag_conf.primary_images]))
+            expected_repos = sorted(set([x.get_repo() for x in workflow.tag_conf.images]))
             assert expected_repos == actual_repos
 
     else:

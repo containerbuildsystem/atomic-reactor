@@ -76,22 +76,25 @@ def test_tag_by_labels_plugin(tmpdir, args):
     images = [i.to_str() for i in workflow.tag_conf.images]
     primary_images = [i.to_str() for i in workflow.tag_conf.primary_images]
     unique_images = [i.to_str() for i in workflow.tag_conf.unique_images]
+    floating_images = [i.to_str() for i in workflow.tag_conf.floating_images]
 
     if args.get('unique_tag_only'):
         assert len(workflow.tag_conf.images) == 1
         assert len(primary_images) == 0
+        assert len(floating_images) == 0
 
     else:
         assert len(workflow.tag_conf.images) == 4
-        assert len(primary_images) == 3
+        assert len(primary_images) == 1
+        assert len(floating_images) == 2
 
         assert ("%s:%s-%s" % (TEST_IMAGE, version, release)) in images
         assert ("%s:%s" % (TEST_IMAGE, version)) in images
         assert ("%s:latest" % (TEST_IMAGE, )) in images
 
         assert ("%s:%s-%s" % (TEST_IMAGE, version, release)) in primary_images
-        assert ("%s:%s" % (TEST_IMAGE, version)) in primary_images
-        assert ("%s:latest" % (TEST_IMAGE, )) in primary_images
+        assert ("%s:%s" % (TEST_IMAGE, version)) in floating_images
+        assert ("%s:latest" % (TEST_IMAGE, )) in floating_images
 
     assert len(unique_images) == 1
     assert ("%s:%s" % (TEST_IMAGE, "unique_tag_123")) in images

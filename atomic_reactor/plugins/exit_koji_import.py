@@ -260,10 +260,8 @@ class KojiImportPlugin(ExitPlugin):
     def set_group_manifest_info(self, extra, worker_metadatas):
         version_release = None
         primary_images = get_primary_images(self.workflow)
-        for image in primary_images:
-            if '-' in image.tag:  # {version}-{release} only, and only one instance
-                version_release = image.tag
-                break
+        if primary_images:
+            version_release = primary_images[0].tag
 
         if is_scratch_build():
             tags = [image.tag for image in self.workflow.tag_conf.images]

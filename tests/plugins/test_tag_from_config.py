@@ -136,25 +136,32 @@ def test_bad_inspect_data(tmpdir, docker_tasker, inspect, error):
     assert error in str(exc)
 
 
-@pytest.mark.parametrize(('unique_tags', 'primary_tags', 'expected'), [  # noqa
-    (None, None, ['name_value:get_tags', 'name_value:file_tags']),
-    ([], [], []),
-    (['foo', 'bar'], [], ['name_value:foo', 'name_value:bar']),
-    ([], ['foo', 'bar'], ['name_value:foo', 'name_value:bar']),
-    ([], ['foo', '{unknown}', 'bar'], None),
-    ([], ['foo', '{version}', 'bar'], ['name_value:foo', 'name_value:version_value',
+@pytest.mark.parametrize(('floating_tags', 'unique_tags', 'primary_tags', 'expected'), [  # noqa
+    (None, None, None, ['name_value:get_tags', 'name_value:file_tags']),
+    ([], [], [], []),
+    ([], ['foo', 'bar'], [], ['name_value:foo', 'name_value:bar']),
+    ([], [], ['foo', 'bar'], ['name_value:foo', 'name_value:bar']),
+    ([], [], ['foo', '{unknown}', 'bar'], None),
+    ([], [], ['foo', '{version}', 'bar'], ['name_value:foo', 'name_value:version_value',
                                        'name_value:bar']),
-    ([], ['foo', '{version}-{release}', 'bar'],
+    ([], [], ['foo', '{version}-{release}', 'bar'],
      ['name_value:foo', 'name_value:version_value-7.4.1', 'name_value:bar']),
-    (['foo', 'bar'], ['{version}'], ['name_value:foo', 'name_value:bar',
+    ([], ['foo', 'bar'], ['{version}'], ['name_value:foo', 'name_value:bar',
                                      'name_value:version_value']),
-    (['foo', 'bar'], ['{version}-{release}'],
+    (['bar'], ['foo'], ['{version}'], ['name_value:foo', 'name_value:bar',
+                                       'name_value:version_value']),
+    ([], ['foo', 'bar'], ['{version}-{release}'],
      ['name_value:foo', 'name_value:bar', 'name_value:version_value-7.4.1']),
-    (['foo', 'bar'], ['baz', '{version}', 'version_value', 'baz'],
+    (['bar'], ['foo'], ['{version}-{release}'], ['name_value:foo', 'name_value:bar',
+                                                 'name_value:version_value-7.4.1']),
+    ([], ['foo', 'bar'], ['baz', '{version}', 'version_value', 'baz'],
+     ['name_value:foo', 'name_value:bar', 'name_value:baz',
+      'name_value:version_value']),
+    (['bar'], ['foo'], ['baz', '{version}', 'version_value', 'baz'],
      ['name_value:foo', 'name_value:bar', 'name_value:baz',
       'name_value:version_value']),
 ])
-def test_tag_parse(tmpdir, docker_tasker, unique_tags, primary_tags, expected):
+def test_tag_parse(tmpdir, docker_tasker, floating_tags, unique_tags, primary_tags, expected):
     df = df_parser(str(tmpdir))
     df.content = DF_CONTENT_LABELS
 
@@ -171,10 +178,11 @@ def test_tag_parse(tmpdir, docker_tasker, unique_tags, primary_tags, expected):
     setattr(workflow.builder, 'base_image_inspect', base_inspect)
     mock_additional_tags_file(str(tmpdir), ['get_tags', 'file_tags'])
 
-    if unique_tags is not None and primary_tags is not None:
+    if unique_tags is not None and primary_tags is not None and floating_tags is not None:
         input_tags = {
             'unique': unique_tags,
-            'primary': primary_tags
+            'primary': primary_tags,
+            'floating': floating_tags,
         }
     else:
         input_tags = None

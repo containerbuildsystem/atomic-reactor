@@ -50,6 +50,7 @@ from atomic_reactor.util import (ImageName, wait_for_command,
                                  get_manifest_media_type,
                                  get_manifest_media_version,
                                  get_primary_images,
+                                 get_floating_images,
                                  get_image_upload_filename,
                                  read_yaml, read_yaml_from_file_path, OSBSLogs,
                                  get_platforms_in_limits, get_orchestrator_platforms,
@@ -998,40 +999,59 @@ def test_label_formatter(labels, test_string, expected):
             LabelFormatter().vformat(test_string, [], labels)
 
 
-@pytest.mark.parametrize(('tag_conf', 'tag_annotation', 'expected'), (
-    (['spam', 'bacon'], [], ['spam', 'bacon']),
-    ([], ['spam', 'bacon'], ['spam', 'bacon']),
-    (['spam', 'bacon'], ['ignored', 'scorned'], ['spam', 'bacon']),
+@pytest.mark.parametrize(('tag_conf', 'tag_annotation', 'expected_primary', 'expected_floating'), (
+    (['spam', 'bacon'], [], [], ['spam', 'bacon']),
+    ([], ['spam', 'bacon'], [], ['spam', 'bacon']),
+
+    (['spam', 'bacon-toast'], [], ['bacon-toast'], ['spam']),
+    ([], ['spam', 'bacon-toast'], ['bacon-toast'], ['spam']),
+
+    (['spam', 'bacon'], ['ignored', 'scorned'], [], ['spam', 'bacon']),
 ))
-def test_get_primary_images(tag_conf, tag_annotation, expected):
+def test_get_primary_and_floating_images(tag_conf, tag_annotation, expected_primary,
+                                         expected_floating):
     template_image = ImageName.parse('registry.example.com/fedora')
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
 
     for tag in tag_conf:
         image_name = ImageName.parse(str(template_image))
         image_name.tag = tag
-        workflow.tag_conf.add_primary_image(str(image_name))
+        if '-' in tag:
+            workflow.tag_conf.add_primary_image(str(image_name))
+        else:
+            workflow.tag_conf.add_floating_image(str(image_name))
 
-    annotations = {}
+    annotations = {'repositories': {'primary': [], 'floating': []}}
     for tag in tag_annotation:
-        annotations.setdefault('repositories', {}).setdefault('primary', [])
         image_name = ImageName.parse(str(template_image))
         image_name.tag = tag
 
-        annotations['repositories']['primary'].append(str(image_name))
+        if '-' in tag:
+            annotations['repositories']['primary'].append(str(image_name))
+        else:
+            annotations['repositories']['floating'].append(str(image_name))
 
     build_result = BuildResult(annotations=annotations, image_id='foo')
     workflow.build_result = build_result
 
-    actual = get_primary_images(workflow)
-    assert len(actual) == len(expected)
-    for index, primary_image in enumerate(actual):
+    actual_primary = get_primary_images(workflow)
+    actual_floating = get_floating_images(workflow)
+    assert len(actual_primary) == len(expected_primary)
+    assert len(actual_floating) == len(expected_floating)
+
+    for index, primary_image in enumerate(actual_primary):
         assert primary_image.registry == template_image.registry
         assert primary_image.namespace == template_image.namespace
         assert primary_image.repo == template_image.repo
 
-        assert primary_image.tag == expected[index]
+        assert primary_image.tag == expected_primary[index]
 
+    for index, floating_image in enumerate(actual_floating):
+        assert floating_image.registry == template_image.registry
+        assert floating_image.namespace == template_image.namespace
+        assert floating_image.repo == template_image.repo
+
+        assert floating_image.tag == expected_floating[index]
 
 @pytest.mark.parametrize('from_file', [True, False])
 @pytest.mark.parametrize('config', [

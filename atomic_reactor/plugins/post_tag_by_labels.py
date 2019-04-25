@@ -72,4 +72,5 @@ class TagByLabelsPlugin(PostBuildPlugin):
         nv = "%s:%s" % (name, version)
         n = "%s:latest" % name
 
-        self.workflow.tag_conf.add_primary_images([nvr, nv, n])
+        self.workflow.tag_conf.add_primary_image(nvr)
+        self.workflow.tag_conf.add_floating_images([nv, n])

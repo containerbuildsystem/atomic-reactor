@@ -79,25 +79,25 @@ def prepare(tmpdir, insecure_registry=None, namespace=None,
     df.write('LABEL name={}'.format(TEST_NAME_LABEL))
     setattr(workflow.builder, 'df_path', str(df))
 
-    annotations = None
+    annotations = {'repositories': {'primary': [], 'floating': []}}
     if primary_images_annotations:
-        primary_images = [
+        floating_images = [
             '{}:annotation_{}'.format(TEST_REPO_WITH_REGISTRY, x)
             for x in range(primary_images_annotations)
         ]
-        primary_images.append('{}:version-release'.format(TEST_REPO_WITH_REGISTRY))
-        annotations = {'repositories': {'primary': primary_images}}
-        annotations
+        primary_image = '{}:version-release'.format(TEST_REPO_WITH_REGISTRY)
+        annotations = {'repositories': {'primary': primary_image, 'floating': floating_images}}
+
     build_result = BuildResult(annotations=annotations, image_id='foo')
     setattr(workflow, 'build_result', build_result)
 
     if primary_images_tag_conf:
-        primary_images = [
+        floating_images = [
             '{}:tag_conf_{}'.format(TEST_REPO, x)
             for x in range(primary_images_tag_conf)
         ]
-        primary_images.insert(0, '{}:version-release'.format(TEST_REPO))
-        workflow.tag_conf.add_primary_images(primary_images)
+        workflow.tag_conf.add_primary_image('{}:version-release'.format(TEST_REPO))
+        workflow.tag_conf.add_floating_images(floating_images)
 
     fake_conf = osbs.conf.Configuration(conf_file=None, openshift_url='/')
 
@@ -157,7 +157,8 @@ def test_bad_setup(tmpdir, monkeypatch, reactor_config_map):  # noqa
     Try all the early-fail paths.
     """
 
-    runner = prepare(tmpdir, reactor_config_map=reactor_config_map)
+    runner = prepare(tmpdir, primary_images_annotations=0, primary_images_tag_conf=0,
+                     reactor_config_map=reactor_config_map)
 
     (flexmock(OSBS)
      .should_receive('get_image_stream')
@@ -239,16 +240,14 @@ def test_ensure_primary(tmpdir, monkeypatch, osbs_error, tag_conf, annotations, 
         "metadata": {}
     }))
     tags = []
-    primary_images = runner.workflow.tag_conf.primary_images
-    if not primary_images:
-        primary_images = [
-            ImageName.parse(primary) for primary in
-            runner.workflow.build_result.annotations['repositories']['primary']]
+    floating_images = runner.workflow.tag_conf.floating_images
+    if not floating_images:
+        floating_images = [
+            ImageName.parse(floating) for floating in
+            runner.workflow.build_result.annotations['repositories']['floating']]
 
-    for primary_image in primary_images:
-        tag = primary_image.tag
-        if '-' in tag:
-            continue
+    for floating_image in floating_images:
+        tag = floating_image.tag
         tags.append(tag)
 
     (flexmock(OSBS)
@@ -307,10 +306,8 @@ def test_import_image(tmpdir, import_image_tags, build_process_failed, namespace
     monkeypatch.setenv("BUILD", json.dumps(build_json))
 
     tags = []
-    for primary_image in runner.workflow.tag_conf.primary_images:
-        tag = primary_image.tag
-        if '-' in tag:
-            continue
+    for floating_image in runner.workflow.tag_conf.floating_images:
+        tag = floating_image.tag
         tags.append(tag)
 
     if build_process_failed:

@@ -218,14 +218,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
 
         if not primary_images:
             return
-
-        vr_image = None
-        for image in primary_images:
-            if '-' in image.tag:
-                vr_image = image
-                break
-        if not vr_image:
-            return
+        vr_image = primary_images[0]
 
         should_fail = False
         for registry_name, registry in self.registries.items():
