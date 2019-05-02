@@ -434,9 +434,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             return
 
         if arrangement_version <= 5:
-            # TODO: raise as ValueError in release 1.6.38+
-            self.log.warning("arrangement_version <= 5 is deprecated and will be removed"
-                             " in release 1.6.38")
+            raise ValueError('arrangement_version <= 5 is no longer supported')
 
     def get_current_builds(self, osbs):
         field_selector = ','.join(['status!={status}'.format(status=status.capitalize())

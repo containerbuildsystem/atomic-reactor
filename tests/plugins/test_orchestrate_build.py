@@ -1683,7 +1683,7 @@ def test_no_platforms(tmpdir):
 
 
 @pytest.mark.parametrize('version,warning,exception', (
-    (5, "arrangement_version <= 5 is deprecated and will be removed in release 1.6.38", None),
+    (5, None, PluginFailedException),
     (6, None, None),
 ))
 def test_orchestrate_build_validate_arrangements(tmpdir, caplog, version, warning, exception):
