@@ -145,8 +145,8 @@ class ODCSClient(object):
         :return: dict, updated status of compose.
         :raise RuntimeError: if state_name becomes 'failed'
         """
-        logger.debug("Getting compose information for information for compose_id={}"
-                     .format(compose_id))
+        logger.debug("Getting compose information for information for compose_id=%s",
+                     compose_id)
         url = '{}composes/{}'.format(self.url, compose_id)
         start_time = time.time()
         while True:
@@ -164,8 +164,8 @@ class ODCSClient(object):
                                    .format(compose_id, state_reason))
 
             if response_json['state_name'] not in ['wait', 'generating']:
-                logger.debug("Retrieved compose information for compose_id={}: {}"
-                             .format(compose_id, json.dumps(response_json, indent=4)))
+                logger.debug("Retrieved compose information for compose_id=%s: %s",
+                             compose_id, json.dumps(response_json, indent=4))
                 return response_json
 
             elapsed = time.time() - start_time
@@ -173,8 +173,8 @@ class ODCSClient(object):
                 raise RuntimeError("Retrieving %s timed out after %s seconds" %
                                    (url, timeout))
             else:
-                logger.debug("Retrying request compose_id={}, elapsed_time={}"
-                             .format(compose_id, elapsed))
+                logger.debug("Retrying request compose_id=%s, elapsed_time=%s",
+                             compose_id, elapsed)
 
                 if elapsed > burst_length:
                     time.sleep(slow_retry)
