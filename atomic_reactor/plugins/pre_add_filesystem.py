@@ -130,6 +130,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         self.architecture = architecture
         self.scratch = util.is_scratch_build()
         self.koji_target = koji_target
+        self.session = None
 
     def is_image_build_type(self, base_image):
         return base_image.strip().lower() == 'koji/image-build'

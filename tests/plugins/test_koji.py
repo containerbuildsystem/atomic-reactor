@@ -63,7 +63,9 @@ ROOT = "http://example.com"
 # ClientSession is xmlrpc instance, we need to mock it explicitly
 class MockedClientSession(object):
     def __init__(self, hub, opts=None):
-        pass
+        self.ca_path = None
+        self.cert_path = None
+        self.serverca_path = None
 
     def getBuildTarget(self, target):
         if target == KOJI_TARGET_BROKEN_TAG:

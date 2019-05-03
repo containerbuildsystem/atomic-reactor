@@ -43,6 +43,7 @@ class YumRepo(object):
         self.dst_repos_dir = dst_repos_dir
 
         self.content = content
+        self.config = None
 
     @property
     def filename(self):

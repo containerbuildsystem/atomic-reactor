@@ -22,14 +22,14 @@ if MOCK:
 
 
 class Y(object):
-    pass
+    def __init__(self):
+        self.dockerfile_path = None
+        self.path = None
 
 
 class X(object):
     image_id = INPUT_IMAGE
     source = Y()
-    source.dockerfile_path = None
-    source.path = None
     base_image = ImageName(repo="qwe", tag="asd")
     image = ImageName.parse("test-image:unique_tag_123")
 

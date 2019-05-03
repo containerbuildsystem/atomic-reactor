@@ -124,6 +124,7 @@ class KojiImportPlugin(ExitPlugin):
 
         self.osbs = get_openshift_session(self.workflow, self.openshift_fallback)
         self.build_id = None
+        self.session = None
 
     def get_output(self, worker_metadatas):
         """

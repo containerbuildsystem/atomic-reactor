@@ -30,7 +30,6 @@ disable=I,
         R,  # refactoring checks
         abstract-method,  # nice to have
         arguments-differ,  # nice to have
-        attribute-defined-outside-init,  # should be enabled
         bad-continuation,  # pep8
         bad-whitespace,  # pep8, nice to have
         broad-except,

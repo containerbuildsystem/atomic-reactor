@@ -36,13 +36,13 @@ class HideFilesPlugin(PreBuildPlugin):
         run the plugin
         """
         try:
-            self.hide_files = get_hide_files(self.workflow)
+            hide_files = get_hide_files(self.workflow)
         except KeyError:
             self.log.info("Skipping hide files: no files to hide")
             return
 
-        self._populate_start_file_lines()
-        self._populate_end_file_lines()
+        self._populate_start_file_lines(hide_files)
+        self._populate_end_file_lines(hide_files)
 
         self.dfp = df_parser(self.workflow.builder.df_path)
         stages = self._find_stages()
@@ -72,15 +72,15 @@ class HideFilesPlugin(PreBuildPlugin):
 
         return stages
 
-    def _populate_start_file_lines(self):
-        for file_to_hide in self.hide_files['files']:
+    def _populate_start_file_lines(self, hide_files):
+        for file_to_hide in hide_files['files']:
             self.start_lines.append('RUN mv -f {} {} || :'.format(file_to_hide,
-                                                                  self.hide_files['tmpdir']))
+                                                                  hide_files['tmpdir']))
 
-    def _populate_end_file_lines(self):
-        for file_to_hide in self.hide_files['files']:
+    def _populate_end_file_lines(self, hide_files):
+        for file_to_hide in hide_files['files']:
             file_base = os.path.basename(file_to_hide)
-            tmp_dest = os.path.join(self.hide_files['tmpdir'], file_base)
+            tmp_dest = os.path.join(hide_files['tmpdir'], file_base)
 
             self.end_lines.append('RUN mv -fZ {} {} || :'.format(tmp_dest, file_to_hide))
 

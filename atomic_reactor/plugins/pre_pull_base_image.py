@@ -71,12 +71,15 @@ class PullBaseImagePlugin(PreBuildPlugin):
             metadata = self.workflow.builder.parent_images_digests
             metadata.update(parent_images_digests)
 
+        self.manifest_list_cache = {}
+
     def run(self):
         """
         Pull parent images and retag them uniquely for this build.
         """
+        self.manifest_list_cache.clear()
+
         build_json = get_build_json()
-        self.manifest_list_cache = {}
         organization = get_registries_organization(self.workflow)
         digest_fetching_exceptions = []
         for nonce, parent in enumerate(sorted(self.workflow.builder.parent_images.keys(),

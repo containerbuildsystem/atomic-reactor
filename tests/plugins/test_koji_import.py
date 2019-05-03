@@ -102,6 +102,9 @@ class MockedClientSession(object):
         self.tag_task_state = self.task_states.pop()
         self.getLoggedInUser = lambda: {'name': 'osbs'}
 
+        self.blocksize = None
+        self.server_dir = None
+
     def krb_login(self, principal=None, keytab=None, proxyuser=None):
         return True
 
@@ -118,7 +121,9 @@ class MockedClientSession(object):
             self.uploaded_files[name] = fp.read()
 
     def CGImport(self, metadata, server_dir):
-        self.metadata = metadata
+        # metadata cannot be defined in __init__ because tests assume
+        # the attribute will not be defined unless this method is called
+        self.metadata = metadata    # pylint: disable=attribute-defined-outside-init
         self.server_dir = server_dir
         return {"id": "123"}
 
@@ -724,7 +729,8 @@ class TestKojiImport(object):
                                      reactor_config_map):
         session = MockedClientSession('')
         session.getTaskInfo = lambda x: {'owner': 1234}
-        session.getUser = lambda x: {'name': 'dev1'}
+        setattr(session, 'getUser', lambda x: {'name': 'dev1'})
+
         tasker, workflow = mock_environment(tmpdir,
                                             session=session,
                                             name='ns/name',
@@ -1396,7 +1402,8 @@ class TestKojiImport(object):
     def test_koji_import_owner_submitter(self, tmpdir, monkeypatch, reactor_config_map):  # noqa
         session = MockedClientSession('')
         session.getTaskInfo = lambda x: {'owner': 1234}
-        session.getUser = lambda x: {'name': 'dev1'}
+        setattr(session, 'getUser', lambda x: {'name': 'dev1'})
+
         tasker, workflow = mock_environment(tmpdir,
                                             session=session,
                                             name='ns/name',

@@ -138,6 +138,7 @@ class KojiPromotePlugin(ExitPlugin):
         self.osbs = get_openshift_session(self.workflow, self.openshift_fallback)
         self.build_id = None
         self.pullspec_image = None
+        self.koji_session = None
 
     def get_rpms(self):
         """

@@ -137,6 +137,10 @@ class MockedClientSession(object):
         self.task_states.reverse()
         self.tag_task_state = self.task_states.pop()
 
+        self.blocksize = None
+        self.metadata = None
+        self.server_dir = None
+
     def krb_login(self, principal=None, keytab=None, proxyuser=None):
         return True
 

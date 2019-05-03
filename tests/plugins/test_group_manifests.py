@@ -302,14 +302,14 @@ def mock_registries(registries, config, schema_version='v2', foreign_layers=Fals
 
 
 class Y(object):
-    pass
+    def __init__(self):
+        self.dockerfile_path = None
+        self.path = None
 
 
 class X(object):
     image_id = INPUT_IMAGE
     source = Y()
-    source.dockerfile_path = None
-    source.path = None
     base_image = ImageName(repo="qwe", tag="asd")
 
 

@@ -109,6 +109,7 @@ class CLI(object):
         self.build_parser = None
         self.bi_parser = None
         self.ib_parser = None
+        self.source_types_parsers = None
 
         locale.setlocale(locale.LC_ALL, '')
 

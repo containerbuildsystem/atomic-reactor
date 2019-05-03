@@ -81,6 +81,7 @@ class XBeforeDockerfile(object):
         self.base_image = None
         self.parent_images = {}
         self.base_from_scratch = False
+        self.df_dir = None
 
     def parent_images_to_str(self):
         return {}

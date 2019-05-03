@@ -37,6 +37,7 @@ class BuildManager(BuilderStateMachine):
         self.uri = build_args['source']['uri']
 
         self.temp_dir = None
+        self.build_container_id = None
         # build image after build
         self.buildroot_image_id = None
         self.buildroot_image_name = None
