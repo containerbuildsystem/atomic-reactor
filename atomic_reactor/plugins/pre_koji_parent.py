@@ -142,8 +142,8 @@ class KojiParentPlugin(PreBuildPlugin):
             raise ValueError(err_msg)
 
         expected_digest = koji_digest
-        self.log.info('Verifying manifest digest ({}) for parent {} against its '
-                      'koji reference ({})'.format(digest, image_str, expected_digest))
+        self.log.info('Verifying manifest digest (%s) for parent %s against its '
+                      'koji reference (%s)', digest, image_str, expected_digest)
         if not digest == expected_digest:
             err_msg = ('Manifest digest ({}) for parent image {} does not match value in its '
                        'koji reference ({}). This parent image MUST be rebuilt'

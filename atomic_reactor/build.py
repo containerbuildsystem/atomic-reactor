@@ -377,6 +377,6 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
             if base_image_name and parent_image_name:
                 results[base_str] = parent_str
             else:
-                logger.debug("None in: base {} has parent {}".format(base_str, parent_str))
+                logger.debug("None in: base %s has parent %s", base_str, parent_str)
 
         return results

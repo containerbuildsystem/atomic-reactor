@@ -850,7 +850,7 @@ def query_registry(registry_session, image, digest=None, version='v1', is_blob=F
 
     headers = {'Accept': (get_manifest_media_type(version))}
     url = '/v2/{}/{}/{}'.format(context, object_type, reference)
-    logger.debug("query_registry: querying {}, headers: {}".format(url, headers))
+    logger.debug("query_registry: querying %s, headers: %s", url, headers)
 
     response = registry_session.get(url, headers=headers)
     for r in chain(response.history, [response]):

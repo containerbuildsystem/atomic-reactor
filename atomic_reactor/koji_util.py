@@ -170,7 +170,7 @@ def stream_task_output(session, task_id, file_name,
     Generator to download file from task without loading the whole
     file into memory.
     """
-    logger.debug('Streaming {} from task {}'.format(file_name, task_id))
+    logger.debug('Streaming %s from task %s', file_name, task_id)
     offset = 0
     contents = '[PLACEHOLDER]'
     while contents:
@@ -180,7 +180,7 @@ def stream_task_output(session, task_id, file_name,
         if contents:
             yield contents
 
-    logger.debug('Finished streaming {} from task {}'.format(file_name, task_id))
+    logger.debug('Finished streaming %s from task %s', file_name, task_id)
 
 
 def tag_koji_build(session, build_id, target, poll_interval=5):
