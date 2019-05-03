@@ -96,6 +96,9 @@ class MockedClientSession(object):
         self.getLoggedInUser = lambda: {'name': SUBMITTER}
         self.getUser = lambda *_: {'name': None}
 
+        self.blocksize = None
+        self.server_dir = None
+
     def krb_login(self, principal=None, keytab=None, proxyuser=None):
         return True
 
@@ -111,7 +114,9 @@ class MockedClientSession(object):
         self.blocksize = blocksize
 
     def CGImport(self, metadata, server_dir):
-        self.metadata = metadata
+        # metadata cannot be defined in __init__ because tests assume
+        # the attribute will not be defined unless this method is called
+        self.metadata = metadata    # pylint: disable=attribute-defined-outside-init
         self.server_dir = server_dir
         return {"id": "123"}
 

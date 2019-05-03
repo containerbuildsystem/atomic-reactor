@@ -66,6 +66,7 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         :param workflow: DockerBuildWorkflow instance
         """
         super(FlatpakCreateOciPlugin, self).__init__(tasker, workflow)
+        self.builder = None
 
     def _export_container(self, container_id):
         export_generator = self.tasker.d.export(container_id)
@@ -91,11 +92,11 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
             self.tasker.d.remove_container(container_id)
 
     def run(self):
-        self.source = get_flatpak_source_info(self.workflow)
-        if self.source is None:
+        source = get_flatpak_source_info(self.workflow)
+        if source is None:
             raise RuntimeError("flatpak_create_dockerfile must be run before flatpak_create_oci")
 
-        self.builder = FlatpakBuilder(self.source, self.workflow.source.workdir,
+        self.builder = FlatpakBuilder(source, self.workflow.source.workdir,
                                       'var/tmp/flatpak-build',
                                       parse_manifest=parse_rpm_output)
 

@@ -64,6 +64,9 @@ class MockInsideBuilder(object):
 
 
 class TestSquashPlugin(object):
+    workflow = None
+    tasker = None
+    output_path = None
 
     def setup_method(self, method):
         if MOCK:

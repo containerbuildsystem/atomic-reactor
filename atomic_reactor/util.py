@@ -322,6 +322,7 @@ class LazyGit(object):
         # commit ID of HEAD; we'll figure this out ourselves
         self._commit_id = None
         self.provided_tmpdir = tmpdir
+        self.our_tmpdir = None
         self._git_path = None
         self._branch = branch
         self._git_depth = depth

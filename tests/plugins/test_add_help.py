@@ -26,14 +26,14 @@ from flexmock import flexmock
 
 
 class Y(object):
-    pass
+    def __init__(self):
+        self.dockerfile_path = None
+        self.path = None
 
 
 class X(object):
     image_id = "xxx"
     source = Y()
-    source.dockerfile_path = None
-    source.path = None
     base_image = ImageName(repo="qwe", tag="asd")
 
 

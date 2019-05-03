@@ -78,6 +78,7 @@ class MockBuilder(object):
     def __init__(self):
         self.image_id = "xxx"
         self.base_image = ImageName.parse("org.gnome.eog")
+        self.df_path = None
 
     def set_base_image(self, base_image):
         pass

@@ -217,7 +217,9 @@ class TestBumpRelease(object):
 
         class MockedClientSession(object):
             def __init__(self, hub, opts=None):
-                pass
+                self.ca_path = None
+                self.cert_path = None
+                self.serverca_path = None
 
             def getNextRelease(self, build_info):
                 assert build_info['name'] == list(component.values())[0]

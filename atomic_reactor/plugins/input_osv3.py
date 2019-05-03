@@ -45,6 +45,9 @@ class OSv3InputPlugin(InputPlugin):
         """
         # call parent constructor
         super(OSv3InputPlugin, self).__init__(**kwargs)
+        self.target_registry = None
+        self.reactor_env = None
+        self.plugins_json = None
 
     def validate_user_data(self, user_params):
         # make sure the input json is valid
@@ -184,7 +187,6 @@ class OSv3InputPlugin(InputPlugin):
         git_ref = os.environ.get('SOURCE_REF', None)
         image = os.environ['OUTPUT_IMAGE']
         self.target_registry = os.environ.get('OUTPUT_REGISTRY', None)
-        self.reactor_env = None
 
         git_commit_depth = None
         git_branch = None

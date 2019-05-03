@@ -148,6 +148,8 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         # arguments for build
         self.source = source
         self.base_image = None
+        self.base_image_insecure = None
+        self.base_image_dockercfg_path = None
         self.original_base_image = None
         self._base_image_inspect = None
         self.parents_pulled = False
