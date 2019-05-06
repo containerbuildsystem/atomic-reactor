@@ -171,6 +171,8 @@ hide_files:
     - /etc/yum.repos.d/repo_ignore_1.repo
     - /etc/yum.repos.d/repo_ignore_2.repo
 
+skip_koji_check_for_base_image: False
+
 clusters:
   foo:
    - name: blah

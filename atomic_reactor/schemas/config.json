@@ -441,6 +441,10 @@
         "description": "Proxy to access yum repositories",
         "type": "string"
     },
+    "skip_koji_check_for_base_image": {
+        "description": "Allow base image without related koji build (insecure)",
+        "type": "boolean"
+    },
     "hide_files": {
         "description": "Hide files during build for each stage",
         "type": "object",

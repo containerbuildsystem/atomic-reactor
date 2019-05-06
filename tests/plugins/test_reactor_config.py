@@ -513,7 +513,8 @@ class TestReactorConfigPlugin(object):
         'image_label_info_url_format', 'image_equal_labels',
         'openshift', 'group_manifests', 'platform_descriptors', 'prefer_schema1_digest',
         'content_versions', 'registries', 'yum_proxy', 'source_registry', 'sources_command',
-        'required_secrets', 'worker_token_secrets', 'clusters', 'hide_files'
+        'required_secrets', 'worker_token_secrets', 'clusters', 'hide_files',
+        'skip_koji_check_for_base_image'
     ])
     def test_get_methods(self, fallback, method):
         tasker, workflow = self.prepare()

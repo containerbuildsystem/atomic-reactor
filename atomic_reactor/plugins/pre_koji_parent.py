@@ -11,7 +11,9 @@ from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import (
     INSPECT_CONFIG, PLUGIN_KOJI_PARENT_KEY, BASE_IMAGE_KOJI_BUILD, PARENT_IMAGES_KOJI_BUILDS
 )
-from atomic_reactor.plugins.pre_reactor_config import get_koji_session
+from atomic_reactor.plugins.pre_reactor_config import (
+    get_koji_session, get_skip_koji_check_for_base_image
+)
 from atomic_reactor.util import base_image_is_custom, get_manifest_media_type
 from copy import copy
 from osbs.utils import Labels
@@ -103,8 +105,11 @@ class KojiParentPlugin(PreBuildPlugin):
             else:
                 err_msg = ('Could not get koji build info for parent image {}. '
                            'Was this image built in OSBS?'.format(img.to_str()))
-                self.log.error(err_msg)
-                raise RuntimeError(err_msg)
+                if get_skip_koji_check_for_base_image(self.workflow, fallback=False):
+                    self.log.warning(err_msg)
+                else:
+                    self.log.error(err_msg)
+                    raise RuntimeError(err_msg)
 
         if manifest_mismatches:
             raise RuntimeError('Error while comparing parent images manifest digests in koji with '
