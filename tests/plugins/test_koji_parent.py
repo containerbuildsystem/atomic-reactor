@@ -199,6 +199,7 @@ class TestKojiParent(object):
         assert 'KeyError' in str(exc_info.value)
         assert 'Config' in str(exc_info.value)
 
+    @pytest.mark.parametrize('external', [True, False])
     @pytest.mark.parametrize(('remove_labels', 'exp_result'), [  # noqa: F811
         (['com.redhat.component'], True),
         (['BZComponent'], True),
@@ -211,7 +212,7 @@ class TestKojiParent(object):
         (['release', 'Release'], False),
     ])
     def test_base_image_missing_labels(self, workflow, koji_session, remove_labels, exp_result,
-                                       reactor_config_map):
+                                       reactor_config_map, external, caplog):
         base_tag = ImageName.parse('base:stubDigest')
         workflow.builder.base_image_inspect[INSPECT_CONFIG]['Labels'] =\
             BASE_IMAGE_LABELS_W_ALIASES.copy()
@@ -221,10 +222,18 @@ class TestKojiParent(object):
             del workflow.builder.base_image_inspect[INSPECT_CONFIG]['Labels'][label]
             del workflow.builder._parent_images_inspect[base_tag][INSPECT_CONFIG]['Labels'][label]
         if not exp_result:
-            with pytest.raises(PluginFailedException) as exc:
-                self.run_plugin_with_args(workflow, expect_result=exp_result,
-                                          reactor_config_map=reactor_config_map)
-            assert 'Was this image built in OSBS?' in str(exc)
+            if not (external and reactor_config_map):
+                with pytest.raises(PluginFailedException) as exc:
+                    self.run_plugin_with_args(workflow, expect_result=exp_result,
+                                              reactor_config_map=reactor_config_map,
+                                              external_base=external)
+                assert 'Was this image built in OSBS?' in str(exc)
+            else:
+                result = {PARENT_IMAGES_KOJI_BUILDS: {ImageName.parse('base'): None}}
+                self.run_plugin_with_args(workflow, expect_result=result,
+                                          reactor_config_map=reactor_config_map,
+                                          external_base=external)
+                assert 'Was this image built in OSBS?' in caplog.text
         else:
             self.run_plugin_with_args(workflow, expect_result=exp_result,
                                       reactor_config_map=reactor_config_map)
@@ -329,7 +338,7 @@ class TestKojiParent(object):
         assert 'Unexpected parent image digest data' in str(exc_info)
 
     def run_plugin_with_args(self, workflow, plugin_args=None, expect_result=True,  # noqa
-                             reactor_config_map=False):
+                             reactor_config_map=False, external_base=False):
         plugin_args = plugin_args or {}
         plugin_args.setdefault('koji_hub', KOJI_HUB)
         plugin_args.setdefault('poll_interval', 0.01)
@@ -346,7 +355,8 @@ class TestKojiParent(object):
                 koji_map['auth']['ssl_certs_dir'] = plugin_args['koji_ssl_certs_dir']
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig({'version': 1, 'koji': koji_map})
+                ReactorConfig({'version': 1, 'koji': koji_map,
+                               'skip_koji_check_for_base_image': external_base})
 
         runner = PreBuildPluginsRunner(
             workflow.builder.tasker,

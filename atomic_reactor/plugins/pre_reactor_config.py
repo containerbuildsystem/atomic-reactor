@@ -364,6 +364,10 @@ def get_hide_files(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'hide_files', fallback)
 
 
+def get_skip_koji_check_for_base_image(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'skip_koji_check_for_base_image', fallback)
+
+
 class ClusterConfig(object):
     """
     Configuration relating to a particular cluster
