@@ -17,7 +17,7 @@ for dir in ${EXTRA_MOUNT:-}; do
 done
 
 CONTAINER_NAME="atomic-reactor-$OS-$OS_VERSION-py$PYTHON_VERSION"
-RUN="docker exec -ti $CONTAINER_NAME"
+RUN="docker exec -i $CONTAINER_NAME"
 if [[ $OS == "fedora" ]]; then
   PIP_PKG="python$PYTHON_VERSION-pip"
   PIP="pip$PYTHON_VERSION"
