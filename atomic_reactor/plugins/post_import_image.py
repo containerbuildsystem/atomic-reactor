@@ -74,7 +74,8 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
 
         self.floating_images = get_floating_images(self.workflow)
         if not self.floating_images:
-            raise RuntimeError('Could not find floating images in workflow')
+            self.log.info('No floating tags to import, skipping import_image')
+            return
 
         self.resolve_docker_image_repo()
 

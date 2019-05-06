@@ -152,7 +152,7 @@ def prepare(tmpdir, insecure_registry=None, namespace=None,
     return runner
 
 
-def test_bad_setup(tmpdir, monkeypatch, reactor_config_map):  # noqa
+def test_bad_setup(tmpdir, caplog, monkeypatch, reactor_config_map):  # noqa
     """
     Try all the early-fail paths.
     """
@@ -172,8 +172,8 @@ def test_bad_setup(tmpdir, monkeypatch, reactor_config_map):  # noqa
 
     # No build JSON
     monkeypatch.delenv("BUILD", raising=False)
-    with pytest.raises(PluginFailedException):
-        runner.run()
+    runner.run()
+    assert 'No floating tags to import, skipping import_image' in caplog.text
 
 
 @pytest.mark.parametrize(('insecure_registry'), [None, False, True])

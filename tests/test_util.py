@@ -1022,6 +1022,7 @@ def test_label_formatter(labels, test_string, expected):
     ([], ['spam', 'bacon-toast'], ['bacon-toast'], ['spam']),
 
     (['spam', 'bacon'], ['ignored', 'scorned'], [], ['spam', 'bacon']),
+    (['spam-bacon'], [], ['spam-bacon'], []),
 ))
 def test_get_primary_and_floating_images(tag_conf, tag_annotation, expected_primary,
                                          expected_floating):
