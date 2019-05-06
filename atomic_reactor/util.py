@@ -1369,9 +1369,9 @@ def get_primary_images(workflow):
 def get_floating_images(workflow):
     floating_images = workflow.tag_conf.floating_images
     if not floating_images:
-        floating_images = [
-            ImageName.parse(floating) for floating in
-            workflow.build_result.annotations['repositories']['floating']]
+        floating_results = workflow.build_result.annotations['repositories'].get('floating', [])
+        if floating_results:
+            floating_images = [ImageName.parse(floating) for floating in floating_results]
 
     return floating_images
 
