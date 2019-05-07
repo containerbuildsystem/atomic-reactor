@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -131,7 +131,7 @@ class ODCSClient(object):
                          burst_retry=1,
                          burst_length=30,
                          slow_retry=10,
-                         timeout=1800):
+                         timeout=3600):
         """Wait for compose request to finalize
 
         :param compose_id: int, compose ID to wait for
