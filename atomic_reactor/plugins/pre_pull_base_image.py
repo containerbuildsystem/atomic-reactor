@@ -17,18 +17,17 @@ this build so that it isn't removed by other builds doing clean-up.
 from __future__ import unicode_literals, absolute_import
 
 import docker
+import platform
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (get_build_json, get_manifest_list,
                                  get_config_from_registry, ImageName,
-                                 get_platforms, base_image_is_custom,
-                                 get_checksums, get_manifest_media_type,
-                                 get_all_manifests)
+                                 get_platforms, base_image_is_custom)
 from atomic_reactor.core import RetryGeneratorException
 from atomic_reactor.plugins.pre_reactor_config import (get_source_registry,
                                                        get_platform_to_goarch_mapping,
+                                                       get_goarch_to_platform_mapping,
                                                        get_registries_organization)
-from io import BytesIO
 from requests.exceptions import HTTPError, RetryError, Timeout
 from osbs.utils import RegistryURI
 
@@ -48,7 +47,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
         :param parent_registry_insecure: allow connecting to the registry over plain http
         :param check_platforms: validate parent images provide all platforms expected for the build
         :param inspect_only: bool, if set to True, base images will not be pulled
-        :param parent_images_digests: dict, parent images manifest digests
+        :param parent_images_digests: dict, parent images digests for all platforms
         """
         # call parent constructor
         super(PullBaseImagePlugin, self).__init__(tasker, workflow)
@@ -68,17 +67,17 @@ class PullBaseImagePlugin(PreBuildPlugin):
             self.parent_registry_insecure = False
             self.parent_registry_dockercfg_path = None
         if parent_images_digests:
-            metadata = self.workflow.builder.parent_images_digests
-            metadata.update(parent_images_digests)
+            self._load_parent_images_digests(parent_images_digests)
 
     def run(self):
         """
         Pull parent images and retag them uniquely for this build.
         """
         build_json = get_build_json()
+        current_platform = platform.processor() or 'x86_64'
         self.manifest_list_cache = {}
         organization = get_registries_organization(self.workflow)
-        digest_fetching_exceptions = []
+
         for nonce, parent in enumerate(sorted(self.workflow.builder.parent_images.keys(),
                                               key=str)):
             if base_image_is_custom(parent.to_str()):
@@ -100,80 +99,122 @@ class PullBaseImagePlugin(PreBuildPlugin):
             if self.check_platforms:
                 # run only at orchestrator
                 self._validate_platforms_in_image(image)
-                try:
-                    self._store_manifest_digest(image)
-                except RuntimeError as exc:
-                    digest_fetching_exceptions.append(exc)
+                self._collect_image_digests(image)
 
-            image_with_digest = self._get_image_with_digest(image)
+            # try to stay with digests
+            image_with_digest = self._get_image_with_digest(image, current_platform)
             if image_with_digest is None:
-                self.log.warning("Cannot resolve manifest digest for image '%s'", image)
+                self.log.warning("Cannot resolve platform '%s' specific digest for image '%s'",
+                                 current_platform, image)
             else:
                 self.log.info("Replacing image '%s' with '%s'", image, image_with_digest)
                 image = image_with_digest
 
-            if not self.inspect_only:
-                image = self._pull_and_tag_image(image, build_json, str(nonce))
+            if self.check_platforms:
+                new_arch_image = self._get_image_for_different_arch(image, current_platform)
+                if new_arch_image:
+                    image = new_arch_image
+
+            if self.inspect_only:
+                new_image = image
+            else:
+                new_image = self._pull_and_tag_image(image, build_json, str(nonce))
             self.workflow.builder.recreate_parent_images()
-            self.workflow.builder.parent_images[parent] = image
+            self.workflow.builder.parent_images[parent] = new_image
 
             if is_base_image:
                 if organization:
                     # we want to be sure we have original_base_image enclosed as well
                     self.workflow.builder.original_base_image.enclose(organization)
                 self.workflow.builder.set_base_image(
-                    str(image), insecure=self.parent_registry_insecure,
+                    str(new_image), insecure=self.parent_registry_insecure,
                     dockercfg_path=self.parent_registry_dockercfg_path
                 )
-
-        if digest_fetching_exceptions:
-            raise RuntimeError('Error when extracting parent images manifest digests: {}'
-                               .format(digest_fetching_exceptions))
         self.workflow.builder.parents_pulled = not self.inspect_only
         self.workflow.builder.base_image_insecure = self.parent_registry_insecure
 
-    def _get_image_with_digest(self, image):
-        image_str = image.to_str()
+    def _get_image_with_digest(self, image, platform):
+        parents_digests = self.workflow.builder.parent_images_digests
+
         try:
-            image_metadata = self.workflow.builder.parent_images_digests[image_str]
+            new_image = ImageName.parse(parents_digests.get_image_platform_digest(image, platform))
         except KeyError:
             return None
 
-        v2_list_type = get_manifest_media_type('v2_list')
-        v2_type = get_manifest_media_type('v2')
-        raw_digest = image_metadata.get(v2_list_type) or image_metadata.get(v2_type)
-        if not raw_digest:
+        return new_image
+
+    def _load_parent_images_digests(self, images_digests):
+        assert isinstance(images_digests, dict)
+        parents_digests = self.workflow.builder.parent_images_digests
+        parents_digests.update_from_dict(images_digests)
+
+    def _collect_image_digests(self, image):
+        parents_digests = self.workflow.builder.parent_images_digests
+
+        if image in parents_digests:
+            # we already have recorded digests for the image, keep it the same
+            # to prevent race conditions at workers
+            return
+
+        manifest_list = self._get_manifest_list(image)
+
+        if not manifest_list:
+            self.log.warning(
+                "Empty manifest list for image %s. Collected image digests will be "
+                "incomplete and may cause race conditions during build", image
+            )
+            return
+
+        manifest_list_dict = manifest_list.json()
+
+        try:
+            arch_to_platform = get_goarch_to_platform_mapping(self.workflow)
+        except KeyError:
+            self.log.warning('Cannot collect platforms digests for parent images '
+                             'because platform descriptors are not defined')
+            return
+
+        for manifest in manifest_list_dict['manifests']:
+            arch = manifest['platform']['architecture']
+            try:
+                present_platform = arch_to_platform[arch]
+            except KeyError:
+                self.log.warning("Cannot map architecture='{}' to platform".format(arch))
+                continue
+            else:
+                digest = manifest['digest']
+                self.log.info("Collecting digest for image '%s' ('%s'): '%s'",
+                              image, present_platform, digest)
+                parents_digests.update_image_digest(
+                    image, present_platform, digest
+                )
+
+    def _get_image_for_different_arch(self, image, platform):
+        """Get image from random arch
+
+        This is a workaround for aarch64 platform, because orchestrator cannot
+        get this arch from manifests lists so we have to provide digest of a
+        random platform to get image metadata for orchestrator.
+
+        For standard platforms like x86_64, ppc64le, ... this method returns
+        the corresponding digest
+
+        """
+        parents_digests = self.workflow.builder.parent_images_digests
+        try:
+            digests = parents_digests.get_image_digests(image)
+        except KeyError:
             return None
 
-        digest = raw_digest.split(':', 1)[1]
-        image_name = image.to_str(tag=False)
-        new_image = '{}@sha256:{}'.format(image_name, digest)
-        return ImageName.parse(new_image)
+        if not digests:
+            return None
+        platform_digest = digests.get(platform)
+        if platform_digest is None:
+            # exact match is not found, get random platform
+            platform_digest = tuple(digests.values())[0]
 
-    def _store_manifest_digest(self, image):
-        """Store media type and digest for manifest list or v2 schema 2 manifest digest"""
-        image_str = image.to_str()
-        manifest_list = self._get_manifest_list(image)
-        if manifest_list:
-            digest_dict = get_checksums(BytesIO(manifest_list.content), ['sha256'])
-            media_type = get_manifest_media_type('v2_list')
-        else:
-            digests_dict = get_all_manifests(image, image.registry,
-                                             self.parent_registry_insecure,
-                                             self.parent_registry_dockercfg_path,
-                                             versions=('v2',))
-            media_type = get_manifest_media_type('v2')
-            try:
-                manifest_digest_response = digests_dict['v2']
-            except KeyError:
-                raise RuntimeError('Could not extract manifest list or '
-                                   'v2 schema 2 digest for {}'.format(image_str))
-
-            digest_dict = get_checksums(BytesIO(manifest_digest_response.content), ['sha256'])
-
-        manifest_digest = 'sha256:{}'.format(digest_dict['sha256sum'])
-        parent_digests = {media_type: manifest_digest}
-        self.workflow.builder.parent_images_digests[image_str] = parent_digests
+        new_image = ImageName.parse(platform_digest)
+        return new_image
 
     def _resolve_base_image(self, build_json):
         """If this is an auto-rebuild, adjust the base image to use the triggering build"""
@@ -303,6 +344,10 @@ class PullBaseImagePlugin(PreBuildPlugin):
             self.log.info('Skipping validation of available platforms '
                           'because expected platforms are unknown')
             return
+        if len(expected_platforms) == 1:
+            self.log.info('Skipping validation of available platforms for base image '
+                          'because this is a single platform build')
+            return
 
         if not image.registry:
             self.log.info('Cannot validate available platforms for base image '
@@ -319,13 +364,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
         manifest_list = self._get_manifest_list(image)
 
         if not manifest_list:
-            if len(expected_platforms) == 1:
-                self.log.warning('Skipping validation of available platforms for base image: '
-                                 'this is a single platform build and base image has no manifest '
-                                 'list')
-                return
-            else:
-                raise RuntimeError('Unable to fetch manifest list for base image')
+            raise RuntimeError('Unable to fetch manifest list for base image')
 
         all_manifests = manifest_list.json()['manifests']
         manifest_list_arches = set(

@@ -21,10 +21,9 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY)
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
-from atomic_reactor.util import ImageName, df_parser
+from atomic_reactor.util import ImageName, df_parser, DigestCollector
 import atomic_reactor.util
-from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY,
-                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from flexmock import flexmock
 from multiprocessing.pool import AsyncResult
 from osbs.api import OSBS
@@ -91,7 +90,7 @@ class MockInsideBuilder(object):
         self.image = INPUT_IMAGE
         self.df_path = 'df_path'
         self.df_dir = 'df_dir'
-        self.parent_images_digests = {}
+        self.parent_images_digests = DigestCollector()
 
         def simplegen(x, y):
             yield "some\u2018".encode('utf-8')
@@ -1717,17 +1716,16 @@ def test_orchestrate_build_validate_arrangements(tmpdir, caplog, version, warnin
 
 
 def test_parent_images_digests(tmpdir, caplog):
-    """Test if manifest digests and media types of parent images are propagated
-    correctly to OSBS client"""
-    media_type = 'application/vnd.docker.distribution.manifest.list.v2+json'
-    PARENT_IMAGES_DIGESTS = {
+    """Test if digests of parent images are propagated correctly to OSBS
+    client"""
+    PARENT_IMAGES_DATA = {
         'registry.fedoraproject.org/fedora:latest': {
-            media_type: 'sha256:123456789abcdef',
+            'x86_64': 'registry.fedoraproject.org/fedora@sha256:123456789abcdef'
         }
     }
 
     workflow = mock_workflow(tmpdir, platforms=['x86_64'])
-    workflow.builder.parent_images_digests.update(PARENT_IMAGES_DIGESTS)
+    workflow.builder.parent_images_digests.update_from_dict(PARENT_IMAGES_DATA)
     expected_kwargs = {
         'git_uri': SOURCE['uri'],
         'git_ref': 'master',
@@ -1737,7 +1735,7 @@ def test_parent_images_digests(tmpdir, caplog):
         'platform': 'x86_64',
         'release': '10',
         'arrangement_version': 6,
-        'parent_images_digests': PARENT_IMAGES_DIGESTS,
+        'parent_images_digests': PARENT_IMAGES_DATA,
         'operator_manifests_extract_platform': 'x86_64',
     }
 
