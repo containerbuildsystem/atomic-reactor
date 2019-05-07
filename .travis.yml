@@ -33,7 +33,7 @@ env:
 install:
   - pip install coveralls
 script:
-  - travis_wait ./test.sh
+  - ./test.sh
 after_success: coveralls
 notifications:
   email: false
