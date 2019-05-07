@@ -35,7 +35,9 @@ The `koji_tag_build` exit plugin is used to tag the imported koji build based on
 
 # Type-specific build metadata
 
-For atomic-reactor container image builds the `image` type is used, and so type-specific information is placed into the `build.extra.image` map. Note that this does not use `build.extra.typeinfo.image` -- the `typeinfo` element was introduced after the `image` type started to be used.
+For atomic-reactor container image builds the `image` type is used, and so type-specific information is placed into the `build.extra.image` map. Note that this
+is a legacy type in koji and may be changed to use `build.extra.typeinfo.image`. Clients fetching such data should first look for it within `build.extra.typeinfo.image`
+and fall back to `build.extra.image` when the former is not available.
 
 Data which is placed here includes:
 
@@ -60,7 +62,7 @@ Data which is placed here includes:
 - `build.owner` (string or null): username that started the task
 - `build.extra.image.go` (map): information about container first Go modules
 - `build.extra.image.go.modules` (map list): entries with Go modules information
-- `build.extra.operator_manifests_archive` (string): name of the archive containing operator manifest files
+- `build.extra.operator_manifests_archive` (string): name of the archive containing operator manifest files. Included here for legacy reasons. `build.extra.typeinfo.operator-manifests.archive` should be preferred
 
 The index map has these entries:
 
@@ -73,6 +75,13 @@ The `build.extra.image.go.modules` entries are maps composed of the following en
 - `module` (str): module name for the top-level Go language package to be built, as in `example.com/go/packagename`
 - `archive` (str): possibly-compressed archive containing full source code including dependencies
 - `path` (str): path to directory containing source code (or its parent), possibly within archive
+
+For operator builds, the operator manifests metadata is placed in `build.extra.typeinfo.operator-manifests`. If this is present, the data in `build.extra.image` will also
+be appended into `build.extra.typeinfo.image` by koji.
+
+Data which is placed here includes:
+
+- `build.extra.typeinfo.operator-manifests.archive` (string): name of the archive containing operator manifest files
 
 # Type-specific buildroot metadata:
 
