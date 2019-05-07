@@ -1210,7 +1210,7 @@ class TestKojiUpload(object):
     @pytest.mark.parametrize('has_operator_manifests', [False, True])
     def test_koji_upload_operator_manifests(self, tmpdir, monkeypatch, os_env,
                                             reactor_config_map, has_operator_manifests):
-        MockedOSBS()
+        server = MockedOSBS()
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir, session=session,
                                             name='name', version='1.0', release='1')
@@ -1226,8 +1226,18 @@ class TestKojiUpload(object):
         runner = create_runner(tasker, workflow, platform='x86_64',
                                reactor_config_map=reactor_config_map)
         runner.run()
+        data_list = list(server.configmap.values())
+        if data_list:
+            data = data_list[0]
+        else:
+            raise RuntimeError("no configmap found")
 
         if has_operator_manifests:
+            outputs = data['metadata.json']['output']
+            operator_output = [op for op in outputs if op['type'] == 'operator-manifests']
+            assert len(operator_output) == 1
+            assert operator_output[0]['filename'] == OPERATOR_MANIFESTS_ARCHIVE
+
             assert OPERATOR_MANIFESTS_ARCHIVE in session.uploaded_files
         else:
             assert OPERATOR_MANIFESTS_ARCHIVE not in session.uploaded_files

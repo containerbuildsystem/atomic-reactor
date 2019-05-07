@@ -459,8 +459,16 @@ class KojiUploadPlugin(PostBuildPlugin):
                                                           OPERATOR_MANIFESTS_ARCHIVE)
             operator_manifests_output = Output(file=operator_manifests_file,
                                                metadata=manifests_metadata)
-            # We use log type here until a more appropriate type name is supported by koji
-            operator_manifests_output.metadata.update({'arch': arch, 'type': 'log'})
+            operator_manifests_output.metadata.update({
+                'type': 'operator-manifests',
+                'extra': {
+                    'typeinfo': {
+                        'operator-manifests': {
+                        },
+                    },
+                },
+            })
+
             operator_manifests = add_buildroot_id(operator_manifests_output)
             output_files.append(operator_manifests)
 

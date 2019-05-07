@@ -227,6 +227,12 @@ class KojiImportPlugin(ExitPlugin):
             for output in metadata['output']:
                 if output.get('filename') == OPERATOR_MANIFESTS_ARCHIVE:
                     extra['operator_manifests_archive'] = OPERATOR_MANIFESTS_ARCHIVE
+                    operators_typeinfo = {
+                        'operator-manifests': {
+                            'archive': OPERATOR_MANIFESTS_ARCHIVE,
+                        },
+                    }
+                    extra.update({'typeinfo': operators_typeinfo})
                     break
 
     def remove_unavailable_manifest_digests(self, worker_metadatas):

@@ -2125,5 +2125,11 @@ class TestKojiImport(object):
             operator_manifests = extra['operator_manifests_archive']
             assert isinstance(operator_manifests, str)
             assert operator_manifests == OPERATOR_MANIFESTS_ARCHIVE
+            assert 'typeinfo' in extra
+            assert 'operator-manifests' in extra['typeinfo']
+            operator_typeinfo = extra['typeinfo']['operator-manifests']
+            assert isinstance(operator_typeinfo, dict)
+            assert operator_typeinfo['archive'] == OPERATOR_MANIFESTS_ARCHIVE
         else:
             assert 'operator_manifests_archive' not in extra
+            assert 'typeinfo' not in extra
