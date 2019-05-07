@@ -36,7 +36,7 @@ from atomic_reactor.plugins.pre_koji_parent import KojiParentPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from atomic_reactor.util import ImageName, get_manifest_media_type
+from atomic_reactor.util import ImageName
 from atomic_reactor.constants import SCRATCH_FROM
 from flexmock import flexmock
 from tests.constants import MOCK, MOCK_SOURCE
@@ -55,13 +55,9 @@ KOJI_BUILD_NVR = 'base-image-1.0-99'
 
 KOJI_STATE_COMPLETE = koji.BUILD_STATES['COMPLETE']
 
-V2_LIST = get_manifest_media_type('v2_list')
-KOJI_EXTRA = {'image': {'index': {'digests': {V2_LIST: 'stubDigest'}}}}
-
 KOJI_STATE_DELETED = koji.BUILD_STATES['DELETED']
 
-KOJI_BUILD = {'nvr': KOJI_BUILD_NVR, 'id': KOJI_BUILD_ID, 'state': KOJI_STATE_COMPLETE,
-              'extra': KOJI_EXTRA}
+KOJI_BUILD = {'nvr': KOJI_BUILD_NVR, 'id': KOJI_BUILD_ID, 'state': KOJI_STATE_COMPLETE}
 
 DELETED_KOJI_BUILD = {'nvr': KOJI_BUILD_NVR, 'id': KOJI_BUILD_ID, 'state': KOJI_STATE_DELETED}
 
@@ -88,10 +84,8 @@ class MockInsideBuilder(InsideBuilder):
         self.original_base_image = ImageName(repo='Fedora', tag='22')
         self.base_from_scratch = False
         self.custom_base_image = False
-        self.parent_images = {ImageName.parse('base'): ImageName.parse('base:stubDigest')}
-        base_inspect = {INSPECT_CONFIG: {'Labels': BASE_IMAGE_LABELS.copy()}}
-        self._parent_images_inspect = {ImageName.parse('base:stubDigest'): base_inspect}
-        self.parent_images_digests = {'base:latest': {V2_LIST: 'stubDigest'}}
+        self.parent_images = {}  # don't want to handle inspections in most tests
+        self._parent_images_inspect = {}
         self.image_id = 'image_id'
         self.image = 'image'
         self._df_path = 'df_path'
@@ -130,16 +124,6 @@ class TestKojiParent(object):
 
     def test_koji_build_found(self, workflow, koji_session, reactor_config_map):  # noqa
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
-
-    def test_koji_build_no_extra(self, workflow, koji_session, reactor_config_map):  # noqa
-        koji_no_extra = {'nvr': KOJI_BUILD_NVR, 'id': KOJI_BUILD_ID, 'state': KOJI_STATE_COMPLETE}
-        (flexmock(koji_session)
-            .should_receive('getBuild')
-            .with_args(KOJI_BUILD_NVR)
-            .and_return(koji_no_extra))
-        with pytest.raises(PluginFailedException) as exc_info:
-            self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
-        assert 'does not have manifest digest data' in str(exc_info)
 
     def test_koji_build_retry(self, workflow, koji_session, reactor_config_map):  # noqa
         (flexmock(koji_session)
@@ -212,56 +196,25 @@ class TestKojiParent(object):
     ])
     def test_base_image_missing_labels(self, workflow, koji_session, remove_labels, exp_result,
                                        reactor_config_map):
-        base_tag = ImageName.parse('base:stubDigest')
         workflow.builder.base_image_inspect[INSPECT_CONFIG]['Labels'] =\
-            BASE_IMAGE_LABELS_W_ALIASES.copy()
-        workflow.builder._parent_images_inspect[base_tag][INSPECT_CONFIG]['Labels'] =\
             BASE_IMAGE_LABELS_W_ALIASES.copy()
         for label in remove_labels:
             del workflow.builder.base_image_inspect[INSPECT_CONFIG]['Labels'][label]
-            del workflow.builder._parent_images_inspect[base_tag][INSPECT_CONFIG]['Labels'][label]
-        if not exp_result:
-            with pytest.raises(PluginFailedException) as exc:
-                self.run_plugin_with_args(workflow, expect_result=exp_result,
-                                          reactor_config_map=reactor_config_map)
-            assert 'Was this image built in OSBS?' in str(exc)
-        else:
-            self.run_plugin_with_args(workflow, expect_result=exp_result,
-                                      reactor_config_map=reactor_config_map)
+        self.run_plugin_with_args(workflow, expect_result=exp_result,
+                                  reactor_config_map=reactor_config_map)
 
-    @pytest.mark.parametrize('media_version', ['v2_list', 'v2'])
-    @pytest.mark.parametrize('parent_tags', [
-                             ['miss', 'stubDigest', 'stubDigest'],
-                             ['stubDigest', 'miss', 'stubDigest'],
-                             ['stubDigest', 'stubDigest', 'miss'],
-                             ['miss', 'miss', 'miss'],
-                             ['stubDigest', 'stubDigest', 'stubDigest']])
     @pytest.mark.parametrize('special_base', [False, 'scratch', 'custom'])  # noqa: F811
     def test_multiple_parent_images(self, workflow, koji_session, reactor_config_map,
-                                    special_base, parent_tags, media_version):
+                                    special_base):
         parent_images = {
-            ImageName.parse('somebuilder'): ImageName.parse('somebuilder:{}'
-                                                            .format(parent_tags[0])),
-            ImageName.parse('otherbuilder'): ImageName.parse('otherbuilder:{}'
-                                                             .format(parent_tags[1])),
-            ImageName.parse('base'): ImageName.parse('base:{}'.format(parent_tags[2])),
+            ImageName.parse('somebuilder'): ImageName.parse('b1tag'),
+            ImageName.parse('otherbuilder'): ImageName.parse('b2tag'),
+            ImageName.parse('base'): ImageName.parse('basetag'),
         }
-        media_type = get_manifest_media_type(media_version)
-        workflow.builder.parent_images_digests = {}
-        for parent in parent_images:
-            dgst = parent_images[parent].tag
-            workflow.builder.parent_images_digests[parent.to_str()] = {media_type: dgst}
-        extra = {'image': {'index': {'digests': {media_type: 'stubDigest'}}}}
         koji_builds = dict(
-            somebuilder=dict(nvr='somebuilder-1.0-1',
-                             id=42,
-                             state=KOJI_STATE_COMPLETE,
-                             extra=extra),
-            otherbuilder=dict(nvr='otherbuilder-2.0-1',
-                              id=43,
-                              state=KOJI_STATE_COMPLETE,
-                              extra=extra),
-            base=dict(nvr=KOJI_BUILD_NVR, id=KOJI_BUILD_ID, state=KOJI_STATE_COMPLETE, extra=extra),
+            somebuilder=dict(nvr='somebuilder-1.0-1', id=42, state=KOJI_STATE_COMPLETE),
+            otherbuilder=dict(nvr='otherbuilder-2.0-1', id=43, state=KOJI_STATE_COMPLETE),
+            base=dict(nvr='base-16.0-1', id=16, state=KOJI_STATE_COMPLETE),
             unresolved=None,
         )
         image_inspects = {}
@@ -271,7 +224,7 @@ class TestKojiParent(object):
         for img, build in koji_builds.items():
             if build is None:
                 continue
-            name, version, release = koji_builds[img]['nvr'].rsplit('-', 2)
+            name, version, release = koji_builds[img]['nvr'].split('-')
             labels = {'com.redhat.component': name, 'version': version, 'release': release}
             image_inspects[img] = {INSPECT_CONFIG: dict(Labels=labels)}
             (workflow.builder.tasker
@@ -300,33 +253,9 @@ class TestKojiParent(object):
         if special_base:
             del expected[BASE_IMAGE_KOJI_BUILD]
 
-        if 'miss' in parent_tags:
-            with pytest.raises(PluginFailedException) as exc:
-                self.run_plugin_with_args(
-                    workflow, expect_result=expected, reactor_config_map=reactor_config_map
-                )
-            errors = []
-            error_msg = ('Manifest digest (miss) for parent image {}:latest does not match value '
-                         'in its koji reference (stubDigest). This parent image MUST be rebuilt')
-            if parent_tags[0] == 'miss':
-                errors.append(error_msg.format('somebuilder'))
-            if parent_tags[1] == 'miss':
-                errors.append(error_msg.format('otherbuilder'))
-            if parent_tags[2] == 'miss':
-                errors.append(error_msg.format('base'))
-            assert 'This parent image MUST be rebuilt' in str(exc)
-            for e in errors:
-                assert e in str(exc)
-        else:
-            self.run_plugin_with_args(
-                workflow, expect_result=expected, reactor_config_map=reactor_config_map
-            )
-
-    def test_unexpected_digest_data(self, workflow, koji_session, reactor_config_map):  # noqa
-        workflow.builder.parent_images_digests = {'base:latest': {'unexpected_type': 'stubDigest'}}
-        with pytest.raises(PluginFailedException) as exc_info:
-            self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
-        assert 'Unexpected parent image digest data' in str(exc_info)
+        self.run_plugin_with_args(
+            workflow, expect_result=expected, reactor_config_map=reactor_config_map
+        )
 
     def run_plugin_with_args(self, workflow, plugin_args=None, expect_result=True,  # noqa
                              reactor_config_map=False):
@@ -356,9 +285,7 @@ class TestKojiParent(object):
 
         result = runner.run()
         if expect_result is True:
-            expected_result = {BASE_IMAGE_KOJI_BUILD: KOJI_BUILD,
-                               PARENT_IMAGES_KOJI_BUILDS: {
-                                   ImageName.parse('base:latest'): KOJI_BUILD}}
+            expected_result = {BASE_IMAGE_KOJI_BUILD: KOJI_BUILD}
         elif expect_result is False:
             expected_result = None
         else:  # param provided the expected result
