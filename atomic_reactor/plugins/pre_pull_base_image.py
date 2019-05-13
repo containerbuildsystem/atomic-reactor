@@ -86,9 +86,11 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
             image = parent
             is_base_image = False
+            use_original_tag = False
             # original_base_image is an ImageName, so compare parent as an ImageName also
             if image == self.workflow.builder.original_base_image:
                 is_base_image = True
+                use_original_tag = True
                 image = self._resolve_base_image(build_json)
 
             image = self._ensure_image_registry(image)
@@ -101,7 +103,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
                 # run only at orchestrator
                 self._validate_platforms_in_image(image)
                 try:
-                    self._store_manifest_digest(image)
+                    self._store_manifest_digest(image, use_original_tag=use_original_tag)
                 except RuntimeError as exc:
                     digest_fetching_exceptions.append(exc)
 
@@ -150,7 +152,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
         new_image = '{}@sha256:{}'.format(image_name, digest)
         return ImageName.parse(new_image)
 
-    def _store_manifest_digest(self, image):
+    def _store_manifest_digest(self, image, use_original_tag):
         """Store media type and digest for manifest list or v2 schema 2 manifest digest"""
         image_str = image.to_str()
         manifest_list = self._get_manifest_list(image)
@@ -173,6 +175,13 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
         manifest_digest = 'sha256:{}'.format(digest_dict['sha256sum'])
         parent_digests = {media_type: manifest_digest}
+        if use_original_tag:
+            # image tag may have been replaced with a ref for autorebuild; use original tag
+            # to simplify fetching parent_images_digests data in other plugins
+            image = image.copy()
+            image.tag = self.workflow.builder.original_base_image.tag
+            image_str = image.to_str()
+
         self.workflow.builder.parent_images_digests[image_str] = parent_digests
 
     def _resolve_base_image(self, build_json):

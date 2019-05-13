@@ -18,6 +18,7 @@ import atomic_reactor.util
 
 from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
+                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                       SCRATCH_FROM)
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
@@ -226,7 +227,7 @@ def test_pull_base_image_special(add_another_parent, special_image, change_base,
 def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected,
                                 reactor_config_map, inspect_only, workflow_callback=None,
                                 check_platforms=False, parent_images=None, organization=None,
-                                parent_images_digests=None):
+                                parent_images_digests=None, expected_digests=None):
     if MOCK:
         mock_docker(remember_images=True)
 
@@ -300,6 +301,8 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
         assert tagged is not None, "Did not tag parent image " + str(df)
     # tags should all be unique
     assert len(set(workflow.builder.parent_images.values())) == len(workflow.builder.parent_images)
+    if check_platforms and expected_digests:
+        assert expected_digests == workflow.builder.parent_images_digests
 
 
 @pytest.mark.parametrize('organization', [None, 'my_organization'])  # noqa
@@ -396,6 +399,40 @@ def test_pull_base_change_override(monkeypatch, reactor_config_map, inspect_only
                                 [BASE_IMAGE_W_REGISTRY], [BASE_IMAGE_W_LIB_REG],
                                 reactor_config_map=reactor_config_map,
                                 inspect_only=inspect_only)
+
+
+def test_pull_base_autorebuild(monkeypatch, reactor_config_map, inspect_only):  # noqa
+    mock_manifest_list = json.dumps({}).encode('utf-8')
+    new_base_image = ImageName.parse(BASE_IMAGE)
+    new_base_image.tag = 'newtag'
+    dgst = 'sha256:{}'.format(get_checksums(BytesIO(mock_manifest_list), ['sha256'])['sha256sum'])
+    expected_digests = {BASE_IMAGE_W_REGISTRY: {MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST: dgst}}
+
+    monkeypatch.setenv("BUILD", json.dumps({
+        'metadata': {
+            'name': UNIQUE_ID,
+        },
+        'spec': {
+            'triggeredBy': [
+                {
+                    'imageChangeBuild': {
+                        'imageID': new_base_image.to_str()
+                    }
+                },
+            ]
+        },
+    }))
+
+    new_base_image.registry = LOCALHOST_REGISTRY
+    (flexmock(atomic_reactor.util)
+     .should_receive('get_manifest_list')
+     .and_return(flexmock(content=mock_manifest_list)))
+
+    test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+                                [new_base_image.to_str()], [BASE_IMAGE_W_REGISTRY],
+                                reactor_config_map=reactor_config_map,
+                                inspect_only=inspect_only, check_platforms=True,
+                                expected_digests=expected_digests)
 
 
 @pytest.mark.parametrize(('exc', 'failures', 'should_succeed'), [
@@ -806,7 +843,7 @@ class TestValidateBaseImage(object):
             digest = 'sha256:{}'.format(manifest_list_digest)
             test_vals['expected_digest'] = {
                 'registry.example.com/{}'.format(BASE_IMAGE): {
-                    'application/vnd.docker.distribution.manifest.list.v2+json': digest
+                    MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST: digest
                 }
             }
 
@@ -878,7 +915,7 @@ class TestValidateBaseImage(object):
         else:
             parent_images_digests = {
                 'registry.example.com/{}'.format(BASE_IMAGE): {
-                    'application/vnd.docker.distribution.manifest.list.v2+json': 'sha256:123456'
+                    MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST: 'sha256:123456'
                 }
             }
 
