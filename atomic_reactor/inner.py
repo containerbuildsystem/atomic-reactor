@@ -34,7 +34,7 @@ from atomic_reactor.plugin import (
 from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.constants import INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS
 from atomic_reactor.constants import CONTAINER_DEFAULT_BUILD_METHOD
-from atomic_reactor.util import ImageName
+from atomic_reactor.util import ImageName, exception_message
 from atomic_reactor.build import BuildResult
 from atomic_reactor import get_logging_encoding
 
@@ -537,7 +537,7 @@ class DockerBuildWorkflow(object):
 
             return self.build_result
         except Exception as ex:
-            logger.debug("caught exception (%r) so running exit plugins", ex)
+            logger.debug("caught exception (%s) so running exit plugins", exception_message(ex))
             exception_being_handled = True
             raise
         finally:

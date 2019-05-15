@@ -413,7 +413,7 @@ def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_err
         if error_during_cancel:
             # We're checking last but one message, as the last one is
             # 'plugin 'add_filesystem' raised an exception'
-            assert "Exception while canceling a task (ignored): Exception("\
+            assert "Exception while canceling a task (ignored): Exception: "\
                 in caplog.records[-2].message
         else:
             msg = "task %s canceled" % FILESYSTEM_TASK_ID

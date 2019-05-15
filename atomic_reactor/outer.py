@@ -88,10 +88,10 @@ class BuildManager(BuilderStateMachine):
             #     with open(results_path, 'r') as results_fp:
             #         results = json.load(results_fp, cls=BuildResultsJSONDecoder)
             # except (IOError, OSError) as ex:
-            #     logger.error("Can't open results: '%s'", repr(ex))
+            #     logger.error("Can't open results: '%s'", ex)
             #     for l in self.dt.logs(self.build_container_id, stream=False):
             #         logger.debug(l.strip())
-            #     raise RuntimeError("Can't open results: '%s'" % repr(ex))
+            #     raise RuntimeError("Can't open results: '%s'" % ex)
             # results.dockerfile = open(df_path, 'r').read()
             results = BuildResults()
             results.build_logs = dt.logs(container_id, stream=False)

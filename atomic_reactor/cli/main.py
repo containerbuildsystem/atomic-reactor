@@ -23,7 +23,8 @@ from atomic_reactor.api import (build_image_here, build_image_in_privileged_cont
 from atomic_reactor.constants import DESCRIPTION, PROG
 from atomic_reactor.buildimage import BuildImageBuilder
 from atomic_reactor.inner import build_inside, BuildResults
-from atomic_reactor.util import process_substitutions, setup_introspection_signal_handler
+from atomic_reactor.util import (process_substitutions, setup_introspection_signal_handler,
+                                 exception_message)
 
 
 logger = logging.getLogger('atomic_reactor')
@@ -307,7 +308,7 @@ class CLI(object):
             if args.verbose:
                 raise
             else:
-                logger.error("exception caught: %r", ex)
+                logger.error("exception caught: %s", exception_message(ex))
 
 
 def run():

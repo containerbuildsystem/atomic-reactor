@@ -210,7 +210,7 @@ def _find_image(img, ignore_registry=False):
 
 
 def _docker_exception(code=404, content='not found', exc_class=docker.errors.APIError):
-    response = flexmock(content=content, status_code=code)
+    response = flexmock(content=content, status_code=code, reason=content)
     return exc_class(code, response)
 
 

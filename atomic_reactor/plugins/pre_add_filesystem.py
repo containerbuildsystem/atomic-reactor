@@ -342,14 +342,15 @@ class AddFilesystemPlugin(PreBuildPlugin):
                 self.session.cancelTask(task_id)
                 self.log.info('task %s canceled', task_id)
             except Exception as exc:
-                self.log.info("Exception while canceling a task (ignored): %r", exc)
+                self.log.info("Exception while canceling a task (ignored): %s",
+                              util.exception_message(exc))
 
         if task.failed():
             try:
                 # Koji may re-raise the error that caused task to fail
                 task_result = self.session.getTaskResult(task_id)
             except Exception as exc:
-                task_result = repr(exc)
+                task_result = util.exception_message(exc)
             raise RuntimeError('image task, {}, failed: {}'
                                .format(task_id, task_result))
 

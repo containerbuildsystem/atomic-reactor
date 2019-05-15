@@ -206,7 +206,7 @@ class KojiUploadPlugin(PostBuildPlugin):
             pod = self.osbs.get_pod_for_build(self.build_id)
             all_images = pod.get_container_image_ids()
         except OsbsException as ex:
-            self.log.error("unable to find image id: %r", ex)
+            self.log.error("unable to find image id: %s", ex)
             return buildroot_tag
 
         try:
