@@ -25,7 +25,7 @@ from six import PY2
 from collections import namedtuple
 
 from atomic_reactor.build import BuildResult
-from atomic_reactor.util import process_substitutions
+from atomic_reactor.util import process_substitutions, exception_message
 from dockerfile_parse import DockerfileParser
 
 MODULE_EXTENSIONS = ('.py', '.pyc', '.pyo')
@@ -154,7 +154,7 @@ class PluginsRunner(object):
                     logger.debug("load file '%s'", f)
                     f_module = imp.load_source(module_name, f)
                 except (IOError, OSError, ImportError, SyntaxError) as ex:
-                    logger.warning("can't load module '%s': %r", f, ex)
+                    logger.warning("can't load module '%s': %s", f, ex)
                     continue
             for name in dir(f_module):
                 binding = getattr(f_module, name, None)
@@ -284,7 +284,8 @@ class PluginsRunner(object):
                 if not buildstep_phase:
                     raise
             except Exception as ex:
-                msg = "plugin '%s' raised an exception: %r" % (plugin.plugin_class.key, ex)
+                msg = "plugin '%s' raised an exception: %s" % (plugin.plugin_class.key,
+                                                               exception_message(ex))
                 logger.debug(traceback.format_exc())
                 if not plugin.is_allowed_to_fail:
                     self.on_plugin_failed(plugin.plugin_class.key, ex)
@@ -348,7 +349,7 @@ class BuildPluginsRunner(PluginsRunner):
     def on_plugin_failed(self, plugin=None, exception=None):
         self.workflow.plugin_failed = True
         if plugin and exception:
-            self.workflow.plugins_errors[plugin] = repr(exception)
+            self.workflow.plugins_errors[plugin] = str(exception)
 
     def save_plugin_timestamp(self, plugin, timestamp):
         self.workflow.plugins_timestamps[plugin] = timestamp.isoformat()

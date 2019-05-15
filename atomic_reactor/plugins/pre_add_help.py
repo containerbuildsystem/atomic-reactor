@@ -107,7 +107,7 @@ class AddHelpPlugin(PreBuildPlugin):
 
             raise
         except CalledProcessError as e:
-            raise RuntimeError("Error running %s: %r, exit code: %s, output: '%s'" % (
+            raise RuntimeError("Error running %s: %s, exit code: %s, output: '%s'" % (
                 e.cmd, e, e.returncode, e.output))
 
         if not os.path.exists(man_path):

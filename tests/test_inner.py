@@ -1241,7 +1241,7 @@ def test_cancel_build(request, fail_at):
     # BaseException repr does not include trailing comma in Python >= 3.7
     # we look for a partial match in log strings for Python < 3.7 compatibility
     expected_entry = (
-        "plugin '{}_watched' raised an exception: BuildCanceledException('Build was canceled'"
+        "plugin '{}_watched' raised an exception: BuildCanceledException: Build was canceled"
     )
     if fail_at == 'buildstep':
         with pytest.raises(PluginFailedException):

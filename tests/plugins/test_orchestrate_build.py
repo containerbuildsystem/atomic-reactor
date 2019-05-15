@@ -794,12 +794,12 @@ def test_orchestrate_build_unknown_platform(tmpdir, reactor_config_map):  # noqa
     with pytest.raises(PluginFailedException) as exc:
         runner.run()
     if reactor_config_map:
-        assert "'No clusters found for platform spam!'" in str(exc)
+        assert "No clusters found for platform spam!" in str(exc)
     else:
         count = 0
-        if "'No clusters found for platform x86_64!'" in str(exc):
+        if "No clusters found for platform x86_64!" in str(exc):
             count += 1
-        if "'No clusters found for platform spam!'" in str(exc):
+        if "No clusters found for platform spam!" in str(exc):
             count += 1
         assert count > 0
 

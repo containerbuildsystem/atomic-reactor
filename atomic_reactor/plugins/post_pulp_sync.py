@@ -142,7 +142,7 @@ class PulpSyncPlugin(PostBuildPlugin):
             try:
                 logger.setLevel(loglevel)
             except (ValueError, TypeError) as ex:
-                self.log.error("Can't set provided log level %r: %r",
+                self.log.error("Can't set provided log level %r: %s",
                                loglevel, ex)
 
         self.publish = (publish and

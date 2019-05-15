@@ -69,7 +69,7 @@ class PulpHandler(object):
             try:
                 logger.setLevel(dockpulp_loglevel)
             except (ValueError, TypeError) as ex:
-                self.log.error("Can't set provided log level %r: %r", dockpulp_loglevel, ex)
+                self.log.error("Can't set provided log level %r: %s", dockpulp_loglevel, ex)
 
     def check_file(self, filename):
         # Sanity-check image

@@ -556,7 +556,7 @@ def get_version_of_tools():
         try:
             tool_module = import_module(pkg_name)
         except ImportError as ex:
-            logger.warning("can't import module %s: %r", pkg_name, ex)
+            logger.warning("can't import module %s: %s", pkg_name, ex)
         else:
             version = getattr(tool_module, "__version__", None)
             if version is None:
@@ -1441,7 +1441,7 @@ class OSBSLogs(object):
         try:
             logs = osbs.get_orchestrator_build_logs(build_id)
         except OsbsException as ex:
-            self.log.error("unable to get build logs: %r", ex)
+            self.log.error("unable to get build logs: %s", ex)
             return output
         except TypeError:
             # Older osbs-client has no get_orchestrator_build_logs
@@ -1511,3 +1511,11 @@ def dump_stacktraces(sig, frame):
 
 def setup_introspection_signal_handler():
     signal.signal(signal.SIGUSR1, dump_stacktraces)
+
+
+def exception_message(exc):
+    """
+    Take an exception and return an error message.
+    The message includes the type of the exception.
+    """
+    return '{exc.__class__.__name__}: {exc}'.format(exc=exc)

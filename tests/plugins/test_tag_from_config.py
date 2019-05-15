@@ -110,9 +110,9 @@ def test_tag_from_config_plugin_generated(tmpdir, docker_tasker, tags, name,
 
 
 @pytest.mark.parametrize(('inspect', 'error'), [  # noqa
-    ({'Labels': {}}, "KeyError(<object"),
-    ({}, "KeyError('Labels'"),
-    (None, "RuntimeError('There is no inspect data"),
+    ({'Labels': {}}, "KeyError: <object"),
+    ({}, "KeyError: 'Labels'"),
+    (None, "RuntimeError: There is no inspect data"),
 ])
 def test_bad_inspect_data(tmpdir, docker_tasker, inspect, error):
     workflow = mock_workflow(tmpdir)

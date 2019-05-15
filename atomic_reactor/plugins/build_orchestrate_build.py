@@ -192,7 +192,7 @@ class WorkerBuildInfo(object):
     def get_fail_reason(self):
         fail_reason = {}
         if self.monitor_exception:
-            fail_reason['general'] = repr(self.monitor_exception)
+            fail_reason['general'] = str(self.monitor_exception)
         elif not self.build:
             fail_reason['general'] = 'build not started'
 
@@ -202,7 +202,7 @@ class WorkerBuildInfo(object):
         build_annotations = self.build.get_annotations() or {}
         metadata = json.loads(build_annotations.get('plugins-metadata', '{}'))
         if self.monitor_exception:
-            fail_reason['general'] = repr(self.monitor_exception)
+            fail_reason['general'] = str(self.monitor_exception)
 
         try:
             fail_reason.update(metadata['errors'])
@@ -686,7 +686,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
                 build_info = WorkerBuildInfo(build=None,
                                              cluster_info=cluster,
                                              logger=self.log)
-                build_info.monitor_exception = repr(ex)
+                build_info.monitor_exception = str(ex)
                 self.worker_builds.append(build_info)
                 return
 
