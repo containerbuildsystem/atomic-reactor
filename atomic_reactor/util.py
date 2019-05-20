@@ -690,7 +690,7 @@ class Dockercfg(object):
                 if registry_hostname(reg) == docker_registry:
                     return creds
 
-            logger.warn('%s not found in .dockercfg', docker_registry)
+            logger.warning('%s not found in .dockercfg', docker_registry)
             return {}
 
     def unpack_auth_b64(self, docker_registry):

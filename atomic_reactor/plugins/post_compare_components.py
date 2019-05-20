@@ -68,8 +68,9 @@ class CompareComponentsPlugin(PostBuildPlugin):
             for instance in worker_metadatas[platform]['output']:
                 if instance['type'] == 'docker-image':
                     if 'components' not in instance or not instance['components']:
-                        self.log.warn("Missing 'components' key in 'output' metadata instance: %s",
-                                      instance)
+                        self.log.warning(
+                            "Missing 'components' key in 'output' metadata instance: %s", instance
+                        )
                         continue
 
                     comp_list.append(instance['components'])

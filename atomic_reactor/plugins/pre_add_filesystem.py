@@ -174,7 +174,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         config_fp = StringIO(self.DEFAULT_IMAGE_BUILD_CONF.format(**kwargs))
 
         config = ConfigParser()
-        config.readfp(config_fp)
+        config.readfp(config_fp)     # pylint: disable=deprecated-method; py2 compatibility
 
         self.update_config_from_dockerfile(config)
 

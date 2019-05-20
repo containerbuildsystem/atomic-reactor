@@ -80,14 +80,14 @@ class YumRepo(object):
         with BytesIO(self.content) as buf:
             self.config = configparser.ConfigParser()
             try:
-                # Try python2 method
                 try:
+                    # Try python3 method
                     self.config.read_string(self.content.decode('unicode_escape'))
                 except AttributeError:
-                    # Fallback to py3 method
-                    self.config.readfp(buf)
+                    # Fall back to python2 method
+                    self.config.readfp(buf)  # pylint: disable=deprecated-method
             except configparser.Error:
-                logger.warn("Invalid repo file found: '%s'", self.content)
+                logger.warning("Invalid repo file found: '%s'", self.content)
                 return False
             else:
                 return True
