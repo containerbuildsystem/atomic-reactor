@@ -47,7 +47,6 @@ disable=I,
         no-self-argument,  # nice to have
         not-callable,  # disabled due to flexmock module
         not-context-manager,  # causes false positives
-        pointless-statement,  # should be enabled
         protected-access,
         redefined-outer-name,  # nice to have
         reimported,  # should be enabled

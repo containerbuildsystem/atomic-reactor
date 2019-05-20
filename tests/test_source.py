@@ -84,12 +84,12 @@ class TestGetSourceInstanceFor(object):
         s = get_source_instance_for({'provider': 'path', 'uri': DOCKERFILE_OK_PATH})
         flexmock(atomic_reactor.source, CONTAINER_BUILD_METHODS=[])
         with pytest.raises(AssertionError):
-            s.config
+            s.config    # pylint: disable=pointless-statement; is a property
 
     def test_broken_source_config_file(self):
         s = get_source_instance_for({'provider': 'path', 'uri': SOURCE_CONFIG_ERROR_PATH})
         with pytest.raises(ValidationError):
-            s.config
+            s.config    # pylint: disable=pointless-statement; is a property
 
 
 class TestSourceConfigSchemaValidation(object):

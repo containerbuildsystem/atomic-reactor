@@ -66,13 +66,14 @@ class TestDistributionScope(object):
         if base_from_scratch:
             allowed = True
         if allowed:
-            with caplog.at_level(logging.ERROR):
+            with caplog.at_level(logging.DEBUG):
                 plugin.run()
 
             # No errors logged
-            assert not caplog.records
+            assert not any(log.levelno >= logging.ERROR for log in caplog.records)
+
             if base_from_scratch:
-                "no distribution scope set for" in caplog.text
+                assert "no distribution scope set for" in caplog.text
         else:
             with pytest.raises(DisallowedDistributionScope):
                 plugin.run()
