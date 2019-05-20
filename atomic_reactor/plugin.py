@@ -388,7 +388,7 @@ class BuildPluginsRunner(PluginsRunner):
 
     def _remove_unknown_args(self, plugin_class, plugin_conf):
         if PY2:
-            sig = inspect.getargspec(plugin_class.__init__)
+            sig = inspect.getargspec(plugin_class.__init__)  # pylint: disable=deprecated-method
             kwargs = sig.keywords
         else:
             sig = inspect.getfullargspec(plugin_class.__init__)  # pylint: disable=no-member

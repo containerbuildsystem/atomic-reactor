@@ -40,7 +40,6 @@ disable=I,
         consider-using-enumerate, # should be enabled
         dangerous-default-value,  # should be enabled
         deprecated-lambda,  # nice to have
-        deprecated-method,  # should be enabled
         expression-not-assigned,  # should be enabled
         fixme,
         global-statement,  # should be enabled, we have fixtures in test

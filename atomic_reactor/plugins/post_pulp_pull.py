@@ -96,10 +96,10 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
                         raise
             else:
                 if self.expect_v2schema2list and not digests.v2_list:
-                    self.log.warn("Expected schema 2 manifest list")
+                    self.log.warning("Expected schema 2 manifest list")
                 elif (not self.expect_v2schema2list_only and self.expect_v2schema2 and
                       not digests.v2):
-                    self.log.warn("Expected schema 2 manifest")
+                    self.log.warning("Expected schema 2 manifest")
                 else:
                     return digests
 
