@@ -153,13 +153,13 @@ def test_base_image_inspect(tmpdir, source_params, parents_pulled,
              .should_receive('inspect_image')
              .and_raise(docker.errors.NotFound, "xyz", response))
             with pytest.raises(KeyError):
-                b.base_image_inspect
+                b.base_image_inspect    # pylint: disable=pointless-statement; is a property
         else:
             (flexmock(atomic_reactor.util)
              .should_receive('get_inspect_for_image')
              .and_raise(NotImplementedError))
             with pytest.raises(NotImplementedError):
-                b.base_image_inspect
+                b.base_image_inspect    # pylint: disable=pointless-statement; is a property
 
 
 @requires_internet

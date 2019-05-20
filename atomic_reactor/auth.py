@@ -82,7 +82,7 @@ class HTTPBearerAuth(AuthBase):
         # Consume content and release the original connection
         # to allow our new request to reuse the same one.
         # This pattern was inspired by the source code of requests.auth.HTTPDigestAuth
-        response.content
+        response.content    # pylint: disable=pointless-statement; is a property
         response.close()
         retry_request = response.request.copy()
         extract_cookies_to_jar(retry_request._cookies, response.request, response.raw)

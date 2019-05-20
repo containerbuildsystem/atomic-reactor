@@ -852,7 +852,6 @@ class TestKojiPromote(object):
             ])
             if base_from_scratch:
                 expected_keys_set.remove('parent_id')
-                'parent_id' not in docker
             else:
                 assert is_string_type(docker['parent_id'])
             if has_config:
