@@ -443,9 +443,9 @@ class BuildStepPluginsRunner(BuildPluginsRunner):
 
         if plugin_conf:
             # any non existing buildstep plugin must be skipped without error
-            for i in range(len(plugin_conf)):
-                plugin_conf[i]['required'] = False
-                plugin_conf[i]['is_allowed_to_fail'] = False
+            for plugin in plugin_conf:
+                plugin['required'] = False
+                plugin['is_allowed_to_fail'] = False
         else:
             # if no buildstep_plugins configured, which is typical for worker builds,
             # use what the source says or the system default.
