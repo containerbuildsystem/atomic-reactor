@@ -346,8 +346,6 @@ OTHER_V2 = 'registry.example.com:5001'
 
 
 @pytest.mark.parametrize('schema_version', ('v2', 'oci'))
-@pytest.mark.parametrize('vr_tag', (True, False))
-@pytest.mark.parametrize('manifest_list_exists', (True, False))
 @pytest.mark.parametrize(('test_name', 'group', 'foreign_layers',
                           'registries', 'workers', 'expected_exception'), [
     # Basic manifest grouping, v1 registry should be ignored
@@ -443,19 +441,13 @@ OTHER_V2 = 'registry.example.com:5001'
      None)
 ])
 @responses.activate  # noqa
-def test_group_manifests(tmpdir, schema_version, vr_tag, manifest_list_exists,
-                         test_name, group, foreign_layers, registries, workers,
-                         expected_exception, reactor_config_map):
+def test_group_manifests(tmpdir, schema_version, test_name, group, foreign_layers,
+                         registries, workers, expected_exception, reactor_config_map):
     if MOCK:
         mock_docker()
 
-    manifest_list_tag = 'namespace/httpd:3-1'
     test_images = ['namespace/httpd:2.4',
                    'namespace/httpd:latest']
-    if vr_tag:
-        test_images.append(manifest_list_tag)
-    else:
-        manifest_list_tag = None
 
     goarch = {
         'ppc64le': 'powerpc',
@@ -491,15 +483,9 @@ def test_group_manifests(tmpdir, schema_version, vr_tag, manifest_list_exists,
         },
     }]
 
-    if manifest_list_exists and vr_tag:
-        if workers:
-            expected_exception = 'Primary tag already exists in registry'
-    else:
-        manifest_list_tag = None
     mocked_registries, annotations = mock_registries(registry_conf, workers,
                                                      schema_version=schema_version,
-                                                     foreign_layers=foreign_layers,
-                                                     manifest_list_tag=manifest_list_tag)
+                                                     foreign_layers=foreign_layers)
     tasker, workflow = mock_environment(tmpdir, primary_images=test_images,
                                         annotations=annotations)
 
