@@ -372,9 +372,6 @@
                 },
                 "architecture": {
                     "type": "string"
-                },
-                "enable_v1": {
-                    "type": "boolean"
                 }
             },
             "additionalProperties": false
@@ -389,7 +386,7 @@
         "type": "array",
         "items": {
             "type": "string",
-            "enum": ["v1", "v2"]
+            "enum": ["v2"]
         }
     },
     "registries_organization": {"$ref": "#/definitions/organization"},

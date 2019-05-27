@@ -509,21 +509,19 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         unique_fragment = '%r.%s' % (time.time(), random_chars)
         return os.path.join(dir_prefix, unique_fragment)
 
-    def _update_content_versions(self, worker_reactor_conf, platform):
-        enable_v1 = False
-        for descriptor in self.platform_descriptors:
-            if descriptor['platform'] == platform:
-                enable_v1 = descriptor.get('enable_v1', False)
-                break
-        # Remove v1 from content_versions if the platform descriptor doesn't enable v1
-        if not enable_v1 and 'content_versions' in worker_reactor_conf:
-            try:
-                self.log.info('removing v1 from content_versions')
-                worker_reactor_conf['content_versions'].remove('v1')
-            except ValueError:
-                pass
-            if not worker_reactor_conf['content_versions']:
-                raise RuntimeError("content_versions is empty")
+    def _update_content_versions(self, worker_reactor_conf, valid_values=['v2']):
+        if 'content_versions' not in worker_reactor_conf:
+            return
+
+        invalid_values = [v for v in worker_reactor_conf['content_versions']
+                          if v not in valid_values]
+        self.log.info('removing unsupported values "%s" from content_versions', invalid_values)
+        worker_reactor_conf['content_versions'] = [v for v in
+                                                   worker_reactor_conf['content_versions']
+                                                   if v in valid_values]
+
+        if not worker_reactor_conf['content_versions']:
+            raise RuntimeError("content_versions is empty")
 
     def get_worker_build_kwargs(self, release, platform, koji_upload_dir,
                                 task_id, worker_openshift):
@@ -542,7 +540,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             worker_reactor_conf = deepcopy(self.reactor_config.conf)
             worker_reactor_conf['openshift'] = worker_openshift
             worker_reactor_conf.pop('worker_token_secrets', None)
-            self._update_content_versions(worker_reactor_conf, platform)
+            self._update_content_versions(worker_reactor_conf)
 
             build_kwargs['reactor_config_override'] = worker_reactor_conf
 
