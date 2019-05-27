@@ -124,7 +124,7 @@ class OSv3InputPlugin(InputPlugin):
             docker_registry = None
             all_registries = self.get_value('registries', {})
 
-            versions = self.get_value('content_versions', ['v1', 'v2'])
+            versions = self.get_value('content_versions', ['v2'])
 
             for registry in all_registries:
                 reguri = RegistryURI(registry.get('url'))

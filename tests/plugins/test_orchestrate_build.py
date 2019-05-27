@@ -1144,16 +1144,12 @@ def test_orchestrate_override_build_kwarg(tmpdir, overrides):
     assert not build_result.is_failed()
 
 
-@pytest.mark.parametrize('enable_v1', [
-    True,
-    False
-])
 @pytest.mark.parametrize('content_versions', [
     ['v1', 'v2'],
     ['v1'],
     ['v2'],
 ])
-def test_orchestrate_override_content_versions(tmpdir, caplog, enable_v1, content_versions):
+def test_orchestrate_override_content_versions(tmpdir, caplog, content_versions):
     workflow = mock_workflow(tmpdir, platforms=['x86_64'])
     expected_kwargs = {
         'git_uri': SOURCE['uri'],
@@ -1171,7 +1167,6 @@ def test_orchestrate_override_content_versions(tmpdir, caplog, enable_v1, conten
         'platform_descriptors': [{
             'platform': 'x86_64',
             'architecture': 'amd64',
-            'enable_v1': enable_v1
         }],
         'content_versions': content_versions
     }
@@ -1185,10 +1180,10 @@ def test_orchestrate_override_content_versions(tmpdir, caplog, enable_v1, conten
     }
 
     will_fail = False
-    if not enable_v1 and 'v2' not in content_versions:
+    if 'v2' not in content_versions:
         will_fail = True
-    if not enable_v1 and 'v1' in content_versions:
-        reactor_config_override['content_versions'].remove('v1')
+    else:
+        reactor_config_override['content_versions'] = ['v2']
 
     expected_kwargs['reactor_config_override'] = reactor_config_override
     mock_osbs(worker_expect=expected_kwargs)
