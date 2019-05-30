@@ -53,7 +53,7 @@ from tests.flatpak import MODULEMD_AVAILABLE, setup_flatpak_source_info
 from tests.stubs import StubInsideBuilder, StubSource
 
 try:
-    import atomic_reactor.plugins.post_pulp_sync  # noqa:F401
+    import atomic_reactor.plugins.post_pulp_sync  # noqa:F401; pylint: disable=unused-import
     PULP_SYNC_AVAILABLE = True
 except ImportError:
     PULP_SYNC_AVAILABLE = False

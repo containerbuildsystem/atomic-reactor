@@ -29,7 +29,7 @@ except ImportError:
     import koji
 
 try:
-    import atomic_reactor.plugins.post_pulp_sync  # noqa:F401
+    import atomic_reactor.plugins.post_pulp_sync  # noqa:F401; pylint: disable=unused-import
     PULP_SYNC_AVAILABLE = True
 except ImportError:
     PULP_SYNC_AVAILABLE = False

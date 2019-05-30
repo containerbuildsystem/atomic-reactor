@@ -12,7 +12,6 @@ import pytest
 import atomic_reactor.util
 import docker.errors
 from atomic_reactor.build import InsideBuilder, BuildResult
-from atomic_reactor.core import DockerTasker  # noqa
 from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.util import ImageName, df_parser
 from tests.constants import (
