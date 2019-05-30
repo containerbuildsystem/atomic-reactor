@@ -40,12 +40,12 @@ input_image_name = ImageName.parse(INPUT_IMAGE)
 def setup_module(module):
     if MOCK:
         return
-    d = docker.Client()
+    d = docker.Client()  # TODO: current version of python-docker does not have Client anymore
     try:
         d.inspect_image(INPUT_IMAGE)
         setattr(module, 'HAS_IMAGE', True)
     except docker.errors.APIError:
-        [x for x in d.pull(INPUT_IMAGE, decode=True, stream=True)]
+        d.pull(INPUT_IMAGE)
         setattr(module, 'HAS_IMAGE', False)
 
 

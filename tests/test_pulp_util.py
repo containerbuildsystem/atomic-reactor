@@ -424,7 +424,7 @@ class TestLockedPulpRepository(object):
         for i in range(failures):
             expectation = expectation.and_raise(exc).ordered()
 
-        expectation.and_return(None).ordered
+        expectation.and_return(None).ordered()
 
         pulp.should_receive('deleteRepo').once().ordered()
 
