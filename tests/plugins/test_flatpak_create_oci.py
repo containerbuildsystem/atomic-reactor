@@ -652,7 +652,7 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
         try:
             output = subprocess.check_output(['flatpak', '--version'],
                                              universal_newlines=True)
-            m = re.search('(\d+)\.(\d+)\.(\d+)', output)
+            m = re.search(r'(\d+)\.(\d+)\.(\d+)', output)
             if m and (int(m.group(1)), int(m.group(2)), int(m.group(3))) >= (0, 9, 7):
                 have_flatpak = True
 

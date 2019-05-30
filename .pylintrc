@@ -29,7 +29,6 @@ enable=all,
 disable=I,
         R,  # refactoring checks
         abstract-method,  # nice to have
-        anomalous-backslash-in-string,  # should be enabled
         arguments-differ,  # nice to have
         attribute-defined-outside-init,  # should be enabled
         bad-continuation,  # pep8

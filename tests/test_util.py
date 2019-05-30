@@ -278,7 +278,7 @@ def test_render_yum_repo_unicode():
     assert rendered_repo == """\
 [asd]
 name=asd
-baseurl=http://example.com/\$basearch/test.repo
+baseurl=http://example.com/\\$basearch/test.repo
 enabled=1
 gpgcheck=0
 """
