@@ -29,8 +29,8 @@ from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, DOCKERFILE_OK_PA
 if MOCK:
     from tests.docker_mock import mock_docker
 
-PRIV_BUILD_IMAGE = None
-DH_BUILD_IMAGE = None
+PRIV_BUILD_IMAGE = uuid_value()
+DH_BUILD_IMAGE = uuid_value()
 
 
 logger = logging.getLogger('atomic_reactor.tests')
@@ -49,9 +49,6 @@ with_all_sources = pytest.mark.parametrize('source_provider, uri', [
 
 
 def setup_module(module):
-    global PRIV_BUILD_IMAGE, DH_BUILD_IMAGE
-    PRIV_BUILD_IMAGE = uuid_value()
-    DH_BUILD_IMAGE = uuid_value()
     if MOCK:
         return
 
