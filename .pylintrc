@@ -52,7 +52,6 @@ disable=I,
         not-callable,  # disabled due to flexmock module
         not-context-manager,  # causes false positives
         pointless-statement,  # should be enabled
-        pointless-string-statement,  # should be enabled
         protected-access,
         raising-bad-type,  # should be enabled
         redefined-outer-name,  # nice to have
