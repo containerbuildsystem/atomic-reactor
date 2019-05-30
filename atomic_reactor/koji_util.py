@@ -66,7 +66,7 @@ class KojiSessionWrapper(object):
                         time.sleep(retry_delay * (2 ** retry))
                         last_exc = exc
                         continue
-                raise last_exc
+                raise last_exc  # pylint: disable=raising-bad-type
             return call_with_catch
         else:
             return session_attr

@@ -1001,7 +1001,7 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
 
     if not digests:
         if all_not_found and len(versions) > 0:
-            raise saved_not_found
+            raise saved_not_found   # pylint: disable=raising-bad-type
         if require_digest:
             raise RuntimeError('No digests found for {}'.format(image))
 

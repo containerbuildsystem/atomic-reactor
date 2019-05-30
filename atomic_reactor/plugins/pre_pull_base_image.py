@@ -234,9 +234,9 @@ class PullBaseImagePlugin(PreBuildPlugin):
                 # image being pulled lacks a namespace, like e.g. "rhel7". we cannot count
                 # on the registry mapping this into the docker standard "library/rhel7" so
                 # need to retry with that.
-                if first_library_exc:
+                if first_library_exc is not None:
                     # we already tried and failed; report the first failure.
-                    raise first_library_exc
+                    raise first_library_exc  # pylint: disable=raising-bad-type
                 if image.namespace:
                     # already namespaced, do not retry with "library/", just fail.
                     raise
