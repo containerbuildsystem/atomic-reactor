@@ -16,7 +16,7 @@ import os
 import re
 import sys
 import requests
-from requests.exceptions import ConnectionError, SSLError, HTTPError, RetryError, Timeout
+from requests.exceptions import SSLError, HTTPError, RetryError, Timeout
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util import Retry
 import shutil
@@ -750,7 +750,7 @@ class RegistrySession(object):
                 res = f(self._base + relative_url, *args, **kwargs)
                 self._fallback = None  # don't fallback after one success
                 return res
-            except (SSLError, ConnectionError):
+            except (SSLError, requests.ConnectionError):
                 self._base = self._fallback
                 self._fallback = None
         return f(self._base + relative_url, *args, **kwargs)

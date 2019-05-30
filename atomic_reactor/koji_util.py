@@ -10,7 +10,7 @@ from __future__ import print_function, absolute_import, division
 
 
 import koji
-from requests.exceptions import ConnectionError
+import requests
 
 import logging
 import os
@@ -62,7 +62,7 @@ class KojiSessionWrapper(object):
                 for retry in range(HTTP_MAX_RETRIES):
                     try:
                         return session_attr(*a, **kw)
-                    except ConnectionError as exc:
+                    except requests.ConnectionError as exc:
                         time.sleep(retry_delay * (2 ** retry))
                         last_exc = exc
                         continue
