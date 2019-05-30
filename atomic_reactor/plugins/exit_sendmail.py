@@ -43,7 +43,7 @@ from osbs.utils import Labels
 # RFC 2821 defines a valid email address much more expansively, but this definition matches
 # what most people loosely expect to be valid.
 # specifically, email addresses of the form id/name@domain.tla are not valid.
-VALID_EMAIL_REGEX = '^[a-zA-Z][a-zA-Z0-9-_\.\+]+@[a-zA-Z0-9-\.]+\.[a-zA-Z0-9-]+$'
+VALID_EMAIL_REGEX = r'^[a-zA-Z][a-zA-Z0-9-_.+]+@[a-zA-Z0-9-.]+\.[a-zA-Z0-9-]+$'
 
 
 def validate_address(address):

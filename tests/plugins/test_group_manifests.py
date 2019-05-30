@@ -132,7 +132,7 @@ class MockRegistry(object):
         decoded = json.loads(to_text(blob))
         content_type = decoded['mediaType']
 
-        accepts = re.split('\s*,\s*', req.headers['Accept'])
+        accepts = re.split(r'\s*,\s*', req.headers['Accept'])
         assert content_type in accepts
 
         headers = {
