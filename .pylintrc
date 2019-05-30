@@ -43,7 +43,6 @@ disable=I,
         fixme,
         global-statement,  # should be enabled, we have fixtures in test
         import-error,  # requires to having all modules installed
-        invalid-format-index,  # should be enabled
         invalid-name,
         len-as-condition,  # nice to have
         line-too-long,  # pep8, should be enabled

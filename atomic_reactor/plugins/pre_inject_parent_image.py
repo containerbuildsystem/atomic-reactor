@@ -87,8 +87,8 @@ class InjectParentImage(PreBuildPlugin):
                               self.find_repositories_from_archive())
 
         if not self._repositories:
-            raise RuntimeError('A suitable archive for Koji build {[nvr]} was not found'
-                               .format(self._koji_parent_build_info))
+            raise RuntimeError('A suitable archive for Koji build {} was not found'
+                               .format(self._koji_parent_build_info['nvr']))
 
     def find_repositories_from_build(self):
         self._koji_parent_build_info = self.koji_session.getBuild(self.koji_parent_build)
