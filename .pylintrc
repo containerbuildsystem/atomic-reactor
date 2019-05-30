@@ -35,7 +35,6 @@ disable=I,
         bad-continuation,  # pep8
         bad-whitespace,  # pep8, nice to have
         broad-except,
-        cell-var-from-loop,  # should be enabled
         comprehension-escape, # throws false positives on 1.9.0 (Fedora 29)
         dangerous-default-value,  # should be enabled
         deprecated-lambda,  # nice to have
