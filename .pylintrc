@@ -59,7 +59,6 @@ disable=I,
         pointless-string-statement,  # should be enabled
         protected-access,
         raising-bad-type,  # should be enabled
-        redefined-builtin,  # should be enabled
         redefined-outer-name,  # nice to have
         reimported,  # should be enabled
         relative-import,  # nice to have

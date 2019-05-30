@@ -16,7 +16,6 @@ import tempfile
 import pytest
 import requests
 import responses
-from requests.exceptions import ConnectionError
 import inspect
 import signal
 from base64 import b64encode
@@ -233,10 +232,10 @@ def test_figure_out_build_file(tmpdir, contents, local_path, expected_path, expe
             f.write(path_contents)
 
     if expected_exception is None:
-        path, dir = figure_out_build_file(tmpdir_path, local_path=local_path)
+        path, directory = figure_out_build_file(tmpdir_path, local_path=local_path)
         assert path == os.path.join(tmpdir_path, expected_path)
         assert os.path.isfile(path)
-        assert os.path.isdir(dir)
+        assert os.path.isdir(directory)
     else:
         with pytest.raises(Exception) as e:
             figure_out_build_file(tmpdir_path, local_path=local_path)
@@ -457,7 +456,7 @@ def test_registry_session(tmpdir, registry, insecure, method, responses_method, 
         url = registry + path
     elif insecure:
         https_url = 'https://' + registry + path
-        responses.add(responses_method, https_url, body=ConnectionError())
+        responses.add(responses_method, https_url, body=requests.ConnectionError())
         url = 'http://' + registry + path
     else:
         url = 'https://' + registry + path
@@ -597,7 +596,7 @@ def test_get_manifest_digests(tmpdir, caplog, image, registry, insecure, creds,
         # an error, fall back to http
         if insecure:
             https_url = 'https://' + registry + path
-            responses.add(responses.GET, https_url, body=ConnectionError())
+            responses.add(responses.GET, https_url, body=requests.ConnectionError())
             url = 'http://' + registry + path
         else:
             url = 'https://' + registry + path
@@ -796,9 +795,9 @@ def test_get_manifest_digests_connection_error(tmpdir):
     kwargs['registry'] = 'https://example.com'
 
     url = 'https://example.com/v2/spam/manifests/latest'
-    responses.add(responses.GET, url, body=ConnectionError())
+    responses.add(responses.GET, url, body=requests.ConnectionError())
 
-    with pytest.raises(ConnectionError):
+    with pytest.raises(requests.ConnectionError):
         get_manifest_digests(**kwargs)
 
 
@@ -1212,7 +1211,7 @@ def test_get_manifest_list(tmpdir, image, registry, insecure, creds, path):
         # an error, fall back to http
         if insecure:
             https_url = 'https://' + registry + path
-            responses.add(responses.GET, https_url, body=ConnectionError())
+            responses.add(responses.GET, https_url, body=requests.ConnectionError())
             url = 'http://' + registry + path
         else:
             url = 'https://' + registry + path
@@ -1314,7 +1313,7 @@ def test_get_all_manifests(tmpdir, image, registry, insecure, creds, path, versi
         # an error, fall back to http
         if insecure:
             https_url = 'https://' + registry + path
-            responses.add(responses.GET, https_url, body=ConnectionError())
+            responses.add(responses.GET, https_url, body=requests.ConnectionError())
             url = 'http://' + registry + path
         else:
             url = 'https://' + registry + path

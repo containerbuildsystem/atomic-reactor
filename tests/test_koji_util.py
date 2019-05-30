@@ -9,7 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import absolute_import, print_function, unicode_literals
 import time
 
-from requests.exceptions import ConnectionError
+import requests
 
 try:
     import koji
@@ -151,8 +151,8 @@ class TestCreateKojiSession(object):
         ('krb_login', {}),
     ])
     @pytest.mark.parametrize(('error_type', 'should_recover', 'attempts'), [
-        (ConnectionError, True, HTTP_MAX_RETRIES - 1),
-        (ConnectionError, False, HTTP_MAX_RETRIES),
+        (requests.ConnectionError, True, HTTP_MAX_RETRIES - 1),
+        (requests.ConnectionError, False, HTTP_MAX_RETRIES),
         (KeyError, False, 1),
     ])
     def test_create_session_failures(self, tmpdir, auth_type, auth_args,

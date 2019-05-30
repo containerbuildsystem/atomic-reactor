@@ -44,13 +44,13 @@ class MockedPopen(object):
     def __enter__(self):
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exc_type, value, traceback):
         pass
 
     def poll(self):
         pass
 
-    def communicate(self, input=None, timeout=None):
+    def communicate(self, input=None, timeout=None):    # pylint: disable=redefined-builtin
         return ('', '')
 
 
