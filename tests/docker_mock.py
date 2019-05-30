@@ -43,7 +43,7 @@ mock_image = \
      'Size': 0,
      'VirtualSize': 856564160}
 
-mock_images = None
+mock_images = []
 
 mock_logs = 'uid=0(root) gid=0(root) groups=10(wheel)'
 
@@ -194,8 +194,6 @@ mock_inspect_container = {
 
 
 def _find_image(img, ignore_registry=False):
-    global mock_images
-
     tagged_img = ImageName.parse(img).to_str(explicit_tag=True)
     for im in mock_images:
         im_name = im['RepoTags'][0]
@@ -387,7 +385,7 @@ def mock_docker(build_should_fail=False,
              .and_raise(docker.errors.APIError, "xyz", response))
 
     if remember_images:
-        global mock_images
+        global mock_images  # pylint: disable=global-statement
         mock_images = [mock_image]
 
         flexmock(docker.APIClient, inspect_image=_mock_inspect)

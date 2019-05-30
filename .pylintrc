@@ -38,7 +38,6 @@ disable=I,
         deprecated-lambda,  # nice to have
         expression-not-assigned,  # should be enabled
         fixme,
-        global-statement,  # should be enabled, we have fixtures in test
         import-error,  # requires to having all modules installed
         invalid-name,
         len-as-condition,  # nice to have
