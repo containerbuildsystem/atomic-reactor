@@ -36,7 +36,6 @@ disable=I,
         comprehension-escape, # throws false positives on 1.9.0 (Fedora 29)
         dangerous-default-value,  # should be enabled
         deprecated-lambda,  # nice to have
-        expression-not-assigned,  # should be enabled
         fixme,
         import-error,  # requires to having all modules installed
         invalid-name,
