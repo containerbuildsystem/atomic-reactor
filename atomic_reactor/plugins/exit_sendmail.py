@@ -297,14 +297,14 @@ class SendMailPlugin(ExitPlugin):
         return (subject_template % formatting_dict, body_template % formatting_dict, log_files)
 
     def _send_mail(self, receivers_list, subject, body, log_files=None):
+        """Sends a mail with `subject` and `body` and optional log_file attachments
+        to all members of `receivers_list`."""
         if not receivers_list:
             self.log.info('no valid addresses in requested addresses. Doing nothing')
             return
 
         self.log.info('sending notification to %s ...', receivers_list)
 
-        """Actually sends the mail with `subject` and `body` and optionanl log_file attachements
-        to all members of `receivers_list`."""
         if log_files:
             msg = MIMEMultipart()
             msg.attach(MIMEText(body))

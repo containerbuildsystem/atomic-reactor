@@ -301,11 +301,11 @@ class TestVerifyImageTypes(object):
                         prebuild_results=prebuild_results,
                         postbuild_results=postbuild_results)
 
-    """
-    The simplest test case, and everything works
-    """
     @responses.activate
     def test_verify_successful_simple(self):
+        """
+        The simplest test case, and everything works
+        """
         workflow = self.workflow()
         tasker = MockerTasker()
 
@@ -393,9 +393,6 @@ class TestVerifyImageTypes(object):
 
         assert results == sorted(expected_results)
 
-    """
-    Two registries, everything behaves correctly
-    """
     @responses.activate
     @pytest.mark.parametrize(('registries', 'platform_descriptors', 'group',
                               'expected_results'), [
@@ -462,6 +459,9 @@ class TestVerifyImageTypes(object):
     ])
     def test_verify_successful_two_registries(self, registries,
                                               platform_descriptors, group, expected_results):
+        """
+        Two registries, everything behaves correctly
+        """
         workflow = self.workflow(registries=registries,
                                  platform_descriptors=platform_descriptors, group=group)
         tasker = MockerTasker()
@@ -470,9 +470,6 @@ class TestVerifyImageTypes(object):
         results = plugin.run()
         assert results == sorted(expected_results)
 
-    """
-    Configuration is bad, but not so bad as to cause a problem
-    """
     @responses.activate
     @pytest.mark.parametrize(('registries', 'platforms', 'platform_descriptors',
                               'group', 'expected_results'), [
@@ -513,6 +510,9 @@ class TestVerifyImageTypes(object):
     ])
     def test_verify_malformed_two_registries(self, registries, platforms,
                                              platform_descriptors, group, expected_results):
+        """
+        Configuration is bad, but not so bad as to cause a problem
+        """
         workflow = self.workflow(registries=registries, platforms=platforms,
                                  platform_descriptors=platform_descriptors, group=group)
         tasker = MockerTasker()
@@ -522,11 +522,11 @@ class TestVerifyImageTypes(object):
 
         assert results == sorted(expected_results)
 
-    """
-    If there is no image, this plugin shouldn't run and how did we get here?
-    """
     @responses.activate
     def test_verify_fail_no_image(self):
+        """
+        If there is no image, this plugin shouldn't run and how did we get here?
+        """
         workflow = self.workflow()
         workflow.tag_conf = TagConf()
         tasker = MockerTasker()
@@ -536,11 +536,11 @@ class TestVerifyImageTypes(object):
             plugin.run()
         assert "no unique image set, impossible to verify media types" in str(exc.value)
 
-    """
-    If pulp is enabled, this plugin shouldn't run
-    """
     @responses.activate
     def test_verify_fail_pulp_image(self, caplog):
+        """
+        If pulp is enabled, this plugin shouldn't run
+        """
         workflow = self.workflow()
         workflow.push_conf.add_pulp_registry('pulp', crane_uri='crane.example.com',
                                              server_side_sync=False)
@@ -551,11 +551,11 @@ class TestVerifyImageTypes(object):
         assert not results
         assert "pulp registry configure, verify_media_types should not run" in caplog.text
 
-    """
-    Build was unsuccessful, return an empty list
-    """
     @responses.activate
     def test_verify_fail_no_build(self):
+        """
+        Build was unsuccessful, return an empty list
+        """
         workflow = self.workflow(build_process_failed=True)
         tasker = MockerTasker()
 
@@ -563,11 +563,11 @@ class TestVerifyImageTypes(object):
         results = plugin.run()
         assert results == []
 
-    """
-    All results are garbage, so fail
-    """
     @responses.activate
     def test_verify_fail_bad_results(self, caplog):
+        """
+        All results are garbage, so fail
+        """
         workflow = self.workflow(fail="bad_results")
         tasker = MockerTasker()
 
