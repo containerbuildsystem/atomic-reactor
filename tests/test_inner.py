@@ -286,8 +286,8 @@ class Watcher(object):
 
     def call(self):
         self.called = True
-        if self.raise_exc:
-            raise self.raise_exc
+        if self.raise_exc is not None:
+            raise self.raise_exc    # pylint: disable=raising-bad-type
 
     def was_called(self):
         return self.called
