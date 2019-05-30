@@ -14,7 +14,6 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
-from atomic_reactor.util import ImageName
 from atomic_reactor.yum_util import YumRepo
 import requests
 import pytest

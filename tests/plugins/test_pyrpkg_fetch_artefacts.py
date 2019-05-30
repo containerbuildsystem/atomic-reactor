@@ -11,16 +11,13 @@ from __future__ import unicode_literals, absolute_import
 import pytest
 import os
 
-from atomic_reactor.core import DockerTasker  # noqa
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins import pre_pyrpkg_fetch_artefacts
 from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
 from atomic_reactor.util import ImageName
 from flexmock import flexmock
-from tests.constants import INPUT_IMAGE, MOCK, MOCK_SOURCE
-if MOCK:
-    from tests.docker_mock import mock_docker  # noqa
+from tests.constants import INPUT_IMAGE, MOCK_SOURCE
 
 
 class Y(object):

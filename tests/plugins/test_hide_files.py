@@ -20,7 +20,7 @@ from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin, ReactorConfig,
                                                        WORKSPACE_CONF_KEY)
 from atomic_reactor.plugins.pre_hide_files import HideFilesPlugin
-from atomic_reactor.util import df_parser, ImageName
+from atomic_reactor.util import df_parser
 
 from tests.constants import SOURCE, MOCK
 from tests.stubs import StubInsideBuilder
