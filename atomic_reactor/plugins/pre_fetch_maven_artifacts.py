@@ -173,7 +173,7 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
             if self.allowed_domains:
                 parsed_file_url = urlparse(url.lower())
                 file_url = parsed_file_url.netloc + parsed_file_url.path
-                if not any(map(lambda prefix: file_url.startswith(prefix), self.allowed_domains)):
+                if not any(file_url.startswith(prefix) for prefix in self.allowed_domains):
                     errors.append('File URL {} is not in list of allowed domains: {}'
                                   .format(file_url, self.allowed_domains))
                     continue
