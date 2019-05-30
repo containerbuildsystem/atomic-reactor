@@ -72,7 +72,8 @@ def generate_archive(tmpdir, empty=False):
 
 
 def mock_env(tmpdir, docker_tasker, has_label=True, label=True, has_archive=True,
-             scratch=False, orchestrator=False, selected_platform=True, empty_archive=False):
+             scratch=False, orchestrator=False, selected_platform=True, empty_archive=False,
+             remove_fails=False):
     build_json = {'metadata': {'labels': {'scratch': scratch}}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
     mock_dockerfile(tmpdir, has_label, label)
@@ -90,22 +91,35 @@ def mock_env(tmpdir, docker_tasker, has_label=True, label=True, has_archive=True
      .with_args(workflow.image, command=["/bin/bash"])
      .and_return({'Id': CONTAINER_ID}))
 
-    (flexmock(docker_tasker.d.wrapped)
-     .should_receive('remove_container')
-     .with_args(CONTAINER_ID))
+    if remove_fails:
+        (flexmock(docker_tasker.d.wrapped)
+         .should_receive('remove_container')
+         .with_args(CONTAINER_ID)
+         .and_raise(Exception('error')))
+    else:
+        (flexmock(docker_tasker.d.wrapped)
+         .should_receive('remove_container')
+         .with_args(CONTAINER_ID))
 
     if has_archive:
         (flexmock(docker_tasker.d.wrapped)
          .should_receive('get_archive')
          .with_args(CONTAINER_ID, '/manifests')
          .and_return(mock_stream, {}))
-    else:
+    elif has_archive is not None:
         response = Response()
         response.status_code = 404
         (flexmock(docker_tasker.d.wrapped)
          .should_receive('get_archive')
          .with_args(CONTAINER_ID, '/manifests')
          .and_raise(NotFound('Not found', response=response)))
+    else:
+        response = Response()
+        response.status_code = 500
+        (flexmock(docker_tasker.d.wrapped)
+         .should_receive('get_archive')
+         .with_args(CONTAINER_ID, '/manifests')
+         .and_raise(Exception('error')))
 
     return runner
 
@@ -138,16 +152,23 @@ class TestExportOperatorManifests(object):
             assert len(z.namelist()) == len(expected)
             assert sorted(z.namelist()) == sorted(expected)
 
-    @pytest.mark.parametrize('has_archive', [True, False])
-    def test_no_archive(self, docker_tasker, tmpdir, caplog, has_archive):
-        runner = mock_env(tmpdir, docker_tasker, has_archive=has_archive)
+    @pytest.mark.parametrize('remove_fails', [True, False])
+    @pytest.mark.parametrize('has_archive', [True, False, None])
+    def test_no_archive(self, docker_tasker, tmpdir, caplog, remove_fails, has_archive):
+        runner = mock_env(tmpdir, docker_tasker, has_archive=has_archive,
+                          remove_fails=remove_fails)
         if has_archive:
             runner.run()
+            if remove_fails:
+                assert 'Failed to remove container' in caplog.text
         else:
             with pytest.raises(PluginFailedException) as exc:
                 runner.run()
-                assert 'Could not extract operator manifest files' in caplog.text
-                assert 'Could not extract operator manifest files' in str(exc)
+                if not has_archive:
+                    assert 'Could not extract operator manifest files' in caplog.text
+                    assert 'Could not extract operator manifest files' in str(exc)
+                if remove_fails:
+                    assert 'Failed to remove container' in caplog.text
 
     @pytest.mark.parametrize('empty_archive', [True, False])
     def test_emty_manifests_dir(self, docker_tasker, tmpdir, caplog, empty_archive):

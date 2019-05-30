@@ -118,8 +118,15 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
                            IMG_MANIFESTS_PATH, ex)
             self.log.error(msg)
             raise RuntimeError('%s %s' % (msg, ex))
+
+        except Exception as ex:
+            raise RuntimeError('%s' % ex)
+
         finally:
-            self.tasker.d.remove_container(container_id)
+            try:
+                self.tasker.d.remove_container(container_id)
+            except Exception as ex:
+                self.log.warning('Failed to remove container %s: %s' % (container_id, ex))
 
         with tempfile.NamedTemporaryFile() as extracted_file:
             for chunk in bits:
