@@ -56,7 +56,6 @@ from atomic_reactor.util import (ImageName, wait_for_command,
                                  get_platforms_in_limits, get_orchestrator_platforms,
                                  dump_stacktraces, setup_introspection_signal_handler,
                                  allow_repo_dir_in_dockerignore)
-from atomic_reactor import util
 from tests.constants import (DOCKERFILE_GIT,
                              INPUT_IMAGE, MOCK, MOCK_SOURCE,
                              REACTOR_CONFIG_MAP)
@@ -866,7 +865,7 @@ def test_get_build_json(environ, expected):
     ({}, None),
 ])
 def test_is_scratch_build(build_json, scratch):
-    flexmock(util).should_receive('get_build_json').and_return(build_json)
+    flexmock(atomic_reactor.util).should_receive('get_build_json').and_return(build_json)
     if scratch is None:
         with pytest.raises(KeyError):
             is_scratch_build()
@@ -894,7 +893,7 @@ def test_is_custom_base_build(base_image, is_custom):
     ({}, None),
 ])
 def test_is_isolated_build(build_json, isolated):
-    flexmock(util).should_receive('get_build_json').and_return(build_json)
+    flexmock(atomic_reactor.util).should_receive('get_build_json').and_return(build_json)
     if isolated is None:
         with pytest.raises(KeyError):
             is_isolated_build()

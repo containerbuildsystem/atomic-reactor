@@ -23,7 +23,7 @@ try:
     from urlparse import unquote, urlsplit
     import ConfigParser as configparser
     # We import BytesIO as StringIO as configparser can't properly write
-    from io import BytesIO, BytesIO as StringIO
+    from io import BytesIO, BytesIO as StringIO  # pylint: disable=reimported
 except ImportError:
     # py3
     from urllib.parse import unquote, urlsplit
