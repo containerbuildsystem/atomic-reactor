@@ -19,7 +19,6 @@ try:
     import koji
 except ImportError:
     import inspect
-    import sys  # noqa: F811
 
     # Find our mocked koji module
     import tests.koji as koji
