@@ -1207,7 +1207,7 @@ def df_parser(df_path, workflow=None, cache_content=False, env_replace=True, par
         else:
             try:
                 tmp_env = parent_config["Env"]
-                logger.debug("Parent Config ENV: %s" % tmp_env)
+                logger.debug("Parent Config ENV: %s", tmp_env)
 
                 if isinstance(tmp_env, dict):
                     p_env = tmp_env

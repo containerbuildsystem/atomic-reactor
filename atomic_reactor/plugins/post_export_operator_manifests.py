@@ -126,7 +126,7 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
             try:
                 self.tasker.d.remove_container(container_id)
             except Exception as ex:
-                self.log.warning('Failed to remove container %s: %s' % (container_id, ex))
+                self.log.warning('Failed to remove container %s: %s', container_id, ex)
 
         with tempfile.NamedTemporaryFile() as extracted_file:
             for chunk in bits:
