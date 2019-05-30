@@ -47,7 +47,6 @@ disable=I,
         invalid-name,
         len-as-condition,  # nice to have
         line-too-long,  # pep8, should be enabled
-        method-hidden,  # should be enabled
         missing-docstring,
         misplaced-comparison-constant,
         multiple-statements,  # nice to have

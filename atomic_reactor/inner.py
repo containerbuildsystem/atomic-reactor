@@ -56,7 +56,7 @@ class BuildResults(object):
 
 
 class BuildResultsEncoder(json.JSONEncoder):
-    def default(self, obj):
+    def default(self, obj):  # pylint: disable=method-hidden
         if isinstance(obj, BuildResults):
             return {
                 'build_logs': obj.build_logs,
