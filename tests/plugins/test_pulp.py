@@ -45,9 +45,10 @@ class X(object):
     base_image = ImageName(repo="qwe", tag="asd")
 
 
-def prepare(check_repo_retval=0, existing_layers=[],
+def prepare(check_repo_retval=0, existing_layers=None,
             subprocess_exceptions=False,
             conf=None, unsupported=False):
+    # existing_layers=None means that dockpulp.getImageIdsExist will not be mocked
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
@@ -218,7 +219,7 @@ def test_pulp_dedup_layers(unsupported, unlink_exc, tmpdir, existing_layers, sho
 ])
 def test_pulp_source_secret(tmpdir, check_repo_retval, should_raise, monkeypatch,
                             reactor_config_map):
-    tasker, workflow = prepare(check_repo_retval=check_repo_retval)
+    tasker, workflow = prepare(check_repo_retval=check_repo_retval, existing_layers=[])
     monkeypatch.setenv('SOURCE_SECRET_PATH', str(tmpdir))
     with open(os.path.join(str(tmpdir), "pulp.cer"), "wt") as cer:
         cer.write("pulp certificate\n")
@@ -255,7 +256,7 @@ def test_pulp_source_secret(tmpdir, check_repo_retval, should_raise, monkeypatch
 @pytest.mark.skipif(dockpulp is None,  # noqa: F811; redefinition of 'reactor_config_map'
                     reason='dockpulp module not available')
 def test_pulp_service_account_secret(tmpdir, monkeypatch, reactor_config_map):
-    tasker, workflow = prepare()
+    tasker, workflow = prepare(existing_layers=[])
     monkeypatch.setenv('SOURCE_SECRET_PATH', str(tmpdir) + "/not-used")
     with open(os.path.join(str(tmpdir), "pulp.cer"), "wt") as cer:
         cer.write("pulp certificate\n")
@@ -318,7 +319,7 @@ def test_pulp_publish_only_without_sync(before_name, after_name, publish,
         },
     ]
 
-    tasker, workflow = prepare(conf=conf)
+    tasker, workflow = prepare(existing_layers=[], conf=conf)
     plugin = PulpPushPlugin(tasker, workflow, 'pulp_registry_name', publish=publish)
 
     if reactor_config_map:
@@ -347,7 +348,7 @@ def test_pulp_publish_only_without_sync(before_name, after_name, publish,
                     reason='dockpulp module not available')
 def test_load_exported_image():
     # low-level case to exercise the logic for using exported image
-    tasker, workflow = prepare()
+    tasker, workflow = prepare(existing_layers=[])
     workflow.exported_image_sequence = [dict(path='/some/dir')]
     plugin = flexmock(PulpPushPlugin(
         tasker, workflow,

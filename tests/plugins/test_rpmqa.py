@@ -49,7 +49,7 @@ def mock_logs_empty(cid, **kwargs):
     return ''
 
 
-def mock_logs_retry(cid, cache={}, **kwargs):
+def mock_logs_retry(cid, cache={}, **kwargs):   # pylint: disable=dangerous-default-value
     cache.setdefault('attempt', 0)
 
     if cache['attempt'] < 4:
