@@ -56,7 +56,6 @@ disable=I,
         unicode-builtin,
         unidiomatic-typecheck,  # nice to have
         ungrouped-imports,
-        unreachable,  # should be enabled, dead code
         unnecessary-lambda,  # nice to have
         unneeded-not,  # nice to have
         unused-argument,  # nice to have
