@@ -133,7 +133,7 @@ def test_syntax_error():
         raise docker.errors.APIError(message='foo',
                                      response=http_error,
                                      explanation=explanation)
-        yield {}
+        yield {}    # pylint: disable=unreachable; this needs to be a generator
 
     fake_builder.tasker.build_image_from_path = raise_exc
     flexmock(InsideBuilder).new_instances(fake_builder)
