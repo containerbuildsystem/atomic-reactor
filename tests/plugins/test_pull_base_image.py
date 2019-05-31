@@ -498,9 +498,6 @@ def test_try_with_library_pull_base_image(library, reactor_config_map):
     workflow.builder.base_image = ImageName.parse(base_image)
     workflow.builder.parent_images = {ImageName.parse(base_image): None}
 
-    class MockResponse(object):
-        content = ''
-
     cr = CommandResult()
     cr._error = "cmd_error"
     cr._error_detail = {"message": "error_detail"}

@@ -173,7 +173,7 @@ def mock_reactor_config(tmpdir, clusters=None, empty=False, add_config=None):
         .and_return(conf))
 
     with open(os.path.join(str(tmpdir), 'osbs.conf'), 'w') as f:
-        for plat, plat_clusters in clusters.items():
+        for plat_clusters in clusters.values():
             for cluster in plat_clusters:
                 f.write(dedent("""\
                     [{name}]
@@ -389,7 +389,7 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
         expected_kwargs['pulp_registry_name'] = None
 
     with open(os.path.join(str(tmpdir), 'osbs.conf'), 'w') as f:
-        for plat, plat_clusters in clusters.items():
+        for plat_clusters in clusters.values():
             for cluster in plat_clusters:
                 f.write(dedent("""\
                     [{name}]

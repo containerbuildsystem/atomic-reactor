@@ -298,7 +298,7 @@ def mock_docker(build_should_fail=False,
 
     def mock_iter_content(chunk_size=1):
         assert chunk_size == 1024*2048
-        for i in range(0, 10):
+        for _ in range(0, 10):
             yield 'XXXXXXXXXX'
 
     def mock_get(url, **kwargs):

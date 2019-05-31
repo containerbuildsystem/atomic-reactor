@@ -641,7 +641,7 @@ class TestSendMailPlugin(object):
                                'koji': koji_map})
 
         p = SendMailPlugin(None, workflow, **kwargs)
-        subject, body, fail_logs = p._render_mail(True, False, False, False)
+        _, _, fail_logs = p._render_mail(True, False, False, False)
         assert not fail_logs
 
     @pytest.mark.parametrize(

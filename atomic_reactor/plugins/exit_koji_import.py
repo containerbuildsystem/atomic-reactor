@@ -224,7 +224,7 @@ class KojiImportPlugin(ExitPlugin):
             extra['image']['go'] = go
 
     def set_operators_metadata(self, extra, worker_metadatas):
-        for platform, metadata in worker_metadatas.items():
+        for metadata in worker_metadatas.values():
             for output in metadata['output']:
                 if output.get('filename') == OPERATOR_MANIFESTS_ARCHIVE:
                     extra['operator_manifests_archive'] = OPERATOR_MANIFESTS_ARCHIVE

@@ -107,9 +107,6 @@ class OSv3InputPlugin(InputPlugin):
                                    'no koji root available')
 
     def remove_pulp_plugins(self):
-        def has_plugin(self, phase, target_plugin):
-            return self.find_plugin(phase, target_plugin) >= 0
-
         phases = ('postbuild_plugins', 'exit_plugins')
         pulp_registry = self.get_value('pulp')
         koji_hub = self.get_value('koji', {}).get('hub_url')
@@ -181,7 +178,6 @@ class OSv3InputPlugin(InputPlugin):
 
         response from plugin is kept and used in json result response
         """
-        user_params = None
         build_json = get_build_json()
         git_url = os.environ['SOURCE_URI']
         git_ref = os.environ.get('SOURCE_REF', None)

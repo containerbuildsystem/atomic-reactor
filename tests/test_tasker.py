@@ -350,7 +350,7 @@ def test_export(no_container):
                 t.d.export('NOT_THERE')
         else:
             export_generator = t.d.export(container_id)
-            for chunk in export_generator:
+            for _ in export_generator:
                 pass
     finally:
         t.d.remove_container(container_id)

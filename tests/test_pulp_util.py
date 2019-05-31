@@ -96,7 +96,7 @@ def test_get_tar_metadata():
     pulp_registry_name = 'registry.example.com'
     testfile = 'foo'
 
-    tasker, workflow = prepare(testfile)
+    _, workflow = prepare(testfile)
     handler = PulpHandler(workflow, pulp_registry_name, log)
 
     expected = ("foo", ["foo"])
@@ -421,7 +421,7 @@ class TestLockedPulpRepository(object):
         pulp = flexmock()
         expectation = pulp.should_receive('createRepo').times(failures + 1)
         exc = dockpulp.errors.DockPulpError('error creating')
-        for i in range(failures):
+        for _ in range(failures):
             expectation = expectation.and_raise(exc).ordered()
 
         expectation.and_return(None).ordered()

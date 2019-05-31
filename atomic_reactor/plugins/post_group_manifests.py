@@ -375,7 +375,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
                 found = False
                 if len(source) != 1:
                     raise RuntimeError('Without grouping only one source is expected')
-                for platform, digest in source.items():
+                for digest in source.values():
                     self.tag_manifest_into_registry(session, digest)
                     found = True
                 if not found:

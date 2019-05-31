@@ -96,7 +96,7 @@ class TestReactorConfigPlugin(object):
          False),
     ])
     def test_get_docker_registry(self, config, fallback, valid):
-        tasker, workflow = self.prepare()
+        _, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
         config_json = read_yaml(config, 'schemas/config.json')
@@ -136,7 +136,7 @@ class TestReactorConfigPlugin(object):
                     get_docker_registry(workflow, docker_fallback)
 
     def test_no_config(self):
-        tasker, workflow = self.prepare()
+        _, workflow = self.prepare()
         conf = get_config(workflow)
         assert isinstance(conf, ReactorConfig)
 
@@ -517,7 +517,7 @@ class TestReactorConfigPlugin(object):
         'skip_koji_check_for_base_image'
     ])
     def test_get_methods(self, fallback, method):
-        tasker, workflow = self.prepare()
+        _, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         if fallback is False:
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = \
@@ -586,7 +586,7 @@ class TestReactorConfigPlugin(object):
           'ppc64le': 'ppc64le'}),
     ])
     def test_get_platform_to_goarch_mapping(self, fallback, config, expect):
-        tasker, workflow = self.prepare()
+        _, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
         config_json = read_yaml(config, 'schemas/config.json')
@@ -635,7 +635,7 @@ class TestReactorConfigPlugin(object):
           'arm': 'registry.example.com/buildroot-arm:latest'}),
     ])
     def test_get_build_image_override(self, fallback, config, expect):
-        tasker, workflow = self.prepare()
+        _, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
         config_json = read_yaml(config, 'schemas/config.json')
@@ -789,7 +789,7 @@ class TestReactorConfigPlugin(object):
         """, True),
     ])
     def test_get_koji_session(self, fallback, config, raise_error):
-        tasker, workflow = self.prepare()
+        _, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
         if raise_error:
@@ -828,7 +828,7 @@ class TestReactorConfigPlugin(object):
         None
     ))
     def test_get_koji_path_info(self, fallback, root_url):
-        tasker, workflow = self.prepare()
+        _, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
         config = {
@@ -934,7 +934,7 @@ class TestReactorConfigPlugin(object):
         """, True),
     ])
     def test_get_pulp_session(self, fallback, config, raise_error):
-        tasker, workflow = self.prepare()
+        _, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
         if raise_error:
@@ -1049,7 +1049,7 @@ class TestReactorConfigPlugin(object):
         """, True),
     ])
     def test_get_odcs_session(self, tmpdir, fallback, config, raise_error):
-        tasker, workflow = self.prepare()
+        _, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
         if raise_error:
@@ -1126,7 +1126,7 @@ class TestReactorConfigPlugin(object):
         """, True),
     ])
     def test_get_smtp_session(self, fallback, config, raise_error):
-        tasker, workflow = self.prepare()
+        _, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
         if raise_error:
@@ -1242,7 +1242,7 @@ class TestReactorConfigPlugin(object):
         """, True),
     ])
     def test_get_openshift_session(self, fallback, build_json_dir, config, raise_error):
-        tasker, workflow = self.prepare()
+        _, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
         if build_json_dir:

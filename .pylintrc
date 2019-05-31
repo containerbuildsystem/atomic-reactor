@@ -59,7 +59,6 @@ disable=I,
         unnecessary-lambda,  # nice to have
         unneeded-not,  # nice to have
         unused-argument,  # nice to have
-        unused-variable,  # should be enabled
         useless-import-alias,  # nice to have
         useless-super-delegation,  # nice to have
         wrong-import-order,
