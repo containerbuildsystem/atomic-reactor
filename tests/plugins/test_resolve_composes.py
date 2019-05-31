@@ -1228,7 +1228,7 @@ class TestResolveComposes(object):
 
     def run_plugin_with_args(self, workflow, plugin_args=None,
                              expect_error=None, reactor_config_map=False,
-                             platforms=ODCS_COMPOSE_DEFAULT_ARCH_LIST, is_pulp=None,
+                             platforms=None, is_pulp=None,
                              check_for_default_id=True):
         plugin_args = plugin_args or {}
         plugin_args.setdefault('odcs_url', ODCS_URL)
@@ -1260,7 +1260,8 @@ class TestResolveComposes(object):
 
         results = runner.run()[ResolveComposesPlugin.key]
         if results:
-            for platform in platforms or []:
+            platforms = ODCS_COMPOSE_DEFAULT_ARCH_LIST if platforms is None else platforms
+            for platform in platforms:
                 yum_repourls = self.get_override_yum_repourls(workflow, platform)
                 # Koji tag compose is present in each one
                 if check_for_default_id:

@@ -56,7 +56,7 @@ class BuildInfo(object):
         self.build = BuildResponse({'metadata': {'annotations': annotations}})
 
 
-def prepare(success=True, v1_image_ids={}):
+def prepare(success=True, v1_image_ids=None):
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
@@ -132,6 +132,7 @@ def prepare(success=True, v1_image_ids={}):
     build_info['ppc64le'] = BuildInfo()
     build_info['bogus'] = BuildInfo(unset_annotations=True)  # OSBS-5262
 
+    v1_image_ids = v1_image_ids or {}
     for platform, v1_image_id in v1_image_ids.items():
         build_info[platform] = BuildInfo(v1_image_id)
 

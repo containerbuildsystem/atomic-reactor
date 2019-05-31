@@ -34,7 +34,6 @@ disable=I,
         bad-whitespace,  # pep8, nice to have
         broad-except,
         comprehension-escape, # throws false positives on 1.9.0 (Fedora 29)
-        dangerous-default-value,  # should be enabled
         deprecated-lambda,  # nice to have
         fixme,
         import-error,  # requires to having all modules installed

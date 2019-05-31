@@ -57,7 +57,7 @@ class BuildInfo(object):
         self.build = BuildResponse({'metadata': {'annotations': annotations}})
 
 
-def prepare(v1_image_ids={}):
+def prepare(v1_image_ids=None):
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
@@ -143,6 +143,7 @@ def prepare(v1_image_ids={}):
     build_info['x86_64'] = BuildInfo()
     build_info['ppc64le'] = BuildInfo()
 
+    v1_image_ids = v1_image_ids or {}
     for platform, v1_image_id in v1_image_ids.items():
         build_info[platform] = BuildInfo(v1_image_id)
 

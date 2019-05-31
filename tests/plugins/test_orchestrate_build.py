@@ -123,7 +123,7 @@ class fake_manifest_list(object):
         return self.content
 
 
-def mock_workflow(tmpdir, platforms=['x86_64', 'ppc64le']):
+def mock_workflow(tmpdir, platforms=None):
     workflow = DockerBuildWorkflow(MOCK_SOURCE, TEST_IMAGE)
     builder = MockInsideBuilder()
     source = MockSource(tmpdir)
@@ -142,6 +142,7 @@ def mock_workflow(tmpdir, platforms=['x86_64', 'ppc64le']):
     df = df_parser(df_path)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
 
+    platforms = ['x86_64', 'ppc64le'] if platforms is None else platforms
     workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(platforms)
 
     build = {

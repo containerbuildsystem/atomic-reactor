@@ -312,20 +312,22 @@ SDK_CONFIG = {
 }
 
 
-def build_flatpak_test_configs(extensions={}):
+def build_flatpak_test_configs(extensions=None):
     configs = {
         'app': APP_CONFIG,
         'runtime': RUNTIME_CONFIG,
         'sdk': SDK_CONFIG,
     }
 
+    extensions = extensions or {}
     for key, config in extensions.items():
         configs[key].update(config)
 
     return configs
 
 
-def setup_flatpak_compose_info(workflow, config=APP_CONFIG):
+def setup_flatpak_compose_info(workflow, config=None):
+    config = APP_CONFIG if config is None else config
     modules = {}
     for name, module_config in config['modules'].items():
         mmd = Modulemd.Module.new_from_string(module_config['metadata'])
@@ -354,7 +356,8 @@ def setup_flatpak_compose_info(workflow, config=APP_CONFIG):
     return compose
 
 
-def setup_flatpak_source_info(workflow, config=APP_CONFIG):
+def setup_flatpak_source_info(workflow, config=None):
+    config = APP_CONFIG if config is None else config
     compose = setup_flatpak_compose_info(workflow, config)
 
     flatpak_yaml = yaml.safe_load(config['container_yaml'])['flatpak']

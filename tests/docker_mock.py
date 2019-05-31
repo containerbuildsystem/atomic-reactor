@@ -266,7 +266,7 @@ def mock_docker(build_should_fail=False,
                 inspect_should_fail=False,
                 wait_should_fail=False,
                 provided_image_repotags=None,
-                should_raise_error={},
+                should_raise_error=None,
                 remember_images=False,
                 push_should_fail=False):
     """
@@ -276,7 +276,7 @@ def mock_docker(build_should_fail=False,
     :param inspect_should_fail: True == inspect_image() will raise docker.errors.NotFound
     :param wait_should_fail: True == wait() will return 1 instead of 0
     :param provided_image_repotags: images() will contain provided image
-    :param should_raise_error: methods (with args) to raise docker.errors.APIError
+    :param should_raise_error: dict, methods (with args) to raise docker.errors.APIError
     :param remember_images: keep track of available image tags
     """
     if provided_image_repotags:
@@ -372,6 +372,7 @@ def mock_docker(build_should_fail=False,
 
     flexmock(docker.APIClient, remove_volume=lambda iid, **kwargs: remove_volume(iid))
 
+    should_raise_error = should_raise_error or {}
     for method, args in should_raise_error.items():
         response = flexmock(content="abc", status_code=123)
         if args:

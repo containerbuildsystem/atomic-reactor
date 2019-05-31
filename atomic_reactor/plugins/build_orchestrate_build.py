@@ -509,7 +509,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         unique_fragment = '%r.%s' % (time.time(), random_chars)
         return os.path.join(dir_prefix, unique_fragment)
 
-    def _update_content_versions(self, worker_reactor_conf, valid_values=['v2']):
+    def _update_content_versions(self, worker_reactor_conf, valid_values=('v2',)):
         if 'content_versions' not in worker_reactor_conf:
             return
 

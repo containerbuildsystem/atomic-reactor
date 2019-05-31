@@ -314,7 +314,7 @@ class X(object):
 
 
 def mock_environment(tmpdir, primary_images=None,
-                     annotations={}):
+                     annotations=None):
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
@@ -335,7 +335,7 @@ def mock_environment(tmpdir, primary_images=None,
                 workflow.tag_conf.add_primary_image(image)
         workflow.tag_conf.add_unique_image(primary_images[0])
 
-    workflow.build_result = BuildResult(image_id='123456', annotations=annotations)
+    workflow.build_result = BuildResult(image_id='123456', annotations=annotations or {})
 
     return tasker, workflow
 

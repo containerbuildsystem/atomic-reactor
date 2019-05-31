@@ -144,7 +144,8 @@ DEFAULT_ANNOTATIONS = {
 }
 
 
-def mock_store_metadata_results(workflow, annotations=DEFAULT_ANNOTATIONS):
+def mock_store_metadata_results(workflow, annotations=None):
+    annotations = DEFAULT_ANNOTATIONS if annotations is None else annotations
     result = {}
     if annotations:
         result['annotations'] = {key: json.dumps(value) for key, value in annotations.items()}
@@ -467,7 +468,7 @@ class TestSendMailPlugin(object):
                 else:
                     mock_store_metadata_results(workflow, {'repositories': {}})
             else:
-                mock_store_metadata_results(workflow, None)
+                mock_store_metadata_results(workflow, {})
 
         if reactor_config_map:
             openshift_map = {'url': 'https://something.com'}
