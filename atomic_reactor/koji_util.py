@@ -245,7 +245,7 @@ def get_koji_module_build(session, module_spec):
 
         for b in builds:
             if '.' in b['release']:
-                version, context = b['release'].split('.', 1)
+                version, _ = b['release'].split('.', 1)
                 if version == module_spec.version:
                     if build is not None:
                         raise RuntimeError("Multiple builds found for {}"

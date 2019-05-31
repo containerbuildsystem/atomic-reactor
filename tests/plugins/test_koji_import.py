@@ -310,7 +310,7 @@ def mock_environment(tmpdir, session=None, name=None,
                     'container_config': {}
                 }
 
-    for pulp_registry in range(pulp_registries):
+    for _ in range(pulp_registries):
         workflow.push_conf.add_pulp_registry('env', 'crane.example.com:5000')
 
     with open(os.path.join(str(tmpdir), 'image.tar.xz'), 'wt') as fp:
@@ -1721,7 +1721,7 @@ class TestKojiImport(object):
         for image in workflow.tag_conf.images:
             tag = image.to_str(registry=False)
             registry.digests[tag] = 'tag'
-        for platform, metadata in workflow.postbuild_results[FetchWorkerMetadataPlugin.key].items():
+        for metadata in workflow.postbuild_results[FetchWorkerMetadataPlugin.key].values():
             for output in metadata['output']:
                 if output['type'] != 'docker-image':
                     continue
@@ -1880,7 +1880,7 @@ class TestKojiImport(object):
             registry.digests[tag] = ManifestDigest(v1='sha256:v1',
                                                    v2='sha256:v2')
 
-        for platform, metadata in workflow.postbuild_results[FetchWorkerMetadataPlugin.key].items():
+        for metadata in workflow.postbuild_results[FetchWorkerMetadataPlugin.key].values():
             for output in metadata['output']:
                 if output['type'] != 'docker-image':
                     continue

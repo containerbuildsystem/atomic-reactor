@@ -104,8 +104,8 @@ class TestCheckRebuild(object):
         return workflow, runner
 
     def test_check_rebuild_no_build_json(self, tmpdir, monkeypatch, reactor_config_map):
-        workflow, runner = self.prepare(tmpdir, 'is_autorebuild', 'true',
-                                        reactor_config_map=reactor_config_map)
+        _, runner = self.prepare(tmpdir, 'is_autorebuild', 'true',
+                                 reactor_config_map=reactor_config_map)
         monkeypatch.delenv('BUILD', raising=False)
 
         with pytest.raises(PluginFailedException):
@@ -114,7 +114,7 @@ class TestCheckRebuild(object):
     def test_check_no_buildconfig(self, tmpdir, monkeypatch, reactor_config_map):
         key = 'is_autorebuild'
         value = 'true'
-        workflow, runner = self.prepare(tmpdir, key, value, reactor_config_map=reactor_config_map)
+        _, runner = self.prepare(tmpdir, key, value, reactor_config_map=reactor_config_map)
         monkeypatch.setenv("BUILD", json.dumps({
             "metadata": {
                 "labels": {

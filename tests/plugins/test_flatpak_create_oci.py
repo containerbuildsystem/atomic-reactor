@@ -459,7 +459,7 @@ class MockFlatpak(object):
         # flatpak build-export only actually handles very specific files
         # desktop files in share/applications, icons, etc.
         dest_exportdir = os.path.join(dest, "export")
-        for dirpath, dirname, filenames in os.walk(filesdir):
+        for dirpath, _, filenames in os.walk(filesdir):
             rel_dirpath = os.path.relpath(dirpath, filesdir)
             for f in filenames:
                 if f.startswith(appname):
@@ -578,7 +578,7 @@ class DefaultInspector(object):
             line = line.strip()
             if line == '':
                 continue
-            perms, user, group, size, path = line.split()
+            perms, _, _, _, path = line.split()
             if perms.startswith('d'):  # A directory
                 continue
             files.append(path)
@@ -599,7 +599,7 @@ class DefaultInspector(object):
             line = line.strip()
             if line == '':
                 continue
-            perms, user, group, size, path = line.split()
+            perms = line.split()[0]
             return perms
 
 
@@ -616,7 +616,7 @@ class MockInspector(object):
 
         files = []
         top = os.path.join(self.path, 'tree')
-        for dirpath, dirname, filenames in os.walk(top):
+        for dirpath, _, filenames in os.walk(top):
             rel_dirpath = os.path.relpath(dirpath, top)
             files.extend([_make_absolute(os.path.join(rel_dirpath, f)) for f in filenames])
 

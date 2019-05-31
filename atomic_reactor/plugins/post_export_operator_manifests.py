@@ -109,8 +109,8 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
         container_dict = self.tasker.d.create_container(image, command=['/bin/bash'])
         container_id = container_dict['Id']
         try:
-            bits, stat = self.tasker.d.get_archive(container_id,
-                                                   IMG_MANIFESTS_PATH)
+            bits, _ = self.tasker.d.get_archive(container_id,
+                                                IMG_MANIFESTS_PATH)
         except APIError as ex:
             msg = ('Could not extract operator manifest files. '
                    'Is there a %s path in the image?' % (IMG_MANIFESTS_PATH))

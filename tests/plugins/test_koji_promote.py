@@ -287,7 +287,7 @@ def mock_environment(tmpdir, session=None, name=None,
         if PULP_SYNC_AVAILABLE and pulp_registries:
             workflow.plugin_workspace[PLUGIN_PULP_SYNC_KEY] = sync_result
 
-    for pulp_registry in range(pulp_registries):
+    for _ in range(pulp_registries):
         workflow.push_conf.add_pulp_registry('env', 'pulp.example.com')
 
     with open(os.path.join(str(tmpdir), 'image.tar.xz'), 'wt') as fp:

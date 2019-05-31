@@ -190,7 +190,7 @@ def test_pulp_tag_basic(tmpdir, monkeypatch, v1_image_ids, should_raise, caplog,
 
     msg = None
     expected_results = {}
-    for platform, v1_image_id in v1_image_ids.items():
+    for v1_image_id in v1_image_ids.values():
         if v1_image_id:
             msg = "tagging v1-image-id ppc64le_v1_image_id for platform ppc64le"
             expected_results = {
