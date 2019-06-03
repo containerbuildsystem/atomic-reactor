@@ -30,7 +30,7 @@ may leak if the build fails in a way that prevents exit plugins from running.
 Base images are also removed by the `remove_built_image` plugin.
 
 We may want to keep some of the base images in order to speed up future builds
-that have the same base image ([Issue #146](https://github.com/projectatomic/atomic-reactor/issues/146)).
+that have the same base image ([Issue #146](https://github.com/containerbuildsystem/atomic-reactor/issues/146)).
 
 ## Additional images
 

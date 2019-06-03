@@ -49,7 +49,7 @@ INSPECT_ROOTFS_LAYERS = 'Layers'
 # docs constants
 
 DESCRIPTION = "Python library with command line interface for building docker images."
-HOMEPAGE = "https://github.com/projectatomic/atomic-reactor"
+HOMEPAGE = "https://github.com/containerbuildsystem/atomic-reactor"
 PROG = "atomic-reactor"
 MANPAGE_AUTHORS = "Jiri Popelka <jpopelka@redhat.com>, " \
                   "Martin Milata <mmilata@redhat.com>, " \

@@ -22,7 +22,7 @@
 %global with_check 1
 %endif
 
-%global owner projectatomic
+%global owner containerbuildsystem
 %global project atomic-reactor
 
 %global commit 9b13c42cd8db43a9d835791d6b9a8ad4383f830f

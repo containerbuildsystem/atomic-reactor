@@ -7,7 +7,7 @@ One of the biggest strength of Atomic Reactor is its plugin system.
 
 There are 6 types of plugins:
 
-1. **Input** — when running Atomic Reactor inside a build container, input plugin fetches build input (it can live in [path](https://github.com/projectatomic/atomic-reactor/blob/master/atomic_reactor/plugins/input_path.py), [environment variable](https://github.com/projectatomic/atomic-reactor/blob/master/atomic_reactor/plugins/input_env.py), ...)
+1. **Input** — when running Atomic Reactor inside a build container, input plugin fetches build input (it can live in [path](https://github.com/containerbuildsystem/atomic-reactor/blob/master/atomic_reactor/plugins/input_path.py), [environment variable](https://github.com/containerbuildsystem/atomic-reactor/blob/master/atomic_reactor/plugins/input_env.py), ...)
 2. **Pre-build** — this plugin is executed after cloning a git repo (so you can edit sources, Dockerfile, ...), prior to build
 3. **Buildstep** — this plugin is doing the actual building
 4. **Pre-publish** — once build finishes, the built image is pushed to registry, but prior to that, pre-publish plugins are executed (time for some simple tests)
