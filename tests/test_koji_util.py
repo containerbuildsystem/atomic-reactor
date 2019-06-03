@@ -106,7 +106,7 @@ class TestCreateKojiSession(object):
         session = flexmock()
 
         (flexmock(koji_util.koji).should_receive('ClientSession').with_args(
-            url, opts={'krb_rdns': False}).and_return(session))
+            url, opts={'krb_rdns': False, 'use_fast_upload': True}).and_return(session))
         assert create_koji_session(url)._wrapped_session == session
 
     @pytest.mark.parametrize(('ssl_session'), [
@@ -124,7 +124,7 @@ class TestCreateKojiSession(object):
             session.should_receive('krb_login').once().and_return(True)
 
         (flexmock(koji_util.koji).should_receive('ClientSession').with_args(
-            url, opts={'krb_rdns': False}).and_return(session))
+            url, opts={'krb_rdns': False, 'use_fast_upload': True}).and_return(session))
         assert create_koji_session(url, args)._wrapped_session == session
 
     @pytest.mark.parametrize(('ssl_session'), [
@@ -142,7 +142,7 @@ class TestCreateKojiSession(object):
             session.should_receive('krb_login').once().and_return(False)
 
         (flexmock(koji_util.koji).should_receive('ClientSession').with_args(
-            url, opts={'krb_rdns': False}).and_return(session))
+            url, opts={'krb_rdns': False, 'use_fast_upload': True}).and_return(session))
         with pytest.raises(RuntimeError):
             create_koji_session(url, args)
 
@@ -163,7 +163,7 @@ class TestCreateKojiSession(object):
 
         session = flexmock(_value="test_value")
         (flexmock(koji_util.koji).should_receive('ClientSession').with_args(
-            url, opts={'krb_rdns': False}).and_return(session))
+            url, opts={'krb_rdns': False, 'use_fast_upload': True}).and_return(session))
 
         flexmock(time).should_receive('sleep').and_return(None)
 

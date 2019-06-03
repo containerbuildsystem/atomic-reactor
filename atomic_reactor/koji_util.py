@@ -126,16 +126,21 @@ def koji_login(session,
     return result
 
 
-def create_koji_session(hub_url, auth_info=None):
+def create_koji_session(hub_url, auth_info=None, use_fast_upload=True):
     """
     Creates and returns a Koji session. If auth_info
     is provided, the session will be authenticated.
 
     :param hub_url: str, Koji hub URL
     :param auth_info: dict, authentication parameters used for koji_login
+    :param use_fast_upload: bool, flag to use or not Koji's fast upload API.
     :return: koji.ClientSession instance
     """
-    session = KojiSessionWrapper(koji.ClientSession(hub_url, opts={'krb_rdns': False}))
+    session = KojiSessionWrapper(koji.ClientSession(
+        hub_url,
+        opts={'krb_rdns': False, 'use_fast_upload': use_fast_upload}
+        )
+    )
 
     if auth_info is not None:
         koji_login(session, **auth_info)

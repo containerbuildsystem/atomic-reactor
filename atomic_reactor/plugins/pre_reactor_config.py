@@ -77,7 +77,9 @@ def get_koji_session(workflow, fallback):
         "krb_keytab": config['auth'].get('krb_keytab_path')
     }
 
-    return create_koji_session(config['hub_url'], auth_info)
+    use_fast_upload = config.get('use_fast_upload', True)
+
+    return create_koji_session(config['hub_url'], auth_info, use_fast_upload)
 
 
 def get_koji_path_info(workflow, fallback):

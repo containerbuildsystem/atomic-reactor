@@ -99,6 +99,11 @@
                         "additionalProperties": false
                     }
                 ]
+            },
+            "use_fast_upload": {
+                "description": "Use Koji's fast upload API",
+                "type": "boolean",
+                "default": true
             }
         },
         "additionalProperties": false,
