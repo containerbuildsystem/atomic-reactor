@@ -18,8 +18,8 @@ RUN yum -y update && yum -y install git koji python-setuptools docker python-doc
 # let's be cutting edge and use git version of squash tool
 # use whatever branch of upstream atomic-reactor/osbs-client repo you want
 RUN pip install git+https://github.com/goldmann/docker-squash && \
-    cd /opt/ && git clone [-b next] https://github.com/projectatomic/atomic-reactor.git && cd atomic-reactor && python setup.py install && \
-    cd /opt/ && git clone https://github.com/projectatomic/osbs.git && cd osbs && python setup.py install
+    cd /opt/ && git clone [-b next] https://github.com/containerbuildsystem/atomic-reactor.git && cd atomic-reactor && python setup.py install && \
+    cd /opt/ && git clone https://github.com/containerbuildsystem/osbs-client.git && cd osbs-client && python setup.py install
 
 CMD ["atomic-reactor", "--verbose", "inside-build", "--input", "osv3"]
 ```

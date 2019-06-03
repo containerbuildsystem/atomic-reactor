@@ -87,9 +87,9 @@ fi
 # and running pip install with '--no-deps' to avoid compilation
 # This would also ensure all the deps are specified in the spec
 $RUN rm -rf /tmp/osbs-client
-$RUN git clone --depth 1 https://github.com/projectatomic/osbs-client /tmp/osbs-client
+$RUN git clone --depth 1 https://github.com/containerbuildsystem/osbs-client /tmp/osbs-client
 $RUN $BUILDDEP --define "with_python3 ${WITH_PY3}" -y /tmp/osbs-client/osbs-client.spec
-$RUN $PIP install --upgrade --no-deps --force-reinstall git+https://github.com/projectatomic/osbs-client
+$RUN $PIP install --upgrade --no-deps --force-reinstall git+https://github.com/containerbuildsystem/osbs-client
 
 $RUN $PIP install --upgrade --no-deps --force-reinstall git+https://github.com/DBuildService/dockerfile-parse
 if [[ $PYTHON_VERSION == 2* ]]; then

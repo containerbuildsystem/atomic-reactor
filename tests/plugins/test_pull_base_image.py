@@ -359,7 +359,7 @@ def test_pull_parent_wrong_registry(reactor_config_map, inspect_only):  # noqa: 
     assert "base:image" not in str(exc.value)
 
 
-# test previous issue https://github.com/projectatomic/atomic-reactor/issues/1008
+# test previous issue https://github.com/containerbuildsystem/atomic-reactor/issues/1008
 def test_pull_base_library(reactor_config_map, caplog):  # noqa
     with pytest.raises(PluginFailedException) as exc:
         test_pull_base_image_plugin(

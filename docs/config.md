@@ -29,4 +29,4 @@ clusters:
 
 In this example builds for the x86_64 platform can be sent to worker01 if it has fewer than 4 active worker builds, or worker03.
 
-The full schema is available in [config.json](https://github.com/projectatomic/atomic-reactor/blob/master/atomic_reactor/schemas/config.json).
+The full schema is available in [config.json](https://github.com/containerbuildsystem/atomic-reactor/blob/master/atomic_reactor/schemas/config.json).

@@ -29,7 +29,7 @@ from atomic_reactor.util import LazyGit, wait_for_command, ImageName
 logger = logging.getLogger(__name__)
 
 
-REACTOR_GIT_URL = "https://github.com/projectatomic/atomic-reactor.git"
+REACTOR_GIT_URL = "https://github.com/containerbuildsystem/atomic-reactor.git"
 DOCKERFILE_REACTOR_TARBALL_NAME = "atomic-reactor.tar.gz"
 
 

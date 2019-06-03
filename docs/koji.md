@@ -4,7 +4,7 @@ The `add_filesystem`, `koji`, `fetch_maven_artifacts`, `inject_parent_image` pre
 
 ## Pre-build plugins
 
-The `add_filesystem` pre-build plugin provides special handling for images with "FROM koji/image-build". For these images it creates a Koji task to create a installed filesystem archive as [described here](https://github.com/projectatomic/atomic-reactor/blob/master/docs/base_images.md).
+The `add_filesystem` pre-build plugin provides special handling for images with "FROM koji/image-build". For these images it creates a Koji task to create a installed filesystem archive as [described here](https://github.com/containerbuildsystem/atomic-reactor/blob/master/docs/base_images.md).
 
 The `koji` pre-build plugin creates a yum repofile to allow instructions in the Dockerfile to have access to RPMs available from the appropriate Koji tag.
 
