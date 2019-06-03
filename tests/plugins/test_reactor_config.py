@@ -779,6 +779,18 @@ class TestReactorConfigPlugin(object):
               root_url: https://koji.example.com/root
               auth:
                   proxyuser: proxyuser
+                  krb_principal: krb_principal
+                  krb_keytab_path: /tmp/krb_keytab
+              use_fast_upload: false
+        """, False),
+
+        ("""\
+          version: 1
+          koji:
+              hub_url: https://koji.example.com/hub
+              root_url: https://koji.example.com/root
+              auth:
+                  proxyuser: proxyuser
                   ssl_certs_dir: /var/certs
         """, False),
 
@@ -870,17 +882,20 @@ class TestReactorConfigPlugin(object):
             "krb_keytab": config_json['koji']['auth'].get('krb_keytab_path')
         }
 
+        use_fast_upload = config_json['koji'].get('use_fast_upload', True)
+
         fallback_map = {}
         if fallback:
             fallback_map = {'auth': deepcopy(auth_info), 'hub_url': config_json['koji']['hub_url']}
             fallback_map['auth']['krb_keytab_path'] = fallback_map['auth'].pop('krb_keytab')
+            fallback_map['use_fast_upload'] = use_fast_upload
         else:
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = \
                 ReactorConfig(config_json)
 
         (flexmock(atomic_reactor.koji_util)
             .should_receive('create_koji_session')
-            .with_args(config_json['koji']['hub_url'], auth_info)
+            .with_args(config_json['koji']['hub_url'], auth_info, use_fast_upload)
             .once()
             .and_return(True))
 
