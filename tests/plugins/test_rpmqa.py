@@ -49,16 +49,20 @@ def mock_logs_empty(cid, **kwargs):
     return ''
 
 
-def mock_logs_retry(cid, cache={}, **kwargs):   # pylint: disable=dangerous-default-value
+def setup_mock_logs_retry(cache=None):
+    cache = cache or {}
     cache.setdefault('attempt', 0)
 
-    if cache['attempt'] < 4:
-        logs = mock_logs_empty(cid, **kwargs)
-    else:
-        logs = mock_logs(cid, **kwargs)
+    def mock_logs_retry(cid, **kwargs):
+        if cache['attempt'] < 4:
+            logs = mock_logs_empty(cid, **kwargs)
+        else:
+            logs = mock_logs(cid, **kwargs)
 
-    cache['attempt'] += 1
-    return logs
+        cache['attempt'] += 1
+        return logs
+
+    return mock_logs_retry
 
 
 @pytest.mark.parametrize('base_from_scratch', [True, False])
@@ -179,6 +183,7 @@ def test_empty_logs_retry(docker_tasker):  # noqa
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
     workflow.builder.set_base_from_scratch(False)
 
+    mock_logs_retry = setup_mock_logs_retry()
     flexmock(docker.APIClient, logs=mock_logs_retry)
     runner = PostBuildPluginsRunner(docker_tasker, workflow,
                                     [{"name": PostBuildRPMqaPlugin.key,
