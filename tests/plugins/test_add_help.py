@@ -15,26 +15,15 @@ import pytest
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
-from atomic_reactor.util import ImageName, df_parser
+from atomic_reactor.util import df_parser
 from atomic_reactor import start_time as atomic_reactor_start_time
 
 from datetime import datetime as dt
 from tests.constants import MOCK_SOURCE
+from tests.stubs import StubInsideBuilder
 
 from textwrap import dedent
 from flexmock import flexmock
-
-
-class Y(object):
-    def __init__(self):
-        self.dockerfile_path = None
-        self.path = None
-
-
-class X(object):
-    image_id = "xxx"
-    source = Y()
-    base_image = ImageName(repo="qwe", tag="asd")
 
 
 class MockedPopen(object):
@@ -69,9 +58,7 @@ def test_add_help_plugin(tmpdir, docker_tasker, filename):
     df.content = df_content
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
-    workflow.builder = X
-    workflow.builder.df_path = df.dockerfile_path
-    workflow.builder.df_dir = str(tmpdir)
+    workflow.builder = StubInsideBuilder().set_df_path(df.dockerfile_path)
 
     help_markdown_path = os.path.join(workflow.builder.df_dir, filename)
     generate_a_file(help_markdown_path, "foo")
@@ -113,9 +100,7 @@ def test_add_help_no_help_file(request, tmpdir, docker_tasker, filename):
     df.content = df_content
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
-    workflow.builder = X
-    workflow.builder.df_path = df.dockerfile_path
-    workflow.builder.df_dir = str(tmpdir)
+    workflow.builder = StubInsideBuilder().set_df_path(df.dockerfile_path)
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -144,9 +129,7 @@ def test_add_help_md2man_error(request, tmpdir, docker_tasker, filename,
     df.content = df_content
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
-    workflow.builder = X
-    workflow.builder.df_path = df.dockerfile_path
-    workflow.builder.df_dir = str(tmpdir)
+    workflow.builder = StubInsideBuilder().set_df_path(df.dockerfile_path)
 
     help_markdown_path = os.path.join(workflow.builder.df_dir, filename)
     if go_md2man_result != 'input_missing':
@@ -258,9 +241,7 @@ def test_add_help_generate_metadata(tmpdir, docker_tasker, filename):
     df.content = df_content
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
-    workflow.builder = X
-    workflow.builder.df_path = df.dockerfile_path
-    workflow.builder.df_dir = str(tmpdir)
+    workflow.builder = StubInsideBuilder().set_df_path(df.dockerfile_path)
 
     help_markdown_path = os.path.join(workflow.builder.df_dir, filename)
     generate_a_file(help_markdown_path, "foo")

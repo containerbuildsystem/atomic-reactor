@@ -14,24 +14,12 @@ from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.plugins.post_tag_by_labels import TagByLabelsPlugin
 from atomic_reactor.util import ImageName
 from atomic_reactor.constants import INSPECT_CONFIG
-from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, INPUT_IMAGE, MOCK
+from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, MOCK
+from tests.stubs import StubInsideBuilder
 import pytest
 
 if MOCK:
     from tests.docker_mock import mock_docker
-
-
-class Y(object):
-    def __init__(self):
-        self.dockerfile_path = None
-        self.path = None
-
-
-class X(object):
-    image_id = INPUT_IMAGE
-    source = Y()
-    base_image = ImageName(repo="qwe", tag="asd")
-    image = ImageName.parse("test-image:unique_tag_123")
 
 
 @pytest.mark.parametrize('args', [
@@ -60,7 +48,8 @@ def test_tag_by_labels_plugin(tmpdir, args):
                       tag="%s_%s" % (version, release),
                       registry=LOCALHOST_REGISTRY)
 
-    setattr(workflow, 'builder', X)
+    workflow.builder = (StubInsideBuilder()
+                        .set_image(ImageName.parse("test-image:unique_tag_123")))
 
     runner = PostBuildPluginsRunner(
         tasker,

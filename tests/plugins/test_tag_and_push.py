@@ -18,9 +18,10 @@ from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from atomic_reactor.util import ImageName, ManifestDigest, get_exported_image_metadata
+from atomic_reactor.util import ManifestDigest, get_exported_image_metadata
 from tests.constants import (LOCALHOST_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME, INPUT_IMAGE, MOCK,
                              DOCKER0_REGISTRY)
+from tests.stubs import StubInsideBuilder
 
 import json
 import logging
@@ -82,18 +83,6 @@ PUSH_ERROR_LOGS = [
 ]
 
 
-class Y(object):
-    def __init__(self):
-        self.dockerfile_path = None
-        self.path = None
-
-
-class X(object):
-    image_id = INPUT_IMAGE
-    source = Y()
-    base_image = ImageName(repo="qwe", tag="asd")
-
-
 @pytest.mark.parametrize("use_secret", [
     True,
     False,
@@ -135,7 +124,8 @@ def test_tag_and_push_plugin(
     tasker = DockerTasker(retry_times=0)
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
     workflow.tag_conf.add_primary_image(image_name)
-    setattr(workflow, 'builder', X)
+    workflow.builder = StubInsideBuilder()
+    workflow.builder.image_id = INPUT_IMAGE
 
     secret_path = None
     if use_secret:
@@ -363,7 +353,8 @@ def test_tag_and_push_plugin_oci(
 
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
-    setattr(workflow, 'builder', X)
+    workflow.builder = StubInsideBuilder()
+    workflow.builder.image_id = INPUT_IMAGE
 
     secret_path = None
     if use_secret:

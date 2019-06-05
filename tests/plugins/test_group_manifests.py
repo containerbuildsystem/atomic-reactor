@@ -17,7 +17,8 @@ import os
 import requests
 from six import binary_type, text_type
 
-from tests.constants import SOURCE, INPUT_IMAGE, MOCK, DOCKER0_REGISTRY
+from tests.constants import SOURCE, MOCK, DOCKER0_REGISTRY
+from tests.stubs import StubInsideBuilder
 
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.build import BuildResult
@@ -301,18 +302,6 @@ def mock_registries(registries, config, schema_version='v2', foreign_layers=Fals
     }
 
 
-class Y(object):
-    def __init__(self):
-        self.dockerfile_path = None
-        self.path = None
-
-
-class X(object):
-    image_id = INPUT_IMAGE
-    source = Y()
-    base_image = ImageName(repo="qwe", tag="asd")
-
-
 def mock_environment(tmpdir, primary_images=None,
                      annotations=None):
     if MOCK:
@@ -321,10 +310,10 @@ def mock_environment(tmpdir, primary_images=None,
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
     base_image_id = '123456parent-id'
     setattr(workflow, '_base_image_inspect', {'Id': base_image_id})
-    setattr(workflow, 'builder', X())
+    setattr(workflow, 'builder', StubInsideBuilder())
     setattr(workflow.builder, 'image_id', '123456imageid')
     setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='22'))
-    setattr(workflow.builder, 'source', X())
+    setattr(workflow.builder, 'source', StubInsideBuilder())
     setattr(workflow.builder, 'built_image_info', {'ParentId': base_image_id})
     setattr(workflow.builder.source, 'dockerfile_path', None)
     setattr(workflow.builder.source, 'path', None)
