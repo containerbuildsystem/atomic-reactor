@@ -13,7 +13,7 @@ from flexmock import flexmock
 
 from atomic_reactor.auth import HTTPRegistryAuth
 from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY
-from atomic_reactor.util import ImageName, ManifestDigest
+from atomic_reactor.util import ManifestDigest
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow, DockerRegistry
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
@@ -22,7 +22,8 @@ from atomic_reactor.plugins.build_orchestrate_build import OrchestrateBuildPlugi
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from tests.constants import LOCALHOST_REGISTRY, DOCKER0_REGISTRY, MOCK, TEST_IMAGE, INPUT_IMAGE
+from tests.constants import LOCALHOST_REGISTRY, DOCKER0_REGISTRY, MOCK, TEST_IMAGE
+from tests.stubs import StubInsideBuilder
 
 from tempfile import mkdtemp
 import os
@@ -36,18 +37,6 @@ if MOCK:
 DIGEST1 = 'sha256:28b64a8b29fd2723703bb17acf907cd66898440270e536992b937899a4647414'
 DIGEST2 = 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
 DIGEST_LIST = 'sha256:deadbeef'
-
-
-class Y(object):
-    def __init__(self):
-        self.dockerfile_path = None
-        self.path = None
-
-
-class X(object):
-    image_id = INPUT_IMAGE
-    source = Y()
-    base_image = ImageName(repo="qwe", tag="asd")
 
 
 @pytest.mark.parametrize("saved_digests", [
@@ -89,7 +78,7 @@ def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir, orch
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE,
                                    buildstep_plugins=buildstep_plugin, )
-    setattr(workflow, 'builder', X)
+    workflow.builder = StubInsideBuilder()
 
     args_registries = {}
     config_map_regiestries = []
@@ -132,8 +121,8 @@ def test_delete_from_registry_plugin(saved_digests, req_registries, tmpdir, orch
     if orchestrator:
         build_annotations = {'digests': ann_digests}
         annotations = {'worker-builds': {'x86_64': build_annotations}}
-        setattr(workflow, 'build_result', Y)
-        setattr(workflow.build_result, 'annotations', annotations)
+        build_result = flexmock(annotations=annotations)
+        setattr(workflow, 'build_result', build_result)
 
         # group_manifest digest should be added only
         # if there are worker builds and images are pushed to one registry
@@ -201,7 +190,7 @@ def test_delete_from_registry_failures(tmpdir, status_code, reactor_config_map):
 
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
-    setattr(workflow, 'builder', X)
+    workflow.builder = StubInsideBuilder()
 
     args_registries = {}
     config_map_regiestries = []
