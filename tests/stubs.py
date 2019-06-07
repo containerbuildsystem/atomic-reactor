@@ -18,9 +18,14 @@ from atomic_reactor.util import ImageName
 class StubSource(object):
     dockerfile_path = None
     path = ''
+    config = None
 
     def get_vcs_info(self):
         return None
+
+
+class StubConfig(object):
+    image_build_method = None
 
 
 class StubTagConf(object):
@@ -57,6 +62,7 @@ class StubInsideBuilder(object):
         self.image = None
         self.image_id = None
         self.source = StubSource()
+        self.source.config = StubConfig()
         self.tag_conf = StubTagConf()
         self.base_from_scratch = False
         self.parents_ordered = []

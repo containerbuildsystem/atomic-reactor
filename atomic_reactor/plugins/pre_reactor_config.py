@@ -346,6 +346,10 @@ def get_default_image_build_method(workflow, fallback=CONTAINER_DEFAULT_BUILD_ME
     return value
 
 
+def get_buildstep_alias(workflow):
+    return get_value(workflow, 'buildstep_alias', {})
+
+
 def get_flatpak_base_image(workflow, fallback=NO_FALLBACK):
     flatpak = get_value(workflow, 'flatpak', {})
     try:
@@ -529,4 +533,14 @@ class ReactorConfigPlugin(PreBuildPlugin):
         self.log.info("reading config content %s", reactor_conf.conf)
 
         # need to stash this on the workflow for access in a place that can't import this module
-        self.workflow.default_image_build_method = get_default_image_build_method(self.workflow)
+        buildstep_aliases = get_buildstep_alias(self.workflow)
+        default_image_build_method = get_default_image_build_method(self.workflow)
+        source_image_build_method = self.workflow.builder.source.config.image_build_method
+
+        if source_image_build_method in buildstep_aliases:
+            source_image_build_method = buildstep_aliases[source_image_build_method]
+        if default_image_build_method in buildstep_aliases:
+            default_image_build_method = buildstep_aliases[default_image_build_method]
+
+        self.workflow.builder.source.config.image_build_method = source_image_build_method
+        self.workflow.default_image_build_method = default_image_build_method
