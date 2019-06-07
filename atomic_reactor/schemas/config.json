@@ -520,6 +520,17 @@
         "description": "Specify different default buildstep plugin for worker builds",
         "enum": ["docker_api", "imagebuilder"]
     },
+    "buildstep_alias": {
+        "description": "Aliases for buildstep plugins",
+        "type": "object",
+        "patternProperties": {
+            "^[\\w_]+$": {
+              "type": "string",
+              "enum": ["docker_api", "imagebuilder"]
+              }
+        },
+        "additionalProperties": false
+    },
     "flatpak": {
         "description": "Flatpak specific properties",
         "type": "object",

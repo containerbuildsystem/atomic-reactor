@@ -45,12 +45,14 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        get_platform_to_goarch_mapping,
                                                        get_goarch_to_platform_mapping,
                                                        get_default_image_build_method,
+                                                       get_buildstep_alias,
                                                        get_flatpak_base_image,
                                                        CONTAINER_DEFAULT_BUILD_METHOD,
                                                        get_build_image_override,
                                                        NO_FALLBACK)
 from tests.constants import TEST_IMAGE, REACTOR_CONFIG_MAP
 from tests.docker_mock import mock_docker
+from tests.stubs import StubInsideBuilder
 from flexmock import flexmock
 
 
@@ -60,6 +62,7 @@ class TestReactorConfigPlugin(object):
         tasker = DockerTasker()
         workflow = DockerBuildWorkflow({'provider': 'git', 'uri': 'asd'},
                                        TEST_IMAGE)
+        workflow.builder = StubInsideBuilder()
         return tasker, workflow
 
     @pytest.mark.parametrize(('fallback'), [
@@ -622,6 +625,68 @@ class TestReactorConfigPlugin(object):
 
         method = get_default_image_build_method(workflow)
         assert method == expect
+
+    @pytest.mark.parametrize(('config', 'expect'), [
+        ("""\
+          version: 1
+          buildstep_alias:
+            docker_api: imagebuilder
+         """,
+         {'docker_api': 'imagebuilder'}),
+        ("""\
+          version: 1
+          buildstep_alias:
+            another: docker_api
+         """,
+         {'another': 'docker_api'}),
+        ("""\
+          version: 1
+          buildstep_alias:
+            docker_api: imagebuilder
+            another: imagebuilder
+         """,
+         {'docker_api': 'imagebuilder',
+          'another': 'imagebuilder'}),
+        ("""\
+          version: 1
+         """,
+         {}),
+    ])
+    def test_get_buildstep_alias(self, config, expect):
+        config_json = read_yaml(config, 'schemas/config.json')
+        _, workflow = self.prepare()
+        workspace = workflow.plugin_workspace.setdefault(ReactorConfigPlugin.key, {})
+        workspace[WORKSPACE_CONF_KEY] = ReactorConfig(config_json)
+
+        method = get_buildstep_alias(workflow)
+        assert method == expect
+
+    @pytest.mark.parametrize(('config', 'source_buildstep', 'expect_source', 'expect_default'), [
+        ("""\
+          version: 1
+          default_image_build_method: docker_api
+          buildstep_alias:
+            docker_api: imagebuilder
+         """,
+         None, None, 'imagebuilder'),
+        ("""\
+          version: 1
+          buildstep_alias:
+            docker_api: imagebuilder
+         """,
+         'docker_api', 'imagebuilder', 'imagebuilder'),
+    ])
+    def test_get_buildstep_alias_setting(self, tmpdir, config, source_buildstep,
+                                         expect_source, expect_default):
+        filename = os.path.join(str(tmpdir), 'config.yaml')
+        with open(filename, 'w') as fp:
+            fp.write(dedent(config))
+        tasker, workflow = self.prepare()
+        workflow.builder.source.config.image_build_method = source_buildstep
+        plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
+        assert plugin.run() is None
+        assert workflow.builder.source.config.image_build_method == expect_source
+        assert workflow.default_image_build_method == expect_default
 
     @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize(('config', 'expect'), [
