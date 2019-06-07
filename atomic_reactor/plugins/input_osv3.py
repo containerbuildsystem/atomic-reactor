@@ -186,11 +186,13 @@ class OSv3InputPlugin(InputPlugin):
 
         git_commit_depth = None
         git_branch = None
+        arrangement_version = None
         try:
             user_params = os.environ['USER_PARAMS']
             user_data = self.validate_user_data(user_params)
             git_commit_depth = user_data.get('git_commit_depth', None)
             git_branch = user_data.get('git_branch', None)
+            arrangement_version = user_data.get('arrangement_version', None)
             self.plugins_json = self.get_plugins_with_user_data(user_params, user_data)
             # if we get the USER_PARAMS, we'd better get the REACTOR_CONFIG too
             reactor_config_map = os.environ['REACTOR_CONFIG']
@@ -200,6 +202,9 @@ class OSv3InputPlugin(InputPlugin):
                 self.plugins_json = os.environ['ATOMIC_REACTOR_PLUGINS']
             except KeyError:
                 raise RuntimeError("No plugin configuration found!")
+
+        if arrangement_version and arrangement_version <= 5:
+            raise ValueError('arrangement_version <= 5 is no longer supported')
 
         self.plugins_json = json.loads(self.plugins_json)
         # validate json before performing any changes
