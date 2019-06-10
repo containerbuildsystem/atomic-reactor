@@ -1,5 +1,5 @@
 """
-Copyright (c) 2018 Red Hat, Inc
+Copyright (c) 2018, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -10,7 +10,6 @@ from __future__ import absolute_import
 
 from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
-                                      MEDIA_TYPE_DOCKER_V1,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
@@ -90,14 +89,6 @@ class TestVerifyImageTypes(object):
                 'Content-Type': 'application/invalid+json',
                 'Docker-Content-Digest': "12"
               }))
-    config_response_v1 = requests.Response()
-    (flexmock(config_response_v1,
-              raise_for_status=lambda: None,
-              status_code=requests.codes.ok,
-              json=get_response_config_json(DIGEST_V1),
-              headers={
-                'Content-Type': MEDIA_TYPE_DOCKER_V1
-              }))
     config_response_config_v1 = requests.Response()
     (flexmock(config_response_config_v1,
               raise_for_status=lambda: None,
@@ -164,7 +155,7 @@ class TestVerifyImageTypes(object):
             keep_types = True
 
         if registries is None and registry_types is None:
-            registry_types = [MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_SCHEMA1,
+            registry_types = [MEDIA_TYPE_DOCKER_V2_SCHEMA1,
                               MEDIA_TYPE_DOCKER_V2_SCHEMA2, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                               MEDIA_TYPE_OCI_V1, MEDIA_TYPE_OCI_V1_INDEX]
 
@@ -203,7 +194,7 @@ class TestVerifyImageTypes(object):
 
             expected_types = registry.get('expected_media_types', [])
             if fail == "bad_results":
-                response_types = [MEDIA_TYPE_DOCKER_V1]
+                response_types = []
             elif not keep_types and no_amd64:
                 response_types = [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]
             else:
@@ -216,13 +207,26 @@ class TestVerifyImageTypes(object):
                 urlbase = 'https://{0}'.format(reguri)
 
             actual_v2_url = urlbase + "/v2/foo/manifests/unique-tag"
-            actual_v1_url = urlbase + "/v1/repositories/foo/tags/unique-tag"
 
-            v1_response = self.config_response_none
-            v1_oci_response = self.config_response_none
-            v1_oci_index_response = self.config_response_none
-            v2_response = self.config_response_none
-            v2_list_response = self.config_response_none
+            if fail == "bad_results":
+                response = requests.Response()
+                (flexmock(response,
+                          raise_for_status=lambda: None,
+                          status_code=requests.codes.ok,
+                          json={},
+                          headers={'Content-Type': 'application/json'}))
+                v1_response = response
+                v1_oci_response = response
+                v1_oci_index_response = response
+                v2_response = response
+                v2_list_response = response
+            else:
+                v1_response = self.config_response_none
+                v1_oci_response = self.config_response_none
+                v1_oci_index_response = self.config_response_none
+                v2_response = self.config_response_none
+                v2_list_response = self.config_response_none
+
             if MEDIA_TYPE_DOCKER_V2_SCHEMA1 in response_types:
                 v1_response = self.config_response_config_v1
             if MEDIA_TYPE_DOCKER_V2_SCHEMA2 in response_types:
@@ -233,8 +237,6 @@ class TestVerifyImageTypes(object):
                 v1_oci_response = self.config_response_config_oci_v1
             if MEDIA_TYPE_OCI_V1_INDEX in response_types:
                 v1_oci_index_response = self.config_response_config_oci_v1_index
-
-
 
             v2_header_v1 = {'Accept': MEDIA_TYPE_DOCKER_V2_SCHEMA1}
             v2_header_v2 = {'Accept': MEDIA_TYPE_DOCKER_V2_SCHEMA2}
@@ -266,26 +268,6 @@ class TestVerifyImageTypes(object):
                            auth=mock_auth, verify=False)
                 .and_return(v2_list_response))
 
-            if MEDIA_TYPE_DOCKER_V1 in response_types:
-                (flexmock(requests.Session)
-                    .should_receive('get')
-                    .with_args(actual_v1_url, headers={'Accept': MEDIA_TYPE_DOCKER_V1},
-                               auth=mock_auth, verify=False)
-                    .and_return(self.config_response_v1))
-            else:
-                headers = {'Content-Type': 'application/invalid+json',
-                           'Docker-Content-Digest': "12"}
-
-                def mock_raise_v1(*args):
-                    raise Exception
-                (flexmock(requests.Session)
-                    .should_receive('get')
-                    .with_args(actual_v1_url, headers={'Accept': MEDIA_TYPE_DOCKER_V1},
-                               auth=mock_auth, verify=False)
-                    .and_return(flexmock(status_code=404, ok=False, history=[],
-                                         url=actual_v1_url, headers=headers,
-                                         raise_for_status=mock_raise_v1)))
-
         digests = {'digest': None} if group else {}
         prebuild_results = {PLUGIN_CHECK_AND_SET_PLATFORMS_KEY: platforms}
         postbuild_results = {PLUGIN_GROUP_MANIFESTS_KEY: digests}
@@ -315,7 +297,7 @@ class TestVerifyImageTypes(object):
         plugin = VerifyMediaTypesPlugin(tasker, workflow)
         results = plugin.run()
 
-        assert results == sorted([MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_SCHEMA1,
+        assert results == sorted([MEDIA_TYPE_DOCKER_V2_SCHEMA1,
                                   MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                   MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                   MEDIA_TYPE_OCI_V1,
@@ -332,55 +314,42 @@ class TestVerifyImageTypes(object):
         ([MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST],
          [{'platform': 'arm64', 'architecture': 'arm64'}],
          True, [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
-        ([MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST],
+        ([MEDIA_TYPE_DOCKER_V2_SCHEMA2, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST],
+         [],  # no platforms
+         True, [MEDIA_TYPE_DOCKER_V2_SCHEMA2, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
+        ([MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
+          MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST],
          [{'platform': 'arm64', 'architecture': 'arm64'}],
          True, [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
-        ([MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_SCHEMA1,
-          MEDIA_TYPE_DOCKER_V2_SCHEMA2, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST],
-         [{'platform': 'arm64', 'architecture': 'arm64'}],
+        ([MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST],
+         [{'platform': 'x86_64', 'architecture': 'amd64'},
+          {'platform': 'arm64', 'architecture': 'arm64'}],
          True, [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
-        ([MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST],
+        ([MEDIA_TYPE_DOCKER_V2_SCHEMA2, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST],
          [{'platform': 'x86_64', 'architecture': 'amd64'},
           {'platform': 'arm64', 'architecture': 'arm64'}],
-         True, [MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
-        ([MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_SCHEMA2, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST],
-         [{'platform': 'x86_64', 'architecture': 'amd64'},
-          {'platform': 'arm64', 'architecture': 'arm64'}],
-         True, [MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
-                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
-        ([MEDIA_TYPE_DOCKER_V1],
-         [{'platform': 'x86_64', 'architecture': 'amd64'},
-          {'platform': 'arm64', 'architecture': 'arm64'}],
-         True, [MEDIA_TYPE_DOCKER_V1]),
+         True, [MEDIA_TYPE_DOCKER_V2_SCHEMA2,
+                MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
         # If group manifests didn't run, non-x86-64 builds can produce any type
         # Well, actually, the build will fail but if it didn't fail, they could produce any type
         ([MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST],
          [{'platform': 'arm64', 'architecture': 'arm64'}],
          False, [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
-        ([MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST],
-         [{'platform': 'arm64', 'architecture': 'arm64'}],
-         False, [MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
-        ([MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_SCHEMA1,
+        ([MEDIA_TYPE_DOCKER_V2_SCHEMA1,
           MEDIA_TYPE_DOCKER_V2_SCHEMA2, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST],
          [{'platform': 'arm64', 'architecture': 'arm64'}],
-         False, [MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_SCHEMA1,
-                        MEDIA_TYPE_DOCKER_V2_SCHEMA2, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
-        ([MEDIA_TYPE_DOCKER_V1],
-         [{'platform': 'arm64', 'architecture': 'arm64'}],
-         False, [MEDIA_TYPE_DOCKER_V1]),
-        ([MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST],
+         False, [MEDIA_TYPE_DOCKER_V2_SCHEMA1,
+                 MEDIA_TYPE_DOCKER_V2_SCHEMA2,
+                 MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
+        ([MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST],
          [{'platform': 'x86_64', 'architecture': 'amd64'},
           {'platform': 'arm64', 'architecture': 'arm64'}],
-         False, [MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
-        ([MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_SCHEMA2, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST],
+         False, [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
+        ([MEDIA_TYPE_DOCKER_V2_SCHEMA2, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST],
          [{'platform': 'x86_64', 'architecture': 'amd64'},
           {'platform': 'arm64', 'architecture': 'arm64'}],
-         False, [MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
-                        MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
-        ([MEDIA_TYPE_DOCKER_V1],
-         [{'platform': 'x86_64', 'architecture': 'amd64'},
-          {'platform': 'arm64', 'architecture': 'arm64'}],
-         False, [MEDIA_TYPE_DOCKER_V1]),
+         False, [MEDIA_TYPE_DOCKER_V2_SCHEMA2,
+                 MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
     ])
     def test_verify_successful_complicated(self, registry_types,
                                            platform_descriptors, group, expected_results):
@@ -425,37 +394,10 @@ class TestVerifyImageTypes(object):
            'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
           {'url': 'https://container-registry-test.example.com/v2',
            'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V1]}],
+           'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]}],
          [{'platform': 'arm64', 'architecture': 'arm64'},
           {'platform': 'x86_64', 'architecture': 'amd64'}],
-         True, [MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
-        ([{'url': 'https://container-registry.example.com/v2',
-           'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
-          {'url': 'https://container-registry-test.example.com/v2',
-           'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]}],
-         [{'platform': 'arm64', 'architecture': 'arm64'},
-          {'platform': 'x86_64', 'architecture': 'amd64'}],
-         True, [MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
-        ([{'url': 'https://container-registry.example.com/v2',
-           'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
-          {'url': 'https://container-registry-test.example.com/v2',
-           'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V1]}],
-         [{'platform': 'arm64', 'architecture': 'arm64'},
-          {'platform': 'x86_64', 'architecture': 'amd64'}],
-         False, [MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
-        ([{'url': 'https://container-registry.example.com/v2',
-           'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
-          {'url': 'https://container-registry-test.example.com/v2',
-           'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]}],
-         [{'platform': 'arm64', 'architecture': 'arm64'},
-          {'platform': 'x86_64', 'architecture': 'amd64'}],
-         False, [MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
+         True, [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
     ])
     def test_verify_successful_two_registries(self, registries,
                                               platform_descriptors, group, expected_results):
@@ -493,20 +435,9 @@ class TestVerifyImageTypes(object):
         # no platforms or platform descriptors, assume x86_64 wasn't build
         ([{'url': 'https://container-registry.example.com/v2',
            'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
-          {'url': 'https://container-registry-test.example.com/v2',
-           'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V1]}],
+           'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]}],
          ['x86_64', 'arm64'], [],
-         True, [MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
-        ([{'url': 'https://container-registry.example.com/v2',
-           'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
-          {'url': 'https://container-registry-test.example.com/v2',
-           'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V1]}],
-         [], [{'platform': 'arm64', 'architecture': 'arm64'}],
-         True, [MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
+         True, [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
     ])
     def test_verify_malformed_two_registries(self, registries, platforms,
                                              platform_descriptors, group, expected_results):
@@ -572,7 +503,7 @@ class TestVerifyImageTypes(object):
         tasker = MockerTasker()
 
         plugin = VerifyMediaTypesPlugin(tasker, workflow)
-        expect_media_types = [MEDIA_TYPE_DOCKER_V1]
+        expect_media_types = []
         expect_missing_types = sorted([MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                        MEDIA_TYPE_DOCKER_V2_SCHEMA1,
                                        MEDIA_TYPE_DOCKER_V2_SCHEMA2,

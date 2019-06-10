@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -37,7 +37,6 @@ from atomic_reactor.plugins.post_pulp_sync import PulpSyncPlugin, get_manifests_
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from atomic_reactor.constants import PLUGIN_PULP_PUSH_KEY
 from atomic_reactor.pulp_util import PulpLogWrapper
 
 from flexmock import flexmock
@@ -160,9 +159,7 @@ class TestPostPulpSync(object):
             .ordered())
         (flexmock(mockpulp)
             .should_receive('crane')
-            .with_args([prefixed_pulp_repoid], wait=True)
-            .once()
-            .ordered())
+            .never())
         (flexmock(dockpulp)
             .should_receive('Pulp')
             .with_args(env=env)
@@ -209,9 +206,7 @@ class TestPostPulpSync(object):
             .ordered())
         (flexmock(mockpulp)
             .should_receive('crane')
-            .with_args([prefixed_pulp_repoid], wait=True)
-            .once()
-            .ordered())
+            .never())
         (flexmock(dockpulp)
             .should_receive('Pulp')
             .with_args(env=env)
@@ -273,9 +268,7 @@ class TestPostPulpSync(object):
                 .ordered())
             (flexmock(mockpulp)
                 .should_receive('crane')
-                .with_args([prefixed_pulp_repoid], wait=True)
-                .once()
-                .ordered())
+                .never())
         else:
             (flexmock(mockpulp)
                 .should_receive('set_certs')
@@ -565,9 +558,7 @@ class TestPostPulpSync(object):
             .ordered())
         (flexmock(mockpulp)
             .should_receive('crane')
-            .with_args([prefixed_pulp_repoid], wait=True)
-            .once()
-            .ordered())
+            .never())
         (flexmock(dockpulp)
             .should_receive('Pulp')
             .with_args(env=env)
@@ -635,106 +626,13 @@ class TestPostPulpSync(object):
             .ordered())
         (flexmock(mockpulp)
             .should_receive('crane')
-            .with_args([prefixed_pulp_repoid], wait=True)
-            .once()
-            .ordered())
+            .never())
         (flexmock(dockpulp)
             .should_receive('Pulp')
             .with_args(env=env)
             .and_return(mockpulp))
 
         plugin.run()
-
-    @pytest.mark.parametrize('publish,has_pulp_push,should_publish', [
-        (None, False, True),
-        (None, True, False),
-        (True, False, True),
-        (True, True, False),
-        (False, False, False),
-        (False, True, False),
-    ])
-    def test_publish(self, publish, has_pulp_push, should_publish, caplog, reactor_config_map):
-        docker_registry = 'http://registry.example.com'
-        docker_repository = 'prod/myrepository'
-        prefixed_pulp_repoid = 'redhat-prod-myrepository'
-        env = 'pulp'
-
-        mockpulp = MockPulp()
-        (flexmock(mockpulp)
-            .should_receive('login')
-            .never())
-        (flexmock(mockpulp)
-            .should_receive('set_certs')
-            .never())
-        (flexmock(mockpulp)
-            .should_receive('getRepos')
-            .with_args([prefixed_pulp_repoid], fields=['id'])
-            .and_return([{'id': prefixed_pulp_repoid}])
-            .once()
-            .ordered())
-        (flexmock(mockpulp)
-            .should_receive('syncRepo')
-            .with_args(repo=prefixed_pulp_repoid,
-                       feed=docker_registry)
-            .and_return(([], []))
-            .once()
-            .ordered())
-        if should_publish:
-            (flexmock(mockpulp)
-                .should_receive('crane')
-                .with_args([prefixed_pulp_repoid], wait=True)
-                .once()
-                .ordered())
-        else:
-            (flexmock(mockpulp)
-                .should_receive('crane')
-                .never())
-
-        (flexmock(dockpulp)
-            .should_receive('Pulp')
-            .with_args(env=env)
-            .and_return(mockpulp))
-
-        workflow = self.workflow([docker_repository], mockpulp.registry)
-        workflow.postbuild_plugins_conf.append(
-            {
-                'name': PulpSyncPlugin.key,
-            },
-        )
-        if has_pulp_push:
-            workflow.postbuild_plugins_conf.append(
-                {
-                    'name': PLUGIN_PULP_PUSH_KEY,
-                },
-            )
-
-        kwargs = {
-            'pulp_registry_name': env,
-            'docker_registry': docker_registry,
-        }
-        if publish is not None:
-            kwargs['publish'] = publish
-
-        if reactor_config_map:
-            workflow.plugin_workspace = {}
-            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig({'version': 1,
-                               'pulp': {'name': env,
-                                        'auth': {'user': '', 'password': ''}}})
-
-        plugin = PulpSyncPlugin(tasker=None,
-                                workflow=workflow,
-                                **kwargs)
-        plugin.run()
-        log_messages = [l.getMessage() for l in caplog.records]
-
-        for image in workflow.tag_conf.images:
-            expected_log = 'image available at %s' % image.to_str()
-            if should_publish:
-                assert expected_log in log_messages
-            else:
-                assert expected_log not in log_messages
 
     def test_workspace_updated(self, reactor_config_map):  # noqa
         docker_registry = 'http://registry.example.com'
@@ -758,9 +656,7 @@ class TestPostPulpSync(object):
             .ordered())
         (flexmock(mockpulp)
             .should_receive('crane')
-            .with_args([prefixed_pulp_repoid], wait=True)
-            .once()
-            .ordered())
+            .never())
 
         (flexmock(dockpulp)
             .should_receive('Pulp')

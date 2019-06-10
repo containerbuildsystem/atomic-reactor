@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -29,7 +29,6 @@ from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_PULP_PUBLISH_KEY,
                                       PLUGIN_PULP_PULL_KEY,
-                                      PLUGIN_PULP_PUSH_KEY,
                                       PLUGIN_PULP_SYNC_KEY,
                                       PLUGIN_PULP_TAG_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY,
@@ -186,7 +185,6 @@ def test_remove_everything():
             {'name': 'before', },
             {'name': PLUGIN_KOJI_UPLOAD_PLUGIN_KEY, },
             {'name': PLUGIN_PULP_PULL_KEY, },
-            {'name': PLUGIN_PULP_PUSH_KEY, },
             {'name': PLUGIN_PULP_SYNC_KEY, },
             {'name': PLUGIN_PULP_TAG_KEY, },
             {'name': 'after', },
@@ -228,7 +226,7 @@ def test_remove_everything():
         ]
 
 
-def test_remove_v1_pulp_and_exit_delete():
+def test_remove_exit_delete():
     plugins_json = {
         'build_json_dir': 'inputs',
         'build_type': 'orchestrator',
@@ -237,7 +235,6 @@ def test_remove_v1_pulp_and_exit_delete():
         'user': 'user',
         'postbuild_plugins': [
             {'name': 'before', },
-            {'name': PLUGIN_PULP_PUSH_KEY, },
             {'name': 'after', },
         ],
         'exit_plugins': [

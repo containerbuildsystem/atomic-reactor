@@ -1,4 +1,4 @@
-"""Copyright (c) 2016 Red Hat, Inc
+"""Copyright (c) 2016, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -15,9 +15,9 @@ discover the image ID Docker will give it.
 
 from __future__ import unicode_literals, absolute_import
 
-from atomic_reactor.constants import (PLUGIN_PULP_PUSH_KEY, PLUGIN_PULP_SYNC_KEY,
+from atomic_reactor.constants import (PLUGIN_PULP_SYNC_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY,
-                                      MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_SCHEMA1,
+                                      MEDIA_TYPE_DOCKER_V2_SCHEMA1,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
 
@@ -133,8 +133,6 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
         for plugin in self.workflow.postbuild_plugins_conf:
             if plugin['name'] == PLUGIN_PULP_SYNC_KEY:
                 media_types.append(MEDIA_TYPE_DOCKER_V2_SCHEMA1)
-            if plugin['name'] == PLUGIN_PULP_PUSH_KEY:
-                media_types.append(MEDIA_TYPE_DOCKER_V1)
 
         # We only expect to find a v2 digest from Crane if the
         # pulp_sync plugin was used. If we do find a v2 digest, there

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017, 2018 Red Hat, Inc
+Copyright (c) 2017, 2018, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -185,9 +185,6 @@ class PulpHandler(object):
 
         return pulp_repos
 
-    def get_image_ids_existing(self, layers):
-        return self.p.getImageIdsExist(layers)
-
     def upload(self, filename, repo_id):
         # returns boolean that is was uploaded to redhat-everything
         try:
@@ -199,15 +196,6 @@ class PulpHandler(object):
             self.log.debug('Falling back to uploading %s to redhat-everything repo', filename)
             self.p.upload(filename)
             return True
-
-    def copy(self, repo_id, layer):
-        self.p.copy(repo_id, layer)
-
-    def copy_v1_layers(self, repo_id, layers):
-        pulp_filter = {'unit': {
-            '$or': [{'image_id': layer} for layer in layers]
-        }}
-        self.p.copy_filters(repo_id, filters=pulp_filter, v1=True, v2=False)
 
     def update_repo(self, repo_id, tag):
         with LockedPulpRepository(self.p, repo_id):

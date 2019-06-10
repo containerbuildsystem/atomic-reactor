@@ -180,12 +180,9 @@ These are run after buildstep plugin has successfully finished.
  * **tag_and_push**
    * Status: enabled for V2
    * The tags are applied to the image in the docker engine and pushed to configured registries.
- * **pulp_push**
-   * Status: enabled for V1
-   * This plugin gets the built image into the Pulp server in such a way that they will be available (through Crane) via the Docker Registry HTTP V1 API. The 'docker save' output is uploaded to Pulp, the tags are set on the uploaded Pulp content, and the content is published to Crane.
  * **pulp_sync**
    * Status: enabled for V2
-   * This is the V2 equivalent of pulp_push. Having previously pushed the built image to a docker-distribution V2 registry, this plugin tells the Pulp server to sync that content in. After publishing the content to Crane, it is now available via the Docker Registry HTTP V2 API.
+   * Having previously pushed the built image to a docker-distribution V2 registry, this plugin tells the Pulp server to sync that content in. After publishing the content to Crane, it is now available via the Docker Registry HTTP V2 API.
  * **all_rpm_packages**
    * Status: enabled
    * A container is started to run 'rpm -qa' inside the built image in order to gather information needed for the Content Generator import into Koji later.

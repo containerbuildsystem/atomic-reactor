@@ -1,4 +1,4 @@
-"""Copyright (c) 2015 Red Hat, Inc
+"""Copyright (c) 2015, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -50,9 +50,9 @@ pulp_secret_path:
 
 from __future__ import print_function, unicode_literals, absolute_import
 
-from atomic_reactor.constants import PLUGIN_PULP_SYNC_KEY, PLUGIN_PULP_PUSH_KEY
+from atomic_reactor.constants import PLUGIN_PULP_SYNC_KEY
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.util import ImageName, Dockercfg, are_plugins_in_order
+from atomic_reactor.util import ImageName, Dockercfg
 # import pulp_util to get the dockpulp.log set up once
 from atomic_reactor.pulp_util import PulpLog
 from atomic_reactor.plugins.pre_reactor_config import get_pulp, get_docker_registry
@@ -92,8 +92,7 @@ class PulpSyncPlugin(PostBuildPlugin):
                  registry_secret_path=None,
                  insecure_registry=None,
                  dockpulp_loglevel=None,
-                 pulp_repo_prefix=None,
-                 publish=True):
+                 pulp_repo_prefix=None):
         """
         constructor
 
@@ -144,11 +143,6 @@ class PulpSyncPlugin(PostBuildPlugin):
             except (ValueError, TypeError) as ex:
                 self.log.error("Can't set provided log level %r: %s",
                                loglevel, ex)
-
-        self.publish = (publish and
-                        not are_plugins_in_order(self.workflow.postbuild_plugins_conf,
-                                                 self.key,
-                                                 PLUGIN_PULP_PUSH_KEY))
 
     def set_auth(self, pulp):
         path = self.pulp_secret_path
@@ -254,13 +248,6 @@ class PulpSyncPlugin(PostBuildPlugin):
                                     repo=image.repo,
                                     namespace=image.namespace,
                                     tag=image.tag))
-
-        if self.publish:
-            self.log.info("publishing to crane")
-            pulp.crane(list(repos.values()), wait=True)
-
-            for image_name in images:
-                self.log.info("image available at %s", image_name.to_str())
 
         # Fetch the repository content so we can remove v2 schema 2
         # manifests from Koji metadata if they are not present

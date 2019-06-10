@@ -1,5 +1,5 @@
 """
-Copyright (c) 2016 Red Hat, Inc
+Copyright (c) 2016, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -189,36 +189,15 @@ class TestPostPulpPull(object):
     ])
     @pytest.mark.parametrize('insecure', [True, False])
     @pytest.mark.parametrize(('schema_version', 'pulp_plugin', 'expected_version'), [
-        ('v1', [], []),
-        ('v1', [{'name': 'pulp_push'}], ['application/json']),
-        ('v1', [{'name': 'pulp_sync'}],
-         ['application/vnd.docker.distribution.manifest.v1+json']),
-        ('v1', [{'name': 'pulp_sync'}, {'name': 'pulp_push'}],
-         ['application/json',
-          'application/vnd.docker.distribution.manifest.v1+json']),
         ('v2', [],
          ['application/vnd.docker.distribution.manifest.v2+json']),
-        ('v2', [{'name': 'pulp_push'}],
-         ['application/json',
-          'application/vnd.docker.distribution.manifest.v2+json']),
         ('v2', [{'name': 'pulp_sync'}],
          ['application/vnd.docker.distribution.manifest.v1+json',
           'application/vnd.docker.distribution.manifest.v2+json']),
-        ('v2', [{'name': 'pulp_sync'}, {'name': 'pulp_push'}],
-         ['application/json',
-          'application/vnd.docker.distribution.manifest.v1+json',
-          'application/vnd.docker.distribution.manifest.v2+json']),
         ('list.v2', [],
          ['application/vnd.docker.distribution.manifest.list.v2+json']),
-        ('list.v2', [{'name': 'pulp_push'}],
-         ['application/json',
-          'application/vnd.docker.distribution.manifest.list.v2+json']),
         ('list.v2', [{'name': 'pulp_sync'}],
          ['application/vnd.docker.distribution.manifest.list.v2+json',
-          'application/vnd.docker.distribution.manifest.v1+json']),
-        ('list.v2', [{'name': 'pulp_sync'}, {'name': 'pulp_push'}],
-         ['application/json',
-          'application/vnd.docker.distribution.manifest.list.v2+json',
           'application/vnd.docker.distribution.manifest.v1+json']),
     ])
     def test_pull_first_time(self, no_headers, broken_response, insecure, schema_version,

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -18,13 +18,12 @@ from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
 from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
-                                      PLUGIN_PULP_PUSH_KEY,
                                       PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY,
                                       PLUGIN_PULP_PULL_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
-                                      MEDIA_TYPE_DOCKER_V1, SCRATCH_FROM)
+                                      SCRATCH_FROM)
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import get_build_json
 
@@ -261,14 +260,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             else:
                 self.log.error("Unknown result from add_help plugin: %s", help_result)
 
-        pulp_push_results = self.workflow.postbuild_results.get(PLUGIN_PULP_PUSH_KEY)
-        if pulp_push_results:
-            top_layer, _ = pulp_push_results
-            annotations['v1-image-id'] = top_layer
-
         media_types = []
-        if pulp_push_results:
-            media_types += [MEDIA_TYPE_DOCKER_V1]
 
         # pulp_pull may run on worker as a postbuild plugin or on orchestrator as an exit plugin
         # verify_media_results runs if pulp_pull does not

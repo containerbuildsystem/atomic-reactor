@@ -1,4 +1,4 @@
-"""Copyright (c) 2018 Red Hat, Inc
+"""Copyright (c) 2018, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -11,37 +11,17 @@ the registry expects
 from __future__ import unicode_literals, absolute_import
 
 from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_VERIFY_MEDIA_KEY,
-                                      MEDIA_TYPE_DOCKER_V1, MEDIA_TYPE_DOCKER_V2_SCHEMA1,
+                                      MEDIA_TYPE_DOCKER_V2_SCHEMA1,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                       MEDIA_TYPE_OCI_V1,
                                       MEDIA_TYPE_OCI_V1_INDEX)
 
 from atomic_reactor.plugin import ExitPlugin
-from atomic_reactor.util import get_manifest_digests, get_platforms, RegistrySession
+from atomic_reactor.util import get_manifest_digests, get_platforms
 from atomic_reactor.plugins.pre_reactor_config import (get_registries,
                                                        get_platform_to_goarch_mapping)
 from copy import deepcopy
-from itertools import chain
-
-
-def verify_v1_image(image, registry, log, insecure=False, dockercfg_path=None):
-    registry_session = RegistrySession(registry, insecure=insecure, dockercfg_path=dockercfg_path)
-
-    headers = {'Accept': MEDIA_TYPE_DOCKER_V1}
-    url = '/v1/repositories/{0}/tags/{1}'.format(image.get_repo(), image.tag)
-    log.debug("verify_v1_image: querying {0}, headers: {1}".format(url, headers))
-
-    response = registry_session.get(url, headers=headers)
-    for r in chain(response.history, [response]):
-        log.debug("verify_v1_image: [%s] %s", r.status_code, r.url)
-
-    log.debug("verify_v1_image: response headers: %s", response.headers)
-    try:
-        response.raise_for_status()
-        return True
-    except Exception:
-        return False
 
 
 class VerifyMediaTypesPlugin(ExitPlugin):
@@ -93,9 +73,6 @@ class VerifyMediaTypesPlugin(ExitPlugin):
                     media_types.add(MEDIA_TYPE_OCI_V1)
                 if digests.oci_index:
                     media_types.add(MEDIA_TYPE_OCI_V1_INDEX)
-
-            if verify_v1_image(pullspec, registry_name, self.log, insecure, secret):
-                media_types.add(MEDIA_TYPE_DOCKER_V1)
 
             media_in_registry[registry_name]['found'] = media_types
 

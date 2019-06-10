@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -29,7 +29,6 @@ from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_PULP_PUBLISH_KEY,
                                       PLUGIN_PULP_PULL_KEY,
-                                      PLUGIN_PULP_PUSH_KEY,
                                       PLUGIN_PULP_SYNC_KEY,
                                       PLUGIN_PULP_TAG_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY,
@@ -115,7 +114,6 @@ class OSv3InputPlugin(InputPlugin):
                 self.remove_plugin(phase, PLUGIN_PULP_PULL_KEY, 'no pulp or koji available')
 
         if not pulp_registry:
-            self.remove_plugin('postbuild_plugins', PLUGIN_PULP_PUSH_KEY, 'no pulp available')
             self.remove_plugin('postbuild_plugins', PLUGIN_PULP_SYNC_KEY, 'no pulp available')
             self.remove_plugin('postbuild_plugins', PLUGIN_PULP_TAG_KEY, 'no pulp available')
             self.remove_plugin('exit_plugins', PLUGIN_DELETE_FROM_REG_KEY, 'no pulp available')
@@ -124,8 +122,6 @@ class OSv3InputPlugin(InputPlugin):
             docker_registry = None
             all_registries = self.get_value('registries', {})
 
-            versions = self.get_value('content_versions', ['v2'])
-
             for registry in all_registries:
                 reguri = RegistryURI(registry.get('url'))
                 if reguri.version == 'v2':
@@ -133,10 +129,6 @@ class OSv3InputPlugin(InputPlugin):
                     # to sync from. Keep the http prefix -- pulp wants it.
                     docker_registry = registry
                     break
-
-            if 'v1' not in versions:
-                self.remove_plugin('postbuild_plugins', PLUGIN_PULP_PUSH_KEY,
-                                   'v1 content not enabled')
 
             if docker_registry:
                 source_registry_str = self.get_value('source_registry', {}).get('url')

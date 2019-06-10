@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -21,7 +21,6 @@ from osbs.exceptions import OsbsResponseException
 from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
-                                      PLUGIN_PULP_PUSH_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
                                       PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY)
@@ -198,32 +197,25 @@ def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=Fals
         'status': AddHelpPlugin.HELP_GENERATED,
     }, 'help.md', True),
 ))
-@pytest.mark.parametrize(('pulp_push_results', 'expected_pulp_push_results'), (
-    (None, False),
-    (['foo', []], 'foo'),
-))
 @pytest.mark.parametrize(('pulp_pull_results', 'expected_pulp_pull_results',
                           'verify_media_results', 'expected_media_results'), (
     ([], False, [], False),
     (Exception(), False, [], False),
-    (["application/json"], ["application/json"], [], False),
-    (["application/json", "application/vnd.docker.distribution.manifest.v1+json"],
-     ["application/json", "application/vnd.docker.distribution.manifest.v1+json"],
+    (["application/vnd.docker.distribution.manifest.v1+json"],
+     ["application/vnd.docker.distribution.manifest.v1+json"],
      [], False),
-    (["application/json", "application/vnd.docker.distribution.manifest.v1+json",
+    (["application/vnd.docker.distribution.manifest.v1+json",
       "application/vnd.docker.distribution.manifest.v2+json"],
-     ["application/json", "application/vnd.docker.distribution.manifest.v1+json",
+     ["application/vnd.docker.distribution.manifest.v1+json",
       "application/vnd.docker.distribution.manifest.v2+json"],
      [], False),
-    ([], False, ["application/json"], ["application/json"]),
     ([], False,
-     ["application/json", "application/vnd.docker.distribution.manifest.v1+json"],
-     ["application/json", "application/vnd.docker.distribution.manifest.v1+json"]),
+     ["application/vnd.docker.distribution.manifest.v1+json"],
+     ["application/vnd.docker.distribution.manifest.v1+json"]),
 ))
 def test_metadata_plugin(tmpdir, br_annotations, expected_br_annotations,
                          br_labels, expected_br_labels, koji,
                          help_results, expected_help_results, base_from_scratch,
-                         pulp_push_results, expected_pulp_push_results,
                          pulp_pull_results, expected_pulp_pull_results,
                          verify_media_results, expected_media_results,
                          reactor_config_map):
@@ -253,7 +245,6 @@ CMD blabla"""
     }
     workflow.postbuild_results = {
         PostBuildRPMqaPlugin.key: "rpm1\nrpm2",
-        PLUGIN_PULP_PUSH_KEY: pulp_push_results,
     }
     workflow.exit_results = {
         PulpPullPlugin.key: pulp_pull_results,
@@ -411,15 +402,8 @@ CMD blabla"""
     else:
         assert json.loads(annotations['help_file']) == expected_help_results
 
-    if expected_pulp_push_results is False:
-        assert 'v1-image-id' not in annotations
-    else:
-        assert annotations['v1-image-id'] == expected_pulp_push_results
-
-    if expected_pulp_pull_results or expected_pulp_push_results or expected_media_results:
+    if expected_pulp_pull_results or expected_media_results:
         media_types = []
-        if expected_pulp_push_results:
-            media_types = ['application/json']
         if expected_pulp_pull_results:
             media_types += pulp_pull_results
         if expected_media_results:

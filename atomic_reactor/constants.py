@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -82,7 +82,6 @@ PLUGIN_KOJI_IMPORT_PLUGIN_KEY = 'koji_import'
 PLUGIN_KOJI_UPLOAD_PLUGIN_KEY = 'koji_upload'
 PLUGIN_KOJI_TAG_BUILD_KEY = 'koji_tag_build'
 PLUGIN_PULP_PUBLISH_KEY = 'pulp_publish'
-PLUGIN_PULP_PUSH_KEY = 'pulp_push'
 PLUGIN_PULP_SYNC_KEY = 'pulp_sync'
 PLUGIN_PULP_PULL_KEY = 'pulp_pull'
 PLUGIN_PULP_TAG_KEY = 'pulp_tag'
@@ -143,7 +142,6 @@ LOCKEDPULPREPOSITORY_RETRIES = 10
 LOCKEDPULPREPOSITORY_BACKOFF = 5
 
 # Media types
-MEDIA_TYPE_DOCKER_V1 = "application/json"
 MEDIA_TYPE_DOCKER_V2_SCHEMA1 = "application/vnd.docker.distribution.manifest.v1+json"
 MEDIA_TYPE_DOCKER_V2_SCHEMA2 = "application/vnd.docker.distribution.manifest.v2+json"
 MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST = "application/vnd.docker.distribution.manifest.list.v2+json"
