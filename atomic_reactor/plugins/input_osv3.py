@@ -30,7 +30,6 @@ from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
                                       PLUGIN_PULP_PUBLISH_KEY,
                                       PLUGIN_PULP_PULL_KEY,
                                       PLUGIN_PULP_SYNC_KEY,
-                                      PLUGIN_PULP_TAG_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY,
                                       PLUGIN_SENDMAIL_KEY)
 
@@ -115,7 +114,6 @@ class OSv3InputPlugin(InputPlugin):
 
         if not pulp_registry:
             self.remove_plugin('postbuild_plugins', PLUGIN_PULP_SYNC_KEY, 'no pulp available')
-            self.remove_plugin('postbuild_plugins', PLUGIN_PULP_TAG_KEY, 'no pulp available')
             self.remove_plugin('exit_plugins', PLUGIN_DELETE_FROM_REG_KEY, 'no pulp available')
             self.remove_plugin('exit_plugins', PLUGIN_PULP_PUBLISH_KEY, 'no pulp available')
         else:
