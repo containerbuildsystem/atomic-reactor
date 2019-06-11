@@ -189,6 +189,9 @@ These are run after buildstep plugin has successfully finished.
  * **koji_upload**
    * Status: enabled
    * The 'docker save' output, build logs, and operator manifests are uploaded to Koji. The metadata is returned to be used by the store_metadata_osv3 plugin.  That plugin will use a ConfigMap object to store it for the orchestrator to retrieve it.  It will replace koji_promote when enabled.
+ * **push_operator_manifests**
+   * Status: enabled
+   * When OMPS service integration is configured and when specified through the com.redhat.delivery.appregistry Dockerfile label, plugin uploads manifests extracted by *export_operator_manifests* into app registry specified in configuration.
 
 ### Exit plugins
 

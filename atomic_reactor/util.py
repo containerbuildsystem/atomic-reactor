@@ -59,7 +59,8 @@ from importlib import import_module
 from requests.utils import guess_json_utf
 
 from osbs.exceptions import OsbsException
-from osbs.utils import clone_git_repo, reset_git_repo
+from osbs.utils import clone_git_repo, reset_git_repo, Labels
+
 from tempfile import NamedTemporaryFile
 try:
     # py3
@@ -1520,3 +1521,18 @@ def exception_message(exc):
     The message includes the type of the exception.
     """
     return '{exc.__class__.__name__}: {exc}'.format(exc=exc)
+
+
+def has_operator_manifest(workflow):
+    """
+    Check if Dockerfile sets the operator manifest label
+
+    :return: bool
+    """
+    dockerfile = df_parser(workflow.builder.df_path, workflow=workflow)
+    labels = Labels(dockerfile.labels)
+    try:
+        _, operator_label = labels.get_name_and_value(Labels.LABEL_TYPE_OPERATOR_MANIFESTS)
+    except KeyError:
+        operator_label = 'false'
+    return operator_label.lower() == 'true'

@@ -374,6 +374,10 @@ def get_skip_koji_check_for_base_image(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'skip_koji_check_for_base_image', fallback)
 
 
+def get_omps_config(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'omps', fallback)
+
+
 class ClusterConfig(object):
     """
     Configuration relating to a particular cluster
