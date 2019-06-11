@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -41,7 +41,6 @@ pulp_secret_path:
 from __future__ import print_function, unicode_literals, absolute_import
 
 from atomic_reactor.constants import PLUGIN_PULP_PUBLISH_KEY
-from atomic_reactor.plugins.build_orchestrate_build import get_worker_build_info
 from atomic_reactor.plugins.pre_reactor_config import get_pulp_session
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import ImageName
@@ -101,31 +100,6 @@ class PulpPublishPlugin(ExitPlugin):
 
         return crane_repos
 
-    def delete_v1_layers(self, repo_prefix="redhat-"):
-        annotations = self.workflow.build_result.annotations
-        if not annotations:
-            # No worker builds created
-            return
-
-        worker_builds = annotations['worker-builds']
-
-        for platform in worker_builds:
-            build_info = get_worker_build_info(self.workflow, platform)
-            annotations = build_info.build.get_annotations() or {}
-            v1_image_id = annotations.get('v1-image-id')
-            if v1_image_id:
-                image_names = self.workflow.tag_conf.images
-                self.pulp_handler.create_dockpulp()
-                if not repo_prefix:
-                    repo_prefix = ''
-                pulp_repos = set(['%s%s' % (repo_prefix, image.pulp_repo) for image in image_names])
-                for repo_id in pulp_repos:
-                    self.log.info("removing %s from repo %s", v1_image_id, repo_id)
-                    self.pulp_handler.remove_image(repo_id, v1_image_id)
-
     def run(self):
-        if self.workflow.build_process_failed:
-            self.delete_v1_layers()
-            return []
-        else:
+        if not self.workflow.build_process_failed:
             return self.publish_to_crane()

@@ -40,17 +40,15 @@ if MOCK:
 
 
 class BuildInfo(object):
-    def __init__(self, v1_image_id=None, unset_annotations=False):
+    def __init__(self, unset_annotations=False):
         annotations = {'meta': 'test'}
-        if v1_image_id:
-            annotations['v1-image-id'] = v1_image_id
         if unset_annotations:
             annotations = None
 
         self.build = BuildResponse({'metadata': {'annotations': annotations}})
 
 
-def prepare(success=True, v1_image_ids=None):
+def prepare(success=True):
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
@@ -123,10 +121,6 @@ def prepare(success=True, v1_image_ids=None):
     build_info['ppc64le'] = BuildInfo()
     build_info['bogus'] = BuildInfo(unset_annotations=True)  # OSBS-5262
 
-    v1_image_ids = v1_image_ids or {}
-    for platform, v1_image_id in v1_image_ids.items():
-        build_info[platform] = BuildInfo(v1_image_id)
-
     workflow.plugin_workspace = {
         OrchestrateBuildPlugin.key: {
             WORKSPACE_KEY_BUILD_INFO: build_info
@@ -166,40 +160,3 @@ def test_pulp_publish_success(caplog, reactor_config_map):
     assert "registry.example.com/image-name1:2" in images
     assert "registry.example.com/namespace/image-name2:latest" in images
     assert "registry.example.com/image-name3:asd" in images
-
-
-@pytest.mark.skipif(dockpulp is None,
-                    reason='dockpulp module not available')
-@pytest.mark.parametrize(('worker_builds_created'), [True, False])
-@pytest.mark.parametrize(("v1_image_ids", "expected"), [
-    ({'x86_64': None, 'ppc64le': None}, False),
-    ({'x86_64': None, 'ppc64le': 'ppc64le_v1_image_id'}, True),
-])
-def test_pulp_publish_delete(worker_builds_created, v1_image_ids,
-                             expected, caplog, reactor_config_map):
-    tasker, workflow = prepare(success=False, v1_image_ids=v1_image_ids)
-    if not worker_builds_created:
-        workflow.build_result = BuildResult(fail_reason="not built")
-
-    if reactor_config_map:
-        pulp_map = {'name': 'pulp_registry_name', 'auth': {}}
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1, 'pulp': pulp_map})
-
-    plugin = PulpPublishPlugin(tasker, workflow, 'pulp_registry_name')
-    msg = "removing ppc64le_v1_image_id from"
-
-    (flexmock(dockpulp.Pulp).should_receive('crane').never())
-    if expected:
-        (flexmock(dockpulp.Pulp).should_receive('remove').with_args(six.text_type, six.text_type))
-    else:
-        (flexmock(dockpulp.Pulp).should_receive('remove').never())
-
-    crane_images = plugin.run()
-
-    assert crane_images == []
-    if expected and worker_builds_created:
-        assert msg in caplog.text
-    else:
-        assert msg not in caplog.text
