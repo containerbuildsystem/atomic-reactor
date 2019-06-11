@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -329,7 +329,6 @@ def mock_environment(tmpdir, primary_images=None,
     return tasker, workflow
 
 
-REGISTRY_V1 = 'registry_v1.example.com'
 REGISTRY_V2 = 'registry_v2.example.com'
 OTHER_V2 = 'registry.example.com:5001'
 
@@ -337,9 +336,9 @@ OTHER_V2 = 'registry.example.com:5001'
 @pytest.mark.parametrize('schema_version', ('v2', 'oci'))
 @pytest.mark.parametrize(('test_name', 'group', 'foreign_layers',
                           'registries', 'workers', 'expected_exception'), [
-    # Basic manifest grouping, v1 registry should be ignored
+    # Basic manifest grouping
     ("group",
-     True, False, [REGISTRY_V2, OTHER_V2, REGISTRY_V1],
+     True, False, [REGISTRY_V2, OTHER_V2],
      {
          'ppc64le': {
              REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
@@ -395,7 +394,7 @@ OTHER_V2 = 'registry.example.com:5001'
      "No worker builds found"),
     # group=False, should fail as we expect only one entry if not grouped
     ("tag",
-     False, False, [REGISTRY_V2, OTHER_V2, REGISTRY_V1],
+     False, False, [REGISTRY_V2, OTHER_V2],
      {
          'ppc64le': {
              REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
@@ -546,9 +545,6 @@ def test_group_manifests(tmpdir, schema_version, test_name, group, foreign_layer
                                                                           build['digest'])
 
             for registry, conf in registry_conf.items():
-                if conf['version'] == 'v1':
-                    continue
-
                 target_registry = mocked_registries[registry]
                 for image in test_images:
                     name, tag = image.split(':')

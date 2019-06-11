@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017, 2018 Red Hat, Inc
+Copyright (c) 2017, 2018, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -333,10 +333,6 @@ class GroupManifestsPlugin(PostBuildPlugin):
 
         sources = {}
         for registry in self.registries:
-            registry_conf = self.registries[registry]
-            if registry_conf.get('version') == 'v1':
-                continue
-
             hostname = registry_hostname(registry)
             platforms = sorted_digests.get(hostname, {})
 
