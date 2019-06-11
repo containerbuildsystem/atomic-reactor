@@ -223,6 +223,38 @@
         "additionalProperties": false,
         "required": ["api_url", "auth", "signing_intents", "default_signing_intent"]
     },
+    "omps": {
+        "description": "Integration with OMPS service for pushing operators manifests to appregistry",
+        "type": ["object", "null"],
+        "properties": {
+            "omps_url": {
+                "description": "URL of OMPS REST API",
+                "type": "string"
+            },
+            "omps_namespace": {
+                "description": "Namespace (organization) where manifest will be pushed",
+                "type": "string"
+            },
+            "omps_secret_dir": {
+                "description": "Path to dir with secrets",
+                "type": "string"
+            },
+            "appregistry_url": {
+                "description": "URL for appregistry where operator manifests are stored",
+                "type": "string"
+            },
+            "koji_insecure": {
+                "description": "Download data from koji insecurely (default: false)",
+                "type": "boolean"
+            },
+            "insecure": {
+                "description": "Connect to OMPS service insecurely (default: false)",
+                "type": "boolean"
+            }
+        },
+        "additionalProperties": false,
+        "required": ["omps_url", "omps_namespace", "omps_secret_dir", "appregistry_url"]
+    },
     "smtp": {
         "description": "SMTP notifications",
         "type": "object",

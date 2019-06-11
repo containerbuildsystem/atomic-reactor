@@ -7,3 +7,4 @@ pytest-cov==2.6.*
 six>=1.10.0 # required by pytest-cov
 flake8
 koji
+requests-mock

@@ -59,6 +59,7 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
                                       PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY, BASE_IMAGE_KOJI_BUILD,
                                       PARENT_IMAGES_KOJI_BUILDS, BASE_IMAGE_BUILD_ID_KEY,
+                                      PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY, PARENT_IMAGE_BUILDS_KEY,
                                       PARENT_IMAGES_KEY, OPERATOR_MANIFESTS_ARCHIVE)
 from tests.constants import SOURCE, MOCK
@@ -77,6 +78,13 @@ LogEntry = namedtuple('LogEntry', ['platform', 'line'])
 
 NAMESPACE = 'mynamespace'
 BUILD_ID = 'build-1'
+
+PUSH_OPERATOR_MANIFESTS_RESULTS = {
+    "endpoint": 'registry.url/endpoint',
+    "registryNamespace": 'test_org',
+    "repository": 'test_repo',
+    "release": 'test_release',
+}
 
 
 class X(object):
@@ -233,7 +241,8 @@ def mock_environment(tmpdir, session=None, name=None,
                      task_states=None, additional_tags=None,
                      has_config=None, add_tag_conf_primaries=True,
                      add_build_result_primaries=False, container_first=False,
-                     yum_repourls=None, has_operator_manifests=False):
+                     yum_repourls=None, has_operator_manifests=False,
+                     push_operator_manifests_enabled=False):
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -500,6 +509,10 @@ def mock_environment(tmpdir, session=None, name=None,
             'buildroot_id': 1}
         (workflow.postbuild_results[FetchWorkerMetadataPlugin.key]['x86_64']['output']
          .append(manifests_entry))
+
+    if push_operator_manifests_enabled:
+        workflow.postbuild_results[PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY] = \
+            PUSH_OPERATOR_MANIFESTS_RESULTS
 
     workflow.plugin_workspace = {
         OrchestrateBuildPlugin.key: {
@@ -2047,14 +2060,18 @@ class TestKojiImport(object):
             assert 'yum_repourls' not in image
 
     @pytest.mark.parametrize('has_manifests', [True, False])
-    def test_set_operators_metadata(self, tmpdir, os_env, has_manifests, reactor_config_map):
+    @pytest.mark.parametrize('push_operator_manifests', [True, False])
+    def test_set_operators_metadata(self, tmpdir, os_env, has_manifests, reactor_config_map,
+                                    push_operator_manifests):
         session = MockedClientSession('')
-        tasker, workflow = mock_environment(tmpdir,
-                                            name='ns/name',
-                                            version='1.0',
-                                            release='1',
-                                            session=session,
-                                            has_operator_manifests=has_manifests)
+        tasker, workflow = mock_environment(
+            tmpdir,
+            name='ns/name',
+            version='1.0',
+            release='1',
+            session=session,
+            has_operator_manifests=has_manifests,
+            push_operator_manifests_enabled=push_operator_manifests)
 
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
         runner.run()
@@ -2079,3 +2096,10 @@ class TestKojiImport(object):
         else:
             assert 'operator_manifests_archive' not in extra
             assert 'typeinfo' not in extra
+
+        # having manifests pushed without extraction cannot happen, but plugins handles
+        # results independently so test it this way
+        if push_operator_manifests:
+            assert extra['operator_manifests']['appregistry'] == PUSH_OPERATOR_MANIFESTS_RESULTS
+        else:
+            assert 'operator_manifests' not in extra

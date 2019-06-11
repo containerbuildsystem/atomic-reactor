@@ -42,7 +42,11 @@ except ImportError:
 from atomic_reactor.constants import (
     PLUGIN_KOJI_IMPORT_PLUGIN_KEY, PLUGIN_PULP_PULL_KEY, PLUGIN_PULP_SYNC_KEY,
     PLUGIN_FETCH_WORKER_METADATA_KEY, PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
-    PLUGIN_VERIFY_MEDIA_KEY, METADATA_TAG, OPERATOR_MANIFESTS_ARCHIVE)
+    PLUGIN_VERIFY_MEDIA_KEY,
+    PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY,
+    METADATA_TAG, OPERATOR_MANIFESTS_ARCHIVE,
+    KOJI_BTYPE_OPERATOR_MANIFESTS,
+)
 from atomic_reactor.util import (Output, get_build_json,
                                  df_parser, ImageName, get_primary_images,
                                  get_manifest_media_type,
@@ -224,17 +228,27 @@ class KojiImportPlugin(ExitPlugin):
             extra['image']['go'] = go
 
     def set_operators_metadata(self, extra, worker_metadatas):
+        # update push plugin and uploaded manifests file independently as push plugin may fail
+        op_push_res = self.workflow.postbuild_results.get(PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY)
+        if op_push_res:
+            extra.update({
+                "operator_manifests": {
+                    "appregistry": op_push_res
+                }
+            })
+
         for metadata in worker_metadatas.values():
             for output in metadata['output']:
                 if output.get('filename') == OPERATOR_MANIFESTS_ARCHIVE:
                     extra['operator_manifests_archive'] = OPERATOR_MANIFESTS_ARCHIVE
                     operators_typeinfo = {
-                        'operator-manifests': {
+                        KOJI_BTYPE_OPERATOR_MANIFESTS: {
                             'archive': OPERATOR_MANIFESTS_ARCHIVE,
                         },
                     }
                     extra.update({'typeinfo': operators_typeinfo})
-                    break
+
+                    return  # only one worker can process operator manifests
 
     def remove_unavailable_manifest_digests(self, worker_metadatas):
         try:
@@ -326,6 +340,7 @@ class KojiImportPlugin(ExitPlugin):
                                            instance['extra']['docker'])
                             annotations = get_worker_build_info(self.workflow, platform).\
                                 build.get_annotations()
+
                             digests = {}
                             if 'digests' in annotations:
                                 digests = get_digests_map_from_annotations(annotations['digests'])

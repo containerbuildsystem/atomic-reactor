@@ -17,9 +17,8 @@ import zipfile
 from atomic_reactor.constants import (PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
                                       OPERATOR_MANIFESTS_ARCHIVE)
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.util import df_parser, is_scratch_build, get_platforms
+from atomic_reactor.util import is_scratch_build, get_platforms, has_operator_manifest
 from docker.errors import APIError
-from osbs.utils import Labels
 from platform import machine
 
 MANIFESTS_DIR_NAME = 'manifests'
@@ -45,20 +44,6 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
             self.platform = platform
         else:
             self.platform = machine()
-
-    def has_operator_manifest(self):
-        """
-        Check if Dockerfile sets the operator manifest label
-
-        :return: bool
-        """
-        dockerfile = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
-        labels = Labels(dockerfile.labels)
-        try:
-            _, operator_label = labels.get_name_and_value(Labels.LABEL_TYPE_OPERATOR_MANIFESTS)
-        except KeyError:
-            operator_label = 'false'
-        return operator_label.lower() == 'true'
 
     def is_orchestrator(self):
         """
@@ -86,7 +71,7 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
         if is_scratch_build():
             self.log.info("Scratch build. Skipping")
             return False
-        if not self.has_operator_manifest():
+        if not has_operator_manifest(self.workflow):
             self.log.info("Operator manifests label not set in Dockerfile. Skipping")
             return False
         return True
