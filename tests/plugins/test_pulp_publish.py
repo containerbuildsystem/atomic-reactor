@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -33,16 +33,10 @@ except (ImportError):
 import six
 import pytest
 from flexmock import flexmock
-from tests.constants import INPUT_IMAGE, SOURCE, MOCK
+from tests.constants import SOURCE, MOCK
+from tests.stubs import StubInsideBuilder, StubTagConf
 if MOCK:
     from tests.docker_mock import mock_docker
-
-
-class X(object):
-    image_id = INPUT_IMAGE
-    git_dockerfile_path = None
-    git_path = None
-    base_image = ImageName(repo="qwe", tag="asd")
 
 
 class BuildInfo(object):
@@ -61,18 +55,15 @@ def prepare(success=True, v1_image_ids=None):
         mock_docker()
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(SOURCE, "test-image")
-    setattr(workflow, 'builder', X())
-    setattr(workflow.builder, 'source', X())
-    setattr(workflow.builder.source, 'dockerfile_path', None)
-    setattr(workflow.builder.source, 'path', None)
-    setattr(workflow, 'tag_conf', X())
-    setattr(workflow.tag_conf, 'images', [ImageName(repo="image-name1"),
-                                          ImageName(repo="image-name1",
-                                                    tag="2"),
-                                          ImageName(namespace="namespace",
-                                                    repo="image-name2"),
-                                          ImageName(repo="image-name3",
-                                                    tag="asd")])
+    workflow.builder = StubInsideBuilder()
+    workflow.tag_conf = (StubTagConf()
+                         .set_images([ImageName(repo="image-name1"),
+                                      ImageName(repo="image-name1",
+                                                tag="2"),
+                                      ImageName(namespace="namespace",
+                                                repo="image-name2"),
+                                      ImageName(repo="image-name3",
+                                                tag="asd")]))
 
     # Mock dockpulp and docker
     dockpulp.Pulp = flexmock(dockpulp.Pulp)

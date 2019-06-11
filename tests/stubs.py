@@ -63,7 +63,6 @@ class StubInsideBuilder(object):
         self.image_id = None
         self.source = StubSource()
         self.source.config = StubConfig()
-        self.tag_conf = StubTagConf()
         self.base_from_scratch = False
         self.parents_ordered = []
 
