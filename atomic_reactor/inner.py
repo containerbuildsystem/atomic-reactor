@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -226,7 +226,7 @@ class PulpRegistry(Registry):
 
 
 class DockerRegistry(Registry):
-    """ v1/v2 docker registry """
+    """ v2 docker registry """
     def __init__(self, uri, insecure=False):
         """
         :param uri: str, uri for pushing/pulling
