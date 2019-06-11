@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -13,13 +13,11 @@ from collections import namedtuple
 
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.pulp_util import PulpHandler, LockedPulpRepository
+from atomic_reactor.pulp_util import PulpHandler
 from atomic_reactor.util import ImageName
-from atomic_reactor.constants import LOCKEDPULPREPOSITORY_RETRIES
 
 import pytest
 import copy
-import time
 from flexmock import flexmock
 from tests.constants import SOURCE, MOCK
 from tests.stubs import StubInsideBuilder, StubTagConf, StubSource
@@ -298,161 +296,3 @@ def test_upload(unsupported, caplog):
     if unsupported:
         assert "Falling back to uploading %s to redhat-everything repo" %\
                upload_file in caplog.text
-
-
-class TestLockedPulpRepository(object):
-    def test_lock_bad_params(self):
-        """
-        Should fail if 'prefix' is not a string
-        """
-        pulp = flexmock()
-        pulp.should_receive('createRepo').never()
-        pulp.should_receive('deleteRepo').never()
-        with pytest.raises(Exception):
-            with LockedPulpRepository(pulp, 'redhat-repo', prefix=None):
-                pass
-
-    @pytest.mark.parametrize(('repo_id', 'kwargs', 'expected_repo_id'), [
-        ('redhat-repo', {}, 'lock-redhat-repo'),
-        ('redhat-repo', {'prefix': 'locked-'}, 'locked-redhat-repo'),
-    ])
-    def test_lock_no_errors(self, repo_id, kwargs, expected_repo_id):
-        pulp = flexmock()
-
-        # First it should call createRepo()
-        createRepo_kwargs = {
-            'registry_id': object,  # don't care what this is
-            'is_origin': True,
-            'prefix_with': kwargs.get('prefix', 'lock-'),
-        }
-
-        (pulp
-         .should_receive('createRepo')
-         .with_args(repo_id, object, **createRepo_kwargs)
-         .once()
-         .ordered())
-
-        with LockedPulpRepository(pulp, repo_id, **kwargs) as lock:
-            assert isinstance(lock, LockedPulpRepository)
-
-            # Next, deleteRepo() -- but with the full repository id.
-            # Yes, dockpulp really works like this.
-            (pulp
-             .should_receive('deleteRepo')
-             .with_args(expected_repo_id)
-             .once()
-             .ordered())
-
-    @pytest.mark.skipif(dockpulp is None,
-                        reason='dockpulp module not available')
-    def test_lock_exception_create(self):
-        pulp = flexmock()
-        pulp.should_receive('createRepo').and_raise(RuntimeError).once()
-
-        with pytest.raises(RuntimeError):
-            with LockedPulpRepository(pulp, 'redhat-repo'):
-                assert False, "Should not get here"
-
-    @pytest.mark.skipif(dockpulp is None,
-                        reason='dockpulp module not available')
-    def test_lock_exception_delete_ignored(self):
-        """
-        dockpulp.errors.DockPulpError should be ignored when exiting the
-        context manager.
-        """
-        pulp = flexmock()
-        pulp.should_receive('createRepo').once().ordered()
-        (pulp
-         .should_receive('deleteRepo')
-         .and_raise(dockpulp.errors.DockPulpError('error deleting'))
-         .once()
-         .ordered())
-
-        with LockedPulpRepository(pulp, 'redhat-repo'):
-            pass
-
-    @pytest.mark.skipif(dockpulp is None,
-                        reason='dockpulp module not available')
-    def test_lock_exception_delete_raise(self):
-        """
-        Other exceptions from deleting should be propagated when exiting
-        the context manager.
-        """
-        pulp = flexmock()
-        pulp.should_receive('createRepo').once().ordered()
-        (pulp
-         .should_receive('deleteRepo')
-         .and_raise(RuntimeError)
-         .once()
-         .ordered())
-
-        entered = False
-        with pytest.raises(RuntimeError):
-            with LockedPulpRepository(pulp, 'redhat-repo'):
-                entered = True
-
-        assert entered
-
-    @pytest.mark.skipif(dockpulp is None,
-                        reason='dockpulp module not available')
-    def test_lock_exception_delete_propagate(self):
-        """
-        dockpulp.errors.DockPulpError raised within the context should be
-        propagated up the call stack.
-        """
-        pulp = flexmock()
-        pulp.should_receive('createRepo').once().ordered()
-        pulp.should_receive('deleteRepo').once().ordered()
-        entered = False
-        with pytest.raises(dockpulp.errors.DockPulpError):
-            with LockedPulpRepository(pulp, 'redhat-repo'):
-                entered = True
-                raise dockpulp.errors.DockPulpError('random error')
-
-        assert entered
-
-    @pytest.mark.skipif(dockpulp is None,
-                        reason='dockpulp module not available')
-    @pytest.mark.parametrize('failures', [2, 9])
-    def test_lock_retry(self, failures):
-        # Don't actually wait when retrying
-        flexmock(time).should_receive('sleep')
-
-        pulp = flexmock()
-        expectation = pulp.should_receive('createRepo').times(failures + 1)
-        exc = dockpulp.errors.DockPulpError('error creating')
-        for _ in range(failures):
-            expectation = expectation.and_raise(exc).ordered()
-
-        expectation.and_return(None).ordered()
-
-        pulp.should_receive('deleteRepo').once().ordered()
-
-        with LockedPulpRepository(pulp, 'redhat-repo'):
-            pass
-
-    @pytest.mark.skipif(dockpulp is None,
-                        reason='dockpulp module not available')
-    def test_lock_break(self):
-        class Elapsed(object):
-            def __init__(self):
-                self.seconds = 0
-
-            def sleep(self, s):
-                self.seconds += s
-
-        # Don't actually wait when retrying, just measure time
-        elapsed = Elapsed()
-        flexmock(time).should_receive('sleep').replace_with(elapsed.sleep)
-
-        pulp = flexmock()
-        (pulp
-         .should_receive('createRepo')
-         .times(LOCKEDPULPREPOSITORY_RETRIES + 1)
-         .and_raise(dockpulp.errors.DockPulpError('error creating')))
-
-        pulp.should_receive('deleteRepo').once().ordered()
-
-        with LockedPulpRepository(pulp, 'redhat-repo'):
-            # Should wait at least an hour before breaking the lock
-            assert elapsed.seconds > 60 * 60
