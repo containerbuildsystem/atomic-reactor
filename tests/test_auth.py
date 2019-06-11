@@ -1,5 +1,5 @@
 """
-Copyright (c) 2018 Red Hat, Inc
+Copyright (c) 2018, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -205,39 +205,6 @@ class TestHTTPRegistryAuth(object):
         assert auth.username == 'the-user'
         assert auth.password == 'top-secret'
         assert auth.auth_b64 == auth_b64
-
-    @responses.activate
-    @pytest.mark.parametrize(('auth_b64', 'username', 'password', 'basic_auth'), (
-        (None, 'spam', 'bacon', True),
-        (None, None, 'bacon', False),
-        (None, 'spam', None, False),
-        (None, None, None, False),
-        (b64encode('spam', 'bacon'), None, None, True),
-        (b64encode('spam', 'bacon'), 'spam', None, True),
-        (b64encode('spam', 'bacon'), 'spam', 'bacon', True),
-        (b64encode('spam', 'bacon'), None, 'bacon', True),
-    ))
-    def test_v1(self, auth_b64, username, password, basic_auth):
-        url = 'https://registry.example.com/v1/repositories/fedora/tags/latest'
-
-        def auth_callback(request):
-            # Verify if username and password were provided, basic auth is used
-            if basic_auth:
-                creds = auth_b64 or b64encode(username, password)
-                assert request.headers['authorization'] == 'Basic {}'.format(creds)
-            else:
-                assert 'authorization' not in request.headers
-
-            return (200, {}, json.dumps('success'))
-
-        responses.add_callback(responses.GET, url, callback=auth_callback)
-
-        auth = HTTPRegistryAuth(username=username, password=password, auth_b64=auth_b64)
-        assert requests.get(url, auth=auth).json() == 'success'
-        if basic_auth:
-            assert isinstance(auth.v1_auth, (HTTPBasicAuth, HTTPBasicAuthWithB64))
-        else:
-            assert auth.v1_auth is None
 
     @responses.activate
     @pytest.mark.parametrize(('auth_b64', 'username', 'password', 'auth_type'), (

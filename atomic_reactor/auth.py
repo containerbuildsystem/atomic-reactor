@@ -1,5 +1,5 @@
 """
-Copyright (c) 2018 Red Hat, Inc
+Copyright (c) 2018, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -149,15 +149,10 @@ class HTTPRegistryAuth(AuthBase):
 
     Supports both Basic Auth and Bearer Auth (v2 API only).
 
-    For v1 API requests, Basic Auth is the only supported
-    authentication mechanism.
-
-    For v2 API requests, Basic Auth is attempted first, if
-    status code of response is 401, Bearer Auth is then
-    attempted.
+    Basic Auth is attempted first, if status code of response is 401,
+    Bearer Auth is then attempted.
     """
 
-    V1_URL = re.compile(r'^/v1/')
     V2_URL = re.compile(r'^/v2/')
 
     def __init__(self, username=None, password=None, access=None, auth_b64=None):
@@ -166,7 +161,6 @@ class HTTPRegistryAuth(AuthBase):
         self.access = access
         self.auth_b64 = auth_b64
 
-        self.v1_auth = None
         self.v2_auths = []
 
     def __call__(self, request):
@@ -177,16 +171,6 @@ class HTTPRegistryAuth(AuthBase):
             basic_auth = HTTPBasicAuth(self.username, self.password)
         else:
             basic_auth = None
-
-        if self.V1_URL.search(url_parts.path):
-            if (not self.username or not self.password) and not self.auth_b64:
-                # V1 API only supports basic auth which requires user/pass
-                return request
-
-            if not self.v1_auth and basic_auth:
-                self.v1_auth = basic_auth
-
-            return self.v1_auth(request)
 
         if self.V2_URL.search(url_parts.path):
 
