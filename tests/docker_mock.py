@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -80,7 +80,7 @@ mock_push_logs = \
 mock_push_logs_failed = \
     [{"status": "The push refers to a repository [localhost:5000/busybox] (len: 1)"},
      {"status": "Sending image list"},
-     {"errorDetail": {"message": "Put http://localhost:5000/v1/repositories/busybox/: dial tcp [::1]:5000: getsockopt: connection refused"}, "error": "Put http://localhost:5000/v1/repositories/busybox/: dial tcp [::1]:5000: getsockopt: connection refused"}]  # noqa
+     {"errorDetail": {"message": "Put http://localhost:5000/v2/busybox/: dial tcp [::1]:5000: getsockopt: connection refused"}, "error": "Put http://localhost:5000/v2/busybox/: dial tcp [::1]:5000: getsockopt: connection refused"}]  # noqa
 
 mock_info = {
     'BridgeNfIp6tables': True,
@@ -99,7 +99,7 @@ mock_info = {
     'ID': 'YC7N:MYIE:6SEL:JYLU:SRIG:PCVV:APZD:WTH4:4MGR:N4BG:CT53:ZW2O',
     'IPv4Forwarding': True,
     'Images': 162,
-    'IndexServerAddress': 'https://index.docker.io/v1/',
+    'IndexServerAddress': 'https://index.docker.io/v2/',
     'InitPath': '/usr/libexec/docker/dockerinit',
     'InitSha1': 'eb5677df79a87639f30ab5c2c01e5170abc96af2',
     'KernelVersion': '4.1.4-200.fc22.x86_64',
