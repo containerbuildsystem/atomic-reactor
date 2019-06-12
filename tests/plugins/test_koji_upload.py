@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -241,7 +241,7 @@ def is_string_type(obj):
 def mock_environment(tmpdir, session=None, name=None,
                      component=None, version=None, release=None,
                      source=None, build_process_failed=False,
-                     docker_registry=True, pulp_registries=0,
+                     pulp_registries=0,
                      blocksize=None, task_states=None,
                      additional_tags=None, has_config=None,
                      prefer_schema1_digest=True):
@@ -288,24 +288,23 @@ def mock_environment(tmpdir, session=None, name=None,
     setattr(workflow.source, 'lg', X())
     setattr(workflow.source.lg, 'commit_id', '123456')
     setattr(workflow, 'push_conf', PushConf())
-    if docker_registry:
-        docker_reg = workflow.push_conf.add_docker_registry('docker.example.com')
+    docker_reg = workflow.push_conf.add_docker_registry('docker.example.com')
 
-        for image in workflow.tag_conf.images:
-            tag = image.to_str(registry=False)
+    for image in workflow.tag_conf.images:
+        tag = image.to_str(registry=False)
 
-            if pulp_registries and prefer_schema1_digest:
-                docker_reg.digests[tag] = ManifestDigest(v1=fake_digest(image),
-                                                         v2='sha256:not-used')
-            else:
-                docker_reg.digests[tag] = ManifestDigest(v1='sha256:not-used',
-                                                         v2=fake_digest(image))
+        if pulp_registries and prefer_schema1_digest:
+            docker_reg.digests[tag] = ManifestDigest(v1=fake_digest(image),
+                                                     v2='sha256:not-used')
+        else:
+            docker_reg.digests[tag] = ManifestDigest(v1='sha256:not-used',
+                                                     v2=fake_digest(image))
 
-            if has_config:
-                docker_reg.config = {
-                    'config': {'architecture': LOCAL_ARCH},
-                    'container_config': {}
-                }
+        if has_config:
+            docker_reg.config = {
+                'config': {'architecture': LOCAL_ARCH},
+                'container_config': {}
+            }
 
     for _ in range(pulp_registries):
         workflow.push_conf.add_pulp_registry('env', 'pulp.example.com')
@@ -647,7 +646,7 @@ class TestKojiUpload(object):
             assert is_string_type(component_rpm['arch'])
             assert component_rpm['signature'] != '(none)'
 
-    def validate_buildroot(self, buildroot, expect_koji_build_id):
+    def validate_buildroot(self, buildroot):
         assert isinstance(buildroot, dict)
 
         assert set(buildroot.keys()) == set([
@@ -739,13 +738,12 @@ class TestKojiUpload(object):
         assert is_string_type(koji['build_name'])
         builder_image_id = koji['builder_image_id']
         assert isinstance(builder_image_id, dict)
-        if expect_koji_build_id:
-            assert isinstance(builder_image_id, dict)
-            for key in builder_image_id:
-                assert is_string_type(builder_image_id[key])
+        assert isinstance(builder_image_id, dict)
+        for key in builder_image_id:
+            assert is_string_type(builder_image_id[key])
 
     def validate_output(self, output, has_config,
-                        expect_digest, base_from_scratch=False):
+                        base_from_scratch=False):
         assert isinstance(output, dict)
         assert 'buildroot_id' in output
         assert 'filename' in output
@@ -825,8 +823,8 @@ class TestKojiUpload(object):
 
             if has_config:
                 expected_keys_set.add('config')
-            if expect_digest:
-                expected_keys_set.add('digests')
+
+            expected_keys_set.add('digests')
             assert set(docker.keys()) == expected_keys_set
 
             assert is_string_type(docker['id'])
@@ -836,10 +834,7 @@ class TestKojiUpload(object):
             repositories_tag = list(filter(lambda repo: '@sha256' not in repo, repositories))
 
             assert len(repositories_tag) == 1
-            if expect_digest:
-                assert len(repositories_digest) == 1
-            else:
-                assert not repositories_digest
+            assert len(repositories_digest) == 1
 
             # check for duplicates
             assert sorted(repositories_tag) == sorted(set(repositories_tag))
@@ -853,11 +848,10 @@ class TestKojiUpload(object):
                 assert image.repo
                 assert image.tag and image.tag != 'latest'
 
-            if expect_digest:
-                digest_pullspec = image.to_str(tag=False) + '@' + fake_digest(image)
-                assert digest_pullspec in repositories_digest
-                digests = docker['digests']
-                assert isinstance(digests, dict)
+            digest_pullspec = image.to_str(tag=False) + '@' + fake_digest(image)
+            assert digest_pullspec in repositories_digest
+            digests = docker['digests']
+            assert isinstance(digests, dict)
 
             tags = docker['tags']
             assert isinstance(tags, list)
@@ -932,41 +926,16 @@ class TestKojiUpload(object):
 
         assert set(tags) == expected_tags
 
-    @pytest.mark.parametrize(('apis',
-                              'docker_registry',
-                              'pulp_registries',
-                              'blocksize',
-                              'target'), [
-        ('v1-only',
-         False,
-         1,
-         None,
-         'images-docker-candidate'),
-
-        ('v1+v2',
-         True,
-         2,
-         10485760,
-         None),
-
-        ('v2-only',
-         False,
-         1,
-         None,
-         None),
-
-        ('v1+v2',
-         True,
-         0,
-         10485760,
-         None),
-
+    @pytest.mark.parametrize(('pulp_registries',
+                              'blocksize'), [
+        (1, None),
+        (0, 10485760),
     ])
     @pytest.mark.parametrize('has_config', (True, False))
     @pytest.mark.parametrize('prefer_schema1_digest', (True, False))
     @pytest.mark.parametrize('base_from_scratch', (True, False))
-    def test_koji_upload_success(self, tmpdir, apis, docker_registry,
-                                 pulp_registries, blocksize, target,
+    def test_koji_upload_success(self, tmpdir,
+                                 pulp_registries, blocksize,
                                  os_env, has_config, prefer_schema1_digest,
                                  base_from_scratch, reactor_config_map):
         osbs = MockedOSBS()
@@ -977,23 +946,19 @@ class TestKojiUpload(object):
         release = '1'
         expected_build_name = 'ns/name:1.0-1'
 
-        if has_config and not docker_registry:
-            # Not a valid combination
-            has_config = False
-
         tasker, workflow = mock_environment(tmpdir,
                                             session=session,
                                             name=name,
                                             component=component,
                                             version=version,
                                             release=release,
-                                            docker_registry=docker_registry,
                                             pulp_registries=pulp_registries,
                                             blocksize=blocksize,
                                             has_config=has_config,
                                             prefer_schema1_digest=prefer_schema1_digest,
                                             )
         workflow.builder.base_from_scratch = base_from_scratch
+        target = 'images-docker-candidate'
         runner = create_runner(tasker, workflow, blocksize=blocksize, target=target,
                                prefer_schema1_digest=prefer_schema1_digest, platform=LOCAL_ARCH,
                                reactor_config_map=reactor_config_map)
@@ -1017,7 +982,7 @@ class TestKojiUpload(object):
         assert isinstance(output_files, list)
 
         for buildroot in buildroots:
-            self.validate_buildroot(buildroot, expect_koji_build_id=docker_registry)
+            self.validate_buildroot(buildroot)
             assert buildroot['extra']['osbs']['koji']['build_name'] == expected_build_name
 
             # Unique within buildroots in this metadata
@@ -1026,7 +991,6 @@ class TestKojiUpload(object):
 
         for output in output_files:
             self.validate_output(output, has_config,
-                                 expect_digest=docker_registry,
                                  base_from_scratch=base_from_scratch)
             buildroot_id = output['buildroot_id']
 

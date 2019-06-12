@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -451,10 +451,7 @@ class KojiPromotePlugin(ExitPlugin):
 
         # Read config from the registry using v2 schema 2 digest
         registries = self.workflow.push_conf.docker_registries
-        if registries:
-            config = copy.deepcopy(registries[0].config)
-        else:
-            config = {}
+        config = copy.deepcopy(registries[0].config)
 
         # We don't need container_config section
         if config and 'container_config' in config:

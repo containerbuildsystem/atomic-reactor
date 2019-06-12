@@ -971,7 +971,7 @@ class TestKojiImport(object):
         assert is_string_type(osbs['build_id'])
         assert is_string_type(osbs['builder_image_id'])
 
-    def validate_output(self, output, has_config, expect_digest):
+    def validate_output(self, output, has_config):
         assert isinstance(output, dict)
         assert 'buildroot_id' in output
         assert 'filename' in output
@@ -1226,30 +1226,9 @@ class TestKojiImport(object):
         assert AddFilesystemPlugin.key in caplog.text
 
     @pytest.mark.parametrize('blocksize', (None, 1048576))
-    @pytest.mark.parametrize(('apis',
-                              'docker_registry',
-                              'pulp_registries',
-                              'target'), [
-        ('v1-only',
-         False,
-         1,
-         'images-docker-candidate'),
-
-        ('v1+v2',
-         True,
-         2,
-         None),
-
-        ('v2-only',
-         True,
-         1,
-         None),
-
-        ('v1+v2',
-         True,
-         0,
-         None),
-
+    @pytest.mark.parametrize('pulp_registries', [
+        1,
+        0,
     ])
     @pytest.mark.parametrize(('has_config', 'is_autorebuild'), [
         # (True,
@@ -1265,9 +1244,9 @@ class TestKojiImport(object):
         (False, ['v1'], 'ab12'),
         (False, False, 'ab12')
     ))
-    def test_koji_import_success(self, tmpdir, blocksize, apis,
-                                 docker_registry, pulp_registries,
-                                 target, os_env, has_config, is_autorebuild,
+    def test_koji_import_success(self, tmpdir, blocksize,
+                                 pulp_registries,
+                                 os_env, has_config, is_autorebuild,
                                  tag_later, pulp_pull, verify_media, expect_id,
                                  reactor_config_map):
         session = MockedClientSession('')
@@ -1283,17 +1262,12 @@ class TestKojiImport(object):
         version = '1.0'
         release = '1'
 
-        if has_config and not docker_registry:
-            # Not a valid combination
-            has_config = False
-
         tasker, workflow = mock_environment(tmpdir,
                                             session=session,
                                             name=name,
                                             component=component,
                                             version=version,
                                             release=release,
-                                            docker_registry=docker_registry,
                                             pulp_registries=pulp_registries,
                                             has_config=has_config)
         workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_autorebuild
@@ -1305,6 +1279,7 @@ class TestKojiImport(object):
 
         workflow.builder.image_id = expect_id
 
+        target = 'images-docker-candidate'
         runner = create_runner(tasker, workflow, target=target, tag_later=tag_later,
                                reactor_config_map=reactor_config_map,
                                blocksize=blocksize)
@@ -1377,7 +1352,7 @@ class TestKojiImport(object):
                         if b['id'] == buildroot['id']]) == 1
 
         for output in output_files:
-            self.validate_output(output, has_config, expect_digest=docker_registry)
+            self.validate_output(output, has_config)
             buildroot_id = output['buildroot_id']
 
             # References one of the buildroots

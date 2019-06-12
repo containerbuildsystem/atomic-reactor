@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -406,10 +406,7 @@ class KojiUploadPlugin(PostBuildPlugin):
 
         # Read config from the registry using v2 schema 2 digest
         registries = self.workflow.push_conf.docker_registries
-        if registries:
-            config = copy.deepcopy(registries[0].config)
-        else:
-            config = {}
+        config = copy.deepcopy(registries[0].config)
 
         # We don't need container_config section
         if config and 'container_config' in config:
@@ -443,8 +440,6 @@ class KojiUploadPlugin(PostBuildPlugin):
             del metadata['extra']['docker']['parent_id']
         if not config:
             del metadata['extra']['docker']['config']
-        if not typed_digests:
-            del metadata['extra']['docker']['digests']
 
         # Add the 'docker save' image to the output
         image = add_buildroot_id(output)
