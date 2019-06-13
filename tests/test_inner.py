@@ -13,6 +13,7 @@ import json
 import os
 import time
 import docker
+from textwrap import dedent
 from dockerfile_parse import DockerfileParser
 
 from atomic_reactor.build import InsideBuilder, BuildResult
@@ -1097,6 +1098,22 @@ class BuildStepResult(ValueBuildStep, BuildStepPlugin):
     key = 'buildstep_value'
 
 
+class New_BuildStepResult(ValueBuildStep, BuildStepPlugin):
+    """
+    New Build step plugin that returns a result when run.
+    """
+
+    key = 'imagebuilder'
+
+
+class Old_BuildStepResult(ValueBuildStep, BuildStepPlugin):
+    """
+    Old Build step plugin that returns a result when run.
+    """
+
+    key = 'docker_api'
+
+
 class BuildStepFailedResult(ValueFailedBuildStep, BuildStepPlugin):
     """
     Build step plugin that returns a failed result when run.
@@ -1265,6 +1282,49 @@ def test_cancel_build(request, fail_at):
 
     if fail_at not in ['pre', 'prepub', 'buildstep']:
         assert watch_post.was_called()
+
+
+@pytest.mark.parametrize(['buildstep_alias', 'buildstep_plugin'], [
+    [True, 'imagebuilder'],
+    [False, 'docker_api'],
+])
+def test_buildstep_alias(buildstep_alias, buildstep_plugin):
+    """
+    Verifies that buildstep plugin is changed when buildstep_alias is defined
+    """
+    flexmock(DockerfileParser, content='df_content')
+    this_file = inspect.getfile(PreRaises)
+    mock_docker()
+    fake_builder = MockInsideBuilder()
+    flexmock(InsideBuilder).new_instances(fake_builder)
+
+    prebuild_plugins = [{'name': 'reactor_config'}]
+    buildstep_plugins = []
+    postbuild_plugins = []
+    prepublish_plugins = []
+    exit_plugins = []
+
+    os.environ['REACTOR_CONFIG'] = "version: 1"
+    if buildstep_alias:
+        os.environ['REACTOR_CONFIG'] = dedent("""\
+        version: 1
+        buildstep_alias:
+          docker_api: imagebuilder
+        """)
+
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+                                   prebuild_plugins=prebuild_plugins,
+                                   buildstep_plugins=buildstep_plugins,
+                                   prepublish_plugins=prepublish_plugins,
+                                   postbuild_plugins=postbuild_plugins,
+                                   exit_plugins=exit_plugins,
+                                   plugin_files=[this_file])
+
+    workflow.build_docker_image()
+    os.environ.pop('REACTOR_CONFIG', None)
+
+    assert buildstep_plugin in workflow.buildstep_result
+    assert isinstance(workflow.buildstep_result[buildstep_plugin], BuildResult)
 
 
 @pytest.mark.parametrize('has_version', [True, False])
