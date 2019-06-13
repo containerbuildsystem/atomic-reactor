@@ -172,21 +172,23 @@ class HTTPRegistryAuth(AuthBase):
         else:
             basic_auth = None
 
-        if self.V2_URL.search(url_parts.path):
+        if not self.V2_URL.search(url_parts.path):
+            raise NotImplementedError("registry auth only implemented for %s" %
+                                      self.V2_URL.pattern)
 
-            if not self.v2_auths:
-                # It's safe to always add bearer auth handler because
-                # it's only activated if indicated by www-authenticate response header
-                self.v2_auths.append(HTTPBearerAuth(self.username, self.password,
-                                                    access=self.access, auth_b64=self.auth_b64))
+        if not self.v2_auths:
+            # It's safe to always add bearer auth handler because
+            # it's only activated if indicated by www-authenticate response header
+            self.v2_auths.append(HTTPBearerAuth(self.username, self.password,
+                                                access=self.access, auth_b64=self.auth_b64))
 
-                if basic_auth:
-                    self.v2_auths.append(basic_auth)
+            if basic_auth:
+                self.v2_auths.append(basic_auth)
 
-            for auth in self.v2_auths:
-                request = auth(request)
-                if 'authorization' in (k.lower() for k in request.headers.keys()):
-                    # One of the auth handlers has a token for the request
-                    break
+        for auth in self.v2_auths:
+            request = auth(request)
+            if 'authorization' in (k.lower() for k in request.headers.keys()):
+                # One of the auth handlers has a token for the request
+                break
 
         return request

@@ -206,6 +206,11 @@ class TestHTTPRegistryAuth(object):
         assert auth.password == 'top-secret'
         assert auth.auth_b64 == auth_b64
 
+    def test_v1(self):
+        auth = HTTPRegistryAuth(username='username', password='password')
+        with pytest.raises(NotImplementedError):
+            requests.get('https://registry.example.com/v1/_ping', auth=auth)
+
     @responses.activate
     @pytest.mark.parametrize(('auth_b64', 'username', 'password', 'auth_type'), (
         (None, 'spam', 'bacon', 'basic'),
