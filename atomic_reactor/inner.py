@@ -142,7 +142,7 @@ class TagConf(object):
         """
         add new primary image
 
-        used by tag_by_labels plugin
+        used by tag_from_config plugin
 
         :param image: str, name of image (e.g. "namespace/httpd:2.4")
         :return: None
@@ -153,7 +153,7 @@ class TagConf(object):
         """
         add image with unpredictable name
 
-        used by tag_by_labels plugin
+        used by tag_from_config plugin
 
         :param image: str, name of image (e.g. "namespace/httpd:2.4")
         :return: None
@@ -164,7 +164,7 @@ class TagConf(object):
         """
         add image with floating name
 
-        used by tag_by_labels plugin
+        used by tag_from_config plugin
 
         :param image: str, name of image (e.g. "namespace/httpd:2.4")
         :return: None
@@ -175,7 +175,7 @@ class TagConf(object):
         """
         add new primary images in bulk
 
-        used by tag_by_labels plugin
+        used by tag_from_config plugin
 
         :param images: list of str, list of image names
         :return: None
@@ -187,7 +187,7 @@ class TagConf(object):
         """
         add new floating images in bulk
 
-        used by tag_by_labels plugin
+        used by tag_from_config plugin
 
         :param images: list of str, list of image names
         :return: None
