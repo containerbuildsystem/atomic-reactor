@@ -164,12 +164,6 @@ These are run after buildstep plugin has successfully finished.
  * **compress**
    * Status: enabled
    * The 'docker save' output is compressed using gzip.
- * **tag_by_labels**
-   * Status: enabled
-   * The name, version, and release labels in the Dockerfile are used to create tags to be applied to the image:
-     * ${name}:${version}-${release}
-     * ${name}:${version}
-     * ${name}:latest
  * **tag_from_config**
    * Status: enabled
    * Tags defined in file "additional-tags" will be applied to the image:
