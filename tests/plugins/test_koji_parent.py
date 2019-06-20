@@ -131,6 +131,7 @@ class TestKojiParent(object):
     def test_koji_build_found(self, workflow, koji_session, reactor_config_map):  # noqa
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
+    @pytest.mark.skip(reason="Raising for manifests_mismatches is disabled")
     def test_koji_build_no_extra(self, workflow, koji_session, reactor_config_map):  # noqa
         koji_no_extra = {'nvr': KOJI_BUILD_NVR, 'id': KOJI_BUILD_ID, 'state': KOJI_STATE_COMPLETE}
         (flexmock(koji_session)
@@ -247,7 +248,7 @@ class TestKojiParent(object):
                              ['stubDigest', 'stubDigest', 'stubDigest']])
     @pytest.mark.parametrize('special_base', [False, 'scratch', 'custom'])  # noqa: F811
     def test_multiple_parent_images(self, workflow, koji_session, reactor_config_map,
-                                    special_base, parent_tags, media_version):
+                                    special_base, parent_tags, media_version, caplog):
         parent_images = {
             ImageName.parse('somebuilder'): ImageName.parse('somebuilder:{}'
                                                             .format(parent_tags[0])),
@@ -310,10 +311,10 @@ class TestKojiParent(object):
             del expected[BASE_IMAGE_KOJI_BUILD]
 
         if 'miss' in parent_tags:
-            with pytest.raises(PluginFailedException) as exc:
-                self.run_plugin_with_args(
-                    workflow, expect_result=expected, reactor_config_map=reactor_config_map
-                )
+            # TODO: here we should capture an exception instead
+            self.run_plugin_with_args(
+                workflow, expect_result=expected, reactor_config_map=reactor_config_map
+            )
             errors = []
             error_msg = ('Manifest digest (miss) for parent image {}:latest does not match value '
                          'in its koji reference (stubDigest). This parent image MUST be rebuilt')
@@ -323,9 +324,9 @@ class TestKojiParent(object):
                 errors.append(error_msg.format('otherbuilder'))
             if parent_tags[2] == 'miss':
                 errors.append(error_msg.format('base'))
-            assert 'This parent image MUST be rebuilt' in str(exc)
+            assert 'This parent image MUST be rebuilt' in caplog.text
             for e in errors:
-                assert e in str(exc)
+                assert e in caplog.text
         else:
             self.run_plugin_with_args(
                 workflow, expect_result=expected, reactor_config_map=reactor_config_map
