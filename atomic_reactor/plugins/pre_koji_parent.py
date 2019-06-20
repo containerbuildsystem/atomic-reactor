@@ -112,8 +112,9 @@ class KojiParentPlugin(PreBuildPlugin):
                     raise RuntimeError(err_msg)
 
         if manifest_mismatches:
-            raise RuntimeError('Error while comparing parent images manifest digests in koji with '
-                               'related values from registries: {}'.format(manifest_mismatches))
+            # TODO: this should raise a RuntimeError instead
+            self.log.warning('Error while comparing parent images manifest digests in koji with '
+                             'related values from registries: %s', manifest_mismatches)
         return self.make_result()
 
     def check_manifest_digest(self, image, build_info):
