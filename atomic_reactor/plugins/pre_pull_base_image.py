@@ -337,7 +337,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
                                  'list')
                 return
             else:
-                raise RuntimeError('Unable to fetch manifest list for base image')
+                raise RuntimeError('Unable to fetch manifest list for base image {}'.format(image))
 
         all_manifests = manifest_list.json()['manifests']
         manifest_list_arches = set(
