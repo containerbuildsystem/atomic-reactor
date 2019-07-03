@@ -49,7 +49,9 @@ class OMPS(object):
         self._token = token
         self._insecure = insecure
         self.log = logging.getLogger(self.__class__.__name__)
-        self.req_session = get_retrying_requests_session()
+
+        # this class handle status errors itself
+        self.req_session = get_retrying_requests_session(raise_on_status=False)
 
     @property
     def organization(self):
