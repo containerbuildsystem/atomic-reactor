@@ -1341,7 +1341,7 @@ def _http_retries_disabled():
 
 def get_retrying_requests_session(client_statuses=HTTP_CLIENT_STATUS_RETRY,
                                   times=HTTP_MAX_RETRIES, delay=HTTP_BACKOFF_FACTOR,
-                                  method_whitelist=None):
+                                  method_whitelist=None, raise_on_status=True):
     if _http_retries_disabled():
         times = 0
 
@@ -1351,6 +1351,12 @@ def get_retrying_requests_session(client_statuses=HTTP_CLIENT_STATUS_RETRY,
         status_forcelist=client_statuses,
         method_whitelist=method_whitelist
     )
+
+    # raise_on_status was added later to Retry, adding compatibility to work
+    # with newer versions and ignoring this option with older ones
+    if hasattr(retry, 'raise_on_status'):
+        retry.raise_on_status = raise_on_status
+
     session = SessionWithTimeout()
     session.mount('http://', HTTPAdapter(max_retries=retry))
     session.mount('https://', HTTPAdapter(max_retries=retry))
