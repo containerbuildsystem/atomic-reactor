@@ -195,7 +195,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
         return list_type, json.dumps({
                 "schemaVersion": 2,
                 "mediaType": list_type,
-                "manifests": [
+                "manifests": sorted([
                     {
                         "mediaType": media_type,
                         "size": m['size'],
@@ -205,8 +205,8 @@ class GroupManifestsPlugin(PostBuildPlugin):
                             "os": "linux"
                         }
                     } for m in manifests
-                ],
-        }, indent=4)
+                ], key=lambda entry: entry['platform']['architecture']),
+        }, indent=4, sort_keys=True, separators=(',', ': '))
 
     def group_manifests_and_tag(self, session, worker_digests):
         """
