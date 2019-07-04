@@ -15,6 +15,7 @@ import responses
 from tempfile import mkdtemp
 import os
 import requests
+from collections import OrderedDict
 from six import binary_type, text_type
 
 from tests.constants import SOURCE, MOCK, DOCKER0_REGISTRY
@@ -552,7 +553,15 @@ def test_group_manifests(tmpdir, schema_version, test_name, group, foreign_layer
                     if tag not in target_registry.get_repo(name)['tags']:
                         continue
 
-                    manifest_list = json.loads(to_text(target_registry.get_manifest(name, tag)))
+                    raw_manifest_list = to_text(target_registry.get_manifest(name, tag))
+                    manifest_list = json.loads(raw_manifest_list, object_pairs_hook=OrderedDict)
+
+                    # Check if the manifest list is sorted
+                    assert json.dumps(manifest_list, indent=4, sort_keys=True,
+                                      separators=(',', ': ')) == raw_manifest_list
+                    arch_list = [m['platform']['architecture'] for m in manifest_list['manifests']]
+                    assert arch_list == sorted(arch_list)
+
                     assert manifest_list['mediaType'] == list_type
                     assert manifest_list['schemaVersion'] == 2
 
