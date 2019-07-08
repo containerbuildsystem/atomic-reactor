@@ -46,23 +46,6 @@ BuildArch:      noarch
 BuildRequires:  git
 %endif # with_check
 
-BuildRequires:  python2-devel
-BuildRequires:  python-setuptools
-%if 0%{?with_check}
-BuildRequires:  pytest
-BuildRequires:  python-dockerfile-parse >= 0.0.11
-%if (0%{?fedora} >= 29)
-BuildRequires:  python2-docker
-%else
-BuildRequires:  python-docker-py
-%endif  # fedora 29+
-BuildRequires:  python-flexmock >= 0.10.2
-BuildRequires:  python-six
-BuildRequires:  python-osbs >= 0.48
-BuildRequires:  python-backports-lzma
-BuildRequires:  python2-responses
-%endif # with_check
-
 %if 0%{?with_python3}
 Requires:       python3-atomic-reactor = %{version}-%{release}
 %else
@@ -73,20 +56,31 @@ Requires:       git >= 1.7.10
 %if 0%{?with_python3}
 BuildRequires:  python3-devel
 BuildRequires:  python3-setuptools
+%else
+BuildRequires:  python2-devel
+BuildRequires:  python-setuptools
+%endif # with_python3
+
 %if 0%{?with_check}
+%if 0%{?with_python3}
 BuildRequires:  python3-pytest
 BuildRequires:  python3-dockerfile-parse >= 0.0.11
-%if (0%{?fedora} >= 29)
 BuildRequires:  python3-docker
-%else
-BuildRequires:  python3-docker-py
-%endif # fedora 29+
 BuildRequires:  python3-flexmock >= 0.10.2
 BuildRequires:  python3-six
 BuildRequires:  python3-osbs >= 0.48
 BuildRequires:  python3-responses
-%endif # with_check
+%else
+BuildRequires:  pytest
+BuildRequires:  python-dockerfile-parse >= 0.0.11
+BuildRequires:  python2-docker
+BuildRequires:  python-flexmock >= 0.10.2
+BuildRequires:  python-six
+BuildRequires:  python-osbs >= 0.48
+BuildRequires:  python-backports-lzma
+BuildRequires:  python2-responses
 %endif # with_python3
+%endif # with_check
 
 Provides:       dock = %{version}-%{release}
 Obsoletes:      dock < %{dock_obsolete_vr}
@@ -98,83 +92,12 @@ probably implement if you started hooking Docker into your
 infrastructure.
 
 
-%package -n python-atomic-reactor
-Summary:        Python 2 Atomic Reactor library
-Group:          Development/Tools
-License:        BSD
-%if (0%{?fedora} >= 29)
-Requires:  python2-docker
-%else
-Requires:  python-docker-py
-%endif # fedora 29+
-Requires:       python-requests
-Requires:       python-setuptools
-Requires:       python-dockerfile-parse >= 0.0.11
-Requires:       python-docker-squash >= 1.0.7
-Requires:       python-backports-lzma
-Requires:       python-jsonschema
-Requires:       python-six
-Requires:       PyYAML
-Provides:       python-dock = %{version}-%{release}
-Obsoletes:      python-dock < %{dock_obsolete_vr}
-%{?python_provide:%python_provide python-atomic-reactor}
-
-%description -n python-atomic-reactor
-Simple Python 2 library for building Docker images. It contains
-a lot of helpful functions which you would probably implement if
-you started hooking Docker into your infrastructure.
-
-%package -n python-atomic-reactor-koji
-Summary:        Koji plugin for Atomic Reactor
-Group:          Development/Tools
-Requires:       python-atomic-reactor = %{version}-%{release}
-Requires:       koji
-Provides:       dock-koji = %{version}-%{release}
-Provides:       python-dock-koji = %{version}-%{release}
-Obsoletes:      dock-koji < 1.2.0-3
-Obsoletes:      python-dock-koji < %{dock_obsolete_vr}
-%{?python_provide:%python_provide python-atomic-reactor-koji}
-
-%description -n python-atomic-reactor-koji
-Koji plugin for Atomic Reactor
-
-
-%package -n python-atomic-reactor-metadata
-Summary:        Plugin for submitting metadata to OSBS
-Group:          Development/Tools
-Requires:       python-atomic-reactor = %{version}-%{release}
-Requires:       osbs
-Provides:       dock-metadata = %{version}-%{release}
-Provides:       python-dock-metadata = %{version}-%{release}
-Obsoletes:      dock-metadata < 1.2.0-3
-Obsoletes:      python-dock-metadata < %{dock_obsolete_vr}
-%{?python_provide:%python_provide python-atomic-reactor-metadata}
-
-%description -n python-atomic-reactor-metadata
-Plugin for submitting metadata to OSBS
-
-
-%package -n python-atomic-reactor-rebuilds
-Summary:        Plugins for automated rebuilds
-Group:          Development/Tools
-Requires:       python-atomic-reactor = %{version}-%{release}
-Requires:       osbs >= 0.48
-%{?python_provide:%python_provide python-atomic-reactor-rebuilds}
-
-%description -n python-atomic-reactor-rebuilds
-Plugins for automated rebuilds
-
-
 %if 0%{?with_python3}
 %package -n python3-atomic-reactor
 Summary:        Python 3 Atomic Reactor library
 Group:          Development/Tools
 License:        BSD
-%if (0%{?fedora} >= 29)
-Requires:  python3-docker
-%else
-Requires:  python3-docker-py
-%endif # fedora 29+
+Requires:       python3-docker
 Requires:       python3-requests
 Requires:       python3-setuptools
 Requires:       python3-dockerfile-parse >= 0.0.11
@@ -217,6 +140,7 @@ Obsoletes:      python3-dock-metadata < %{dock_obsolete_vr}
 %description -n python3-atomic-reactor-metadata
 Plugin for submitting metadata to OSBS
 
+
 %package -n python3-atomic-reactor-rebuilds
 Summary:        Plugins for automated rebuilds
 Group:          Development/Tools
@@ -226,6 +150,70 @@ Requires:       osbs >= 0.48
 
 %description -n python3-atomic-reactor-rebuilds
 Plugins for automated rebuilds
+%else
+
+%package -n python-atomic-reactor
+Summary:        Python 2 Atomic Reactor library
+Group:          Development/Tools
+License:        BSD
+Requires:       python2-docker
+Requires:       python-requests
+Requires:       python-setuptools
+Requires:       python-dockerfile-parse >= 0.0.11
+Requires:       python-docker-squash >= 1.0.7
+Requires:       python-backports-lzma
+Requires:       python-jsonschema
+Requires:       python-six
+Requires:       PyYAML
+Provides:       python-dock = %{version}-%{release}
+Obsoletes:      python-dock < %{dock_obsolete_vr}
+%{?python_provide:%python_provide python-atomic-reactor}
+
+%description -n python-atomic-reactor
+Simple Python 2 library for building Docker images. It contains
+a lot of helpful functions which you would probably implement if
+you started hooking Docker into your infrastructure.
+
+
+%package -n python-atomic-reactor-koji
+Summary:        Koji plugin for Atomic Reactor
+Group:          Development/Tools
+Requires:       python-atomic-reactor = %{version}-%{release}
+Requires:       koji
+Provides:       dock-koji = %{version}-%{release}
+Provides:       python-dock-koji = %{version}-%{release}
+Obsoletes:      dock-koji < 1.2.0-3
+Obsoletes:      python-dock-koji < %{dock_obsolete_vr}
+%{?python_provide:%python_provide python-atomic-reactor-koji}
+
+%description -n python-atomic-reactor-koji
+Koji plugin for Atomic Reactor
+
+
+%package -n python-atomic-reactor-metadata
+Summary:        Plugin for submitting metadata to OSBS
+Group:          Development/Tools
+Requires:       python-atomic-reactor = %{version}-%{release}
+Requires:       osbs
+Provides:       dock-metadata = %{version}-%{release}
+Provides:       python-dock-metadata = %{version}-%{release}
+Obsoletes:      dock-metadata < 1.2.0-3
+Obsoletes:      python-dock-metadata < %{dock_obsolete_vr}
+%{?python_provide:%python_provide python-atomic-reactor-metadata}
+
+%description -n python-atomic-reactor-metadata
+Plugin for submitting metadata to OSBS
+
+
+%package -n python-atomic-reactor-rebuilds
+Summary:        Plugins for automated rebuilds
+Group:          Development/Tools
+Requires:       python-atomic-reactor = %{version}-%{release}
+Requires:       osbs >= 0.48
+%{?python_provide:%python_provide python-atomic-reactor-rebuilds}
+
+%description -n python-atomic-reactor-rebuilds
+Plugins for automated rebuilds
 %endif # with_python3
 
 
@@ -234,9 +222,10 @@ Plugins for automated rebuilds
 
 
 %build
-%py2_build
 %if 0%{?with_python3}
 %py3_build
+%else
+%py2_build
 %endif # with_python3
 
 
@@ -245,11 +234,12 @@ Plugins for automated rebuilds
 %py3_install
 mv %{buildroot}%{_bindir}/atomic-reactor %{buildroot}%{_bindir}/atomic-reactor-%{python3_version}
 ln -s %{_bindir}/atomic-reactor-%{python3_version} %{buildroot}%{_bindir}/atomic-reactor-3
-%endif # with_python3
-
+%else
 %py2_install
 mv %{buildroot}%{_bindir}/atomic-reactor %{buildroot}%{_bindir}/atomic-reactor-%{python2_version}
 ln -s %{_bindir}/atomic-reactor-%{python2_version} %{buildroot}%{_bindir}/atomic-reactor-2
+%endif # with_python3
+
 ln -s %{_bindir}/atomic-reactor-%{binaries_py_version} %{buildroot}%{_bindir}/atomic-reactor
 
 # ship reactor in form of tarball so it can be installed within build image
@@ -263,9 +253,9 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %check
 %if 0%{?with_python3}
 LANG=en_US.utf8 py.test-%{python3_version} -vv tests
-%endif # with_python3
-
+%else
 LANG=en_US.utf8 py.test-%{python2_version} -vv tests
+%endif # with_python3
 %endif # with_check
 
 
@@ -275,59 +265,6 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{!?_licensedir:%global license %doc}
 %license LICENSE
 %{_bindir}/atomic-reactor
-
-%files -n python-atomic-reactor
-%doc README.md
-%doc docs/*.md
-%{!?_licensedir:%global license %doc}
-%license LICENSE
-%{_bindir}/atomic-reactor-%{python2_version}
-%{_bindir}/atomic-reactor-2
-%dir %{python2_sitelib}/atomic_reactor
-%{python2_sitelib}/atomic_reactor/*.*
-%{python2_sitelib}/atomic_reactor/cli
-%{python2_sitelib}/atomic_reactor/plugins
-%{python2_sitelib}/atomic_reactor/schemas
-%exclude %{python2_sitelib}/atomic_reactor/koji_util.py*
-%exclude %{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
-%exclude %{python2_sitelib}/atomic_reactor/plugins/exit_koji_import.py*
-%exclude %{python2_sitelib}/atomic_reactor/plugins/exit_sendmail.py*
-%exclude %{python2_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
-%exclude %{python2_sitelib}/atomic_reactor/plugins/post_import_image.py*
-%exclude %{python2_sitelib}/atomic_reactor/plugins/post_koji_upload.py*
-%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_add_filesystem.py*
-%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
-%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
-%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_koji_parent.py*
-%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_inject_parent_image.py*
-%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_fetch_maven_artifacts.py*
-
-%{python2_sitelib}/atomic_reactor-%{version}-py2.*.egg-info
-%dir %{_datadir}/%{name}
-%{_datadir}/%{name}/atomic-reactor.tar.gz
-%{_datadir}/%{name}/images
-
-
-%files -n python-atomic-reactor-koji
-%{python2_sitelib}/atomic_reactor/koji_util.py*
-%{python2_sitelib}/atomic_reactor/plugins/pre_add_filesystem.py*
-%{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
-%{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
-%{python2_sitelib}/atomic_reactor/plugins/pre_koji_parent.py*
-%{python2_sitelib}/atomic_reactor/plugins/pre_inject_parent_image.py*
-%{python2_sitelib}/atomic_reactor/plugins/pre_fetch_maven_artifacts.py*
-%{python2_sitelib}/atomic_reactor/plugins/post_koji_upload.py*
-%{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
-%{python2_sitelib}/atomic_reactor/plugins/exit_koji_import.py*
-
-
-%files -n python-atomic-reactor-metadata
-%{python2_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
-
-%files -n python-atomic-reactor-rebuilds
-%{python2_sitelib}/atomic_reactor/plugins/exit_sendmail.py*
-%{python2_sitelib}/atomic_reactor/plugins/post_import_image.py*
-
 
 %if 0%{?with_python3}
 %files -n python3-atomic-reactor
@@ -400,8 +337,8 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_koji_parent*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_inject_parent_image*.py*
-%{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_fetch_maven_artifacts.py
-%{python3_sitelib}/atomic_reactor/plugins/__pycache__/post_koji_upload.py
+%{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_fetch_maven_artifacts*.py*
+%{python3_sitelib}/atomic_reactor/plugins/__pycache__/post_koji_upload*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_promote*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_import*.py*
 
@@ -410,6 +347,7 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python3_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_store_metadata_in_osv3*.py*
 
+
 %files -n python3-atomic-reactor-rebuilds
 %{python3_sitelib}/atomic_reactor/plugins/exit_sendmail.py
 %{python3_sitelib}/atomic_reactor/plugins/post_import_image.py
@@ -417,6 +355,61 @@ LANG=en_US.utf8 py.test-%{python2_version} -vv tests
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_sendmail*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/post_import_image*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_check_and_set_rebuild*.py*
+
+%else
+
+%files -n python-atomic-reactor
+%doc README.md
+%doc docs/*.md
+%{!?_licensedir:%global license %doc}
+%license LICENSE
+%{_bindir}/atomic-reactor-%{python2_version}
+%{_bindir}/atomic-reactor-2
+%dir %{python2_sitelib}/atomic_reactor
+%{python2_sitelib}/atomic_reactor/*.*
+%{python2_sitelib}/atomic_reactor/cli
+%{python2_sitelib}/atomic_reactor/plugins
+%{python2_sitelib}/atomic_reactor/schemas
+%exclude %{python2_sitelib}/atomic_reactor/koji_util.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/exit_koji_import.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/exit_sendmail.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/post_import_image.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/post_koji_upload.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_add_filesystem.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_koji_parent.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_inject_parent_image.py*
+%exclude %{python2_sitelib}/atomic_reactor/plugins/pre_fetch_maven_artifacts.py*
+
+%{python2_sitelib}/atomic_reactor-%{version}-py2.*.egg-info
+%dir %{_datadir}/%{name}
+%{_datadir}/%{name}/atomic-reactor.tar.gz
+%{_datadir}/%{name}/images
+
+
+%files -n python-atomic-reactor-koji
+%{python2_sitelib}/atomic_reactor/koji_util.py*
+%{python2_sitelib}/atomic_reactor/plugins/pre_add_filesystem.py*
+%{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
+%{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
+%{python2_sitelib}/atomic_reactor/plugins/pre_koji_parent.py*
+%{python2_sitelib}/atomic_reactor/plugins/pre_inject_parent_image.py*
+%{python2_sitelib}/atomic_reactor/plugins/pre_fetch_maven_artifacts.py*
+%{python2_sitelib}/atomic_reactor/plugins/post_koji_upload.py*
+%{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
+%{python2_sitelib}/atomic_reactor/plugins/exit_koji_import.py*
+
+
+%files -n python-atomic-reactor-metadata
+%{python2_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
+
+
+%files -n python-atomic-reactor-rebuilds
+%{python2_sitelib}/atomic_reactor/plugins/exit_sendmail.py*
+%{python2_sitelib}/atomic_reactor/plugins/post_import_image.py*
 %endif  # with_python3
 
 
