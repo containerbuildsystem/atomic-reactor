@@ -17,11 +17,6 @@
 %global binaries_py_version %{python2_version}
 %endif
 
-%if 0%{?fedora}
-# rhel/epel has no flexmock
-%global with_check 1
-%endif
-
 %global owner containerbuildsystem
 %global project atomic-reactor
 
@@ -42,10 +37,6 @@ Source0:        https://github.com/%{owner}/%{project}/archive/%{commit}/%{proje
 
 BuildArch:      noarch
 
-%if 0%{?with_check}
-BuildRequires:  git
-%endif # with_check
-
 %if 0%{?with_python3}
 Requires:       python3-atomic-reactor = %{version}-%{release}
 %else
@@ -60,27 +51,6 @@ BuildRequires:  python3-setuptools
 BuildRequires:  python2-devel
 BuildRequires:  python-setuptools
 %endif # with_python3
-
-%if 0%{?with_check}
-%if 0%{?with_python3}
-BuildRequires:  python3-pytest
-BuildRequires:  python3-dockerfile-parse >= 0.0.11
-BuildRequires:  python3-docker
-BuildRequires:  python3-flexmock >= 0.10.2
-BuildRequires:  python3-six
-BuildRequires:  python3-osbs >= 0.48
-BuildRequires:  python3-responses
-%else
-BuildRequires:  pytest
-BuildRequires:  python-dockerfile-parse >= 0.0.11
-BuildRequires:  python2-docker
-BuildRequires:  python-flexmock >= 0.10.2
-BuildRequires:  python-six
-BuildRequires:  python-osbs >= 0.48
-BuildRequires:  python-backports-lzma
-BuildRequires:  python2-responses
-%endif # with_python3
-%endif # with_check
 
 Provides:       dock = %{version}-%{release}
 Obsoletes:      dock < %{dock_obsolete_vr}
@@ -247,16 +217,6 @@ cp -a %{sources} %{buildroot}/%{_datadir}/%{name}/atomic-reactor.tar.gz
 
 mkdir -p %{buildroot}%{_mandir}/man1
 cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
-
-
-%if 0%{?with_check}
-%check
-%if 0%{?with_python3}
-LANG=en_US.utf8 py.test-%{python3_version} -vv tests
-%else
-LANG=en_US.utf8 py.test-%{python2_version} -vv tests
-%endif # with_python3
-%endif # with_check
 
 
 %files

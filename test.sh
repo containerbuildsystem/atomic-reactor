@@ -50,6 +50,8 @@ if [[ $OS == "centos" ]]; then
 fi
 
 # Install dependencies
+PKG_COMMON_EXTRA="git gcc krb5-devel python-devel popt-devel"
+PKG_EXTRA="$PKG_EXTRA $PKG_COMMON_EXTRA"
 $RUN $PKG $ENABLE_REPO install -y $PKG_EXTRA
 [[ ${PYTHON_VERSION} == '3' ]] && WITH_PY3=1 || WITH_PY3=0
 $RUN $BUILDDEP --define "with_python3 ${WITH_PY3}" -y atomic-reactor.spec
@@ -58,6 +60,10 @@ if [[ $OS == "fedora" ]]; then
   # in the latest version from PyPI. Don't remove the dependencies
   # that it pulled in, to avoid having to rebuild them.
   $RUN $PKG remove -y --noautoremove python{,3}-docker{,-py}
+
+  if [[ $PYTHON_VERSION == 2* ]]; then
+    $RUN $PKG $ENABLE_REPO install -y python-backports-lzma
+  fi
 else
   # Install dependecies for test, as check is disabled for rhel
   $RUN yum install -y python-flexmock python-six \
@@ -102,8 +108,6 @@ if [[ $OS == "fedora" ]]; then
   $RUN $PIP install -r requirements-flatpak.txt
 fi
 
-# install dependencies for rpm-py-installer (dependency of koji)
-$RUN $PKG install -y gcc krb5-devel python-devel popt-devel
 # install with RPM_PY_SYS=true to avoid error caused by installing on system python
 $RUN sh -c "RPM_PY_SYS=true $PIP install rpm-py-installer"
 
