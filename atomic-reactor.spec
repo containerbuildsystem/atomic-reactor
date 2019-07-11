@@ -74,6 +74,7 @@ Requires:       python3-dockerfile-parse >= 0.0.11
 Requires:       python3-docker-squash >= 1.0.7
 Requires:       python3-jsonschema
 Requires:       python3-PyYAML
+Requires:       python3-rpm
 Requires:       python3-six
 Provides:       python3-dock = %{version}-%{release}
 Obsoletes:      python3-dock < %{dock_obsolete_vr}
@@ -139,6 +140,11 @@ Requires:       python-backports-lzma
 Requires:       python-jsonschema
 Requires:       python-six
 Requires:       PyYAML
+%if 0%{?fedora}
+Requires:       python2-rpm
+%else
+Requires:       rpm-python
+%endif
 Provides:       python-dock = %{version}-%{release}
 Obsoletes:      python-dock < %{dock_obsolete_vr}
 %{?python_provide:%python_provide python-atomic-reactor}
