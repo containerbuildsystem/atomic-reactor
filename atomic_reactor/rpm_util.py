@@ -5,6 +5,9 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+from __future__ import absolute_import
+
+import rpm
 
 image_component_rpm_tags = [
     'NAME',
@@ -18,6 +21,20 @@ image_component_rpm_tags = [
     'SIGPGP:pgpsig',
     'SIGGPG:pgpsig',
 ]
+
+
+def get_rpm_list(tags=None, separator=';'):
+    """
+    Return a list of RPMs in the format expected by parse_rpm_output.
+    """
+    if tags is None:
+        tags = image_component_rpm_tags
+    ts = rpm.TransactionSet()
+    mi = ts.dbMatch()
+    rpms = []
+    for h in mi:
+        rpms.append(separator.join([h.sprintf("%%{%s}" % tag) for tag in tags]))
+    return rpms
 
 
 def rpm_qf_args(tags=None, separator=';'):
@@ -61,8 +78,8 @@ def parse_rpm_output(output, tags=None, separator=';'):
 
     components = []
     sigmarker = 'Key ID '
-    for rpm in output:
-        fields = rpm.rstrip('\n').split(separator)
+    for rpm_info in output:
+        fields = rpm_info.rstrip('\n').split(separator)
         if len(fields) < len(tags):
             continue
 

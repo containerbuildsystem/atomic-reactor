@@ -12,7 +12,6 @@ import json
 import os
 import random
 from string import ascii_letters
-import subprocess
 from tempfile import NamedTemporaryFile
 import time
 import copy
@@ -54,7 +53,7 @@ from atomic_reactor.util import (Output, get_version_of_tools, get_checksums,
                                  get_image_upload_filename,
                                  get_manifest_media_type)
 from atomic_reactor.koji_util import (tag_koji_build, KojiUploadLogger, get_koji_task_owner)
-from atomic_reactor.rpm_util import parse_rpm_output, rpm_qf_args
+from atomic_reactor.rpm_util import get_rpm_list, parse_rpm_output
 from osbs.exceptions import OsbsException
 from osbs.utils import Labels
 
@@ -157,28 +156,9 @@ class KojiPromotePlugin(ExitPlugin):
             'SIGGPG:pgpsig',
         ]
 
-        cmd = "/bin/rpm " + rpm_qf_args(tags)
-        try:
-            # py3
-            (status, output) = subprocess.getstatusoutput(cmd)
-        except AttributeError:
-            # py2
-            with open('/dev/null', 'r+') as devnull:
-                p = subprocess.Popen(cmd,
-                                     shell=True,
-                                     stdin=devnull,
-                                     stdout=subprocess.PIPE,
-                                     stderr=devnull)
+        output = get_rpm_list(tags)
 
-                (stdout, stderr) = p.communicate()
-                status = p.wait()
-                output = stdout.decode()
-
-        if status != 0:
-            self.log.debug("%s: stderr output: %s", cmd, stderr)
-            raise RuntimeError("%s: exit code %s" % (cmd, status))
-
-        return parse_rpm_output(output.splitlines(), tags)
+        return parse_rpm_output(output, tags)
 
     def get_output_metadata(self, path, filename):
         """

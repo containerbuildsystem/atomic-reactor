@@ -11,6 +11,7 @@ from __future__ import unicode_literals, absolute_import
 import json
 import os
 import platform
+import rpm
 import sys
 import tempfile
 import zipfile
@@ -62,10 +63,6 @@ NAMESPACE = 'mynamespace'
 BUILD_ID = 'build-1'
 KOJI_UPLOAD_DIR = 'upload'
 LOCAL_ARCH = platform.processor()
-if sys.version_info[0] == 2:
-    B_LOCAL_ARCH = bytes(LOCAL_ARCH)
-elif sys.version_info[0] == 3:
-    B_LOCAL_ARCH = LOCAL_ARCH.encode()
 
 
 def noop(*args, **kwargs): return None
@@ -187,27 +184,41 @@ class MockedClientSession(object):
         return self.tag_task_state in ['CLOSED', 'FAILED', 'CANCELED', None]
 
 
-FAKE_SIGMD5 = b'0' * 32
-FAKE_RPM_OUTPUT = (
-    b'name1;1.0;1;' + B_LOCAL_ARCH + b';0;' + FAKE_SIGMD5 + b';(none);'
-    b'RSA/SHA256, Mon 29 Jun 2015 13:58:22 BST, Key ID abcdef01234567\n'
+class MockedRpmHeader(object):
+    def __init__(self, name, version, release, arch=None, epoch=None, md5=None, pgp=None, gpg=None):
+        self.tags = {'NAME': name, 'VERSION': version, 'RELEASE': release, 'ARCH': arch,
+                     'EPOCH': epoch, 'SIGMD5': md5, 'SIGPGP:pgpsig': pgp, 'SIGGPG:pgpsig': gpg}
 
-    b'gpg-pubkey;01234567;01234567;(none);(none);(none);(none);(none)\n'
+    def sprintf(self, qf):
+        for k, v in self.tags.items():
+            if k in qf:
+                if v is None:
+                    v = '(none)'
+                return v
 
-    b'gpg-pubkey-doc;01234567;01234567;noarch;(none);' + FAKE_SIGMD5 +
-    b';(none);(none)\n'
 
-    b'name2;2.0;2;' + B_LOCAL_ARCH + b';0;' + FAKE_SIGMD5 + b';' +
-    b'RSA/SHA256, Mon 29 Jun 2015 13:58:22 BST, Key ID bcdef012345678;(none)\n'
-    b'\n')
+class MockedTS(object):
+    def dbMatch(self):
+        return [
+                MockedRpmHeader(
+                    'name1', '1.0', '1', LOCAL_ARCH, '0', FAKE_SIGMD5,
+                    gpg='RSA/SHA256, Mon 29 Jun 2015 13:58:22 BST, Key ID abcdef01234567'),
+                MockedRpmHeader(
+                    'gpg-pubkey', '01234567', '01234567'),
+                MockedRpmHeader(
+                    'gpg-pubkey-doc', '01234567', '01234567', 'noarch', md5=FAKE_SIGMD5),
+                MockedRpmHeader(
+                    'name2', '2.0', '2', LOCAL_ARCH, '0', FAKE_SIGMD5,
+                    'RSA/SHA256, Mon 29 Jun 2015 13:58:22 BST, Key ID bcdef012345678')]
+
+
+FAKE_SIGMD5 = '0' * 32
 
 FAKE_OS_OUTPUT = 'fedora-22'
 
 
 def fake_subprocess_output(cmd):
-    if cmd.startswith('/bin/rpm'):
-        return FAKE_RPM_OUTPUT
-    elif 'os-release' in cmd:
+    if 'os-release' in cmd:
         return FAKE_OS_OUTPUT
     else:
         raise RuntimeError
@@ -282,6 +293,7 @@ def mock_environment(tmpdir, session=None, name=None,
                                               for tag in additional_tags])
 
     flexmock(subprocess, Popen=fake_Popen)
+    flexmock(rpm, TransactionSet=MockedTS)
     flexmock(koji, ClientSession=lambda hub, opts: session)
     flexmock(GitSource)
     setattr(workflow, 'source', source)
@@ -323,9 +335,9 @@ def mock_environment(tmpdir, session=None, name=None,
     workflow.prebuild_plugins_conf = {}
 
     workflow.image_components = parse_rpm_output([
-        "name1;1.0;1;" + LOCAL_ARCH + ";0;2000;" + FAKE_SIGMD5.decode() + ";23000;"
+        "name1;1.0;1;" + LOCAL_ARCH + ";0;2000;" + FAKE_SIGMD5 + ";23000;"
         "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abc;(none)",
-        "name2;2.0;1;" + LOCAL_ARCH + ";0;3000;" + FAKE_SIGMD5.decode() + ";24000"
+        "name2;2.0;1;" + LOCAL_ARCH + ";0;3000;" + FAKE_SIGMD5 + ";24000"
         "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abd;(none)",
     ])
 
@@ -616,6 +628,23 @@ class TestKojiUpload(object):
 
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
         runner.run()
+
+    def test_koji_upload_rpm_components(self, tmpdir, os_env, reactor_config_map):  # noqa
+        session = MockedClientSession('')
+        osbs = MockedOSBS()
+        tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1')
+        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
+        runner.run()
+        data = get_metadata(workflow, osbs)
+        buildroots = data['buildroots']
+        for buildroot in buildroots:
+            assert any(c['name'] == 'name1' for c in buildroot['components'])
+            assert any(c['version'] == '01234567' for c in buildroot['components'])
+            assert any(c['arch'] == 'noarch' for c in buildroot['components'])
 
     @staticmethod
     def check_components(components):
