@@ -126,7 +126,11 @@ Plugins for automated rebuilds
 Summary:        Python 2 Atomic Reactor library
 Group:          Development/Tools
 License:        BSD
+%if 0%{?fedora}
 Requires:       python2-docker
+%else
+Requires:       python-docker-py
+%endif # fedora
 Requires:       python-requests
 Requires:       python-setuptools
 Requires:       python-dockerfile-parse >= 0.0.11
