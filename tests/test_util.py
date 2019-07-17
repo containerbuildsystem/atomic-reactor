@@ -400,6 +400,11 @@ def test_registry_hostname(registry, expected):
     assert registry_hostname(registry) == expected
 
 
+@pytest.mark.parametrize(('config_file_name'), [
+    '.dockercfg',
+    'dockerconfigjson',
+    '',
+])
 @pytest.mark.parametrize(('config_content'), [
     ({'username': 'john.doe', 'password': 'letmein'}),
     ({'auth': b64encode(b'john.doe:letmein').decode('utf-8')}),
@@ -411,20 +416,32 @@ def test_registry_hostname(registry, expected):
     ('example.com', 'https://example.com/v2', True),
     ('example.com', 'notexample.com', False),
 ])
-def test_dockercfg(tmpdir, in_config, config_content, lookup, expected):
+def test_dockercfg(tmpdir, in_config, config_content, lookup, expected, config_file_name):
     temp_dir = mkdtemp(dir=str(tmpdir))
-    with open(os.path.join(temp_dir, '.dockercfg'), 'w+') as dockerconfig:
+    config_file_path = temp_dir
+    if config_file_name:
+        config_file_path = os.path.join(temp_dir, '.dockercfg')
+        config_file_param = temp_dir
+    else:
+        config_file_path = os.path.join(temp_dir, 'myconfig.json')
+        config_file_param = config_file_path
+    with open(config_file_path, 'w+') as dockerconfig:
         dockerconfig.write(json.dumps({
             in_config: config_content
         }))
     if 'auth' in config_content:
-        unpacked = Dockercfg(temp_dir).unpack_auth_b64(lookup)
+        unpacked = Dockercfg(config_file_param).unpack_auth_b64(lookup)
         found = unpacked == ('john.doe:letmein', 'john.doe', 'letmein')
     else:
-        creds = Dockercfg(temp_dir).get_credentials(lookup)
+        creds = Dockercfg(config_file_param).get_credentials(lookup)
         found = creds.get('username') == 'john.doe' and creds.get('password') == 'letmein'
 
     assert found == expected
+
+
+def test_missing_dockercfg():
+    with pytest.raises(RuntimeError):
+        Dockercfg('/this/path/does/not/exist')
 
 
 @pytest.mark.parametrize(('registry', 'insecure'), [

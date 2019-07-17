@@ -663,6 +663,8 @@ class Dockercfg(object):
             self.json_secret_path = os.path.join(secret_path, '.dockercfg')
         elif os.path.exists(os.path.join(secret_path, '.dockerconfigjson')):
             self.json_secret_path = os.path.join(secret_path, '.dockerconfigjson')
+        elif os.path.exists(secret_path):
+            self.json_secret_path = secret_path
         else:
             raise RuntimeError("The registry secret was not found on the filesystem, "
                                "either .dockercfg or .dockerconfigjson are supported")
