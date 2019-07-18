@@ -330,7 +330,7 @@ def setup_flatpak_compose_info(workflow, config=None):
     config = APP_CONFIG if config is None else config
     modules = {}
     for name, module_config in config['modules'].items():
-        mmd = Modulemd.Module.new_from_string(module_config['metadata'])
+        mmd = Modulemd.ModuleStream.read_string(module_config['metadata'], strict=True)
         modules[name] = ModuleInfo(name,
                                    module_config['stream'],
                                    module_config['version'],

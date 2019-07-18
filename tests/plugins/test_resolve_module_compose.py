@@ -329,7 +329,7 @@ def test_resolve_module_compose(tmpdir, docker_tasker, compose_ids, modules,
         assert compose_info.base_module.name == MODULE_NAME
         assert compose_info.base_module.stream == MODULE_STREAM
         assert compose_info.base_module.version == MODULE_VERSION
-        assert compose_info.base_module.mmd.props.summary == 'Eye of GNOME Application Module'
+        assert compose_info.base_module.mmd.get_summary("C") == 'Eye of GNOME Application Module'
         assert compose_info.base_module.rpms == [
             'eog-0:3.28.3-1.module_2123+73a9ef6f.src.rpm',
             'eog-0:3.28.3-1.module_2123+73a9ef6f.x86_64.rpm',

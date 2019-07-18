@@ -23,7 +23,7 @@ if [[ $OS == "fedora" ]]; then
   PIP="pip$PYTHON_VERSION"
   PKG="dnf"
   ENABLE_REPO="--enablerepo=updates-testing"
-  PKG_EXTRA="dnf-plugins-core desktop-file-utils flatpak libmodulemd ostree python$PYTHON_VERSION-gobject-base glibc-langpack-en"
+  PKG_EXTRA="dnf-plugins-core desktop-file-utils flatpak ostree python$PYTHON_VERSION-libmodulemd glibc-langpack-en"
   BUILDDEP="dnf builddep"
   PYTHON="python$PYTHON_VERSION"
 else

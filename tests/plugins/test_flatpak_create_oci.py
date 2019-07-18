@@ -708,14 +708,13 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
         config['modules']['eog'] = dict(config['modules']['eog'])
 
         module_config = config['modules']['eog']
-        mmd = Modulemd.Module.new_from_string(module_config['metadata'])
 
-        # Clear out all dependencies. Setting via the property causes a crash
-        # https://gitlab.gnome.org/GNOME/pygobject/issues/37
-#        mmd.props.dependencies = [Modulemd.Dependencies()]
-        mmd.set_dependencies([Modulemd.Dependencies()])
-
-        module_config['metadata'] = mmd.dumps()
+        mmd = Modulemd.ModuleStream.read_string(module_config['metadata'], strict=True)
+        mmd.clear_dependencies()
+        mmd.add_dependencies(Modulemd.Dependencies())
+        mmd_index = Modulemd.ModuleIndex.new()
+        mmd_index.add_module_stream(mmd)
+        module_config['metadata'] = mmd_index.dump_to_string()
 
         expected_exception = 'Failed to identify runtime module'
     else:
