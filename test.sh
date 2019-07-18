@@ -31,7 +31,7 @@ else
   PIP="pip"
   PKG="yum"
   ENABLE_REPO=
-  PKG_EXTRA="yum-utils epel-release git-core desktop-file-utils"
+  PKG_EXTRA="yum-utils epel-release git-core desktop-file-utils flatpak ostree python2-libmodulemd2"
   BUILDDEP="yum-builddep"
   PYTHON="python"
 fi
@@ -101,11 +101,6 @@ $RUN $PIP install --upgrade --no-deps --force-reinstall git+https://github.com/D
 if [[ $PYTHON_VERSION == 2* ]]; then
   $RUN $PIP install git+https://github.com/release-engineering/dockpulp
   $RUN $PIP install -r requirements-py2.txt
-fi
-
-# Install flatpak dependencies only on fedora
-if [[ $OS == "fedora" ]]; then
-  $RUN $PIP install -r requirements-flatpak.txt
 fi
 
 # install with RPM_PY_SYS=true to avoid error caused by installing on system python

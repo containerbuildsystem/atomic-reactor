@@ -1,1 +1,0 @@
-flatpak-module-tools >= 0.10.3
