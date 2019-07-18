@@ -67,9 +67,9 @@ abattis-cantarell-fonts;0.0.25;2.module_e15740c0;noarch;(none);42;sigmd5;1491914
 
 ICON = BytesIO()
 # create minimal 256x256 RGBA PNG
-png.Writer(256, 256, alpha=True).write(ICON,
-                                       [[0 for _ in range(4 * 256)]
-                                        for _ in range(256)])
+png.Writer(256, 256, greyscale=False, alpha=True).write(ICON,
+                                                        [[0 for _ in range(4 * 256)]
+                                                         for _ in range(256)])
 
 APP_FILESYSTEM_CONTENTS = {
     '/usr/bin/not_eog': b'SHOULD_IGNORE',
