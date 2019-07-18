@@ -28,7 +28,7 @@ from flatpak_module_tools.flatpak_builder import ModuleInfo
 
 import gi
 try:
-    gi.require_version('Modulemd', '1.0')
+    gi.require_version('Modulemd', '2.0')
 except ValueError as e:
     # Normalize to ImportError to simplify handling
     raise ImportError(str(e))
@@ -152,13 +152,11 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
                     .format(epochnum=rpm['epoch'] or 0, **rpm)
                     for rpm in rpm_list]
 
-            objects = Modulemd.objects_from_string(
-                build['extra']['typeinfo']['module']['modulemd_str'])
-            assert len(objects) == 1
-            mmd = objects[0]
-            assert isinstance(mmd, Modulemd.Module)
+            # strict=False - don't break if new fields are added
+            mmd = Modulemd.ModuleStream.read_string(
+                build['extra']['typeinfo']['module']['modulemd_str'], strict=False)
             # Make sure we have a version 2 modulemd file
-            mmd.upgrade()
+            mmd = mmd.upgrade(Modulemd.ModuleStreamVersionEnum.TWO)
 
             resolved_modules[module_spec.name] = ModuleInfo(module_spec.name,
                                                             module_spec.stream,
