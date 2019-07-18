@@ -486,7 +486,7 @@ COMMAND_PATTERNS = [
      MockFlatpak.build_init),
     (['ostree', 'commit',
       '--repo', '@repo',
-      '--owner-uid=0', '--owner-gid=0', '--no-xattrs',
+      '--owner-uid=0', '--owner-gid=0', '--no-xattrs', '--canonical-permissions',
       '--branch', '@branch', '-s', '@subject', '--tree=tar=@tar_tree', '--tree=dir=@dir_tree'],
      MockOSTree.commit),
     (['ostree', 'init', '--mode=archive-z2', '--repo', '@repo'], MockOSTree.init),
