@@ -1054,6 +1054,8 @@ class TestKojiImport(object):
                 'id',
                 'repositories',
                 'tags',
+                'floating_tags',
+                'unique_tags',
             ])
             if has_config:
                 expected_keys_set.add('config')
@@ -1721,10 +1723,13 @@ class TestKojiImport(object):
     def test_koji_import_set_manifest_list_info(self, caplog, tmpdir, monkeypatch, os_env,
                                                 is_scratch, digest, reactor_config_map):
         session = MockedClientSession('')
+        version = '1.0'
+        release = '1'
+        unique_tag = "{}-timestamp".format(version)
         tasker, workflow = mock_environment(tmpdir,
                                             name='ns/name',
-                                            version='1.0',
-                                            release='1',
+                                            version=version,
+                                            release=release,
                                             session=session,
                                             docker_registry=True,
                                             pulp_registries=1,
@@ -1767,7 +1772,8 @@ class TestKojiImport(object):
         assert 'image' in extra
         image = extra['image']
         assert isinstance(image, dict)
-        expected_results = {}
+        expected_results = {'unique_tags': [unique_tag]}
+        expected_results['floating_tags'] = [tag.tag for tag in workflow.tag_conf.floating_images]
         if is_scratch:
             expected_results['tags'] = [tag.tag
                                         for tag in workflow.tag_conf.images]
@@ -1801,7 +1807,13 @@ class TestKojiImport(object):
                 extra = output['extra']
                 assert 'docker' in extra
                 assert 'tags' in extra['docker']
+                assert 'floating_tags' in extra['docker']
+                assert 'unique_tags' in extra['docker']
                 assert sorted(expected_results['tags']) == sorted(extra['docker']['tags'])
+                assert (sorted(expected_results['floating_tags']) ==
+                        sorted(extra['docker']['floating_tags']))
+                assert (sorted(expected_results['unique_tags']) ==
+                        sorted(extra['docker']['unique_tags']))
                 repositories = extra['docker']['repositories']
                 assert len(repositories) == 2
                 assert len([pullspec for pullspec in repositories

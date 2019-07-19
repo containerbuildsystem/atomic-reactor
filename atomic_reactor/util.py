@@ -1384,6 +1384,16 @@ def get_floating_images(workflow):
     return floating_images
 
 
+def get_unique_images(workflow):
+    unique_images = workflow.tag_conf.unique_images
+    if not unique_images:
+        unique_results = workflow.build_result.annotations['repositories'].get('unique', [])
+        if unique_results:
+            unique_images = [ImageName.parse(unique) for unique in unique_results]
+
+    return unique_images
+
+
 def get_parent_image_koji_data(workflow):
     """Transform koji_parent plugin results into metadata dict."""
     koji_parent = workflow.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY) or {}
