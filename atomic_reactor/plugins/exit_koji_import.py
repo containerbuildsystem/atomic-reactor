@@ -49,6 +49,7 @@ from atomic_reactor.constants import (
 )
 from atomic_reactor.util import (Output, get_build_json,
                                  df_parser, ImageName, get_primary_images,
+                                 get_floating_images, get_unique_images,
                                  get_manifest_media_type,
                                  get_digests_map_from_annotations, is_scratch_build)
 from atomic_reactor.koji_util import (KojiUploadLogger, get_koji_task_owner)
@@ -281,6 +282,8 @@ class KojiImportPlugin(ExitPlugin):
     def set_group_manifest_info(self, extra, worker_metadatas):
         version_release = None
         primary_images = get_primary_images(self.workflow)
+        floating_images = get_floating_images(self.workflow)
+        unique_images = get_unique_images(self.workflow)
         if primary_images:
             version_release = primary_images[0].tag
 
@@ -291,10 +294,15 @@ class KojiImportPlugin(ExitPlugin):
             assert version_release is not None, 'Unable to find version-release image'
             tags = [image.tag for image in primary_images]
 
+        floating_tags = [image.tag for image in floating_images]
+        unique_tags = [image.tag for image in unique_images]
+
         manifest_list_digests = self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY)
         if manifest_list_digests:
             index = {}
             index['tags'] = tags
+            index['floating_tags'] = floating_tags
+            index['unique_tags'] = unique_tags
             repositories = self.workflow.build_result.annotations['repositories']['unique']
             repo = ImageName.parse(repositories[0]).to_str(registry=False, tag=False)
             # group_manifests added the registry, so this should be valid
@@ -326,6 +334,8 @@ class KojiImportPlugin(ExitPlugin):
                             # koji_upload, running in the worker, doesn't have the full tags
                             # so set them here
                             instance['extra']['docker']['tags'] = tags
+                            instance['extra']['docker']['floating_tags'] = floating_tags
+                            instance['extra']['docker']['unique_tags'] = unique_tags
                             repositories = []
                             for pullspec in instance['extra']['docker']['repositories']:
                                 if '@' not in pullspec:

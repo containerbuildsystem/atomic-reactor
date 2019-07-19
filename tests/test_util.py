@@ -51,6 +51,7 @@ from atomic_reactor.util import (ImageName, wait_for_command,
                                  get_manifest_media_version,
                                  get_primary_images,
                                  get_floating_images,
+                                 get_unique_images,
                                  get_image_upload_filename,
                                  read_yaml, read_yaml_from_file_path, OSBSLogs,
                                  get_platforms_in_limits, get_orchestrator_platforms,
@@ -1012,18 +1013,24 @@ def test_label_formatter(labels, test_string, expected):
             LabelFormatter().vformat(test_string, [], labels)
 
 
-@pytest.mark.parametrize(('tag_conf', 'tag_annotation', 'expected_primary', 'expected_floating'), (
-    (['spam', 'bacon'], [], [], ['spam', 'bacon']),
-    ([], ['spam', 'bacon'], [], ['spam', 'bacon']),
+@pytest.mark.parametrize(('tag_conf', 'tag_annotation', 'expected_primary',
+                          'expected_floating', 'expected_unique'), (
+    (['spam', 'bacon'], [], [], ['spam', 'bacon'], []),
+    ([], ['spam', 'bacon'], [], ['spam', 'bacon'], []),
 
-    (['spam', 'bacon-toast'], [], ['bacon-toast'], ['spam']),
-    ([], ['spam', 'bacon-toast'], ['bacon-toast'], ['spam']),
+    (['spam-bacon'], [], ['spam-bacon'], [], []),
+    ([], ['spam-bacon'], ['spam-bacon'], [], []),
 
-    (['spam', 'bacon'], ['ignored', 'scorned'], [], ['spam', 'bacon']),
-    (['spam-bacon'], [], ['spam-bacon'], []),
+    (['spam_unique'], [], [], [], ['spam_unique']),
+    ([], ['spam_unique'], [], [], ['spam_unique']),
+
+    (['spam', 'bacon-toast', 'bacon_unique'], [], ['bacon-toast'], ['spam'], ['bacon_unique']),
+    ([], ['spam', 'bacon-toast', 'bacon_unique'], ['bacon-toast'], ['spam'], ['bacon_unique']),
+
+    (['spam', 'bacon'], ['ignored', 'scorned'], [], ['spam', 'bacon'], []),
 ))
 def test_get_primary_and_floating_images(tag_conf, tag_annotation, expected_primary,
-                                         expected_floating):
+                                         expected_floating, expected_unique):
     template_image = ImageName.parse('registry.example.com/fedora')
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
 
@@ -1032,16 +1039,20 @@ def test_get_primary_and_floating_images(tag_conf, tag_annotation, expected_prim
         image_name.tag = tag
         if '-' in tag:
             workflow.tag_conf.add_primary_image(str(image_name))
+        elif 'unique' in tag:
+            workflow.tag_conf.add_unique_image(str(image_name))
         else:
             workflow.tag_conf.add_floating_image(str(image_name))
 
-    annotations = {'repositories': {'primary': [], 'floating': []}}
+    annotations = {'repositories': {'primary': [], 'floating': [], 'unique': []}}
     for tag in tag_annotation:
         image_name = ImageName.parse(str(template_image))
         image_name.tag = tag
 
         if '-' in tag:
             annotations['repositories']['primary'].append(str(image_name))
+        elif 'unique' in tag:
+            annotations['repositories']['unique'].append(str(image_name))
         else:
             annotations['repositories']['floating'].append(str(image_name))
 
@@ -1050,8 +1061,10 @@ def test_get_primary_and_floating_images(tag_conf, tag_annotation, expected_prim
 
     actual_primary = get_primary_images(workflow)
     actual_floating = get_floating_images(workflow)
+    actual_unique = get_unique_images(workflow)
     assert len(actual_primary) == len(expected_primary)
     assert len(actual_floating) == len(expected_floating)
+    assert len(actual_unique) == len(expected_unique)
 
     for index, primary_image in enumerate(actual_primary):
         assert primary_image.registry == template_image.registry
@@ -1066,6 +1079,14 @@ def test_get_primary_and_floating_images(tag_conf, tag_annotation, expected_prim
         assert floating_image.repo == template_image.repo
 
         assert floating_image.tag == expected_floating[index]
+
+    for index, unique_image in enumerate(actual_unique):
+        assert unique_image.registry == template_image.registry
+        assert unique_image.namespace == template_image.namespace
+        assert unique_image.repo == template_image.repo
+
+        assert unique_image.tag == expected_unique[index]
+
 
 @pytest.mark.parametrize('from_file', [True, False])
 @pytest.mark.parametrize('config', [

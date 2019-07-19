@@ -67,7 +67,9 @@ Data which is placed here includes:
 The index map has these entries:
 
 - `pull` (str list): docker pull specifications for the manifest list, by tag and by digest
-- `tags` (str list): tags applied to the manifest list when it was created
+- `tags` (str list): primary tags applied to the manifest list when it was created
+- `floating_tags` (str list): floating tags applied to the manifest list when it was created
+- `unique_tags` (str list): unique tags applied to the manifest list when it was created
 - `digests` (map): a map of media type (such as “application/vnd.docker.distribution.manifest.list.v2+json”) to manifest digest (a string usually starting “sha256:”), for each grouped object; note that this will include manifest lists but not image manifests
 
 The `build.extra.image.go.modules` entries are maps composed of the following entries:
