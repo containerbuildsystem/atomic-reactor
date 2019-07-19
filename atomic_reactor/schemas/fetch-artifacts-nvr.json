@@ -3,7 +3,7 @@
 
   "title": "Artifacts to be fetched from Koji builds",
 
-  "type": "array",
+  "type": ["array", "null"],
   "items": {
     "type": "object",
     "description": "A specific Koji buid and archives to be fetched",

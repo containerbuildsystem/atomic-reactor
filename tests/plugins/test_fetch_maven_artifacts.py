@@ -305,7 +305,7 @@ def mock_workflow(tmpdir):
 
 
 def mock_fetch_artifacts_by_nvr(tmpdir, contents=None):
-    if not contents:
+    if contents is None:
         contents = dedent("""\
             - nvr: com.sun.xml.bind.mvn-jaxb-parent-2.2.11.4-1
             """)
@@ -316,7 +316,7 @@ def mock_fetch_artifacts_by_nvr(tmpdir, contents=None):
 
 
 def mock_fetch_artifacts_by_url(tmpdir, contents=None):
-    if not contents:
+    if contents is None:
         contents = yaml.safe_dump(DEFAULT_REMOTE_FILES)
 
     with open(os.path.join(tmpdir, FetchMavenArtifactsPlugin.URL_REQUESTS_FILENAME), 'w') as f:
@@ -408,6 +408,7 @@ def test_fetch_maven_artifacts(tmpdir, docker_tasker, reactor_config_map):
 
 
 @pytest.mark.parametrize(('nvr_requests', 'expected'), (  # noqa
+    ([], []),  # Empty file
     ([
         {
             'nvr': 'com.sun.xml.bind.mvn-jaxb-parent-2.2.11.4-1',
@@ -602,10 +603,6 @@ def test_fetch_maven_artifacts_nvr_bad_nvr(tmpdir, docker_tasker, reactor_config
         """),
 
     dedent("""\
-
-        """),
-
-    dedent("""\
         nvr: not a list
         """),
 
@@ -648,12 +645,17 @@ def test_fetch_maven_artifacts_nvr_schema_error(tmpdir, docker_tasker, contents,
     assert 'ValidationError' in str(e)
 
 
-@responses.activate  # noqa
-def test_fetch_maven_artifacts_url_with_target(tmpdir, docker_tasker, reactor_config_map):
+@pytest.mark.parametrize(('contents', 'expected'), (  # noqa
+    ([], []),
+    ([REMOTE_FILE_WITH_TARGET], [REMOTE_FILE_WITH_TARGET]),
+))
+@responses.activate
+def test_fetch_maven_artifacts_url_with_target(tmpdir, docker_tasker, contents, expected,
+                                               reactor_config_map):
     """Remote file is downloaded into specified filename."""
     workflow = mock_workflow(tmpdir)
     mock_koji_session()
-    remote_files = [REMOTE_FILE_WITH_TARGET]
+    remote_files = contents
     mock_fetch_artifacts_by_url(str(tmpdir), contents=yaml.safe_dump(remote_files))
     mock_url_downloads(remote_files)
 
@@ -672,7 +674,10 @@ def test_fetch_maven_artifacts_url_with_target(tmpdir, docker_tasker, reactor_co
     results = runner.run()
     plugin_result = results[FetchMavenArtifactsPlugin.key]
 
-    assert len(plugin_result) == len(remote_files)
+    assert len(plugin_result) == len(expected)
+
+    if not expected:
+        return
 
     download = plugin_result[0]
     dest = os.path.join(str(tmpdir), FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest)
@@ -736,10 +741,6 @@ def test_fetch_maven_artifacts_url_bad_url(tmpdir, docker_tasker, reactor_config
 @pytest.mark.parametrize('contents', (  # noqa
     dedent("""\
         - uru: invalid attribute
-        """),
-
-    dedent("""\
-
         """),
 
     dedent("""\
