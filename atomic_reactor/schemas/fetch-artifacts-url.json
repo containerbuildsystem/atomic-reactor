@@ -3,7 +3,7 @@
 
   "title": "Artifacts to be fetched by url",
 
-  "type": "array",
+  "type": ["array", "null"],
   "items": {
     "type": "object",
     "description": "A specific artifact to be fetched by URL",

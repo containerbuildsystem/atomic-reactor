@@ -116,7 +116,8 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
             self.log.debug('%s not found', self.NVR_REQUESTS_FILENAME)
             return []
 
-        nvr_requests = util.read_yaml_from_file_path(file_path, 'schemas/fetch-artifacts-nvr.json')
+        nvr_requests = util.read_yaml_from_file_path(file_path,
+                                                     'schemas/fetch-artifacts-nvr.json') or []
         return [NvrRequest(**nvr_request) for nvr_request in nvr_requests]
 
     def read_url_requests(self):
@@ -125,7 +126,7 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
             self.log.debug('%s not found', self.URL_REQUESTS_FILENAME)
             return []
 
-        return util.read_yaml_from_file_path(file_path, 'schemas/fetch-artifacts-url.json')
+        return util.read_yaml_from_file_path(file_path, 'schemas/fetch-artifacts-url.json') or []
 
     def process_by_nvr(self, nvr_requests):
         download_queue = []
