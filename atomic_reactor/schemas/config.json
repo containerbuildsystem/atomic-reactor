@@ -104,6 +104,11 @@
                 "description": "Use Koji's fast upload API",
                 "type": "boolean",
                 "default": true
+            },
+            "reserve_build": {
+                "description": "Reserve build id and NVR through Content Generator API. If set, requires koji > 1.17.0",
+                "type": "boolean",
+                "default": false
             }
         },
         "additionalProperties": false,

@@ -136,6 +136,10 @@ HTTP_REQUEST_TIMEOUT = 600
 GIT_MAX_RETRIES = 3
 # how many seconds should wait before another try of git clone
 GIT_BACKOFF_FACTOR = 5
+# max retries for reserving koji builds
+KOJI_RESERVE_MAX_RETRIES = 20
+# wait for 2sec (usual time of bump_release with reserve)
+KOJI_RESERVE_RETRY_DELAY = 2
 
 # Media types
 MEDIA_TYPE_DOCKER_V2_SCHEMA1 = "application/vnd.docker.distribution.manifest.v1+json"

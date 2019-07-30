@@ -546,8 +546,14 @@ class KojiImportPlugin(ExitPlugin):
                 if output.file:
                     output.file.close()
 
+        build_token = None
+        if (self.workflow.reserved_build_id is not None and
+                self.workflow.reserved_token is not None):
+            build_token = self.workflow.reserved_token
+            koji_metadata['build']['build_id'] = self.workflow.reserved_build_id
+
         try:
-            build_info = self.session.CGImport(koji_metadata, server_dir)
+            build_info = self.session.CGImport(koji_metadata, server_dir, token=build_token)
         except Exception:
             self.log.debug("metadata: %r", koji_metadata)
             raise

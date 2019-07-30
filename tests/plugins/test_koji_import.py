@@ -72,7 +72,7 @@ from tests.docker_mock import mock_docker
 import subprocess
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
-from six import string_types
+from six import string_types, text_type
 
 LogEntry = namedtuple('LogEntry', ['platform', 'line'])
 
@@ -128,7 +128,7 @@ class MockedClientSession(object):
         with open(localfile, 'rb') as fp:
             self.uploaded_files[name] = fp.read()
 
-    def CGImport(self, metadata, server_dir):
+    def CGImport(self, metadata, server_dir, token=None):
         # metadata cannot be defined in __init__ because tests assume
         # the attribute will not be defined unless this method is called
         self.metadata = metadata    # pylint: disable=attribute-defined-outside-init
@@ -262,6 +262,8 @@ def mock_environment(tmpdir, session=None, name=None,
     workflow.builder.base_image = ImageName(repo='Fedora', tag='22')
     workflow.builder.set_inspection_data({'ParentId': base_image_id})
     setattr(workflow, 'tag_conf', TagConf())
+    setattr(workflow, 'reserved_build_id ', None)
+    setattr(workflow, 'reserved_token', None)
     with open(os.path.join(str(tmpdir), 'Dockerfile'), 'wt') as df:
         df.write('FROM base\n'
                  'LABEL BZComponent={component} com.redhat.component={component}\n'
@@ -1259,11 +1261,10 @@ class TestKojiImport(object):
         (False, ['v1'], 'ab12'),
         (False, False, 'ab12')
     ))
-    def test_koji_import_success(self, tmpdir, blocksize,
-                                 pulp_registries,
-                                 os_env, has_config, is_autorebuild,
-                                 tag_later, pulp_pull, verify_media, expect_id,
-                                 reactor_config_map):
+    @pytest.mark.parametrize('reserved_build', (True, False))
+    def test_koji_import_success(self, tmpdir, blocksize, pulp_registries, os_env, has_config,
+                                 is_autorebuild, tag_later, pulp_pull, verify_media, expect_id,
+                                 reserved_build, reactor_config_map):
         session = MockedClientSession('')
         # When target is provided koji build will always be tagged,
         # either by koji_import or koji_tag_build.
@@ -1293,6 +1294,23 @@ class TestKojiImport(object):
         expected_media_types = pulp_pull or verify_media or []
 
         workflow.builder.image_id = expect_id
+
+        build_token = 'token_12345'
+        build_id = '123'
+        if reserved_build:
+            workflow.reserved_build_id = build_id
+            workflow.reserved_token = build_token
+
+        if reserved_build:
+            (flexmock(session)
+                .should_call('CGImport')
+                .with_args(dict, text_type, token=build_token)
+             )
+        else:
+            (flexmock(session)
+                .should_call('CGImport')
+                .with_args(dict, text_type, token=None)
+             )
 
         target = 'images-docker-candidate'
         runner = create_runner(tasker, workflow, target=target, tag_later=tag_later,
@@ -1325,7 +1343,7 @@ class TestKojiImport(object):
                 if 'extra' in output:
                     assert output['extra']['docker']['id'] == expect_id
 
-        assert set(build.keys()) == set([
+        expected_keys = set([
             'name',
             'version',
             'release',
@@ -1336,6 +1354,13 @@ class TestKojiImport(object):
             'owner',
         ])
 
+        if reserved_build:
+            expected_keys.add('build_id')
+
+        assert set(build.keys()) == expected_keys
+
+        if reserved_build:
+            assert build['build_id'] == build_id
         assert build['name'] == component
         assert build['version'] == version
         assert build['release'] == release
