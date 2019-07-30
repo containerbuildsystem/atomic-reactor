@@ -33,7 +33,9 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
 from atomic_reactor.util import df_parser
+from atomic_reactor.constants import PROG
 from flexmock import flexmock
+import time
 import pytest
 
 
@@ -55,13 +57,16 @@ class TestBumpRelease(object):
                 include_target=True,
                 certs=False,
                 append=False,
-                reactor_config_map=False):
+                reactor_config_map=False,
+                reserve_build=False):
         if labels is None:
             labels = {}
 
         workflow = flexmock()
         setattr(workflow, 'builder', flexmock())
         setattr(workflow, 'plugin_workspace', {})
+        setattr(workflow, 'reserved_build_id', None)
+        setattr(workflow, 'reserved_token ', None)
 
         df = tmpdir.join('Dockerfile')
         df.write('FROM base\n')
@@ -77,7 +82,8 @@ class TestBumpRelease(object):
         koji_map = {
             'hub_url': '',
             'root_url': '',
-            'auth': {}
+            'auth': {},
+            'reserve_build': reserve_build
         }
         if include_target:
             kwargs['target'] = 'foo'
@@ -186,35 +192,78 @@ class TestBumpRelease(object):
         True,
         False
     ])
-    @pytest.mark.parametrize('next_release', [
-        {'actual': '1', 'builds': [], 'expected': '1', 'scratch': False},
-        {'actual': '1', 'builds': ['1'], 'expected': '2', 'scratch': False},
-        {'actual': '1', 'builds': ['1', '2'], 'expected': '3', 'scratch': False},
-        {'actual': '20', 'builds': ['19.1'], 'expected': '20', 'scratch': False},
-        {'actual': '20', 'builds': ['20', '20.1'], 'expected': '21', 'scratch': False},
-        {'actual': '20.1', 'builds': ['19.1'], 'expected': '20', 'scratch': False},
-        {'actual': '20.1', 'builds': ['19.1', '20'], 'expected': '21', 'scratch': False},
-        {'actual': '20.1', 'builds': ['20'], 'expected': '21', 'scratch': False},
-        {'actual': '20.1', 'builds': ['20', '20.1'], 'expected': '21', 'scratch': False},
-        {'actual': '20.2', 'builds': ['20', '20.1'], 'expected': '21', 'scratch': False},
-        {'actual': '20.2', 'builds': ['20', '20.1', '20.2'], 'expected': '21', 'scratch': False},
-        {'actual': '20.fc25', 'builds': ['20.fc24'], 'expected': '20.fc25', 'scratch': False},
-        {'actual': '20.fc25', 'builds': ['20.fc25'], 'expected': '21.fc25', 'scratch': False},
-        {'actual': '20.foo.fc25',
-         'builds': ['20.foo.fc25'],
-         'expected': '21.foo.fc25', 'scratch': False},
-        {'actual': '20.1.fc25',
-         'builds': ['20.fc25', '20.1.fc25'],
-         'expected': '21.fc25', 'scratch': False},
-        {'actual': '20.1.fc25',
-         'builds': ['20.fc25', '20.1.fc25', '21.fc25'],
-         'expected': '22.fc25', 'scratch': False},
-        {'build_name': False, 'expected': '1', 'scratch': True},
-        {'build_name': True, 'expected': 'scratch-123456', 'scratch': True},
+    @pytest.mark.parametrize('reserve_build, init_fails', [
+        (True, RuntimeError),
+        (True, koji.GenericError),
+        (True, None),
+        (False, None)
     ])
-    def test_increment(self, tmpdir, component, version, next_release,
-                       include_target, reactor_config_map):
-
+    @pytest.mark.parametrize('next_release, base_release, append', [
+        ({'actual': '1', 'builds': [], 'expected': '1', 'scratch': False},
+         None, False),
+        ({'actual': '1', 'builds': ['1'], 'expected': '2', 'scratch': False},
+         None, False),
+        ({'actual': '1', 'builds': ['1', '2'], 'expected': '3', 'scratch': False},
+         None, False),
+        ({'actual': '20', 'builds': ['19.1'], 'expected': '20', 'scratch': False},
+         None, False),
+        ({'actual': '20', 'builds': ['20', '20.1'], 'expected': '21', 'scratch': False},
+         None, False),
+        ({'actual': '20.1', 'builds': ['19.1'], 'expected': '20', 'scratch': False},
+         None, False),
+        ({'actual': '20.1', 'builds': ['19.1', '20'], 'expected': '21', 'scratch': False},
+         None, False),
+        ({'actual': '20.1', 'builds': ['20'], 'expected': '21', 'scratch': False},
+         None, False),
+        ({'actual': '20.1', 'builds': ['20', '20.1'], 'expected': '21', 'scratch': False},
+         None, False),
+        ({'actual': '20.2', 'builds': ['20', '20.1'], 'expected': '21', 'scratch': False},
+         None, False),
+        ({'actual': '20.2', 'builds': ['20', '20.1', '20.2'], 'expected': '21', 'scratch': False},
+         None, False),
+        ({'actual': '20.fc25', 'builds': ['20.fc24'], 'expected': '20.fc25', 'scratch': False},
+         None, False),
+        ({'actual': '20.fc25', 'builds': ['20.fc25'], 'expected': '21.fc25', 'scratch': False},
+         None, False),
+        ({'actual': '20.foo.fc25', 'builds': ['20.foo.fc25'],
+         'expected': '21.foo.fc25', 'scratch': False},
+         None, False),
+        ({'actual': '20.1.fc25', 'builds': ['20.fc25', '20.1.fc25'],
+         'expected': '21.fc25', 'scratch': False},
+         None, False),
+        ({'actual': '20.1.fc25', 'builds': ['20.fc25', '20.1.fc25', '21.fc25'],
+         'expected': '22.fc25', 'scratch': False},
+         None, False),
+        ({'build_name': False, 'expected': '1', 'scratch': True},
+         None, False),
+        ({'build_name': False, 'expected': '1', 'scratch': True},
+         None, True),
+        ({'build_name': True, 'expected': 'scratch-123456', 'scratch': True},
+         None, False),
+        ({'build_name': True, 'expected': 'scratch-123456', 'scratch': True},
+         None, True),
+        ({'builds': [], 'expected': '42.1', 'scratch': False},
+         '42', True),
+        ({'builds': ['42.1', '42.2'], 'expected': '42.3', 'scratch': False},
+         '42', True),
+        # No interpretation of the base release when appending - just treated as string
+        ({'builds': ['42.2'], 'expected': '42.1.1', 'scratch': False},
+         '42.1', True),
+        # No interpretation of the base release when appending - just treated as string
+        ({'builds': ['42.1.1'], 'expected': '42.1.2', 'scratch': False},
+         '42.1', True),
+        ({'builds': [], 'expected': '1.1', 'scratch': False},
+         None, True),
+        ({'builds': ['1.1'], 'expected': '1.2', 'scratch': False},
+         None, True),
+        ({'builds': ['1.1', '1.2'], 'expected': '1.3', 'scratch': False},
+         None, True),
+    ])
+    def test_increment_and_append(self, tmpdir, component, version, next_release, base_release,
+                                  append, include_target, reserve_build, init_fails,
+                                  reactor_config_map):
+        build_id = '123456'
+        token = 'token_123456'
         class MockedClientSession(object):
             def __init__(self, hub, opts=None):
                 self.ca_path = None
@@ -243,17 +292,31 @@ class TestBumpRelease(object):
             def krb_login(self, *args, **kwargs):
                 return True
 
+            def CGInitBuild(self, cg_name, nvr_data):
+                assert cg_name == PROG
+                assert nvr_data['name'] == list(component.values())[0]
+                assert nvr_data['version'] == list(version.values())[0]
+                assert nvr_data['release'] == next_release['expected']
+                if init_fails:
+                    raise init_fails('unable to pre-declare build {}'.format(nvr_data))
+                return {'build_id': build_id, 'token': token}
+
         session = MockedClientSession('')
+        flexmock(time).should_receive('sleep').and_return(None)
         flexmock(koji, ClientSession=session)
 
         labels = {}
         labels.update(component)
         labels.update(version)
+        if base_release:
+            labels['release'] = base_release
 
         plugin = self.prepare(tmpdir, labels=labels,
                               include_target=include_target,
                               certs=True,
-                              reactor_config_map=reactor_config_map)
+                              reactor_config_map=reactor_config_map,
+                              reserve_build=reserve_build,
+                              append=append)
 
         new_environ = deepcopy(os.environ)
         new_environ["BUILD"] = dedent('''\
@@ -284,6 +347,12 @@ class TestBumpRelease(object):
         flexmock(os)
         os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
 
+        if init_fails and reserve_build and reactor_config_map and not next_release['scratch']:
+            with pytest.raises(RuntimeError) as exc:
+                plugin.run()
+            assert 'unable to pre-declare build ' in str(exc)
+            return
+
         plugin.run()
 
         for file_path, expected in [(session.cert_path, 'cert'),
@@ -298,43 +367,6 @@ class TestBumpRelease(object):
         # Old-style spellings should not be asserted
         assert 'Release' not in parser.labels
 
-    @pytest.mark.parametrize('base_release,builds,expected', [
-        ('42', [], '42.1'),
-        ('42', ['42.1', '42.2'], '42.3'),
-        # No interpretation of the base release when appending - just treated as string
-        ('42.1', ['42.2'], '42.1.1'),
-        ('42.1', ['42.1.1'], '42.1.2'),
-        (None, [], '1.1'),
-        (None, ['1.1'], '1.2'),
-        (None, ['1.1', '1.2'], '1.3'),
-    ])
-    def test_append(self, tmpdir, base_release, builds, expected, reactor_config_map):
-
-        class MockedClientSession(object):
-            def __init__(self, hub, opts=None):
-                pass
-
-            def getBuild(self, build_info):
-                if build_info['release'] in builds:
-                    return True
-                return None
-
-            def krb_login(self, *args, **kwargs):
-                return True
-
-        session = MockedClientSession('')
-        flexmock(koji, ClientSession=session)
-
-        labels = {
-            'com.redhat.component': 'component1',
-            'version': 'fc26',
-        }
-        if base_release:
-            labels['release'] = base_release
-
-        plugin = self.prepare(tmpdir, labels=labels,
-                              append=True, reactor_config_map=reactor_config_map)
-        plugin.run()
-
-        parser = df_parser(plugin.workflow.builder.df_path, workflow=plugin.workflow)
-        assert parser.labels['release'] == expected
+        if reserve_build and reactor_config_map and not next_release['scratch']:
+            assert plugin.workflow.reserved_build_id == build_id
+            assert plugin.workflow.reserved_token == token

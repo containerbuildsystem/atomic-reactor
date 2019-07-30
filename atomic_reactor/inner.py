@@ -438,6 +438,10 @@ class DockerBuildWorkflow(object):
         # post-build plugins (such as koji_import) to record them.
         self.all_yum_repourls = None
 
+        # info about pre-declared build, build-id and token
+        self.reserved_build_id = None
+        self.reserved_token = None
+
         if client_version:
             logger.debug("build json was built by osbs-client %s", client_version)
 
