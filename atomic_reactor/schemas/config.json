@@ -479,6 +479,11 @@
         "description": "Allow base image without related koji build (insecure)",
         "type": "boolean"
     },
+    "deep_manifest_list_inspection": {
+        "description": "If manifest list digest check fails, inspect the manifest list contents",
+        "type": "boolean",
+        "default": true
+    },
     "hide_files": {
         "description": "Hide files during build for each stage",
         "type": "object",
