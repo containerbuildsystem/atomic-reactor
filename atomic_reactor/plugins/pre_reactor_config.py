@@ -378,6 +378,10 @@ def get_omps_config(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'omps', fallback)
 
 
+def get_deep_manifest_list_inspection(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'deep_manifest_list_inspection', fallback)
+
+
 class ClusterConfig(object):
     """
     Configuration relating to a particular cluster

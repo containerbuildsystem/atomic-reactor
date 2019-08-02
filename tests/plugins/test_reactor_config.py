@@ -517,7 +517,7 @@ class TestReactorConfigPlugin(object):
         'openshift', 'group_manifests', 'platform_descriptors', 'prefer_schema1_digest',
         'content_versions', 'registries', 'yum_proxy', 'source_registry', 'sources_command',
         'required_secrets', 'worker_token_secrets', 'clusters', 'hide_files',
-        'skip_koji_check_for_base_image'
+        'skip_koji_check_for_base_image', 'deep_manifest_list_inspection'
     ])
     def test_get_methods(self, fallback, method):
         _, workflow = self.prepare()

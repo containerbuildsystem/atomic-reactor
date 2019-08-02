@@ -12,12 +12,15 @@ from atomic_reactor.constants import (
     INSPECT_CONFIG, PLUGIN_KOJI_PARENT_KEY, BASE_IMAGE_KOJI_BUILD, PARENT_IMAGES_KOJI_BUILDS
 )
 from atomic_reactor.plugins.pre_reactor_config import (
-    get_koji_session, get_skip_koji_check_for_base_image
+    get_deep_manifest_list_inspection, get_koji_session, get_skip_koji_check_for_base_image
 )
-from atomic_reactor.util import base_image_is_custom, get_manifest_media_type
+from atomic_reactor.util import (
+    base_image_is_custom, get_manifest_list, get_manifest_media_type
+)
 from copy import copy
 from osbs.utils import Labels
 
+import json
 import koji
 import time
 
@@ -76,6 +79,8 @@ class KojiParentPlugin(PreBuildPlugin):
         self._base_image_build = None
         self._parent_builds = {}
         self._poll_start = None
+        self._deep_manifest_list_inspection = get_deep_manifest_list_inspection(self.workflow,
+                                                                                fallback=True)
 
     def run(self):
         if not (self.workflow.builder.base_from_scratch or self.workflow.builder.custom_base_image):
@@ -118,6 +123,14 @@ class KojiParentPlugin(PreBuildPlugin):
         return self.make_result()
 
     def check_manifest_digest(self, image, build_info):
+        """Check if the manifest list digest is correct.
+
+        Compares the manifest list digest with the value in koji metadata.
+        Raises a ValueError if the manifest list does not refer to the koji build.
+
+        :param image: ImageName, image to inspect
+        :param build_info: dict, koji build metadata
+        """
         image_str = image.to_str()
         v2_list_type = get_manifest_media_type('v2_list')
         v2_type = get_manifest_media_type('v2')
@@ -145,12 +158,68 @@ class KojiParentPlugin(PreBuildPlugin):
         expected_digest = koji_digest
         self.log.info('Verifying manifest digest (%s) for parent %s against its '
                       'koji reference (%s)', digest, image_str, expected_digest)
-        if not digest == expected_digest:
-            err_msg = ('Manifest digest ({}) for parent image {} does not match value in its '
-                       'koji reference ({}). This parent image MUST be rebuilt'
-                       .format(digest, image_str, expected_digest))
-            self.log.error(err_msg)
-            raise ValueError(err_msg)
+        if digest != expected_digest:
+            rebuild_msg = 'This parent image MUST be rebuilt'
+            mismatch_msg = ('Manifest digest (%s) for parent image %s does not match value in its '
+                            'koji reference (%s). %s')
+            if not self._deep_manifest_list_inspection:
+                self.log.error(mismatch_msg, digest, image_str, expected_digest, rebuild_msg)
+                raise ValueError(mismatch_msg % (digest, image_str, expected_digest, rebuild_msg))
+
+            deep_inspection_msg = 'Checking manifest list contents...'
+            self.log.warning(mismatch_msg, digest, image_str, expected_digest, deep_inspection_msg)
+            if not self.manifest_list_entries_match(image, build_info['id']):
+                err_msg = ('Manifest list for parent image %s differs from the manifest list for '
+                           'its koji reference. %s')
+                self.log.error(err_msg, image_str, rebuild_msg)
+                raise ValueError(err_msg % (image_str, rebuild_msg))
+
+    def manifest_list_entries_match(self, image, build_id):
+        """Check whether manifest list entries are in koji.
+
+        Compares the digest in each manifest list entry with the koji build
+        archive for the entry's architecture. Returns True if they all match.
+
+        :param image: ImageName, image to inspect
+        :param build_id: int, koji build ID for the image
+
+        :return: bool, True if the manifest list content refers to the koji build archives
+        """
+        if not image.registry:
+            self.log.warning('Could not fetch manifest list for %s: missing registry ref', image)
+            return False
+
+        v2_type = get_manifest_media_type('v2')
+
+        manifest_list_response = get_manifest_list(image, image.registry)
+        if not manifest_list_response:
+            self.log.warning('Could not fetch manifest list for %s', image)
+            return False
+
+        manifest_list_data = {}
+        manifest_list = json.loads(manifest_list_response.content)
+        for manifest in manifest_list['manifests']:
+            if manifest['mediaType'] != v2_type:
+                self.log.warning('Unexpected media type in manifest list: %s', manifest)
+                return False
+
+            arch = manifest['platform']['architecture']
+            v2_digest = manifest['digest']
+            manifest_list_data[arch] = v2_digest
+
+        archives = self.koji_session.listArchives(build_id)
+        koji_archives_data = {}
+        for archive in archives:
+            arch = archive['extra']['docker']['config']['architecture']
+            v2_digest = archive['extra']['docker']['digests'][v2_type]
+            koji_archives_data[arch] = v2_digest
+
+        if koji_archives_data == manifest_list_data:
+            self.log.info('Deeper manifest list check verified v2 manifest references match')
+            return True
+        self.log.warning('Manifest list refs "%s" do not match koji archive refs "%s"',
+                         manifest_list_data, koji_archives_data)
+        return False
 
     def detect_parent_image_nvr(self, image_name, inspect_data=None):
         """

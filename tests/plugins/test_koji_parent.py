@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals, absolute_import
 
+import json
 import os
 
 try:
@@ -26,6 +27,7 @@ except ImportError:
     del koji
     import koji as koji
 
+import atomic_reactor
 from atomic_reactor.constants import (
     INSPECT_CONFIG, BASE_IMAGE_KOJI_BUILD, PARENT_IMAGES_KOJI_BUILDS
 )
@@ -56,6 +58,7 @@ KOJI_BUILD_NVR = 'base-image-1.0-99'
 KOJI_STATE_COMPLETE = koji.BUILD_STATES['COMPLETE']
 
 V2_LIST = get_manifest_media_type('v2_list')
+V2 = get_manifest_media_type('v2')
 KOJI_EXTRA = {'image': {'index': {'digests': {V2_LIST: 'stubDigest'}}}}
 
 KOJI_STATE_DELETED = koji.BUILD_STATES['DELETED']
@@ -240,6 +243,7 @@ class TestKojiParent(object):
                                       reactor_config_map=reactor_config_map)
 
     @pytest.mark.parametrize('media_version', ['v2_list', 'v2'])
+    @pytest.mark.parametrize('koji_mtype', [True, False])
     @pytest.mark.parametrize('parent_tags', [
                              ['miss', 'stubDigest', 'stubDigest'],
                              ['stubDigest', 'miss', 'stubDigest'],
@@ -247,7 +251,7 @@ class TestKojiParent(object):
                              ['miss', 'miss', 'miss'],
                              ['stubDigest', 'stubDigest', 'stubDigest']])
     @pytest.mark.parametrize('special_base', [False, 'scratch', 'custom'])  # noqa: F811
-    def test_multiple_parent_images(self, workflow, koji_session, reactor_config_map,
+    def test_multiple_parent_images(self, workflow, koji_session, reactor_config_map, koji_mtype,
                                     special_base, parent_tags, media_version, caplog):
         parent_images = {
             ImageName.parse('somebuilder'): ImageName.parse('somebuilder:{}'
@@ -261,6 +265,8 @@ class TestKojiParent(object):
         for parent in parent_images:
             dgst = parent_images[parent].tag
             workflow.builder.parent_images_digests[parent.to_str()] = {media_type: dgst}
+        if not koji_mtype:
+            media_type = get_manifest_media_type('v1')
         extra = {'image': {'index': {'digests': {media_type: 'stubDigest'}}}}
         koji_builds = dict(
             somebuilder=dict(nvr='somebuilder-1.0-1',
@@ -310,14 +316,19 @@ class TestKojiParent(object):
         if special_base:
             del expected[BASE_IMAGE_KOJI_BUILD]
 
-        if 'miss' in parent_tags:
+        if not koji_mtype:
+            self.run_plugin_with_args(
+                workflow, expect_result=expected, reactor_config_map=reactor_config_map
+            )
+            assert 'does not have manifest digest data for the expected media type' in caplog.text
+        elif 'miss' in parent_tags or not koji_mtype:
             # TODO: here we should capture an exception instead
             self.run_plugin_with_args(
                 workflow, expect_result=expected, reactor_config_map=reactor_config_map
             )
             errors = []
             error_msg = ('Manifest digest (miss) for parent image {}:latest does not match value '
-                         'in its koji reference (stubDigest). This parent image MUST be rebuilt')
+                         'in its koji reference (stubDigest)')
             if parent_tags[0] == 'miss':
                 errors.append(error_msg.format('somebuilder'))
             if parent_tags[1] == 'miss':
@@ -327,6 +338,7 @@ class TestKojiParent(object):
             assert 'This parent image MUST be rebuilt' in caplog.text
             for e in errors:
                 assert e in caplog.text
+
         else:
             self.run_plugin_with_args(
                 workflow, expect_result=expected, reactor_config_map=reactor_config_map
@@ -338,8 +350,93 @@ class TestKojiParent(object):
             self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
         assert 'Unexpected parent image digest data' in str(exc_info)
 
+    @pytest.mark.parametrize('feature_flag', [True, False])
+    @pytest.mark.parametrize('parent_tag', ['stubDigest', 'wrongDigest'])
+    @pytest.mark.parametrize('has_registry', [True, False])
+    @pytest.mark.parametrize('manifest_list', [
+        {'manifests': [
+            {'digest': 'stubDigest', 'mediaType': V2, 'platform': {
+                'architecture': 'amd64'}}]},
+        {'manifests':
+            [{'digest': 'differentDigest', 'mediaType': V2, 'platform': {
+                'architecture': 'amd64'}}]},
+        {'manifests':
+            [{'digest': 'stubDigest', 'mediaType': 'unexpected', 'platform': {
+                'architecture': 'amd64'}}]},
+        {}])
+    def test_deep_digest_inspection(self, workflow, koji_session, reactor_config_map, parent_tag,
+                                    caplog, has_registry, manifest_list, feature_flag):  # noqa
+        image_str = 'base'
+        if has_registry:
+            image_str = '/'.join(['example.com', image_str])
+        extra = {'image': {'index': {'digests': {V2_LIST: 'stubDigest'}}}}
+        koji_build = dict(nvr='base-image-1.0-99',
+                          id=KOJI_BUILD_ID,
+                          state=KOJI_STATE_COMPLETE,
+                          extra=extra)
+        (koji_session.should_receive('getBuild')
+            .and_return(koji_build))
+        archives = [{
+            'extra': {
+                'docker': {
+                    'config': {
+                        'architecture': 'amd64'
+                        },
+                    'digests': {
+                        V2: 'stubDigest'}}}}]
+        (koji_session.should_receive('listArchives')
+            .and_return(archives))
+
+        name, version, release = koji_build['nvr'].rsplit('-', 2)
+        labels = {'com.redhat.component': name, 'version': version, 'release': release}
+        image_inspect = {INSPECT_CONFIG: dict(Labels=labels)}
+
+        (workflow.builder
+         .should_receive('parent_image_inspect')
+         .and_return(image_inspect))
+        if manifest_list:
+            response = flexmock(content=json.dumps(manifest_list))
+        else:
+            response = {}
+        flexmock(atomic_reactor.util).should_receive('get_manifest').and_return((response, None))
+
+        expected_result = {BASE_IMAGE_KOJI_BUILD: KOJI_BUILD,
+                           PARENT_IMAGES_KOJI_BUILDS: {
+                               ImageName.parse(image_str): KOJI_BUILD}}
+
+        workflow.builder.parent_images_digests = {image_str+':latest': {V2_LIST: parent_tag}}
+        parent_images = {
+            ImageName.parse(image_str): ImageName.parse('{}:{}'.format(image_str, parent_tag)),
+        }
+        workflow.builder.parent_images = parent_images
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
+                                  expect_result=expected_result, deep_inspection=feature_flag)
+
+        rebuild_str = 'This parent image MUST be rebuilt'
+        if parent_tag == 'stubDigest':
+            assert rebuild_str not in caplog.text
+        else:
+            if not feature_flag and reactor_config_map:
+                assert 'Checking manifest list contents' not in caplog.text
+                assert rebuild_str in caplog.text
+            else:
+                assert 'Checking manifest list contents' in caplog.text
+                if has_registry and manifest_list:
+                    if manifest_list['manifests'][0]['mediaType'] != V2:
+                        assert 'Unexpected media type in manifest list' in caplog.text
+                        assert rebuild_str in caplog.text
+                    elif manifest_list['manifests'][0]['digest'] == 'stubDigest':
+                        assert rebuild_str not in caplog.text
+                    else:
+                        assert 'do not match koji archive refs' in caplog.text
+                        assert rebuild_str in caplog.text
+                else:
+                    fetch_error = 'Could not fetch manifest list for {}:latest'.format(image_str)
+                    assert fetch_error in caplog.text
+                    assert rebuild_str in caplog.text
+
     def run_plugin_with_args(self, workflow, plugin_args=None, expect_result=True,  # noqa
-                             reactor_config_map=False, external_base=False):
+                             reactor_config_map=False, external_base=False, deep_inspection=True):
         plugin_args = plugin_args or {}
         plugin_args.setdefault('koji_hub', KOJI_HUB)
         plugin_args.setdefault('poll_interval', 0.01)
@@ -357,6 +454,7 @@ class TestKojiParent(object):
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
                 ReactorConfig({'version': 1, 'koji': koji_map,
+                               'deep_manifest_list_inspection': deep_inspection,
                                'skip_koji_check_for_base_image': external_base})
 
         runner = PreBuildPluginsRunner(

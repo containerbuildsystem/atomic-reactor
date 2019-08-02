@@ -171,6 +171,8 @@ hide_files:
 
 skip_koji_check_for_base_image: False
 
+deep_manifest_list_inspection: True
+
 clusters:
   foo:
    - name: blah
