@@ -609,9 +609,9 @@ class TestReactorConfigPlugin(object):
     @pytest.mark.parametrize(('config', 'expect'), [
         ("""\
           version: 1
-          default_image_build_method: buildah
+          default_image_build_method: buildah_bud
          """,
-         "buildah"),
+         "buildah_bud"),
         ("""\
           version: 1
           default_image_build_method: imagebuilder
@@ -666,29 +666,46 @@ class TestReactorConfigPlugin(object):
         method = get_buildstep_alias(workflow)
         assert method == expect
 
-    @pytest.mark.parametrize(('config', 'source_buildstep', 'expect_source', 'expect_default'), [
+    @pytest.mark.parametrize(('config', 'source_buildstep', 'expect_source', 'expect_default',
+                              'will_raise'), [
         ("""\
           version: 1
           default_image_build_method: docker_api
           buildstep_alias:
             docker_api: imagebuilder
          """,
-         None, None, 'imagebuilder'),
+         None, None, 'imagebuilder', False),
         ("""\
           version: 1
           buildstep_alias:
             docker_api: imagebuilder
          """,
-         'docker_api', 'imagebuilder', 'imagebuilder'),
+         'docker_api', 'imagebuilder', 'imagebuilder', False),
+        ("""\
+          version: 1
+          default_image_build_method: buildah_bud
+         """,
+         None, None, None, True),
+        ("""\
+          version: 1
+          default_image_build_method: docker_api
+         """,
+         'buildah_bud', None, None, True),
     ])
     def test_get_buildstep_alias_setting(self, tmpdir, config, source_buildstep,
-                                         expect_source, expect_default):
+                                         expect_source, expect_default, will_raise):
         filename = os.path.join(str(tmpdir), 'config.yaml')
         with open(filename, 'w') as fp:
             fp.write(dedent(config))
         tasker, workflow = self.prepare()
         workflow.builder.source.config.image_build_method = source_buildstep
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
+
+        if will_raise:
+            with pytest.raises(NotImplementedError):
+                plugin.run()
+            return
+
         assert plugin.run() is None
         assert workflow.builder.source.config.image_build_method == expect_source
         assert workflow.default_image_build_method == expect_default
