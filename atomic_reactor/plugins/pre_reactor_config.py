@@ -10,7 +10,8 @@ from __future__ import absolute_import
 
 from copy import deepcopy
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.constants import CONTAINER_BUILD_METHODS, CONTAINER_DEFAULT_BUILD_METHOD
+from atomic_reactor.constants import (CONTAINER_BUILD_METHODS, CONTAINER_DEFAULT_BUILD_METHOD,
+                                      CONTAINER_BUILDAH_BUILD_METHOD)
 from atomic_reactor.util import (read_yaml, read_yaml_from_file_path,
                                  get_build_json, DefaultKeyDict)
 from osbs.utils import RegistryURI
@@ -551,6 +552,11 @@ class ReactorConfigPlugin(PreBuildPlugin):
             source_image_build_method = buildstep_aliases[source_image_build_method]
         if default_image_build_method in buildstep_aliases:
             default_image_build_method = buildstep_aliases[default_image_build_method]
+
+        if (source_image_build_method == CONTAINER_BUILDAH_BUILD_METHOD or
+                default_image_build_method == CONTAINER_BUILDAH_BUILD_METHOD):
+            raise NotImplementedError('{} method not yet fully implemented'.
+                                      format(CONTAINER_BUILDAH_BUILD_METHOD))
 
         self.workflow.builder.source.config.image_build_method = source_image_build_method
         self.workflow.default_image_build_method = default_image_build_method

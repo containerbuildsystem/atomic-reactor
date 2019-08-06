@@ -8,7 +8,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
 import subprocess
 from dockerfile_parse import DockerfileParser
@@ -63,7 +63,7 @@ class MockInsideBuilder(object):
         return flexmock(
             dockerfile_path='/',
             path='/tmp',
-            config=flexmock(image_build_method='buildah'),
+            config=flexmock(image_build_method='buildah_bud'),
         )
 
     def pull_base_image(self, source_registry, insecure=False):
@@ -94,8 +94,8 @@ def test_popen_cmd(image_id):
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.build_docker_image()
 
-    assert isinstance(workflow.buildstep_result['buildah'], BuildResult)
-    assert workflow.build_result == workflow.buildstep_result['buildah']
+    assert isinstance(workflow.buildstep_result['buildah_bud'], BuildResult)
+    assert workflow.build_result == workflow.buildstep_result['buildah_bud']
     assert not workflow.build_result.is_failed()
     assert workflow.build_result.image_id.startswith('sha256:')
     assert workflow.build_result.image_id.count(':') == 1

@@ -565,7 +565,7 @@
     },
     "default_image_build_method": {
         "description": "Specify different default buildstep plugin for worker builds",
-        "enum": ["docker_api", "imagebuilder", "buildah"]
+        "enum": ["docker_api", "imagebuilder", "buildah_bud"]
     },
     "buildstep_alias": {
         "description": "Aliases for buildstep plugins",
