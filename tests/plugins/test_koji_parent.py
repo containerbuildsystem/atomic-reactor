@@ -377,6 +377,7 @@ class TestKojiParent(object):
         (koji_session.should_receive('getBuild')
             .and_return(koji_build))
         archives = [{
+            'btype': 'image',
             'extra': {
                 'docker': {
                     'config': {

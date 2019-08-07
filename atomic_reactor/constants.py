@@ -152,4 +152,5 @@ DOCKERIGNORE = '.dockerignore'
 # Operator manifest constants
 OPERATOR_MANIFESTS_ARCHIVE = 'operator_manifests.zip'
 
+KOJI_BTYPE_IMAGE = 'image'
 KOJI_BTYPE_OPERATOR_MANIFESTS = 'operator-manifests'

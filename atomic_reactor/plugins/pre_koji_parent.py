@@ -9,7 +9,8 @@ from __future__ import print_function, unicode_literals, absolute_import
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import (
-    INSPECT_CONFIG, PLUGIN_KOJI_PARENT_KEY, BASE_IMAGE_KOJI_BUILD, PARENT_IMAGES_KOJI_BUILDS
+    INSPECT_CONFIG, PLUGIN_KOJI_PARENT_KEY, BASE_IMAGE_KOJI_BUILD, PARENT_IMAGES_KOJI_BUILDS,
+    KOJI_BTYPE_IMAGE
 )
 from atomic_reactor.plugins.pre_reactor_config import (
     get_deep_manifest_list_inspection, get_koji_session, get_source_registry,
@@ -214,7 +215,7 @@ class KojiParentPlugin(PreBuildPlugin):
 
         archives = self.koji_session.listArchives(build_id)
         koji_archives_data = {}
-        for archive in archives:
+        for archive in (a for a in archives if a['btype'] == KOJI_BTYPE_IMAGE):
             arch = archive['extra']['docker']['config']['architecture']
             v2_digest = archive['extra']['docker']['digests'][v2_type]
             koji_archives_data[arch] = v2_digest
