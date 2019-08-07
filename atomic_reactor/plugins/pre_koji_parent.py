@@ -12,7 +12,8 @@ from atomic_reactor.constants import (
     INSPECT_CONFIG, PLUGIN_KOJI_PARENT_KEY, BASE_IMAGE_KOJI_BUILD, PARENT_IMAGES_KOJI_BUILDS
 )
 from atomic_reactor.plugins.pre_reactor_config import (
-    get_deep_manifest_list_inspection, get_koji_session, get_skip_koji_check_for_base_image
+    get_deep_manifest_list_inspection, get_koji_session, get_source_registry,
+    get_skip_koji_check_for_base_image
 )
 from atomic_reactor.util import (
     base_image_is_custom, get_manifest_list, get_manifest_media_type
@@ -79,6 +80,7 @@ class KojiParentPlugin(PreBuildPlugin):
         self._base_image_build = None
         self._parent_builds = {}
         self._poll_start = None
+        self._source_registry = get_source_registry(workflow, {})
         self._deep_manifest_list_inspection = get_deep_manifest_list_inspection(self.workflow,
                                                                                 fallback=True)
 
@@ -191,7 +193,10 @@ class KojiParentPlugin(PreBuildPlugin):
 
         v2_type = get_manifest_media_type('v2')
 
-        manifest_list_response = get_manifest_list(image, image.registry)
+        insecure = self._source_registry.get('insecure', False)
+        dockercfg_path = self._source_registry.get('secret')
+        manifest_list_response = get_manifest_list(image, image.registry, insecure=insecure,
+                                                   dockercfg_path=dockercfg_path)
         if not manifest_list_response:
             self.log.warning('Could not fetch manifest list for %s', image)
             return False
