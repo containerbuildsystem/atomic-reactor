@@ -97,7 +97,7 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param base_image: host image used to install packages when creating the Flatpak
         """

@@ -11,14 +11,13 @@ Logic above these classes has to set the workflow itself.
 """
 from __future__ import absolute_import
 
-import json
 import re
 from textwrap import dedent
 
 import logging
 import docker.errors
 import atomic_reactor.util
-from atomic_reactor.core import DockerTasker, LastLogger
+from atomic_reactor.core import ContainerTasker, LastLogger
 from atomic_reactor.util import (ImageName, print_version_of_tools, df_parser,
                                  base_image_is_scratch, base_image_is_custom)
 from atomic_reactor.constants import DOCKERFILE_FILENAME
@@ -139,11 +138,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
 
         print_version_of_tools()
 
-        self.tasker = DockerTasker()
-
-        info, version = self.tasker.get_info(), self.tasker.get_version()
-        logger.debug(json.dumps(info, indent=2))
-        logger.info(json.dumps(version, indent=2))
+        self.tasker = ContainerTasker()
 
         # arguments for build
         self.source = source

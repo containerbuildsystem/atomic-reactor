@@ -62,14 +62,14 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
 
     def __init__(self, tasker, workflow):
         """
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         """
         super(FlatpakCreateOciPlugin, self).__init__(tasker, workflow)
         self.builder = None
 
     def _export_container(self, container_id):
-        export_generator = self.tasker.d.export(container_id)
+        export_generator = self.tasker.export_container(container_id)
         export_stream = StreamAdapter(export_generator)
 
         outfile, manifestfile = self.builder._export_from_stream(export_stream)
@@ -82,14 +82,14 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         # The command here isn't used, since we only use the container for export,
         # but (in some circumstances) the docker daemon will error out if no
         # command is specified.
-        container_dict = self.tasker.d.create_container(image, command=["/bin/bash"])
+        container_dict = self.tasker.create_container(image, command=["/bin/bash"])
         container_id = container_dict['Id']
 
         try:
             return self._export_container(container_id)
         finally:
             self.log.info("Cleaning up docker container")
-            self.tasker.d.remove_container(container_id)
+            self.tasker.remove_container(container_id)
 
     def run(self):
         source = get_flatpak_source_info(self.workflow)

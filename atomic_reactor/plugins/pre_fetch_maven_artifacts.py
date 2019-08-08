@@ -80,7 +80,7 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
                  koji_krb_principal=None, koji_krb_keytab=None,
                  allowed_domains=None):
         """
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param koji_hub: str, koji hub (xmlrpc)
         :param koji_root: str, koji root (storage)

@@ -15,7 +15,8 @@ from tests.constants import LOCALHOST_REGISTRY_HTTP, DOCKER0_REGISTRY_HTTP, MOCK
 from tests.util import uuid_value
 
 from atomic_reactor.util import ImageName
-from atomic_reactor.core import DockerTasker
+from atomic_reactor.core import ContainerTasker
+from atomic_reactor.constants import CONTAINER_DOCKERPY_BUILD_METHOD
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -50,7 +51,9 @@ def is_registry_running():
 def docker_tasker():
     if MOCK:
         mock_docker()
-    return DockerTasker(retry_times=0)
+    ct = ContainerTasker(retry_times=0)
+    ct.build_method = CONTAINER_DOCKERPY_BUILD_METHOD
+    return ct
 
 
 @pytest.fixture(params=[True, False])

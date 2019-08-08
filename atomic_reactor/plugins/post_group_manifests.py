@@ -48,7 +48,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param registries: dict, keys are docker registries, values are dicts containing
                            per-registry parameters.

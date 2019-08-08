@@ -58,7 +58,7 @@ class KojiParentPlugin(PreBuildPlugin):
     def __init__(self, tasker, workflow, koji_hub=None, koji_ssl_certs_dir=None,
                  poll_interval=DEFAULT_POLL_INTERVAL, poll_timeout=DEFAULT_POLL_TIMEOUT):
         """
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param koji_hub: str, koji hub (xmlrpc)
         :param koji_ssl_certs_dir: str, path to "cert", "ca", and "serverca"

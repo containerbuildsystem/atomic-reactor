@@ -32,7 +32,7 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param koji_target: str, Koji build target name
         """

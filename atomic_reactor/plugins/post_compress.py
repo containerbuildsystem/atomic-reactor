@@ -44,7 +44,7 @@ class CompressPlugin(PostBuildPlugin):
     # TODO: add remove_former_image?
     def __init__(self, tasker, workflow, load_exported_image=False, method='gzip'):
         """
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param load_exported_image: bool, when running squash plugin with `dont_load=True`,
                                     you may load the exported tar with this switch
@@ -90,7 +90,7 @@ class CompressPlugin(PostBuildPlugin):
             image = self.workflow.image
             image_type = IMAGE_TYPE_DOCKER_ARCHIVE
             self.log.info('fetching image %s from docker', image)
-            with self.tasker.d.get_image(image) as image_stream:
+            with self.tasker.get_image(image) as image_stream:
                 outfile = self._compress_image_stream(image_stream)
         metadata = get_exported_image_metadata(outfile, image_type)
 

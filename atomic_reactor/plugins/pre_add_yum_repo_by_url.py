@@ -39,7 +39,7 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param repourls: list of str, URLs to the repo files
         :param inject_proxy: set proxy server for this repo

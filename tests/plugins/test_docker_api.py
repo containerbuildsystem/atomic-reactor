@@ -25,39 +25,30 @@ import pytest
 from tests.constants import MOCK_SOURCE
 
 
-class MockDocker(object):
-    def history(self, name):
-        return []
+def mock_docker_tasker(docker_tasker):
+    def simplegen(x, y):
+        yield "some\u2018".encode('utf-8')
 
+    (flexmock(docker_tasker.tasker.d.wrapped)
+     .should_receive('inspect_image')
+     .and_return({}))
 
-class MockDockerTasker(object):
-    def __init__(self):
-        self.d = MockDocker()
+    flexmock(docker_tasker.tasker, build_image_from_path=simplegen)
 
-    def inspect_image(self, name):
-        return {}
-
-    def build_image_from_path(self):
-        return True
-
-
-class X(object):
-    pass
+    (flexmock(docker_tasker.tasker.d.wrapped)
+     .should_receive('history')
+     .and_return([]))
 
 
 class MockInsideBuilder(object):
     def __init__(self, failed=False, image_id=None):
-        self.tasker = MockDockerTasker()
+        self.tasker = None
         self.base_image = ImageName(repo='Fedora', tag='22')
         self.image_id = image_id or 'asd'
         self.image = 'image'
         self.failed = failed
         self.df_path = 'some'
         self.df_dir = 'some'
-
-        def simplegen(x, y):
-            yield "some\u2018".encode('utf-8')
-        flexmock(self.tasker, build_image_from_path=simplegen)
 
     @property
     def source(self):
@@ -85,13 +76,15 @@ class MockInsideBuilder(object):
     False,
 ])
 @pytest.mark.parametrize('image_id', ['sha256:12345', '12345'])
-def test_build(is_failed, image_id):
+def test_build(docker_tasker, is_failed, image_id):
     """
     tests docker build api plugin working
     """
     flexmock(DockerfileParser, content='df_content')
     mock_docker()
     fake_builder = MockInsideBuilder(image_id=image_id)
+    fake_builder.tasker = docker_tasker
+    mock_docker_tasker(docker_tasker)
     flexmock(InsideBuilder).new_instances(fake_builder)
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
@@ -118,13 +111,15 @@ def test_build(is_failed, image_id):
         assert workflow.build_result.image_id.count(':') == 1
 
 
-def test_syntax_error():
+def test_syntax_error(docker_tasker):
     """
     tests reporting of syntax errors
     """
     flexmock(DockerfileParser, content='df_content')
     mock_docker()
     fake_builder = MockInsideBuilder()
+    fake_builder.tasker = docker_tasker
+    mock_docker_tasker(docker_tasker)
 
     def raise_exc(*args, **kwargs):
         explanation = ("Syntax error - can't find = in \"CMD\". "

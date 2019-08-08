@@ -54,7 +54,7 @@ class AddDockerfilePlugin(PreBuildPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param nvr: name-version-release, will be appended to Dockerfile-.
                     If not specified, try to get it from Name, Version, Release labels.

@@ -28,7 +28,7 @@ class KojiPlugin(PreBuildPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param target: string, koji target to use as a source
         :param hub: string, koji hub (xmlrpc)

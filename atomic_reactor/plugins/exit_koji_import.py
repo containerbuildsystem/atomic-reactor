@@ -91,7 +91,7 @@ class KojiImportPlugin(ExitPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param kojihub: string, koji hub (xmlrpc)
         :param url: string, URL for OSv3 instance

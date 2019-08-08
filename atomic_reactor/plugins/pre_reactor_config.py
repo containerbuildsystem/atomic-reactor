@@ -520,7 +520,7 @@ class ReactorConfigPlugin(PreBuildPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param config_path: str, configuration path (directory); default is None
         :param basename: str, filename within directory; default is config.yaml
@@ -568,3 +568,5 @@ class ReactorConfigPlugin(PreBuildPlugin):
 
         self.workflow.builder.source.config.image_build_method = source_image_build_method
         self.workflow.default_image_build_method = default_image_build_method
+        self.workflow.builder.tasker.build_method = (source_image_build_method or
+                                                     default_image_build_method)

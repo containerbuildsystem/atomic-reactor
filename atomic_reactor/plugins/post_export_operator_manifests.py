@@ -81,11 +81,11 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
         manifests_archive_dir = tempfile.mkdtemp()
         image = self.workflow.image
         # As in flatpak_create_oci, we specify command to prevent possible docker daemon errors.
-        container_dict = self.tasker.d.create_container(image, command=['/bin/bash'])
+        container_dict = self.tasker.create_container(image, command=['/bin/bash'])
         container_id = container_dict['Id']
         try:
-            bits, _ = self.tasker.d.get_archive(container_id,
-                                                IMG_MANIFESTS_PATH)
+            bits, _ = self.tasker.get_archive(container_id,
+                                              IMG_MANIFESTS_PATH)
         except APIError as ex:
             msg = ('Could not extract operator manifest files. '
                    'Is there a %s path in the image?' % (IMG_MANIFESTS_PATH))
@@ -99,7 +99,7 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
 
         finally:
             try:
-                self.tasker.d.remove_container(container_id)
+                self.tasker.remove_container(container_id)
             except Exception as ex:
                 self.log.warning('Failed to remove container %s: %s', container_id, ex)
 

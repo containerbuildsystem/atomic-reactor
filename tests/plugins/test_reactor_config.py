@@ -21,7 +21,7 @@ from copy import deepcopy
 
 import atomic_reactor
 import koji
-from atomic_reactor.core import DockerTasker
+from atomic_reactor.core import ContainerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import read_yaml
 import atomic_reactor.koji_util
@@ -59,10 +59,11 @@ from flexmock import flexmock
 class TestReactorConfigPlugin(object):
     def prepare(self):
         mock_docker()
-        tasker = DockerTasker()
+        tasker = ContainerTasker()
         workflow = DockerBuildWorkflow({'provider': 'git', 'uri': 'asd'},
                                        TEST_IMAGE)
         workflow.builder = StubInsideBuilder()
+        workflow.builder.tasker = tasker
         return tasker, workflow
 
     @pytest.mark.parametrize(('fallback'), [
@@ -160,6 +161,7 @@ class TestReactorConfigPlugin(object):
 
     def test_filename_not_found(self):
         tasker, workflow = self.prepare()
+        os.environ.pop('REACTOR_CONFIG', None)
         plugin = ReactorConfigPlugin(tasker, workflow, config_path='/not-found')
         with pytest.raises(Exception):
             plugin.run()
@@ -709,6 +711,7 @@ class TestReactorConfigPlugin(object):
         assert plugin.run() is None
         assert workflow.builder.source.config.image_build_method == expect_source
         assert workflow.default_image_build_method == expect_default
+        assert workflow.builder.tasker.build_method == expect_source or expect_default
 
     @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize(('config', 'expect'), [

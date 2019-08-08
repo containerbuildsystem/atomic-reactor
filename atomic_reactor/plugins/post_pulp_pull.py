@@ -50,7 +50,7 @@ class PulpPullPlugin(ExitPlugin, PostBuildPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param timeout: int, maximum number of seconds to wait
         :param retry_delay: int, seconds between pull attempts

@@ -331,6 +331,11 @@ def mock_docker(build_should_fail=False,
     flexmock(docker.APIClient, info=lambda **kwargs: mock_info)
     flexmock(docker.APIClient, import_image_from_data=lambda url: mock_import_image)
     flexmock(docker.APIClient, import_image_from_stream=lambda url: mock_import_image)
+    history_output = [{'Size': 1, 'Id': "sha256:layer1-newest"},
+                      {'Size': 2, 'Id': "sha256:layer2"},
+                      {'Size': 3, 'Id': "sha256:layer3"},
+                      {'Size': 4, 'Id': "sha256:layer4-oldest"}]
+    flexmock(docker.APIClient, history=lambda img, **kwargs: history_output)
 
     def mock__raise_for_status(res):
         if res.status_code != 200:

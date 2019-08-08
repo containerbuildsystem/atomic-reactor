@@ -58,7 +58,7 @@ class PrePublishSquashPlugin(PrePublishPlugin):
     def __init__(self, tasker, workflow, tag=None, from_base=True, from_layer=None,
                  dont_load=False, save_archive=True):
         """
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param from_base: bool, squash from base-image layer, on by default
         :param from_layer: layer from we will squash - if specified, takes precedence over from_base

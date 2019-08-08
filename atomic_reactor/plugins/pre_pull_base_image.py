@@ -42,7 +42,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param parent_registry: registry to enforce pulling from
         :param parent_registry_insecure: allow connecting to the registry over plain http

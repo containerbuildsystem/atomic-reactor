@@ -42,7 +42,7 @@ class InjectParentImage(PreBuildPlugin):
 
     def __init__(self, tasker, workflow, koji_parent_build, koji_hub=None, koji_ssl_certs_dir=None):
         """
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param koji_parent_build: str, either Koji build ID or Koji build NVR
         :param koji_hub: str, koji hub (xmlrpc)
