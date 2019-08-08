@@ -35,7 +35,7 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param imagestream: str, name of ImageStream
         :param docker_image_repo: str, image repository to import tags from

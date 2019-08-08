@@ -42,7 +42,7 @@ class AddHelpPlugin(PreBuildPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param help_file: filename of the markdown help file
         """

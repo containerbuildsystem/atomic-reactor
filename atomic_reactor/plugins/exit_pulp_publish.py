@@ -56,7 +56,7 @@ class PulpPublishPlugin(ExitPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param pulp_registry_name: str, name of pulp registry to use, specified in /etc/
                                    dockpulp.conf

@@ -52,7 +52,7 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param label_key: str, key of label used to indicate first build
         :param label_value: str, value of label used to indicate first build

@@ -104,7 +104,7 @@ class SendMailPlugin(ExitPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param send_on: list of str, list of build states when a notification should be sent
             see 'allowed_states' constant and rules in '_should_send' function

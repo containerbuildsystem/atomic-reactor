@@ -32,7 +32,7 @@ class GarbageCollectionPlugin(ExitPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param remove_pulled_base_image: bool, remove also base image? default=True
         """

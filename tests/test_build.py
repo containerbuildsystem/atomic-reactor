@@ -20,6 +20,7 @@ from tests.constants import (
     DOCKERFILE_MULTISTAGE_SCRATCH_PATH, DOCKERFILE_MULTISTAGE_CUSTOM_PATH,
     DOCKERFILE_MULTISTAGE_CUSTOM_BAD_PATH
 )
+from atomic_reactor.constants import CONTAINER_DOCKERPY_BUILD_METHOD
 from tests.util import requires_internet
 from flexmock import flexmock
 from textwrap import dedent
@@ -42,6 +43,7 @@ with_all_sources = pytest.mark.parametrize('source_params', [
     {'provider': 'path', 'uri': 'file://' + DOCKERFILE_MULTISTAGE_CUSTOM_PATH},
 ])
 
+default_build_method = CONTAINER_DOCKERPY_BUILD_METHOD
 
 @requires_internet
 def test_different_custom_base_images(tmpdir):
@@ -85,6 +87,7 @@ def test_inspect_built_image(tmpdir, source_params):
     source_params.update({'tmpdir': str(tmpdir)})
     s = get_source_instance_for(source_params)
     b = InsideBuilder(s, provided_image)
+    b.tasker.build_method = default_build_method
     built_inspect = b.inspect_built_image()
 
     assert built_inspect is not None
@@ -102,6 +105,7 @@ def test_parent_image_inspect(parents_pulled, tmpdir, source_params):
     source_params.update({'tmpdir': str(tmpdir)})
     s = get_source_instance_for(source_params)
     b = InsideBuilder(s, provided_image)
+    b.tasker.build_method = default_build_method
     b.parents_pulled = parents_pulled
 
     if not parents_pulled:
@@ -127,6 +131,7 @@ def test_base_image_inspect(tmpdir, source_params, parents_pulled,
     source_params.update({'tmpdir': str(tmpdir)})
     s = get_source_instance_for(source_params)
     b = InsideBuilder(s, '')
+    b.tasker.build_method = default_build_method
     b.parents_pulled = parents_pulled
     if b.base_from_scratch:
         base_exist = True
@@ -182,6 +187,7 @@ def test_get_base_image_info(tmpdir, source_params, image, will_raise):
     source_params.update({'tmpdir': str(tmpdir)})
     s = get_source_instance_for(source_params)
     b = InsideBuilder(s, image)
+    b.tasker.build_method = default_build_method
     if b.base_from_scratch:
         will_raise = False
 
@@ -292,6 +298,7 @@ def test_get_image_built_info(tmpdir, source_params, image, will_raise):
     source_params.update({'tmpdir': str(tmpdir)})
     s = get_source_instance_for(source_params)
     b = InsideBuilder(s, image)
+    b.tasker.build_method = default_build_method
 
     if will_raise:
         with pytest.raises(Exception):

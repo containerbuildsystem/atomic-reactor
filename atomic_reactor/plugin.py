@@ -94,14 +94,14 @@ class Plugin(object):
 class BuildPlugin(Plugin):
     """
     abstract plugin class: base for build plugins, it is
-    flavored with DockerTasker and BuildWorkflow instances
+    flavored with ContainerTasker and BuildWorkflow instances
     """
 
     def __init__(self, tasker, workflow, *args, **kwargs):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param args: arguments from user input
         :param kwargs: keyword arguments from user input
@@ -346,7 +346,7 @@ class BuildPluginsRunner(PluginsRunner):
         """
         constructor
 
-        :param dt: DockerTasker instance
+        :param dt: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param plugin_class_name: str, name of plugin class to filter (e.g. 'PreBuildPlugin')
         :param plugins_conf: list of dicts, configuration for plugins
@@ -515,7 +515,7 @@ class PostBuildPluginsRunner(BuildPluginsRunner):
 class ExitPlugin(PostBuildPlugin):
     """
     Plugin base class for plugins which should be run just before
-    exit. It is flavored with DockerTasker and DockerBuildWorkflow instances.
+    exit. It is flavored with ContainerTasker and DockerBuildWorkflow instances.
     """
 
 

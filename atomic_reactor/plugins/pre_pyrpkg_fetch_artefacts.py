@@ -28,7 +28,7 @@ class DistgitFetchArtefactsPlugin(PreBuildPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param command: str, command to use to get artefacts (e.g. 'make sources')
                              it is executed in cloned git repo

@@ -86,7 +86,7 @@ class AddLabelsPlugin(PreBuildPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param labels: dict, key value pairs to set as labels; or str, JSON-encoded dict
         :param dont_overwrite: iterable, list of label keys which should not be overwritten

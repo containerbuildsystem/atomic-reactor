@@ -36,7 +36,7 @@ class BumpReleasePlugin(PreBuildPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param hub: string, koji hub (xmlrpc)
         :param target: unused - backwards compatibility

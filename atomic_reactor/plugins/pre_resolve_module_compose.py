@@ -102,7 +102,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param compose_ids: use the given compose_ids instead of requesting a new one
         :param odcs_url: URL of ODCS (On Demand Compose Service)

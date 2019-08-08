@@ -266,7 +266,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param build_kwargs: dict, keyword arguments for starting worker builds
         :param platforms: list<str>, platforms to build

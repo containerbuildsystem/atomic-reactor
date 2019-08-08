@@ -42,7 +42,7 @@ class KojiTagBuildPlugin(ExitPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param kojihub: string, koji hub (xmlrpc)
         :param target: str, koji target

@@ -52,7 +52,7 @@ class ImageTestPlugin(PrePublishPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param git_uri: str, URI to git repo (URL, path -- this is passed to 'git clone')
         :param image_id: str, ID of image to process

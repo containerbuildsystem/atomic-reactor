@@ -89,37 +89,37 @@ def mock_env(tmpdir, docker_tasker, has_label=True, label=True, has_archive=True
                                   'platform': machine()}
     runner = PostBuildPluginsRunner(docker_tasker, workflow, plugin_conf)
 
-    (flexmock(docker_tasker.d.wrapped)
+    (flexmock(docker_tasker.tasker.d.wrapped)
      .should_receive('create_container')
      .with_args(workflow.image, command=["/bin/bash"])
      .and_return({'Id': CONTAINER_ID}))
 
     if remove_fails:
-        (flexmock(docker_tasker.d.wrapped)
+        (flexmock(docker_tasker.tasker.d.wrapped)
          .should_receive('remove_container')
          .with_args(CONTAINER_ID)
          .and_raise(Exception('error')))
     else:
-        (flexmock(docker_tasker.d.wrapped)
+        (flexmock(docker_tasker.tasker.d.wrapped)
          .should_receive('remove_container')
          .with_args(CONTAINER_ID))
 
     if has_archive:
-        (flexmock(docker_tasker.d.wrapped)
+        (flexmock(docker_tasker.tasker.d.wrapped)
          .should_receive('get_archive')
          .with_args(CONTAINER_ID, '/manifests')
          .and_return(mock_stream, {}))
     elif has_archive is not None:
         response = Response()
         response.status_code = 404
-        (flexmock(docker_tasker.d.wrapped)
+        (flexmock(docker_tasker.tasker.d.wrapped)
          .should_receive('get_archive')
          .with_args(CONTAINER_ID, '/manifests')
          .and_raise(NotFound('Not found', response=response)))
     else:
         response = Response()
         response.status_code = 500
-        (flexmock(docker_tasker.d.wrapped)
+        (flexmock(docker_tasker.tasker.d.wrapped)
          .should_receive('get_archive')
          .with_args(CONTAINER_ID, '/manifests')
          .and_raise(Exception('error')))

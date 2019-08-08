@@ -38,7 +38,10 @@ from functools import wraps
 
 from atomic_reactor.constants import (CONTAINER_SHARE_PATH, CONTAINER_SHARE_SOURCE_SUBDIR,
                                       BUILD_JSON, DOCKER_SOCKET_PATH, DOCKER_MAX_RETRIES,
-                                      DOCKER_BACKOFF_FACTOR, DOCKER_CLIENT_STATUS_RETRY)
+                                      DOCKER_BACKOFF_FACTOR, DOCKER_CLIENT_STATUS_RETRY,
+                                      CONTAINER_IMAGEBUILDER_BUILD_METHOD,
+                                      CONTAINER_DOCKERPY_BUILD_METHOD)
+
 from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.util import ImageName, figure_out_build_file, Dockercfg
 from osbs.utils import clone_git_repo
@@ -280,29 +283,130 @@ class WrappedDocker(object):
         return retry(self._export, container, chunk_size, retry=self.retry_times)
 
 
-class DockerTasker(LastLogger):
+class ContainerTasker(LastLogger):
     def __init__(self, base_url=None, retry_times=DOCKER_MAX_RETRIES,
                  timeout=120, **kwargs):
-        """
-        Constructor
-
-        :param base_url: str, docker connection URL
-        :param timeout: int, timeout for docker client
-        """
-        super(DockerTasker, self).__init__(**kwargs)
-
-        client_kwargs = {'timeout': timeout}
-        if base_url:
-            client_kwargs['base_url'] = base_url
-        elif os.environ.get('DOCKER_CONNECTION'):
-            client_kwargs['base_url'] = os.environ['DOCKER_CONNECTION']
-
-        if hasattr(docker, 'AutoVersionClient'):
-            client_kwargs['version'] = 'auto'
+        self.build_method = None
+        self.base_url = base_url
         self.retry_times = retry_times
-        client_kwargs['retry'] = self.retry_times
+        self.timeout = timeout
+        self._tasker = None
+        self.kwargs = kwargs
 
-        self.d = WrappedDocker(**client_kwargs)
+        super(ContainerTasker, self).__init__(**kwargs)
+
+    @property
+    def tasker(self):
+        if self._tasker is None:
+            if self.build_method is None:
+                raise AttributeError("Container task type not yet decided")
+
+            if self.build_method in (CONTAINER_IMAGEBUILDER_BUILD_METHOD,
+                                     CONTAINER_DOCKERPY_BUILD_METHOD):
+                self._tasker = DockerTasker(self.base_url, self.retry_times, self.timeout,
+                                            **self.kwargs)
+                logger.info('ContainerTasker will use DockerTasker')
+            else:
+                raise AttributeError('build method "%s" is not valid to determine '
+                                     'Container tasker type' % self.build_method)
+
+            info, version = self._tasker.get_info(), self._tasker.get_version()
+            logger.debug(json.dumps(info, indent=2))
+            logger.info(json.dumps(version, indent=2))
+
+        return self._tasker
+
+    def build_image_from_path(self, *args, **kwargs):
+        return self.tasker.build_image_from_path(*args, **kwargs)
+
+    def build_image_from_git(self, *args, **kwargs):
+        return self.tasker.build_image_from_git(*args, **kwargs)
+
+    def run(self, *args, **kwargs):
+        return self.tasker.run(*args, **kwargs)
+
+    def commit_container(self, *args, **kwargs):
+        return self.tasker.commit_container(*args, **kwargs)
+
+    def create_container(self, *args, **kwargs):
+        return self.tasker.create_container(*args, **kwargs)
+
+    def export_container(self, *args, **kwargs):
+        return self.tasker.export_container(*args, **kwargs)
+
+    def get_image_info_by_image_id(self, *args, **kwargs):
+        return self.tasker.get_image_info_by_image_id(*args, **kwargs)
+
+    def get_image_info_by_image_name(self, *args, **kwargs):
+        return self.tasker.get_image_info_by_image_name(*args, **kwargs)
+
+    def pull_image(self, *args, **kwargs):
+        return self.tasker.pull_image(*args, **kwargs)
+
+    def tag_image(self, *args, **kwargs):
+        return self.tasker.tag_image(*args, **kwargs)
+
+    def login(self, *args, **kwargs):
+        return self.tasker.login(*args, **kwargs)
+
+    def push_image(self, *args, **kwargs):
+        return self.tasker.push_image(*args, **kwargs)
+
+    def tag_and_push_image(self, *args, **kwargs):
+        return self.tasker.tag_and_push_image(*args, **kwargs)
+
+    def inspect_image(self, *args, **kwargs):
+        return self.tasker.inspect_image(*args, **kwargs)
+
+    def remove_image(self, *args, **kwargs):
+        return self.tasker.remove_image(*args, **kwargs)
+
+    def remove_container(self, *args, **kwargs):
+        return self.tasker.remove_container(*args, **kwargs)
+
+    def logs(self, *args, **kwargs):
+        return self.tasker.logs(*args, **kwargs)
+
+    def wait(self, *args, **kwargs):
+        return self.tasker.wait(*args, **kwargs)
+
+    def image_exists(self, *args, **kwargs):
+        return self.tasker.image_exists(*args, **kwargs)
+
+    def get_info(self, *args, **kwargs):
+        return self.tasker.get_info(*args, **kwargs)
+
+    def get_version(self, *args, **kwargs):
+        return self.tasker.get_version(*args, **kwargs)
+
+    def get_volumes_for_container(self, *args, **kwargs):
+        return self.tasker.get_volumes_for_container(*args, **kwargs)
+
+    def remove_volume(self, *args, **kwargs):
+        return self.tasker.remove_volume(*args, **kwargs)
+
+    def get_image_history(self, *args, **kwargs):
+        return self.tasker.get_image_history(*args, **kwargs)
+
+    def get_image(self, *args, **kwargs):
+        return self.tasker.get_image(*args, **kwargs)
+
+    def import_image_from_stream(self, *args, **kwargs):
+        return self.tasker.import_image_from_stream(*args, **kwargs)
+
+    def get_archive(self, *args, **kwargs):
+        return self.tasker.get_archive(*args, **kwargs)
+
+
+class CommonTasker(LastLogger):
+    def __init__(self, **kwargs):
+        """
+        Constructor for common tasker, which has shared methods
+        for specific taskers
+        """
+        super(CommonTasker, self).__init__(**kwargs)
+        self.retry_times = None
+        self.d = None
 
     def retry_generator(self, function, *args, **kwargs):
         retry_times = int(kwargs.pop('retry_times', self.retry_times))
@@ -342,6 +446,47 @@ class DockerTasker(LastLogger):
                 continue
 
             return cmd_result
+
+    def get_info(self):
+        """
+        get info about used docker environment
+
+        :return: dict, json output of `docker info`
+        """
+        return self.d.info()
+
+    def get_version(self):
+        """
+        get version of used docker environment
+
+        :return: dict, json output of `docker version`
+        """
+        return self.d.version()
+
+
+class DockerTasker(CommonTasker):
+    def __init__(self, base_url=None, retry_times=DOCKER_MAX_RETRIES,
+                 timeout=120, **kwargs):
+        """
+        Constructor
+
+        :param base_url: str, docker connection URL
+        :param timeout: int, timeout for docker client
+        """
+        super(DockerTasker, self).__init__(**kwargs)
+
+        client_kwargs = {'timeout': timeout}
+        if base_url:
+            client_kwargs['base_url'] = base_url
+        elif os.environ.get('DOCKER_CONNECTION'):
+            client_kwargs['base_url'] = os.environ['DOCKER_CONNECTION']
+
+        if hasattr(docker, 'AutoVersionClient'):
+            client_kwargs['version'] = 'auto'
+        self.retry_times = retry_times
+        client_kwargs['retry'] = self.retry_times
+
+        self.d = WrappedDocker(**client_kwargs)
 
     def build_image_from_path(self, path, image, use_cache=False, remove_im=True):
         """
@@ -745,22 +890,6 @@ class DockerTasker(LastLogger):
         logger.debug("image exists: %s", response)
         return response
 
-    def get_info(self):
-        """
-        get info about used docker environment
-
-        :return: dict, json output of `docker info`
-        """
-        return self.d.info()
-
-    def get_version(self):
-        """
-        get version of used docker environment
-
-        :return: dict, json output of `docker version`
-        """
-        return self.d.version()
-
     def get_volumes_for_container(self, container_id, skip_empty_source=True):
         """
         get a list of volumes mounter in a container
@@ -796,3 +925,69 @@ class DockerTasker(LastLogger):
                 logger.debug("ignoring a conflict when removing volume %s", volume_name)
             else:
                 raise ex
+
+    def get_image_history(self, image_id):
+        """
+        return history of image
+
+        :param image_id: str or ImageName, id or name of the image
+        :return: dict
+        """
+
+        if isinstance(image_id, ImageName):
+            image_id = image_id.to_str()
+        return self.d.history(image_id)
+
+    def get_image(self, image_id):
+        """
+        return image content
+
+        :param image_id: str or ImageName, id or name of the image
+        :return: dict
+        """
+
+        if isinstance(image_id, ImageName):
+            image_id = image_id.to_str()
+        return self.d.get_image(image_id)
+
+    def import_image_from_stream(self, filesystem):
+        """
+        return result json from importing image
+
+        :param filesystem: stream
+        :return: dict
+        """
+        return self.d.import_image_from_stream(filesystem)
+
+    def get_archive(self, container_id, dir_path):
+        """
+        return archive from container
+
+        :param container_id: str
+        :param dir_path: str, path from which to get archive
+        :return: tuple, First element is a raw tar data stream.
+                          Second element is a dict containing stat information
+        """
+        return self.d.get_archive(container_id, dir_path)
+
+    def export_container(self, container_id):
+        """
+        return export generator
+
+        :param container_id: str
+        :return: str, The filesystem tar archive as a str
+        """
+        return self.d.export(container_id)
+
+    def create_container(self, image, command):
+        """
+        create container from provided image
+
+        for more info, see documentation of REST API calls:
+         * container/create
+
+        :param image: ImageName or string, name or id of the image
+        :param command: str
+        :return: dict
+        """
+        return self.d.create_container(image, command=command)

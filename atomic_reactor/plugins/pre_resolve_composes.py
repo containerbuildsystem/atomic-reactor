@@ -53,7 +53,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
                  minimum_time_to_expire=MINIMUM_TIME_TO_EXPIRE,
                  ):
         """
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param odcs_url: URL of ODCS (On Demand Compose Service)
         :param odcs_insecure: If True, don't check SSL certificates for `odcs_url`

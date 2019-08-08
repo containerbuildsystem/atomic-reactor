@@ -89,7 +89,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
                  repos=None, architectures=None,
                  architecture=None, koji_target=None):
         """
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param koji_hub: str, koji hub (xmlrpc)
         :param koji_proxyuser: str, proxy user
@@ -323,7 +323,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         return contents
 
     def import_base_image(self, filesystem):
-        result = self.tasker.d.import_image_from_stream(filesystem)
+        result = self.tasker.import_image_from_stream(filesystem)
         # Response not deserialized:
         #   https://github.com/docker/docker-py/issues/1060
         self.log.info('import base image result: %s', result)

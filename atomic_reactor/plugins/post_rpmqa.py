@@ -25,7 +25,7 @@ class PostBuildRPMqaPlugin(PostBuildPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         """
         # call parent constructor

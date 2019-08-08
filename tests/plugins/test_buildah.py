@@ -25,38 +25,34 @@ import pytest
 from tests.constants import MOCK_SOURCE
 
 
-class MockDocker(object):
-    def history(self, name):
-        return []
+def mock_docker_tasker(docker_tasker):
+    def simplegen(x, y):
+        yield "some\u2018".encode('utf-8')
 
-    def get_image(self, image_id):
-        return flexmock(data="image data")
+    (flexmock(docker_tasker.tasker.d.wrapped)
+     .should_receive('inspect_image')
+     .and_return({}))
 
+    flexmock(docker_tasker.tasker, build_image_from_path=simplegen)
 
-class MockDockerTasker(object):
-    def __init__(self):
-        self.d = MockDocker()
+    (flexmock(docker_tasker.tasker.d.wrapped)
+     .should_receive('history')
+     .and_return([]))
 
-    def inspect_image(self, name):
-        return {}
-
-    def build_image_from_path(self):
-        return True
+    (flexmock(docker_tasker.tasker.d.wrapped)
+     .should_receive('get_image')
+     .and_return(flexmock(data="image data")))
 
 
 class MockInsideBuilder(object):
     def __init__(self, failed=False, image_id=None):
-        self.tasker = MockDockerTasker()
+        self.tasker = None
         self.base_image = ImageName(repo='Fedora', tag='29')
         self.image_id = image_id or 'asd'
         self.image = ImageName.parse('image')
         self.failed = failed
         self.df_path = 'some'
         self.df_dir = 'some'
-
-        def simplegen(x, y):
-            yield "some\u2018".encode('utf-8')
-        flexmock(self.tasker, build_image_from_path=simplegen)
 
     @property
     def source(self):
@@ -80,12 +76,14 @@ class MockInsideBuilder(object):
 
 
 @pytest.mark.parametrize('image_id', ['sha256:12345', '12345'])
-def test_popen_cmd(image_id):
+def test_popen_cmd(docker_tasker, image_id):
     """
     tests buildah build plugin working
     """
     flexmock(DockerfileParser, content='df_content')
     fake_builder = MockInsideBuilder(image_id=image_id)
+    fake_builder.tasker = docker_tasker
+    mock_docker_tasker(docker_tasker)
     flexmock(InsideBuilder).new_instances(fake_builder)
 
     cmd_output = "spam spam spam spam spam spam spam baked beans spam spam spam and spam"

@@ -36,7 +36,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param url: str, URL to OSv3 instance
         :param use_auth: bool, initiate authentication with openshift?

@@ -28,7 +28,7 @@ class DeleteFromRegistryPlugin(ExitPlugin):
 
     def __init__(self, tasker, workflow, registries=None):
         """
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param registries: dict, keys are docker registries, values are dicts containing
                            per-registry parameters.

@@ -23,7 +23,7 @@ class HideFilesPlugin(PreBuildPlugin):
         """
         Plugin initializer
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         """
         super(HideFilesPlugin, self).__init__(tasker, workflow)

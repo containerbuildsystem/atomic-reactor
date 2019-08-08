@@ -24,7 +24,7 @@ class StoreLogsToFilePlugin(ExitPlugin):
         """
         constructor
 
-        :param tasker: DockerTasker instance
+        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param file_path: str, path to file where logs should be stored
         """

@@ -557,7 +557,7 @@ class DockerBuildWorkflow(object):
 
             if self.build_result.is_image_available():
                 self.built_image_inspect = self.builder.inspect_built_image()
-                history = self.builder.tasker.d.history(self.builder.image_id)
+                history = self.builder.tasker.get_image_history(self.builder.image_id)
                 diff_ids = self.built_image_inspect[INSPECT_ROOTFS][INSPECT_ROOTFS_LAYERS]
 
                 # diff_ids is ordered oldest first

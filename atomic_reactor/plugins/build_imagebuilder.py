@@ -78,11 +78,11 @@ class ImagebuilderPlugin(BuildStepPlugin):
         try:
             # docker-py 1.x
             with open(output_path, "w") as image_file:
-                image_file.write(self.tasker.d.get_image(image).data)
+                image_file.write(self.tasker.get_image(image).data)
         except AttributeError:
             # docker-py 3.x
             with open(output_path, "wb") as image_file:
-                for chunk in self.tasker.d.get_image(image):
+                for chunk in self.tasker.get_image(image):
                     image_file.write(chunk)
 
         img_metadata = get_exported_image_metadata(output_path, IMAGE_TYPE_DOCKER_ARCHIVE)

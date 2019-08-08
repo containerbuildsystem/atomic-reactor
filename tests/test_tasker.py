@@ -9,7 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function, unicode_literals, absolute_import
 
 
-from atomic_reactor.core import DockerTasker, retry, RetryGeneratorException
+from atomic_reactor.core import DockerTasker, retry, RetryGeneratorException, ContainerTasker
 from atomic_reactor.util import ImageName, clone_git_repo, CommandResult
 from tests.constants import LOCALHOST_REGISTRY, INPUT_IMAGE, DOCKERFILE_GIT, MOCK, COMMAND
 from requests.packages.urllib3.exceptions import ProtocolError, ReadTimeoutError
@@ -58,75 +58,110 @@ def teardown_module(module):
 
 
 # TESTS
+def test_container_tasker():
+    ct = ContainerTasker()
+    with pytest.raises(AttributeError) as exc:
+        ct.tasker.get_version()
+    assert "Container task type not yet decided" in str(exc.value)
 
-def test_run():
+    ct.build_method = "not_valid_build_method"
+    with pytest.raises(AttributeError) as exc:
+        ct.tasker.get_version()
+    err_msg = 'build method "%s" is not valid to determine Container tasker' \
+              ' type' % ct.build_method
+    assert err_msg in str(exc.value)
+
+
+@pytest.mark.parametrize('autoversion', [True, False])
+@pytest.mark.parametrize('base_url_arg', [True, False])
+def test_docker_tasker(autoversion, base_url_arg):
+    mock_docker()
+    base_url = 'unix://var/run/docker.sock'
+    kwargs = {}
+    if base_url_arg:
+        kwargs['base_url'] = base_url
+    else:
+        os.environ['DOCKER_CONNECTION'] = base_url
+
+    expected_kwargs = {'base_url': base_url, 'timeout': 120}
+    if autoversion:
+        setattr(docker, 'AutoVersionClient', 'auto')
+        expected_kwargs['version'] = 'auto'
+
+    (flexmock(docker.APIClient)
+        .should_receive('__init__')
+        .with_args(**expected_kwargs)
+        .once())
+
+    DockerTasker(**kwargs)
+
+    os.environ.pop('DOCKER_CONNECTION', None)
+    if autoversion:
+        delattr(docker, 'AutoVersionClient')
+
+
+def test_run(docker_tasker):
     if MOCK:
         mock_docker()
 
-    t = DockerTasker()
-    container_id = t.run(input_image_name, command="id")
+    container_id = docker_tasker.run(input_image_name, command="id")
     try:
-        t.wait(container_id)
+        docker_tasker.wait(container_id)
     finally:
-        t.remove_container(container_id)
+        docker_tasker.remove_container(container_id)
 
 
-def test_run_invalid_command():
+def test_run_invalid_command(docker_tasker):
     if MOCK:
         mock_docker(should_raise_error={'start': []})
 
-    t = DockerTasker()
     try:
         with pytest.raises(docker.errors.APIError):
-            t.run(input_image_name, command=COMMAND)
+            docker_tasker.run(input_image_name, command=COMMAND)
     finally:
         # remove the container
-        containers = t.d.containers(all=True)
+        containers = docker_tasker.tasker.d.containers(all=True)
         container_id = [c for c in containers if c["Command"] == COMMAND][0]['Id']
-        t.remove_container(container_id)
+        docker_tasker.remove_container(container_id)
 
 
-def test_image_exists():
+def test_image_exists(docker_tasker):
     if MOCK:
         mock_docker()
 
-    t = DockerTasker()
-    assert t.image_exists(input_image_name) is True
+    assert docker_tasker.image_exists(input_image_name) is True
 
 
-def test_image_doesnt_exist():
+def test_image_doesnt_exist(docker_tasker):
     image = "lerknglekrnglekrnglekrnglekrng"
     if MOCK:
         mock_docker(should_raise_error={'inspect_image': [image]})
 
-    t = DockerTasker()
-    assert t.image_exists(image) is False
+    assert docker_tasker.image_exists(image) is False
 
 
-def test_logs():
+def test_logs(docker_tasker):
     if MOCK:
         mock_docker()
 
-    t = DockerTasker()
-    container_id = t.run(input_image_name, command="id")
+    container_id = docker_tasker.run(input_image_name, command="id")
     try:
-        t.wait(container_id)
-        output = t.logs(container_id, stderr=True, stream=False)
+        docker_tasker.wait(container_id)
+        output = docker_tasker.logs(container_id, stderr=True, stream=False)
         assert "\n".join(output).startswith("uid=")
     finally:
-        t.remove_container(container_id)
+        docker_tasker.remove_container(container_id)
 
 
-def test_remove_container():
+def test_remove_container(docker_tasker):
     if MOCK:
         mock_docker()
 
-    t = DockerTasker()
-    container_id = t.run(input_image_name, command="id")
+    container_id = docker_tasker.run(input_image_name, command="id")
     try:
-        t.wait(container_id)
+        docker_tasker.wait(container_id)
     finally:
-        t.remove_container(container_id)
+        docker_tasker.remove_container(container_id)
 
 
 def test_remove_image(temp_image_name, docker_tasker):  # noqa
@@ -143,91 +178,86 @@ def test_remove_image(temp_image_name, docker_tasker):  # noqa
     assert not docker_tasker.image_exists(temp_image_name)
 
 
-def test_commit_container(temp_image_name):  # noqa
+def test_commit_container(temp_image_name, docker_tasker):  # noqa
     if MOCK:
         mock_docker()
 
-    t = DockerTasker()
-    container_id = t.run(INPUT_IMAGE, command="id")
-    t.wait(container_id)
-    image_id = t.commit_container(container_id, message="test message", image=temp_image_name)
+    container_id = docker_tasker.run(INPUT_IMAGE, command="id")
+    docker_tasker.wait(container_id)
+    image_id = docker_tasker.commit_container(container_id, message="test message",
+                                              image=temp_image_name)
     try:
-        assert t.image_exists(image_id)
+        assert docker_tasker.image_exists(image_id)
     finally:
-        t.remove_container(container_id)
-        t.remove_image(image_id)
+        docker_tasker.remove_container(container_id)
+        docker_tasker.remove_image(image_id)
 
 
-def test_inspect_image():
+def test_inspect_image(docker_tasker):
     if MOCK:
         mock_docker()
 
-    t = DockerTasker()
-    inspect_data = t.inspect_image(input_image_name)
+    inspect_data = docker_tasker.inspect_image(input_image_name)
     assert isinstance(inspect_data, dict)
 
 
-def test_tag_image(temp_image_name):  # noqa
+def test_tag_image(temp_image_name, docker_tasker):  # noqa
     if MOCK:
         mock_docker()
 
-    t = DockerTasker()
     temp_image_name.registry = "somewhere.example.com"
     temp_image_name.tag = "1"
-    img = t.tag_image(INPUT_IMAGE, temp_image_name)
+    img = docker_tasker.tag_image(INPUT_IMAGE, temp_image_name)
     try:
-        assert t.image_exists(temp_image_name)
+        assert docker_tasker.image_exists(temp_image_name)
         assert img == temp_image_name.to_str()
     finally:
-        t.remove_image(temp_image_name)
+        docker_tasker.remove_image(temp_image_name)
 
 
-def test_tag_image_same_name(temp_image_name):  # noqa
+def test_tag_image_same_name(temp_image_name, docker_tasker):  # noqa
     if MOCK:
         mock_docker()
 
-    t = DockerTasker()
     temp_image_name.registry = "somewhere.example.com"
     temp_image_name.tag = "1"
 
     flexmock(docker.APIClient).should_receive('tag').never()
-    t.tag_image(temp_image_name, temp_image_name.copy())
+    docker_tasker.tag_image(temp_image_name, temp_image_name.copy())
 
 
 @pytest.mark.parametrize(('should_fail',), [  # noqa
     (True, ),
     (False, ),
 ])
-def test_push_image(temp_image_name, should_fail):
+def test_push_image(temp_image_name, docker_tasker, should_fail):
     if MOCK:
         mock_docker(push_should_fail=should_fail)
 
-    t = DockerTasker(retry_times=0)
     temp_image_name.registry = LOCALHOST_REGISTRY
     temp_image_name.tag = "1"
-    t.tag_image(INPUT_IMAGE, temp_image_name)
+    docker_tasker.tag_image(INPUT_IMAGE, temp_image_name)
     if should_fail:
         with pytest.raises(RetryGeneratorException) as exc:
-            output = t.push_image(temp_image_name, insecure=True)
+            output = docker_tasker.push_image(temp_image_name, insecure=True)
         assert "Failed to mock_method image" in str(exc.value)
         assert "connection refused" in str(exc.value)
     else:
-        output = t.push_image(temp_image_name, insecure=True)
+        output = docker_tasker.push_image(temp_image_name, insecure=True)
         assert output is not None
-    t.remove_image(temp_image_name)
+    docker_tasker.remove_image(temp_image_name)
 
 
-def test_tag_and_push(temp_image_name):  # noqa
+def test_tag_and_push(temp_image_name, docker_tasker):  # noqa
     if MOCK:
         mock_docker()
 
-    t = DockerTasker()
     temp_image_name.registry = LOCALHOST_REGISTRY
     temp_image_name.tag = "1"
-    output = t.tag_and_push_image(INPUT_IMAGE, temp_image_name, insecure=True)
+    output = docker_tasker.tag_and_push_image(INPUT_IMAGE, temp_image_name, insecure=True)
     assert output is not None
-    assert t.image_exists(temp_image_name)
-    t.remove_image(temp_image_name)
+    assert docker_tasker.image_exists(temp_image_name)
+    docker_tasker.remove_image(temp_image_name)
 
 
 @pytest.mark.parametrize(('insecure', 'dockercfg'), [
@@ -235,7 +265,7 @@ def test_tag_and_push(temp_image_name):  # noqa
     (False, None),
     (False, {LOCALHOST_REGISTRY: {"auth": b64encode(b'user:mypassword').decode('utf-8')}}),
 ])
-def test_pull_image(tmpdir, insecure, dockercfg):
+def test_pull_image(tmpdir, docker_tasker, insecure, dockercfg):
     if MOCK:
         mock_docker()
 
@@ -248,56 +278,69 @@ def test_pull_image(tmpdir, insecure, dockercfg):
             dockerconfig.write(json.dumps(dockercfg))
             dockerconfig.flush()
 
-    t = DockerTasker()
     local_img = input_image_name
     remote_img = local_img.copy()
     remote_img.registry = LOCALHOST_REGISTRY
-    t.tag_and_push_image(local_img, remote_img, insecure=insecure, dockercfg=dockercfg_path)
-    got_image = t.pull_image(remote_img, insecure=insecure, dockercfg_path=dockercfg_path)
+    docker_tasker.tag_and_push_image(local_img, remote_img, insecure=insecure,
+                                     dockercfg=dockercfg_path)
+    got_image = docker_tasker.pull_image(remote_img, insecure=insecure,
+                                         dockercfg_path=dockercfg_path)
     assert remote_img.to_str() == got_image
-    assert len(t.last_logs) > 0
-    t.remove_image(remote_img)
+    assert len(docker_tasker.tasker.last_logs) > 0
+    docker_tasker.remove_image(remote_img)
 
 
-def test_get_image_info_by_id_nonexistent():
+def test_get_image_info_by_id_nonexistent(docker_tasker):
     if MOCK:
         mock_docker()
 
-    t = DockerTasker()
-    response = t.get_image_info_by_image_id("asd")
+    response = docker_tasker.get_image_info_by_image_id("asd")
     assert response is None
 
 
-def test_get_image_info_by_id():
+def test_get_image_info_by_id(docker_tasker):
     if MOCK:
         mock_docker(provided_image_repotags=input_image_name.to_str())
 
-    t = DockerTasker()
-    image_id = t.get_image_info_by_image_name(input_image_name)[0]['Id']
-    response = t.get_image_info_by_image_id(image_id)
+    image_id = docker_tasker.get_image_info_by_image_name(input_image_name)[0]['Id']
+    response = docker_tasker.get_image_info_by_image_id(image_id)
     assert isinstance(response, dict)
 
 
-def test_get_image_info_by_name_tag_in_name():
+def test_get_image_history(docker_tasker):
     if MOCK:
         mock_docker()
 
-    t = DockerTasker()
-    response = t.get_image_info_by_image_name(input_image_name)
+    response = docker_tasker.get_image_history(input_image_name)
+    assert response is not None
+
+
+def test_get_image(docker_tasker):
+    if MOCK:
+        mock_docker()
+
+    response = docker_tasker.get_image(input_image_name)
+    assert response is not None
+
+
+def test_get_image_info_by_name_tag_in_name(docker_tasker):
+    if MOCK:
+        mock_docker()
+
+    response = docker_tasker.get_image_info_by_image_name(input_image_name)
     assert len(response) == 1
 
 
-def test_get_image_info_by_name_tag_in_name_nonexisten(temp_image_name):  # noqa
+def test_get_image_info_by_name_tag_in_name_nonexisten(temp_image_name, docker_tasker):  # noqa
     if MOCK:
         mock_docker()
 
-    t = DockerTasker()
-    response = t.get_image_info_by_image_name(temp_image_name)
+    response = docker_tasker.get_image_info_by_image_name(temp_image_name)
     assert len(response) == 0
 
 
 @requires_internet  # noqa
-def test_build_image_from_path(tmpdir, temp_image_name):
+def test_build_image_from_path(tmpdir, temp_image_name, docker_tasker):
     if MOCK:
         mock_docker()
 
@@ -305,63 +348,58 @@ def test_build_image_from_path(tmpdir, temp_image_name):
     clone_git_repo(DOCKERFILE_GIT, tmpdir_path)
     df = tmpdir.join("Dockerfile")
     assert df.check()
-    t = DockerTasker()
-    response = t.build_image_from_path(tmpdir_path, temp_image_name, use_cache=True)
+    response = docker_tasker.build_image_from_path(tmpdir_path, temp_image_name, use_cache=True)
     list(response)
     assert response is not None
-    assert t.image_exists(temp_image_name)
-    t.remove_image(temp_image_name)
+    assert docker_tasker.image_exists(temp_image_name)
+    docker_tasker.remove_image(temp_image_name)
 
 
 @requires_internet  # noqa
-def test_build_image_from_git(temp_image_name):
+def test_build_image_from_git(temp_image_name, docker_tasker):
     if MOCK:
         mock_docker()
 
-    t = DockerTasker()
-    response = t.build_image_from_git(DOCKERFILE_GIT, temp_image_name, use_cache=True)
+    response = docker_tasker.build_image_from_git(DOCKERFILE_GIT, temp_image_name, use_cache=True)
     list(response)
     assert response is not None
-    assert t.image_exists(temp_image_name)
-    t.remove_image(temp_image_name)
+    assert docker_tasker.image_exists(temp_image_name)
+    docker_tasker.remove_image(temp_image_name)
 
 
-def test_get_info():
+def test_get_info(docker_tasker):
     if MOCK:
         mock_docker()
 
-    t = DockerTasker()
-    response = t.get_info()
+    response = docker_tasker.get_info()
     assert isinstance(response, dict)
 
 
 @pytest.mark.parametrize('no_container', (False, True))
-def test_export(no_container):
+def test_export(docker_tasker, no_container):
     if MOCK:
         mock_docker()
 
-    t = DockerTasker()
-    container_dict = t.d.create_container(INPUT_IMAGE, command=["/bin/bash"])
+    container_dict = docker_tasker.create_container(INPUT_IMAGE, command=["/bin/bash"])
     container_id = container_dict['Id']
 
     try:
         if no_container:
             with pytest.raises(docker.errors.APIError):
-                t.d.export('NOT_THERE')
+                docker_tasker.export_container('NOT_THERE')
         else:
-            export_generator = t.d.export(container_id)
+            export_generator = docker_tasker.export_container(container_id)
             for _ in export_generator:
                 pass
     finally:
-        t.d.remove_container(container_id)
+        docker_tasker.remove_container(container_id)
 
 
-def test_get_version():
+def test_get_version(docker_tasker):
     if MOCK:
         mock_docker()
 
-    t = DockerTasker()
-    response = t.get_info()
+    response = docker_tasker.get_info()
     assert isinstance(response, dict)
 
 
@@ -374,14 +412,15 @@ def test_timeout(timeout, expected_timeout):
         setattr(docker, 'APIClient', docker.Client)
 
     expected_kwargs = {
-        'timeout': expected_timeout,
+        'timeout': expected_timeout
     }
     if hasattr(docker, 'AutoVersionClient'):
         expected_kwargs['version'] = 'auto'
 
     (flexmock(docker.APIClient)
         .should_receive('__init__')
-        .with_args(**expected_kwargs))
+        .with_args(**expected_kwargs)
+        .once())
 
     kwargs = {}
     if timeout is not None:
@@ -412,7 +451,6 @@ def test_docker2():
         .once())
 
     DockerTasker()
-
 
 def my_func(*args, **kwargs):
     my_args = ('some', 'new')
@@ -502,12 +540,12 @@ def test_retry_generator(exc, in_init, retry_times):
     if retry_times >= 0:
         with pytest.raises(RetryGeneratorException) as ex:
             t.retry_generator(lambda *args, **kwargs: simplegen(),
-                              *my_args, **my_kwargs)
+                                     *my_args, **my_kwargs)
 
         assert repr(error_message) in repr(ex.value)
     else:
         t.retry_generator(lambda *args, **kwargs: simplegen(),
-                          *my_args, **my_kwargs)
+                                 *my_args, **my_kwargs)
 
 
 @pytest.mark.parametrize(("dockerconfig_contents", "should_raise"), [
@@ -515,7 +553,7 @@ def test_retry_generator(exc, in_init, retry_times):
     ({LOCALHOST_REGISTRY: {"auth": b64encode(b'user').decode('utf-8')}}, True),
     ({LOCALHOST_REGISTRY: {"auth": b64encode(b'user:mypassword').decode('utf-8')}}, False),
     ({LOCALHOST_REGISTRY: {"username": "user", "password": "mypassword"}}, False)])
-def test_login(tmpdir, dockerconfig_contents, should_raise):
+def test_login(tmpdir, docker_tasker, dockerconfig_contents, should_raise):
     if MOCK:
         mock_docker()
         fake_api = flexmock(docker.APIClient, login=lambda username, registry,
@@ -527,15 +565,14 @@ def test_login(tmpdir, dockerconfig_contents, should_raise):
     with open(dockercfg_path, "w+") as dockerconfig:
         dockerconfig.write(json.dumps(dockerconfig_contents))
         dockerconfig.flush()
-    t = DockerTasker()
     if should_raise:
         if 'auth' in dockerconfig_contents[LOCALHOST_REGISTRY]:
             with pytest.raises(ValueError) as exc:
-                t.login(LOCALHOST_REGISTRY, tmpdir_path)
+                docker_tasker.login(LOCALHOST_REGISTRY, tmpdir_path)
                 assert "Failed to parse 'auth'" in str(exc.value)
         else:
             with pytest.raises(RuntimeError) as exc:
-                t.login(LOCALHOST_REGISTRY, tmpdir_path)
+                docker_tasker.login(LOCALHOST_REGISTRY, tmpdir_path)
                 assert "Failed to extract a username" in str(exc.value)
     else:
         if MOCK:
@@ -543,4 +580,4 @@ def test_login(tmpdir, dockerconfig_contents, should_raise):
              .should_receive('login')
              .with_args(username='user', registry=LOCALHOST_REGISTRY, dockercfg_path=dockercfg_path)
              .once().and_return({'Status': 'Login Succeeded'}))
-        t.login(LOCALHOST_REGISTRY, tmpdir_path)
+        docker_tasker.login(LOCALHOST_REGISTRY, tmpdir_path)

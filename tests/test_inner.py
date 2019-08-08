@@ -74,23 +74,18 @@ def test_build_results_decoder():
         assert getattr(results, attr) == getattr(expected_results, attr)
 
 
-class MockDocker(object):
-    def history(self, name):
-        return [{'Size': 1, 'Id': "sha256:layer1-newest"},
-                {'Size': 2, 'Id': "sha256:layer2"},
-                {'Size': 3, 'Id': "sha256:layer3"},
-                {'Size': 4, 'Id': "sha256:layer4-oldest"}]
-
-
 class MockDockerTasker(object):
-    def __init__(self):
-        self.d = MockDocker()
-
     def inspect_image(self, name):
         return {}
 
     def build_image_from_path(self):
         return True
+
+    def get_image_history(self, name):
+        return [{'Size': 1, 'Id': "sha256:layer1-newest"},
+                {'Size': 2, 'Id': "sha256:layer2"},
+                {'Size': 3, 'Id': "sha256:layer3"},
+                {'Size': 4, 'Id': "sha256:layer4-oldest"}]
 
 
 class MockDockerTaskerBaseImage(MockDockerTasker):
