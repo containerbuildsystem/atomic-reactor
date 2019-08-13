@@ -1309,7 +1309,7 @@ class TestKojiImport(object):
         else:
             (flexmock(session)
                 .should_call('CGImport')
-                .with_args(dict, text_type, token=None)
+                .with_args(dict, text_type)
              )
 
         target = 'images-docker-candidate'
