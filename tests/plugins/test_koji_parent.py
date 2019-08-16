@@ -322,7 +322,6 @@ class TestKojiParent(object):
             )
             assert 'does not have manifest digest data for the expected media type' in caplog.text
         elif 'miss' in parent_tags or not koji_mtype:
-            # TODO: here we should capture an exception instead
             self.run_plugin_with_args(
                 workflow, expect_result=expected, reactor_config_map=reactor_config_map
             )
@@ -353,6 +352,7 @@ class TestKojiParent(object):
     @pytest.mark.parametrize('feature_flag', [True, False])
     @pytest.mark.parametrize('parent_tag', ['stubDigest', 'wrongDigest'])
     @pytest.mark.parametrize('has_registry', [True, False])
+    @pytest.mark.parametrize('mismatch_failure', [True, False])
     @pytest.mark.parametrize('manifest_list', [
         {'manifests': [
             {'digest': 'stubDigest', 'mediaType': V2, 'platform': {
@@ -365,7 +365,8 @@ class TestKojiParent(object):
                 'architecture': 'amd64'}}]},
         {}])
     def test_deep_digest_inspection(self, workflow, koji_session, reactor_config_map, parent_tag,
-                                    caplog, has_registry, manifest_list, feature_flag):  # noqa
+                                    caplog, has_registry, manifest_list, feature_flag,
+                                    mismatch_failure):  # noqa
         image_str = 'base'
         if has_registry:
             image_str = '/'.join(['example.com', image_str])
@@ -410,10 +411,23 @@ class TestKojiParent(object):
             ImageName.parse(image_str): ImageName.parse('{}:{}'.format(image_str, parent_tag)),
         }
         workflow.builder.parent_images = parent_images
-        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
-                                  expect_result=expected_result, deep_inspection=feature_flag)
 
         rebuild_str = 'This parent image MUST be rebuilt'
+
+        if (mismatch_failure and reactor_config_map and parent_tag != 'stubDigest'
+            and (not feature_flag
+                 or (feature_flag
+                     and manifest_list.get('manifests', [{}])[0].get('digest') != 'stubDigest'))):
+            with pytest.raises(PluginFailedException) as exc_info:
+                self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
+                                          expect_result=expected_result,
+                                          deep_inspection=feature_flag,
+                                          mismatch_failure=mismatch_failure)
+            assert rebuild_str in str(exc_info.value)
+        else:
+            self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
+                                      expect_result=expected_result, deep_inspection=feature_flag)
+
         if parent_tag == 'stubDigest':
             assert rebuild_str not in caplog.text
         else:
@@ -437,7 +451,8 @@ class TestKojiParent(object):
                     assert rebuild_str in caplog.text
 
     def run_plugin_with_args(self, workflow, plugin_args=None, expect_result=True,  # noqa
-                             reactor_config_map=False, external_base=False, deep_inspection=True):
+                             reactor_config_map=False, external_base=False, deep_inspection=True,
+                             mismatch_failure=False):
         plugin_args = plugin_args or {}
         plugin_args.setdefault('koji_hub', KOJI_HUB)
         plugin_args.setdefault('poll_interval', 0.01)
@@ -456,6 +471,7 @@ class TestKojiParent(object):
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
                 ReactorConfig({'version': 1, 'koji': koji_map,
                                'deep_manifest_list_inspection': deep_inspection,
+                               'fail_on_digest_mismatch': mismatch_failure,
                                'skip_koji_check_for_base_image': external_base})
 
         runner = PreBuildPluginsRunner(

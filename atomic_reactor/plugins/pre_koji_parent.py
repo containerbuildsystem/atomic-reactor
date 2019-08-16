@@ -14,7 +14,7 @@ from atomic_reactor.constants import (
 )
 from atomic_reactor.plugins.pre_reactor_config import (
     get_deep_manifest_list_inspection, get_koji_session, get_source_registry,
-    get_skip_koji_check_for_base_image
+    get_skip_koji_check_for_base_image, get_fail_on_digest_mismatch
 )
 from atomic_reactor.util import (
     base_image_is_custom, get_manifest_list, get_manifest_media_type
@@ -120,9 +120,13 @@ class KojiParentPlugin(PreBuildPlugin):
                     raise RuntimeError(err_msg)
 
         if manifest_mismatches:
-            # TODO: this should raise a RuntimeError instead
-            self.log.warning('Error while comparing parent images manifest digests in koji with '
-                             'related values from registries: %s', manifest_mismatches)
+            mismatch_msg = ('Error while comparing parent images manifest digests in koji with '
+                            'related values from registries: %s')
+            if get_fail_on_digest_mismatch(self.workflow, fallback=False):
+                self.log.error(mismatch_msg, manifest_mismatches)
+                raise RuntimeError(mismatch_msg % manifest_mismatches)
+
+            self.log.warning(mismatch_msg, manifest_mismatches)
         return self.make_result()
 
     def check_manifest_digest(self, image, build_info):
