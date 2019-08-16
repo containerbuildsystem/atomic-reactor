@@ -316,6 +316,14 @@ class TestKojiParent(object):
         if special_base:
             del expected[BASE_IMAGE_KOJI_BUILD]
 
+        if not reactor_config_map and ('miss' in parent_tags or not koji_mtype):
+            with pytest.raises(PluginFailedException) as exc_info:
+                self.run_plugin_with_args(
+                    workflow, expect_result=expected, reactor_config_map=reactor_config_map
+                )
+            assert 'This parent image MUST be rebuilt' in str(exc_info.value)
+            return
+
         if not koji_mtype:
             self.run_plugin_with_args(
                 workflow, expect_result=expected, reactor_config_map=reactor_config_map
@@ -414,10 +422,14 @@ class TestKojiParent(object):
 
         rebuild_str = 'This parent image MUST be rebuilt'
 
-        if (mismatch_failure and reactor_config_map and parent_tag != 'stubDigest'
-            and (not feature_flag
-                 or (feature_flag
-                     and manifest_list.get('manifests', [{}])[0].get('digest') != 'stubDigest'))):
+        defective_v2 = (not has_registry
+                        or manifest_list.get('manifests', [{}])[0].get('digest') != 'stubDigest'
+                        or manifest_list['manifests'][0]['mediaType'] != V2)
+
+        if ((mismatch_failure or not reactor_config_map)
+            and parent_tag != 'stubDigest'
+            and ((not feature_flag and reactor_config_map)
+                 or defective_v2)):
             with pytest.raises(PluginFailedException) as exc_info:
                 self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
                                           expect_result=expected_result,

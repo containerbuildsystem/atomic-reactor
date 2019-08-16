@@ -492,7 +492,7 @@
     "fail_on_digest_mismatch": {
         "description": "Raise an error and stop build when a manifest list digest check fails",
         "type": "boolean",
-        "default": false
+        "default": true
     },
     "hide_files": {
         "description": "Hide files during build for each stage",
