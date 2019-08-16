@@ -122,7 +122,7 @@ class KojiParentPlugin(PreBuildPlugin):
         if manifest_mismatches:
             mismatch_msg = ('Error while comparing parent images manifest digests in koji with '
                             'related values from registries: %s')
-            if get_fail_on_digest_mismatch(self.workflow, fallback=False):
+            if get_fail_on_digest_mismatch(self.workflow, fallback=True):
                 self.log.error(mismatch_msg, manifest_mismatches)
                 raise RuntimeError(mismatch_msg % manifest_mismatches)
 
