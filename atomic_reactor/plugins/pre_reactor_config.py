@@ -383,6 +383,10 @@ def get_deep_manifest_list_inspection(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'deep_manifest_list_inspection', fallback)
 
 
+def get_fail_on_digest_mismatch(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'fail_on_digest_mismatch', fallback)
+
+
 class ClusterConfig(object):
     """
     Configuration relating to a particular cluster

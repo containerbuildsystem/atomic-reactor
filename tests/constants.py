@@ -173,6 +173,8 @@ skip_koji_check_for_base_image: False
 
 deep_manifest_list_inspection: True
 
+fail_on_digest_mismatch: True
+
 clusters:
   foo:
    - name: blah

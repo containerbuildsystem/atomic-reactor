@@ -513,7 +513,7 @@ class TestReactorConfigPlugin(object):
     @pytest.mark.parametrize('method', [
         'koji', 'pulp', 'odcs', 'smtp', 'arrangement_version',
         'artifacts_allowed_domains', 'image_labels',
-        'image_label_info_url_format', 'image_equal_labels',
+        'image_label_info_url_format', 'image_equal_labels', 'fail_on_digest_mismatch',
         'openshift', 'group_manifests', 'platform_descriptors', 'prefer_schema1_digest',
         'content_versions', 'registries', 'yum_proxy', 'source_registry', 'sources_command',
         'required_secrets', 'worker_token_secrets', 'clusters', 'hide_files',
