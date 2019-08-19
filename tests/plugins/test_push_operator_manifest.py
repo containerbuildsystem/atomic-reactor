@@ -15,7 +15,7 @@ import pytest
 from atomic_reactor import util
 from atomic_reactor.constants import (
     PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY,
-    PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
+    PLUGIN_BUILD_ORCHESTRATE_KEY
 )
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
@@ -65,13 +65,17 @@ class MockSource(StubSource):
         return os.path.join(self.workdir, 'Dockerfile'), self.workdir
 
 
-def mock_workflow(tmpdir):
+def mock_workflow(tmpdir, for_orchestrator=False):
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
     workflow.source = MockSource(str(tmpdir))
     builder = StubInsideBuilder().for_workflow(workflow)
     builder.set_df_path(str(tmpdir))
     builder.tasker = flexmock()
     workflow.builder = flexmock(builder)
+
+    if for_orchestrator:
+        workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}]
+
     return workflow
 
 
@@ -107,7 +111,7 @@ def mock_env(tmpdir, docker_tasker, has_label=True, label=True,
     }}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
     mock_dockerfile(tmpdir, has_label, label)
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, for_orchestrator=orchestrator)
     if omps_configured:
         omps_map = {
             'omps_url': 'https://localhost',
@@ -125,7 +129,6 @@ def mock_env(tmpdir, docker_tasker, has_label=True, label=True,
     if rebuild:
         workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = True
 
-    workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = orchestrator
     workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
     workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
         ReactorConfig({'version': 1, 'omps': omps_map, 'koji': koji_map})

@@ -24,7 +24,6 @@ from atomic_reactor.plugins.pre_reactor_config import (
     NO_FALLBACK,
 )
 from atomic_reactor.util import (
-    get_platforms,
     is_isolated_build,
     is_scratch_build,
     has_operator_manifest,
@@ -41,23 +40,13 @@ class PushOperatorManifestsPlugin(PostBuildPlugin):
 
     DOWNLOAD_DIR = 'operators_artifacts'
 
-    def is_orchestrator(self):
-        """
-        Check if the plugin is running in orchestrator.
-
-        :return: bool
-        """
-        if get_platforms(self.workflow):
-            return True
-        return False
-
     def should_run(self):
         """
         Check if the plugin should run or skip execution.
 
         :return: bool, False if plugin should skip execution
         """
-        if not self.is_orchestrator():
+        if not self.is_in_orchestrator():
             self.log.warning("%s plugin set to run on worker. Skipping", self.key)
             return False
 
