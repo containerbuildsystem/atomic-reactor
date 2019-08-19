@@ -928,11 +928,8 @@ def test_is_isolated_build(build_json, isolated):
      ['arm64', 'ppce64le'])
 ])
 def test_get_orchestrator_platforms(inputs, results):
-    class MockWorkflow(object):
-        def __init__(self, inputs):
-            self.buildstep_plugins_conf = inputs
-
-    workflow = MockWorkflow(inputs)
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+                                   buildstep_plugins=inputs)
     if results:
         assert sorted(get_orchestrator_platforms(workflow)) == sorted(results)
     else:

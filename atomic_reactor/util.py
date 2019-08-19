@@ -43,7 +43,6 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST, MEDIA_TYPE_OCI_V1,
                                       MEDIA_TYPE_OCI_V1_INDEX,
-                                      PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
                                       PLUGIN_KOJI_PARENT_KEY,
                                       PARENT_IMAGE_BUILDS_KEY, PARENT_IMAGES_KOJI_BUILDS,
@@ -616,9 +615,13 @@ def base_image_is_custom(base_image_name):
 
 
 def get_orchestrator_platforms(workflow):
-    for plugin in workflow.buildstep_plugins_conf or []:
-        if plugin['name'] == PLUGIN_BUILD_ORCHESTRATE_KEY:
-            return plugin['args']['platforms']
+    try:
+        orchestrate_build_plugin = workflow.get_orchestrate_build_plugin()
+    except ValueError:
+        # Not an orchestrator build
+        return None
+    else:
+        return orchestrate_build_plugin['args']['platforms']
 
 
 def get_platforms(workflow):
