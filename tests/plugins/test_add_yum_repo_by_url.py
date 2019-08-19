@@ -14,6 +14,9 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.yum_util import YumRepo
 import requests
 import pytest
@@ -185,3 +188,46 @@ def test_invalid_repourl():
 
     msg = "Failed to fetch yum repo {repo}".format(repo=WRONG_REPO_URL)
     assert msg in str(exc.value)
+
+
+@pytest.mark.parametrize(('allowed_domains', 'repo_urls', 'will_raise'), (
+    (None, ['http://example.com/repo'], False),
+    ([], ['http://example.com/repo'], False),
+    (['foo.redhat.com', 'bar.redhat.com'], ['http://foo.redhat.com/some/repo'], False),
+    (['foo.redhat.com', 'bar.redhat.com'], ['http://bar.redhat.com/some/repo'], False),
+    (['foo.redhat.com', 'bar.redhat.com'],
+     ['http://foo.redhat.com/some/repo', 'http://bar.redhat.com/some/repo'], False),
+    (['foo.redhat.com', 'bar.redhat.com'], ['http://pre.foo.redhat.com/some/repo'], True),
+    (['foo.redhat.com', 'bar.redhat.com'], ['http://foo.redhat.com.post/some/repo'], True),
+    (['foo.redhat.com', 'bar.redhat.com'], ['http://foor.redhat.com.post/some/repo'], True),
+    (['foo.redhat.com', 'bar.redhat.com'], ['http://baar.redhat.com.post/some/repo'], True),
+    (['foo.redhat.com', 'bar.redhat.com'],
+     ['http://foo.redhat.com/some/repo', 'http://wrong.bar.redhat.com/some/repo'], True),
+    (['foo.redhat.com', 'bar.redhat.com'],
+     ['http://wrong.foo.redhat.com/some/repo', 'http://bar.redhat.com/some/repo'], True),
+    (['foo.redhat.com', 'bar.redhat.com'],
+     ['http://wrong.foo.redhat.com/some/repo', 'http://wrong.bar.redhat.com/some/repo'], True),
+))
+def test_allowed_domains(allowed_domains, repo_urls, will_raise):
+    tasker, workflow = prepare()
+    reactor_map = {'version': 1}
+
+    if allowed_domains is not None:
+        reactor_map['yum_repo_allowed_domains'] = allowed_domains
+
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {
+        WORKSPACE_CONF_KEY: ReactorConfig(reactor_map)
+    }
+
+    runner = PreBuildPluginsRunner(tasker, workflow, [{
+        'name': AddYumRepoByUrlPlugin.key,
+        'args': {'repourls': repo_urls, 'inject_proxy': None}}])
+
+    if will_raise:
+        with pytest.raises(PluginFailedException) as exc:
+            runner.run()
+
+        msg = 'Errors found while checking yum repo urls'
+        assert msg in str(exc.value)
+    else:
+        runner.run()

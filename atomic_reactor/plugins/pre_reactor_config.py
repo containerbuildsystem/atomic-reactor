@@ -154,6 +154,10 @@ def get_artifacts_allowed_domains(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'artifacts_allowed_domains', fallback)
 
 
+def get_yum_repo_allowed_domains(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'yum_repo_allowed_domains', fallback)
+
+
 def get_image_labels(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'image_labels', fallback)
 

@@ -103,6 +103,10 @@ artifacts_allowed_domains:
 - download.example.com/released
 - download.example.com/candidates
 
+yum_repo_allowed_domains:
+- repo1.example.com
+- repo2.example.com
+
 image_labels:
     vendor: "Spam Inc."
     authoritative-source-url: registry.public.example.com

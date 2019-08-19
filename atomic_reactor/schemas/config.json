@@ -307,7 +307,14 @@
         "type": "integer"
     },
     "artifacts_allowed_domains": {
-        "description": "Domains allowed to use when fetching artifacts by url",
+        "description": "Domains allowed to use when fetching artifacts by url, if not specified no restrictions will be applied",
+        "type": "array",
+        "items": {
+            "type": "string"
+        }
+    },
+    "yum_repo_allowed_domains": {
+        "description": "Domains allowed to use when fetching yum repo files",
         "type": "array",
         "items": {
             "type": "string"
