@@ -16,7 +16,7 @@ import zipfile
 from atomic_reactor import util
 from atomic_reactor.constants import (
     PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
-    PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+    PLUGIN_BUILD_ORCHESTRATE_KEY)
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugins.post_export_operator_manifests import ExportOperatorManifestsPlugin
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
@@ -42,13 +42,17 @@ def mock_dockerfile(tmpdir, has_label=True, label=True):
     tmpdir.join('Dockerfile').write(data)
 
 
-def mock_workflow(tmpdir):
+def mock_workflow(tmpdir, for_orchestrator=False):
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
     workflow.source = StubSource()
     builder = StubInsideBuilder().for_workflow(workflow)
     builder.set_df_path(str(tmpdir))
     builder.tasker = flexmock()
     workflow.builder = flexmock(builder)
+
+    if for_orchestrator:
+        workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}]
+
     return workflow
 
 
@@ -77,8 +81,7 @@ def mock_env(tmpdir, docker_tasker, has_label=True, label=True, has_archive=True
     build_json = {'metadata': {'labels': {'scratch': scratch}}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
     mock_dockerfile(tmpdir, has_label, label)
-    workflow = mock_workflow(tmpdir)
-    workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = orchestrator
+    workflow = mock_workflow(tmpdir, for_orchestrator=orchestrator)
     mock_stream = generate_archive(tmpdir, empty_archive)
     plugin_conf = [{'name': ExportOperatorManifestsPlugin.key}]
     if selected_platform:

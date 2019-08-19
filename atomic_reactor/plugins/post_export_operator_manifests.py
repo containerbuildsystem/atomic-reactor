@@ -17,7 +17,7 @@ import zipfile
 from atomic_reactor.constants import (PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
                                       OPERATOR_MANIFESTS_ARCHIVE)
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.util import is_scratch_build, get_platforms, has_operator_manifest
+from atomic_reactor.util import is_scratch_build, has_operator_manifest
 from docker.errors import APIError
 from platform import machine
 
@@ -45,23 +45,13 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
         else:
             self.platform = machine()
 
-    def is_orchestrator(self):
-        """
-        Check if the plugin is running in orchestrator.
-
-        :return: bool
-        """
-        if get_platforms(self.workflow):
-            return True
-        return False
-
     def should_run(self):
         """
         Check if the plugin should run or skip execution.
 
         :return: bool, False if plugin should skip execution
         """
-        if self.is_orchestrator():
+        if self.is_in_orchestrator():
             self.log.warning("%s plugin set to run on orchestrator. Skipping", self.key)
             return False
         if self.operator_manifests_extract_platform != self.platform:

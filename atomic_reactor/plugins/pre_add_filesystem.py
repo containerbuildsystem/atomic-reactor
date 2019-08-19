@@ -126,7 +126,6 @@ class AddFilesystemPlugin(PreBuildPlugin):
         self.blocksize = blocksize
         self.repos = repos or []
         self.architectures = get_platforms(self.workflow)
-        self.is_orchestrator = True if self.architectures else False
         self.architecture = architecture
         self.scratch = util.is_scratch_build()
         self.koji_target = koji_target
@@ -406,7 +405,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         task_id, filesystem_regex = self.run_image_task(image_build_conf)
 
         new_base_image = None
-        if not self.is_orchestrator:
+        if not self.is_in_orchestrator():
             new_base_image = self.stream_filesystem(task_id, filesystem_regex)
 
         return {

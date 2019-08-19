@@ -40,7 +40,9 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        ReactorConfig)
 from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.source import VcsInfo
-from atomic_reactor.constants import PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
+from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY,
+                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
+                                      PLUGIN_BUILD_ORCHESTRATE_KEY)
 from atomic_reactor import koji_util, util
 from tests.constants import (MOCK_SOURCE, DOCKERFILE_GIT, DOCKERFILE_SHA1,
                              MOCK, IMPORTED_IMAGE_ID)
@@ -193,7 +195,8 @@ def mock_image_build_file(tmpdir, contents=None):
     return file_path
 
 
-def mock_workflow(tmpdir, dockerfile=DEFAULT_DOCKERFILE, scratch=False):
+def mock_workflow(tmpdir, dockerfile=DEFAULT_DOCKERFILE,
+                  scratch=False, for_orchestrator=False):
     flexmock(util).should_receive('is_scratch_build').and_return(scratch)
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     mock_source = MockSource(tmpdir)
@@ -205,6 +208,9 @@ def mock_workflow(tmpdir, dockerfile=DEFAULT_DOCKERFILE, scratch=False):
     df.content = dockerfile
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     mock_get_retry_session()
+
+    if for_orchestrator:
+        workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}]
 
     return workflow
 
@@ -694,7 +700,7 @@ def test_image_download(tmpdir, docker_tasker, parents, skip_plugin, architectur
     if MOCK:
         mock_docker()
 
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, for_orchestrator=architectures is not None)
     if not skip_plugin:
         mock_koji_session(download_filesystem=download_filesystem)
     mock_image_build_file(str(tmpdir))
