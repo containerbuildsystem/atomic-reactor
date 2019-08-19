@@ -27,6 +27,8 @@ from __future__ import absolute_import
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.yum_util import YumRepo
+from atomic_reactor.plugins.pre_reactor_config import get_yum_repo_allowed_domains
+from six.moves.urllib.parse import urlparse
 
 
 class AddYumRepoByUrlPlugin(PreBuildPlugin):
@@ -46,6 +48,22 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
         super(AddYumRepoByUrlPlugin, self).__init__(tasker, workflow)
         self.repourls = repourls or []
         self.inject_proxy = inject_proxy
+        self.allowed_domains = get_yum_repo_allowed_domains(self.workflow, [])
+
+    def validate_yum_repo_files_url(self):
+        if not self.allowed_domains:
+            return
+        errors = []
+
+        for repourl in self.repourls:
+            repo_domain = urlparse(repourl).netloc
+            if repo_domain not in self.allowed_domains:
+                errors.append('Yum repo URL {} is not in list of allowed domains: {}'
+                              .format(repourl, self.allowed_domains))
+
+        if errors:
+            raise ValueError('Errors found while checking yum repo urls: \n{}'
+                             .format('\n'.join(errors)))
 
     def run(self):
         """
@@ -56,6 +74,8 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
             return
 
         if self.repourls:
+            self.validate_yum_repo_files_url()
+
             for repourl in self.repourls:
                 yumrepo = YumRepo(repourl)
                 self.log.info("fetching yum repo from '%s'", yumrepo.repourl)
