@@ -35,7 +35,9 @@ import signal
 from atomic_reactor.inner import BuildResults, BuildResultsEncoder, BuildResultsJSONDecoder
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.inner import FSWatcher
-from atomic_reactor.constants import INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS
+from atomic_reactor.constants import (INSPECT_ROOTFS,
+                                      INSPECT_ROOTFS_LAYERS,
+                                      PLUGIN_BUILD_ORCHESTRATE_KEY)
 
 
 BUILD_RESULTS_ATTRS = ['build_logs',
@@ -1420,6 +1422,21 @@ def test_layer_sizes():
     ]
 
     assert workflow.layer_sizes == expected
+
+
+@pytest.mark.parametrize('buildstep_plugins, is_orchestrator', [
+    (None, False),
+    ([], False),
+    ([{'name': 'some_name'}], False),
+    ([{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}], True),
+
+    ([{'name': 'some_other_name'},
+      {'name': PLUGIN_BUILD_ORCHESTRATE_KEY}], True)
+])
+def test_workflow_is_orchestrator_build(buildstep_plugins, is_orchestrator):
+    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+                                   buildstep_plugins=buildstep_plugins)
+    assert workflow.is_orchestrator_build() == is_orchestrator
 
 
 def test_fs_watcher_update(monkeypatch):

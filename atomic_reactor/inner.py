@@ -33,7 +33,10 @@ from atomic_reactor.plugin import (
 )
 from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.constants import INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS
-from atomic_reactor.constants import CONTAINER_DEFAULT_BUILD_METHOD
+from atomic_reactor.constants import (
+    CONTAINER_DEFAULT_BUILD_METHOD,
+    PLUGIN_BUILD_ORCHESTRATE_KEY
+)
 from atomic_reactor.util import ImageName, exception_message
 from atomic_reactor.build import BuildResult
 from atomic_reactor import get_logging_encoding
@@ -447,6 +450,33 @@ class DockerBuildWorkflow(object):
 
         if kwargs:
             logger.warning("unprocessed keyword arguments: %s", kwargs)
+
+    def get_orchestrate_build_plugin(self):
+        """
+        Get the orchestrate_build plugin configuration for this workflow
+        if present (will be present for orchestrator, not for worker).
+
+        :return: orchestrate_build plugin configuration dict
+        :raises: ValueError if the orchestrate_build plugin is not present
+        """
+        for plugin in self.buildstep_plugins_conf or []:
+            if plugin['name'] == PLUGIN_BUILD_ORCHESTRATE_KEY:
+                return plugin
+        # Not an orchestrator build
+        raise ValueError('Not an orchestrator build')
+
+    def is_orchestrator_build(self):
+        """
+        Check if the plugin configuration for this workflow is for
+        an orchestrator build or a worker build.
+
+        :return: True if orchestrator build, False if worker build
+        """
+        try:
+            self.get_orchestrate_build_plugin()
+            return True
+        except ValueError:
+            return False
 
     @property
     def build_process_failed(self):
