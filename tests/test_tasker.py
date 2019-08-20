@@ -209,8 +209,8 @@ def test_push_image(temp_image_name, should_fail):
     if should_fail:
         with pytest.raises(RetryGeneratorException) as exc:
             output = t.push_image(temp_image_name, insecure=True)
-        assert "Failed to mock_method image" in str(exc)
-        assert "connection refused" in str(exc)
+        assert "Failed to mock_method image" in str(exc.value)
+        assert "connection refused" in str(exc.value)
     else:
         output = t.push_image(temp_image_name, insecure=True)
         assert output is not None
@@ -532,11 +532,11 @@ def test_login(tmpdir, dockerconfig_contents, should_raise):
         if 'auth' in dockerconfig_contents[LOCALHOST_REGISTRY]:
             with pytest.raises(ValueError) as exc:
                 t.login(LOCALHOST_REGISTRY, tmpdir_path)
-                assert "Failed to parse 'auth'" in str(exc)
+                assert "Failed to parse 'auth'" in str(exc.value)
         else:
             with pytest.raises(RuntimeError) as exc:
                 t.login(LOCALHOST_REGISTRY, tmpdir_path)
-                assert "Failed to extract a username" in str(exc)
+                assert "Failed to extract a username" in str(exc.value)
     else:
         if MOCK:
             (fake_api

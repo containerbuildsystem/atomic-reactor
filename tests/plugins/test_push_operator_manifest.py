@@ -195,4 +195,4 @@ class TestPushOperatorManifests(object):
         runner = mock_env(tmpdir, docker_tasker, omps_push_fail=True)
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
-        assert 'Failed to push operator manifests:' in str(exc)
+        assert 'Failed to push operator manifests:' in str(exc.value)

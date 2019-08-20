@@ -617,4 +617,4 @@ def test_group_manifests(tmpdir, schema_version, test_name, group, foreign_layer
     else:
         with pytest.raises(PluginFailedException) as ex:
             runner.run()
-        assert expected_exception in str(ex)
+        assert expected_exception in str(ex.value)

@@ -133,7 +133,7 @@ def test_bad_inspect_data(tmpdir, docker_tasker, inspect, error):
     with pytest.raises(PluginFailedException) as exc:
         runner.run()
 
-    assert error in str(exc)
+    assert error in str(exc.value)
 
 
 @pytest.mark.parametrize(('floating_tags', 'unique_tags', 'primary_tags', 'expected'), [  # noqa

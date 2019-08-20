@@ -709,7 +709,7 @@ def test_orchestrate_build_cancelation(tmpdir):
 
     with pytest.raises(PluginFailedException) as exc:
         runner.run()
-    assert 'BuildCanceledException' in str(exc)
+    assert 'BuildCanceledException' in str(exc.value)
 
 
 @pytest.mark.parametrize(('clusters_x86_64'), (
@@ -795,12 +795,12 @@ def test_orchestrate_build_unknown_platform(tmpdir, reactor_config_map):  # noqa
     with pytest.raises(PluginFailedException) as exc:
         runner.run()
     if reactor_config_map:
-        assert "No clusters found for platform spam!" in str(exc)
+        assert "No clusters found for platform spam!" in str(exc.value)
     else:
         count = 0
-        if "No clusters found for platform x86_64!" in str(exc):
+        if "No clusters found for platform x86_64!" in str(exc.value):
             count += 1
-        if "No clusters found for platform spam!" in str(exc):
+        if "No clusters found for platform spam!" in str(exc.value):
             count += 1
         assert count > 0
 
@@ -988,7 +988,7 @@ def test_orchestrate_build_get_fs_task_id(tmpdir, task_id, error):
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
         workflow.build_result.is_failed()
-        assert error in str(exc)
+        assert error in str(exc.value)
 
     else:
         build_result = runner.run()
@@ -1467,8 +1467,8 @@ def test_set_build_image_raises(tmpdir, build, exc_str, bc, bc_cont, ims, ims_co
 
     with pytest.raises(PluginFailedException) as ex:
         runner.run()
-    assert "raised an exception: RuntimeError" in str(ex)
-    assert exc_str in str(ex)
+    assert "raised an exception: RuntimeError" in str(ex.value)
+    assert exc_str in str(ex.value)
 
 
 @pytest.mark.parametrize(('build', 'bc', 'bc_cont', 'ims', 'ims_cont',
@@ -1675,7 +1675,7 @@ def test_no_platforms(tmpdir):
     )
     with pytest.raises(PluginFailedException) as exc:
         runner.run()
-    assert 'No enabled platform to build on' in str(exc)
+    assert 'No enabled platform to build on' in str(exc.value)
 
 
 @pytest.mark.parametrize('version,warning,exception', (

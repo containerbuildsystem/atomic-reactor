@@ -239,7 +239,7 @@ def test_figure_out_build_file(tmpdir, contents, local_path, expected_path, expe
     else:
         with pytest.raises(Exception) as e:
             figure_out_build_file(tmpdir_path, local_path=local_path)
-        assert expected_exception in str(e)
+        assert expected_exception in str(e.value)
 
 
 @requires_internet
@@ -1547,7 +1547,7 @@ def test_get_inspect_for_image(insecure, found_versions, type_in_list, will_rais
     if will_raise:
         with pytest.raises(raise_exception) as e:
             get_inspect_for_image(image, image.registry, insecure)
-        assert error_msg in str(e)
+        assert error_msg in str(e.value)
 
     else:
         if found_versions and ('v2' in found_versions or 'v2_list' in found_versions):

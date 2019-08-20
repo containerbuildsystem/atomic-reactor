@@ -166,7 +166,7 @@ class TestExportOperatorManifests(object):
                 runner.run()
                 if not has_archive:
                     assert 'Could not extract operator manifest files' in caplog.text
-                    assert 'Could not extract operator manifest files' in str(exc)
+                    assert 'Could not extract operator manifest files' in str(exc.value)
                 if remove_fails:
                     assert 'Failed to remove container' in caplog.text
 
@@ -177,6 +177,6 @@ class TestExportOperatorManifests(object):
             with pytest.raises(PluginFailedException) as exc:
                 runner.run()
                 assert 'Empty operator manifests directory' in caplog.text
-                assert 'Empty operator manifests directory' in str(exc)
+                assert 'Empty operator manifests directory' in str(exc.value)
         else:
             runner.run()

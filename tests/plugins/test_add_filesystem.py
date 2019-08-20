@@ -359,7 +359,7 @@ def test_missing_yum_repourls(tmpdir, reactor_config_map):  # noqa
     file_name = mock_image_build_file(str(tmpdir), contents=image_build_conf)
     with pytest.raises(ValueError) as exc:
         plugin.parse_image_build_config(file_name)
-    assert 'install_tree cannot be empty' in str(exc)
+    assert 'install_tree cannot be empty' in str(exc.value)
 
 
 @pytest.mark.parametrize(('build_cancel', 'error_during_cancel'), [
@@ -402,9 +402,9 @@ def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_err
                          logger='atomic_reactor'), pytest.raises(PluginFailedException) as exc:
         runner.run()
 
-    assert task_result in str(exc)
+    assert task_result in str(exc.value)
     # Also ensure getTaskResult exception message is wrapped properly
-    assert 'image task,' in str(exc)
+    assert 'image task,' in str(exc.value)
 
     if build_cancel:
         msg = "Build was canceled, canceling task %s" % FILESYSTEM_TASK_ID
@@ -649,7 +649,7 @@ def test_build_filesystem_missing_conf(tmpdir, reactor_config_map):  # noqa
     plugin = create_plugin_instance(tmpdir, reactor_config_map=reactor_config_map)
     with pytest.raises(RuntimeError) as exc:
         plugin.build_filesystem('image-build.conf')
-    assert 'Image build configuration file not found' in str(exc)
+    assert 'Image build configuration file not found' in str(exc.value)
 
 
 @pytest.mark.parametrize(('prefix', 'architecture', 'suffix'), [
@@ -786,4 +786,4 @@ def test_no_target_set(tmpdir, reactor_config_map):
     file_name = mock_image_build_file(str(tmpdir), contents=image_build_conf)
     with pytest.raises(ValueError) as exc:
         plugin.parse_image_build_config(file_name)
-    assert 'target cannot be empty' in str(exc)
+    assert 'target cannot be empty' in str(exc.value)

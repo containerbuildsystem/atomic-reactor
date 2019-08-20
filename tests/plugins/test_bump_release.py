@@ -160,7 +160,7 @@ class TestBumpRelease(object):
         if build_exists and not scratch:
             with pytest.raises(RuntimeError) as exc:
                 plugin.run()
-            assert 'build already exists in Koji: ' in str(exc)
+            assert 'build already exists in Koji: ' in str(exc.value)
         else:
             plugin.run()
         assert 'not incrementing' in caplog.text
@@ -178,7 +178,7 @@ class TestBumpRelease(object):
         plugin = self.prepare(tmpdir, labels=labels, reactor_config_map=reactor_config_map)
         with pytest.raises(RuntimeError) as exc:
             plugin.run()
-        assert 'missing label' in str(exc)
+        assert 'missing label' in str(exc.value)
 
     @pytest.mark.parametrize('component', [
         {'com.redhat.component': 'component1'},
@@ -350,7 +350,7 @@ class TestBumpRelease(object):
         if init_fails and reserve_build and reactor_config_map and not next_release['scratch']:
             with pytest.raises(RuntimeError) as exc:
                 plugin.run()
-            assert 'unable to pre-declare build ' in str(exc)
+            assert 'unable to pre-declare build ' in str(exc.value)
             return
 
         plugin.run()

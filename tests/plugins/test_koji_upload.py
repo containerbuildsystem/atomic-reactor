@@ -519,7 +519,7 @@ class TestKojiUpload(object):
 
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
-        assert "plugin 'koji_upload' raised an exception: KeyError" in str(exc)
+        assert "plugin 'koji_upload' raised an exception: KeyError" in str(exc.value)
 
     def test_koji_upload_no_build_metadata(self, tmpdir, monkeypatch, os_env, reactor_config_map):  # noqa
         tasker, workflow = mock_environment(tmpdir,

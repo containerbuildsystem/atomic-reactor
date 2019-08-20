@@ -80,7 +80,7 @@ class TestOMPS(object):
             omps.push_archive(fb)
             assert exc.value.status_code == status_code
             assert exc.value.response == omps_res
-            assert '(validation errors: {})'.format(validation_info) in str(exc)
+            assert '(validation errors: {})'.format(validation_info) in str(exc.value)
 
     def test_push_archive_server_error(self, requests_mock):
         """Service running behind HAProxy may return 503 error without json.

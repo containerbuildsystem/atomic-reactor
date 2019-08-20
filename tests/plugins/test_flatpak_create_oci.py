@@ -766,7 +766,7 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
     if expected_exception:
         with pytest.raises(PluginFailedException) as ex:
             runner.run()
-        assert expected_exception in str(ex)
+        assert expected_exception in str(ex.value)
     else:
         runner.run()
 

@@ -605,7 +605,7 @@ class TestValidateBaseImage(object):
                                             inspect_only=False,
                                             workflow_callback=workflow_callback,
                                             check_platforms=True)
-            assert no_manifest_msg in str(exc)
+            assert no_manifest_msg in str(exc.value)
 
     def test_registry_undefined(self, caplog):
         def workflow_callback(workflow):
@@ -874,7 +874,7 @@ class TestValidateBaseImage(object):
                                             workflow_callback=workflow_callback,
                                             check_platforms=True,  # orchestrator
                                             )
-            assert 'Missing arches in manifest list for base image' in str(exc)
+            assert 'Missing arches in manifest list for base image' in str(exc.value)
         else:
             test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
                                         [], [], reactor_config_map=True,
