@@ -334,7 +334,7 @@ class TestSendMailPlugin(object):
         else:
             with pytest.raises(RuntimeError) as ex:
                 p._get_receivers_list()
-                assert str(ex) == 'No recipients found'
+                assert str(ex.value) == 'No recipients found'
 
     @pytest.mark.parametrize('success', (True, False))
     @pytest.mark.parametrize(('has_store_metadata_results', 'annotations', 'has_repositories',

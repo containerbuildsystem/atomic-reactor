@@ -143,7 +143,7 @@ class TestKojiParent(object):
             .and_return(koji_no_extra))
         with pytest.raises(PluginFailedException) as exc_info:
             self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
-        assert 'does not have manifest digest data' in str(exc_info)
+        assert 'does not have manifest digest data' in str(exc_info.value)
 
     def test_koji_build_retry(self, workflow, koji_session, reactor_config_map):  # noqa
         (flexmock(koji_session)
@@ -231,7 +231,7 @@ class TestKojiParent(object):
                     self.run_plugin_with_args(workflow, expect_result=exp_result,
                                               reactor_config_map=reactor_config_map,
                                               external_base=external)
-                assert 'Was this image built in OSBS?' in str(exc)
+                assert 'Was this image built in OSBS?' in str(exc.value)
             else:
                 result = {PARENT_IMAGES_KOJI_BUILDS: {ImageName.parse('base'): None}}
                 self.run_plugin_with_args(workflow, expect_result=result,
@@ -355,7 +355,7 @@ class TestKojiParent(object):
         workflow.builder.parent_images_digests = {'base:latest': {'unexpected_type': 'stubDigest'}}
         with pytest.raises(PluginFailedException) as exc_info:
             self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
-        assert 'Unexpected parent image digest data' in str(exc_info)
+        assert 'Unexpected parent image digest data' in str(exc_info.value)
 
     @pytest.mark.parametrize('feature_flag', [True, False])
     @pytest.mark.parametrize('parent_tag', ['stubDigest', 'wrongDigest'])

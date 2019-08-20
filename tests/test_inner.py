@@ -1015,7 +1015,7 @@ def test_workflow_docker_build_error_reports(steps_to_fail, step_reported):
 
     with pytest.raises(Exception) as exc:
         workflow.build_docker_image()
-    assert exc_string(step_reported) in str(exc)
+    assert exc_string(step_reported) in str(exc.value)
 
 
 class ExitUsesSource(ExitWatched):

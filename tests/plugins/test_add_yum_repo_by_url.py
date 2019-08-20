@@ -184,4 +184,4 @@ def test_invalid_repourl():
         runner.run()
 
     msg = "Failed to fetch yum repo {repo}".format(repo=WRONG_REPO_URL)
-    assert msg in str(exc)
+    assert msg in str(exc.value)

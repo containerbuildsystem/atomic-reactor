@@ -459,7 +459,7 @@ class TestInputPluginsRunner(object):
         flexmock(os, environ={})
         with pytest.raises(PluginFailedException) as e:
             InputPluginsRunner([{'name': 'auto', 'args': {}}])
-        assert 'No autousable input plugin' in str(e)
+        assert 'No autousable input plugin' in str(e.value)
 
     def test_autoinput_more_autousable(self):
         # mock env vars checked by both env and osv3 input plugins
@@ -467,8 +467,8 @@ class TestInputPluginsRunner(object):
                               'BUILD_JSON': 'd'})
         with pytest.raises(PluginFailedException) as e:
             InputPluginsRunner([{'name': 'auto', 'args': {}}])
-        assert 'More than one usable plugin with "auto" input' in str(e)
-        assert 'osv3, env' in str(e) or 'env, osv3' in str(e)
+        assert 'More than one usable plugin with "auto" input' in str(e.value)
+        assert 'osv3, env' in str(e.value) or 'env, osv3' in str(e.value)
 
     def test_autoinput_one_autousable(self):
         # mock env var for env input plugin

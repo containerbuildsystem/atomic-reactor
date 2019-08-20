@@ -400,7 +400,7 @@ class TestGetKojiModuleBuild(object):
         if should_raise:
             with pytest.raises(Exception) as e:
                 get_koji_module_build(session, spec)
-            assert should_raise in str(e)
+            assert should_raise in str(e.value)
         else:
             self.mock_get_rpms(session)
             get_koji_module_build(session, spec)

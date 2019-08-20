@@ -164,7 +164,7 @@ class TestKojiParent(object):
         with pytest.raises(PluginFailedException) as exc_info:
             self.run_plugin_with_args(workflow, plugin_args={'koji_parent_build': unknown_build},
                                       reactor_config_map=reactor_config_map)
-        assert '{}, not found'.format(unknown_build) in str(exc_info)
+        assert '{}, not found'.format(unknown_build) in str(exc_info.value)
 
     @pytest.mark.parametrize(('repositories', 'selected'), (
         ([':26-3', '@sha256:12345'], '@sha256:12345'),

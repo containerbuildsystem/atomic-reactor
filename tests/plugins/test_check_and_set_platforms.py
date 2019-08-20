@@ -276,7 +276,7 @@ def test_check_and_set_platforms_no_koji(tmpdir, caplog, platforms, platform_onl
     else:
         with pytest.raises(Exception) as e:
             plugin_result = runner.run()
-            assert "no koji target or platform list" in str(e)
+            assert "no koji target or platform list" in str(e.value)
 
 
 @pytest.mark.parametrize(('platforms', 'platform_only', 'cluster_platforms', 'result'), [

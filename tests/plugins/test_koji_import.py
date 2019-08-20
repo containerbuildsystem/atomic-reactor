@@ -672,7 +672,7 @@ class TestKojiImport(object):
 
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
-        assert "plugin 'koji_import' raised an exception: KeyError" in str(exc)
+        assert "plugin 'koji_import' raised an exception: KeyError" in str(exc.value)
 
     def test_koji_import_no_build_metadata(self, tmpdir, monkeypatch, os_env, reactor_config_map):  # noqa
         tasker, workflow = mock_environment(tmpdir,
@@ -696,7 +696,7 @@ class TestKojiImport(object):
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
-        assert "plugin 'koji_import' raised an exception: RuntimeError" in str(exc)
+        assert "plugin 'koji_import' raised an exception: RuntimeError" in str(exc.value)
 
     @pytest.mark.parametrize(('isolated'), [
         False,

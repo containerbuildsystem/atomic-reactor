@@ -512,8 +512,8 @@ def test_fetch_maven_artifacts_nvr_no_match(tmpdir, docker_tasker, nvr_requests,
     with pytest.raises(PluginFailedException) as e:
         runner.run()
 
-    assert 'failed to find archives' in str(e)
-    assert error_msg in str(e)
+    assert 'failed to find archives' in str(e.value)
+    assert error_msg in str(e.value)
 
 
 @responses.activate  # noqa
@@ -539,7 +539,7 @@ def test_fetch_maven_artifacts_nvr_bad_checksum(tmpdir, docker_tasker, reactor_c
     with pytest.raises(PluginFailedException) as e:
         runner.run()
 
-    assert 'does not match expected checksum' in str(e)
+    assert 'does not match expected checksum' in str(e.value)
 
 
 @responses.activate  # noqa
@@ -565,7 +565,7 @@ def test_fetch_maven_artifacts_nvr_bad_url(tmpdir, docker_tasker, reactor_config
     with pytest.raises(PluginFailedException) as e:
         runner.run()
 
-    assert '404 Client Error' in str(e)
+    assert '404 Client Error' in str(e.value)
 
 
 @responses.activate  # noqa
@@ -594,7 +594,7 @@ def test_fetch_maven_artifacts_nvr_bad_nvr(tmpdir, docker_tasker, reactor_config
     with pytest.raises(PluginFailedException) as e:
         runner.run()
 
-    assert 'Build where-is-this-build-3.0-2 not found' in str(e)
+    assert 'Build where-is-this-build-3.0-2 not found' in str(e.value)
 
 
 @pytest.mark.parametrize('contents', (  # noqa
@@ -642,7 +642,7 @@ def test_fetch_maven_artifacts_nvr_schema_error(tmpdir, docker_tasker, contents,
     with pytest.raises(PluginFailedException) as e:
         runner.run()
 
-    assert 'ValidationError' in str(e)
+    assert 'ValidationError' in str(e.value)
 
 
 @pytest.mark.parametrize(('contents', 'expected'), (  # noqa
@@ -709,7 +709,7 @@ def test_fetch_maven_artifacts_url_bad_checksum(tmpdir, docker_tasker, reactor_c
     with pytest.raises(PluginFailedException) as e:
         runner.run()
 
-    assert 'does not match expected checksum' in str(e)
+    assert 'does not match expected checksum' in str(e.value)
 
 
 @responses.activate  # noqa
@@ -735,7 +735,7 @@ def test_fetch_maven_artifacts_url_bad_url(tmpdir, docker_tasker, reactor_config
     with pytest.raises(PluginFailedException) as e:
         runner.run()
 
-    assert '404 Client Error' in str(e)
+    assert '404 Client Error' in str(e.value)
 
 
 @pytest.mark.parametrize('contents', (  # noqa
@@ -790,7 +790,7 @@ def test_fetch_maven_artifacts_url_schema_error(tmpdir, docker_tasker, contents,
     with pytest.raises(PluginFailedException) as e:
         runner.run()
 
-    assert 'ValidationError' in str(e)
+    assert 'ValidationError' in str(e.value)
 
 
 @pytest.mark.parametrize(('domains', 'raises'), (  # noqa
@@ -838,7 +838,7 @@ def test_fetch_maven_artifacts_url_allowed_domains(tmpdir, docker_tasker, domain
     if raises:
         with pytest.raises(PluginFailedException) as e:
             runner.run()
-        assert 'is not in list of allowed domains' in str(e)
+        assert 'is not in list of allowed domains' in str(e.value)
 
     else:
         results = runner.run()
