@@ -78,13 +78,13 @@ fi
 $RUN $PKG install -y $PIP_PKG
 
 if [[ $OS == centos && $OS_VERSION == 7 ]]; then
+  # Get a less ancient version of pip to avoid installing py3-only packages
+  $RUN $PIP install "pip>=9.0.0,<10.0.0"
+  # ...but ancient enough to allow uninstalling packages installed by distutils
+
   # Older versions of setuptools don't understand the environment
   # markers used by docker-squash's requirements
   $RUN $PIP install -U setuptools
-  # Newer versions of more-itertools do not support python 2. And
-  # centos7 version of pip does not parse requires_python metadata
-  # https://github.com/pytest-dev/pytest/issues/4770#issuecomment-462630885
-  $RUN $PIP install more-itertools==5.0.0
 fi
 
 # Install other dependencies for tests
