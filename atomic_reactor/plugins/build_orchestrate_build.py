@@ -165,7 +165,7 @@ class WorkerBuildInfo(object):
         return self.build
 
     def watch_logs(self):
-        for line in self.osbs.get_build_logs(self.name, follow=True):
+        for line in self.osbs.get_build_logs(self.name, follow=True, decode=True):
             self.log.info(line)
 
     def get_annotations(self):
