@@ -186,24 +186,39 @@ class BumpReleasePlugin(PreBuildPlugin):
         parser = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
         dockerfile_labels = parser.labels
         labels = Labels(dockerfile_labels)
+        missing_labels = {}
+        missing_value = 'missing'
+        empty_value = 'empty'
 
         component_label = labels.get_name(Labels.LABEL_TYPE_COMPONENT)
-
         try:
             component = dockerfile_labels[component_label]
         except KeyError:
-            raise RuntimeError("missing label: {}".format(component_label))
+            self.log.error("%s label: %s", missing_value, component_label)
+            missing_labels[component_label] = missing_value
 
         version_label = labels.get_name(Labels.LABEL_TYPE_VERSION)
         try:
             version = dockerfile_labels[version_label]
+            if not version:
+                self.log.error('%s label: %s', empty_value, version_label)
+                missing_labels[version_label] = empty_value
         except KeyError:
-            raise RuntimeError('missing label: {}'.format(version_label))
+            self.log.error('%s label: %s', missing_value, version_label)
+            missing_labels[version_label] = missing_value
 
         try:
-            _, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
+            release_label, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
         except KeyError:
             release = None
+        else:
+            if not release:
+                self.log.error('%s label: %s', empty_value, release_label)
+                missing_labels[release_label] = empty_value
+
+        if missing_labels:
+            raise RuntimeError('Required labels are missing or empty or using'
+                               ' undefined variables: {}'.format(missing_labels))
 
         # Always set preferred release label - other will be set if old-style
         # label is present
