@@ -165,20 +165,48 @@ class TestBumpRelease(object):
             plugin.run()
         assert 'not incrementing' in caplog.text
 
-    @pytest.mark.parametrize('labels', [
-        {'com.redhat.component': 'component'},
-        {'BZComponent': 'component'},
-        {'version': 'version'},
-        {'Version': 'version'},
-        {},
+    @pytest.mark.parametrize(('labels', 'all_wrong_labels'), [
+        ({'com.redhat.component': 'component'},
+         {'version': 'missing'}),
+
+        ({'BZComponent': 'component'},
+         {'version': 'missing'}),
+
+        ({'version': 'version'},
+         {'com.redhat.component': 'missing'}),
+
+        ({'Version': 'version'},
+         {'com.redhat.component': 'missing'}),
+
+        ({},
+         {'com.redhat.component': 'missing', 'version': 'missing'}),
+
+        ({'com.redhat.component': 'component', 'version': ''},
+         {'version': 'empty'}),
+
+        ({'com.redhat.component': 'component', 'version': '$UNDEFINED'},
+         {'version': 'empty'}),
+
+        ({'com.redhat.component': 'component', 'version': 'version', 'release': ''},
+         {'release': 'empty'}),
+
+        ({'com.redhat.component': 'component', 'version': 'version', 'release': '$UNDEFINED'},
+         {'release': 'empty'}),
     ])
-    def test_missing_labels(self, tmpdir, caplog, labels, reactor_config_map):
+    def test_missing_labels(self, tmpdir, caplog, reactor_config_map, labels, all_wrong_labels):
         session = MockedClientSessionGeneral('')
         flexmock(koji, ClientSession=session)
         plugin = self.prepare(tmpdir, labels=labels, reactor_config_map=reactor_config_map)
         with pytest.raises(RuntimeError) as exc:
             plugin.run()
-        assert 'missing label' in str(exc.value)
+
+        for label, status in all_wrong_labels.items():
+            msg = '{} label: {}'.format(status, label)
+            assert msg in caplog.text
+
+        msg = 'Required labels are missing or empty or using' \
+              ' undefined variables: {}'.format(all_wrong_labels)
+        assert msg in str(exc.value)
 
     @pytest.mark.parametrize('component', [
         {'com.redhat.component': 'component1'},
