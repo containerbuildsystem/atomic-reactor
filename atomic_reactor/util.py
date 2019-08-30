@@ -16,7 +16,7 @@ import os
 import re
 import sys
 import requests
-from requests.exceptions import SSLError, HTTPError, RetryError, Timeout
+from requests.exceptions import SSLError, HTTPError, RetryError
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util import Retry
 import shutil
@@ -928,7 +928,7 @@ def get_manifest(image, registry_session, version):
     media_type = get_manifest_media_type(version)
     try:
         response = query_registry(registry_session, image, digest=None, version=version)
-    except (HTTPError, RetryError, Timeout) as ex:
+    except (HTTPError, RetryError) as ex:
         if ex.response.status_code == requests.codes.not_found:
             saved_not_found = ex
         # If the registry has a v2 manifest that can't be converted into a v1
