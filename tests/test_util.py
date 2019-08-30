@@ -42,7 +42,7 @@ from atomic_reactor.util import (ImageName, wait_for_command,
                                  registry_hostname, Dockercfg, RegistrySession,
                                  get_manifest_digests, ManifestDigest,
                                  get_manifest_list, get_all_manifests,
-                                 get_inspect_for_image,
+                                 get_inspect_for_image, get_manifest,
                                  get_build_json, is_scratch_build, is_isolated_build, df_parser,
                                  base_image_is_custom,
                                  are_plugins_in_order, LabelFormatter,
@@ -816,6 +816,23 @@ def test_get_manifest_digests_connection_error(tmpdir):
 
     with pytest.raises(requests.ConnectionError):
         get_manifest_digests(**kwargs)
+
+
+@responses.activate
+@pytest.mark.parametrize('body', [
+    requests.exceptions.ConnectTimeout,
+    requests.exceptions.ReadTimeout
+])
+def test_get_manifest_timeout_error(tmpdir, body):
+    image = ImageName.parse('example.com/spam:latest')
+    registry = 'https://example.com'
+    session = RegistrySession(registry)
+
+    url = 'https://example.com/v2/spam/manifests/latest'
+    responses.add(responses.GET, url, body=body())
+
+    with pytest.raises(requests.exceptions.Timeout):
+        get_manifest(image, session, 'v2')
 
 
 @pytest.mark.parametrize('namespace,repo,explicit,expected', [
