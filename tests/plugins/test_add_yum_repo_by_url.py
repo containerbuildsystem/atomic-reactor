@@ -8,6 +8,8 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals, absolute_import
 
+from atomic_reactor import util
+
 from atomic_reactor.constants import YUM_REPOS_DIR
 
 from atomic_reactor.core import DockerTasker
@@ -33,9 +35,11 @@ if MOCK:
 repocontent = b'''[repo]\n'''
 
 
-def prepare():
+def prepare(scratch=False):
     if MOCK:
         mock_docker()
+    build_json = {'metadata': {'labels': {'scratch': scratch}}}
+    flexmock(util).should_receive('get_build_json').and_return(build_json)
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow({"provider": "git", "uri": DOCKERFILE_GIT}, "test-image")
     workflow.source = StubSource()
@@ -190,6 +194,7 @@ def test_invalid_repourl():
     assert msg in str(exc.value)
 
 
+@pytest.mark.parametrize('scratch', [True, False])
 @pytest.mark.parametrize(('allowed_domains', 'repo_urls', 'will_raise'), (
     (None, ['http://example.com/repo'], False),
     ([], ['http://example.com/repo'], False),
@@ -208,8 +213,8 @@ def test_invalid_repourl():
     (['foo.redhat.com', 'bar.redhat.com'],
      ['http://wrong.foo.redhat.com/some/repo', 'http://wrong.bar.redhat.com/some/repo'], True),
 ))
-def test_allowed_domains(allowed_domains, repo_urls, will_raise):
-    tasker, workflow = prepare()
+def test_allowed_domains(allowed_domains, repo_urls, will_raise, scratch):
+    tasker, workflow = prepare(scratch)
     reactor_map = {'version': 1}
 
     if allowed_domains is not None:
@@ -223,7 +228,7 @@ def test_allowed_domains(allowed_domains, repo_urls, will_raise):
         'name': AddYumRepoByUrlPlugin.key,
         'args': {'repourls': repo_urls, 'inject_proxy': None}}])
 
-    if will_raise:
+    if will_raise and not scratch:
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
 

@@ -314,7 +314,7 @@
         }
     },
     "yum_repo_allowed_domains": {
-        "description": "Domains allowed to use when fetching yum repo files",
+        "description": "Domains allowed when fetching yum repo files. If not specified, no restrictions will be applied. The restriction does not apply to scratch builds",
         "type": "array",
         "items": {
             "type": "string"

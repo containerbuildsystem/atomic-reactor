@@ -26,6 +26,7 @@ Example configuration to add content of repo file at URL:
 from __future__ import absolute_import
 
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.util import is_scratch_build
 from atomic_reactor.yum_util import YumRepo
 from atomic_reactor.plugins.pre_reactor_config import get_yum_repo_allowed_domains
 from six.moves.urllib.parse import urlparse
@@ -73,24 +74,24 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
             self.log.info("Skipping add yum repo by url: unsupported for FROM-scratch images")
             return
 
-        if self.repourls:
+        if self.repourls and not is_scratch_build():
             self.validate_yum_repo_files_url()
 
-            for repourl in self.repourls:
-                yumrepo = YumRepo(repourl)
-                self.log.info("fetching yum repo from '%s'", yumrepo.repourl)
-                try:
-                    yumrepo.fetch()
-                except Exception as e:
-                    msg = "Failed to fetch yum repo {repo}: {exc}".format(
-                        repo=yumrepo.repourl, exc=e)
-                    raise RuntimeError(msg)
-                else:
-                    self.log.info("fetched yum repo from '%s'", yumrepo.repourl)
+        for repourl in self.repourls:
+            yumrepo = YumRepo(repourl)
+            self.log.info("fetching yum repo from '%s'", yumrepo.repourl)
+            try:
+                yumrepo.fetch()
+            except Exception as e:
+                msg = "Failed to fetch yum repo {repo}: {exc}".format(
+                    repo=yumrepo.repourl, exc=e)
+                raise RuntimeError(msg)
+            else:
+                self.log.info("fetched yum repo from '%s'", yumrepo.repourl)
 
-                if self.inject_proxy:
-                    if yumrepo.is_valid():
-                        yumrepo.set_proxy_for_all_repos(self.inject_proxy)
-                self.workflow.files[yumrepo.dst_filename] = yumrepo.content
-                self.log.debug("saving yum repo '%s', length %d", yumrepo.dst_filename,
-                               len(yumrepo.content))
+            if self.inject_proxy:
+                if yumrepo.is_valid():
+                    yumrepo.set_proxy_for_all_repos(self.inject_proxy)
+            self.workflow.files[yumrepo.dst_filename] = yumrepo.content
+            self.log.debug("saving yum repo '%s', length %d", yumrepo.dst_filename,
+                           len(yumrepo.content))
