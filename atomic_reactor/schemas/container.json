@@ -15,15 +15,25 @@
             "properties": {
               "module": {
                 "type": "string",
-                "description": "Top-level Go module (package) name which will be built"
+                "description": "Top-level Go module (package) name which will be built",
+                "examples": [
+                  "example.com/go/packagename",
+                  "example.com/go/anotherpackage"
+                ]
               },
               "archive": {
                 "type": "string",
-                "description": "Possibly-compressed archive containing full source code including dependencies"
+                "description": "Possibly-compressed archive containing full source code including dependencies",
+                "examples": [
+                  "anotherpackage.tar.gz"
+                ]
               },
               "path": {
                 "type": "string",
-                "description": "Path to directory containing source code (or its parent), possibly within archive"
+                "description": "Path to directory containing source code (or its parent), possibly within archive",
+                "examples": [
+                  "anotherpackage-v0.54.1"
+                ]
               }
             },
             "additionalProperties": false,
@@ -37,10 +47,12 @@
       "type": ["object", "null"],
       "properties": {
         "only": {
-          "$ref": "#/definitions/platforms"
+          "$ref": "#/definitions/platforms",
+          "description": "Platform(s) to build image for"
         },
         "not": {
-          "$ref": "#/definitions/platforms"
+          "$ref": "#/definitions/platforms",
+          "description": "Platform(s) not to build image for"
         }
       },
       "additionalProperties": false
@@ -62,7 +74,11 @@
           "description": "names of RPMs to include",
           "type": ["array", "null"],
           "items": {
-              "type": "string"
+              "type": "string",
+              "examples": [
+                "httpd",
+                "httpd-devel"
+              ]
           }
         },
         "pulp_repos": {
@@ -73,11 +89,20 @@
           "description": "names of modules to include",
           "type": ["array", "null"],
           "items": {
-              "type": "string"
+              "type": "string",
+              "examples": [
+                "module_name1:stream1",
+                "module_name2:stream1"
+              ]
           }
         },
         "signing_intent": {
-          "type": "string"
+          "type": "string",
+          "description": "Name of ODCS signing intent used to verify package signatures",
+          "examples": [
+            "release",
+            "unsigned"
+          ]
         },
         "inherit": {
           "description": "enable inheritance of yum repourls and composes from baseimage build (disabled by default)",
@@ -98,30 +123,47 @@
           "description": "list of arches which will get multilib composes",
           "type": ["array", "null"],
           "items": {
-              "type": "string"
+              "type": "string",
+              "examples": [
+                "x86_64",
+                "ppc64le"
+              ]
           }
         },
         "modular_koji_tags": {
           "description": "tags of modular Koji content to include in the build",
           "type": ["array", "null"],
           "items": {
-              "type": "string"
+              "type": "string",
+              "examples": [
+                "f30-modules",
+                "rhel-8.2.1-modules"
+              ]
           }
         }
       },
       "additionalProperties": false
     },
     "flatpak": {
-      "type": ["object", "null"]
+      "type": ["object", "null"],
+      "description": "Information used to build a Flatpak"
     },
     "image_build_method": {
+      "description": "build-step plugin to be used",
       "enum": ["docker_api", "imagebuilder", "buildah_bud"]
     },
     "tags": {
-      "type": "array"
+      "type": "array",
+      "description": "Tags to apply to the built image",
+      "examples": [
+        "latest",
+        "1.0",
+        "demo"
+      ]
     },
     "version": {
       "type": "integer",
+      "description": "Deprecated option kept for backwards compatibility. Should not be used",
       "minimum": 1,
       "default": 1
     }
@@ -130,7 +172,13 @@
 
   "definitions": {
     "platform": {
-      "type": "string"
+      "type": "string",
+      "description": "Platform name",
+      "examples": [
+        "x86_64",
+        "ppc64le",
+        "armhfp"
+      ]
     },
     "platforms": {
       "oneOf": [
