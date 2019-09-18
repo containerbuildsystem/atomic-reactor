@@ -66,6 +66,7 @@ class StubInsideBuilder(object):
         self.base_from_scratch = False
         self.parents_ordered = []
         self.tasker = None
+        self.original_df = None
 
         self._inspection_data = None
         self._parent_inspection_data = {}

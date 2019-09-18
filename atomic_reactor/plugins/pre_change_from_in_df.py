@@ -58,6 +58,7 @@ class ChangeFromPlugin(PreBuildPlugin):
     def run(self):
         builder = self.workflow.builder
         dfp = df_parser(builder.df_path)
+        builder.original_df = dfp.content
 
         organization = get_registries_organization(self.workflow)
         df_base = ImageName.parse(dfp.baseimage)

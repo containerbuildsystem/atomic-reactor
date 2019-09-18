@@ -285,6 +285,7 @@ def test_update_parent_images(organization, df_content, expected_df_content, bas
     original_base = workflow.builder.base_image
     run_plugin(workflow, reactor_config_map, docker_tasker, organization=organization)
     assert dfp.content == expected_df_content
+    assert workflow.builder.original_df == df_content
     if base_from_scratch:
         assert original_base == workflow.builder.base_image
 
