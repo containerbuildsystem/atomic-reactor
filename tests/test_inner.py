@@ -49,6 +49,7 @@ BUILD_RESULTS_ATTRS = ['build_logs',
 DUMMY_BUILD_RESULT = BuildResult(image_id="image_id")
 DUMMY_FAILED_BUILD_RESULT = BuildResult(fail_reason='it happens')
 DUMMY_REMOTE_BUILD_RESULT = BuildResult.make_remote_image_result()
+DUMMY_ORIGINAL_DF = "FROM test_base_image"
 
 
 def test_build_results_encoder():
@@ -106,6 +107,7 @@ class MockInsideBuilder(object):
         self.failed = failed
         self.df_path = 'some'
         self.df_dir = 'some'
+        self.original_df = DUMMY_ORIGINAL_DF
 
         def simplegen(x, y):
             yield "some"
@@ -302,7 +304,7 @@ class WatcherWithSignal(Watcher):
             os.kill(os.getpid(), self.signal)
 
 
-def test_workflow():
+def test_workflow(caplog):
     """
     Test normal workflow.
     """
@@ -317,38 +319,47 @@ def test_workflow():
     watch_buildstep = Watcher()
     watch_post = Watcher()
     watch_exit = Watcher()
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
-                                   prebuild_plugins=[{'name': 'pre_watched',
-                                                      'args': {
-                                                          'watcher': watch_pre
-                                                      }}],
-                                   buildstep_plugins=[{'name': 'buildstep_watched',
-                                                       'args': {
-                                                           'watcher': watch_buildstep
-                                                       }}],
 
-                                   prepublish_plugins=[{'name': 'prepub_watched',
-                                                        'args': {
-                                                            'watcher': watch_prepub,
-                                                        }}],
-                                   postbuild_plugins=[{'name': 'post_watched',
-                                                       'args': {
-                                                           'watcher': watch_post
-                                                       }}],
-                                   exit_plugins=[{'name': 'exit_watched',
-                                                  'args': {
-                                                      'watcher': watch_exit
-                                                  }}],
-                                   plugin_files=[this_file])
+    build_json = {'source': MOCK_SOURCE,
+                  'image': 'test-image',
+                  'prebuild_plugins': [{'name': 'pre_watched',
+                                        'args': {
+                                            'watcher': watch_pre
+                                        }}],
+                  'buildstep_plugins': [{'name': 'buildstep_watched',
+                                         'args': {
+                                             'watcher': watch_buildstep
+                                         }}],
 
-    workflow.build_docker_image()
+                  'prepublish_plugins': [{'name': 'prepub_watched',
+                                          'args': {
+                                              'watcher': watch_prepub,
+                                          }}],
+                  'postbuild_plugins': [{'name': 'post_watched',
+                                         'args': {
+                                             'watcher': watch_post
+                                         }}],
+                  'exit_plugins': [{'name': 'exit_watched',
+                                    'args': {
+                                        'watcher': watch_exit
+                                    }}],
+                  'plugin_files': [this_file]}
+    input_plugins_result = {'osv3': build_json}
+
+    (flexmock(atomic_reactor.plugin.InputPluginsRunner)
+        .should_receive('run')
+        .and_return(input_plugins_result))
+
+    atomic_reactor.inner.build_inside('osv3')
 
     assert watch_pre.was_called()
     assert watch_prepub.was_called()
     assert watch_buildstep.was_called()
     assert watch_post.was_called()
     assert watch_exit.was_called()
-
+    dockerfile_used_entry = 'Dockerfile used for build:\n{}'.format(DUMMY_ORIGINAL_DF)
+    assert dockerfile_used_entry in caplog.messages
+    assert 'build has finished successfully' in caplog.text
 
 def test_workflow_base_images():
     """
