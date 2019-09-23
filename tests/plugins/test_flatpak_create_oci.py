@@ -8,18 +8,14 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import absolute_import
 
-from six.moves import configparser
 from flexmock import flexmock
 from io import BytesIO
 import os
 import png
 import pytest
 import re
-import stat
-import shutil
 import subprocess
 import tarfile
-from textwrap import dedent
 
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.inner import DockerBuildWorkflow
@@ -28,14 +24,12 @@ from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
 from atomic_reactor.util import ImageName
 
 from tests.constants import TEST_IMAGE
-from tests.flatpak import (MODULEMD_AVAILABLE, FLATPAK_APP_FINISH_ARGS,
+from tests.flatpak import (MODULEMD_AVAILABLE,
                            setup_flatpak_source_info, build_flatpak_test_configs)
 
 if MODULEMD_AVAILABLE:
     from atomic_reactor.plugins.prepub_flatpak_create_oci import FlatpakCreateOciPlugin
     from gi.repository import Modulemd
-
-TEST_ARCH = 'x86_64'
 
 CONTAINER_ID = 'CONTAINER-ID'
 
@@ -368,211 +362,20 @@ class X(object):
     base_image = ImageName(repo="qwe", tag="asd")
 
 
-default_check_output = subprocess.check_output
-default_check_call = subprocess.check_call
-
-
-# Instead of having <repo>/refs/<refname> pointing into <repo>/objects,
-# just store the file tree at <repo>/<refname>
-class MockOSTree(object):
-    @staticmethod
-    def commit(repo, branch, subject, tar_tree, dir_tree):
-        branch_path = os.path.join(repo, branch)
-        os.makedirs(branch_path)
-        with tarfile.open(tar_tree) as tf:
-            tf.extractall(path=branch_path)
-        for f in os.listdir(dir_tree):
-            full = os.path.join(dir_tree, f)
-            if os.path.isdir(f):
-                shutil.copytree(full, os.path.join(branch_path, f))
-            else:
-                shutil.copy2(full, os.path.join(branch_path, f))
-
-    @staticmethod
-    def init(repo):
-        os.mkdir(repo)
-
-    @staticmethod
-    def summary(repo):
-        pass
-
-
-# The build directory is created more or less the same as flatpak build-init
-# creates it, but when we 'flatpak build-export' we export to the fake
-# OSTree format from MockOSTree, and when we 'flatpak build-bundle', we
-# create a fake 'OCI Image' where we just have <dir>/tree with the filesystem
-# contents, instead of having an index.json, tarred layers, etc.
-class MockFlatpak(object):
-    @staticmethod
-    def default_arch():
-        return TEST_ARCH
-
-    @staticmethod
-    def build_bundle(repo, filename, name, branch='master', runtime=False):
-        if runtime:
-            ref = 'runtime/' + name
-        else:
-            ref = 'app/' + name
-
-        if branch is None:
-            branch = os.listdir(os.path.join(repo, ref))[0]
-        branch_path = os.path.join(repo, ref, TEST_ARCH, branch)
-        dest_path = os.path.join(filename, 'tree')
-        os.makedirs(filename)
-        shutil.copytree(branch_path, dest_path)
-
-    @staticmethod
-    def build_init(directory, appname, sdk, runtime, runtime_branch):
-        if not os.path.isdir(directory):
-            os.mkdir(directory)
-        with open(os.path.join(directory, "metadata"), "w") as f:
-            f.write(dedent("""\
-                           [Application]
-                           name={appname}
-                           runtime={runtime}/{arch}/{runtime_branch}
-                           sdk={sdk}/{arch}/{runtime_branch}
-                           """.format(appname=appname,
-                                      sdk=sdk,
-                                      runtime=runtime,
-                                      runtime_branch=runtime_branch,
-                                      arch=TEST_ARCH)))
-        os.mkdir(os.path.join(directory, "files"))
-
-    @staticmethod
-    def build_finish(directory, command):
-        with open(os.path.join(directory, "metadata"), "a") as f:
-            f.write("command=" + command + "\n")
-
-    @staticmethod
-    def build_export(repo, directory, branch):
-        cp = configparser.RawConfigParser()
-        cp.read(os.path.join(directory, "metadata"))
-        appname = cp.get('Application', 'name')
-        ref = os.path.join('app', appname, TEST_ARCH, branch)
-
-        dest = os.path.join(repo, ref)
-        filesdir = os.path.join(directory, "files")
-        shutil.copytree(filesdir, os.path.join(dest, "files"))
-        shutil.copy2(os.path.join(directory, "metadata"), dest)
-
-        # Simplified implementation of exporting files into /export
-        # flatpak build-export only actually handles very specific files
-        # desktop files in share/applications, icons, etc.
-        dest_exportdir = os.path.join(dest, "export")
-        for dirpath, _, filenames in os.walk(filesdir):
-            rel_dirpath = os.path.relpath(dirpath, filesdir)
-            for f in filenames:
-                if f.startswith(appname):
-                    destdir = os.path.join(dest_exportdir, rel_dirpath)
-                    os.makedirs(destdir)
-                    shutil.copy2(os.path.join(dirpath, f), destdir)
-
-
-COMMAND_PATTERNS = [
-    (['flatpak', '--default-arch'], MockFlatpak.default_arch),
-    (['flatpak', 'build-bundle', '@repo',
-      '--oci', '--runtime', '@filename', '@name', '@branch'],
-     MockFlatpak.build_bundle, {'runtime': True}),
-    (['flatpak', 'build-bundle', '@repo',
-      '--oci', '@filename', '@name', '@branch'],
-     MockFlatpak.build_bundle),
-    # For build-export, we assume the latest flatpak version for flatpak_module_tools compatibility
-    (['flatpak', 'build-export', '@repo', '@directory', '@branch', '--disable-sandbox'],
-     MockFlatpak.build_export),
-    (['flatpak', 'build-finish', '--command', '@command'] +
-     FLATPAK_APP_FINISH_ARGS + ['@directory'],
-     MockFlatpak.build_finish),
-    (['flatpak', 'build-init', '@directory', '@appname', '@sdk', '@runtime', '@runtime_branch'],
-     MockFlatpak.build_init),
-    (['ostree', 'commit',
-      '--repo', '@repo',
-      '--owner-uid=0', '--owner-gid=0', '--no-xattrs', '--canonical-permissions',
-      '--branch', '@branch', '-s', '@subject', '--tree=tar=@tar_tree', '--tree=dir=@dir_tree'],
-     MockOSTree.commit),
-    (['ostree', 'init', '--mode=archive-z2', '--repo', '@repo'], MockOSTree.init),
-    (['ostree', 'summary', '-u', '--repo', '@repo'], MockOSTree.summary)
-]
-
-
-def mock_command(cmdline, return_output=False, universal_newlines=False, cwd=None):
-    output = ''
-    cmd = cmdline[0]
-
-    if cmd not in ('flatpak', 'ostree'):
-        if output:
-            return default_check_output(cmdline, universal_newlines=universal_newlines, cwd=cwd)
-        else:
-            return default_check_call(cmdline, cwd=cwd)
-
-    for command in COMMAND_PATTERNS:
-        if len(command) == 2:
-            pattern, f = command
-            default_args = {}
-        else:
-            pattern, f, default_args = command
-
-        if len(pattern) != len(cmdline):
-            continue
-
-        matched = True
-        kwargs = None
-        for i, pattern_arg in enumerate(pattern):
-            arg = cmdline[i]
-            at_index = pattern_arg.find("@")
-            if at_index < 0:
-                if pattern_arg != arg:
-                    matched = False
-                    break
-            else:
-                before = pattern_arg[0:at_index]
-                if not arg.startswith(before):
-                    matched = False
-                    break
-                if kwargs is None:
-                    kwargs = dict(default_args)
-                kwargs[pattern_arg[at_index + 1:]] = arg[len(before):]
-
-        if not matched:
-            continue
-
-        if kwargs is None:
-            kwargs = dict(default_args)
-
-        output = f(**kwargs)
-        if output is None:
-            output = ''
-
-        if return_output:
-            if universal_newlines:
-                return output
-            else:
-                return output.encode('UTF-8')
-
-    raise RuntimeError("Unmatched command line to mock %r" % cmdline)
-
-
-def mocked_check_call(cmdline, cwd=None):
-    mock_command(cmdline, return_output=True, cwd=cwd)
-
-
-def mocked_check_output(cmdline, universal_newlines=False, cwd=None):
-    return mock_command(cmdline, return_output=True, universal_newlines=universal_newlines, cwd=cwd)
-
-
 class DefaultInspector(object):
     def __init__(self, tmpdir, metadata):
         # Import the OCI bundle into a ostree repository for examination
         self.repodir = os.path.join(str(tmpdir), 'repo')
-        default_check_call(['ostree', 'init', '--mode=archive-z2', '--repo=' + self.repodir])
-        default_check_call(['flatpak', 'build-import-bundle', '--oci',
-                            self.repodir, str(metadata['path'])])
+        subprocess.check_call(['ostree', 'init', '--mode=archive-z2', '--repo=' + self.repodir])
+        subprocess.check_call(['flatpak', 'build-import-bundle', '--oci',
+                               self.repodir, str(metadata['path'])])
 
         self.ref_name = metadata['ref_name']
 
     def list_files(self):
-        output = default_check_output(['ostree', '--repo=' + self.repodir,
-                                       'ls', '-R', self.ref_name],
-                                      universal_newlines=True)
+        output = subprocess.check_output(['ostree', '--repo=' + self.repodir,
+                                          'ls', '-R', self.ref_name],
+                                         universal_newlines=True)
         files = []
         for line in output.split('\n'):
             line = line.strip()
@@ -586,54 +389,21 @@ class DefaultInspector(object):
         return files
 
     def cat_file(self, path):
-        return default_check_output(['ostree', '--repo=' + self.repodir,
-                                     'cat', self.ref_name,
-                                     path],
-                                    universal_newlines=True)
+        return subprocess.check_output(['ostree', '--repo=' + self.repodir,
+                                        'cat', self.ref_name,
+                                        path],
+                                       universal_newlines=True)
 
     def get_file_perms(self, path):
-        output = default_check_output(['ostree', '--repo=' + self.repodir,
-                                       'ls', '-R', self.ref_name, path],
-                                      universal_newlines=True)
+        output = subprocess.check_output(['ostree', '--repo=' + self.repodir,
+                                          'ls', '-R', self.ref_name, path],
+                                         universal_newlines=True)
         for line in output.split('\n'):
             line = line.strip()
             if line == '':
                 continue
             perms = line.split()[0]
             return perms
-
-
-class MockInspector(object):
-    def __init__(self,  tmpdir, metadata):
-        self.path = metadata['path']
-
-    def list_files(self):
-        def _make_absolute(path):
-            if path.startswith("./"):
-                return path[1:]
-            else:
-                return '/' + path
-
-        files = []
-        top = os.path.join(self.path, 'tree')
-        for dirpath, _, filenames in os.walk(top):
-            rel_dirpath = os.path.relpath(dirpath, top)
-            files.extend([_make_absolute(os.path.join(rel_dirpath, f)) for f in filenames])
-
-        return files
-
-    def cat_file(self, path):
-        full = os.path.join(self.path, 'tree', path[1:])
-        with open(full, "r") as f:
-            return f.read()
-
-    def get_file_perms(self, path):
-        full = os.path.join(self.path, 'tree', path[1:])
-        mode = os.stat(full).st_mode
-        if stat.S_ISDIR(mode):
-            return 'd{:05o}'.format(stat.S_IMODE(mode))
-        else:
-            return '-{:05o}'.format(stat.S_IMODE(mode))
 
 
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,  # noqa - docker_tasker fixture
@@ -644,34 +414,23 @@ class MockInspector(object):
     ('runtime', None),
     ('sdk', None)
 ])
-@pytest.mark.parametrize('mock_flatpak', (False, True))
-def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_flatpak):
-    if not mock_flatpak:
-        # Check that we actually have flatpak available
-        have_flatpak = False
-        try:
-            output = subprocess.check_output(['flatpak', '--version'],
-                                             universal_newlines=True)
-            m = re.search(r'(\d+)\.(\d+)\.(\d+)', output)
-            if m and (int(m.group(1)), int(m.group(2)), int(m.group(3))) >= (0, 9, 7):
-                have_flatpak = True
+def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage):
+    # Check that we actually have flatpak available
+    have_flatpak = False
+    try:
+        output = subprocess.check_output(['flatpak', '--version'],
+                                         universal_newlines=True)
+        m = re.search(r'(\d+)\.(\d+)\.(\d+)', output)
+        if m and (int(m.group(1)), int(m.group(2)), int(m.group(3))) >= (0, 9, 7):
+            have_flatpak = True
 
-        except (subprocess.CalledProcessError, OSError):
-            pytest.skip(msg='flatpak not available')
+    except (subprocess.CalledProcessError, OSError):
+        pytest.skip(msg='flatpak not available')
 
-        if not have_flatpak:
-            return
+    if not have_flatpak:
+        return
 
     config = CONFIGS[config_name]
-
-    if mock_flatpak:
-        (flexmock(subprocess)
-         .should_receive("check_call")
-         .replace_with(mocked_check_call))
-
-        (flexmock(subprocess)
-         .should_receive("check_output")
-         .replace_with(mocked_check_output))
 
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
     setattr(workflow, 'builder', X)
@@ -779,10 +538,7 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage, mock_f
 
         # Check that the expected files ended up in the flatpak
 
-        if mock_flatpak:
-            inspector = MockInspector(tmpdir, dir_metadata)
-        else:
-            inspector = DefaultInspector(tmpdir, dir_metadata)
+        inspector = DefaultInspector(tmpdir, dir_metadata)
 
         files = inspector.list_files()
         assert sorted(files) == config['expected_contents']
