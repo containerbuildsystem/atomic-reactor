@@ -26,7 +26,7 @@
 %global dock_obsolete_vr 1.3.7-2
 
 Name:           %{project}
-Version:        1.6.42
+Version:        1.6.43
 Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
@@ -384,6 +384,9 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 
 
 %changelog
+* Tue Sep 24 2019 Robert Cerven <rcerven@redhat.com> - 1.6.43-1
+- new upstream release: 1.6.43
+
 * Mon Aug 19 2019 Robert Cerven <rcerven@redhat.com> - 1.6.42-1
 - new upstream release: 1.6.42
 
