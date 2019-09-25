@@ -13,7 +13,7 @@ If you want to take advantage of _inner_ part logic of Atomic Reactor, you can d
     "provider": "git"
   },
   "image": "my-test-image",
-  "openshift_build_selflink": "/oapi/v1/namespaces/default/builds/build-20150826112654-1",
+  "openshift_build_selflink": "/apis/build.openshift.io/v1/namespaces/default/builds/build-20150826112654-1",
   "prebuild_plugins": [
     {
       "args": {
