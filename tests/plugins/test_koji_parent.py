@@ -56,12 +56,16 @@ KOJI_BUILD_ID = 123456789
 KOJI_BUILD_NVR = 'base-image-1.0-99'
 
 KOJI_STATE_COMPLETE = koji.BUILD_STATES['COMPLETE']
+KOJI_STATE_BUILDING = koji.BUILD_STATES['BUILDING']
 
 V2_LIST = get_manifest_media_type('v2_list')
 V2 = get_manifest_media_type('v2')
 KOJI_EXTRA = {'image': {'index': {'digests': {V2_LIST: 'stubDigest'}}}}
 
 KOJI_STATE_DELETED = koji.BUILD_STATES['DELETED']
+
+KOJI_BUILD_BUILDING = {'nvr': KOJI_BUILD_NVR, 'id': KOJI_BUILD_ID, 'state': KOJI_STATE_BUILDING,
+                       'extra': KOJI_EXTRA}
 
 KOJI_BUILD = {'nvr': KOJI_BUILD_NVR, 'id': KOJI_BUILD_ID, 'state': KOJI_STATE_COMPLETE,
               'extra': KOJI_EXTRA}
@@ -152,7 +156,7 @@ class TestKojiParent(object):
             .and_return(None)
             .and_return(None)
             .and_return(None)
-            .and_return(None)
+            .and_return(KOJI_BUILD_BUILDING)
             .and_return(KOJI_BUILD)
             .times(5))
 
