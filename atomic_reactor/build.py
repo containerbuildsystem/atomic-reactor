@@ -204,6 +204,15 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
                 custom_base_images.add(image_str)
                 self.custom_parent_image = True
             self.parents_ordered.append(image_str)
+
+            # we are setting values None, because we know parent but we don't
+            # have local copy yet
+            # if image is base image we want to keep image instance in key,
+            # so it is same as original_base_image instance
+            if self.original_base_image.to_str() == image_str:
+                self.parent_images[self.original_base_image] = None
+                continue
+
             self.parent_images[image_name] = None
 
         if len(custom_base_images) > 1:

@@ -132,6 +132,7 @@ class InjectParentImage(PreBuildPlugin):
 
         if organization:
             self.workflow.builder.base_image.enclose(organization)
+            self.workflow.builder.original_base_image.enclose(organization)
             new_parent_image.enclose(organization)
 
         self._new_parent_image = new_parent_image.to_str()
