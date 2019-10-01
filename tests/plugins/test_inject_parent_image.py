@@ -76,6 +76,7 @@ class MockInsideBuilder(object):
     def __init__(self):
         self.tasker = DockerTasker()
         self.base_image = ImageName(repo='fedora', tag='26')
+        self.original_base_image = ImageName(repo='fedora', tag='26')
         self.base_from_scratch = False
         self.custom_base_image = False
         self.image_id = 'image_id'
