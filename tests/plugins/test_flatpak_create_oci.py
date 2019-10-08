@@ -543,7 +543,7 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage):
         files = inspector.list_files()
         assert sorted(files) == config['expected_contents']
 
-        components = {c['name'] for c in workflow.image_components}
+        components = {c['name'] for c in workflow.image_components}  # noqa:E501; pylint: disable=not-an-iterable
         for n in config['expected_components']:
             assert n in components
         for n in config['unexpected_components']:

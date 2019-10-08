@@ -63,6 +63,10 @@
         "from_latest": {
           "description": "Whether to rebuild from the latest commit",
           "type": "boolean"
+        },
+        "add_timestamp_to_release": {
+          "description": "Whether to append timestamp to explicitly specified release for autorebuilds",
+          "type": "boolean"
         }
       },
       "additionalProperties": false
