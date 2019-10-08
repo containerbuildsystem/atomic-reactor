@@ -43,7 +43,7 @@ from atomic_reactor.plugins.build_orchestrate_build import (WORKSPACE_KEY_OVERRI
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY, ReactorConfig)
 from atomic_reactor.plugins.pre_resolve_composes import (ResolveComposesPlugin,
-                                                         ODCS_DATETIME_FORMAT, UNPUBLISHED_REPOS)
+                                                         ODCS_DATETIME_FORMAT)
 
 import yaml
 from atomic_reactor.util import ImageName, read_yaml
@@ -191,18 +191,6 @@ def mock_repo_config(tmpdir, data=None, signing_intent=None):
             data += "    signing_intent: {}".format(signing_intent)
 
     tmpdir.join('container.yaml').write(data)
-
-
-def mock_content_sets_config(tmpdir, data=None):
-    if data is None:
-        data = dedent("""\
-            x86_64:
-            - pulp-spam
-            - pulp-bacon
-            - pulp-eggs
-        """)
-
-    tmpdir.join('content_sets.yml').write(data)
 
 
 def mock_odcs_request():
@@ -555,20 +543,12 @@ class TestResolveComposes(object):
 
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
-    @pytest.mark.parametrize(('compose_arches', 'pulp_arches', 'multilib_arches',
-                              'request_multilib'), [
-        (['i686'], None, None, None),
-        (['i686'], None, ['i686'], ['i686']),
-        (['i686'], None, ['ppc64le'], None),
-        (['i686'], None, ['s390x', 'i686', 'ppc64le'], ['i686']),
-        (['i686', 'ppc64le'], None, ['s390x', 'i686', 'ppc64le'], ['i686', 'ppc64le']),
-        (['i686'], ['ppc64le'], None, None),
-        (['i686'], ['ppc64le'], ['i686'], ['i686']),
-        # pcc64le is in the pulp list but not the compose list, so it's not built at all
-        (['i686'], ['ppc64le'], ['ppc64le'], None),
-        (['i686'], ['ppc64le'], ['s390x', 'i686', 'ppc64le'], ['i686']),
-        (['i686', 'ppc64le'], ['ppc64le'], ['s390x', 'i686', 'ppc64le'],
-         ['i686', 'ppc64le']),
+    @pytest.mark.parametrize(('compose_arches', 'multilib_arches', 'request_multilib'), [
+        (['i686'], None, None),
+        (['i686'], ['i686'], ['i686']),
+        (['i686'], ['ppc64le'], None),
+        (['i686'], ['s390x', 'i686', 'ppc64le'], ['i686']),
+        (['i686', 'ppc64le'], ['s390x', 'i686', 'ppc64le'], ['i686', 'ppc64le']),
     ])
     @pytest.mark.parametrize(('multilib_method', 'method_results'), [
         (["none"], ['none']),
@@ -579,18 +559,9 @@ class TestResolveComposes(object):
         (None, []),
     ])
     def test_multilib(self, workflow, reactor_config_map,
-                      compose_arches, pulp_arches, multilib_arches, request_multilib,
+                      compose_arches, multilib_arches, request_multilib,
                       multilib_method, method_results):
         base_repos = ['spam', 'bacon', 'eggs']
-
-        content_dict = {}
-        for arch in pulp_arches or []:
-            pulp_repos = []
-            for repo in base_repos:
-                pulp_repos.append(repo + '-' + arch)
-            content_dict[arch] = pulp_repos
-
-        mock_content_sets_config(workflow._tmpdir, yaml.safe_dump(content_dict))
 
         repo_config = {
             'compose': {
@@ -601,8 +572,6 @@ class TestResolveComposes(object):
             repo_config['compose']['multilib_arches'] = multilib_arches
         if multilib_method:
             repo_config['compose']['multilib_method'] = multilib_method
-        if pulp_arches:
-            repo_config['compose']['pulp_repos'] = True
 
         mock_repo_config(workflow._tmpdir, yaml.safe_dump(repo_config))
         if compose_arches:
@@ -640,84 +609,26 @@ class TestResolveComposes(object):
                         compose_methods = compose_config['multilib_method'] or []
                         assert sorted(compose_methods) == sorted(method_results)
                         continue
-            # fall through if multilib wasn't requested or if the pulp arch wasn't in
-            # the multilib request
+            # fall through if multilib wasn't requested
             assert 'multilib_arches' not in compose_config
             assert 'multilib_method' not in compose_config
         assert composed_arches == set(compose_arches)
 
-    @pytest.mark.parametrize(('pulp_arches', 'arches', 'signing_intent', 'expected_intent'), (
-        (None, None, 'unsigned', 'unsigned'),
-        # For the next test, since arches is none, no compose is performed even though pulp_arches
-        # has a value. Expected intent doesn't change when nothing is composed.
-        (['x86_64'], None, 'release', 'release'),
-        # pulp composes have the beta signing intent and downgrade the release intent to beta.
-        (['x86_64'], ['x86_64'], 'release', 'beta'),
-        (['x86_64', 'ppce64le'], ['x86_64', 'ppce64le'], 'release', 'beta'),
-        (['x86_64', 'ppce64le'], ['x86_64'], 'release', 'beta'),
-        (['x86_64', 'ppce64le', 'arm64'], ['x86_64', 'ppce64le', 'arm64'], 'beta', 'beta'),
-        # pulp composes have the beta signing intent but the unsigned intent overrides that
-        (['x86_64', 'ppce64le', 'arm64'], ['x86_64', 'ppce64le', 'arm64'], 'unsigned', 'unsigned'),
-        # For the next test, since arches is none, no compose is performed even though pulp_arches
-        # has a value. Expected intent doesn't change when nothing is composed.
-        (['x86_64', 'ppce64le', 'arm64'], None, 'beta', 'beta'),
+    @pytest.mark.parametrize(('arches', 'signing_intent', 'expected_intent'), (
+        (None, 'unsigned', 'unsigned'),
+        (None, 'release', 'release'),
+        (['x86_64', 'ppce64le', 'arm64'], 'unsigned', 'unsigned'),
+        (None, 'beta', 'beta'),
     ))
     @pytest.mark.parametrize(('flags', 'expected_flags'), [
         ({}, None),
-        ({UNPUBLISHED_REPOS: False}, None),
-        ({UNPUBLISHED_REPOS: True}, [UNPUBLISHED_REPOS])
     ])
-    def test_request_pulp_and_multiarch(self, workflow, reactor_config_map, pulp_arches, arches,
-                                        signing_intent, expected_intent, flags, expected_flags):
-        content_set = ''
-        pulp_composes = {}
-        base_repos = ['spam', 'bacon', 'eggs']
-        pulp_id = ODCS_COMPOSE_ID
+    def test_request_multiarch(self, workflow, reactor_config_map, arches,
+                               signing_intent, expected_intent, flags, expected_flags):
         arches = arches or []
-
-        for arch in pulp_arches or []:
-            pulp_id += 1
-            pulp_repos = []
-            content_set += """\n    {0}:""".format(arch)
-            for repo in base_repos:
-                pulp_repo = repo + '-' + arch
-                pulp_repos.append(pulp_repo)
-                content_set += """\n    - {0}""".format(pulp_repo)
-            source = ' '.join(pulp_repos)
-
-            if arch not in arches:
-                continue
-
-            pulp_compose = {
-                'id': pulp_id,
-                'result_repo': ODCS_COMPOSE_REPO,
-                'result_repofile': ODCS_COMPOSE_REPO + '/pulp_compose-' + arch,
-                'source': source,
-                'source_type': 'pulp',
-                'sigkeys': "B457",
-                'state_name': 'done',
-                'arches': arch,
-                'time_to_expire': ODCS_COMPOSE_TIME_TO_EXPIRE.strftime(ODCS_DATETIME_FORMAT),
-            }
-            pulp_composes[arch] = pulp_compose
-            if expected_flags:
-                pulp_composes['flags'] = expected_flags
-
-            (flexmock(ODCSClient)
-                .should_receive('start_compose')
-                .with_args(source_type='pulp', source=source, arches=[arch], sigkeys=[],
-                           flags=expected_flags)
-                .and_return(pulp_composes[arch]).once())
-            (flexmock(ODCSClient)
-                .should_receive('wait_for_compose')
-                .with_args(pulp_id)
-                .and_return(pulp_composes[arch]).once())
-
-        mock_content_sets_config(workflow._tmpdir, content_set)
 
         repo_config = dedent("""\
             compose:
-                pulp_repos: true
                 packages:
                 - spam
                 - bacon
@@ -756,7 +667,7 @@ class TestResolveComposes(object):
             .and_return(tag_compose).once())
 
         plugin_result = self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
-                                                  platforms=arches, is_pulp=pulp_arches)
+                                                  platforms=arches)
 
         assert plugin_result['signing_intent'] == expected_intent
 
@@ -765,7 +676,6 @@ class TestResolveComposes(object):
         arches = ['x86_64']
         repo_config = dedent("""\
             compose:
-                pulp_repos: true
                 packages:
                 - spam
                 - bacon
@@ -777,37 +687,8 @@ class TestResolveComposes(object):
         workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(arches)
         with pytest.raises(PluginFailedException) as exc:
             self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
-                                      platforms=arches, is_pulp=False)
+                                      platforms=arches)
         assert expect_error in str(exc.value)
-
-    def test_request_compose_for_pulp_no_content_sets(self, workflow, reactor_config_map):
-        (flexmock(ODCSClient)
-            .should_receive('start_compose')
-            .with_args(
-                source_type='pulp',
-                source='pulp is no good here',
-                arches=['x86_64'],
-                sigkeys=[])
-            .never())
-        (flexmock(ODCSClient)
-            .should_receive('wait_for_compose')
-            .with_args(85)
-            .never())
-
-        mock_content_sets_config(workflow._tmpdir, '')
-
-        repo_config = dedent("""\
-            compose:
-                pulp_repos: true
-                packages:
-                - spam
-                - bacon
-                - eggs
-            """)
-        mock_repo_config(workflow._tmpdir, repo_config)
-        mock_odcs_request()
-
-        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
     def test_signing_intent_and_compose_ids_mutex(self, workflow, reactor_config_map):
         plugin_args = {'compose_ids': [1, 2], 'signing_intent': 'unsigned'}
@@ -1052,11 +933,6 @@ class TestResolveComposes(object):
             compose:
                 modules: []
             """), 'Nothing to compose'),
-
-        (dedent("""\
-            compose:
-                pulp_repos: true
-            """), 'Nothing to compose'),
     ))
     def test_invalid_compose_request(self, workflow, config, error_message,
                                      reactor_config_map):
@@ -1073,24 +949,6 @@ class TestResolveComposes(object):
         msg = 'Aborting plugin execution: "compose" config not set and compose_ids not given'
         assert msg in (x.message for x in caplog.records)
 
-    def test_only_pulp_repos(self, workflow, reactor_config_map):
-        mock_repo_config(workflow._tmpdir,
-                         dedent("""\
-                             compose:
-                                 pulp_repos: true
-                             """))
-        mock_content_sets_config(workflow._tmpdir)
-        (flexmock(ODCSClient)
-            .should_receive('start_compose')
-            .with_args(
-                source_type='pulp',
-                source='pulp-spam pulp-bacon pulp-eggs',
-                sigkeys=[],
-                flags=None,
-                arches=['x86_64'])
-            .and_return(ODCS_COMPOSE))
-        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
-
     @pytest.mark.parametrize(('state_name', 'time_to_expire_delta', 'expect_renew'), (
         ('removed', timedelta(), True),
         ('removed', timedelta(hours=-2), True),
@@ -1102,8 +960,8 @@ class TestResolveComposes(object):
     def test_renew_compose(self, workflow, state_name, time_to_expire_delta, expect_renew,
                            reactor_config_map):
         old_odcs_compose = ODCS_COMPOSE.copy()
-        time_to_expire = (ODCS_COMPOSE_TIME_TO_EXPIRE -
-                          ODCS_COMPOSE_SECONDS_TO_LIVE +
+        time_to_expire = (ODCS_COMPOSE_TIME_TO_EXPIRE -  # noqa:W504
+                          ODCS_COMPOSE_SECONDS_TO_LIVE +  # noqa:W504
                           time_to_expire_delta)
         old_odcs_compose.update({
             'state_name': state_name,
@@ -1227,7 +1085,7 @@ class TestResolveComposes(object):
 
     def run_plugin_with_args(self, workflow, plugin_args=None,
                              expect_error=None, reactor_config_map=False,
-                             platforms=None, is_pulp=None,
+                             platforms=None,
                              check_for_default_id=True):
         plugin_args = plugin_args or {}
         plugin_args.setdefault('odcs_url', ODCS_URL)
@@ -1265,9 +1123,6 @@ class TestResolveComposes(object):
                 # Koji tag compose is present in each one
                 if check_for_default_id:
                     assert ODCS_COMPOSE['result_repofile'] in yum_repourls
-                if is_pulp:
-                    pulp_repo = ODCS_COMPOSE_REPO + '/pulp_compose-' + platform
-                    assert pulp_repo in yum_repourls
             yum_repourls = self.get_override_yum_repourls(workflow, None)
             if platforms:
                 assert yum_repourls is None

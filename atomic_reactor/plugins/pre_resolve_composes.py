@@ -8,12 +8,10 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals, absolute_import
 
 from datetime import datetime, timedelta
-import os
-import yaml
 from collections import defaultdict
 
 from atomic_reactor.constants import (PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
-                                      REPO_CONTENT_SETS_CONFIG, BASE_IMAGE_KOJI_BUILD)
+                                      BASE_IMAGE_KOJI_BUILD)
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
@@ -25,8 +23,6 @@ from atomic_reactor.util import get_platforms, is_isolated_build, is_scratch_bui
 
 ODCS_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 MINIMUM_TIME_TO_EXPIRE = timedelta(hours=2).total_seconds()
-# flag to let ODCS see hidden pulp repos
-UNPUBLISHED_REPOS = 'include_unpublished_pulp_repos'
 
 
 class ResolveComposesPlugin(PreBuildPlugin):
@@ -184,18 +180,11 @@ class ResolveComposesPlugin(PreBuildPlugin):
         if not data and not self.all_compose_ids:
             raise SkipResolveComposesPlugin('"compose" config not set and compose_ids not given')
 
-        workdir = self.workflow.source.get_build_file_path()[1]
-        file_path = os.path.join(workdir, REPO_CONTENT_SETS_CONFIG)
-        pulp_data = None
-        if os.path.exists(file_path):
-            with open(file_path) as f:
-                pulp_data = yaml.safe_load(f) or {}
-
         platforms = get_platforms(self.workflow)
         if platforms:
             platforms = sorted(platforms)  # sorted to keep predictable for tests
 
-        self.compose_config = ComposeConfig(data, pulp_data, self.odcs_config,
+        self.compose_config = ComposeConfig(data, None, self.odcs_config,
                                             arches=platforms)
 
     def adjust_compose_config(self):
@@ -359,24 +348,16 @@ class ResolveComposesPlugin(PreBuildPlugin):
 
 class ComposeConfig(object):
 
-    def __init__(self, data, pulp_data, odcs_config, koji_tag=None, arches=None):
+    def __init__(self, data, deprecated_data, odcs_config, koji_tag=None, arches=None):
         data = data or {}
         self.use_packages = 'packages' in data
         self.packages = data.get('packages', [])
         self.modules = data.get('modules', [])
-        self.pulp = {}
         self.arches = arches or []
         self.multilib_arches = []
         self.multilib_method = None
         self.modular_tags = data.get('modular_koji_tags', [])
 
-        if data.get('pulp_repos'):
-            for arch in pulp_data or {}:
-                if arch in self.arches:
-                    self.pulp[arch] = pulp_data[arch]
-            self.flags = None
-            if data.get(UNPUBLISHED_REPOS):
-                self.flags = [UNPUBLISHED_REPOS]
         for arch in data.get('multilib_arches', []):
             if arch in arches:
                 self.multilib_arches.append(arch)
@@ -404,9 +385,6 @@ class ComposeConfig(object):
             requests.append(self.render_packages_request())
         if self.modules:
             requests.append(self.render_modules_request())
-
-        for arch in self.pulp:
-            requests.append(self.render_pulp_request(arch))
 
         return requests
 
@@ -436,23 +414,10 @@ class ComposeConfig(object):
             request['modular_koji_tags'] = self.modular_tags
         return request
 
-    def render_pulp_request(self, arch):
-        request = {
-            'source_type': 'pulp',
-            'source': ' '.join(self.pulp.get(arch, [])),
-            'sigkeys': [],
-            'flags': self.flags,
-            'arches': [arch]
-        }
-        if arch in self.multilib_arches:
-            request['multilib_arches'] = [arch]
-            request['multilib_method'] = self.multilib_method
-        return request
-
     def validate_for_request(self):
         """Verify enough information is available for requesting compose."""
-        if not self.use_packages and not self.modules and not self.pulp:
-            raise ValueError("Nothing to compose (no packages, modules, or enabled pulp repos)")
+        if not self.use_packages and not self.modules:
+            raise ValueError("Nothing to compose (no packages or  modules)")
 
         if self.packages and not self.koji_tag:
             raise ValueError('koji_tag is required when packages are used')

@@ -51,13 +51,11 @@ class ODCSClient(object):
                       modular_koji_tags=None):
         """Start a new ODCS compose
 
-        :param source_type: str, the type of compose to request (tag, module, pulp)
+        :param source_type: str, the type of compose to request (tag, module)
         :param source: str, if source_type "tag" is used, the name of the Koji tag
                        to use when retrieving packages to include in compose;
                        if source_type "module", white-space separated NAME-STREAM or
                        NAME-STREAM-VERSION list of modules to include in compose;
-                       if source_type "pulp", white-space separated list of context-sets
-                       to include in compose
         :param packages: list<str>, packages which should be included in a compose. Only
                          relevant when source_type "tag" is used.
         :param sigkeys: list<str>, IDs of signature keys. Only packages signed by one of

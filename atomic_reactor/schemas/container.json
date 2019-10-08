@@ -82,7 +82,7 @@
           }
         },
         "pulp_repos": {
-          "description": "whether to build pulp composes",
+          "description": "whether to build pulp composes (deprecated)",
           "type": "boolean"
         },
         "modules": {
@@ -109,7 +109,7 @@
           "type": "boolean"
         },
         "include_unpublished_pulp_repos": {
-          "description": "include unpublished repos in pulp input content-sets",
+          "description": "include unpublished repos in pulp input content-sets (deprecated)",
           "type": "boolean"
         },
         "multilib_method": {
