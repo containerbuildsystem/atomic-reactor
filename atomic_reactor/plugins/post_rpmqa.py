@@ -10,8 +10,6 @@ from __future__ import absolute_import
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.rpm_util import rpm_qf_args, parse_rpm_output
-from docker.errors import APIError
-
 
 __all__ = ('PostBuildRPMqaPlugin', )
 
@@ -52,21 +50,7 @@ class PostBuildRPMqaPlugin(PostBuildPlugin):
             self.log.debug("ignore rpms 'gpg-pubkey'")
             plugin_output = [x for x in plugin_output if not x.startswith("gpg-pubkey" + self.sep)]
 
-        volumes = []
-        for container_id in self._container_ids:
-            volumes.extend(self.tasker.get_volumes_for_container(container_id))
-
-            try:
-                self.tasker.remove_container(container_id)
-            except APIError:
-                self.log.warning("error removing container %s (ignored):", container_id,
-                                 exc_info=True)
-
-        for volume_name in volumes:
-            try:
-                self.tasker.remove_volume(volume_name)
-            except APIError:
-                self.log.warning("error removing volume %s (ignored):", volume_name, exc_info=True)
+        self.tasker.cleanup_containers(*self._container_ids)
 
         self.workflow.image_components = parse_rpm_output(plugin_output)
 
