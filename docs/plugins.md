@@ -162,6 +162,10 @@ These are run after we have everything ready for build
    * Status: enabled
    * Builds image in remote environment
 
+ * **source_container**
+   * Status: not yet enabled
+   * Builds sources image using [BuildSourceImage](https://github.com/containers/BuildSourceImage) tool
+
 ### Pre-publish and post-build plugins
 
 These are run after buildstep plugin has successfully finished.

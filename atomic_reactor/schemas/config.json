@@ -607,6 +607,17 @@
         "items": {
             "type": "string"
         }
+    },
+    "source_containers": {
+        "description": "Configuration options for building source container images",
+        "type": "object",
+        "properties": {
+            "source_builder_image": {
+                "description": "Image that will be used to build source container image (from https://github.com/containers/BuildSourceImage)",
+                "type": "string"
+            }
+        },
+        "additionalProperties": false
     }
   },
   "definitions": {
