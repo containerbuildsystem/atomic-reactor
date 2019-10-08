@@ -11,8 +11,9 @@ from __future__ import unicode_literals, absolute_import
 import time
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
-from osbs.utils import Labels
+from osbs.utils import Labels, utcnow
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session, get_koji
+from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY, PROG, KOJI_RESERVE_MAX_RETRIES,
                                       KOJI_RESERVE_RETRY_DELAY)
 from atomic_reactor.util import get_build_json, is_scratch_build
@@ -189,6 +190,10 @@ class BumpReleasePlugin(PreBuildPlugin):
         missing_labels = {}
         missing_value = 'missing'
         empty_value = 'empty'
+        add_timestamp_to_release = (self.workflow.source.config.autorebuild
+                                    .get('add_timestamp_to_release',
+                                         False) and is_rebuild(self.workflow))
+        timestamp = utcnow().strftime('%Y%m%d%H%M%S')
 
         component_label = labels.get_name(Labels.LABEL_TYPE_COMPONENT)
         try:
@@ -226,7 +231,13 @@ class BumpReleasePlugin(PreBuildPlugin):
 
         if release:
             if not self.append:
-                self.log.debug("release set explicitly so not incrementing")
+                if add_timestamp_to_release:
+                    release = '%s.%s' % (release, timestamp)
+                    self.log.debug("autorebuild with add_timestamp_to_release and "
+                                   "release set explicitly, appending timestamp: %s", timestamp)
+                else:
+                    self.log.debug("release set explicitly so not incrementing")
+
                 if not is_scratch_build():
                     self.check_build_existence_for_explicit_release(component, version, release)
                     dockerfile_labels[release_label] = release

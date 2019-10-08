@@ -29,6 +29,7 @@ except ImportError:
     import koji as koji
 
 from atomic_reactor.plugins.pre_bump_release import BumpReleasePlugin
+from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
@@ -50,6 +51,17 @@ class MockedClientSessionGeneral(object):
         return True
 
 
+class MockSource(object):
+    def __init__(self, tmpdir, add_timestamp=None):
+        self.dockerfile_path = str(tmpdir.join('Dockerfile'))
+        self.path = str(tmpdir)
+        self.commit_id = None
+        if add_timestamp is not None:
+            self.config = flexmock(autorebuild=dict(add_timestamp_to_release=add_timestamp))
+        else:
+            self.config = flexmock(autorebuild=dict())
+
+
 class TestBumpRelease(object):
     def prepare(self,
                 tmpdir,
@@ -58,7 +70,9 @@ class TestBumpRelease(object):
                 certs=False,
                 append=False,
                 reactor_config_map=False,
-                reserve_build=False):
+                reserve_build=False,
+                is_auto=False,
+                add_timestamp=None):
         if labels is None:
             labels = {}
 
@@ -67,6 +81,8 @@ class TestBumpRelease(object):
         setattr(workflow, 'plugin_workspace', {})
         setattr(workflow, 'reserved_build_id', None)
         setattr(workflow, 'reserved_token ', None)
+        setattr(workflow, 'source', MockSource(tmpdir, add_timestamp))
+        setattr(workflow, 'prebuild_results', {CheckAndSetRebuildPlugin.key: is_auto})
 
         df = tmpdir.join('Dockerfile')
         df.write('FROM base\n')
@@ -110,14 +126,16 @@ class TestBumpRelease(object):
         with pytest.raises(RuntimeError):
             plugin.run()
 
+    @pytest.mark.parametrize('add_timestamp', [True, False])
+    @pytest.mark.parametrize('is_auto', [True, False])
     @pytest.mark.parametrize('scratch', [True, False])
     @pytest.mark.parametrize('build_exists', [True, False])
     @pytest.mark.parametrize('release_label', [
          'release',
          'Release',
     ])
-    def test_release_label_already_set(self, tmpdir, caplog, scratch, build_exists,
-                                       release_label, reactor_config_map):
+    def test_release_label_already_set(self, tmpdir, caplog, add_timestamp, is_auto, scratch,
+                                       build_exists, release_label, reactor_config_map):
         class MockedClientSession(object):
             def __init__(self, hub, opts=None):
                 pass
@@ -155,6 +173,7 @@ class TestBumpRelease(object):
         plugin = self.prepare(tmpdir, labels={release_label: '1',
                                               'com.redhat.component': 'component',
                                               'version': 'version'},
+                              add_timestamp=add_timestamp, is_auto=is_auto,
                               reactor_config_map=reactor_config_map)
 
         if build_exists and not scratch:
@@ -163,7 +182,14 @@ class TestBumpRelease(object):
             assert 'build already exists in Koji: ' in str(exc.value)
         else:
             plugin.run()
-        assert 'not incrementing' in caplog.text
+
+        timestamp_msg = 'autorebuild with add_timestamp_to_release and release ' \
+                        'set explicitly, appending timestamp:'
+
+        if is_auto and add_timestamp:
+            assert timestamp_msg in caplog.text
+        else:
+            assert 'not incrementing' in caplog.text
 
     @pytest.mark.parametrize(('labels', 'all_wrong_labels'), [
         ({'com.redhat.component': 'component'},
