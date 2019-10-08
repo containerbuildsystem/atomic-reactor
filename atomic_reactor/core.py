@@ -119,15 +119,6 @@ class BuildContainerFactory(object):
                 json.dump(build_json, fp)
         # else we do nothing
 
-    @staticmethod
-    def _volume_bind_understands_mode():
-        # docker.utils.convert_volume_binds() understands 'mode' since docker-py-1.3.0
-        # returns ['/a/:/b/:rw'] with docker-py < 1.3.0 and ['/a/:/b/:ro,Z'] with >= 1.3.0
-        bind = docker.utils.convert_volume_binds({'/a/': {'bind': '/b/', 'mode': 'ro,Z'}})
-        if bind and len(bind[0].split(':')) > 2 and bind[0].split(':')[2] == 'ro,Z':
-            return True
-        return False
-
     def build_image_dockerhost(self, build_image, json_args_path):
         """
         Build docker image inside privileged container using docker from host
@@ -156,18 +147,13 @@ class BuildContainerFactory(object):
         volume_bindings = {
             DOCKER_SOCKET_PATH: {
                 'bind': DOCKER_SOCKET_PATH,
+                'mode': 'ro',
             },
             json_args_path: {
                 'bind': CONTAINER_SHARE_PATH,
+                'mode': 'rw,Z',
             },
         }
-
-        if self._volume_bind_understands_mode():
-            volume_bindings[DOCKER_SOCKET_PATH]['mode'] = 'ro'
-            volume_bindings[json_args_path]['mode'] = 'rw,Z'
-        else:
-            volume_bindings[DOCKER_SOCKET_PATH]['ro'] = True
-            volume_bindings[json_args_path]['rw'] = True
 
         with open(os.path.join(json_args_path, BUILD_JSON)) as fp:
             logger.debug('build json mounted in container: %s', fp.read())
@@ -202,13 +188,9 @@ class BuildContainerFactory(object):
         volume_bindings = {
             json_args_path: {
                 'bind': CONTAINER_SHARE_PATH,
+                'mode': 'rw,Z',
             },
         }
-
-        if self._volume_bind_understands_mode():
-            volume_bindings[json_args_path]['mode'] = 'rw,Z'
-        else:
-            volume_bindings[json_args_path]['rw'] = True
 
         with open(os.path.join(json_args_path, BUILD_JSON)) as fp:
             logger.debug('build json mounted in container: %s', fp.read())

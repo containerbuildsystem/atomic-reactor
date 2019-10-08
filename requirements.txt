@@ -1,4 +1,4 @@
-docker-py
+docker-py>=1.3.0
 docker-squash>=1.0.7
 dockerfile-parse>=0.0.13
 flatpak-module-tools>=0.10.4
