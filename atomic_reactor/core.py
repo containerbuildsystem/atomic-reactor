@@ -379,6 +379,9 @@ class ContainerTasker(LastLogger):
     def get_archive(self, *args, **kwargs):
         return self.tasker.get_archive(*args, **kwargs)
 
+    def cleanup_containers(self, *args, **kwargs):
+        return self.tasker.cleanup_containers(*args, **kwargs)
+
 
 class CommonTasker(LastLogger):
     def __init__(self, **kwargs):
@@ -973,3 +976,28 @@ class DockerTasker(CommonTasker):
         :return: dict
         """
         return self.d.create_container(image, command=command)
+
+    def cleanup_containers(self, *container_ids):
+        """
+        Removes specified containers and their volumes
+
+        :param container_ids: IDs of containers
+        """
+        volumes = []
+        for container_id in container_ids:
+            volumes.extend(self.get_volumes_for_container(container_id))
+
+            try:
+                self.remove_container(container_id)
+            except APIError:
+                logger.warning(
+                    "error removing container %s (ignored):",
+                    container_id, exc_info=True)
+
+        for volume_name in volumes:
+            try:
+                self.remove_volume(volume_name)
+            except APIError:
+                logger.warning(
+                    "error removing volume %s (ignored):",
+                    volume_name, exc_info=True)
