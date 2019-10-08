@@ -471,8 +471,11 @@ class BuildStepPluginsRunner(BuildPluginsRunner):
         logger.info('building image %r inside current environment',
                     builder.image)
         builder.ensure_not_built()
-        logger.debug('using dockerfile:\n%s',
-                     DockerfileParser(builder.df_path).content)
+        if builder.df_path:
+            logger.debug('using dockerfile:\n%s',
+                         DockerfileParser(builder.df_path).content)
+        else:
+            logger.debug("No Dockerfile path has been specified")
 
         kwargs['buildstep_phase'] = True
 

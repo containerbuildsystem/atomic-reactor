@@ -108,6 +108,8 @@ PLUGIN_SENDMAIL_KEY = 'sendmail'
 PLUGIN_VERIFY_MEDIA_KEY = 'verify_media'
 PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY = 'export_operator_manifests'
 PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY = 'push_operator_manifests'
+PLUGIN_BUILD_SOURCE_CONTAINER_KEY = 'build_source_container'
+
 
 # some shared dict keys for build metadata that gets recorded with koji.
 # for consistency of metadata in historical builds, these values basically cannot change.
