@@ -104,6 +104,7 @@ PLUGIN_VERIFY_MEDIA_KEY = 'verify_media'
 PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY = 'export_operator_manifests'
 PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY = 'push_operator_manifests'
 PLUGIN_SOURCE_CONTAINER_KEY = 'source_container'
+PLUGIN_FETCH_SOURCES_KEY = 'fetch_sources'
 
 
 # some shared dict keys for build metadata that gets recorded with koji.
