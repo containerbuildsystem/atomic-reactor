@@ -1095,21 +1095,6 @@ class TestKojiPromote(object):
                               'metadata_only',
                               'blocksize',
                               'target'), [
-        (2,
-         False,
-         {'v1': 'sha256:1000000000000000000000000000001d',
-          'v2': 'sha256:2000000000000000000000000000001d'},
-         False,
-         10485760,
-         None),
-
-        (1,
-         True,
-         {'v2': 'sha256:2000000000000000000000000000001d'},
-         True,
-         None,
-         None),
-
         (0,
          False,
          {'v1': 'sha256:1000000000000000000000000000001d',

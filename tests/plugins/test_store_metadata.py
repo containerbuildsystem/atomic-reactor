@@ -29,7 +29,6 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
-from atomic_reactor.plugins.post_pulp_pull import PulpPullPlugin
 from atomic_reactor.plugins.build_orchestrate_build import OrchestrateBuildPlugin
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
@@ -200,15 +199,6 @@ def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=Fals
 @pytest.mark.parametrize(('pulp_pull_results', 'expected_pulp_pull_results',
                           'verify_media_results', 'expected_media_results'), (
     ([], False, [], False),
-    (Exception(), False, [], False),
-    (["application/vnd.docker.distribution.manifest.v1+json"],
-     ["application/vnd.docker.distribution.manifest.v1+json"],
-     [], False),
-    (["application/vnd.docker.distribution.manifest.v1+json",
-      "application/vnd.docker.distribution.manifest.v2+json"],
-     ["application/vnd.docker.distribution.manifest.v1+json",
-      "application/vnd.docker.distribution.manifest.v2+json"],
-     [], False),
     ([], False,
      ["application/vnd.docker.distribution.manifest.v1+json"],
      ["application/vnd.docker.distribution.manifest.v1+json"]),
@@ -247,7 +237,6 @@ CMD blabla"""
         PostBuildRPMqaPlugin.key: "rpm1\nrpm2",
     }
     workflow.exit_results = {
-        PulpPullPlugin.key: pulp_pull_results,
         PLUGIN_VERIFY_MEDIA_KEY: verify_media_results,
     }
     workflow.fs_watcher._data = dict(fs_data=None)
@@ -737,7 +726,7 @@ CMD blabla"""
      {'unique': [], 'primary': [], 'floating': []}),
     ([('spam', 'spam:8888')], ['docker:9999'], False,
      {'floating': ['docker:9999/atomic-reactor-test-image:latest',
-                  'spam:8888/atomic-reactor-test-image:latest'],
+                   'spam:8888/atomic-reactor-test-image:latest'],
       'unique': ['docker:9999/namespace/image:asd123',
                  'spam:8888/namespace/image:asd123'],
       'primary': ['docker:9999/namespace/image:version-release',

@@ -25,7 +25,6 @@ from atomic_reactor.core import ContainerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import read_yaml
 import atomic_reactor.koji_util
-import atomic_reactor.pulp_util
 import atomic_reactor.odcs_util
 import osbs.conf
 import osbs.api
@@ -36,7 +35,6 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        get_config, WORKSPACE_CONF_KEY,
                                                        get_koji_session,
                                                        get_koji_path_info,
-                                                       get_pulp_session,
                                                        get_odcs_session,
                                                        get_smtp_session,
                                                        get_openshift_session,
@@ -973,103 +971,6 @@ class TestReactorConfigPlugin(object):
             .with_args(topdir=expected_root_url)
             .once())
         get_koji_path_info(workflow, fallback_map)
-
-    @pytest.mark.parametrize('fallback', (True, False))
-    @pytest.mark.parametrize(('config', 'raise_error'), [
-        ("""\
-          version: 1
-          pulp:
-              name: my-pulp
-              auth:
-                  password: testpasswd
-                  username: testuser
-        """, False),
-
-        ("""\
-          version: 1
-          pulp:
-              name: my-pulp
-              auth:
-                  ssl_certs_dir: /var/certs
-        """, False),
-
-        ("""\
-          version: 1
-          pulp:
-              name: my-pulp
-              auth:
-                  ssl_certs_dir: /var/certs
-                  password: testpasswd
-                  username: testuser
-        """, True),
-
-
-        ("""\
-          version: 1
-          pulp:
-              name: my-pulp
-              auth:
-                  ssl_certs_dir: /var/certs
-                  password: testpasswd
-        """, True),
-
-        ("""\
-          version: 1
-          pulp:
-              name: my-pulp
-              auth:
-                  ssl_certs_dir: /var/certs
-                  username: testuser
-        """, True),
-
-        ("""\
-          version: 1
-          pulp:
-              name: my-pulp
-              auth:
-                  username: testuser
-        """, True),
-
-        ("""\
-          version: 1
-          pulp:
-              name: my-pulp
-              auth:
-                  password: testpasswd
-        """, True),
-    ])
-    def test_get_pulp_session(self, fallback, config, raise_error):
-        _, workflow = self.prepare()
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-
-        if raise_error:
-            with pytest.raises(Exception):
-                read_yaml(config, 'schemas/config.json')
-            return
-        config_json = read_yaml(config, 'schemas/config.json')
-
-        auth_info = {
-            "pulp_secret_path": config_json['pulp']['auth'].get('ssl_certs_dir'),
-            "username": config_json['pulp']['auth'].get('username'),
-            "password": config_json['pulp']['auth'].get('password'),
-            "dockpulp_loglevel": None
-        }
-
-        fallback_map = {}
-        if fallback:
-            fallback_map = {'auth': deepcopy(auth_info), 'name': config_json['pulp']['name']}
-            fallback_map['auth']['ssl_certs_dir'] = fallback_map['auth'].pop('pulp_secret_path')
-        else:
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig(config_json)
-
-        (flexmock(atomic_reactor.pulp_util.PulpHandler)
-            .should_receive('__init__')
-            .with_args(workflow, config_json['pulp']['name'], 'logger', **auth_info)
-            .once()
-            .and_return(None))
-
-        get_pulp_session(workflow, 'logger', fallback_map)
 
     @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize(('config', 'raise_error'), [
