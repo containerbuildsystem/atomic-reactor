@@ -174,9 +174,6 @@ These are run after buildstep plugin has successfully finished.
  * **tag_and_push**
    * Status: enabled for V2
    * The tags are applied to the image in the docker engine and pushed to configured registries.
- * **pulp_sync**
-   * Status: enabled for V2
-   * Having previously pushed the built image to a docker-distribution V2 registry, this plugin tells the Pulp server to sync that content in. After publishing the content to Crane, it is now available via the Docker Registry HTTP V2 API.
  * **all_rpm_packages**
    * Status: enabled
    * A container is started to run 'rpm -qa' inside the built image in order to gather information needed for the Content Generator import into Koji later.
@@ -216,6 +213,3 @@ These are run at the end of the build, even for failed builds.
  * **sendmail**
    * Status: not yet enabled (chain rebuilds)
    * If this build was triggered by a chain in a parent layer, rather than having been explicitly requested by a developer, email is sent to the image owner(s) about the success or failure of the build.
- * **delete_from_registry**
-   * Status: disabled
-   * Deletes image from V2 registry. This is needed after pulp_sync is run so that the image is not accidentally synced next time.

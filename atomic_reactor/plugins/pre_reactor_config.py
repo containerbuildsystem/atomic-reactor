@@ -97,17 +97,6 @@ def get_pulp(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'pulp', fallback)
 
 
-def get_pulp_session(workflow, logger, fallback):
-    config = get_pulp(workflow, fallback)
-
-    from atomic_reactor.pulp_util import PulpHandler
-    return PulpHandler(workflow, config['name'], logger,
-                       pulp_secret_path=config['auth'].get('ssl_certs_dir'),
-                       username=config['auth'].get('username'),
-                       password=config['auth'].get('password'),
-                       dockpulp_loglevel=config.get('loglevel'))
-
-
 def get_odcs(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'odcs', fallback)
 
