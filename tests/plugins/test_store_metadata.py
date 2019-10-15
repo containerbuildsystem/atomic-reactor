@@ -22,23 +22,19 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
-                                      PLUGIN_ADD_FILESYSTEM_KEY,
-                                      PLUGIN_GROUP_MANIFESTS_KEY)
+                                      PLUGIN_ADD_FILESYSTEM_KEY)
 from atomic_reactor.build import BuildResult
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
-from atomic_reactor.plugins.post_pulp_pull import PulpPullPlugin
-from atomic_reactor.plugins.build_orchestrate_build import OrchestrateBuildPlugin
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
 from atomic_reactor.util import ImageName, LazyGit, ManifestDigest, df_parser
 import pytest
-from tests.constants import (LOCALHOST_REGISTRY, DOCKER0_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME,
-                             INPUT_IMAGE)
+from tests.constants import DOCKER0_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME, INPUT_IMAGE
 from tests.util import is_string_type
 
 DIGEST1 = "sha256:1da9b9e1c6bf6ab40f1627d76e2ad58e9b2be14351ef4ff1ed3eb4a156138189"
@@ -90,13 +86,8 @@ class XBeforeDockerfile(object):
         raise AttributeError("Dockerfile has not yet been generated")
 
 
-def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=False,  # noqa
+def prepare(docker_registries=None, before_dockerfile=False,  # noqa
             reactor_config_map=False):
-    if pulp_registries is None:
-        pulp_registries = (
-            ("test", LOCALHOST_REGISTRY),
-        )
-
     if docker_registries is None:
         docker_registries = (DOCKER0_REGISTRY,)
 
@@ -142,9 +133,6 @@ def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=Fals
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
             ReactorConfig({'version': 1, 'openshift': openshift_map})
-
-    for name, crane_uri in pulp_registries:
-        workflow.push_conf.add_pulp_registry(name, crane_uri)
 
     workflow.tag_conf.add_floating_image(TEST_IMAGE)
     workflow.tag_conf.add_primary_image("namespace/image:version-release")
@@ -197,26 +185,14 @@ def prepare(pulp_registries=None, docker_registries=None, before_dockerfile=Fals
         'status': AddHelpPlugin.HELP_GENERATED,
     }, 'help.md', True),
 ))
-@pytest.mark.parametrize(('pulp_pull_results', 'expected_pulp_pull_results',
-                          'verify_media_results', 'expected_media_results'), (
-    ([], False, [], False),
-    (Exception(), False, [], False),
+@pytest.mark.parametrize(('verify_media_results', 'expected_media_results'), (
+    ([], False),
     (["application/vnd.docker.distribution.manifest.v1+json"],
-     ["application/vnd.docker.distribution.manifest.v1+json"],
-     [], False),
-    (["application/vnd.docker.distribution.manifest.v1+json",
-      "application/vnd.docker.distribution.manifest.v2+json"],
-     ["application/vnd.docker.distribution.manifest.v1+json",
-      "application/vnd.docker.distribution.manifest.v2+json"],
-     [], False),
-    ([], False,
-     ["application/vnd.docker.distribution.manifest.v1+json"],
      ["application/vnd.docker.distribution.manifest.v1+json"]),
 ))
 def test_metadata_plugin(tmpdir, br_annotations, expected_br_annotations,
                          br_labels, expected_br_labels, koji,
                          help_results, expected_help_results, base_from_scratch,
-                         pulp_pull_results, expected_pulp_pull_results,
                          verify_media_results, expected_media_results,
                          reactor_config_map):
     initial_timestamp = datetime.now()
@@ -247,7 +223,6 @@ CMD blabla"""
         PostBuildRPMqaPlugin.key: "rpm1\nrpm2",
     }
     workflow.exit_results = {
-        PulpPullPlugin.key: pulp_pull_results,
         PLUGIN_VERIFY_MEDIA_KEY: verify_media_results,
     }
     workflow.fs_watcher._data = dict(fs_data=None)
@@ -351,30 +326,6 @@ CMD blabla"""
         "tag": 'asd123',
         "digest": DIGEST2,
         "version": "v2"
-    }, {
-        "registry": LOCALHOST_REGISTRY,
-        "repository": TEST_IMAGE,
-        "tag": 'latest',
-        "digest": DIGEST_NOT_USED,
-        "version": "v1"
-    }, {
-        "registry": LOCALHOST_REGISTRY,
-        "repository": TEST_IMAGE,
-        "tag": 'latest',
-        "digest": DIGEST1,
-        "version": "v2"
-    }, {
-        "registry": LOCALHOST_REGISTRY,
-        "repository": "namespace/image",
-        "tag": 'asd123',
-        "digest": DIGEST_NOT_USED,
-        "version": "v1"
-    }, {
-        "registry": LOCALHOST_REGISTRY,
-        "repository": "namespace/image",
-        "tag": 'asd123',
-        "digest": DIGEST2,
-        "version": "v2"
     }]
     assert all(digest in expected for digest in digests)
     assert all(digest in digests for digest in expected)
@@ -402,12 +353,8 @@ CMD blabla"""
     else:
         assert json.loads(annotations['help_file']) == expected_help_results
 
-    if expected_pulp_pull_results or expected_media_results:
-        media_types = []
-        if expected_pulp_pull_results:
-            media_types += pulp_pull_results
-        if expected_media_results:
-            media_types += expected_media_results
+    if expected_media_results:
+        media_types = expected_media_results
         assert sorted(json.loads(annotations['media-types'])) == sorted(list(set(media_types)))
     else:
         assert 'media-types' not in annotations
@@ -656,38 +603,31 @@ def test_store_metadata_fail_update_labels(tmpdir, caplog, koji_plugin, reactor_
     assert 'labels:' in caplog.text
 
 
-@pytest.mark.parametrize(('pulp_registries', 'docker_registries', 'prefixes'), [
-    [[], [], []],
+@pytest.mark.parametrize(('docker_registries', 'prefixes'), [
+    [[], []],
     [
-        [['spam', 'spam:8888'], ],
         [],
         ['spam:8888', ],
     ],
     [
-        [['spam', 'spam:8888'], ['maps', 'maps:9999']],
         [],
         ['spam:8888', 'maps:9999'],
     ],
     [
-        [],
         ['spam:8888'],
         ['spam:8888', ]
     ],
     [
-        [],
         ['spam:8888', 'maps:9999'],
         ['spam:8888', 'maps:9999']
     ],
     [
-        [['spam', 'spam:8888'], ],
         ['bacon:8888'],
         ['spam:8888', 'bacon:8888']
     ],
 ])
-def test_filter_repositories(tmpdir, pulp_registries, docker_registries,
-                             prefixes, reactor_config_map):
-    workflow = prepare(pulp_registries=pulp_registries,
-                       docker_registries=docker_registries,
+def test_filter_repositories(tmpdir, docker_registries, prefixes, reactor_config_map):
+    workflow = prepare(docker_registries=docker_registries,
                        reactor_config_map=reactor_config_map)
     df_content = """
 FROM fedora
@@ -730,102 +670,3 @@ CMD blabla"""
                 matched.add(repo)
 
     assert matched == set(primary_repositories)
-
-
-@pytest.mark.parametrize(('pulp_registries', 'docker_registries', 'is_orchestrator', 'expected'), [
-    ([], [], False,
-     {'unique': [], 'primary': [], 'floating': []}),
-    ([('spam', 'spam:8888')], ['docker:9999'], False,
-     {'floating': ['docker:9999/atomic-reactor-test-image:latest',
-                  'spam:8888/atomic-reactor-test-image:latest'],
-      'unique': ['docker:9999/namespace/image:asd123',
-                 'spam:8888/namespace/image:asd123'],
-      'primary': ['docker:9999/namespace/image:version-release',
-                  'spam:8888/namespace/image:version-release']}),
-    ([('spam', 'spam:8888')], ['docker:9999'], True,
-     {'floating': ['spam:8888/atomic-reactor-test-image:latest'],
-      'unique': ['spam:8888/namespace/image:asd123'],
-      'primary': ['spam:8888/namespace/image:version-release']}),
-    ([], ['docker:9999'], True,
-     {'floating': ['docker:9999/atomic-reactor-test-image:latest'],
-      'unique': ['docker:9999/namespace/image:asd123'],
-      'primary': ['docker:9999/namespace/image:version-release']}),
-])
-def test_filter_nonpulp_repositories(tmpdir, pulp_registries, docker_registries,
-                                     is_orchestrator, expected, reactor_config_map):
-    workflow = prepare(pulp_registries=pulp_registries,
-                       docker_registries=docker_registries,
-                       reactor_config_map=reactor_config_map)
-    df_content = """
-FROM fedora
-RUN yum install -y python-django
-CMD blabla"""
-    df = df_parser(str(tmpdir))
-    df.content = df_content
-    workflow.builder.df_path = df.dockerfile_path
-    workflow.builder.df_dir = str(tmpdir)
-
-    runner = ExitPluginsRunner(
-        None,
-        workflow,
-        [{
-            'name': StoreMetadataInOSv3Plugin.key,
-            "args": {
-                "url": "http://example.com/"
-            }
-        }]
-    )
-    if is_orchestrator:
-        workflow.buildstep_result[OrchestrateBuildPlugin.key] = 'foo'
-    output = runner.run()
-    assert StoreMetadataInOSv3Plugin.key in output
-    annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
-    repositories = json.loads(annotations['repositories'])
-    assert repositories == expected
-
-
-@pytest.mark.parametrize('group_manifests,restore', (
-    ([], True),
-    (['foo'], True),
-    (None, False),
-))
-def test_arrangementv4_repositories(tmpdir, group_manifests, restore, reactor_config_map):
-    workflow = prepare(reactor_config_map=reactor_config_map)
-    df_content = """
-FROM fedora
-RUN yum install -y python-django
-CMD blabla"""
-    df = df_parser(str(tmpdir))
-    df.content = df_content
-    workflow.builder.df_path = df.dockerfile_path
-    workflow.builder.df_dir = str(tmpdir)
-
-    runner = ExitPluginsRunner(
-        None,
-        workflow,
-        [{
-            'name': StoreMetadataInOSv3Plugin.key,
-            "args": {
-                "url": "http://example.com/"
-            }
-        }]
-    )
-
-    worker_data = {
-        'repositories': {
-            'primary': ['worker:1'],
-            'unique': ['worker:unique'],
-        },
-    }
-    workflow.buildstep_result[OrchestrateBuildPlugin.key] = worker_data
-    workflow.build_result = BuildResult.make_remote_image_result(annotations=worker_data)
-    if group_manifests is not None:
-        workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = group_manifests
-    output = runner.run()
-    assert StoreMetadataInOSv3Plugin.key in output
-    annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
-    repositories = json.loads(annotations['repositories'])
-    if restore:
-        assert repositories != worker_data['repositories']
-    else:
-        assert repositories == worker_data['repositories']

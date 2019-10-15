@@ -28,12 +28,6 @@ except ImportError:
     del koji
     import koji
 
-try:
-    import atomic_reactor.plugins.post_pulp_sync  # noqa:F401; pylint: disable=unused-import
-    PULP_SYNC_AVAILABLE = True
-except ImportError:
-    PULP_SYNC_AVAILABLE = False
-
 from osbs.build.build_response import BuildResponse
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.post_fetch_worker_metadata import FetchWorkerMetadataPlugin
@@ -55,7 +49,6 @@ from atomic_reactor.util import (ImageName, ManifestDigest,
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.build import BuildResult
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
-                                      PLUGIN_PULP_PULL_KEY, PLUGIN_PULP_SYNC_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY, BASE_IMAGE_KOJI_BUILD,
                                       PARENT_IMAGES_KOJI_BUILDS, BASE_IMAGE_BUILD_ID_KEY,
@@ -237,7 +230,7 @@ def mock_environment(tmpdir, session=None, name=None,
                      component=None, version=None, release=None,
                      source=None, build_process_failed=False,
                      is_rebuild=True, docker_registry=True,
-                     pulp_registries=0, blocksize=None,
+                     blocksize=None,
                      task_states=None, additional_tags=None,
                      has_config=None, add_tag_conf_primaries=True,
                      add_build_result_primaries=False, container_first=False,
@@ -313,21 +306,14 @@ def mock_environment(tmpdir, session=None, name=None,
 
         for image in workflow.tag_conf.images:
             tag = image.to_str(registry=False)
-            if pulp_registries:
-                docker_reg.digests[tag] = ManifestDigest(v1=fake_digest(image),
-                                                         v2='sha256:not-used')
-            else:
-                docker_reg.digests[tag] = ManifestDigest(v1='sha256:not-used',
-                                                         v2=fake_digest(image))
+            docker_reg.digests[tag] = ManifestDigest(v1='sha256:not-used',
+                                                     v2=fake_digest(image))
 
             if has_config:
                 docker_reg.config = {
                     'config': {'architecture': 'x86_64'},
                     'container_config': {}
                 }
-
-    for _ in range(pulp_registries):
-        workflow.push_conf.add_pulp_registry('env', 'crane.example.com:5000')
 
     with open(os.path.join(str(tmpdir), 'image.tar.xz'), 'wt') as fp:
         fp.write('x' * 2**12)
@@ -352,7 +338,7 @@ def mock_environment(tmpdir, session=None, name=None,
             }
         },
         'repositories': {
-            'unique': ['brew-pulp-docker:8888/myproject/hello-world:0.0.1-9'],
+            'unique': ['brew-docker:8888/myproject/hello-world:0.0.1-9'],
             'primary': [],
             'floating': [],
         }
@@ -360,11 +346,11 @@ def mock_environment(tmpdir, session=None, name=None,
 
     if name and version and release and add_build_result_primaries:
         annotations['repositories']['floating'] = [
-            'brew-pulp-docker:8888/{0}:{1}'.format(name, version),
-            'brew-pulp-docker:8888/{0}:latest'.format(name),
+             'brew-docker:8888/{0}:{1}'.format(name, version),
+             'brew-docker:8888/{0}:latest'.format(name),
         ]
         annotations['repositories']['primary'] = [
-            'brew-pulp-docker:8888/{0}:{1}-{2}'.format(name, version, release),
+             'brew-docker:8888/{0}:{1}-{2}'.format(name, version, release),
         ]
 
     if build_process_failed:
@@ -1144,9 +1130,8 @@ class TestKojiImport(object):
                 assert BASE_IMAGE_BUILD_ID_KEY not in extra['image']
 
     @pytest.mark.parametrize('base_from_scratch', [True, False])  # noqa: F811
-    def test_produces_metadata_for_parent_images(
-            self, tmpdir, os_env, reactor_config_map, base_from_scratch
-        ):
+    def test_produces_metadata_for_parent_images(self, tmpdir, os_env, reactor_config_map,
+                                                 base_from_scratch):
 
         koji_session = MockedClientSession('')
         tasker, workflow = mock_environment(
@@ -1243,10 +1228,6 @@ class TestKojiImport(object):
         assert AddFilesystemPlugin.key in caplog.text
 
     @pytest.mark.parametrize('blocksize', (None, 1048576))
-    @pytest.mark.parametrize('pulp_registries', [
-        1,
-        0,
-    ])
     @pytest.mark.parametrize(('has_config', 'is_autorebuild'), [
         # (True,
         #  True),
@@ -1254,16 +1235,14 @@ class TestKojiImport(object):
          False),
     ])
     @pytest.mark.parametrize('tag_later', (True, False))
-    @pytest.mark.parametrize(('pulp_pull', 'verify_media', 'expect_id'), (
-        (['v1'], False, 'abcdef123456'),
-        (['v1', 'v2'], False, 'abc123'),
-        (False, ['v1', 'v2', 'v2_list'], 'ab12'),
-        (False, ['v1'], 'ab12'),
-        (False, False, 'ab12')
+    @pytest.mark.parametrize(('verify_media', 'expect_id'), (
+        (['v1', 'v2', 'v2_list'], 'ab12'),
+        (['v1'], 'ab12'),
+        (False, 'ab12')
     ))
     @pytest.mark.parametrize('reserved_build', (True, False))
-    def test_koji_import_success(self, tmpdir, blocksize, pulp_registries, os_env, has_config,
-                                 is_autorebuild, tag_later, pulp_pull, verify_media, expect_id,
+    def test_koji_import_success(self, tmpdir, blocksize, os_env, has_config,
+                                 is_autorebuild, tag_later, verify_media, expect_id,
                                  reserved_build, reactor_config_map):
         session = MockedClientSession('')
         # When target is provided koji build will always be tagged,
@@ -1284,14 +1263,11 @@ class TestKojiImport(object):
                                             component=component,
                                             version=version,
                                             release=release,
-                                            pulp_registries=pulp_registries,
                                             has_config=has_config)
         workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_autorebuild
-        if pulp_pull:
-            workflow.exit_results[PLUGIN_PULP_PULL_KEY] = pulp_pull
-        elif verify_media:
+        if verify_media:
             workflow.exit_results[PLUGIN_VERIFY_MEDIA_KEY] = verify_media
-        expected_media_types = pulp_pull or verify_media or []
+        expected_media_types = verify_media or []
 
         workflow.builder.image_id = expect_id
 
@@ -1338,10 +1314,6 @@ class TestKojiImport(object):
 
         output_files = data['output']
         assert isinstance(output_files, list)
-        if pulp_pull:
-            for output in output_files:
-                if 'extra' in output:
-                    assert output['extra']['docker']['id'] == expect_id
 
         expected_keys = set([
             'name',
@@ -1442,8 +1414,7 @@ class TestKojiImport(object):
         assert metadata['build']['extra']['submitter'] == 'osbs'
         assert metadata['build']['owner'] == 'dev1'
 
-    @pytest.mark.parametrize('use_pulp', [False, True])
-    def test_koji_import_pullspec(self, tmpdir, os_env, use_pulp, reactor_config_map):
+    def test_koji_import_pullspec(self, tmpdir, os_env, reactor_config_map):
         session = MockedClientSession('')
         name = 'myproject/hello-world'
         version = '1.0'
@@ -1453,13 +1424,7 @@ class TestKojiImport(object):
                                             name=name,
                                             version=version,
                                             release=release,
-                                            pulp_registries=1,
                                             )
-        if use_pulp:
-            workflow.postbuild_results[PLUGIN_PULP_SYNC_KEY] = [
-                ImageName.parse('crane.example.com:5000/myproject/hello-world:1.0-1'),
-            ]
-
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
         runner.run()
 
@@ -1489,10 +1454,7 @@ class TestKojiImport(object):
         reg = set(ImageName.parse(repo).registry
                   for repo in docker_output['extra']['docker']['repositories'])
         assert len(reg) == 1
-        if use_pulp:
-            assert reg == set(['crane.example.com:5000'])
-        else:
-            assert reg == set(['docker-registry.example.com:8888'])
+        assert reg == set(['docker-registry.example.com:8888'])
 
     def test_koji_import_without_build_info(self, tmpdir, os_env, reactor_config_map):  # noqa
 
@@ -1601,46 +1563,24 @@ class TestKojiImport(object):
         }
 
     @pytest.mark.parametrize(('config', 'expected'), [
-        ({'pulp_pull_in_worker': False,
-          'pulp_pull_in_orchestrator': False,
-          'schema1': False,
+        ({'schema1': False,
           'schema2': False,
           'list': False},
          None),
-        ({'pulp_pull_in_worker': True,
-          'pulp_pull_in_orchestrator': False,
-          'schema1': True,
+        ({'schema1': True,
           'schema2': False,
           'list': False},
          ["application/vnd.docker.distribution.manifest.v1+json"]),
-        ({'pulp_pull_in_worker': True,
-          'pulp_pull_in_orchestrator': False,
-          'schema1': True,
+        ({'schema1': True,
           'schema2': True,
           'list': False},
          ["application/vnd.docker.distribution.manifest.v1+json",
           "application/vnd.docker.distribution.manifest.v2+json"]),
-        ({'pulp_pull_in_worker': False,
-          'pulp_pull_in_orchestrator': True,
-          'schema1': True,
-          'schema2': True,
-          'list': False},
-         ["application/vnd.docker.distribution.manifest.v1+json",
-          "application/vnd.docker.distribution.manifest.v2+json"]),
-        ({'pulp_pull_in_worker': False,
-          'pulp_pull_in_orchestrator': True,
-          'schema1': True,
+        ({'schema1': True,
           'schema2': True,
           'list': True},
          ["application/vnd.docker.distribution.manifest.v1+json",
           "application/vnd.docker.distribution.manifest.v2+json",
-          "application/vnd.docker.distribution.manifest.list.v2+json"]),
-        ({'pulp_pull_in_worker': False,
-          'pulp_pull_in_orchestrator': True,
-          'schema1': False,
-          'schema2': True,
-          'list': True},
-         ["application/vnd.docker.distribution.manifest.v2+json",
           "application/vnd.docker.distribution.manifest.list.v2+json"]),
     ])
     def test_koji_import_set_media_types(self, tmpdir, os_env, config, expected,
@@ -1652,24 +1592,17 @@ class TestKojiImport(object):
                                             release='1',
                                             session=session)
         worker_media_types = []
-        pulp_pull_media_types = []
         if config['schema1']:
-            pulp_pull_media_types += ['application/vnd.docker.distribution.manifest.v1+json']
+            worker_media_types += ['application/vnd.docker.distribution.manifest.v1+json']
         if config['schema2']:
-            pulp_pull_media_types += ['application/vnd.docker.distribution.manifest.v2+json']
+            worker_media_types += ['application/vnd.docker.distribution.manifest.v2+json']
         if config['list']:
-            pulp_pull_media_types += ['application/vnd.docker.distribution.manifest.list.v2+json']
-        if config['pulp_pull_in_worker']:
-            worker_media_types += pulp_pull_media_types
+            worker_media_types += ['application/vnd.docker.distribution.manifest.list.v2+json']
         if worker_media_types:
             build_info = BuildInfo(media_types=worker_media_types)
             orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
             orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = build_info
-            workflow.postbuild_results[PLUGIN_PULP_SYNC_KEY] = [
-                ImageName.parse('crane.example.com/ns/name:1.0-1'),
-            ]
-        if config['pulp_pull_in_orchestrator']:
-            workflow.exit_results[PLUGIN_PULP_PULL_KEY] = pulp_pull_media_types
+
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
         runner.run()
 
@@ -1757,7 +1690,6 @@ class TestKojiImport(object):
                                             release=release,
                                             session=session,
                                             docker_registry=True,
-                                            pulp_registries=1,
                                             add_tag_conf_primaries=not is_scratch)
         group_manifest_result = {'myproject/hello-world': digest} if digest else {}
         workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = group_manifest_result
@@ -1815,9 +1747,9 @@ class TestKojiImport(object):
 
         if digest:
             assert 'index' in image.keys()
-            pullspec = "crane.example.com:5000/myproject/hello-world@{0}".format(digest.v2_list)
+            pullspec = "docker.example.com/myproject/hello-world@{0}".format(digest.v2_list)
             expected_results['pull'] = [pullspec]
-            pullspec = "crane.example.com:5000/myproject/hello-world:{0}".format(version_release)
+            pullspec = "docker.example.com/myproject/hello-world:{0}".format(version_release)
             expected_results['pull'].append(pullspec)
             expected_results['digests'] = {
                 'application/vnd.docker.distribution.manifest.list.v2+json': digest.v2_list}
@@ -1854,63 +1786,6 @@ class TestKojiImport(object):
                 registry = 'docker-registry.example.com:8888'
                 assert by_tag == '%s/myproject/hello-world:%s' % (registry,
                                                                   version_release)
-
-    @pytest.mark.skipif(not PULP_SYNC_AVAILABLE,
-                        reason="pulp_sync not available")
-    @pytest.mark.parametrize('available,expected', [
-        (None, ['sha256:v1', 'sha256:v2']),
-        (['foo', 'sha256:v1'], ['sha256:v1']),
-        (['sha256:v1', 'sha256:v2'], ['sha256:v1', 'sha256:v2']),
-    ])
-    def test_koji_import_unavailable_manifest_digests(self, tmpdir, os_env,
-                                                      available, expected, reactor_config_map):
-        session = MockedClientSession('')
-        tasker, workflow = mock_environment(tmpdir,
-                                            name='ns/name',
-                                            version='1.0',
-                                            release='1',
-                                            session=session)
-        registry = workflow.push_conf.add_docker_registry('docker.example.com')
-        for image in workflow.tag_conf.images:
-            tag = image.to_str(registry=False)
-            registry.digests[tag] = ManifestDigest(v1='sha256:v1',
-                                                   v2='sha256:v2')
-
-        for metadata in workflow.postbuild_results[FetchWorkerMetadataPlugin.key].values():
-            for output in metadata['output']:
-                if output['type'] != 'docker-image':
-                    continue
-
-                output['extra']['docker']['repositories'] = [
-                    'crane.example.com/foo:tag',
-                    'crane.example.com/foo@sha256:v1',
-                    'crane.example.com/foo@sha256:v2',
-                ]
-
-        list_digests = {'myproject/hello-world': ManifestDigest(v2_list='sha256:manifest-list')}
-        workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = list_digests
-        orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
-        orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = BuildInfo()
-        if available is not None:
-            workflow.plugin_workspace[PLUGIN_PULP_SYNC_KEY] = available
-
-        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
-        runner.run()
-
-        data = session.metadata
-        outputs = data['output']
-        for output in outputs:
-            if output['type'] != 'docker-image':
-                continue
-
-            repositories = output['extra']['docker']['repositories']
-            repositories = [pullspec.split('@', 1)[1]
-                            for pullspec in repositories
-                            if '@' in pullspec]
-            assert repositories == expected
-            break
-        else:
-            raise RuntimeError("no docker-image output found")
 
     @pytest.mark.parametrize(('add_tag_conf_primaries', 'add_build_result_primaries', 'success'), (
         (False, False, False),

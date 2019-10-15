@@ -15,9 +15,7 @@ import os
 
 from atomic_reactor.plugin import InputPlugin
 from atomic_reactor.util import get_build_json, read_yaml
-from osbs.utils import RegistryURI
 from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
-                                      PLUGIN_DELETE_FROM_REG_KEY,
                                       PLUGIN_DISTGIT_FETCH_KEY,
                                       PLUGIN_DOCKERFILE_CONTENT_KEY,
                                       PLUGIN_FETCH_MAVEN_KEY,
@@ -27,9 +25,6 @@ from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
                                       PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_TAG_BUILD_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
-                                      PLUGIN_PULP_PUBLISH_KEY,
-                                      PLUGIN_PULP_PULL_KEY,
-                                      PLUGIN_PULP_SYNC_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY,
                                       PLUGIN_SENDMAIL_KEY)
 
@@ -104,43 +99,6 @@ class OSv3InputPlugin(InputPlugin):
                 self.remove_plugin('prebuild_plugins', PLUGIN_FETCH_MAVEN_KEY,
                                    'no koji root available')
 
-    def remove_pulp_plugins(self):
-        phases = ('postbuild_plugins', 'exit_plugins')
-        pulp_registry = self.get_value('pulp')
-        koji_hub = self.get_value('koji', {}).get('hub_url')
-        for phase in phases:
-            if not (pulp_registry and koji_hub):
-                self.remove_plugin(phase, PLUGIN_PULP_PULL_KEY, 'no pulp or koji available')
-
-        if not pulp_registry:
-            self.remove_plugin('postbuild_plugins', PLUGIN_PULP_SYNC_KEY, 'no pulp available')
-            self.remove_plugin('exit_plugins', PLUGIN_DELETE_FROM_REG_KEY, 'no pulp available')
-            self.remove_plugin('exit_plugins', PLUGIN_PULP_PUBLISH_KEY, 'no pulp available')
-        else:
-            docker_registry = None
-            all_registries = self.get_value('registries', {})
-
-            for registry in all_registries:
-                reguri = RegistryURI(registry.get('url'))
-                if reguri.version == 'v2':
-                    # First specified v2 registry is the one we'll tell pulp
-                    # to sync from. Keep the http prefix -- pulp wants it.
-                    docker_registry = registry
-                    break
-
-            if docker_registry:
-                source_registry_str = self.get_value('source_registry', {}).get('url')
-                perform_delete = (source_registry_str is None or
-                                  RegistryURI(source_registry_str).uri != reguri.uri)
-                if not perform_delete:
-                    self.remove_plugin('exit_plugins', PLUGIN_DELETE_FROM_REG_KEY,
-                                       'no delete needed')
-            else:
-                self.remove_plugin('postbuild_plugins', PLUGIN_PULP_SYNC_KEY,
-                                   'no V2 pulp available')
-                self.remove_plugin('exit_plugins', PLUGIN_DELETE_FROM_REG_KEY,
-                                   'no V2 pulp available')
-
     def remove_plugins_without_parameters(self):
         """
         This used to be handled in BuildRequest, but with REACTOR_CONFIG, osbs-client doesn't have
@@ -153,7 +111,6 @@ class OSv3InputPlugin(InputPlugin):
         if not self.reactor_env:
             return
         self.remove_koji_plugins()
-        self.remove_pulp_plugins()
         if not self.get_value('odcs'):
             self.remove_plugin('prebuild_plugins', PLUGIN_RESOLVE_COMPOSES_KEY,
                                'no odcs available')

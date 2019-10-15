@@ -32,15 +32,8 @@ except ImportError:
     def get_flatpak_source_info(_):
         return None
 
-try:
-    from atomic_reactor.plugins.post_pulp_sync import get_manifests_in_pulp_repository
-except ImportError:
-    # no dockpulp available
-    def get_manifests_in_pulp_repository(_):
-        raise KeyError
-
 from atomic_reactor.constants import (
-    PLUGIN_KOJI_IMPORT_PLUGIN_KEY, PLUGIN_PULP_PULL_KEY, PLUGIN_PULP_SYNC_KEY,
+    PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
     PLUGIN_FETCH_WORKER_METADATA_KEY, PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
     PLUGIN_VERIFY_MEDIA_KEY,
     PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY,
@@ -138,38 +131,10 @@ class KojiImportPlugin(ExitPlugin):
         :return: list, containing dicts of partial metadata
         """
         outputs = []
-        has_pulp_pull = PLUGIN_PULP_PULL_KEY in self.workflow.exit_results
-        try:
-            pulp_sync_results = self.workflow.postbuild_results[PLUGIN_PULP_SYNC_KEY]
-            crane_registry = pulp_sync_results[0]
-        except (KeyError, IndexError):
-            crane_registry = None
 
         for platform in worker_metadatas:
             for instance in worker_metadatas[platform]['output']:
                 instance['buildroot_id'] = '{}-{}'.format(platform, instance['buildroot_id'])
-
-                if instance['type'] == 'docker-image':
-                    # update image ID with pulp_pull results;
-                    # necessary when using Pulp < 2.14. Only do this
-                    # when building for a single architecture -- if
-                    # building for many, we know Pulp has schema 2
-                    # support.
-                    if len(worker_metadatas) == 1 and has_pulp_pull:
-                        if self.workflow.builder.image_id is not None:
-                            instance['extra']['docker']['id'] = self.workflow.builder.image_id
-
-                    # update repositories to point to Crane
-                    if crane_registry:
-                        pulp_pullspecs = []
-                        docker = instance['extra']['docker']
-                        for pullspec in docker['repositories']:
-                            image = ImageName.parse(pullspec)
-                            image.registry = crane_registry.registry
-                            pulp_pullspecs.append(image.to_str())
-
-                        docker['repositories'] = pulp_pullspecs
-
                 outputs.append(instance)
 
         return outputs
@@ -213,9 +178,8 @@ class KojiImportPlugin(ExitPlugin):
                 media_types = json.loads(annotations['media-types'])
                 break
 
-        # Append media_types from pulp pull or verify images
-        media_results = (self.workflow.exit_results.get(PLUGIN_PULP_PULL_KEY) or
-                         self.workflow.exit_results.get(PLUGIN_VERIFY_MEDIA_KEY))
+        # Append media_types from verify images
+        media_results = self.workflow.exit_results.get(PLUGIN_VERIFY_MEDIA_KEY)
         if media_results:
             media_types += media_results
 
@@ -251,34 +215,6 @@ class KojiImportPlugin(ExitPlugin):
 
                     return  # only one worker can process operator manifests
 
-    def remove_unavailable_manifest_digests(self, worker_metadatas):
-        try:
-            available = get_manifests_in_pulp_repository(self.workflow)
-        except KeyError:
-            # pulp_sync didn't run
-            return
-
-        for platform, metadata in worker_metadatas.items():
-            for output in metadata['output']:
-                if output['type'] != 'docker-image':
-                    continue
-
-                unavailable = []
-                repositories = output['extra']['docker']['repositories']
-                for pullspec in repositories:
-                    # Ignore by-tag pullspecs
-                    if '@' not in pullspec:
-                        continue
-
-                    _, digest = pullspec.split('@', 1)
-                    if digest not in available:
-                        self.log.info("%s: %s not available, removing", platform, pullspec)
-                        unavailable.append(pullspec)
-
-                # Update the list in-place
-                for pullspec in unavailable:
-                    repositories.remove(pullspec)
-
     def set_group_manifest_info(self, extra, worker_metadatas):
         version_release = None
         primary_images = get_primary_images(self.workflow)
@@ -306,9 +242,7 @@ class KojiImportPlugin(ExitPlugin):
             repositories = self.workflow.build_result.annotations['repositories']['unique']
             repo = ImageName.parse(repositories[0]).to_str(registry=False, tag=False)
             # group_manifests added the registry, so this should be valid
-            registries = self.workflow.push_conf.pulp_registries
-            if not registries:
-                registries = self.workflow.push_conf.all_registries
+            registries = self.workflow.push_conf.all_registries
             for registry in registries:
                 manifest_list_digest = manifest_list_digests[repo]
                 pullspec = "{0}/{1}@{2}".format(registry.uri, repo, manifest_list_digest.default)
@@ -426,7 +360,6 @@ class KojiImportPlugin(ExitPlugin):
         self.set_media_types(extra, worker_metadatas)
         self.set_go_metadata(extra)
         self.set_operators_metadata(extra, worker_metadatas)
-        self.remove_unavailable_manifest_digests(worker_metadatas)
         self.set_group_manifest_info(extra, worker_metadatas)
 
         build = {

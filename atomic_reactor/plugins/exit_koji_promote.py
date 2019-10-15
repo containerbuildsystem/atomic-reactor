@@ -35,16 +35,8 @@ except ImportError:
     def get_flatpak_source_info(_):
         return None
 
-try:
-    from atomic_reactor.plugins.post_pulp_sync import get_manifests_in_pulp_repository
-except ImportError:
-    # no dockpulp available
-    def get_manifests_in_pulp_repository(_):
-        raise KeyError
-
 from atomic_reactor.constants import (PROG, PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_TAG_BUILD_KEY,
-                                      PLUGIN_PULP_PULL_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY)
 from atomic_reactor.util import (Output, get_version_of_tools, get_checksums,
                                  get_build_json,
@@ -334,28 +326,13 @@ class KojiPromotePlugin(ExitPlugin):
         Returns a map of images to their digests
         """
 
-        try:
-            pulp = get_manifests_in_pulp_repository(self.workflow)
-        except KeyError:
-            pulp = None
-
         digests = {}  # repository -> digests
         for registry in self.workflow.push_conf.docker_registries:
             for image in self.workflow.tag_conf.images:
                 image_str = image.to_str()
                 if image_str in registry.digests:
                     image_digests = registry.digests[image_str]
-                    if pulp is None:
-                        digest_list = [image_digests.default]
-                    else:
-                        # If Pulp is enabled, only report digests that
-                        # were synced into Pulp. This may not be all
-                        # of them, depending on whether Pulp has
-                        # schema 2 support.
-                        digest_list = [digest for digest in (image_digests.v1,
-                                                             image_digests.v2)
-                                       if digest in pulp]
-
+                    digest_list = [image_digests.default]
                     digests[image.to_str(registry=False)] = digest_list
 
         return digests
@@ -366,12 +343,7 @@ class KojiPromotePlugin(ExitPlugin):
 
         :param digests: dict, image -> digests
         """
-        if self.workflow.push_conf.pulp_registries:
-            # If pulp was used, only report pulp images
-            registries = self.workflow.push_conf.pulp_registries
-        else:
-            # Otherwise report all the images we pushed
-            registries = self.workflow.push_conf.all_registries
+        registries = self.workflow.push_conf.all_registries
 
         output_images = []
         for registry in registries:
@@ -519,11 +491,6 @@ class KojiPromotePlugin(ExitPlugin):
                     self.log.error("invalid task ID %r", fs_task_id, exc_info=1)
                 else:
                     extra['filesystem_koji_task_id'] = task_id
-
-        # Append media_types from pulp pull
-        pulp_pull_results = self.workflow.postbuild_results.get(PLUGIN_PULP_PULL_KEY)
-        if pulp_pull_results:
-            extra['image']['media_types'] = sorted(list(set(pulp_pull_results)))
 
         # append parent builds and parent_build_id from koji parent
         extra['image'].update(get_parent_image_koji_data(self.workflow))

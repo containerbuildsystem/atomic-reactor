@@ -211,23 +211,6 @@ class Registry(object):
         self.insecure = insecure
 
 
-class PulpRegistry(Registry):
-    """ pulp & crane """
-    def __init__(self, name, crane_uri, insecure=False):
-        """
-        :param name: str, pulp's rest api is specified in dockpulp's config, we refer only by name
-        :param crane_uri: str, read-only docker registry api access point
-        :param insecure: bool
-        """
-        super(PulpRegistry, self).__init__(crane_uri, insecure=insecure)
-        self.name = name
-
-        # True if we've synced an image to the pulp repository using the
-        # docker protocol - and thus can support retrieving manifests
-        # via the v2 api.
-        self.server_side_sync = False
-
-
 class DockerRegistry(Registry):
     """ v2 docker registry """
     def __init__(self, uri, insecure=False):
@@ -243,13 +226,12 @@ class DockerRegistry(Registry):
 
 class PushConf(object):
     """
-    configuration of remote registries: docker-registry or pulp
+    configuration of remote registries: docker-registry
     """
 
     def __init__(self):
         self._registries = {
-            "docker": [],
-            "pulp": {},  # name -> PulpRegistry
+            "docker": []
         }
 
     def add_docker_registry(self, registry_uri, insecure=False):
@@ -262,24 +244,6 @@ class PushConf(object):
     def remove_docker_registry(self, docker_registry):
         self._registries["docker"].remove(docker_registry)
 
-    def add_pulp_registry(self, name, crane_uri, server_side_sync=True):
-        if crane_uri is None:
-            raise RuntimeError("registry URI cannot be None")
-
-        old_registry = self._registries["pulp"].get(name)
-        if old_registry is not None:
-            if crane_uri != old_registry.uri:
-                raise RuntimeError("Conflicting Pulp registries with name: %s" % name)
-            # Merge
-            if server_side_sync:
-                old_registry.server_side_sync = True
-            return old_registry
-
-        r = PulpRegistry(name, crane_uri)
-        r.server_side_sync = server_side_sync
-        self._registries["pulp"][name] = r
-        return r
-
     @property
     def has_some_docker_registry(self):
         return len(self.docker_registries) > 0
@@ -289,12 +253,8 @@ class PushConf(object):
         return self._registries["docker"]
 
     @property
-    def pulp_registries(self):
-        return [registry for registry in self._registries["pulp"].values()]
-
-    @property
     def all_registries(self):
-        return self.docker_registries + self.pulp_registries
+        return self.docker_registries
 
 
 class FSWatcher(threading.Thread):

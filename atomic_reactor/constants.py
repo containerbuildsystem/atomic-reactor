@@ -70,8 +70,7 @@ TOOLS_USED = (
     {"pkg_name": "docker", "display_name": "docker-py"},
     {"pkg_name": "docker_squash"},
     {"pkg_name": "atomic_reactor"},
-    {"pkg_name": "osbs", "display_name": "osbs-client"},
-    {"pkg_name": "dockpulp"},
+    {"pkg_name": "osbs", "display_name": "osbs-client"}
 )
 
 DEFAULT_DOWNLOAD_BLOCK_SIZE = 10 * 1024 * 1024  # 10Mb
@@ -86,12 +85,8 @@ PLUGIN_KOJI_PROMOTE_PLUGIN_KEY = 'koji_promote'
 PLUGIN_KOJI_IMPORT_PLUGIN_KEY = 'koji_import'
 PLUGIN_KOJI_UPLOAD_PLUGIN_KEY = 'koji_upload'
 PLUGIN_KOJI_TAG_BUILD_KEY = 'koji_tag_build'
-PLUGIN_PULP_PUBLISH_KEY = 'pulp_publish'
-PLUGIN_PULP_SYNC_KEY = 'pulp_sync'
-PLUGIN_PULP_PULL_KEY = 'pulp_pull'
 PLUGIN_ADD_FILESYSTEM_KEY = 'add_filesystem'
 PLUGIN_BUMP_RELEASE_KEY = 'bump_release'
-PLUGIN_DELETE_FROM_REG_KEY = 'delete_from_registry'
 PLUGIN_DISTGIT_FETCH_KEY = 'distgit_fetch_artefacts'
 PLUGIN_DOCKERFILE_CONTENT_KEY = 'dockerfile_content'
 PLUGIN_FETCH_MAVEN_KEY = 'fetch_maven_artifacts'

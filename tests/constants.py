@@ -68,12 +68,6 @@ koji:
         krb_principal: krb_principal
         krb_keytab_path: /tmp/krb_keytab
 
-pulp:
-    name: my-pulp
-    auth:
-        password: testpasswd
-        username: testuser
-
 odcs:
     api_url: https://odcs.example.com/api/1
     auth:
@@ -155,7 +149,6 @@ sources_command: "fedpkg sources"
 
 required_secrets:
 - kojisecret
-- pulpsecret
 - odcssecret
 - v2-registry-dockercfg
 

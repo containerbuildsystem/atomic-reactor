@@ -178,26 +178,6 @@ class TestSourceConfigSchemaValidation(object):
         ), (
             """\
             compose:
-              packages:
-                - pkg1
-              pulp_repos: true
-              modules:
-                - module1
-              signing_intent: release
-            """,
-            {'compose': {
-                'packages': ['pkg1'], 'pulp_repos': True,
-                'modules': ['module1'], 'signing_intent': 'release'
-            }}
-        ), (
-            """\
-            compose:
-              include_unpublished_pulp_repos: true
-            """,
-            {'compose': {'include_unpublished_pulp_repos': True}}
-        ), (
-            """\
-            compose:
             """,
             {}
 

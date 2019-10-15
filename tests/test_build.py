@@ -45,6 +45,7 @@ with_all_sources = pytest.mark.parametrize('source_params', [
 
 default_build_method = CONTAINER_DOCKERPY_BUILD_METHOD
 
+
 @requires_internet
 def test_different_custom_base_images(tmpdir):
     if MOCK:

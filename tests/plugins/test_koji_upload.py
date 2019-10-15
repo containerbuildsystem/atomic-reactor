@@ -252,10 +252,8 @@ def is_string_type(obj):
 def mock_environment(tmpdir, session=None, name=None,
                      component=None, version=None, release=None,
                      source=None, build_process_failed=False,
-                     pulp_registries=0,
                      blocksize=None, task_states=None,
-                     additional_tags=None, has_config=None,
-                     prefer_schema1_digest=True):
+                     additional_tags=None, has_config=None):
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -305,21 +303,14 @@ def mock_environment(tmpdir, session=None, name=None,
     for image in workflow.tag_conf.images:
         tag = image.to_str(registry=False)
 
-        if pulp_registries and prefer_schema1_digest:
-            docker_reg.digests[tag] = ManifestDigest(v1=fake_digest(image),
-                                                     v2='sha256:not-used')
-        else:
-            docker_reg.digests[tag] = ManifestDigest(v1='sha256:not-used',
-                                                     v2=fake_digest(image))
+        docker_reg.digests[tag] = ManifestDigest(v1='sha256:not-used',
+                                                 v2=fake_digest(image))
 
         if has_config:
             docker_reg.config = {
                 'config': {'architecture': LOCAL_ARCH},
                 'container_config': {}
             }
-
-    for _ in range(pulp_registries):
-        workflow.push_conf.add_pulp_registry('env', 'pulp.example.com')
 
     with open(os.path.join(str(tmpdir), 'image.tar.xz'), 'wt') as fp:
         fp.write('x' * 2**12)
@@ -359,7 +350,7 @@ def os_env(monkeypatch):
 
 def create_runner(tasker, workflow, ssl_certs=False, principal=None,
                   keytab=None, blocksize=None, target=None,
-                  prefer_schema1_digest=None, platform=None,
+                  platform=None,
                   multiple=None, reactor_config_map=False):
     args = {
         'kojihub': '',
@@ -395,10 +386,6 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
     if target:
         args['target'] = target
         args['poll_interval'] = 0
-
-    if prefer_schema1_digest is not None:
-        args['prefer_schema1_digest'] = prefer_schema1_digest
-        full_conf['prefer_schema1_digest'] = prefer_schema1_digest
 
     if platform is not None:
         args['platform'] = platform
@@ -955,17 +942,15 @@ class TestKojiUpload(object):
 
         assert set(tags) == expected_tags
 
-    @pytest.mark.parametrize(('pulp_registries',
-                              'blocksize'), [
-        (1, None),
-        (0, 10485760),
+    @pytest.mark.parametrize(('blocksize'), [
+        (None),
+        (10485760),
     ])
     @pytest.mark.parametrize('has_config', (True, False))
-    @pytest.mark.parametrize('prefer_schema1_digest', (True, False))
     @pytest.mark.parametrize('base_from_scratch', (True, False))
     def test_koji_upload_success(self, tmpdir,
-                                 pulp_registries, blocksize,
-                                 os_env, has_config, prefer_schema1_digest,
+                                 blocksize,
+                                 os_env, has_config,
                                  base_from_scratch, reactor_config_map):
         osbs = MockedOSBS()
         session = MockedClientSession('')
@@ -981,15 +966,13 @@ class TestKojiUpload(object):
                                             component=component,
                                             version=version,
                                             release=release,
-                                            pulp_registries=pulp_registries,
                                             blocksize=blocksize,
                                             has_config=has_config,
-                                            prefer_schema1_digest=prefer_schema1_digest,
                                             )
         workflow.builder.base_from_scratch = base_from_scratch
         target = 'images-docker-candidate'
         runner = create_runner(tasker, workflow, blocksize=blocksize, target=target,
-                               prefer_schema1_digest=prefer_schema1_digest, platform=LOCAL_ARCH,
+                               platform=LOCAL_ARCH,
                                reactor_config_map=reactor_config_map)
         runner.run()
 
@@ -1050,7 +1033,6 @@ class TestKojiUpload(object):
                                             name=name,
                                             version=version,
                                             release=release,
-                                            pulp_registries=1,
                                             )
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
         runner.run()
@@ -1136,8 +1118,7 @@ class TestKojiUpload(object):
             assert images[0].endswith(platform + ".tar.xz")
 
     @pytest.mark.parametrize('multiple', [False, True])
-    @pytest.mark.parametrize('pulp_registries', [0, 1])
-    def test_koji_upload_multiple_digests(self, tmpdir, os_env, pulp_registries,
+    def test_koji_upload_multiple_digests(self, tmpdir, os_env,
                                           multiple, reactor_config_map):
         server = MockedOSBS()
         session = MockedClientSession('')
@@ -1145,12 +1126,10 @@ class TestKojiUpload(object):
                                             session=session,
                                             name='name',
                                             version='1.0',
-                                            release='1',
-                                            pulp_registries=pulp_registries)
+                                            release='1')
         runner = create_runner(tasker, workflow, platform='x86_64',
                                multiple=multiple, reactor_config_map=reactor_config_map)
         workflow.plugin_workspace[ReactorConfigPlugin.key] = MockedReactorConfig()
-        workflow.plugin_workspace[ReactorConfigPlugin.key].conf['pulp'] = pulp_registries
         runner.run()
 
         data_list = list(server.configmap.values())
@@ -1164,14 +1143,10 @@ class TestKojiUpload(object):
         repositories = output['extra']['docker']['repositories']
         pullspecs = [pullspec for pullspec in repositories
                      if '@' in pullspec]
-        if multiple and pulp_registries:
-            assert len(pullspecs) > 1
-        else:
-            assert len(pullspecs) == 1
+        assert len(pullspecs) == 1
 
     @pytest.mark.parametrize('multiple', [False, True])
-    @pytest.mark.parametrize('pulp_registries', [0, 1])
-    def test_koji_upload_available_references(self, tmpdir, os_env, pulp_registries,
+    def test_koji_upload_available_references(self, tmpdir, os_env,
                                               multiple, reactor_config_map):
         server = MockedOSBS()
         session = MockedClientSession('')
@@ -1179,12 +1154,10 @@ class TestKojiUpload(object):
                                             session=session,
                                             name='name',
                                             version='1.0',
-                                            release='1',
-                                            pulp_registries=pulp_registries)
+                                            release='1')
         runner = create_runner(tasker, workflow, platform='x86_64',
                                multiple=multiple, reactor_config_map=reactor_config_map)
         workflow.plugin_workspace[ReactorConfigPlugin.key] = MockedReactorConfig()
-        workflow.plugin_workspace[ReactorConfigPlugin.key].conf['pulp'] = pulp_registries
         runner.run()
 
         data_list = list(server.configmap.values())
@@ -1197,10 +1170,7 @@ class TestKojiUpload(object):
         output = [op for op in outputs if op['type'] == 'docker-image'][0]
         repositories = output['extra']['docker']['repositories']
         digests = output['extra']['docker']['digests']
-        if not pulp_registries:
-            expected = (1, 2)
-        else:
-            expected = (2, 2 + multiple)
+        expected = (1, 2)
         assert (len(digests), len(repositories)) == expected
 
     @pytest.mark.parametrize('has_operator_manifests', [False, True])
