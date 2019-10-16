@@ -877,20 +877,25 @@ class DockerTasker(CommonTasker):
 
     def get_volumes_for_container(self, container_id, skip_empty_source=True):
         """
-        get a list of volumes mounter in a container
+        get a list of volumes mounted in a container
 
         :param container_id: str
         :param skip_empty_source: bool, don't list volumes which are not created on FS
         :return: list, a list of volume names
         """
+        def filter_volumes(mount_entry):
+            # BW compatibility with older dockerd 'Type' key was not used
+            if mount_entry.get('Type', 'volume') == 'volume':
+                # Don't show volumes which are not on the filesystem
+                if skip_empty_source and not mount_entry['Source']:
+                    return False
+                return True
+            return False
+
         logger.info("listing volumes for container '%s'", container_id)
         inspect_output = self.d.inspect_container(container_id)
-        volumes = inspect_output['Mounts'] or []
-        volume_names = [x['Name'] for x in volumes]
-
-        if skip_empty_source:
-            # Don't show volumes which are not on the filesystem
-            volume_names = [x['Name'] for x in volumes if x['Source'] != ""]
+        mounts = inspect_output['Mounts'] or []
+        volume_names = [x['Name'] for x in mounts if filter_volumes(x)]
 
         logger.debug("volumes = %s", volume_names)
         return volume_names
