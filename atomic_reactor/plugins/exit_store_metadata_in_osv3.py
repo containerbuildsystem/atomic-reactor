@@ -21,7 +21,6 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY,
-                                      PLUGIN_PULP_PULL_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
                                       SCRATCH_FROM)
 from atomic_reactor.plugin import ExitPlugin
@@ -262,11 +261,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         media_types = []
 
-        # pulp_pull may run on worker as a postbuild plugin or on orchestrator as an exit plugin
-        # verify_media_results runs if pulp_pull does not
-        media_results = (self.workflow.postbuild_results.get(PLUGIN_PULP_PULL_KEY) or
-                         self.workflow.exit_results.get(PLUGIN_PULP_PULL_KEY) or
-                         self.workflow.exit_results.get(PLUGIN_VERIFY_MEDIA_KEY))
+        media_results = self.workflow.exit_results.get(PLUGIN_VERIFY_MEDIA_KEY)
         if isinstance(media_results, Exception):
             media_results = None
 

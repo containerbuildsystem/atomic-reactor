@@ -115,7 +115,7 @@
         "required": ["hub_url", "root_url", "auth"]
     },
     "pulp": {
-        "description": "Pulp registry instance",
+        "description": "Pulp registry instance (deprecated)",
         "type": "object",
         "properties": {
             "name": {
