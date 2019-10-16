@@ -29,7 +29,6 @@ except ImportError:
     import koji
 
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
-                                      PLUGIN_PULP_SYNC_KEY, PLUGIN_PULP_PULL_KEY,
                                       PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
                                       BASE_IMAGE_KOJI_BUILD, BASE_IMAGE_BUILD_ID_KEY,
                                       PARENT_IMAGES_KOJI_BUILDS, PARENT_IMAGE_BUILDS_KEY)
@@ -52,13 +51,6 @@ from atomic_reactor.build import BuildResult
 from tests.constants import SOURCE, MOCK
 from tests.flatpak import MODULEMD_AVAILABLE, setup_flatpak_source_info
 from tests.stubs import StubInsideBuilder, StubSource
-
-try:
-    import atomic_reactor.plugins.post_pulp_sync  # noqa:F401; pylint: disable=unused-import
-    PULP_SYNC_AVAILABLE = True
-except ImportError:
-    PULP_SYNC_AVAILABLE = False
-
 
 from flexmock import flexmock
 import pytest
@@ -217,7 +209,6 @@ def mock_environment(tmpdir, session=None, name=None,
                      component=None, version=None, release=None,
                      source=None, build_process_failed=False,
                      is_rebuild=True,
-                     pulp_registries=0, pulp_supports_schema2=False,
                      registry_digests=None, blocksize=None,
                      task_states=None, additional_tags=None,
                      has_config=None,
@@ -281,7 +272,6 @@ def mock_environment(tmpdir, session=None, name=None,
     setattr(workflow, 'push_conf', PushConf())
     docker_reg = workflow.push_conf.add_docker_registry('docker.example.com')
 
-    sync_result = {}
     for image in workflow.tag_conf.images:
         tag = image.to_str(registry=False)
         man_fake = ManifestDigest(v1=fake_digest(image, 1),
@@ -293,22 +283,12 @@ def mock_environment(tmpdir, session=None, name=None,
             man_digests = man_fake
 
         docker_reg.digests[tag] = man_digests
-        if pulp_registries:
-            sync_result[man_fake.v1] = {}
-            if pulp_supports_schema2:
-                sync_result[man_digests.v2] = {}
 
         if has_config:
             docker_reg.config = {
                 'config': {'architecture': 'x86_64'},
                 'container_config': {}
             }
-
-    if PULP_SYNC_AVAILABLE and pulp_registries:
-        workflow.plugin_workspace[PLUGIN_PULP_SYNC_KEY] = sync_result
-
-    for _ in range(pulp_registries):
-        workflow.push_conf.add_pulp_registry('env', 'pulp.example.com')
 
     with open(os.path.join(str(tmpdir), 'image.tar.xz'), 'wt') as fp:
         fp.write('x' * 2**12)
@@ -1089,15 +1069,11 @@ class TestKojiPromote(object):
 
         assert set(tags) == expected_tags
 
-    @pytest.mark.parametrize(('pulp_registries',
-                              'pulp_supports_schema2',
-                              'registry_digests',
+    @pytest.mark.parametrize(('registry_digests',
                               'metadata_only',
                               'blocksize',
                               'target'), [
-        (0,
-         False,
-         {'v1': 'sha256:1000000000000000000000000000001d',
+        ({'v1': 'sha256:1000000000000000000000000000001d',
           'v2': 'sha256:2000000000000000000000000000001d'},
          False,
          10485760,
@@ -1112,7 +1088,6 @@ class TestKojiPromote(object):
     @pytest.mark.parametrize('tag_later', (True, False))
     @pytest.mark.parametrize('base_from_scratch', (True, False))
     def test_koji_promote_success(self, tmpdir,
-                                  pulp_registries, pulp_supports_schema2,
                                   registry_digests,
                                   metadata_only, blocksize,
                                   target, os_env, has_config, is_autorebuild,
@@ -1136,8 +1111,6 @@ class TestKojiPromote(object):
                                             component=component,
                                             version=version,
                                             release=release,
-                                            pulp_registries=pulp_registries,
-                                            pulp_supports_schema2=pulp_supports_schema2,
                                             registry_digests=registry_digests,
                                             blocksize=blocksize,
                                             has_config=has_config)
@@ -1220,14 +1193,7 @@ class TestKojiPromote(object):
 
         # v2 support
         if 'v1' in registry_digests and 'v2' in registry_digests:
-            if not pulp_registries:
-                expect_digest = (2,)
-            elif pulp_supports_schema2:
-                expect_digest = (1, 2)
-            elif sys.version_info.major > 2:
-                expect_digest = (2,)
-            else:
-                expect_digest = (1,)
+            expect_digest = (2,)
         elif 'v1' in registry_digests:
             expect_digest = (1,)
         elif 'v2' in registry_digests:
@@ -1284,7 +1250,6 @@ class TestKojiPromote(object):
                                             name=name,
                                             version=version,
                                             release=release,
-                                            pulp_registries=1,
                                             )
         if not primary:
             workflow.tag_conf._primary_images = []
@@ -1461,23 +1426,13 @@ class TestKojiPromote(object):
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
         runner.run()
 
-    @pytest.mark.parametrize('expect_result', [
-        ["application/vnd.docker.distribution.manifest.v1+json",
-         "application/json",
-         "application/vnd.docker.distribution.manifest.v2+json"],
-        None,
-        ["application/vnd.docker.distribution.manifest.v1+json",
-         "application/json"]
-    ])
-    def test_koji_promote_set_media_types(self, tmpdir, os_env, expect_result, reactor_config_map):  # noqa
+    def test_koji_promote_set_media_types(self, tmpdir, os_env, reactor_config_map):  # noqa
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
                                             name='ns/name',
                                             version='1.0',
                                             release='1',
                                             session=session)
-
-        workflow.postbuild_results[PLUGIN_PULP_PULL_KEY] = expect_result
 
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
         runner.run()
@@ -1493,11 +1448,7 @@ class TestKojiPromote(object):
         image = extra['image']
         assert isinstance(image, dict)
 
-        if expect_result:
-            assert 'media_types' in image.keys()
-            assert sorted(image['media_types']) == sorted(expect_result)
-        else:
-            assert 'media_types' not in image.keys()
+        assert 'media_types' not in image.keys()
 
     @pytest.mark.parametrize(('parent_output', 'expected_result'), [
         (None, None),
