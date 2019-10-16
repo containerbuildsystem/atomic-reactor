@@ -8,6 +8,8 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals, absolute_import
 
+import logging
+
 import docker
 from flexmock import flexmock
 import pytest
@@ -19,8 +21,6 @@ from atomic_reactor.rpm_util import parse_rpm_output
 from tests.constants import DOCKERFILE_GIT
 from tests.docker_mock import mock_docker
 from tests.stubs import StubInsideBuilder, StubSource
-from tests.test_inner import FakeLogger
-import atomic_reactor.core
 
 TEST_IMAGE = "fedora:latest"
 SOURCE = {"provider": "git", "uri": DOCKERFILE_GIT}
@@ -141,15 +141,7 @@ def test_rpmqa_plugin_exception(docker_tasker):  # noqa
         runner.run()
 
 
-def test_dangling_volumes_removed(docker_tasker, request):
-    fake_logger = FakeLogger()
-    existing_logger = atomic_reactor.core.logger
-
-    def restore_logger():
-        atomic_reactor.core.logger = existing_logger
-
-    request.addfinalizer(restore_logger)
-    atomic_reactor.core.logger = fake_logger
+def test_dangling_volumes_removed(docker_tasker, caplog):
 
     mock_docker()
     workflow = DockerBuildWorkflow(SOURCE, TEST_IMAGE)
@@ -163,17 +155,18 @@ def test_dangling_volumes_removed(docker_tasker, request):
 
     runner.run()
 
-    assert ("container_id = '%s'",
-            u'f8ee920b2db5e802da2583a13a4edbf0523ca5fff6b6d6454c1fd6db5f38014d') \
-        in fake_logger.debugs
+    logs = {}
+    for record in caplog.records:
+        logs.setdefault(record.levelno, []).append(record.message)
+
+    assert "container_id = 'f8ee920b2db5e802da2583a13a4edbf0523ca5fff6b6d6454c1fd6db5f38014d'" \
+        in logs[logging.DEBUG]
 
     expected_volumes = [u'test', u'conflict_exception', u'real_exception']
-    assert ("volumes = %s", expected_volumes) in fake_logger.debugs
-    assert ("removing volume '%s'", u'test') in fake_logger.infos
-    assert ("removing volume '%s'", u'conflict_exception') in fake_logger.infos
-    assert ("removing volume '%s'", u'real_exception') in fake_logger.infos
-    assert ('ignoring a conflict when removing volume %s', 'conflict_exception') in \
-        fake_logger.debugs
+    assert "volumes = {}".format(expected_volumes) in logs[logging.DEBUG]
+    for volume in expected_volumes:
+        assert "removing volume '{}'".format(volume) in logs[logging.INFO]
+    assert 'ignoring a conflict when removing volume conflict_exception' in logs[logging.DEBUG]
 
 
 def test_empty_logs_retry(docker_tasker):  # noqa

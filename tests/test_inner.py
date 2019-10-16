@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals, absolute_import
 
 from collections import defaultdict
+import logging
 import json
 import os
 import time
@@ -409,34 +410,7 @@ def test_workflow_base_images():
     assert watch_exit.was_called()
 
 
-class FakeLogger(object):
-    def __init__(self):
-        self.debugs = []
-        self.infos = []
-        self.warnings = []
-        self.errors = []
-        self.exc = []
-
-    def log(self, logs, args):
-        logs.append(args)
-
-    def debug(self, *args):
-        self.log(self.debugs, args)
-
-    def info(self, *args):
-        self.log(self.infos, args)
-
-    def warning(self, *args):
-        self.log(self.warnings, args)
-
-    def error(self, *args):
-        self.log(self.errors, args)
-
-    def exception(self, *args):
-        self.log(self.exc, args)
-
-
-def test_workflow_compat(request):
+def test_workflow_compat(caplog):
     """
     Some of our plugins have changed from being run post-build to
     being run at exit. Let's test what happens when we try running an
@@ -449,14 +423,8 @@ def test_workflow_compat(request):
     flexmock(InsideBuilder).new_instances(fake_builder)
     watch_exit = Watcher()
     watch_buildstep = Watcher()
-    fake_logger = FakeLogger()
-    existing_logger = atomic_reactor.plugin.logger
 
-    def restore_logger():
-        atomic_reactor.plugin.logger = existing_logger
-
-    request.addfinalizer(restore_logger)
-    atomic_reactor.plugin.logger = fake_logger
+    caplog.clear()
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
                                    postbuild_plugins=[{'name': 'store_logs_to_file',
@@ -472,7 +440,8 @@ def test_workflow_compat(request):
 
     workflow.build_docker_image()
     assert watch_exit.was_called()
-    assert len(fake_logger.errors) == 0  # This is explicitly allowed now
+    for record in caplog.records:
+        assert record.levelno != logging.ERROR
 
 
 class Pre(PreBuildPlugin):
@@ -699,7 +668,7 @@ class Exit(ExitPlugin):
      False,  # does not log error
      ),
 ])
-def test_plugin_errors(request, plugins, should_fail, should_log):
+def test_plugin_errors(plugins, should_fail, should_log, caplog):
     """
     Try bad plugin configuration.
     """
@@ -709,16 +678,8 @@ def test_plugin_errors(request, plugins, should_fail, should_log):
     mock_docker()
     fake_builder = MockInsideBuilder()
     flexmock(InsideBuilder).new_instances(fake_builder)
-    fake_logger = FakeLogger()
 
-    existing_logger = atomic_reactor.plugin.logger
-
-    def restore_logger():
-        atomic_reactor.plugin.logger = existing_logger
-
-    request.addfinalizer(restore_logger)
-    atomic_reactor.plugin.logger = fake_logger
-
+    caplog.clear()
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
                                    plugin_files=[this_file],
                                    **plugins)
@@ -745,9 +706,9 @@ def test_plugin_errors(request, plugins, should_fail, should_log):
         assert not workflow.plugins_errors
 
     if should_log:
-        assert len(fake_logger.errors) > 0
+        assert any(record.levelno == logging.ERROR for record in caplog.records)
     else:
-        assert len(fake_logger.errors) == 0
+        assert all(record.levelno != logging.ERROR for record in caplog.records)
 
 
 class StopAutorebuildPlugin(PreBuildPlugin):
@@ -1214,7 +1175,7 @@ def test_workflow_plugin_results(buildstep_plugin, buildstep_raises):
 
 
 @pytest.mark.parametrize('fail_at', ['pre', 'prepub', 'buildstep', 'post', 'exit'])
-def test_cancel_build(request, fail_at):
+def test_cancel_build(fail_at, caplog):
     """
     Verifies that exit plugins are executed when the build is canceled
     """
@@ -1232,14 +1193,7 @@ def test_cancel_build(request, fail_at):
     watch_post = WatcherWithSignal(phase_signal['post'])
     watch_exit = WatcherWithSignal(phase_signal['exit'])
 
-    fake_logger = FakeLogger()
-    existing_logger = atomic_reactor.plugin.logger
-
-    def restore_logger():
-        atomic_reactor.plugin.logger = existing_logger
-
-    request.addfinalizer(restore_logger)
-    atomic_reactor.plugin.logger = fake_logger
+    caplog.clear()
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
                                    prebuild_plugins=[{'name': 'pre_watched',
@@ -1272,13 +1226,21 @@ def test_cancel_build(request, fail_at):
         with pytest.raises(PluginFailedException):
             workflow.build_docker_image()
         assert workflow.build_canceled
-        assert any(expected_entry.format(fail_at) in entry[0] for entry in fake_logger.errors)
+        assert any(
+            expected_entry.format(fail_at) in record.message
+            for record in caplog.records
+            if record.levelno == logging.ERROR
+        )
     else:
         workflow.build_docker_image()
 
         if fail_at != 'exit':
             assert workflow.build_canceled
-            assert any(expected_entry.format(fail_at) in entry[0] for entry in fake_logger.warnings)
+            assert any(
+                expected_entry.format(fail_at) in record.message
+                for record in caplog.records
+                if record.levelno == logging.WARNING
+            )
         else:
             assert not workflow.build_canceled
 
@@ -1336,7 +1298,7 @@ def test_buildstep_alias(buildstep_alias, buildstep_plugin):
 
 
 @pytest.mark.parametrize('has_version', [True, False])
-def test_show_version(request, has_version):
+def test_show_version(has_version, caplog):
     """
     Test atomic-reactor print version of osbs-client used to build the build json
     if available
@@ -1350,14 +1312,8 @@ def test_show_version(request, has_version):
     flexmock(InsideBuilder).new_instances(fake_builder)
 
     watch_buildstep = Watcher()
-    fake_logger = FakeLogger()
-    existing_logger = atomic_reactor.inner.logger
 
-    def restore_logger():
-        atomic_reactor.inner.logger = existing_logger
-
-    request.addfinalizer(restore_logger)
-    atomic_reactor.inner.logger = fake_logger
+    caplog.clear()
 
     params = {
         'prebuild_plugins': [],
@@ -1373,8 +1329,12 @@ def test_show_version(request, has_version):
 
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image', **params)
     workflow.build_docker_image()
-    expected_log_message = ("build json was built by osbs-client %s", VERSION)
-    assert (expected_log_message in fake_logger.debugs) == has_version
+    expected_log_message = "build json was built by osbs-client {}".format(VERSION)
+    assert any(
+        expected_log_message in record.message
+        for record in caplog.records
+        if record.levelno == logging.DEBUG
+    ) == has_version
 
 
 def test_add_pulp_registry():
