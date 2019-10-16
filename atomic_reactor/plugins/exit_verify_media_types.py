@@ -37,9 +37,6 @@ class VerifyMediaTypesPlugin(ExitPlugin):
         # Work out the name of the image to pull
         if not self.workflow.tag_conf.unique_images:
             raise ValueError("no unique image set, impossible to verify media types")
-        if self.workflow.push_conf.pulp_registries:
-            self.log.info("pulp registry configure, verify_media_types should not run")
-            return
         image = self.workflow.tag_conf.unique_images[0]
 
         registries = deepcopy(get_registries(self.workflow, {}))

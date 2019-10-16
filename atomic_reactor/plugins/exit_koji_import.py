@@ -242,9 +242,7 @@ class KojiImportPlugin(ExitPlugin):
             repositories = self.workflow.build_result.annotations['repositories']['unique']
             repo = ImageName.parse(repositories[0]).to_str(registry=False, tag=False)
             # group_manifests added the registry, so this should be valid
-            registries = self.workflow.push_conf.pulp_registries
-            if not registries:
-                registries = self.workflow.push_conf.all_registries
+            registries = self.workflow.push_conf.all_registries
             for registry in registries:
                 manifest_list_digest = manifest_list_digests[repo]
                 pullspec = "{0}/{1}@{2}".format(registry.uri, repo, manifest_list_digest.default)

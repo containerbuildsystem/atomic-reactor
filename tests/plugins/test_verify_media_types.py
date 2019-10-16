@@ -468,21 +468,6 @@ class TestVerifyImageTypes(object):
         assert "no unique image set, impossible to verify media types" in str(exc.value)
 
     @responses.activate
-    def test_verify_fail_pulp_image(self, caplog):
-        """
-        If pulp is enabled, this plugin shouldn't run
-        """
-        workflow = self.workflow()
-        workflow.push_conf.add_pulp_registry('pulp', crane_uri='crane.example.com',
-                                             server_side_sync=False)
-        tasker = MockerTasker()
-
-        plugin = VerifyMediaTypesPlugin(tasker, workflow)
-        results = plugin.run()
-        assert not results
-        assert "pulp registry configure, verify_media_types should not run" in caplog.text
-
-    @responses.activate
     def test_verify_fail_no_build(self):
         """
         Build was unsuccessful, return an empty list

@@ -512,7 +512,7 @@ class TestReactorConfigPlugin(object):
 
     @pytest.mark.parametrize('fallback', (True, False, None))
     @pytest.mark.parametrize('method', [
-        'koji', 'pulp', 'odcs', 'smtp', 'arrangement_version',
+        'koji', 'odcs', 'smtp', 'arrangement_version',
         'artifacts_allowed_domains', 'yum_repo_allowed_domains', 'image_labels',
         'image_label_info_url_format', 'image_equal_labels', 'fail_on_digest_mismatch',
         'openshift', 'group_manifests', 'platform_descriptors', 'prefer_schema1_digest',

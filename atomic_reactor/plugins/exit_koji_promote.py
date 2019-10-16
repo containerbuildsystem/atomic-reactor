@@ -343,12 +343,7 @@ class KojiPromotePlugin(ExitPlugin):
 
         :param digests: dict, image -> digests
         """
-        if self.workflow.push_conf.pulp_registries:
-            # If pulp was used, only report pulp images
-            registries = self.workflow.push_conf.pulp_registries
-        else:
-            # Otherwise report all the images we pushed
-            registries = self.workflow.push_conf.all_registries
+        registries = self.workflow.push_conf.all_registries
 
         output_images = []
         for registry in registries:

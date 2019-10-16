@@ -93,10 +93,6 @@
           "name": "osbs-client"
         },
         {
-          "version": "1.42",
-          "name": "dockpulp"
-        },
-        {
           "version": "1.12.6",
           "name": "docker"
         }
