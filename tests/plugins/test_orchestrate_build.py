@@ -321,8 +321,6 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
         reactor_dict['odcs'] = {'api_url': 'odcs_url'}
         expected_kwargs['odcs_insecure'] = False
         expected_kwargs['odcs_url'] = reactor_dict['odcs']['api_url']
-        reactor_dict['pulp'] = {'name': 'pulp_name'}
-        expected_kwargs['pulp_registry_name'] = reactor_dict['pulp']['name']
         reactor_dict['prefer_schema1_digest'] = False
         expected_kwargs['prefer_schema1_digest'] = reactor_dict['prefer_schema1_digest']
         reactor_dict['smtp'] = {
@@ -386,7 +384,6 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
         expected_kwargs['artifacts_allowed_domains'] = ''
         expected_kwargs['smtp_to_pkgowner'] = None
         expected_kwargs['prefer_schema1_digest'] = None
-        expected_kwargs['pulp_registry_name'] = None
 
     with open(os.path.join(str(tmpdir), 'osbs.conf'), 'w') as f:
         for plat_clusters in clusters.values():

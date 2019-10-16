@@ -153,10 +153,6 @@ class ImageName(object):
             result = '{0}/{1}'.format('library', result)
         return result
 
-    @property
-    def pulp_repo(self):
-        return self.to_str(registry=False, tag=False).replace("/", "-")
-
     def enclose(self, organization):
         if self.namespace == organization:
             return

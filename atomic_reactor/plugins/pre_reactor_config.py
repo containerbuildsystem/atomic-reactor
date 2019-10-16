@@ -93,10 +93,6 @@ def get_koji_path_info(workflow, fallback):
     return PathInfo(topdir=root_url)
 
 
-def get_pulp(workflow, fallback=NO_FALLBACK):
-    return get_value(workflow, 'pulp', fallback)
-
-
 def get_odcs(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'odcs', fallback)
 

@@ -17,8 +17,7 @@ from atomic_reactor import __version__ as atomic_reactor_version
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_reactor_config import (get_openshift_session,
-                                                       get_prefer_schema1_digest,
-                                                       get_koji_session, get_pulp)
+                                                       get_koji_session)
 from atomic_reactor.constants import (PROG, PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
                                       OPERATOR_MANIFESTS_ARCHIVE)
@@ -83,7 +82,7 @@ class KojiUploadPlugin(PostBuildPlugin):
                  build_json_dir=None, verify_ssl=True, use_auth=True,
                  koji_ssl_certs_dir=None, koji_proxy_user=None,
                  koji_principal=None, koji_keytab=None,
-                 blocksize=None, prefer_schema1_digest=True,
+                 blocksize=None,
                  platform='x86_64', report_multiple_digests=False):
         """
         constructor
@@ -101,11 +100,9 @@ class KojiUploadPlugin(PostBuildPlugin):
         :param koji_principal: str, Kerberos principal (must specify keytab)
         :param koji_keytab: str, keytab name (must specify principal)
         :param blocksize: int, blocksize to use for uploading files
-        :param prefer_schema1_digest: bool, when True, v2 schema 1 digest will
-            be preferred as the built image digest
         :param platform: str, platform name for this build
         :param report_multiple_digests: bool, whether to report both schema 1
-            and schema 2 digests; if truthy, prefer_schema1_digest is ignored
+            and schema 2 digests
         """
         super(KojiUploadPlugin, self).__init__(tasker, workflow)
 
@@ -128,7 +125,6 @@ class KojiUploadPlugin(PostBuildPlugin):
 
         self.blocksize = blocksize
         self.koji_upload_dir = koji_upload_dir
-        self.prefer_schema1_digest = get_prefer_schema1_digest(self.workflow, prefer_schema1_digest)
         self.report_multiple_digests = report_multiple_digests
 
         self.osbs = get_openshift_session(self.workflow, self.openshift_fallback)
@@ -296,14 +292,6 @@ class KojiUploadPlugin(PostBuildPlugin):
     def select_digest(self, digests):
         digest = digests.default
 
-        # pulp/crane supports only manifest schema v1
-        if self.prefer_schema1_digest:
-            if self.workflow.push_conf.pulp_registries:
-                self.log.info('Using schema v1 digest because of older Pulp integration')
-                digest = digests.v1
-            else:
-                self.log.info('Schema v1 preferred, but not used')
-
         return digest
 
     def get_repositories_and_digests(self):
@@ -321,27 +309,17 @@ class KojiUploadPlugin(PostBuildPlugin):
                 image_str = image.to_str()
                 if image_str in registry.digests:
                     image_digests = registry.digests[image_str]
-                    if self.report_multiple_digests and get_pulp(self.workflow, None):
-                        digest_list = [digest for digest in (image_digests.v1,
-                                                             image_digests.v2)
-                                       if digest]
-                    else:
-                        digest_list = [self.select_digest(image_digests)]
+                    digest_list = [self.select_digest(image_digests)]
                     digests[image.to_str(registry=False)] = digest_list
                     for digest_version in image_digests.content_type:
-                        if digest_version not in image_digests:
+                        if digest_version == 'v1':
                             continue
-                        if not get_pulp(self.workflow, None) and digest_version == 'v1':
+                        if digest_version not in image_digests:
                             continue
                         digest_type = get_manifest_media_type(digest_version)
                         typed_digests[digest_type] = image_digests[digest_version]
 
-        if self.workflow.push_conf.pulp_registries:
-            # If pulp was used, only report pulp images
-            registries = self.workflow.push_conf.pulp_registries
-        else:
-            # Otherwise report all the images we pushed
-            registries = self.workflow.push_conf.all_registries
+        registries = self.workflow.push_conf.all_registries
         repositories = []
         for registry in registries:
             image = self.pullspec_image.copy()
