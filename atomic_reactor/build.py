@@ -88,11 +88,12 @@ class BuildResult(object):
         self._labels = labels
         self._skip_layer_squash = skip_layer_squash
 
-    @staticmethod
-    def make_remote_image_result(annotations=None, labels=None):
+    @classmethod
+    def make_remote_image_result(cls, annotations=None, labels=None):
         """Instantiate BuildResult for image not built locally."""
-        return BuildResult(image_id=BuildResult.REMOTE_IMAGE,
-                           annotations=annotations, labels=labels)
+        return cls(
+            image_id=cls.REMOTE_IMAGE, annotations=annotations, labels=labels
+        )
 
     @property
     def logs(self):
