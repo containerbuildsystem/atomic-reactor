@@ -18,7 +18,7 @@ from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.plugin import PrePublishPlugin
 from atomic_reactor.plugins.pre_flatpak_create_dockerfile import get_flatpak_source_info
 from atomic_reactor.rpm_util import parse_rpm_output
-from atomic_reactor.util import get_exported_image_metadata
+from atomic_reactor.util import df_parser, get_exported_image_metadata
 
 
 # This converts the generator provided by the export() operation to a file-like
@@ -99,6 +99,9 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         self.builder = FlatpakBuilder(source, self.workflow.source.workdir,
                                       'var/tmp/flatpak-build',
                                       parse_manifest=parse_rpm_output)
+
+        df_labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels
+        self.builder.add_labels(df_labels)
 
         tarred_filesystem, manifest = self._export_filesystem()
         self.log.info('filesystem tarfile written to %s', tarred_filesystem)

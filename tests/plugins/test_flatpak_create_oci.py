@@ -10,17 +10,21 @@ from __future__ import absolute_import
 
 from flexmock import flexmock
 from io import BytesIO
+import json
 import os
 import png
 import pytest
 import re
 import subprocess
 import tarfile
+from textwrap import dedent
 
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
-
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 from atomic_reactor.util import ImageName
 
 from tests.constants import TEST_IMAGE
@@ -362,6 +366,24 @@ class X(object):
     base_image = ImageName(repo="qwe", tag="asd")
 
 
+def load_labels_and_annotations(metadata):
+    def get_path(descriptor):
+        digest = descriptor["digest"]
+        assert digest.startswith("sha256:")
+        return os.path.join(metadata['path'],
+                            "blobs/sha256",
+                            digest[len("sha256:"):])
+
+    with open(os.path.join(metadata['path'], "index.json")) as f:
+        index_json = json.load(f)
+    with open(get_path(index_json["manifests"][0])) as f:
+        manifest_json = json.load(f)
+    with open(get_path(manifest_json["config"])) as f:
+        config_json = json.load(f)
+
+    return config_json["config"]["Labels"], manifest_json["annotations"]
+
+
 class DefaultInspector(object):
     def __init__(self, tmpdir, metadata):
         # Import the OCI bundle into a ostree repository for examination
@@ -406,6 +428,39 @@ class DefaultInspector(object):
             return perms
 
 
+def make_and_store_reactor_config_map(workflow, flatpak_metadata):
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+
+    reactor_map = {
+        'version': 1,
+        'flatpak': {'metadata': flatpak_metadata},
+    }
+
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {
+        WORKSPACE_CONF_KEY: ReactorConfig(reactor_map)
+    }
+
+
+def write_docker_file(config, tmpdir):
+    df_path = os.path.join(tmpdir, "Dockerfile")
+    base_module_name = config['base_module']
+    base_module = config['modules'][base_module_name]
+    with open(df_path, "w") as f:
+        f.write(dedent("""\
+                       FROM fedora:30
+
+                       LABEL name="{name}"
+                       LABEL com.redhat.component="{component}"
+                       LABEL version="{stream}"
+                       LABEL release="{version}"
+                       """.format(name=config['name'],
+                                  component=config['component'],
+                                  stream=base_module['stream'],
+                                  version=base_module['version'])))
+
+    return df_path
+
+
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,  # noqa - docker_tasker fixture
                     reason="libmodulemd not available")
 @pytest.mark.parametrize('config_name, breakage', [
@@ -434,7 +489,10 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage):
 
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
     setattr(workflow, 'builder', X)
+    X.df_path = write_docker_file(config, str(tmpdir))
     setattr(workflow.builder, 'tasker', docker_tasker)
+
+    make_and_store_reactor_config_map(workflow, flatpak_metadata)
 
     filesystem_dir = os.path.join(str(tmpdir), 'filesystem')
     os.mkdir(filesystem_dir)
@@ -535,6 +593,26 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage):
 
         tar_metadata = workflow.exported_image_sequence[-1]
         assert tar_metadata['type'] == IMAGE_TYPE_OCI_TAR
+
+        # Check that the correct labels were written
+
+        labels, _ = load_labels_and_annotations(dir_metadata)
+
+        if config_name == 'app':
+            assert labels['name'] == 'eog'
+            assert labels['com.redhat.component'] == 'eog'
+            assert labels['version'] == 'f28'
+            assert labels['release'] == '20170629213428'
+        elif config_name == 'runtime':  # runtime
+            assert labels['name'] == 'flatpak-runtime'
+            assert labels['com.redhat.component'] == 'flatpak-runtime-container'
+            assert labels['version'] == 'f28'
+            assert labels['release'] == '20170701152209'
+        else:
+            assert labels['name'] == 'flatpak-sdk'
+            assert labels['com.redhat.component'] == 'flatpak-sdk-container'
+            assert labels['version'] == 'f28'
+            assert labels['release'] == '20170701152209'
 
         # Check that the expected files ended up in the flatpak
 
