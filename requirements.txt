@@ -1,7 +1,7 @@
 docker-py
 docker-squash>=1.0.7
 dockerfile-parse>=0.0.13
-flatpak-module-tools>=0.10.4
+flatpak-module-tools >= 0.11
 jsonschema==2.3.0  # to match available in RHEL/CentOS 7
 PyYAML
 six
