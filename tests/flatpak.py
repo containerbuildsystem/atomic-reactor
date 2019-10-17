@@ -273,7 +273,7 @@ RUNTIME_CONFIG = {
     'modules': {
         'flatpak-runtime': {
             'stream': 'f28',
-            'version': '20170629185228',
+            'version': '20170701152209',
             'metadata': FLATPAK_RUNTIME_MODULEMD,
             'rpms': [],  # We don't use this currently
         },
@@ -295,7 +295,7 @@ SDK_CONFIG = {
     'modules': {
         'flatpak-runtime': {
             'stream': 'f28',
-            'version': '20170629185228',
+            'version': '20170701152209',
             'metadata': FLATPAK_RUNTIME_MODULEMD,
             'rpms': [],  # We don't use this currently
         },
