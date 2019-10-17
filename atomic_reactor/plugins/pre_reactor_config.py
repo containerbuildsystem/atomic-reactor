@@ -356,6 +356,16 @@ def get_flatpak_base_image(workflow, fallback=NO_FALLBACK):
         raise
 
 
+def get_flatpak_metadata(workflow, fallback=NO_FALLBACK):
+    flatpak = get_value(workflow, 'flatpak', {})
+    try:
+        return flatpak['metadata']
+    except KeyError:
+        if fallback != NO_FALLBACK:
+            return fallback
+        raise
+
+
 def get_package_comparison_exceptions(workflow):
     return set(get_config(workflow).conf.get('package_comparison_exceptions', []))
 
