@@ -89,6 +89,7 @@ EXPECTED_APP_FLATPAK_CONTENTS = [
 ]
 
 APP_CONFIG = {
+    'expected_ref_name': 'app/org.gnome.eog/x86_64/stable',
     'filesystem_contents': APP_FILESYSTEM_CONTENTS,
     'expected_contents': EXPECTED_APP_FLATPAK_CONTENTS,
     'expected_components': ['eog'],
@@ -322,6 +323,7 @@ EXPECTED_RUNTIME_FLATPAK_CONTENTS = [
 ]
 
 RUNTIME_CONFIG = {
+    'expected_ref_name': 'runtime/org.fedoraproject.Platform/x86_64/f28',
     'filesystem_contents': RUNTIME_FILESYSTEM_CONTENTS,
     'expected_contents': EXPECTED_RUNTIME_FLATPAK_CONTENTS,
     'expected_components': ['abattis-cantarell-fonts'],
@@ -342,6 +344,7 @@ EXPECTED_SDK_FLATPAK_CONTENTS = [
 ]
 
 SDK_CONFIG = {
+    'expected_ref_name': 'runtime/org.fedoraproject.Sdk/x86_64/f28',
     'filesystem_contents': SDK_FILESYSTEM_CONTENTS,
     'expected_contents': EXPECTED_SDK_FLATPAK_CONTENTS,
     'expected_components': ['gcc'],
@@ -463,13 +466,16 @@ def write_docker_file(config, tmpdir):
 
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,  # noqa - docker_tasker fixture
                     reason="libmodulemd not available")
-@pytest.mark.parametrize('config_name, breakage', [
-    ('app', None),
-    ('app', 'no_runtime'),
-    ('runtime', None),
-    ('sdk', None)
+@pytest.mark.parametrize('config_name, flatpak_metadata, breakage', [
+    ('app', 'annotations', None),
+    ('app', 'annotations', 'no_runtime'),
+    ('app', 'labels', None),
+    ('app', 'both', None),
+    ('runtime', 'annotations', None),
+    ('sdk', 'annotations', None),
+    ('sdk', 'annotations', None),
 ])
-def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage):
+def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, flatpak_metadata, breakage):
     # Check that we actually have flatpak available
     have_flatpak = False
     try:
@@ -594,9 +600,9 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage):
         tar_metadata = workflow.exported_image_sequence[-1]
         assert tar_metadata['type'] == IMAGE_TYPE_OCI_TAR
 
-        # Check that the correct labels were written
+        # Check that the correct labels and annotations were written
 
-        labels, _ = load_labels_and_annotations(dir_metadata)
+        labels, annotations = load_labels_and_annotations(dir_metadata)
 
         if config_name == 'app':
             assert labels['name'] == 'eog'
@@ -614,7 +620,22 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, breakage):
             assert labels['version'] == 'f28'
             assert labels['release'] == '20170701152209'
 
+        if flatpak_metadata == 'annotations':
+            assert annotations.get('org.flatpak.ref') == config['expected_ref_name']
+            assert 'org.flatpak.ref' not in labels
+        elif flatpak_metadata == 'labels':
+            assert 'org.flatpak.ref' not in annotations
+            assert labels.get('org.flatpak.ref') == config['expected_ref_name']
+        elif flatpak_metadata == 'both':
+            assert annotations.get('org.flatpak.ref') == config['expected_ref_name']
+            assert labels.get('org.flatpak.ref') == config['expected_ref_name']
+
         # Check that the expected files ended up in the flatpak
+
+        # Flatpak versions before 1.6 require annotations to be present, since we don't
+        # require such a new Flatpak, skip remaining checks in the label-only case
+        if flatpak_metadata == 'labels':
+            return
 
         inspector = DefaultInspector(tmpdir, dir_metadata)
 

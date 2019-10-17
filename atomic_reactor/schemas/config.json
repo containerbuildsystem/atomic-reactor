@@ -597,6 +597,11 @@
             "base_image": {
                 "description": "host image used to install packages when creating a Flatpak",
                 "type": "string"
+            },
+            "metadata": {
+                "description": "how to store Flatpak metadata in the image",
+                "type": "string",
+                "enum": ["annotations", "labels", "both"]
             }
         },
         "additionalProperties": false
