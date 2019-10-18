@@ -114,6 +114,15 @@
                 "description": "Download data from koji insecurely",
                 "type": "boolean",
                 "default": false
+            },
+            "delegate_task": {
+                "description": "Autorebuild will create new intermediate task, instead of using original task",
+                "type": "boolean",
+                "default": true
+            },
+            "delegated_task_priority": {
+                "description": "When delegate_build is enabled, delegated task will use this koji task priority, if not set it will use default koji priority",
+                "type": "integer"
             }
         },
         "additionalProperties": false,

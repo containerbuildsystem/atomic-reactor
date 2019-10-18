@@ -25,6 +25,7 @@ from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
                                       PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_TAG_BUILD_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
+                                      PLUGIN_KOJI_DELEGATE_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY,
                                       PLUGIN_SENDMAIL_KEY)
 import pytest
@@ -167,6 +168,7 @@ def test_remove_everything():
         'prebuild_plugins': [
             {'name': 'before', },
             {'name': PLUGIN_BUMP_RELEASE_KEY, },
+            {'name': PLUGIN_KOJI_DELEGATE_KEY, },
             {'name': PLUGIN_FETCH_MAVEN_KEY, },
             {'name': PLUGIN_DISTGIT_FETCH_KEY, },
             {'name': PLUGIN_DOCKERFILE_CONTENT_KEY, },
