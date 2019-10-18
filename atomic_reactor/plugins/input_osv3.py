@@ -26,7 +26,8 @@ from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
                                       PLUGIN_KOJI_TAG_BUILD_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY,
-                                      PLUGIN_SENDMAIL_KEY)
+                                      PLUGIN_SENDMAIL_KEY,
+                                      PLUGIN_KOJI_DELEGATE_KEY)
 
 
 class OSv3InputPlugin(InputPlugin):
@@ -80,6 +81,8 @@ class OSv3InputPlugin(InputPlugin):
     def remove_koji_plugins(self):
         koji_map = self.get_value('koji', {})
         if not koji_map.get('hub_url'):
+            self.remove_plugin('prebuild_plugins', PLUGIN_KOJI_DELEGATE_KEY,
+                               'no koji hub available')
             # bump_release is removed in PluginsConfiguration if no release value
             self.remove_plugin('prebuild_plugins', PLUGIN_BUMP_RELEASE_KEY,
                                'no koji hub available')

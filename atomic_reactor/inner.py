@@ -404,6 +404,7 @@ class DockerBuildWorkflow(object):
         # info about pre-declared build, build-id and token
         self.reserved_build_id = None
         self.reserved_token = None
+        self.triggered_after_koji_task = None
 
         if client_version:
             logger.debug("build json was built by osbs-client %s", client_version)
@@ -471,10 +472,6 @@ class DockerBuildWorkflow(object):
             postbuild_runner = PostBuildPluginsRunner(self.builder.tasker, self,
                                                       self.postbuild_plugins_conf,
                                                       plugin_files=self.plugin_files)
-            exit_runner = ExitPluginsRunner(self.builder.tasker, self,
-                                            self.exit_plugins_conf,
-                                            keep_going=True,
-                                            plugin_files=self.plugin_files)
             # time to run pre-build plugins, so they can access cloned repo
             logger.info("running pre-build plugins")
             try:
@@ -540,11 +537,11 @@ class DockerBuildWorkflow(object):
         finally:
             # We need to make sure all exit plugins are executed
             signal.signal(signal.SIGTERM, lambda *args: None)
-            if exit_runner is None:
-                exit_runner = ExitPluginsRunner(self.builder.tasker, self,
-                                                self.exit_plugins_conf,
-                                                keep_going=True,
-                                                plugin_files=self.plugin_files)
+
+            exit_runner = ExitPluginsRunner(self.builder.tasker, self,
+                                            self.exit_plugins_conf,
+                                            keep_going=True,
+                                            plugin_files=self.plugin_files)
             try:
                 exit_runner.run(keep_going=True)
             except PluginFailedException as ex:

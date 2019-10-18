@@ -42,6 +42,7 @@ and fall back to `build.extra.image` when the former is not available.
 Data which is placed here includes:
 
 - `build.extra.image.autorebuild` (boolean): true if this build was triggered automatically; false otherwise
+- `build.extra.image.triggered_after_koji_task` (int): only defined for autorebuilds, specifies original Koji task ID for autorebuild
 - `build.extra.image.isolated` (boolean): true if this build was an isolated build; false otherwise
 - `build.extra.image.help` (string or null): filename of the markdown help file in the repository if this build has a markdown help converted to man page; null otherwise
 - `build.extra.container_koji_task_id` (int): Koji task ID which created the BuildConfig for this OpenShift Build -- note that this location is technically incorrect but remains as-is for compatibility with existing software

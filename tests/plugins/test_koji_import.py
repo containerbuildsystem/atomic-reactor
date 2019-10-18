@@ -1228,11 +1228,13 @@ class TestKojiImport(object):
         assert AddFilesystemPlugin.key in caplog.text
 
     @pytest.mark.parametrize('blocksize', (None, 1048576))
-    @pytest.mark.parametrize(('has_config', 'is_autorebuild'), [
+    @pytest.mark.parametrize(('has_config', 'is_autorebuild', 'triggered_task'), [
         # (True,
         #  True),
         (False,
-         False),
+         False, None),
+        (False,
+         True, 12345),
     ])
     @pytest.mark.parametrize('tag_later', (True, False))
     @pytest.mark.parametrize(('verify_media', 'expect_id'), (
@@ -1241,8 +1243,8 @@ class TestKojiImport(object):
         (False, 'ab12')
     ))
     @pytest.mark.parametrize('reserved_build', (True, False))
-    def test_koji_import_success(self, tmpdir, blocksize, os_env, has_config,
-                                 is_autorebuild, tag_later, verify_media, expect_id,
+    def test_koji_import_success(self, tmpdir, blocksize, os_env, has_config, is_autorebuild,
+                                 triggered_task, tag_later, verify_media, expect_id,
                                  reserved_build, reactor_config_map):
         session = MockedClientSession('')
         # When target is provided koji build will always be tagged,
@@ -1265,6 +1267,8 @@ class TestKojiImport(object):
                                             release=release,
                                             has_config=has_config)
         workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_autorebuild
+        workflow.triggered_after_koji_task = triggered_task
+
         if verify_media:
             workflow.exit_results[PLUGIN_VERIFY_MEDIA_KEY] = verify_media
         expected_media_types = verify_media or []
@@ -1351,6 +1355,13 @@ class TestKojiImport(object):
         autorebuild = image['autorebuild']
         assert isinstance(autorebuild, bool)
         assert autorebuild == is_autorebuild
+
+        if triggered_task:
+            assert 'triggered_after_koji_task' in image
+            assert triggered_task == image['triggered_after_koji_task']
+        else:
+            assert 'triggered_after_koji_task' not in image
+
         if expected_media_types:
             media_types = image['media_types']
             assert isinstance(media_types, list)

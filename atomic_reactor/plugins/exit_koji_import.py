@@ -303,6 +303,9 @@ class KojiImportPlugin(ExitPlugin):
             raise RuntimeError('git source required')
 
         extra = {'image': {'autorebuild': is_rebuild(self.workflow)}}
+        if self.workflow.triggered_after_koji_task:
+            extra['image']['triggered_after_koji_task'] = self.workflow.triggered_after_koji_task
+
         koji_task_id = metadata.get('labels', {}).get('koji-task-id')
         if koji_task_id is not None:
             self.log.info("build configuration created by Koji Task ID %s",
