@@ -64,7 +64,8 @@ class BuildResult(object):
     REMOTE_IMAGE = object()
 
     def __init__(self, logs=None, fail_reason=None, image_id=None,
-                 annotations=None, labels=None, skip_layer_squash=False):
+                 annotations=None, labels=None, skip_layer_squash=False,
+                 oci_image_path=None):
         """
         :param logs: iterable of log lines (without newlines)
         :param fail_reason: str, description of failure or None if successful
@@ -75,18 +76,24 @@ class BuildResult(object):
                        should be set as labels on OpenShift build
         :param skip_layer_squash: boolean, direct post-build plugins not
                                   to squash image layers for this build
+        :param oci_image_path: str, path to OCI image directory
         """
         assert fail_reason is None or bool(fail_reason), \
             "If fail_reason provided, can't be falsy"
         # must provide one, not both
-        assert bool(fail_reason) != bool(image_id), \
+        assert not (fail_reason and image_id), \
             "Either fail_reason or image_id should be provided, not both"
+        assert not (fail_reason and oci_image_path), \
+            "Either fail_reason or oci_image_path should be provided, not both"
+        assert not (image_id and oci_image_path), \
+            "Either image_id or oci_image_path should be provided, not both"
         self._logs = logs or []
         self._fail_reason = fail_reason
         self._image_id = image_id
         self._annotations = annotations
         self._labels = labels
         self._skip_layer_squash = skip_layer_squash
+        self._oci_image_path = oci_image_path
 
     @classmethod
     def make_remote_image_result(cls, annotations=None, labels=None):
@@ -121,6 +128,10 @@ class BuildResult(object):
     @property
     def skip_layer_squash(self):
         return self._skip_layer_squash
+
+    @property
+    def oci_image_path(self):
+        return self._oci_image_path
 
     def is_image_available(self):
         return self._image_id and self._image_id is not self.REMOTE_IMAGE
