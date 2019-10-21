@@ -150,8 +150,16 @@ These are run after we have everything ready for build
    * Status: enabled
    * Builds image inside current environment, using docker api
 
- * **orchestrate_build**
+ * **imagebuilder**
+   * Status: enabled
+   * Builds image inside current environment, using [imagebuilder](https://github.com/openshift/imagebuilder)
+
+ * **buildah_bud**
    * Status: not yet enabled
+   * Builds image inside current environment, using [buildah bud](https://github.com/containers/buildah/blob/master/docs/buildah-bud.md)
+
+ * **orchestrate_build**
+   * Status: enabled
    * Builds image in remote environment
 
 ### Pre-publish and post-build plugins
