@@ -14,7 +14,7 @@ from textwrap import dedent
 import json
 import logging
 import time
-
+import nope
 
 logger = logging.getLogger(__name__)
 MULTILIB_METHOD_DEFAULT = ['devel', 'runtime']
