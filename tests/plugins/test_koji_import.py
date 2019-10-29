@@ -1702,7 +1702,9 @@ class TestKojiImport(object):
                                             session=session,
                                             docker_registry=True,
                                             add_tag_conf_primaries=not is_scratch)
-        group_manifest_result = {'myproject/hello-world': digest} if digest else {}
+        group_manifest_result = {}
+        if digest:
+            group_manifest_result = {'manifest_digest': digest}
         workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = group_manifest_result
         orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
         orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = BuildInfo()
@@ -1828,8 +1830,8 @@ class TestKojiImport(object):
                     'crane.example.com/foo@sha256:v2',
                 ]
 
-        list_digests = {'myproject/hello-world': ManifestDigest(v2_list='sha256:manifest-list')}
-        workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = list_digests
+        workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = {}
+
         orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
         orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = BuildInfo()
 

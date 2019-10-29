@@ -268,7 +268,7 @@ class TestVerifyImageTypes(object):
                            auth=mock_auth, verify=False)
                 .and_return(v2_list_response))
 
-        digests = {'digest': None} if group else {}
+        digests = {'manifest_digest': {'oci_index': None}} if group else {}
         prebuild_results = {PLUGIN_CHECK_AND_SET_PLATFORMS_KEY: platforms}
         postbuild_results = {PLUGIN_GROUP_MANIFESTS_KEY: digests}
 
