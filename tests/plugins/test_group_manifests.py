@@ -25,7 +25,9 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf
-from atomic_reactor.util import ImageName, registry_hostname, ManifestDigest
+from atomic_reactor.util import (ImageName, registry_hostname, ManifestDigest, get_floating_images,
+                                 get_primary_images, get_unique_images)
+
 from atomic_reactor.plugins.post_group_manifests import GroupManifestsPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
@@ -325,6 +327,7 @@ def mock_environment(tmpdir, primary_images=None,
                 workflow.tag_conf.add_primary_image(image)
         workflow.tag_conf.add_unique_image(primary_images[0])
 
+    workflow.tag_conf.add_floating_image('namespace/httpd:floating')
     workflow.build_result = BuildResult(image_id='123456', annotations=annotations or {})
 
     return tasker, workflow
@@ -602,17 +605,19 @@ def test_group_manifests(tmpdir, schema_version, test_name, group, foreign_layer
                                                   tag)
 
         # Check that plugin returns ManifestDigest object
-        plugin_result = results[GroupManifestsPlugin.key]
-        assert isinstance(plugin_result, dict)
-
-        for _, digest in plugin_result.items():
-            assert isinstance(digest, ManifestDigest)
+        plugin_results = results[GroupManifestsPlugin.key]
+        result_digest = plugin_results["manifest_digest"]
+        tags = plugin_results["tags"]
 
         if group:
-            # Check that plugin returns correct list of repos
-            actual_repos = sorted(plugin_result.keys())
-            expected_repos = sorted(set([x.get_repo() for x in workflow.tag_conf.images]))
-            assert expected_repos == actual_repos
+            assert isinstance(result_digest, ManifestDigest)
+            primary_images = get_primary_images(workflow)
+            unique_images = get_unique_images(workflow)
+            for image in primary_images + unique_images:
+                assert image.tag in tags
+        else:
+            assert not result_digest
+            assert not tags
 
     else:
         with pytest.raises(PluginFailedException) as ex:

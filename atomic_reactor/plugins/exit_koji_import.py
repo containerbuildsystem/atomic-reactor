@@ -21,7 +21,8 @@ from atomic_reactor.plugins.build_orchestrate_build import (get_worker_build_inf
                                                             get_koji_upload_dir)
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
-from atomic_reactor.util import OSBSLogs, get_parent_image_koji_data
+from atomic_reactor.util import (OSBSLogs, get_parent_image_koji_data, get_manifest_media_version,
+                                 ManifestDigest)
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
 
 try:
@@ -233,8 +234,9 @@ class KojiImportPlugin(ExitPlugin):
         floating_tags = [image.tag for image in floating_images]
         unique_tags = [image.tag for image in unique_images]
 
-        manifest_list_digests = self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY)
-        if manifest_list_digests:
+        manifest_list_data = self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY, {})
+        manifest_digest = manifest_list_data.get("manifest_digest")
+        if manifest_digest and isinstance(manifest_digest, ManifestDigest):
             index = {}
             index['tags'] = tags
             index['floating_tags'] = floating_tags
@@ -243,9 +245,12 @@ class KojiImportPlugin(ExitPlugin):
             repo = ImageName.parse(repositories[0]).to_str(registry=False, tag=False)
             # group_manifests added the registry, so this should be valid
             registries = self.workflow.push_conf.all_registries
+
+            digest_version = get_manifest_media_version(manifest_digest)
+            digest = manifest_digest.default
+
             for registry in registries:
-                manifest_list_digest = manifest_list_digests[repo]
-                pullspec = "{0}/{1}@{2}".format(registry.uri, repo, manifest_list_digest.default)
+                pullspec = "{0}/{1}@{2}".format(registry.uri, repo, digest)
                 index['pull'] = [pullspec]
                 pullspec = "{0}/{1}:{2}".format(registry.uri, repo,
                                                 version_release)
@@ -253,10 +258,9 @@ class KojiImportPlugin(ExitPlugin):
 
                 # Store each digest with according media type
                 index['digests'] = {}
-                for version, digest in manifest_list_digest.items():
-                    if digest:
-                        media_type = get_manifest_media_type(version)
-                        index['digests'][media_type] = digest
+                media_type = get_manifest_media_type(digest_version)
+                index['digests'][media_type] = digest
+
                 break
             extra['image']['index'] = index
         # group_manifests returns None if didn't run, {} if group=False

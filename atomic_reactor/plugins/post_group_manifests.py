@@ -13,8 +13,6 @@ tags.
 
 from __future__ import unicode_literals, absolute_import
 
-import json
-
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_platform_descriptors, get_group_manifests
 from atomic_reactor.util import (ManifestDigest, get_manifest_media_type,
@@ -118,7 +116,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
             self.manifest_util.store_manifest_in_repository(session, list_json, list_type,
                                                             target_repo, target_repo, ref=image.tag)
         # Get the digest of the manifest list using one of the tags
-        registry_image = self.workflow.tag_conf.unique_images[0]
+        registry_image = get_unique_images(self.workflow)[0]
         _, digest_str, _, _ = self.manifest_util.get_manifest(session,
                                                               registry_image.to_str(registry=False,
                                                                                     tag=False),
@@ -133,11 +131,12 @@ class GroupManifestsPlugin(PostBuildPlugin):
         push_conf_registry = self.workflow.push_conf.add_docker_registry(session.registry,
                                                                          insecure=session.insecure)
         for image in self.workflow.tag_conf.images:
+        tags = []
             push_conf_registry.digests[image.tag] = digest
+            tags.append(image.tag)
 
         self.log.info("%s: Manifest list digest is %s", session.registry, digest_str)
-        return registry_image.get_repo(explicit_namespace=False), digest
-
+        return tags, digest, list_json
 
     def sort_annotations(self):
         """
@@ -155,14 +154,16 @@ class GroupManifestsPlugin(PostBuildPlugin):
         return self.manifest_util.sort_annotations(all_annotations)
 
     def run(self):
-        digests = dict()
+        list_json = ""
+        manifest_digest = None
+        tags = []
+
         for registry, source in self.sort_annotations().items():
             session = self.manifest_util.get_registry_session(registry)
 
             if self.group:
-                repo, digest = self.group_manifests_and_tag(session, source)
-                self.log.debug("repo: %s digest: %s", repo, digest)
-                digests[repo] = digest
+                tags, manifest_digest, list_json = self.group_manifests_and_tag(session, source)
+                self.log.debug("tags: %s digest: %s", tags, manifest_digest)
             else:
                 found = False
                 if len(source) != 1:
@@ -176,4 +177,5 @@ class GroupManifestsPlugin(PostBuildPlugin):
                     found = True
                 if not found:
                     raise ValueError('Failed to find any platform')
-        return digests
+        # return repos for unit test purposes
+        return {'manifest_digest': manifest_digest, 'tags': tags, 'manifest_list': list_json}
