@@ -615,6 +615,8 @@ def test_group_manifests(tmpdir, schema_version, test_name, group, foreign_layer
             unique_images = get_unique_images(workflow)
             for image in primary_images + unique_images:
                 assert image.tag in tags
+            for image in get_floating_images(workflow):
+                assert image.tag not in tags
         else:
             assert not result_digest
             assert not tags

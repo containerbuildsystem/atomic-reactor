@@ -65,6 +65,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
         self.goarch = goarch_from_pd
 
         self.manifest_util = ManifestUtil(self.workflow, registries, self.log)
+        self.non_floating_images = None
 
     def group_manifests_and_tag(self, session, worker_digests):
         """
@@ -102,7 +103,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
         # Now push the manifest list to the registry once per each tag
         self.log.info("%s: Tagging manifest list", session.registry)
 
-        for image in self.workflow.tag_conf.images:
+        for image in self.non_floating_images:
             target_repo = image.to_str(registry=False, tag=False)
             # We have to call store_manifest_in_repository directly for each
             # referenced manifest, since they potentially come from different repos
@@ -130,8 +131,8 @@ class GroupManifestsPlugin(PostBuildPlugin):
         # And store the manifest list in the push_conf
         push_conf_registry = self.workflow.push_conf.add_docker_registry(session.registry,
                                                                          insecure=session.insecure)
-        for image in self.workflow.tag_conf.images:
         tags = []
+        for image in self.non_floating_images:
             push_conf_registry.digests[image.tag] = digest
             tags.append(image.tag)
 
@@ -157,6 +158,9 @@ class GroupManifestsPlugin(PostBuildPlugin):
         list_json = ""
         manifest_digest = None
         tags = []
+        primary_images = get_primary_images(self.workflow)
+        unique_images = get_unique_images(self.workflow)
+        self.non_floating_images = primary_images + unique_images
 
         for registry, source in self.sort_annotations().items():
             session = self.manifest_util.get_registry_session(registry)
@@ -173,7 +177,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
                     source_repo = digest['repository']
                     self.manifest_util.tag_manifest_into_registry(session, source_digest,
                                                                   source_repo,
-                                                                  self.workflow.tag_conf.images)
+                                                                  self.non_floating_images)
                     found = True
                 if not found:
                     raise ValueError('Failed to find any platform')
