@@ -95,9 +95,16 @@ class KojiDelegatePlugin(PreBuildPlugin):
             # will be used in koji_import
             self.workflow.triggered_after_koji_task = self.triggered_after_koji_task
 
+        task_running = False
         koji_task_id = self.metadata.get('labels', {}).get('koji-task-id')
-        task_info = self.kojisession.getTaskInfo(koji_task_id, request=True)
-        task_running = koji.TASK_STATES[task_info['state']] == 'OPEN'
+        if koji_task_id:
+            task_info = self.kojisession.getTaskInfo(koji_task_id, request=True)
+            if task_info:
+                task_running = koji.TASK_STATES[task_info['state']] == 'OPEN'
+            else:
+                self.log.warning("koji-task-id label on build, doesn't exist in koji")
+        else:
+            self.log.warning("koji-task-id label doesn't exist on build")
 
         # we don't want to plugin continue when:
         # delegate_task isn't enabled
