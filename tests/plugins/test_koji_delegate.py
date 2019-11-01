@@ -10,7 +10,6 @@ from __future__ import unicode_literals, absolute_import
 
 import os
 from copy import deepcopy
-from textwrap import dedent
 from flexmock import flexmock
 import pytest
 import json
@@ -82,25 +81,30 @@ class TestKojiDelegate(object):
         plugin = KojiDelegatePlugin(**kwargs)
         return plugin
 
-    @pytest.mark.parametrize(('delegate_task', 'is_auto', 'triggered_task', 'task_open'), [
-        (False, False, None, False),
-        (False, True, None, False),
-        (False, False, None, True),
-        (False, True, None, True),
-        (False, False, 12345, False),
-        (False, True, 12345, False),
-        (False, False, 12345, True),
-        (False, True, 12345, True),
-
-        (True, False, None, False),
-        (True, False, None, True),
-        (True, False, 12345, False),
-        (True, False, 12345, True),
-
-        (True, True, 12345, True),
+    @pytest.mark.parametrize(('delegate_task', 'is_auto', 'triggered_task', 'task_open',
+                              'koji_task_id', 'task_exists'), [
+        (False, False, None, False, True, True),
+        (False, True, None, False, True, True),
+        (False, False, None, True, True, True),
+        (False, True, None, True, True, True),
+        (False, False, 12345, False, True, True),
+        (False, False, 12345, False, False, False),
+        (False, False, 12345, False, True, False),
+        (False, True, 12345, False, True, True),
+        (False, True, 12345, False, False, False),
+        (False, True, 12345, False, True, False),
+        (False, False, 12345, True, True, True),
+        (False, True, 12345, True, True, True),
+        (True, False, None, False, True, True),
+        (True, False, None, True, True, True),
+        (True, False, 12345, False, True, True),
+        (True, False, 12345, False, False, False),
+        (True, False, 12345, False, True, False),
+        (True, False, 12345, True, True, True),
+        (True, True, 12345, True, True, True),
     ])
     def test_skip_delegate_build(self, tmpdir, caplog, delegate_task, is_auto, triggered_task,
-                                 task_open):
+                                 task_open, koji_task_id, task_exists):
         class MockedClientSession(object):
             def __init__(self, hub, opts=None):
                 pass
@@ -112,6 +116,8 @@ class TestKojiDelegate(object):
                 return True
 
             def getTaskInfo(self, task_id, request=False):
+                if not task_exists:
+                    return None
                 if task_open:
                     return {'state': koji.TASK_STATES['OPEN']}
                 else:
@@ -121,14 +127,16 @@ class TestKojiDelegate(object):
         flexmock(koji, ClientSession=session)
 
         new_environ = deepcopy(os.environ)
-        new_environ["BUILD"] = dedent('''\
-            {
-              "metadata": {
+        build_json = {
+            "metadata": {
                 "name": "auto-123456",
-                "labels": {"koji-task-id": 12345}
-              }
+                "labels": {}
             }
-            ''')
+        }
+        if koji_task_id:
+            build_json['metadata']['labels']['koji-task-id'] = 12345
+        new_environ["BUILD"] = json.dumps(build_json)
+
         flexmock(os)
         os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
 
@@ -146,6 +154,11 @@ class TestKojiDelegate(object):
             assert "not autorebuild, skipping plugin" in caplog.text
         elif triggered_task and task_open:
             assert "koji task already delegated, skipping plugin" in caplog.text
+
+        if not koji_task_id:
+            assert "koji-task-id label doesn't exist on build" in caplog.text
+        elif not task_exists:
+            assert "koji-task-id label on build, doesn't exist in koji" in caplog.text
 
     @pytest.mark.parametrize('user_params', [
         {'git_ref': 'test_ref',
