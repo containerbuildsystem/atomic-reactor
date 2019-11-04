@@ -11,14 +11,22 @@ from __future__ import absolute_import
 from copy import deepcopy
 import subprocess
 import time
+import platform
+import random
 
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2, DOCKER_PUSH_MAX_RETRIES,
                                       DOCKER_PUSH_BACKOFF_FACTOR)
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
-from atomic_reactor.plugins.pre_reactor_config import get_registries, get_group_manifests
-from atomic_reactor.util import (get_manifest_digests, get_config_from_registry, Dockercfg)
+from atomic_reactor.plugins.pre_reactor_config import (get_registries, get_group_manifests,
+                                                       get_koji_session, NO_FALLBACK,
+                                                       get_registries_organization)
+from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
+from atomic_reactor.util import (get_manifest_digests, get_config_from_registry, Dockercfg,
+                                 ImageName)
+import osbs.utils
+from osbs.constants import RAND_DIGITS
 
 
 __all__ = ('TagAndPushPlugin', )
@@ -32,7 +40,7 @@ class TagAndPushPlugin(PostBuildPlugin):
     key = "tag_and_push"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, registries=None):
+    def __init__(self, tasker, workflow, registries=None, koji_target=None):
         """
         constructor
 
@@ -45,12 +53,14 @@ class TagAndPushPlugin(PostBuildPlugin):
                               plain HTTP.
                             * "secret" optional string - path to the secret, which stores
                               email, login and password for remote registry
+        :param koji_target: str, used only for sourcecontainers
         """
         # call parent constructor
         super(TagAndPushPlugin, self).__init__(tasker, workflow)
 
         self.registries = get_registries(self.workflow, deepcopy(registries or {}))
         self.group = get_group_manifests(self.workflow, False)
+        self.koji_target = koji_target
 
 
     def need_skopeo_push(self):
@@ -61,13 +71,8 @@ class TagAndPushPlugin(PostBuildPlugin):
 
         return False
 
-    def push_with_skopeo(self, registry_image, insecure, docker_push_secret):
-        # If the last image has type OCI_TAR, then hunt back and find the
-        # the untarred version, since skopeo only supports OCI's as an
-        # untarred directory
-        image = [x for x in self.workflow.exported_image_sequence if
-                 x['type'] != IMAGE_TYPE_OCI_TAR][-1]
-
+    def push_with_skopeo(self, registry_image, insecure, docker_push_secret,
+                         source_oci_image_path=None):
         cmd = ['skopeo', 'copy']
         if docker_push_secret is not None:
             dockercfg = Dockercfg(docker_push_secret)
@@ -76,13 +81,22 @@ class TagAndPushPlugin(PostBuildPlugin):
         if insecure:
             cmd.append('--dest-tls-verify=false')
 
-        if image['type'] == IMAGE_TYPE_OCI:
-            source_img = 'oci:{path}:{ref_name}'.format(**image)
-        elif image['type'] == IMAGE_TYPE_DOCKER_ARCHIVE:
-            source_img = 'docker-archive://{path}'.format(**image)
+        if not source_oci_image_path:
+            # If the last image has type OCI_TAR, then hunt back and find the
+            # the untarred version, since skopeo only supports OCI's as an
+            # untarred directory
+            image = [x for x in self.workflow.exported_image_sequence if
+                     x['type'] != IMAGE_TYPE_OCI_TAR][-1]
+
+            if image['type'] == IMAGE_TYPE_OCI:
+                source_img = 'oci:{path}:{ref_name}'.format(**image)
+            elif image['type'] == IMAGE_TYPE_DOCKER_ARCHIVE:
+                source_img = 'docker-archive://{path}'.format(**image)
+            else:
+                raise RuntimeError("Attempt to push unsupported image type %s with skopeo" %
+                                   image['type'])
         else:
-            raise RuntimeError("Attempt to push unsupported image type %s with skopeo" %
-                               image['type'])
+            source_img = 'oci:{}'.format(source_oci_image_path)
 
         dest_img = 'docker://' + registry_image.to_str()
 
@@ -95,11 +109,46 @@ class TagAndPushPlugin(PostBuildPlugin):
             self.log.error("push failed with output:\n%s", e.output)
             raise
 
+    def source_get_unique_image(self):
+        source_result = self.workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY]
+        koji_build_id = source_result['sources_for_koji_build_id']
+        kojisession = get_koji_session(self.workflow, NO_FALLBACK)
+
+        timestamp = osbs.utils.utcnow().strftime('%Y%m%d%H%M%S')
+        random.seed()
+        current_platform = platform.processor() or 'x86_64'
+
+        tag_segments = [
+            self.koji_target or 'none',
+            str(random.randrange(10**(RAND_DIGITS - 1), 10**RAND_DIGITS)),
+            timestamp,
+            current_platform
+        ]
+
+        tag = '-'.join(tag_segments)
+
+        get_build_meta = kojisession.getBuild(koji_build_id)
+        pull_specs = get_build_meta['extra']['image']['index']['pull']
+        source_image_spec = ImageName.parse(pull_specs[0])
+        source_image_spec.tag = tag
+        organization = get_registries_organization(self.workflow)
+        if organization:
+            source_image_spec.enclose(organization)
+        source_image_spec.registry = None
+        return source_image_spec
+
     def run(self):
         pushed_images = []
 
+        source_oci_image_path = self.workflow.build_result.oci_image_path
+        if source_oci_image_path:
+            source_unique_image = self.source_get_unique_image()
+
         if not self.workflow.tag_conf.unique_images:
-            self.workflow.tag_conf.add_unique_image(self.workflow.image)
+            if source_oci_image_path:
+                self.workflow.tag_conf.add_unique_image(source_unique_image)
+            else:
+                self.workflow.tag_conf.add_unique_image(self.workflow.image)
 
         config_manifest_digest = None
         config_manifest_type = None
@@ -130,8 +179,9 @@ class TagAndPushPlugin(PostBuildPlugin):
                     max_retries = 0
 
                 for retry in range(max_retries + 1):
-                    if self.need_skopeo_push():
-                        self.push_with_skopeo(registry_image, insecure, docker_push_secret)
+                    if self.need_skopeo_push() or source_oci_image_path:
+                        self.push_with_skopeo(registry_image, insecure, docker_push_secret,
+                                              source_oci_image_path)
                     else:
                         self.tasker.tag_and_push_image(self.workflow.builder.image_id,
                                                        registry_image, insecure=insecure,
