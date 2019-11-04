@@ -8,13 +8,19 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import print_function, unicode_literals, absolute_import
 
-import pytest
+from datetime import datetime
 import time
+import platform
+import random
+import pytest
+import koji as koji
+import osbs
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
+from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
@@ -333,6 +339,10 @@ def test_tag_and_push_plugin(
                 assert workflow.push_conf.docker_registries[0].config is None
 
 
+@pytest.mark.parametrize("source_oci_image_path", [
+    True,
+    False,
+])
 @pytest.mark.parametrize("use_secret", [
     True,
     False,
@@ -341,9 +351,8 @@ def test_tag_and_push_plugin(
     False,
     True,
 ])
-def test_tag_and_push_plugin_oci(
-        tmpdir, monkeypatch, use_secret, fail_push, caplog, reactor_config_map):
-
+def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, use_secret,
+                                 fail_push, caplog, reactor_config_map):
     # For now, we don't want to require having a skopeo and an OCI-supporting
     # registry in the test environment
     if MOCK:
@@ -351,10 +360,46 @@ def test_tag_and_push_plugin_oci(
     else:
         return
 
+    sources_dir_path = '/oci_source_image_path'
+    sources_koji_id = '123456'
+    sources_koji_target = 'source_target'
+    sources_koji_repo = 'namespace/container_build_image'
+    sources_koji_pull_spec = 'registry_url/{}@sha256:987654321'.format(sources_koji_repo)
+    sources_random_number = 1234567890
+    sources_timestamp = datetime(year=2019, month=12, day=12)
+    current_platform = platform.processor() or 'x86_64'
+    sources_tagname = '{}-{}-{}-{}'.format(sources_koji_target, sources_random_number,
+                                           sources_timestamp.strftime('%Y%m%d%H%M%S'),
+                                           current_platform)
+
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
     workflow.builder = StubInsideBuilder()
     workflow.builder.image_id = INPUT_IMAGE
+    if source_oci_image_path and reactor_config_map:
+        workflow.build_result._oci_image_path = sources_dir_path
+        workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] =\
+            {'sources_for_koji_build_id': sources_koji_id}
+
+    class MockedClientSession(object):
+        def __init__(self, hub, opts=None):
+            pass
+
+        def getBuild(self, build_info):
+            if source_oci_image_path:
+                assert build_info == sources_koji_id
+                return {'extra': {'image': {'index': {'pull': [sources_koji_pull_spec]}}}}
+
+            else:
+                return None
+
+        def krb_login(self, *args, **kwargs):
+            return True
+
+    session = MockedClientSession('')
+    flexmock(koji, ClientSession=session)
+    flexmock(random).should_receive('randrange').and_return(sources_random_number)
+    flexmock(osbs.utils).should_receive('utcnow').and_return(sources_timestamp)
 
     secret_path = None
     if use_secret:
@@ -454,8 +499,15 @@ def test_tag_and_push_plugin_oci(
         if use_secret:
             assert '--authfile=' + os.path.join(secret_path, '.dockercfg') in args
         assert '--dest-tls-verify=false' in args
-        assert args[-2] == 'oci:' + oci_dir + ':' + REF_NAME
-        assert args[-1] == 'docker://' + LOCALHOST_REGISTRY + '/' + TEST_IMAGE_NAME
+        if source_oci_image_path and reactor_config_map:
+
+            assert args[-2] == 'oci:' + sources_dir_path
+            output_image = 'docker://{}/{}:{}'.format(LOCALHOST_REGISTRY, sources_koji_repo,
+                                                      sources_tagname)
+            assert args[-1] == output_image
+        else:
+            assert args[-2] == 'oci:' + oci_dir + ':' + REF_NAME
+            assert args[-1] == 'docker://' + LOCALHOST_REGISTRY + '/' + TEST_IMAGE_NAME
         return ''
 
     (flexmock(subprocess)
@@ -468,8 +520,14 @@ def test_tag_and_push_plugin_oci(
     manifest_latest_url = "https://{}/v2/{}/manifests/latest".format(LOCALHOST_REGISTRY, TEST_IMAGE)
     manifest_url = "https://{}/v2/{}/manifests/{}".format(
         LOCALHOST_REGISTRY, TEST_IMAGE, DIGEST_OCI)
+    manifest_source_tag_url = "https://{}/v2/{}/manifests/{}".format(
+        LOCALHOST_REGISTRY, sources_koji_repo, sources_tagname)
+    manifest_source_digest_url = "https://{}/v2/{}/manifests/{}".format(
+        LOCALHOST_REGISTRY, sources_koji_repo, DIGEST_OCI)
     config_blob_url = "https://{}/v2/{}/blobs/{}".format(
         LOCALHOST_REGISTRY, TEST_IMAGE, CONFIG_DIGEST)
+    source_config_blob_url = "https://{}/v2/{}/blobs/{}".format(
+        LOCALHOST_REGISTRY, sources_koji_repo, CONFIG_DIGEST)
 
     manifest_response = requests.Response()
     (flexmock(manifest_response,
@@ -491,16 +549,16 @@ def test_tag_and_push_plugin_oci(
     (flexmock(config_blob_response, raise_for_status=lambda: None, json=config_json))
 
     def custom_get(method, url, headers, **kwargs):
-        if url == manifest_latest_url:
+        if url == manifest_latest_url or url == manifest_source_tag_url:
             if headers['Accept'] == MEDIA_TYPE:
                 return manifest_response
             else:
                 return manifest_unacceptable_response
 
-        if url == manifest_url:
+        if url == manifest_url or url == manifest_source_digest_url:
             return manifest_response
 
-        if url == config_blob_url:
+        if url == config_blob_url or url == source_config_blob_url:
             return config_blob_response
 
     mock_get_retry_session()
@@ -512,11 +570,11 @@ def test_tag_and_push_plugin_oci(
     if reactor_config_map:
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1, 'registries': [{
-                'url': LOCALHOST_REGISTRY,
-                'insecure': True,
-                'auth': {'cfg_path': secret_path},
-            }]})
+            ReactorConfig({'version': 1,
+                           'registries': [{'url': LOCALHOST_REGISTRY,
+                                           'insecure': True,
+                                           'auth': {'cfg_path': secret_path}}],
+                           'koji': {'hub_url': '', 'root_url': '', 'auth': {}}})
 
     runner = PostBuildPluginsRunner(
         tasker,
@@ -529,7 +587,8 @@ def test_tag_and_push_plugin_oci(
                         'insecure': True,
                         'secret': secret_path
                     }
-                }
+                },
+                'koji_target': sources_koji_target
             },
         }]
     )
@@ -546,8 +605,16 @@ def test_tag_and_push_plugin_oci(
         tasker.remove_image(image)
         assert len(workflow.push_conf.docker_registries) > 0
 
-        assert workflow.push_conf.docker_registries[0].digests[TEST_IMAGE_NAME].v1 is None
-        assert workflow.push_conf.docker_registries[0].digests[TEST_IMAGE_NAME].v2 is None
-        assert workflow.push_conf.docker_registries[0].digests[TEST_IMAGE_NAME].oci == DIGEST_OCI
+        push_conf_digests = workflow.push_conf.docker_registries[0].digests
+
+        if source_oci_image_path and reactor_config_map:
+            source_image_name = '{}:{}'.format(sources_koji_repo, sources_tagname)
+            assert push_conf_digests[source_image_name].v1 is None
+            assert push_conf_digests[source_image_name].v2 is None
+            assert push_conf_digests[source_image_name].oci == DIGEST_OCI
+        else:
+            assert push_conf_digests[TEST_IMAGE_NAME].v1 is None
+            assert push_conf_digests[TEST_IMAGE_NAME].v2 is None
+            assert push_conf_digests[TEST_IMAGE_NAME].oci == DIGEST_OCI
 
         assert workflow.push_conf.docker_registries[0].config is config_json
