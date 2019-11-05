@@ -74,6 +74,8 @@ class KojiDelegatePlugin(PreBuildPlugin):
         koji_task_id = self.metadata.get('labels', {}).get('original-koji-task-id')
         if not koji_task_id:
             koji_task_id = self.metadata.get('labels', {}).get('koji-task-id')
+            if not koji_task_id:
+                koji_task_id = 0
 
         task_opts = {}
         for key in ('yum_repourls', 'git_branch', 'signing_intent', 'compose_ids'):

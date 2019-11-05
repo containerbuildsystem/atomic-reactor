@@ -176,6 +176,7 @@ class TestKojiDelegate(object):
         (12345, None),
         (12345, 67890),
         (None, 67890),
+        (None, None),
     ])
     @pytest.mark.parametrize(('triggered_task', 'task_open', 'task_priority'), [
         (12345, False, None),
@@ -217,7 +218,7 @@ class TestKojiDelegate(object):
                 if user_params.get('compose_ids'):
                     expect_opts['compose_ids'] = user_params.get('compose_ids')
                 if not expect_opts['triggered_after_koji_task']:
-                    expect_opts['triggered_after_koji_task'] = koji_task_id
+                    expect_opts['triggered_after_koji_task'] = koji_task_id or 0
 
                 assert expect_opts == task_opts
                 return 987654321
