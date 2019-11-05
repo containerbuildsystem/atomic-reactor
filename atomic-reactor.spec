@@ -26,7 +26,7 @@
 %global dock_obsolete_vr 1.3.7-2
 
 Name:           %{project}
-Version:        1.6.44
+Version:        1.6.45
 Release:        2%{?dist}
 
 Summary:        Improved builder for Docker images
@@ -384,6 +384,9 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 
 
 %changelog
+* Tue Nov 05 2019 Robert Cerven <rcerven@redhat.com> - 1.6.45-1
+- new upstream release: 1.6.45
+
 * Tue Oct 08 2019 Martin Bašti <mbasti@redhat.com> - 1.6.44-2
 - python-docker[-py]: Require minimal version >= 1.3.0
 
