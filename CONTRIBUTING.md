@@ -2,18 +2,9 @@
 
 ## Environment preparation
 
-While Atomic Reactor depends on the `docker-py` python package, one of its dependencies (docker-squash) requires the `docker` package to be installed.  Although docker and docker-py have different names in pypi, they are just different versions of the same package, i.e., they are installed under the same namespace. Hence, when we install one of these packages after the other, pip will overwrite files from the first installed package with files from the second one.
-
-For now, Atomic Reactor does not support the `docker` python package, so we want to keep the `docker-py` installation in our environment. For that, you must install docker-squash (which pulls docker) before docker-py, so the former will be overwritten by the latter.
-
-Note that just changing the order of the lists in the requirements file [does not guarantee the packages will be installed in that order](https://pip.pypa.io/en/stable/reference/pip_install/#installation-order).
-
-To make sure `docker` will get pulled before docker-py (and then overwritten by it), we can install our dependencies with
-
 ```
-pip install docker-squash
-python setup.py develop
 pip install -r requirements-devel.txt
+python setup.py develop
 ```
 
 For python 2 environments, you should activate tests related to dockpulp
