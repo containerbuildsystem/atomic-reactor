@@ -12,8 +12,14 @@ import json
 import types
 from textwrap import dedent
 
-from atomic_reactor.plugins.input_osv3 import OSv3InputPlugin
+import yaml
+
+from atomic_reactor.plugins.input_osv3 import (
+    OSv3InputPlugin,
+    OSv3SourceContainerInputPlugin,
+)
 from osbs.api import OSBS
+from osbs.constants import USER_PARAMS_KIND_SOURCE_CONTAINER_BUILDS
 from tests.constants import REACTOR_CONFIG_MAP
 from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
                                       PLUGIN_DISTGIT_FETCH_KEY,
@@ -31,6 +37,18 @@ from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
 import pytest
 from flexmock import flexmock
 from jsonschema import ValidationError
+
+
+def enable_plugins_configuration(plugins_json):
+    # flexmock won't mock a non-existent method, so add it if necessary
+    try:
+        getattr(OSBS, 'render_plugins_configuration')
+    except AttributeError:
+        setattr(OSBS, 'render_plugins_configuration',
+                types.MethodType(lambda x: x, 'render_plugins_configuration'))
+    (flexmock(OSBS)
+     .should_receive('render_plugins_configuration')
+     .and_return(json.dumps(plugins_json)))
 
 
 class TestOSv3InputPlugin(object):
@@ -69,17 +87,6 @@ class TestOSv3InputPlugin(object):
         plugin = OSv3InputPlugin()
         assert plugin.run()['openshift_build_selflink'] == expected
 
-    def enable_plugins_configuration(self, plugins_json):
-        # flexmock won't mock a non-existent method, so add it if necessary
-        try:
-            getattr(OSBS, 'render_plugins_configuration')
-        except AttributeError:
-            setattr(OSBS, 'render_plugins_configuration',
-                    types.MethodType(lambda x: x, 'render_plugins_configuration'))
-        (flexmock(OSBS)
-            .should_receive('render_plugins_configuration')
-            .and_return(json.dumps(plugins_json)))
-
     @pytest.mark.parametrize(('plugins_variable', 'valid'), [
         ('ATOMIC_REACTOR_PLUGINS', True),
         ('USER_PARAMS', True),
@@ -101,7 +108,7 @@ class TestOSv3InputPlugin(object):
 
         if plugins_variable == 'USER_PARAMS':
             mock_env['REACTOR_CONFIG'] = REACTOR_CONFIG_MAP
-            self.enable_plugins_configuration(plugins_json)
+            enable_plugins_configuration(plugins_json)
             mock_env.update({
                 plugins_variable: json.dumps({
                     'build_json_dir': 'inputs',
@@ -203,7 +210,7 @@ class TestOSv3InputPlugin(object):
             'REACTOR_CONFIG': minimal_config
         }
         flexmock(os, environ=mock_env)
-        self.enable_plugins_configuration(plugins_json)
+        enable_plugins_configuration(plugins_json)
 
         plugin = OSv3InputPlugin()
         plugins = plugin.run()
@@ -246,7 +253,7 @@ class TestOSv3InputPlugin(object):
             'USER_PARAMS': json.dumps(user_params)
         }
 
-        self.enable_plugins_configuration(plugins_json)
+        enable_plugins_configuration(plugins_json)
 
         flexmock(os, environ=mock_env)
 
@@ -316,7 +323,7 @@ class TestOSv3InputPlugin(object):
             'USER_PARAMS': json.dumps(user_params)
         }
 
-        self.enable_plugins_configuration(plugins_json)
+        enable_plugins_configuration(plugins_json)
 
         flexmock(os, environ=mock_env)
 
@@ -326,3 +333,167 @@ class TestOSv3InputPlugin(object):
         else:
             with pytest.raises(ValueError):
                 plugin.run()
+
+
+class TestOSv3SourceContainerInputPlugin(object):
+    """Tests for OSv3SourceContainerInputPlugin class"""
+
+    @property
+    def user_params(self):
+        return {
+            'build_json_dir': '/usr/share/osbs/',
+            'kind': USER_PARAMS_KIND_SOURCE_CONTAINER_BUILDS,
+            'reactor_config_map': REACTOR_CONFIG_MAP,
+            'sources_for_koji_build_nvr': 'test-1-123',
+            'user': 'user',
+        }
+
+    def test_doesnt_fail_if_no_plugins(self):
+        mock_env = {
+            'BUILD': '{}',
+            'OUTPUT_IMAGE': 'asdf:fdsa',
+            'OUTPUT_REGISTRY': 'localhost:5000',
+            'ATOMIC_REACTOR_PLUGINS': '{}',
+            'REACTOR_CONFIG': REACTOR_CONFIG_MAP,
+            'USER_PARAMS': json.dumps(self.user_params),
+        }
+        flexmock(os, environ=mock_env)
+
+        plugin = OSv3SourceContainerInputPlugin()
+        assert plugin.run()['openshift_build_selflink'] is None
+
+    @pytest.mark.parametrize('build, expected', [
+        ('{"metadata": {"selfLink": "/foo/bar"}}', '/foo/bar'),
+        ('{"metadata": {}}', None),
+        ('{}', None),
+    ])
+    def test_sets_selflink(self, build, expected):
+        mock_env = {
+            'BUILD': build,
+            'OUTPUT_IMAGE': 'asdf:fdsa',
+            'OUTPUT_REGISTRY': 'localhost:5000',
+            'ATOMIC_REACTOR_PLUGINS': '{}',
+            'REACTOR_CONFIG': REACTOR_CONFIG_MAP,
+            'USER_PARAMS': json.dumps(self.user_params),
+        }
+        flexmock(os, environ=mock_env)
+
+        plugin = OSv3SourceContainerInputPlugin()
+        assert plugin.run()['openshift_build_selflink'] == expected
+
+    @pytest.mark.parametrize(('override', 'valid'), [
+        ('invalid_override', False),
+        ({'version': 1}, True),
+        (None, True),
+    ])
+    def test_validate_reactor_config_override(self, override, valid):
+        plugins_json = {
+            'postbuild_plugins': [],
+        }
+        user_params = self.user_params
+        if override:
+            user_params['reactor_config_override'] = override
+        mock_env = {
+            'BUILD': '{}',
+            'OUTPUT_IMAGE': 'asdf:fdsa',
+            'OUTPUT_REGISTRY': 'localhost:5000',
+            'REACTOR_CONFIG': REACTOR_CONFIG_MAP,
+            'USER_PARAMS': json.dumps(user_params),
+        }
+
+        enable_plugins_configuration(plugins_json)
+
+        flexmock(os, environ=mock_env)
+
+        plugin = OSv3SourceContainerInputPlugin()
+        if valid:
+            plugin.run()
+        else:
+            with pytest.raises(ValidationError):
+                plugin.run()
+
+    @pytest.mark.parametrize(('arrangement_version', 'valid'), [
+        (1, False),
+        (2, False),
+        (3, False),
+        (4, False),
+        (5, False),
+        (6, True),
+    ])
+    def test_arrangement_version(self, arrangement_version, valid):
+        plugins_json = {
+            'postbuild_plugins': [],
+        }
+        user_params = self.user_params
+        user_params['arrangement_version'] = arrangement_version
+        mock_env = {
+            'BUILD': '{}',
+            'OUTPUT_IMAGE': 'asdf:fdsa',
+            'OUTPUT_REGISTRY': 'localhost:5000',
+            'REACTOR_CONFIG': REACTOR_CONFIG_MAP,
+            'USER_PARAMS': json.dumps(user_params),
+        }
+
+        enable_plugins_configuration(plugins_json)
+
+        flexmock(os, environ=mock_env)
+
+        plugin = OSv3SourceContainerInputPlugin()
+        if valid:
+            plugin.run()
+        else:
+            with pytest.raises(ValueError):
+                plugin.run()
+
+    @pytest.mark.parametrize('mock_env,expected', [
+        (
+            {'OUTPUT_IMAGE': 'something:latest'},
+            False
+        ),
+        (
+            {'OUTPUT_IMAGE': 'something',  'USER_PARAMS': '{}'},
+            False
+        ),
+        (
+            {'OUTPUT_IMAGE': 'something',
+             'USER_PARAMS': '{"kind":"random_something"}'},
+            False,
+        ),
+        (
+            {'OUTPUT_IMAGE': 'something',
+             'USER_PARAMS': '{"kind":"source_containers_user_params"}'},
+            True
+        )
+    ])
+    def test_is_autousable(self, mock_env, expected):
+        flexmock(os, environ=mock_env)
+        assert OSv3SourceContainerInputPlugin.is_autousable() == expected
+
+    def test_fail_without_koji(self):
+        plugins_json = {
+            'postbuild_plugins': [],
+        }
+
+        # remove koji from config
+        reactor_config_map = yaml.safe_load(REACTOR_CONFIG_MAP)
+        del reactor_config_map['koji']
+        no_koji_config_map = yaml.dump(reactor_config_map)
+
+        user_params = self.user_params
+        mock_env = {
+            'BUILD': '{}',
+            'OUTPUT_IMAGE': 'asdf:fdsa',
+            'OUTPUT_REGISTRY': 'localhost:5000',
+            'REACTOR_CONFIG': no_koji_config_map,
+            'USER_PARAMS': json.dumps(user_params),
+        }
+
+        enable_plugins_configuration(plugins_json)
+
+        flexmock(os, environ=mock_env)
+
+        plugin = OSv3SourceContainerInputPlugin()
+        with pytest.raises(RuntimeError) as exc_info:
+            plugin.run()
+
+        assert 'require enabled koji integration' in str(exc_info.value)

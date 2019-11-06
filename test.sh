@@ -17,7 +17,9 @@ for dir in ${EXTRA_MOUNT:-}; do
 done
 
 CONTAINER_NAME="atomic-reactor-$OS-$OS_VERSION-py$PYTHON_VERSION"
-RUN="docker exec -ti $CONTAINER_NAME"
+# PIP_PREFIX: osbs-client provides input templates that must be copied into /usr/share/...
+ENVS='-e PIP_PREFIX=/usr'
+RUN="docker exec -ti ${ENVS} $CONTAINER_NAME"
 if [[ $OS == "fedora" ]]; then
   PIP_PKG="python$PYTHON_VERSION-pip"
   PIP="pip$PYTHON_VERSION"
