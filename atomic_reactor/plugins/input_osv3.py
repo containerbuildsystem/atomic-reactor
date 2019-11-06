@@ -13,6 +13,8 @@ from __future__ import absolute_import
 import json
 import os
 
+from osbs.constants import USER_PARAMS_KIND_SOURCE_CONTAINER_BUILDS
+
 from atomic_reactor.plugin import InputPlugin
 from atomic_reactor.util import get_build_json, read_yaml
 from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
@@ -28,6 +30,21 @@ from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY,
                                       PLUGIN_SENDMAIL_KEY,
                                       PLUGIN_KOJI_DELEGATE_KEY)
+
+
+def get_plugins_with_user_data(user_params, user_data):
+    """Get the reactor config map and derive an osbs instance from it"""
+
+    from osbs.api import OSBS
+    from osbs.conf import Configuration
+
+    reactor_config_override = user_data.get('reactor_config_override')
+    if reactor_config_override:
+        read_yaml(json.dumps(reactor_config_override), 'schemas/config.json')
+
+    osbs_conf = Configuration(build_json_dir=user_data.get('build_json_dir'))
+    osbs = OSBS(osbs_conf, osbs_conf)
+    return osbs.render_plugins_configuration(user_params)
 
 
 class OSv3InputPlugin(InputPlugin):
@@ -47,20 +64,6 @@ class OSv3InputPlugin(InputPlugin):
         # make sure the input json is valid
         read_yaml(user_params, 'schemas/user_params.json')
         return json.loads(user_params)
-
-    def get_plugins_with_user_data(self, user_params, user_data):
-        #  get the reactor config map and derive an osbs instance from it
-
-        from osbs.api import OSBS
-        from osbs.conf import Configuration
-
-        reactor_config_override = user_data.get('reactor_config_override')
-        if reactor_config_override:
-            read_yaml(json.dumps(reactor_config_override), 'schemas/config.json')
-
-        osbs_conf = Configuration(build_json_dir=user_data.get('build_json_dir'))
-        osbs = OSBS(osbs_conf, osbs_conf)
-        return osbs.render_plugins_configuration(user_params)
 
     def get_value(self, name, default=None):
         return self.reactor_env.get(name, default)
@@ -143,7 +146,7 @@ class OSv3InputPlugin(InputPlugin):
             git_commit_depth = user_data.get('git_commit_depth', None)
             git_branch = user_data.get('git_branch', None)
             arrangement_version = user_data.get('arrangement_version', None)
-            self.plugins_json = self.get_plugins_with_user_data(user_params, user_data)
+            self.plugins_json = get_plugins_with_user_data(user_params, user_data)
             # if we get the USER_PARAMS, we'd better get the REACTOR_CONFIG too
             reactor_config_map = os.environ['REACTOR_CONFIG']
             self.reactor_env = read_yaml(reactor_config_map, 'schemas/config.json')
@@ -186,3 +189,72 @@ class OSv3InputPlugin(InputPlugin):
     @classmethod
     def is_autousable(cls):
         return 'BUILD' in os.environ and 'SOURCE_URI' in os.environ and 'OUTPUT_IMAGE' in os.environ
+
+
+class OSv3SourceContainerInputPlugin(InputPlugin):
+    """Input plugin for building source container images"""
+    key = "osv3_source_container"
+
+    def __init__(self, **kwargs):
+        """
+        constructor
+        """
+        # call parent constructor
+        super(OSv3SourceContainerInputPlugin, self).__init__(**kwargs)
+        self.target_registry = None
+        self.reactor_env = None
+        self.plugins_json = None
+
+    def assert_koji_integration(self):
+        """Fail when koji integration is nto configured as koji is integral
+        part of source containers feature"""
+        koji_map = self.reactor_env.get('koji', {})
+        if not koji_map.get('hub_url'):
+            raise RuntimeError(
+                "Koji-hub URL is not configured. Source container image "
+                "builds require enabled koji integration"
+            )
+
+    def run(self):
+        build_json = get_build_json()
+        image = os.environ['OUTPUT_IMAGE']
+        self.target_registry = os.environ.get('OUTPUT_REGISTRY', None)
+
+        user_params = os.environ['USER_PARAMS']
+        user_data = json.loads(user_params)  # TODO validate user params against schema
+        arrangement_version = user_data.get('arrangement_version', None)
+        plugins_json_serialized = get_plugins_with_user_data(user_params, user_data)
+        # if we get the USER_PARAMS, we'd better get the REACTOR_CONFIG too
+        reactor_config_map = os.environ['REACTOR_CONFIG']
+        self.reactor_env = read_yaml(reactor_config_map, 'schemas/config.json')
+
+        if arrangement_version and arrangement_version <= 5:
+            raise ValueError('arrangement_version <= 5 is no longer supported')
+
+        # validate json before performing any changes
+        read_yaml(plugins_json_serialized, 'schemas/plugins.json')
+        self.plugins_json = json.loads(plugins_json_serialized)
+
+        input_json = {
+            'image': image,
+            'openshift_build_selflink': build_json.get('metadata', {}).get('selfLink', None)
+        }
+        input_json.update(self.plugins_json)
+
+        self.log.debug("build json: %s", input_json)
+
+        self.assert_koji_integration()
+
+        # validate after performing changes
+        read_yaml(json.dumps(self.plugins_json), 'schemas/plugins.json')
+
+        return input_json
+
+    @classmethod
+    def is_autousable(cls):
+        return (
+            'OUTPUT_IMAGE' in os.environ and
+            'USER_PARAMS' in os.environ and
+            json.loads(os.environ['USER_PARAMS'])
+                .get('kind') == USER_PARAMS_KIND_SOURCE_CONTAINER_BUILDS
+        )
