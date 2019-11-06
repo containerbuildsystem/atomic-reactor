@@ -33,301 +33,296 @@ from flexmock import flexmock
 from jsonschema import ValidationError
 
 
-def test_doesnt_fail_if_no_plugins():
-    mock_env = {
-        'BUILD': '{}',
-        'SOURCE_URI': 'https://github.com/foo/bar.git',
-        'SOURCE_REF': 'master',
-        'OUTPUT_IMAGE': 'asdf:fdsa',
-        'OUTPUT_REGISTRY': 'localhost:5000',
-        'ATOMIC_REACTOR_PLUGINS': '{}',
-    }
-    flexmock(os, environ=mock_env)
+class TestOSv3InputPlugin(object):
+    """Tests for OSv3InputPlugin"""
 
-    plugin = OSv3InputPlugin()
-    assert plugin.run()['openshift_build_selflink'] is None
+    def test_doesnt_fail_if_no_plugins(self):
+        mock_env = {
+            'BUILD': '{}',
+            'SOURCE_URI': 'https://github.com/foo/bar.git',
+            'SOURCE_REF': 'master',
+            'OUTPUT_IMAGE': 'asdf:fdsa',
+            'OUTPUT_REGISTRY': 'localhost:5000',
+            'ATOMIC_REACTOR_PLUGINS': '{}',
+        }
+        flexmock(os, environ=mock_env)
 
+        plugin = OSv3InputPlugin()
+        assert plugin.run()['openshift_build_selflink'] is None
 
-@pytest.mark.parametrize('build, expected', [
-    ('{"metadata": {"selfLink": "/foo/bar"}}', '/foo/bar'),
-    ('{"metadata": {}}', None),
-    ('{}', None),
-])
-def test_sets_selflink(build, expected):
-    mock_env = {
-        'BUILD': build,
-        'SOURCE_URI': 'https://github.com/foo/bar.git',
-        'SOURCE_REF': 'master',
-        'OUTPUT_IMAGE': 'asdf:fdsa',
-        'OUTPUT_REGISTRY': 'localhost:5000',
-        'ATOMIC_REACTOR_PLUGINS': '{}',
-    }
-    flexmock(os, environ=mock_env)
+    @pytest.mark.parametrize('build, expected', [
+        ('{"metadata": {"selfLink": "/foo/bar"}}', '/foo/bar'),
+        ('{"metadata": {}}', None),
+        ('{}', None),
+    ])
+    def test_sets_selflink(self, build, expected):
+        mock_env = {
+            'BUILD': build,
+            'SOURCE_URI': 'https://github.com/foo/bar.git',
+            'SOURCE_REF': 'master',
+            'OUTPUT_IMAGE': 'asdf:fdsa',
+            'OUTPUT_REGISTRY': 'localhost:5000',
+            'ATOMIC_REACTOR_PLUGINS': '{}',
+        }
+        flexmock(os, environ=mock_env)
 
-    plugin = OSv3InputPlugin()
-    assert plugin.run()['openshift_build_selflink'] == expected
+        plugin = OSv3InputPlugin()
+        assert plugin.run()['openshift_build_selflink'] == expected
 
+    def enable_plugins_configuration(self, plugins_json):
+        # flexmock won't mock a non-existent method, so add it if necessary
+        try:
+            getattr(OSBS, 'render_plugins_configuration')
+        except AttributeError:
+            setattr(OSBS, 'render_plugins_configuration',
+                    types.MethodType(lambda x: x, 'render_plugins_configuration'))
+        (flexmock(OSBS)
+            .should_receive('render_plugins_configuration')
+            .and_return(json.dumps(plugins_json)))
 
-def enable_plugins_configuration(plugins_json):
-    # flexmock won't mock a non-existent method, so add it if necessary
-    try:
-        getattr(OSBS, 'render_plugins_configuration')
-    except AttributeError:
-        setattr(OSBS, 'render_plugins_configuration',
-                types.MethodType(lambda x: x, 'render_plugins_configuration'))
-    (flexmock(OSBS)
-        .should_receive('render_plugins_configuration')
-        .and_return(json.dumps(plugins_json)))
+    @pytest.mark.parametrize(('plugins_variable', 'valid'), [
+        ('ATOMIC_REACTOR_PLUGINS', True),
+        ('USER_PARAMS', True),
+        ('DOCK_PLUGINS', False),
+    ])
+    def test_plugins_variable(self, plugins_variable, valid):
+        plugins_json = {
+            'postbuild_plugins': [],
+        }
 
+        mock_env = {
+            'BUILD': '{}',
+            'SOURCE_URI': 'https://github.com/foo/bar.git',
+            'SOURCE_REF': 'master',
+            'OUTPUT_IMAGE': 'asdf:fdsa',
+            'OUTPUT_REGISTRY': 'localhost:5000',
+            plugins_variable: json.dumps(plugins_json),
+        }
 
-@pytest.mark.parametrize(('plugins_variable', 'valid'), [
-    ('ATOMIC_REACTOR_PLUGINS', True),
-    ('USER_PARAMS', True),
-    ('DOCK_PLUGINS', False),
-])
-def test_plugins_variable(plugins_variable, valid):
-    plugins_json = {
-        'postbuild_plugins': [],
-    }
+        if plugins_variable == 'USER_PARAMS':
+            mock_env['REACTOR_CONFIG'] = REACTOR_CONFIG_MAP
+            self.enable_plugins_configuration(plugins_json)
+            mock_env.update({
+                plugins_variable: json.dumps({
+                    'build_json_dir': 'inputs',
+                    'build_type': 'orchestrator',
+                    'git_ref': 'test',
+                    'git_uri': 'test',
+                    'user': 'user'
+                }),
+            })
 
-    mock_env = {
-        'BUILD': '{}',
-        'SOURCE_URI': 'https://github.com/foo/bar.git',
-        'SOURCE_REF': 'master',
-        'OUTPUT_IMAGE': 'asdf:fdsa',
-        'OUTPUT_REGISTRY': 'localhost:5000',
-        plugins_variable: json.dumps(plugins_json),
-    }
+        flexmock(os, environ=mock_env)
 
-    if plugins_variable == 'USER_PARAMS':
-        mock_env['REACTOR_CONFIG'] = REACTOR_CONFIG_MAP
-        enable_plugins_configuration(plugins_json)
-        mock_env.update({
-            plugins_variable: json.dumps({
-                'build_json_dir': 'inputs',
-                'build_type': 'orchestrator',
-                'git_ref': 'test',
-                'git_uri': 'test',
-                'user': 'user'
-            }),
-        })
+        plugin = OSv3InputPlugin()
+        if valid:
+            assert plugin.run()['postbuild_plugins'] is not None
+        else:
+            with pytest.raises(RuntimeError):
+                plugin.run()
 
-    flexmock(os, environ=mock_env)
+    def test_remove_dockerfile_content(self):
+        plugins_json = {
+            'prebuild_plugins': [
+                {
+                    'name': 'before',
+                },
+                {
+                    'name': PLUGIN_DOCKERFILE_CONTENT_KEY,
+                },
+                {
+                    'name': 'after',
+                },
+            ]
+        }
 
-    plugin = OSv3InputPlugin()
-    if valid:
-        assert plugin.run()['postbuild_plugins'] is not None
-    else:
-        with pytest.raises(RuntimeError):
-            plugin.run()
+        mock_env = {
+            'BUILD': '{}',
+            'SOURCE_URI': 'https://github.com/foo/bar.git',
+            'SOURCE_REF': 'master',
+            'OUTPUT_IMAGE': 'asdf:fdsa',
+            'OUTPUT_REGISTRY': 'localhost:5000',
+            'ATOMIC_REACTOR_PLUGINS': json.dumps(plugins_json),
+        }
+        flexmock(os, environ=mock_env)
 
-
-def test_remove_dockerfile_content():
-    plugins_json = {
-        'prebuild_plugins': [
+        plugin = OSv3InputPlugin()
+        assert plugin.run()['prebuild_plugins'] == [
             {
                 'name': 'before',
-            },
-            {
-                'name': PLUGIN_DOCKERFILE_CONTENT_KEY,
             },
             {
                 'name': 'after',
             },
         ]
-    }
 
-    mock_env = {
-        'BUILD': '{}',
-        'SOURCE_URI': 'https://github.com/foo/bar.git',
-        'SOURCE_REF': 'master',
-        'OUTPUT_IMAGE': 'asdf:fdsa',
-        'OUTPUT_REGISTRY': 'localhost:5000',
-        'ATOMIC_REACTOR_PLUGINS': json.dumps(plugins_json),
-    }
-    flexmock(os, environ=mock_env)
+    def test_remove_everything(self):
+        plugins_json = {
+            'build_json_dir': 'inputs',
+            'build_type': 'orchestrator',
+            'git_ref': 'test',
+            'git_uri': 'test',
+            'user': 'user',
+            'prebuild_plugins': [
+                {'name': 'before', },
+                {'name': PLUGIN_BUMP_RELEASE_KEY, },
+                {'name': PLUGIN_KOJI_DELEGATE_KEY, },
+                {'name': PLUGIN_FETCH_MAVEN_KEY, },
+                {'name': PLUGIN_DISTGIT_FETCH_KEY, },
+                {'name': PLUGIN_DOCKERFILE_CONTENT_KEY, },
+                {'name': PLUGIN_INJECT_PARENT_IMAGE_KEY, },
+                {'name': PLUGIN_KOJI_PARENT_KEY, },
+                {'name': PLUGIN_RESOLVE_COMPOSES_KEY, },
+                {'name': 'after', },
+            ],
+            'postbuild_plugins': [
+                {'name': 'before', },
+                {'name': PLUGIN_KOJI_UPLOAD_PLUGIN_KEY, },
+                {'name': 'after', },
+            ],
+            'exit_plugins': [
+                {'name': 'before', },
+                {'name': PLUGIN_KOJI_IMPORT_PLUGIN_KEY, },
+                {'name': PLUGIN_KOJI_PROMOTE_PLUGIN_KEY, },
+                {'name': PLUGIN_KOJI_TAG_BUILD_KEY, },
+                {'name': PLUGIN_SENDMAIL_KEY, },
+                {'name': 'after', },
+            ]
+        }
+        minimal_config = dedent("""\
+            version: 1
+        """)
 
-    plugin = OSv3InputPlugin()
-    assert plugin.run()['prebuild_plugins'] == [
-        {
-            'name': 'before',
-        },
-        {
-            'name': 'after',
-        },
-    ]
+        mock_env = {
+            'BUILD': '{}',
+            'SOURCE_URI': 'https://github.com/foo/bar.git',
+            'SOURCE_REF': 'master',
+            'OUTPUT_IMAGE': 'asdf:fdsa',
+            'OUTPUT_REGISTRY': 'localhost:5000',
+            'USER_PARAMS': json.dumps(plugins_json),
+            'REACTOR_CONFIG': minimal_config
+        }
+        flexmock(os, environ=mock_env)
+        self.enable_plugins_configuration(plugins_json)
 
+        plugin = OSv3InputPlugin()
+        plugins = plugin.run()
+        for phase in ('prebuild_plugins', 'postbuild_plugins', 'exit_plugins'):
+            assert plugins[phase] == [
+                {'name': 'before', },
+                {'name': 'after', },
+            ]
 
-def test_remove_everything():
-    plugins_json = {
-        'build_json_dir': 'inputs',
-        'build_type': 'orchestrator',
-        'git_ref': 'test',
-        'git_uri': 'test',
-        'user': 'user',
-        'prebuild_plugins': [
-            {'name': 'before', },
-            {'name': PLUGIN_BUMP_RELEASE_KEY, },
-            {'name': PLUGIN_KOJI_DELEGATE_KEY, },
-            {'name': PLUGIN_FETCH_MAVEN_KEY, },
-            {'name': PLUGIN_DISTGIT_FETCH_KEY, },
-            {'name': PLUGIN_DOCKERFILE_CONTENT_KEY, },
-            {'name': PLUGIN_INJECT_PARENT_IMAGE_KEY, },
-            {'name': PLUGIN_KOJI_PARENT_KEY, },
-            {'name': PLUGIN_RESOLVE_COMPOSES_KEY, },
-            {'name': 'after', },
-        ],
-        'postbuild_plugins': [
-            {'name': 'before', },
-            {'name': PLUGIN_KOJI_UPLOAD_PLUGIN_KEY, },
-            {'name': 'after', },
-        ],
-        'exit_plugins': [
-            {'name': 'before', },
-            {'name': PLUGIN_KOJI_IMPORT_PLUGIN_KEY, },
-            {'name': PLUGIN_KOJI_PROMOTE_PLUGIN_KEY, },
-            {'name': PLUGIN_KOJI_TAG_BUILD_KEY, },
-            {'name': PLUGIN_SENDMAIL_KEY, },
-            {'name': 'after', },
-        ]
-    }
-    minimal_config = dedent("""\
-        version: 1
-    """)
+    @pytest.mark.parametrize(('override', 'valid'), [
+        ('invalid_override', False),
+        ({'version': 1}, True),
+        (None, True),
+    ])
+    @pytest.mark.parametrize('buildtype', [
+        'worker', 'orchestrator'
+    ])
+    def test_validate_reactor_config_override(self, override, valid, buildtype):
+        plugins_json = {
+            'postbuild_plugins': [],
+        }
 
-    mock_env = {
-        'BUILD': '{}',
-        'SOURCE_URI': 'https://github.com/foo/bar.git',
-        'SOURCE_REF': 'master',
-        'OUTPUT_IMAGE': 'asdf:fdsa',
-        'OUTPUT_REGISTRY': 'localhost:5000',
-        'USER_PARAMS': json.dumps(plugins_json),
-        'REACTOR_CONFIG': minimal_config
-    }
-    flexmock(os, environ=mock_env)
-    enable_plugins_configuration(plugins_json)
+        user_params = {
+            'build_json_dir': 'inputs',
+            'build_type': buildtype,
+            'git_ref': 'test',
+            'git_uri': 'test',
+            'user': 'user',
+            'reactor_config_map': REACTOR_CONFIG_MAP,
+        }
+        if override:
+            user_params['reactor_config_override'] = override
+        mock_env = {
+            'BUILD': '{}',
+            'SOURCE_URI': 'https://github.com/foo/bar.git',
+            'SOURCE_REF': 'master',
+            'OUTPUT_IMAGE': 'asdf:fdsa',
+            'OUTPUT_REGISTRY': 'localhost:5000',
+            'REACTOR_CONFIG': REACTOR_CONFIG_MAP,
+            'USER_PARAMS': json.dumps(user_params)
+        }
 
-    plugin = OSv3InputPlugin()
-    plugins = plugin.run()
-    for phase in ('prebuild_plugins', 'postbuild_plugins', 'exit_plugins'):
-        assert plugins[phase] == [
-            {'name': 'before', },
-            {'name': 'after', },
-        ]
+        self.enable_plugins_configuration(plugins_json)
 
+        flexmock(os, environ=mock_env)
 
-@pytest.mark.parametrize(('override', 'valid'), [
-    ('invalid_override', False),
-    ({'version': 1}, True),
-    (None, True),
-])
-@pytest.mark.parametrize('buildtype', [
-    'worker', 'orchestrator'
-])
-def test_validate_reactor_config_override(override, valid, buildtype):
-    plugins_json = {
-        'postbuild_plugins': [],
-    }
+        plugin = OSv3InputPlugin()
+        if valid:
+            plugin.run()
+        else:
+            with pytest.raises(ValidationError):
+                plugin.run()
 
-    user_params = {
-        'build_json_dir': 'inputs',
-        'build_type': buildtype,
-        'git_ref': 'test',
-        'git_uri': 'test',
-        'user': 'user',
-        'reactor_config_map': REACTOR_CONFIG_MAP,
-    }
-    if override:
-        user_params['reactor_config_override'] = override
-    mock_env = {
-        'BUILD': '{}',
-        'SOURCE_URI': 'https://github.com/foo/bar.git',
-        'SOURCE_REF': 'master',
-        'OUTPUT_IMAGE': 'asdf:fdsa',
-        'OUTPUT_REGISTRY': 'localhost:5000',
-        'REACTOR_CONFIG': REACTOR_CONFIG_MAP,
-        'USER_PARAMS': json.dumps(user_params)
-    }
+    @pytest.mark.parametrize('plugins_type', ['prebuild_plugins',
+                                              'buildstep_plugins',
+                                              'postbuild_plugins',
+                                              'prepublish_plugins',
+                                              'exit_plugins'
+                                              ])
+    def test_fails_on_invalid_plugin_request(self, plugins_type):
+        # no name plugin request
+        plugins_json = {plugins_type: [{'args': {}}, {'name': 'foobar'}]},
 
-    enable_plugins_configuration(plugins_json)
+        mock_env = {
+            'BUILD': '{}',
+            'SOURCE_URI': 'https://github.com/foo/bar.git',
+            'SOURCE_REF': 'master',
+            'OUTPUT_IMAGE': 'asdf:fdsa',
+            'OUTPUT_REGISTRY': 'localhost:5000',
+            'ATOMIC_REACTOR_PLUGINS': json.dumps(plugins_json),
+        }
+        flexmock(os, environ=mock_env)
 
-    flexmock(os, environ=mock_env)
-
-    plugin = OSv3InputPlugin()
-    if valid:
-        plugin.run()
-    else:
+        plugin = OSv3InputPlugin()
         with pytest.raises(ValidationError):
             plugin.run()
 
+    @pytest.mark.parametrize(('arrangement_version', 'valid'), [
+        (1, False),
+        (2, False),
+        (3, False),
+        (4, False),
+        (5, False),
+        (6, True),
+    ])
+    @pytest.mark.parametrize('buildtype', [
+        'worker', 'orchestrator'
+    ])
+    def test_arrangement_version(self, arrangement_version, valid, buildtype):
+        plugins_json = {
+            'postbuild_plugins': [],
+        }
 
-@pytest.mark.parametrize('plugins_type', ['prebuild_plugins',
-                                          'buildstep_plugins',
-                                          'postbuild_plugins',
-                                          'prepublish_plugins',
-                                          'exit_plugins'
-                                          ])
-def test_fails_on_invalid_plugin_request(plugins_type):
-    # no name plugin request
-    plugins_json = {plugins_type: [{'args': {}}, {'name': 'foobar'}]},
+        user_params = {
+            'arrangement_version': arrangement_version,
+            'build_json_dir': 'inputs',
+            'build_type': buildtype,
+            'git_ref': 'test',
+            'git_uri': 'test',
+            'user': 'user',
+            'reactor_config_map': REACTOR_CONFIG_MAP,
+        }
+        mock_env = {
+            'BUILD': '{}',
+            'SOURCE_URI': 'https://github.com/foo/bar.git',
+            'SOURCE_REF': 'master',
+            'OUTPUT_IMAGE': 'asdf:fdsa',
+            'OUTPUT_REGISTRY': 'localhost:5000',
+            'REACTOR_CONFIG': REACTOR_CONFIG_MAP,
+            'USER_PARAMS': json.dumps(user_params)
+        }
 
-    mock_env = {
-        'BUILD': '{}',
-        'SOURCE_URI': 'https://github.com/foo/bar.git',
-        'SOURCE_REF': 'master',
-        'OUTPUT_IMAGE': 'asdf:fdsa',
-        'OUTPUT_REGISTRY': 'localhost:5000',
-        'ATOMIC_REACTOR_PLUGINS': json.dumps(plugins_json),
-    }
-    flexmock(os, environ=mock_env)
+        self.enable_plugins_configuration(plugins_json)
 
-    plugin = OSv3InputPlugin()
-    with pytest.raises(ValidationError):
-        plugin.run()
+        flexmock(os, environ=mock_env)
 
-
-@pytest.mark.parametrize(('arrangement_version', 'valid'), [
-    (1, False),
-    (2, False),
-    (3, False),
-    (4, False),
-    (5, False),
-    (6, True),
-])
-@pytest.mark.parametrize('buildtype', [
-    'worker', 'orchestrator'
-])
-def test_arrangement_version(arrangement_version, valid, buildtype):
-    plugins_json = {
-        'postbuild_plugins': [],
-    }
-
-    user_params = {
-        'arrangement_version': arrangement_version,
-        'build_json_dir': 'inputs',
-        'build_type': buildtype,
-        'git_ref': 'test',
-        'git_uri': 'test',
-        'user': 'user',
-        'reactor_config_map': REACTOR_CONFIG_MAP,
-    }
-    mock_env = {
-        'BUILD': '{}',
-        'SOURCE_URI': 'https://github.com/foo/bar.git',
-        'SOURCE_REF': 'master',
-        'OUTPUT_IMAGE': 'asdf:fdsa',
-        'OUTPUT_REGISTRY': 'localhost:5000',
-        'REACTOR_CONFIG': REACTOR_CONFIG_MAP,
-        'USER_PARAMS': json.dumps(user_params)
-    }
-
-    enable_plugins_configuration(plugins_json)
-
-    flexmock(os, environ=mock_env)
-
-    plugin = OSv3InputPlugin()
-    if valid:
-        plugin.run()
-    else:
-        with pytest.raises(ValueError):
+        plugin = OSv3InputPlugin()
+        if valid:
             plugin.run()
+        else:
+            with pytest.raises(ValueError):
+                plugin.run()
