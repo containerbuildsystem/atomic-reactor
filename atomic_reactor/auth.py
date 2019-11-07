@@ -92,6 +92,10 @@ class HTTPBearerAuth(AuthBase):
         retry_response = response.connection.send(retry_request, **kwargs)
         retry_response.history.append(response)
         retry_response.request = retry_request
+        # when quay returns 401 even after we have token,
+        # repository doesn't exist at all, so we will treat it as 404
+        if retry_response.status_code == requests.codes.unauthorized:
+            retry_response.status_code = requests.codes.not_found
 
         return retry_response
 

@@ -598,7 +598,7 @@ class TestValidateBaseImage(object):
                                         check_platforms=True)
             assert log_message in caplog.text
         else:
-            no_manifest_msg = 'Could not extract manifest list or v2 schema 2 digest'
+            no_manifest_msg = 'Unable to fetch manifest list or v2 schema 2 digest'
             with pytest.raises(PluginFailedException) as exc:
                 test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
                                             [], [], reactor_config_map=True,
