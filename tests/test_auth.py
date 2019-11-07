@@ -53,6 +53,7 @@ class TestHTTPBearerAuth(object):
         assert auth.auth_b64 == auth_b64
 
     @responses.activate
+    @pytest.mark.parametrize('repo_doesnt_exist_401', (True, False))
     @pytest.mark.parametrize(('auth_b64', 'username', 'password', 'basic_auth'), (
         (None, None, None, False),
         (None, 'spam', None, False),
@@ -63,7 +64,8 @@ class TestHTTPBearerAuth(object):
         (b64encode('spam', 'bacon'), 'spam', 'bacon', True),
         (b64encode('spam', 'bacon'), None, 'bacon', True),
     ))
-    def test_token_negotiation(self, auth_b64, username, password, basic_auth):
+    def test_token_negotiation(self, repo_doesnt_exist_401, auth_b64, username, password,
+                               basic_auth):
 
         def bearer_realm_callback(request):
             # Verify if username and password were provided, token is negotiated
@@ -82,11 +84,19 @@ class TestHTTPBearerAuth(object):
         url = 'https://registry.example.com/v2/fedora/tags/list'
 
         responses.add_callback(responses.GET, url, callback=bearer_unauthorized_callback)
-        responses.add_callback(responses.GET, url, callback=bearer_success_callback)
+        if repo_doesnt_exist_401:
+            responses.add_callback(responses.GET, url, callback=bearer_unauthorized_callback)
+        else:
+            responses.add_callback(responses.GET, url, callback=bearer_success_callback)
 
         auth = HTTPBearerAuth(username=username, password=password, auth_b64=auth_b64)
+        response = requests.get(url, auth=auth)
 
-        assert requests.get(url, auth=auth).json() == 'success'
+        if repo_doesnt_exist_401:
+            assert response.json() == 'unauthorized'
+            assert response.status_code == requests.codes.not_found
+        else:
+            assert response.json() == 'success'
         assert len(responses.calls) == 3
 
     @responses.activate
