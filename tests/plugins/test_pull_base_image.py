@@ -653,12 +653,19 @@ class TestValidateBaseImage(object):
                                         check_platforms=True)
         assert 'Unable to fetch manifest list' in str(exc_info.value)
 
-    def test_manifest_list_missing_arches(self):
+    @pytest.mark.parametrize('existing_arches, missing_arches_str', [
+        # Expected arches are amd64, ppc64le
+        ([], 'amd64, ppc64le'),
+        (['amd64'], 'ppc64le'),
+        (['ppc64le'], 'amd64'),
+    ])
+    def test_manifest_list_missing_arches(self, existing_arches, missing_arches_str):
         def workflow_callback(workflow):
             workflow = self.prepare(workflow)
             manifest_list = {
                 'manifests': [
-                    {'platform': {'architecture': 'amd64'}, 'digest': 'sha256:123456'},
+                    {'platform': {'architecture': arch}, 'digest': 'sha256:123456'}
+                    for arch in existing_arches
                 ]
             }
             (flexmock(atomic_reactor.util)
@@ -672,7 +679,11 @@ class TestValidateBaseImage(object):
                                         inspect_only=False,
                                         workflow_callback=workflow_callback,
                                         check_platforms=True)
-        assert 'Missing arches in manifest list' in str(exc_info.value)
+
+        base_image_with_registry = 'registry.example.com/{}'.format(BASE_IMAGE)
+        expected_msg = ('Base image {} not available for arches: {}'
+                        .format(base_image_with_registry, missing_arches_str))
+        assert expected_msg in str(exc_info.value)
 
     @pytest.mark.parametrize('exception', (
         HTTPError,
@@ -874,7 +885,7 @@ class TestValidateBaseImage(object):
                                             workflow_callback=workflow_callback,
                                             check_platforms=True,  # orchestrator
                                             )
-            assert 'Missing arches in manifest list for base image' in str(exc.value)
+            assert 'not available for arches' in str(exc.value)
         else:
             test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
                                         [], [], reactor_config_map=True,
