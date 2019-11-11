@@ -348,7 +348,11 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
         self.log.info('Manifest list arches: %s, expected arches: %s',
                       manifest_list_arches, expected_arches)
-        assert manifest_list_arches >= expected_arches, \
-            'Missing arches in manifest list for base image'
+
+        missing_arches = expected_arches - manifest_list_arches
+        if missing_arches:
+            arches_str = ', '.join(sorted(missing_arches))
+            raise RuntimeError('Base image {} not available for arches: {}'
+                               .format(image, arches_str))
 
         self.log.info('Base image is a manifest list for all required platforms')
