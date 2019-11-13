@@ -9,7 +9,7 @@ from __future__ import print_function, unicode_literals, absolute_import
 
 import tempfile
 
-from atomic_reactor.build import BuildResult
+from atomic_reactor.build import BuildResult, ImageName
 from atomic_reactor.constants import PLUGIN_SOURCE_CONTAINER_KEY
 from atomic_reactor.plugin import BuildStepPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_value
@@ -48,6 +48,8 @@ class SourceContainerPlugin(BuildStepPlugin):
                 'Cannot build source containers, builder image is not '
                 'specified in configuration')
 
+        image = ImageName.parse(image)
+
         srpms_path = '/data/'
         output_path = '/output/'
 
@@ -62,17 +64,21 @@ class SourceContainerPlugin(BuildStepPlugin):
             }
         }
 
+        pulled_img = self.tasker.pull_image(image)
+
         command = '-d sourcedriver_rpm_dir -s {srpms_path} -o {output_path}'.format(
             srpms_path=srpms_path,
             output_path=output_path,
         )
         container_id = self.tasker.run(
-            image,
+            pulled_img,
             volume_bindings=volume_bindings,
             command=command
         )
         response = self.tasker.wait(container_id)
-        output = self.tasker.logs(container_id)
+        output = self.tasker.logs(container_id, stream=False)
+
+        self.log.debug("Build log:\n%s", "\n".join(output))
 
         self.tasker.cleanup_containers(container_id)
 
