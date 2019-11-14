@@ -54,7 +54,7 @@ class SourceContainerPlugin(BuildStepPlugin):
         volume_bindings = {
             source_data_dir: {
                 'bind': srpms_path,
-                'mode': 'ro',
+                'mode': 'ro,Z',
             },
             image_output_dir: {
                 'bind': output_path,
