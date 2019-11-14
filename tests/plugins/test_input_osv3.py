@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import print_function, unicode_literals, absolute_import
 import os
+import pkgutil
 import json
 import types
 from textwrap import dedent
@@ -340,8 +341,18 @@ class TestOSv3SourceContainerInputPlugin(object):
 
     @property
     def user_params(self):
+        # In a pip installation, get osbs-client input files navigating from
+        # $PIP_INSTALL_PATH/lib/python2.7/site-packages/osbs to $PIP_INSTALL_PATH/share/osbs.
+        # For an upstream osbs-client RPM package installation, get the files navigating from
+        # /usr/lib/python2.7/site-packages/osbs to /usr/share/osbs
+        osbs_loader = pkgutil.find_loader('osbs')
+        osbs_pkg_file = osbs_loader.get_filename()
+        osbs_pkg_path = os.path.dirname(osbs_pkg_file)
+        relpath_components = [os.pardir] * 4
+        relpath_components.append('share/osbs')
+        osbs_data_path = os.path.join(osbs_pkg_path, *relpath_components)
         return {
-            'build_json_dir': '/usr/share/osbs/',
+            'build_json_dir': osbs_data_path,
             'kind': USER_PARAMS_KIND_SOURCE_CONTAINER_BUILDS,
             'reactor_config_map': REACTOR_CONFIG_MAP,
             'sources_for_koji_build_nvr': 'test-1-123',
