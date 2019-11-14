@@ -2,6 +2,7 @@
 set -eux
 
 # Prepare env vars
+ENGINE=${ENGINE:="podman"}
 OS=${OS:="centos"}
 OS_VERSION=${OS_VERSION:="7"}
 PYTHON_VERSION=${PYTHON_VERSION:="2"}
@@ -11,15 +12,15 @@ IMAGE="$OS:$OS_VERSION"
 if [[ $OS == "fedora" ]]; then
   IMAGE="registry.fedoraproject.org/$IMAGE"
 fi
-docker_mounts="-v $PWD:$PWD:z"
+engine_mounts="-v $PWD:$PWD:z"
 for dir in ${EXTRA_MOUNT:-}; do
-  docker_mounts="${docker_mounts} -v $dir:$dir:z"
+  engine_mounts="${engine_mounts} -v $dir:$dir:z"
 done
 
 CONTAINER_NAME="atomic-reactor-$OS-$OS_VERSION-py$PYTHON_VERSION"
 # PIP_PREFIX: osbs-client provides input templates that must be copied into /usr/share/...
 ENVS='-e PIP_PREFIX=/usr'
-RUN="docker exec -ti ${ENVS} $CONTAINER_NAME"
+RUN="$ENGINE exec -ti ${ENVS} $CONTAINER_NAME"
 if [[ $OS == "fedora" ]]; then
   PIP_PKG="python$PYTHON_VERSION-pip"
   PIP="pip$PYTHON_VERSION"
@@ -39,11 +40,11 @@ else
 fi
 
 # Create or resurrect container if needed
-if [[ $(docker ps -qa -f name=$CONTAINER_NAME | wc -l) -eq 0 ]]; then
-  docker run --name $CONTAINER_NAME -d $docker_mounts -w $PWD -ti $IMAGE sleep infinity
-elif [[ $(docker ps -q -f name=$CONTAINER_NAME | wc -l) -eq 0 ]]; then
+if [[ $($ENGINE ps -qa -f name=$CONTAINER_NAME | wc -l) -eq 0 ]]; then
+  $ENGINE run --name $CONTAINER_NAME -d $engine_mounts -w $PWD -ti $IMAGE sleep infinity
+elif [[ $($ENGINE ps -q -f name=$CONTAINER_NAME | wc -l) -eq 0 ]]; then
   echo found stopped existing container, restarting. volume mounts cannot be updated.
-  docker container start $CONTAINER_NAME
+  $ENGINE container start $CONTAINER_NAME
 fi
 
 if [[ $OS == "centos" ]]; then
