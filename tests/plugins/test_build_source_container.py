@@ -78,8 +78,10 @@ def test_running_build(tmpdir):
     """
     workflow = mock_workflow(
         tmpdir, source_containers_conf=SOURCE_CONTAINERS_CONF)
+    mocked_tasker = flexmock(workflow.builder.tasker)
+    mocked_tasker.should_receive('wait').and_return({'StatusCode': 0})
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
+        mocked_tasker,
         workflow,
         [{
             'name': SourceContainerPlugin.key,
@@ -123,7 +125,7 @@ def test_failed_build(tmpdir):
     workflow = mock_workflow(
         tmpdir, source_containers_conf=SOURCE_CONTAINERS_CONF)
     mocked_tasker = flexmock(workflow.builder.tasker)
-    mocked_tasker.should_receive('wait').and_return(1)
+    mocked_tasker.should_receive('wait').and_return({'StatusCode': 1})
     runner = BuildStepPluginsRunner(
         mocked_tasker,
         workflow,

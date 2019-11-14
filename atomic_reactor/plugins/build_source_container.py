@@ -76,10 +76,11 @@ class SourceContainerPlugin(BuildStepPlugin):
 
         self.tasker.cleanup_containers(container_id)
 
-        if response != 0:
+        status_code = response['StatusCode']
+        if status_code != 0:
             reason = (
                 "Source container build failed with error code {}. "
-                "See build logs for details".format(response)
+                "See build logs for details".format(status_code)
             )
             return BuildResult(logs=output, fail_reason=reason)
 
