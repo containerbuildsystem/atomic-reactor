@@ -26,7 +26,7 @@ from tests.constants import MOCK_SOURCE
 
 
 def mock_docker_tasker(docker_tasker):
-    def simplegen(x, y):
+    def simplegen(x, y, buildargs=None):
         yield "some\u2018".encode('utf-8')
 
     (flexmock(docker_tasker.tasker.d.wrapped)
@@ -49,6 +49,7 @@ class MockInsideBuilder(object):
         self.failed = failed
         self.df_path = 'some'
         self.df_dir = 'some'
+        self.buildargs = {}
 
     @property
     def source(self):

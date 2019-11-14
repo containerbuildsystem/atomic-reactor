@@ -40,7 +40,7 @@ class DockerApiPlugin(BuildStepPlugin):
 
         allow_repo_dir_in_dockerignore(builder.df_dir)
         logs_gen = self.tasker.build_image_from_path(builder.df_dir,
-                                                     builder.image)
+                                                     builder.image, buildargs=builder.buildargs)
 
         self.log.debug('build is submitted, waiting for it to finish')
         try:

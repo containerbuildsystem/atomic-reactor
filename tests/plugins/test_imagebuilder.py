@@ -26,7 +26,7 @@ from tests.constants import MOCK_SOURCE
 
 
 def mock_docker_tasker(docker_tasker):
-    def simplegen(x, y):
+    def simplegen(x, y, buildargs=None):
         yield "some\u2018".encode('utf-8')
 
     (flexmock(docker_tasker.tasker.d.wrapped)
@@ -53,6 +53,7 @@ class MockInsideBuilder(object):
         self.failed = failed
         self.df_path = 'some'
         self.df_dir = 'some'
+        self.buildargs = {'arg1': 'argval1'}
 
     @property
     def source(self):
@@ -86,9 +87,14 @@ def test_popen_cmd(docker_tasker, image_id):
     mock_docker_tasker(docker_tasker)
     flexmock(InsideBuilder).new_instances(fake_builder)
 
-    cmd_output = "spam spam spam spam spam spam spam baked beans spam spam spam and spam"
     real_popen = subprocess.Popen
-    flexmock(subprocess, Popen=lambda *_, **kw: real_popen(['echo', '-n', cmd_output], **kw))
+
+    process_args = ['imagebuilder', '-t', fake_builder.image.to_str(), fake_builder.df_dir]
+    for argname, argval in fake_builder.buildargs.items():
+        process_args.append('-build-arg')
+        process_args.append('%s="%s"' % (argname, argval))
+
+    flexmock(subprocess, Popen=lambda *args, **kw: real_popen(['echo', '-n', str(args)], **kw))
     workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.build_docker_image()
 
@@ -99,7 +105,7 @@ def test_popen_cmd(docker_tasker, image_id):
     assert workflow.build_result.image_id.count(':') == 1
     assert workflow.build_result.skip_layer_squash
     assert len(workflow.exported_image_sequence) == 1
-    assert cmd_output in workflow.build_result.logs
+    assert str((process_args, )) in workflow.build_result.logs
 
 
 def test_failed_build():

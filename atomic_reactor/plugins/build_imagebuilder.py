@@ -44,7 +44,13 @@ class ImagebuilderPlugin(BuildStepPlugin):
             kwargs.update(encoding_params)
 
         allow_repo_dir_in_dockerignore(builder.df_dir)
-        ib_process = subprocess.Popen(['imagebuilder', '-t', image, builder.df_dir], **kwargs)
+
+        process_args = ['imagebuilder', '-t', image, builder.df_dir]
+        for buildarg, buildargval in builder.buildargs.items():
+            process_args.append('-build-arg')
+            process_args.append('%s="%s"' % (buildarg, buildargval))
+
+        ib_process = subprocess.Popen(process_args, **kwargs)
 
         self.log.debug('imagebuilder build has begun; waiting for it to finish')
         output = []
