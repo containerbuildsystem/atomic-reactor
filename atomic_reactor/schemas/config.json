@@ -44,90 +44,8 @@
       "description": "Path to directory with osbs.conf for communicating with workers",
       "type": "string"
     },
-    "koji": {
-        "description": "Koji instance",
-        "type": "object",
-        "properties": {
-            "hub_url": {
-                "description": "Koji hub's xmlrpc url",
-                "type": "string"
-            },
-            "root_url": {
-                "description": "Koji's root storage url",
-                "type": "string"
-            },
-            "auth": {
-                "description": "Authentication information",
-                "type": "object",
-                "anyOf": [
-                    {
-                        "properties": {
-                            "proxyuser": {"$ref": "#/definitions/proxyuser"},
-                            "ssl_certs_dir": {
-                                "description": "Path to directory with cert and ca files",
-                                "type": "string"
-                            }
-                        },
-                        "additionalProperties": false,
-                        "required": ["ssl_certs_dir"]
-                    },
-
-                    {
-                        "properties": {
-                            "proxyuser": {"$ref": "#/definitions/proxyuser"},
-                            "krb_cache_path": {
-                                "description": "Path to kerberos credential cache file",
-                                "type": "string"
-                            },
-                            "krb_principal": {
-                                "description": "Kerberos principal",
-                                "type": "string"
-                            },
-                            "krb_keytab_path": {
-                                "description": "Location of Kerberos keytab, e.g. FILE:<absolute_path>",
-                                "type": "string"
-                            }
-                        },
-                        "additionalProperties": false,
-                        "required": ["krb_principal", "krb_keytab_path"]
-                    },
-
-                    {
-                        "properties": {
-                            "proxyuser": {"$ref": "#/definitions/proxyuser"}
-                        },
-                        "additionalProperties": false
-                    }
-                ]
-            },
-            "use_fast_upload": {
-                "description": "Use Koji's fast upload API",
-                "type": "boolean",
-                "default": true
-            },
-            "reserve_build": {
-                "description": "Reserve build id and NVR through Content Generator API. If set, requires koji > 1.17.0",
-                "type": "boolean",
-                "default": false
-            },
-            "insecure_download": {
-                "description": "Download data from koji insecurely",
-                "type": "boolean",
-                "default": false
-            },
-            "delegate_task": {
-                "description": "Autorebuild will create new intermediate task, instead of using original task",
-                "type": "boolean",
-                "default": true
-            },
-            "delegated_task_priority": {
-                "description": "When delegate_build is enabled, delegated task will use this koji task priority, if not set it will use default koji priority",
-                "type": "integer"
-            }
-        },
-        "additionalProperties": false,
-        "required": ["hub_url", "root_url", "auth"]
-    },
+    "koji": {"$ref": "#/definitions/koji"},
+    "koji_for_sources": {"$ref": "#/definitions/koji"},
     "pulp": {
         "description": "Pulp registry instance (deprecated)",
         "type": "object",
@@ -640,6 +558,90 @@
     }
   },
   "definitions": {
+    "koji": {
+        "description": "Koji instance",
+        "type": "object",
+        "properties": {
+            "hub_url": {
+                "description": "Koji hub's xmlrpc url",
+                "type": "string"
+            },
+            "root_url": {
+                "description": "Koji's root storage url",
+                "type": "string"
+            },
+            "auth": {
+                "description": "Authentication information",
+                "type": "object",
+                "anyOf": [
+                    {
+                        "properties": {
+                            "proxyuser": {"$ref": "#/definitions/proxyuser"},
+                            "ssl_certs_dir": {
+                                "description": "Path to directory with cert and ca files",
+                                "type": "string"
+                            }
+                        },
+                        "additionalProperties": false,
+                        "required": ["ssl_certs_dir"]
+                    },
+
+                    {
+                        "properties": {
+                            "proxyuser": {"$ref": "#/definitions/proxyuser"},
+                            "krb_cache_path": {
+                                "description": "Path to kerberos credential cache file",
+                                "type": "string"
+                            },
+                            "krb_principal": {
+                                "description": "Kerberos principal",
+                                "type": "string"
+                            },
+                            "krb_keytab_path": {
+                                "description": "Location of Kerberos keytab, e.g. FILE:<absolute_path>",
+                                "type": "string"
+                            }
+                        },
+                        "additionalProperties": false,
+                        "required": ["krb_principal", "krb_keytab_path"]
+                    },
+
+                    {
+                        "properties": {
+                            "proxyuser": {"$ref": "#/definitions/proxyuser"}
+                        },
+                        "additionalProperties": false
+                    }
+                ]
+            },
+            "use_fast_upload": {
+                "description": "Use Koji's fast upload API",
+                "type": "boolean",
+                "default": true
+            },
+            "reserve_build": {
+                "description": "Reserve build id and NVR through Content Generator API. If set, requires koji > 1.17.0",
+                "type": "boolean",
+                "default": false
+            },
+            "insecure_download": {
+                "description": "Download data from koji insecurely",
+                "type": "boolean",
+                "default": false
+            },
+            "delegate_task": {
+                "description": "Autorebuild will create new intermediate task, instead of using original task",
+                "type": "boolean",
+                "default": true
+            },
+            "delegated_task_priority": {
+                "description": "When delegate_build is enabled, delegated task will use this koji task priority, if not set it will use default koji priority",
+                "type": "integer"
+            }
+        },
+        "additionalProperties": false,
+        "required": ["hub_url", "root_url", "auth"]
+    },
     "enable": {
        "description": "Enable authentication",
        "type": "boolean"

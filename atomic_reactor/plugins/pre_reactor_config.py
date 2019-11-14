@@ -54,8 +54,16 @@ def get_value(workflow, name, fallback):
         raise
 
 
-def get_koji(workflow, fallback=NO_FALLBACK):
-    koji_map = get_value(workflow, 'koji', fallback)
+def get_koji(workflow, fallback=NO_FALLBACK, instance='default'):
+    default_instance = 'koji'
+    instances = {
+        'default': default_instance,
+        'sources': 'koji_for_sources'
+    }
+
+    instance = instances.get(instance, default_instance)
+
+    koji_map = get_value(workflow, instance, fallback)
 
     if 'auth' in koji_map:
         krb_principal = koji_map['auth'].get('krb_principal')
@@ -66,8 +74,8 @@ def get_koji(workflow, fallback=NO_FALLBACK):
     return koji_map
 
 
-def get_koji_session(workflow, fallback):
-    config = get_koji(workflow, fallback)
+def get_koji_session(workflow, fallback, instance='default'):
+    config = get_koji(workflow, fallback, instance)
 
     from atomic_reactor.koji_util import create_koji_session
 
@@ -83,8 +91,8 @@ def get_koji_session(workflow, fallback):
     return create_koji_session(config['hub_url'], auth_info, use_fast_upload)
 
 
-def get_koji_path_info(workflow, fallback):
-    config = get_koji(workflow, fallback)
+def get_koji_path_info(workflow, fallback, instance='default'):
+    config = get_koji(workflow, fallback, instance)
     from koji import PathInfo
 
     # Make sure koji root_url doesn't end with a slash since the url

@@ -64,7 +64,8 @@ class FetchSourcesPlugin(PreBuildPlugin):
         self.koji_build_id = koji_build_id
         self.koji_build_nvr = koji_build_nvr
         self.signing_intent = signing_intent
-        self.session = get_koji_session(self.workflow, NO_FALLBACK)
+        self.fallback_koji = get_koji(self.workflow, NO_FALLBACK)
+        self.session = get_koji_session(self.workflow, self.fallback_koji, instance='sources')
 
     def run(self):
         """
@@ -73,7 +74,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
         """
         self.set_koji_image_build_data()
         signing_intent = self.get_signing_intent()
-        koji_config = get_koji(self.workflow, {})
+        koji_config = get_koji(self.workflow, self.fallback_koji, instance='sources')
         insecure = koji_config.get('insecure_download', False)
         urls = self.get_srpm_urls(signing_intent['keys'], insecure=insecure)
         sources_dir = self.download_sources(urls, insecure=insecure)
@@ -173,7 +174,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
                          for rpm in self.session.listRPMs(imageID=archive['id'])}
 
         srpm_build_paths = {}
-        path_info = get_koji_path_info(self.workflow, NO_FALLBACK)
+        path_info = get_koji_path_info(self.workflow, self.fallback_koji, instance='sources')
         for rpm_id, rpm_build_id in rpm_build_ids.items():
             rpm_hdr = self.session.getRPMHeaders(rpm_id, headers=['SOURCERPM'])
             srpm_filename = rpm_hdr['SOURCERPM']

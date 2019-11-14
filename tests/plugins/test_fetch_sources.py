@@ -29,7 +29,9 @@ from tests.stubs import StubInsideBuilder, StubSource
 
 
 KOJI_HUB = 'http://koji.com/hub'
+ALT_KOJI_HUB = 'http://alt.koji.com/hub'
 KOJI_ROOT = 'http://koji.localhost/kojiroot'
+ALT_KOJI_ROOT = 'http://alt.koji.localhost/kojiroot'
 KOJI_UPLOAD_TEST_WORKDIR = 'temp_workdir'
 KOJI_BUILD = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1, 'release': 1}
 constants.HTTP_BACKOFF_FACTOR = 0
@@ -81,7 +83,7 @@ class MockSource(StubSource):
         self.workdir = workdir
 
 
-def mock_workflow(tmpdir, for_orchestrator=False, default_si=DEFAULT_SIGNING_INTENT):
+def mock_workflow(tmpdir, for_orchestrator=False, default_si=DEFAULT_SIGNING_INTENT, rc_data=None):
     workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
     workflow.source = MockSource(str(tmpdir))
     builder = StubInsideBuilder().for_workflow(workflow)
@@ -92,15 +94,16 @@ def mock_workflow(tmpdir, for_orchestrator=False, default_si=DEFAULT_SIGNING_INT
     if for_orchestrator:
         workflow.buildstep_plugins_conf = [{'name': constants.PLUGIN_BUILD_ORCHESTRATE_KEY}]
 
-    mock_reactor_config(workflow, tmpdir, default_si=default_si)
+    mock_reactor_config(workflow, tmpdir, data=rc_data, default_si=default_si)
     return workflow
 
 
 def mock_env(tmpdir, docker_tasker, scratch=False, orchestrator=False, koji_build_id=None,
-             koji_build_nvr=None, default_si=DEFAULT_SIGNING_INTENT):
+             koji_build_nvr=None, default_si=DEFAULT_SIGNING_INTENT, rc_data=None):
     build_json = {'metadata': {'labels': {'scratch': scratch}}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
-    workflow = mock_workflow(tmpdir, for_orchestrator=orchestrator, default_si=default_si)
+    workflow = mock_workflow(tmpdir, for_orchestrator=orchestrator, default_si=default_si,
+                             rc_data=rc_data)
     plugin_conf = [{'name': FetchSourcesPlugin.key}]
     plugin_conf[0]['args'] = {
         'koji_build_id': koji_build_id,
@@ -129,8 +132,8 @@ def koji_session():
     return session
 
 
-def get_srpm_url(sign_key=None):
-    base = '{}/packages/{}/{}/{}'.format(KOJI_ROOT, KOJI_BUILD['name'], KOJI_BUILD['version'],
+def get_srpm_url(sign_key=None, root=KOJI_ROOT):
+    base = '{}/packages/{}/{}/{}'.format(root, KOJI_BUILD['name'], KOJI_BUILD['version'],
                                          KOJI_BUILD['release'])
     filename = '{}.src.rpm'.format(KOJI_BUILD['nvr'])
     if not sign_key:
@@ -139,7 +142,7 @@ def get_srpm_url(sign_key=None):
         return '{}/data/signed/{}/src/{}'.format(base, sign_key, filename)
 
 
-def mock_koji_manifest_download(requests_mock, retries=0):
+def mock_koji_manifest_download(requests_mock, retries=0, root=KOJI_ROOT):
     class MockBytesIO(io.BytesIO):
         reads = 0
 
@@ -152,7 +155,7 @@ def mock_koji_manifest_download(requests_mock, retries=0):
 
     sign_keys = ['', 'usedKey', 'notUsed']
     bad_keys = ['notUsed']
-    urls = [get_srpm_url(k) for k in sign_keys]
+    urls = [get_srpm_url(k, root) for k in sign_keys]
 
     for url in urls:
         if any(k in url for k in bad_keys):
@@ -269,4 +272,62 @@ class TestFetchSources(object):
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
         msg = 'When specifying both an id and an nvr, they should point to the same image build'
+        assert msg in str(exc.value)
+
+    def test_alternative_koji_instance(self, requests_mock, docker_tasker, koji_session, tmpdir,
+                                       caplog):
+        rc_data = dedent("""\
+            version: 1
+            koji:
+               hub_url: {}
+               root_url: {}
+               auth:
+                   ssl_certs_dir: not_needed_here
+            koji_for_sources:
+               hub_url: {}
+               root_url: {}
+               auth:
+                   ssl_certs_dir: not_needed_here
+            odcs:
+               signing_intents:
+               - name: unsigned
+                 keys: []
+               default_signing_intent: unsigned
+               api_url: invalid
+               auth:
+                   ssl_certs_dir: {}
+            """.format(KOJI_HUB, KOJI_ROOT, ALT_KOJI_HUB, ALT_KOJI_ROOT, tmpdir))
+        mock_koji_manifest_download(requests_mock, root=ALT_KOJI_ROOT)
+        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr='foobar-1-1', rc_data=rc_data)
+        result = runner.run()
+        sources_dir = result[constants.PLUGIN_FETCH_SOURCES_KEY]['image_sources_dir']
+        sources_list = os.listdir(sources_dir)
+        assert len(sources_list) == 1
+        assert os.path.basename(sources_list[0]) == '.'.join([KOJI_BUILD['nvr'], 'src', 'rpm'])
+        assert ALT_KOJI_ROOT in caplog.text
+        assert KOJI_ROOT not in caplog.text
+
+    def test_alternative_koji_instance_no_koji(self, requests_mock, docker_tasker, koji_session,
+                                               tmpdir):
+        rc_data = dedent("""\
+            version: 1
+            koji_for_sources:
+               hub_url: {}
+               root_url: {}
+               auth:
+                   ssl_certs_dir: not_needed_here
+            odcs:
+               signing_intents:
+               - name: unsigned
+                 keys: []
+               default_signing_intent: unsigned
+               api_url: invalid
+               auth:
+                   ssl_certs_dir: {}
+            """.format(ALT_KOJI_HUB, ALT_KOJI_ROOT, tmpdir))
+        mock_koji_manifest_download(requests_mock)
+        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr='foobar-1-1', rc_data=rc_data)
+        with pytest.raises(PluginFailedException) as exc:
+            runner.run()
+        msg = "KeyError: 'koji'"
         assert msg in str(exc.value)
