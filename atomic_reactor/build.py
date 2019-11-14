@@ -181,6 +181,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         self.df_dir = build_file_dir
         self._df_path = None
         self.original_df = None
+        self.buildargs = {}  # --buildargs for container build
 
         # If the Dockerfile will be entirely generated from the container.yaml
         # (in the Flatpak case, say), then a plugin needs to create the Dockerfile

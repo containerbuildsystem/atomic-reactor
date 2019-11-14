@@ -67,6 +67,7 @@ class StubInsideBuilder(object):
         self.parents_ordered = []
         self.tasker = None
         self.original_df = None
+        self.buildargs = {}
 
         self._inspection_data = None
         self._parent_inspection_data = {}

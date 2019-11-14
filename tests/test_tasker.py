@@ -343,12 +343,14 @@ def test_get_image_info_by_name_tag_in_name_nonexisten(temp_image_name, docker_t
 def test_build_image_from_path(tmpdir, temp_image_name, docker_tasker):
     if MOCK:
         mock_docker()
+    buildargs = {'testarg1': 'testvalue1', 'testarg2': 'testvalue2'}
 
     tmpdir_path = str(tmpdir.realpath())
     clone_git_repo(DOCKERFILE_GIT, tmpdir_path)
     df = tmpdir.join("Dockerfile")
     assert df.check()
-    response = docker_tasker.build_image_from_path(tmpdir_path, temp_image_name, use_cache=True)
+    response = docker_tasker.build_image_from_path(tmpdir_path, temp_image_name,
+                                                   use_cache=True, buildargs=buildargs)
     list(response)
     assert response is not None
     assert docker_tasker.image_exists(temp_image_name)
@@ -359,8 +361,10 @@ def test_build_image_from_path(tmpdir, temp_image_name, docker_tasker):
 def test_build_image_from_git(temp_image_name, docker_tasker):
     if MOCK:
         mock_docker()
+    buildargs = {'testarg1': 'testvalue1', 'testarg2': 'testvalue2'}
 
-    response = docker_tasker.build_image_from_git(DOCKERFILE_GIT, temp_image_name, use_cache=True)
+    response = docker_tasker.build_image_from_git(DOCKERFILE_GIT, temp_image_name,
+                                                  use_cache=True, buildargs=buildargs)
     list(response)
     assert response is not None
     assert docker_tasker.image_exists(temp_image_name)

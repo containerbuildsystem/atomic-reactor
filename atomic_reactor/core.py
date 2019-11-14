@@ -473,7 +473,7 @@ class DockerTasker(CommonTasker):
 
         self.d = WrappedDocker(**client_kwargs)
 
-    def build_image_from_path(self, path, image, use_cache=False, remove_im=True):
+    def build_image_from_path(self, path, image, use_cache=False, remove_im=True, buildargs=None):
         """
         build image from provided path and tag it
 
@@ -482,20 +482,19 @@ class DockerTasker(CommonTasker):
 
         :param path: str
         :param image: ImageName, name of the resulting image
-        :param stream: bool, True returns generator, False returns str
         :param use_cache: bool, True if you want to use cache
         :param remove_im: bool, remove intermediate containers produced during docker build
+        :param buildargs: dict, build-time variables --build-arg
         :return: generator
         """
         logger.info("building image '%s' from path '%s'", image, path)
-        response = self.d.build(path=path, tag=image.to_str(),
-                                nocache=not use_cache, decode=True,
-                                rm=remove_im, forcerm=True, pull=False)  # returns generator
+        # returns generator
+        response = self.d.build(path=path, tag=image.to_str(), nocache=not use_cache, decode=True,
+                                rm=remove_im, forcerm=True, pull=False, buildargs=buildargs)
         return response
 
     def build_image_from_git(self, url, image, git_path=None, git_commit=None,
-                             copy_dockerfile_to=None,
-                             stream=False, use_cache=False):
+                             copy_dockerfile_to=None, use_cache=False, buildargs=None):
         """
         build image from provided url and tag it
 
@@ -506,8 +505,8 @@ class DockerTasker(CommonTasker):
         :param image: ImageName, name of the resulting image
         :param git_path: str, path to dockerfile within gitrepo
         :param copy_dockerfile_to: str, copy dockerfile to provided path
-        :param stream: bool, True returns generator, False returns str
         :param use_cache: bool, True if you want to use cache
+        :param buildargs: dict, build-time variables --build-arg
         :return: generator
         """
         logger.info("building image '%s' from git repo '%s' specified as URL '%s'",
@@ -520,7 +519,8 @@ class DockerTasker(CommonTasker):
             build_file_path, build_file_dir = figure_out_build_file(temp_dir, git_path)
             if copy_dockerfile_to:  # TODO: pre build plugin
                 shutil.copyfile(build_file_path, copy_dockerfile_to)
-            response = self.build_image_from_path(build_file_dir, image, use_cache=use_cache)
+            response = self.build_image_from_path(build_file_dir, image, use_cache=use_cache,
+                                                  buildargs=buildargs)
         finally:
             try:
                 shutil.rmtree(temp_dir)
