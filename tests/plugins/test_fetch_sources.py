@@ -16,6 +16,7 @@ import koji
 import pytest
 import requests
 from flexmock import flexmock
+import time
 
 from atomic_reactor import constants
 from atomic_reactor import util
@@ -150,6 +151,7 @@ def mock_koji_manifest_download(requests_mock, retries=0):
 
             return super(MockBytesIO, self).read(*args, **kwargs)
 
+    flexmock(time).should_receive('sleep')
     sign_keys = ['', 'usedKey', 'notUsed']
     bad_keys = ['notUsed']
     urls = [get_srpm_url(k) for k in sign_keys]
@@ -169,7 +171,7 @@ def mock_koji_manifest_download(requests_mock, retries=0):
 class TestFetchSources(object):
     @pytest.mark.parametrize('retries', (0, 1, constants.HTTP_MAX_RETRIES + 1))
     @pytest.mark.parametrize('signing_intent', ('unsigned', 'empty', 'one', 'multiple', 'invalid'))
-    def test_fetch_soures(self, requests_mock, docker_tasker, koji_session, tmpdir, signing_intent,
+    def test_fetch_sources(self, requests_mock, docker_tasker, koji_session, tmpdir, signing_intent,
                           caplog, retries):
         mock_koji_manifest_download(requests_mock, retries)
         runner = mock_env(tmpdir, docker_tasker, koji_build_id=1, default_si=signing_intent)
