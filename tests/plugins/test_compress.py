@@ -12,6 +12,7 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.plugins.post_compress import CompressPlugin
 from atomic_reactor.util import ImageName
+from atomic_reactor.build import BuildResult
 
 from tests.constants import INPUT_IMAGE, MOCK
 
@@ -33,6 +34,7 @@ class X(object):
 
 
 class TestCompress(object):
+    @pytest.mark.parametrize('source_build', (True, False))
     @pytest.mark.parametrize('method, load_exported_image, give_export, extension', [
         ('gzip', False, True, 'gz'),
         ('lzma', False, False, 'xz'),
@@ -40,7 +42,8 @@ class TestCompress(object):
         ('gzip', True, False, 'gz'),
         ('spam', True, True, None),
     ])
-    def test_compress(self, tmpdir, caplog, method, load_exported_image, give_export, extension):
+    def test_compress(self, tmpdir, caplog, source_build, method,
+                      load_exported_image, give_export, extension):
         if MOCK:
             mock_docker()
 
@@ -51,6 +54,11 @@ class TestCompress(object):
         )
         workflow.builder = X()
         exp_img = os.path.join(str(tmpdir), 'img.tar')
+
+        if source_build:
+            workflow.build_result = BuildResult(oci_image_path="oci_path")
+        else:
+            workflow.build_result = BuildResult(image_id="12345")
 
         if load_exported_image and give_export:
             tarfile.open(exp_img, mode='w').close()
@@ -78,13 +86,16 @@ class TestCompress(object):
 
         runner.run()
 
-        compressed_img = os.path.join(
-            workflow.source.tmpdir,
-            EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE.format(extension))
-        assert os.path.exists(compressed_img)
-        metadata = workflow.exported_image_sequence[-1]
-        assert metadata['path'] == compressed_img
-        assert metadata['type'] == IMAGE_TYPE_DOCKER_ARCHIVE
-        assert 'uncompressed_size' in metadata
-        assert isinstance(metadata['uncompressed_size'], integer_types)
-        assert ", ratio: " in caplog.text
+        if source_build and not (give_export and load_exported_image):
+            assert 'skipping, no exported source image to compress' in caplog.text
+        else:
+            compressed_img = os.path.join(
+                workflow.source.tmpdir,
+                EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE.format(extension))
+            assert os.path.exists(compressed_img)
+            metadata = workflow.exported_image_sequence[-1]
+            assert metadata['path'] == compressed_img
+            assert metadata['type'] == IMAGE_TYPE_DOCKER_ARCHIVE
+            assert 'uncompressed_size' in metadata
+            assert isinstance(metadata['uncompressed_size'], integer_types)
+            assert ", ratio: " in caplog.text

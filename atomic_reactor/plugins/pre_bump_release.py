@@ -14,6 +14,7 @@ from atomic_reactor.util import df_parser
 from osbs.utils import Labels, utcnow
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session, get_koji
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
+from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY, PROG, KOJI_RESERVE_MAX_RETRIES,
                                       KOJI_RESERVE_RETRY_DELAY)
 from atomic_reactor.util import get_build_json, is_scratch_build
@@ -115,12 +116,12 @@ class BumpReleasePlugin(PreBuildPlugin):
 
             next_release = self.get_patched_release(next_release, increment=True)
 
-    def get_next_release_append(self, component, version, base_release):
+    def get_next_release_append(self, component, version, base_release, base_suffix=1):
         # This is brute force, but trying to use getNextRelease() would be fragile
         # magic depending on the exact details of how koji increments the release,
         # and we expect that the number of builds for any one base_release will be small.
         release = base_release or '1'
-        suffix = 1
+        suffix = base_suffix
         while True:
             next_release = '%s.%s' % (release, suffix)
             build_info = {'name': component, 'version': version, 'release': next_release}
@@ -132,25 +133,27 @@ class BumpReleasePlugin(PreBuildPlugin):
             suffix += 1
 
     def reserve_build_in_koji(self, component, version, release, release_label,
-                              dockerfile_labels):
+                              dockerfile_labels, source_build=False):
         """
         reserve build in koji, and set reserved build id an token in workflow
         for koji_import
         """
-
         for counter in range(KOJI_RESERVE_MAX_RETRIES + 1):
             nvr_data = {
                 'name': component,
                 'version': version,
-                'release': dockerfile_labels[release_label]
             }
+            if source_build:
+                nvr_data['release'] = release
+            else:
+                nvr_data['release'] = dockerfile_labels[release_label]
 
             try:
                 self.log.info("reserving build in koji: %r", nvr_data)
                 reserve = self.xmlrpc.CGInitBuild(PROG, nvr_data)
                 break
             except GenericError as exc:
-                if release:
+                if release and not source_build:
                     self.log.error("CGInitBuild failed, not retrying because"
                                    " release was explicitly specified in Dockerfile ")
                     raise RuntimeError(exc)
@@ -158,8 +161,13 @@ class BumpReleasePlugin(PreBuildPlugin):
                 if counter < KOJI_RESERVE_MAX_RETRIES:
                     self.log.info("retrying CGInitBuild")
                     time.sleep(KOJI_RESERVE_RETRY_DELAY)
-                    self.next_release_general(component, version, release,
-                                              release_label, dockerfile_labels)
+                    if not source_build:
+                        self.next_release_general(component, version, release,
+                                                  release_label, dockerfile_labels)
+                    else:
+                        base_rel, base_suffix = release.rsplit('.', 1)
+                        release = self.get_next_release_append(component, version, base_rel,
+                                                               base_suffix=int(base_suffix)+1)
                 else:
                     self.log.error("CGInitBuild failed, reached maximum number of retries %s",
                                    KOJI_RESERVE_MAX_RETRIES)
@@ -170,6 +178,8 @@ class BumpReleasePlugin(PreBuildPlugin):
 
         self.workflow.reserved_build_id = reserve['build_id']
         self.workflow.reserved_token = reserve['token']
+        if source_build:
+            self.workflow.koji_source_nvr = nvr_data
 
     def check_build_existence_for_explicit_release(self, component, version, release):
         build_info = {'name': component, 'version': version, 'release': release}
@@ -179,10 +189,39 @@ class BumpReleasePlugin(PreBuildPlugin):
             raise RuntimeError('build already exists in Koji: {}-{}-{} ({})'
                                .format(component, version, release, build.get('id')))
 
+    def get_source_build_nvr(self, scratch=False):
+        source_result = self.workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY]
+        koji_build_nvr = source_result['sources_for_nvr']
+
+        koji_build = self.xmlrpc.getBuild(koji_build_nvr)
+        build_component = "%s-source" % koji_build['name']
+        build_version = koji_build['version']
+        build_release = koji_build['release']
+        self.workflow.koji_source_source_url = koji_build['source']
+
+        if not scratch:
+            next_release = self.get_next_release_append(build_component, build_version,
+                                                        build_release)
+        else:
+            # for scratch source release we will just use original release with scratch string
+            next_release = "%s.scratch" % koji_build['release']
+        return {'name': build_component, 'version': build_version, 'release': next_release}
+
     def run(self):
         """
         run the plugin
         """
+        # source container build
+        if PLUGIN_FETCH_SOURCES_KEY in self.workflow.prebuild_results:
+            source_nvr = self.get_source_build_nvr(scratch=is_scratch_build())
+            self.log.info("Setting source_build_nvr: %s", source_nvr)
+            self.workflow.koji_source_nvr = source_nvr
+
+            if self.reserve_build and not is_scratch_build():
+                self.reserve_build_in_koji(source_nvr['name'], source_nvr['version'],
+                                           source_nvr['release'], None, None, source_build=True)
+
+            return
 
         parser = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
         dockerfile_labels = parser.labels

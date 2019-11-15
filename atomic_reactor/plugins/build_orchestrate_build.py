@@ -12,10 +12,7 @@ from copy import deepcopy
 from multiprocessing.pool import ThreadPool
 
 import json
-import os
 from operator import attrgetter
-import random
-from string import ascii_letters
 import time
 import logging
 from datetime import timedelta
@@ -40,6 +37,7 @@ from atomic_reactor.plugins.pre_reactor_config import (get_config,
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import (df_parser, get_build_json, get_manifest_list, get_platforms,
                                  ImageName)
+from atomic_reactor.koji_util import generate_koji_upload_dir
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY)
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
@@ -296,7 +294,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         self.find_cluster_retry_delay = find_cluster_retry_delay
         self.failure_retry_delay = failure_retry_delay
         self.max_cluster_fails = max_cluster_fails
-        self.koji_upload_dir = self.get_koji_upload_dir()
+        self.koji_upload_dir = generate_koji_upload_dir()
         self.fs_task_id = self.get_fs_task_id()
         self.release = self.get_release()
 
@@ -491,19 +489,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         labels = Labels(df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels)
         _, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
         return release
-
-    @staticmethod
-    def get_koji_upload_dir():
-        """
-        Create a path name for uploading files to
-
-        :return: str, path name expected to be unique
-        """
-        dir_prefix = 'koji-upload'
-        random_chars = ''.join([random.choice(ascii_letters)
-                                for _ in range(8)])
-        unique_fragment = '%r.%s' % (time.time(), random_chars)
-        return os.path.join(dir_prefix, unique_fragment)
 
     def _update_content_versions(self, worker_reactor_conf, valid_values=('v2',)):
         if 'content_versions' not in worker_reactor_conf:
