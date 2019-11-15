@@ -63,7 +63,7 @@ def mock_workflow(tmpdir):
     if MOCK:
         mock_docker()
 
-    workflow = DockerBuildWorkflow(SOURCE, 'test-image')
+    workflow = DockerBuildWorkflow('test-image', source=SOURCE)
     setattr(workflow, 'builder', X())
     flexmock(DockerfileParser, content='df_content')
     setattr(workflow.builder, 'get_built_image_info', flexmock())
@@ -106,7 +106,7 @@ class X(object):
 
 
 def test_prebuild_plugin_failure(docker_tasker):  # noqa
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
+    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
     setattr(workflow, 'builder', X())
     setattr(workflow.builder, 'image_id', "asd123")
     setattr(workflow.builder, 'base_image', ImageName(repo='fedora', tag='21'))

@@ -116,7 +116,7 @@ class MockInsideBuilder(InsideBuilder):
 def workflow():
     if MOCK:
         mock_docker()
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
     workflow.builder = MockInsideBuilder()
     base_inspect = {INSPECT_CONFIG: {'Labels': BASE_IMAGE_LABELS.copy()}}
     flexmock(workflow.builder, base_image_inspect=base_inspect)

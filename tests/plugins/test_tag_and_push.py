@@ -128,7 +128,10 @@ def test_tag_and_push_plugin(
                  login=lambda username, registry, dockercfg_path: {'Status': 'Login Succeeded'})
 
     tasker = DockerTasker(retry_times=0)
-    workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
+    workflow = DockerBuildWorkflow(
+        TEST_IMAGE,
+        source={"provider": "git", "uri": "asd"},
+    )
     workflow.tag_conf.add_primary_image(image_name)
     workflow.builder = StubInsideBuilder()
     workflow.builder.image_id = INPUT_IMAGE
@@ -373,7 +376,10 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, use
                                            current_platform)
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
+    workflow = DockerBuildWorkflow(
+        TEST_IMAGE,
+        source={"provider": "git", "uri": "asd"},
+    )
     workflow.builder = StubInsideBuilder()
     workflow.builder.image_id = INPUT_IMAGE
     if source_oci_image_path and reactor_config_map:

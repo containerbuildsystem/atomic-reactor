@@ -66,7 +66,7 @@ def prepare(tmpdir, insecure_registry=None, namespace=None,
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
+    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
     setattr(workflow, 'builder', X())
     flexmock(workflow, build_process_failed=build_process_failed)
     setattr(workflow.builder, 'image_id', 'asd123')

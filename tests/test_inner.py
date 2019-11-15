@@ -378,7 +378,7 @@ def test_workflow_base_images():
     watch_buildstep = Watcher()
     watch_post = Watcher()
     watch_exit = Watcher()
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE,
                                    prebuild_plugins=[{'name': 'pre_watched',
                                                       'args': {
                                                           'watcher': watch_pre
@@ -427,7 +427,7 @@ def test_workflow_compat(caplog):
 
     caplog.clear()
 
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE,
                                    postbuild_plugins=[{'name': 'store_logs_to_file',
                                                        'args': {
                                                            'watcher': watch_exit
@@ -681,7 +681,7 @@ def test_plugin_errors(plugins, should_fail, should_log, caplog):
     flexmock(InsideBuilder).new_instances(fake_builder)
 
     caplog.clear()
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE,
                                    plugin_files=[this_file],
                                    **plugins)
 
@@ -730,7 +730,7 @@ def test_autorebuild_stop_prevents_build():
     watch_prepub = Watcher()
     watch_post = Watcher()
     watch_exit = Watcher()
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE,
                                    prebuild_plugins=[{'name': 'stopstopstop',
                                                       'args': {
                                                       }}],
@@ -818,7 +818,7 @@ def test_workflow_plugin_error(fail_at):
         # Typo in the parameter list?
         assert False
 
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE,
                                    prebuild_plugins=prebuild_plugins,
                                    buildstep_plugins=buildstep_plugins,
                                    prepublish_plugins=prepublish_plugins,
@@ -879,7 +879,7 @@ def test_workflow_docker_build_error():
     watch_post = Watcher()
     watch_exit = Watcher()
 
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE,
                                    prebuild_plugins=[{'name': 'pre_watched',
                                                       'args': {
                                                           'watcher': watch_pre
@@ -955,7 +955,7 @@ def test_workflow_docker_build_error_reports(steps_to_fail, step_reported):
     watch_post = construct_watcher('post')
     watch_exit = construct_watcher('exit')
 
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE,
                                    prebuild_plugins=[{'name': 'pre_watched',
                                                       'is_allowed_to_fail': False,
                                                       'args': {
@@ -1005,7 +1005,7 @@ def test_source_not_removed_for_exit_plugins():
     flexmock(InsideBuilder).new_instances(fake_builder)
     watch_exit = Watcher()
     watch_buildstep = Watcher()
-    workflow = DockerBuildWorkflow(SOURCE, 'test-image',
+    workflow = DockerBuildWorkflow('test-image', source=SOURCE,
                                    exit_plugins=[{'name': 'uses_source',
                                                   'args': {
                                                       'watcher': watch_exit,
@@ -1148,7 +1148,7 @@ def test_workflow_plugin_results(buildstep_plugin, buildstep_raises):
     prepublish_plugins = [{'name': 'pre_publish_value'}]
     exit_plugins = [{'name': 'exit_value'}]
 
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE,
                                    prebuild_plugins=prebuild_plugins,
                                    buildstep_plugins=buildstep_plugins,
                                    prepublish_plugins=prepublish_plugins,
@@ -1196,7 +1196,7 @@ def test_cancel_build(fail_at, caplog):
 
     caplog.clear()
 
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE,
                                    prebuild_plugins=[{'name': 'pre_watched',
                                                       'args': {
                                                           'watcher': watch_pre
@@ -1283,7 +1283,7 @@ def test_buildstep_alias(buildstep_alias, buildstep_plugin):
           docker_api: imagebuilder
         """)
 
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE,
                                    prebuild_plugins=prebuild_plugins,
                                    buildstep_plugins=buildstep_plugins,
                                    prepublish_plugins=prepublish_plugins,
@@ -1328,7 +1328,7 @@ def test_show_version(has_version, caplog):
     if has_version:
         params['client_version'] = VERSION
 
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image', **params)
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE, **params)
     workflow.build_docker_image()
     expected_log_message = "build json was built by osbs-client {}".format(VERSION)
     assert any(
@@ -1346,7 +1346,7 @@ def test_layer_sizes():
     flexmock(InsideBuilder).new_instances(fake_builder)
     watch_exit = Watcher()
     watch_buildstep = Watcher()
-    workflow = DockerBuildWorkflow(SOURCE, 'test-image',
+    workflow = DockerBuildWorkflow('test-image', source=SOURCE,
                                    exit_plugins=[{'name': 'uses_source',
                                                   'args': {
                                                       'watcher': watch_exit,
@@ -1379,7 +1379,7 @@ def test_layer_sizes():
       {'name': PLUGIN_BUILD_ORCHESTRATE_KEY}], True)
 ])
 def test_workflow_is_orchestrator_build(buildstep_plugins, is_orchestrator):
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE,
                                    buildstep_plugins=buildstep_plugins)
     assert workflow.is_orchestrator_build() == is_orchestrator
 

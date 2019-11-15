@@ -16,6 +16,7 @@ import copy
 import os
 import shutil
 import tempfile
+from textwrap import dedent
 import collections
 try:
     from urlparse import urlparse
@@ -169,6 +170,37 @@ class PathSource(Source):
                     shutil.copytree(old, new)
                 else:
                     shutil.copy2(old, new)
+        return self.source_path
+
+
+class DummySource(Source):
+    """Dummy source that just provides defaults in cases where we don't expect
+     operations with real data
+    """
+    def __init__(
+        self, provider, uri, dockerfile_path=None,
+        provider_params=None, tmpdir=None
+    ):
+        # intentionally not calling `super()`
+        self._config = None
+        self.provider = provider
+        self.uri = uri
+        self.dockerfile_path = dockerfile_path
+        self.provider_params = provider_params or {}
+        self.tmpdir = tmpdir or tempfile.mkdtemp()
+        logger.debug("workdir is %r", self.tmpdir)
+        self.source_path = tempfile.mkdtemp(dir=self.tmpdir)
+        logger.debug("source path is %r", self.source_path)
+        self._add_fake_dockerfile()
+
+    def _add_fake_dockerfile(self):
+        dockerfile = dedent("""\
+            FROM scratch
+        """)
+        with open(os.path.join(self.source_path, 'Dockerfile'), 'w') as f:
+            f.write(dockerfile)
+
+    def get(self):
         return self.source_path
 
 

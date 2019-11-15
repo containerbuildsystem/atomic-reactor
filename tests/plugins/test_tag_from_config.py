@@ -63,7 +63,7 @@ def mock_workflow(tmpdir):
     if MOCK:
         mock_docker()
 
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', X)
     workflow.builder.source = mock_source

@@ -308,7 +308,7 @@ def mock_environment(tmpdir, primary_images=None,
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
+    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
     base_image_id = '123456parent-id'
     setattr(workflow, '_base_image_inspect', {'Id': base_image_id})
     setattr(workflow, 'builder', StubInsideBuilder())

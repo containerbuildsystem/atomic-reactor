@@ -27,7 +27,6 @@ except ImportError:
     import koji as koji
 
 from atomic_reactor.core import DockerTasker
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_inject_parent_image import InjectParentImage
 from atomic_reactor.plugins.exit_remove_built_image import GarbageCollectionPlugin
@@ -36,7 +35,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        ReactorConfig)
 from atomic_reactor.util import ImageName
 from flexmock import flexmock
-from tests.constants import MOCK, MOCK_SOURCE
+from tests.constants import MOCK
 from osbs.utils import graceful_chain_del
 
 import copy
@@ -96,10 +95,9 @@ class MockInsideBuilder(object):
 
 
 @pytest.fixture()
-def workflow():
+def workflow(workflow):
     if MOCK:
         mock_docker()
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = MockInsideBuilder()
     setattr(workflow.builder, 'base_image_inspect', {})
 

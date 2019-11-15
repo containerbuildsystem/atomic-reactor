@@ -17,6 +17,8 @@ from tests.util import uuid_value
 from atomic_reactor.util import ImageName
 from atomic_reactor.core import ContainerTasker
 from atomic_reactor.constants import CONTAINER_DOCKERPY_BUILD_METHOD
+from atomic_reactor.inner import DockerBuildWorkflow
+from tests.constants import MOCK_SOURCE
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -64,3 +66,8 @@ def reactor_config_map(request):
 @pytest.fixture(params=[True, False])
 def inspect_only(request):
     return request.param
+
+
+@pytest.fixture
+def workflow():
+    return DockerBuildWorkflow('test-image', source=MOCK_SOURCE)

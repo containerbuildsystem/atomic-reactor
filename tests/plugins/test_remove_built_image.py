@@ -37,8 +37,10 @@ def mock_environment(base_image=None):
         mock_docker()
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"},
-                                   TEST_IMAGE)
+    workflow = DockerBuildWorkflow(
+        TEST_IMAGE,
+        source={"provider": "git", "uri": "asd"},
+    )
     workflow.postbuild_results[TagAndPushPlugin.key] = True
     workflow.tag_conf.add_primary_image(TEST_IMAGE)
     workflow.push_conf.add_docker_registry(LOCALHOST_REGISTRY, insecure=True)

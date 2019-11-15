@@ -24,8 +24,10 @@ from atomic_reactor.plugins.pre_download_remote_source import (
 class TestDownloadRemoteSource(object):
     @responses.activate
     def test_download_remote_source(self, docker_tasker):
-        workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"},
-                                       TEST_IMAGE)
+        workflow = DockerBuildWorkflow(
+            TEST_IMAGE,
+            source={"provider": "git", "uri": "asd"},
+        )
         workflow.builder = StubInsideBuilder().for_workflow(workflow)
         filename = 'source.tar.gz'
         url = 'https://example.com/dir/{}'.format(filename)

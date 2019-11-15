@@ -16,13 +16,11 @@ from dockerfile_parse import DockerfileParser
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.build import InsideBuilder, BuildResult
 from atomic_reactor.util import ImageName
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.constants import INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS
 
 from flexmock import flexmock
 from six import StringIO
 import pytest
-from tests.constants import MOCK_SOURCE
 
 
 def mock_docker_tasker(docker_tasker):
@@ -76,7 +74,7 @@ class MockInsideBuilder(object):
 
 
 @pytest.mark.parametrize('image_id', ['sha256:12345', '12345'])
-def test_popen_cmd(docker_tasker, image_id):
+def test_popen_cmd(docker_tasker, workflow, image_id):
     """
     tests buildah build plugin working
     """
@@ -89,7 +87,6 @@ def test_popen_cmd(docker_tasker, image_id):
     cmd_output = "spam spam spam spam spam spam spam baked beans spam spam spam and spam"
     real_popen = subprocess.Popen
     flexmock(subprocess, Popen=lambda *_, **kw: real_popen(['echo', '-n', cmd_output], **kw))
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.build_docker_image()
 
     assert isinstance(workflow.buildstep_result['buildah_bud'], BuildResult)
@@ -102,7 +99,7 @@ def test_popen_cmd(docker_tasker, image_id):
     assert cmd_output in workflow.build_result.logs
 
 
-def test_failed_build():
+def test_failed_build(workflow):
     cmd_output = "spam spam spam spam spam spam spam baked beans spam spam spam and spam\n"
     cmd_error = "Nobody expects the Spanish Inquisition!\n"
     ib_process = flexmock(
@@ -115,7 +112,6 @@ def test_failed_build():
     flexmock(DockerfileParser, content='df_content')
     fake_builder = MockInsideBuilder(image_id='abcde')
     flexmock(InsideBuilder).new_instances(fake_builder)
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     with pytest.raises(PluginFailedException):
         workflow.build_docker_image()
 

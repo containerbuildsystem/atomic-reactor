@@ -32,7 +32,7 @@ def mock_workflow():
     matter should provide their own.
     """
 
-    workflow = DockerBuildWorkflow(SOURCE, "mock:default_built")
+    workflow = DockerBuildWorkflow("mock:default_built", source=SOURCE)
     workflow.source = StubSource()
     builder = StubInsideBuilder().for_workflow(workflow)
     builder.set_df_path('/mock-path')

@@ -493,7 +493,10 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, flatpak_metadata
 
     config = CONFIGS[config_name]
 
-    workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
+    workflow = DockerBuildWorkflow(
+        TEST_IMAGE,
+        source={"provider": "git", "uri": "asd"}
+    )
     setattr(workflow, 'builder', X)
     X.df_path = write_docker_file(config, str(tmpdir))
     setattr(workflow.builder, 'tasker', docker_tasker)

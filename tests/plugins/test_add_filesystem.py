@@ -198,7 +198,7 @@ def mock_image_build_file(tmpdir, contents=None):
 def mock_workflow(tmpdir, dockerfile=DEFAULT_DOCKERFILE,
                   scratch=False, for_orchestrator=False):
     flexmock(util).should_receive('is_scratch_build').and_return(scratch)
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', X())
     workflow.builder.source = mock_source

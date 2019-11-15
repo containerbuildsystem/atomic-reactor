@@ -41,7 +41,8 @@ def prepare(scratch=False):
     build_json = {'metadata': {'labels': {'scratch': scratch}}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow({"provider": "git", "uri": DOCKERFILE_GIT}, "test-image")
+    workflow = DockerBuildWorkflow(
+        "test-image", source={"provider": "git", "uri": DOCKERFILE_GIT})
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
     (flexmock(requests.Response, content=repocontent)

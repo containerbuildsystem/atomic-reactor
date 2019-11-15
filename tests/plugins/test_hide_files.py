@@ -236,7 +236,7 @@ class TestHideFilesPlugin(object):
         if MOCK:
             mock_docker()
         tasker = DockerTasker()
-        workflow = DockerBuildWorkflow(SOURCE, "test-image")
+        workflow = DockerBuildWorkflow("test-image", source=SOURCE)
         workflow.source = MockSource(df_path)
         workflow.builder = (StubInsideBuilder()
                             .for_workflow(workflow)

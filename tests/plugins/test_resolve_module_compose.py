@@ -88,7 +88,7 @@ class MockBuilder(object):
 
 
 def mock_workflow(tmpdir):
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', MockBuilder())
     workflow.builder.source = mock_source
