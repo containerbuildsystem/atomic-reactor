@@ -54,7 +54,9 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
                                       PARENT_IMAGES_KOJI_BUILDS, BASE_IMAGE_BUILD_ID_KEY,
                                       PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY, PARENT_IMAGE_BUILDS_KEY,
-                                      PARENT_IMAGES_KEY, OPERATOR_MANIFESTS_ARCHIVE)
+                                      PARENT_IMAGES_KEY, OPERATOR_MANIFESTS_ARCHIVE,
+                                      MEDIA_TYPE_DOCKER_V2_SCHEMA2,
+                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
 from tests.constants import SOURCE, MOCK
 from tests.flatpak import MODULEMD_AVAILABLE, setup_flatpak_source_info
 from tests.stubs import StubInsideBuilder, StubSource
@@ -1660,7 +1662,9 @@ class TestKojiImport(object):
                     'crane.example.com/foo:tag',
                     'crane.example.com/foo@sha256:bar',
                 ]
-        workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = {}
+        workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = {
+            "media_type": MEDIA_TYPE_DOCKER_V2_SCHEMA2
+        }
         orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
         if digest:
             build_info = BuildInfo(digests=[digest])
@@ -1702,9 +1706,12 @@ class TestKojiImport(object):
                                             session=session,
                                             docker_registry=True,
                                             add_tag_conf_primaries=not is_scratch)
-        group_manifest_result = {}
+        group_manifest_result = {"media_type": MEDIA_TYPE_DOCKER_V2_SCHEMA2}
         if digest:
-            group_manifest_result = {'manifest_digest': digest}
+            group_manifest_result = {
+                'media_type': MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
+                'manifest_digest': digest
+            }
         workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = group_manifest_result
         orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
         orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = BuildInfo()

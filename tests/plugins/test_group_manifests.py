@@ -26,8 +26,7 @@ from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf
 from atomic_reactor.util import (ImageName, registry_hostname, ManifestDigest, get_floating_images,
-                                 get_primary_images, get_unique_images)
-
+                                 get_primary_images)
 from atomic_reactor.plugins.post_group_manifests import GroupManifestsPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
@@ -596,30 +595,27 @@ def test_group_manifests(tmpdir, schema_version, test_name, group, foreign_layer
                     continue
 
                 target_registry = mocked_registries[registry]
-                for image in test_images:
-                    name, tag = image.split(':')
-                    if tag not in target_registry.get_repo(name)['tags']:
+                for image in get_primary_images(workflow):
+                    repo = image.to_str(registry=False, tag=False)
+                    if image.tag not in target_registry.get_repo(repo)['tags']:
                         continue
-                    verify_manifest_in_repository(target_registry, name,
+                    verify_manifest_in_repository(target_registry, repo,
                                                   source_manifest, platform,
-                                                  tag)
+                                                  image.tag)
+                for image in get_floating_images(workflow):
+                    repo = image.to_str(registry=False, tag=False)
+                    assert image.tag not in target_registry.get_repo(repo)['tags']
 
         # Check that plugin returns ManifestDigest object
         plugin_results = results[GroupManifestsPlugin.key]
-        result_digest = plugin_results["manifest_digest"]
-        tags = plugin_results["tags"]
 
-        if group:
-            assert isinstance(result_digest, ManifestDigest)
-            primary_images = get_primary_images(workflow)
-            unique_images = get_unique_images(workflow)
-            for image in primary_images + unique_images:
-                assert image.tag in tags
-            for image in get_floating_images(workflow):
-                assert image.tag not in tags
-        else:
-            assert not result_digest
-            assert not tags
+        result_digest = plugin_results["manifest_digest"]
+        assert isinstance(result_digest, ManifestDigest)
+
+        result_digest = plugin_results["manifest_digest"]
+        assert isinstance(result_digest, ManifestDigest)
+        assert plugin_results["media_type"]
+        assert plugin_results["manifest"]
 
     else:
         with pytest.raises(PluginFailedException) as ex:
