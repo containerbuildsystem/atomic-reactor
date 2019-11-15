@@ -294,7 +294,7 @@ def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
 
 
 def mock_workflow(tmpdir):
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', X)
     workflow.builder.source = mock_source

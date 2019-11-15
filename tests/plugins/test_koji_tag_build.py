@@ -102,7 +102,7 @@ def mock_environment(tmpdir, session=None, build_process_failed=False,
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(SOURCE, 'test-image')
+    workflow = DockerBuildWorkflow('test-image', source=SOURCE)
     setattr(workflow, 'builder', X())
     setattr(workflow.builder, 'image_id', '123456imageid')
     setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='22'))

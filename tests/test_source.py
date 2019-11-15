@@ -12,7 +12,8 @@ from atomic_reactor.source import (
     SourceConfig,
     GitSource,
     PathSource,
-    get_source_instance_for
+    get_source_instance_for,
+    DummySource,
 )
 import atomic_reactor.source
 from jsonschema import ValidationError
@@ -297,3 +298,14 @@ class TestSourceConfigSchemaValidation(object):
     def test_invalid_source_config_validation_error(self, tmpdir, yml_config):
         with pytest.raises(jsonschema.ValidationError):
             self._create_source_config(tmpdir, yml_config)
+
+
+def test_dummy_source_dockerfile():
+    """Test of DummySource used for source container builds
+
+    Test if fake Dockerfile was properly injected to meet expectations of
+    inner and core codebase
+    """
+    ds = DummySource(None, None)
+    assert ds.get()
+    assert os.path.exists(os.path.join(ds.get(), 'Dockerfile'))

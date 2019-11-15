@@ -60,7 +60,7 @@ class TestCheckRebuild(object):
             mock_docker()
         tasker = DockerTasker()
 
-        workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+        workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
         workflow.builder = MockInsideBuilder(tmpdir)
         workflow.builder.base_from_scratch = base_from_scratch
         workflow.builder.custom_base_image = custom_base

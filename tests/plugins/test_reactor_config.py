@@ -59,8 +59,10 @@ class TestReactorConfigPlugin(object):
     def prepare(self):
         mock_docker()
         tasker = ContainerTasker()
-        workflow = DockerBuildWorkflow({'provider': 'git', 'uri': 'asd'},
-                                       TEST_IMAGE)
+        workflow = DockerBuildWorkflow(
+            TEST_IMAGE,
+            source={'provider': 'git', 'uri': 'asd'},
+        )
         workflow.builder = StubInsideBuilder()
         workflow.builder.tasker = tasker
         return tasker, workflow

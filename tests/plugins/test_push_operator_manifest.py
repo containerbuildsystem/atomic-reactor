@@ -66,7 +66,10 @@ class MockSource(StubSource):
 
 
 def mock_workflow(tmpdir, for_orchestrator=False):
-    workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
+    workflow = DockerBuildWorkflow(
+        TEST_IMAGE,
+        source={"provider": "git", "uri": "asd"},
+    )
     workflow.source = MockSource(str(tmpdir))
     builder = StubInsideBuilder().for_workflow(workflow)
     builder.set_df_path(str(tmpdir))

@@ -43,7 +43,10 @@ def mock_dockerfile(tmpdir, has_label=True, label=True):
 
 
 def mock_workflow(tmpdir, for_orchestrator=False):
-    workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, TEST_IMAGE)
+    workflow = DockerBuildWorkflow(
+        TEST_IMAGE,
+        source={"provider": "git", "uri": "asd"}
+    )
     workflow.source = StubSource()
     builder = StubInsideBuilder().for_workflow(workflow)
     builder.set_df_path(str(tmpdir))

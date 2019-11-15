@@ -945,7 +945,7 @@ def test_is_isolated_build(build_json, isolated):
      ['arm64', 'ppce64le'])
 ])
 def test_get_orchestrator_platforms(inputs, results):
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image',
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE,
                                    buildstep_plugins=inputs)
     if results:
         assert sorted(get_orchestrator_platforms(workflow)) == sorted(results)
@@ -989,14 +989,13 @@ def test_df_parser_parent_env_arg(tmpdir):
     ['test_env=--option=first --option=second'],
     ['test_env_first'],
 ])
-def test_df_parser_parent_env_wf(tmpdir, caplog, env_arg):
+def test_df_parser_parent_env_wf(tmpdir, workflow, caplog, env_arg):
     df_content = dedent("""\
         FROM fedora
         ENV foo=bar
         LABEL label="foobar $test_env"
         """)
     env_conf = {INSPECT_CONFIG: {"Env": env_arg}}
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder()
     workflow.builder.set_inspection_data(env_conf)
@@ -1060,10 +1059,9 @@ def test_label_formatter(labels, test_string, expected):
 
     (['spam', 'bacon'], ['ignored', 'scorned'], [], ['spam', 'bacon'], []),
 ))
-def test_get_primary_and_floating_images(tag_conf, tag_annotation, expected_primary,
+def test_get_primary_and_floating_images(workflow, tag_conf, tag_annotation, expected_primary,
                                          expected_floating, expected_unique):
     template_image = ImageName.parse('registry.example.com/fedora')
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
 
     for tag in tag_conf:
         image_name = ImageName.parse(str(template_image))

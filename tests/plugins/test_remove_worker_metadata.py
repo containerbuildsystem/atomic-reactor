@@ -81,7 +81,7 @@ class MockInsideBuilder(object):
 
 
 def mock_workflow(tmpdir):
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, TEST_IMAGE)
+    workflow = DockerBuildWorkflow(TEST_IMAGE, source=MOCK_SOURCE)
     setattr(workflow, 'builder', MockInsideBuilder())
     setattr(workflow, 'source', MockSource(tmpdir))
     setattr(workflow.builder, 'source', MockSource(tmpdir))

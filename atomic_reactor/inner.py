@@ -31,7 +31,7 @@ from atomic_reactor.plugin import (
     PreBuildPluginsRunner,
     PrePublishPluginsRunner,
 )
-from atomic_reactor.source import get_source_instance_for
+from atomic_reactor.source import get_source_instance_for, DummySource
 from atomic_reactor.constants import INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS
 from atomic_reactor.constants import (
     CONTAINER_DEFAULT_BUILD_METHOD,
@@ -325,7 +325,7 @@ class DockerBuildWorkflow(object):
     6. push it to registries
     """
 
-    def __init__(self, source, image, prebuild_plugins=None, prepublish_plugins=None,
+    def __init__(self, image, source=None, prebuild_plugins=None, prepublish_plugins=None,
                  postbuild_plugins=None, exit_plugins=None, plugin_files=None,
                  openshift_build_selflink=None, client_version=None,
                  buildstep_plugins=None, **kwargs):
@@ -342,7 +342,11 @@ class DockerBuildWorkflow(object):
         :param client_version: str, osbs-client version used to render build json
         :param buildstep_plugins: list of dicts, arguments for build-step plugins
         """
-        self.source = get_source_instance_for(source, tmpdir=tempfile.mkdtemp())
+        tmp_dir = tempfile.mkdtemp()
+        if source is None:
+            self.source = DummySource(None, None, tmpdir=tmp_dir)
+        else:
+            self.source = get_source_instance_for(source, tmpdir=tmp_dir)
         self.image = image
 
         self.prebuild_plugins_conf = prebuild_plugins

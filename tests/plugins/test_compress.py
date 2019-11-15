@@ -45,7 +45,10 @@ class TestCompress(object):
             mock_docker()
 
         tasker = DockerTasker()
-        workflow = DockerBuildWorkflow({'provider': 'git', 'uri': 'asd'}, 'test-image')
+        workflow = DockerBuildWorkflow(
+            'test-image',
+            source={'provider': 'git', 'uri': 'asd'}
+        )
         workflow.builder = X()
         exp_img = os.path.join(str(tmpdir), 'img.tar')
 

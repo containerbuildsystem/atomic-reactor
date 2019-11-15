@@ -120,7 +120,11 @@ def workflow(tmpdir):
             'platforms': ODCS_COMPOSE_DEFAULT_ARCH_LIST
         },
     }]
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image', buildstep_plugins=buildstep_plugin, )
+    workflow = DockerBuildWorkflow(
+        'test-image',
+        source=MOCK_SOURCE,
+        buildstep_plugins=buildstep_plugin,
+    )
     workflow.builder = MockInsideBuilder(tmpdir)
     workflow.source = workflow.builder.source
     workflow._tmpdir = tmpdir

@@ -123,7 +123,10 @@ def prepare(docker_registries=None, before_dockerfile=False,  # noqa
     flexmock(os)
     os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
 
-    workflow = DockerBuildWorkflow({"provider": "git", "uri": "asd"}, "test-image")
+    workflow = DockerBuildWorkflow(
+        "test-image",
+        source={"provider": "git", "uri": "asd"},
+    )
 
     if reactor_config_map:
         openshift_map = {

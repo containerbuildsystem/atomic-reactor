@@ -121,7 +121,11 @@ def test_pull_base_image_special(add_another_parent, special_image, change_base,
         'name': PLUGIN_BUILD_ORCHESTRATE_KEY,
         'args': {'platforms': ['x86_64']},
     }]
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, special_image, buildstep_plugins=buildstep_plugin,)
+    workflow = DockerBuildWorkflow(
+        special_image,
+        source=MOCK_SOURCE,
+        buildstep_plugins=buildstep_plugin,
+    )
     builder = workflow.builder = MockBuilder()
     builder.parent_images = {}
     builder.set_base_image(special_image)
@@ -237,7 +241,11 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
         'args': {'platforms': ['x86_64']},
     }]
     parent_images = parent_images or {ImageName.parse(df_base): None}
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image', buildstep_plugins=buildstep_plugin,)
+    workflow = DockerBuildWorkflow(
+        'test-image',
+        source=MOCK_SOURCE,
+        buildstep_plugins=buildstep_plugin,
+    )
     builder = workflow.builder = MockBuilder()
     builder.base_image = builder.original_base_image = ImageName.parse(df_base)
     builder.parent_images = parent_images
@@ -440,12 +448,11 @@ def test_pull_base_autorebuild(monkeypatch, reactor_config_map, inspect_only):  
     (docker.errors.NotFound, 25, False),
     (RuntimeError, 1, False),
 ])
-def test_retry_pull_base_image(exc, failures, should_succeed, reactor_config_map):
+def test_retry_pull_base_image(workflow, exc, failures, should_succeed, reactor_config_map):
     if MOCK:
         mock_docker(remember_images=True)
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = MockBuilder()
     workflow.builder.base_image = ImageName.parse('parent-image')
 
@@ -483,12 +490,11 @@ def test_retry_pull_base_image(exc, failures, should_succeed, reactor_config_map
 
 
 @pytest.mark.parametrize('library', [True, False])
-def test_try_with_library_pull_base_image(library, reactor_config_map):
+def test_try_with_library_pull_base_image(workflow, library, reactor_config_map):
     if MOCK:
         mock_docker(remember_images=True)
 
     tasker = DockerTasker(retry_times=0)
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = MockBuilder()
 
     if library:

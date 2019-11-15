@@ -16,13 +16,11 @@ from dockerfile_parse import DockerfileParser
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.build import InsideBuilder, BuildResult
 from atomic_reactor.util import ImageName, CommandResult
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.constants import INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS
 
 from tests.docker_mock import mock_docker
 from flexmock import flexmock
 import pytest
-from tests.constants import MOCK_SOURCE
 
 
 def mock_docker_tasker(docker_tasker):
@@ -77,7 +75,7 @@ class MockInsideBuilder(object):
     False,
 ])
 @pytest.mark.parametrize('image_id', ['sha256:12345', '12345'])
-def test_build(docker_tasker, is_failed, image_id):
+def test_build(docker_tasker, workflow, is_failed, image_id):
     """
     tests docker build api plugin working
     """
@@ -88,7 +86,6 @@ def test_build(docker_tasker, is_failed, image_id):
     mock_docker_tasker(docker_tasker)
     flexmock(InsideBuilder).new_instances(fake_builder)
 
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     flexmock(CommandResult).should_receive('is_failed').and_return(is_failed)
     error = "error message"
     error_detail = "{u'message': u\"%s\"}" % error
@@ -112,7 +109,7 @@ def test_build(docker_tasker, is_failed, image_id):
         assert workflow.build_result.image_id.count(':') == 1
 
 
-def test_syntax_error(docker_tasker):
+def test_syntax_error(docker_tasker, workflow):
     """
     tests reporting of syntax errors
     """
@@ -133,7 +130,6 @@ def test_syntax_error(docker_tasker):
 
     fake_builder.tasker.build_image_from_path = raise_exc
     flexmock(InsideBuilder).new_instances(fake_builder)
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     with pytest.raises(PluginFailedException):
         workflow.build_docker_image()
 

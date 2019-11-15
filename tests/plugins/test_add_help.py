@@ -12,14 +12,12 @@ import os
 import subprocess
 import pytest
 
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.util import df_parser
 from atomic_reactor import start_time as atomic_reactor_start_time
 
 from datetime import datetime as dt
-from tests.constants import MOCK_SOURCE
 from tests.stubs import StubInsideBuilder
 
 from textwrap import dedent
@@ -49,7 +47,7 @@ def generate_a_file(destpath, contents):
 
 
 @pytest.mark.parametrize('filename', ['help.md', 'other_file.md'])  # noqa
-def test_add_help_plugin(tmpdir, docker_tasker, filename):
+def test_add_help_plugin(tmpdir, docker_tasker, workflow, filename):
     df_content = dedent("""
         FROM fedora
         RUN yum install -y python-django
@@ -57,7 +55,6 @@ def test_add_help_plugin(tmpdir, docker_tasker, filename):
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = StubInsideBuilder().set_df_path(df.dockerfile_path)
 
     help_markdown_path = os.path.join(workflow.builder.df_dir, filename)
@@ -94,12 +91,11 @@ def test_add_help_plugin(tmpdir, docker_tasker, filename):
 
 
 @pytest.mark.parametrize('filename', ['help.md', 'other_file.md'])  # noqa
-def test_add_help_no_help_file(request, tmpdir, docker_tasker, filename):
+def test_add_help_no_help_file(workflow, tmpdir, docker_tasker, filename):
     df_content = "FROM fedora"
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = StubInsideBuilder().set_df_path(df.dockerfile_path)
 
     runner = PreBuildPluginsRunner(
@@ -122,13 +118,12 @@ def test_add_help_no_help_file(request, tmpdir, docker_tasker, filename):
 @pytest.mark.parametrize('go_md2man_result', [
     'binary_missing', 'input_missing', 'other_os_error',
     'result_missing', 'fail', 'pass'])
-def test_add_help_md2man_error(request, tmpdir, docker_tasker, filename,
+def test_add_help_md2man_error(workflow, tmpdir, docker_tasker, filename,
                                go_md2man_result, caplog):
     df_content = "FROM fedora"
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = StubInsideBuilder().set_df_path(df.dockerfile_path)
 
     help_markdown_path = os.path.join(workflow.builder.df_dir, filename)
@@ -230,7 +225,7 @@ def test_add_help_md2man_error(request, tmpdir, docker_tasker, filename,
 
 
 @pytest.mark.parametrize('filename', ['help.md', 'other_file.md'])  # noqa
-def test_add_help_generate_metadata(tmpdir, docker_tasker, filename):
+def test_add_help_generate_metadata(tmpdir, docker_tasker, workflow, filename):
     df_content = dedent("""\
         FROM fedora
         LABEL name='test' \\
@@ -240,7 +235,6 @@ def test_add_help_generate_metadata(tmpdir, docker_tasker, filename):
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
     workflow.builder = StubInsideBuilder().set_df_path(df.dockerfile_path)
 
     help_markdown_path = os.path.join(workflow.builder.df_dir, filename)

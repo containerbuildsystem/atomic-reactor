@@ -78,7 +78,7 @@ def test_rpmqa_plugin(caplog, docker_tasker, base_from_scratch, remove_container
         should_raise_error['remove_container'] = None
     mock_docker(should_raise_error=should_raise_error)
 
-    workflow = DockerBuildWorkflow(SOURCE, TEST_IMAGE)
+    workflow = DockerBuildWorkflow(TEST_IMAGE, source=SOURCE)
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
     workflow.builder.set_base_from_scratch(base_from_scratch)
@@ -108,7 +108,7 @@ def test_rpmqa_plugin_skip(docker_tasker):  # noqa
     Test skipping the plugin if workflow.image_components is already set
     """
     mock_docker()
-    workflow = DockerBuildWorkflow(SOURCE, TEST_IMAGE)
+    workflow = DockerBuildWorkflow(TEST_IMAGE, source=SOURCE)
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
 
@@ -129,7 +129,7 @@ def test_rpmqa_plugin_skip(docker_tasker):  # noqa
 
 def test_rpmqa_plugin_exception(docker_tasker):  # noqa
     mock_docker()
-    workflow = DockerBuildWorkflow(SOURCE, TEST_IMAGE)
+    workflow = DockerBuildWorkflow(TEST_IMAGE, source=SOURCE)
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
 
@@ -144,7 +144,7 @@ def test_rpmqa_plugin_exception(docker_tasker):  # noqa
 def test_dangling_volumes_removed(docker_tasker, caplog):
 
     mock_docker()
-    workflow = DockerBuildWorkflow(SOURCE, TEST_IMAGE)
+    workflow = DockerBuildWorkflow(TEST_IMAGE, source=SOURCE)
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
     workflow.builder.set_base_from_scratch(False)
@@ -171,7 +171,7 @@ def test_dangling_volumes_removed(docker_tasker, caplog):
 
 def test_empty_logs_retry(docker_tasker):  # noqa
     mock_docker()
-    workflow = DockerBuildWorkflow(SOURCE, TEST_IMAGE)
+    workflow = DockerBuildWorkflow(TEST_IMAGE, source=SOURCE)
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
     workflow.builder.set_base_from_scratch(False)
@@ -188,7 +188,7 @@ def test_empty_logs_retry(docker_tasker):  # noqa
 
 def test_empty_logs_failure(docker_tasker):  # noqa
     mock_docker()
-    workflow = DockerBuildWorkflow(SOURCE, TEST_IMAGE)
+    workflow = DockerBuildWorkflow(TEST_IMAGE, source=SOURCE)
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
     workflow.builder.set_base_from_scratch(False)

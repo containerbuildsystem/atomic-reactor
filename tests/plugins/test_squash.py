@@ -71,7 +71,7 @@ class TestSquashPlugin(object):
     def setup_method(self, method):
         if MOCK:
             mock_docker()
-        self.workflow = DockerBuildWorkflow(MOCK_SOURCE, 'test-image')
+        self.workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
         self.workflow.builder = MockInsideBuilder()
         self.tasker = self.workflow.builder.tasker
 
