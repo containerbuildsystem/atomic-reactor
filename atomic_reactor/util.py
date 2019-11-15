@@ -804,6 +804,10 @@ class ManifestDigest(dict):
             return self.get(attr, None)
 
 
+def is_manifest_list(version):
+    return version == MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST or version == MEDIA_TYPE_OCI_V1_INDEX
+
+
 def get_manifest_media_type(version):
     try:
         return ManifestDigest.content_type[version]

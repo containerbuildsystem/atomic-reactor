@@ -268,7 +268,9 @@ class TestVerifyImageTypes(object):
                            auth=mock_auth, verify=False)
                 .and_return(v2_list_response))
 
-        digests = {'manifest_digest': {'oci_index': None}} if group else {}
+        digests = {'media_type': MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST}
+        if not group:
+            digests = {'media_type': MEDIA_TYPE_DOCKER_V2_SCHEMA2}
         prebuild_results = {PLUGIN_CHECK_AND_SET_PLATFORMS_KEY: platforms}
         postbuild_results = {PLUGIN_GROUP_MANIFESTS_KEY: digests}
 

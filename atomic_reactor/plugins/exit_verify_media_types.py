@@ -18,7 +18,7 @@ from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_VERIFY_
                                       MEDIA_TYPE_OCI_V1_INDEX)
 
 from atomic_reactor.plugin import ExitPlugin
-from atomic_reactor.util import get_manifest_digests, get_platforms
+from atomic_reactor.util import get_manifest_digests, get_platforms, is_manifest_list
 from atomic_reactor.plugins.pre_reactor_config import (get_registries,
                                                        get_platform_to_goarch_mapping)
 from copy import deepcopy
@@ -98,7 +98,8 @@ class VerifyMediaTypesPlugin(ExitPlugin):
 
         :return: bool, expect manifest list only?
         """
-        if not self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY):
+        manifest_results = self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY)
+        if not manifest_results or not is_manifest_list(manifest_results.get("media_type")):
             self.log.debug('Cannot check if only manifest list digest should be returned '
                            'because group manifests plugin did not run')
             return False

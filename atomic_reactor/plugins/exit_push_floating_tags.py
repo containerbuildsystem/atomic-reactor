@@ -8,8 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals, absolute_import
 
-import json
-
 from atomic_reactor.constants import PLUGIN_PUSH_FLOATING_TAGS_KEY, PLUGIN_GROUP_MANIFESTS_KEY
 from atomic_reactor.manifest_util import ManifestUtil
 from atomic_reactor.plugin import ExitPlugin
@@ -40,9 +38,9 @@ class PushFloatingTagsPlugin(ExitPlugin):
         self.manifest_util = ManifestUtil(workflow, registries, self.log)
 
     def add_floating_tags(self, session, manifest_list_data, floating_images):
-        manifest_json = manifest_list_data.get("manifest_list", {})
-        manifest_digest = manifest_list_data.get("manifest_digest", {})
-        list_type = json.loads(manifest_json)["mediaType"]
+        list_type = manifest_list_data.get("media_type")
+        manifest = manifest_list_data.get("manifest")
+        manifest_digest = manifest_list_data.get("manifest_digest")
 
         for image in floating_images:
             target_repo = image.to_str(registry=False, tag=False)
@@ -50,7 +48,7 @@ class PushFloatingTagsPlugin(ExitPlugin):
             # referenced manifest, since each one should be a new tag that requires uploading
             # the manifest again
             self.log.debug("storing %s as %s", target_repo, image.tag)
-            self.manifest_util.store_manifest_in_repository(session, manifest_json, list_type,
+            self.manifest_util.store_manifest_in_repository(session, manifest, list_type,
                                                             target_repo, target_repo, ref=image.tag)
         # And store the manifest list in the push_conf
         push_conf_registry = self.workflow.push_conf.add_docker_registry(session.registry,
@@ -89,6 +87,6 @@ class PushFloatingTagsPlugin(ExitPlugin):
 
         for registry in self.manifest_util.registries:
             session = self.manifest_util.get_registry_session(registry)
-            repo, digest = self.add_floating_tags(session, manifest_list_data, floating_tags)
+            repo, digest = self.add_floating_tags(session, manifest_data, floating_tags)
             digests[repo] = digest
         return digests

@@ -22,7 +22,7 @@ from atomic_reactor.plugins.build_orchestrate_build import (get_worker_build_inf
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import (OSBSLogs, get_parent_image_koji_data, get_manifest_media_version,
-                                 ManifestDigest)
+                                 is_manifest_list)
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
 
 try:
@@ -234,9 +234,9 @@ class KojiImportPlugin(ExitPlugin):
         floating_tags = [image.tag for image in floating_images]
         unique_tags = [image.tag for image in unique_images]
 
-        manifest_list_data = self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY, {})
-        manifest_digest = manifest_list_data.get("manifest_digest")
-        if manifest_digest and isinstance(manifest_digest, ManifestDigest):
+        manifest_data = self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY, {})
+        if manifest_data and is_manifest_list(manifest_data.get("media_type")):
+            manifest_digest = manifest_data.get("manifest_digest")
             index = {}
             index['tags'] = tags
             index['floating_tags'] = floating_tags

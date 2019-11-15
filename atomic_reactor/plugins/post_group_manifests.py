@@ -137,7 +137,9 @@ class GroupManifestsPlugin(PostBuildPlugin):
             tags.append(image.tag)
 
         self.log.info("%s: Manifest list digest is %s", session.registry, digest_str)
-        return tags, digest, list_json
+        self.log.debug("tags: %s digest: %s", tags, digest)
+
+        return {'manifest': list_json, 'media_type': list_type, 'manifest_digest': digest}
 
     def sort_annotations(self):
         """
@@ -154,10 +156,14 @@ class GroupManifestsPlugin(PostBuildPlugin):
 
         return self.manifest_util.sort_annotations(all_annotations)
 
+    def tag_manifest_into_registry(self, session, source_digest, source_repo, images):
+        manifest, media, digest = self.manifest_util.tag_manifest_into_registry(session,
+                                                                                source_digest,
+                                                                                source_repo,
+                                                                                images)
+        return {'manifest': manifest, 'media_type': media, 'manifest_digest': digest}
+
     def run(self):
-        list_json = ""
-        manifest_digest = None
-        tags = []
         primary_images = get_primary_images(self.workflow)
         unique_images = get_unique_images(self.workflow)
         self.non_floating_images = primary_images + unique_images
@@ -166,20 +172,14 @@ class GroupManifestsPlugin(PostBuildPlugin):
             session = self.manifest_util.get_registry_session(registry)
 
             if self.group:
-                tags, manifest_digest, list_json = self.group_manifests_and_tag(session, source)
-                self.log.debug("tags: %s digest: %s", tags, manifest_digest)
+                return self.group_manifests_and_tag(session, source)
             else:
-                found = False
                 if len(source) != 1:
                     raise RuntimeError('Without grouping only one source is expected')
-                for digest in source.values():
-                    source_digest = digest['digest']
-                    source_repo = digest['repository']
-                    self.manifest_util.tag_manifest_into_registry(session, source_digest,
-                                                                  source_repo,
-                                                                  self.non_floating_images)
-                    found = True
-                if not found:
-                    raise ValueError('Failed to find any platform')
-        # return repos for unit test purposes
-        return {'manifest_digest': manifest_digest, 'tags': tags, 'manifest_list': list_json}
+                # source.values() isn't a list and can't be indexed, so this clumsy workaround
+                _, orig_digest = source.popitem()
+                source_digest = orig_digest['digest']
+                source_repo = orig_digest['repository']
+
+                return self.tag_manifest_into_registry(session, source_digest, source_repo,
+                                                       self.non_floating_images)

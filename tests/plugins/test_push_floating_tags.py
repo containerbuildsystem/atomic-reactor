@@ -162,7 +162,7 @@ def mock_registries(registries, config, primary_images=None, manifest_results=No
                 name, tag = image.split(':')
                 repo = registry.get_repo(name)
                 manifest_digest = manifest_results["manifest_digest"]
-                repo["manifests"][manifest_digest.default] = manifest_results["manifest_list"]
+                repo["manifests"][manifest_digest.default] = manifest_results["manifest"]
                 repo["tags"][tag] = manifest_digest.default
 
     return reg_map, {
@@ -208,9 +208,10 @@ REGISTRY_V2 = 'registry_v2.example.com'
 OTHER_V2 = 'registry.example.com:5001'
 
 
-V2_RESULTS = {
+GROUPED_V2_RESULTS = {
     "manifest_digest": ManifestDigest(v2_list="sha256:11c3ecdbfa"),
-    "manifest_list": json.dumps({
+    "mediaType": "application/vnd.docker.distribution.manifest.list.v2+json",
+    "manifest": json.dumps({
         "manifests": [
             {
                 "digest": "sha256:9dc3bbcd6c",
@@ -235,9 +236,10 @@ V2_RESULTS = {
         "schemaVersion": 2
     }, indent=4, sort_keys=True, separators=(',', ': '))
 }
-OCI_RESULTS = {
+GROUPED_OCI_RESULTS = {
     "manifest_digest": ManifestDigest(oci_index="sha256:cf4d07b24d"),
-    "manifest_list": json.dumps({
+    "mediaType": "application/vnd.oci.image.index.v1+json",
+    "manifest": json.dumps({
         "manifests": [
             {
                 "digest": "sha256:62cef32411",
@@ -262,14 +264,50 @@ OCI_RESULTS = {
         "schemaVersion": 2
     }, indent=4, sort_keys=True, separators=(',', ': '))
 }
+NOGROUP_V2_RESULTS = {
+    "manifest_digest": ManifestDigest(v1="sha256:cd619643ae"),
+    "media_type": "application/vnd.docker.distribution.manifest.v2+json",
+    "manifest": json.dumps({
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+        "config": {
+            "mediaType": "application/vnd.docker.container.image.v1+json",
+            "digest": "sha256:0efa9f4e8f"
+        },
+        "layers": [
+            {
+                "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+                "digest": "sha256:aca5f3af1d"
+            }
+        ]
+    }),
+}
+NOGROUP_OCI_RESULTS = {
+    "manifest_digest": ManifestDigest(oci="sha256:c1c380151b"),
+    "media_type": "application/vnd.oci.image.manifest.v1+json",
+    "manifest": json.dumps({
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "config": {
+            "mediaType": "application/vnd.oci.image.config.v1+json",
+            "digest": "sha256:0efa9f4e8f"
+        },
+        "layers": [
+            {
+                "mediaType": "application/vnd.oci.image.layer.v1.tar",
+                "digest": "sha256:aca5f3af1d"
+                }
+        ]
+    }),
+}
 
 
 @pytest.mark.parametrize(('test_name',
                           'registries', 'manifest_results', 'schema_version',
                           'floating_tags',
                           'workers', 'expected_exception'), [
-    ("simple_v2",
-     [REGISTRY_V2, OTHER_V2], V2_RESULTS, 'v2',
+    ("simple_grouped_v2",
+     [REGISTRY_V2, OTHER_V2], GROUPED_V2_RESULTS, 'v2',
      ['namespace/httpd:2.4-1'],
      {
          'ppc64le': {
@@ -282,8 +320,8 @@ OCI_RESULTS = {
          }
      },
      None),
-    ("simple_oci",
-     [REGISTRY_V2, OTHER_V2], OCI_RESULTS, 'oci',
+    ("simple_grouped_oci",
+     [REGISTRY_V2, OTHER_V2], GROUPED_OCI_RESULTS, 'oci',
      ['namespace/httpd:2.4-1'],
      {
          'ppc64le': {
@@ -297,7 +335,7 @@ OCI_RESULTS = {
      },
      None),
     ("multi_v2",
-     [REGISTRY_V2, OTHER_V2], V2_RESULTS, 'v2',
+     [REGISTRY_V2, OTHER_V2], GROUPED_V2_RESULTS, 'v2',
      ['namespace/httpd:2.4-1', 'namespace/httpd:latest'],
      {
          'ppc64le': {
@@ -310,8 +348,44 @@ OCI_RESULTS = {
          }
      },
      None),
+    ("simple_ungrouped_v2",
+     [REGISTRY_V2], NOGROUP_V2_RESULTS, 'v2',
+     ['namespace/httpd:2.4-1'],
+     {
+         'ppc64le': {
+             REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
+         }
+     },
+     None),
+    ("simple_ungrouped_oci",
+     [REGISTRY_V2], NOGROUP_OCI_RESULTS, 'oci',
+     ['namespace/httpd:2.4-1'],
+     {
+         'ppc64le': {
+             REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
+         }
+     },
+     None),
+    ("multi_ungrouped_v2",
+     [REGISTRY_V2], NOGROUP_V2_RESULTS, 'v2',
+     ['namespace/httpd:2.4-1', 'namespace/httpd:latest'],
+     {
+         'ppc64le': {
+             REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
+         }
+     },
+     None),
+    ("multi_ungrouped_oci",
+     [REGISTRY_V2], NOGROUP_OCI_RESULTS, 'oci',
+     ['namespace/httpd:2.4-1', 'namespace/httpd:latest'],
+     {
+         'ppc64le': {
+             REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
+         }
+     },
+     None),
     ("No tags",
-     [REGISTRY_V2, OTHER_V2], V2_RESULTS, 'v2',
+     [REGISTRY_V2, OTHER_V2], GROUPED_V2_RESULTS, 'v2',
      None,
      {
          'ppc64le': {
@@ -325,7 +399,7 @@ OCI_RESULTS = {
      },
      'No floating images to tag, skippping push_floating_tags'),
     ("called_from_worker",
-     [REGISTRY_V2, OTHER_V2], V2_RESULTS, 'v2',
+     [REGISTRY_V2, OTHER_V2], GROUPED_V2_RESULTS, 'v2',
      ['namespace/httpd:2.4-1', 'namespace/httpd:latest'],
      {},
      'push_floating_tags cannot be used by a worker builder'),

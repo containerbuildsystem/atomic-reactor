@@ -196,6 +196,7 @@ class ManifestUtil(object):
 
         self.add_tag_and_manifest(session, image_manifest, media_type, digests, source_repo,
                                   configured_tags)
+        return image_manifest, media_type, digests
 
     def build_list(self, manifests):
         """
