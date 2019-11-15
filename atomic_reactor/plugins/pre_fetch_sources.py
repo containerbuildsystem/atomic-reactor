@@ -9,17 +9,8 @@ from __future__ import absolute_import
 
 import os
 import tempfile
-import time
 
-import requests
-from six.moves.urllib.parse import urlparse
-
-from atomic_reactor.constants import (
-    DEFAULT_DOWNLOAD_BLOCK_SIZE,
-    HTTP_BACKOFF_FACTOR,
-    HTTP_MAX_RETRIES,
-    PLUGIN_FETCH_SOURCES_KEY
-)
+from atomic_reactor.constants import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import (
     get_koji,
@@ -29,6 +20,7 @@ from atomic_reactor.plugins.pre_reactor_config import (
     NO_FALLBACK
 )
 from atomic_reactor.util import get_retrying_requests_session
+from atomic_reactor.download import download_url
 
 
 class FetchSourcesPlugin(PreBuildPlugin):
@@ -100,26 +92,8 @@ class FetchSourcesPlugin(PreBuildPlugin):
 
         req_session = get_retrying_requests_session()
         for url in urls:
-            parsed_url = urlparse(url)
-            dest_filename = os.path.basename(parsed_url.path)
-            dest_path = os.path.join(dest_dir, dest_filename)
-            self.log.debug('Downloading %s', url)
-
-            for attempt in range(HTTP_MAX_RETRIES + 1):
-                request = req_session.get(url, stream=True, verify=not insecure)
-                request.raise_for_status()
-                try:
-                    with open(dest_path, 'wb') as f:
-                        for chunk in request.iter_content(chunk_size=DEFAULT_DOWNLOAD_BLOCK_SIZE):
-                            f.write(chunk)
-                    break
-                except (requests.exceptions.RequestException):
-                    if attempt < HTTP_MAX_RETRIES:
-                        time.sleep(HTTP_BACKOFF_FACTOR * (2 ** attempt))
-                    else:
-                        raise
-
-            self.log.debug('Download finished: %s', dest_path)
+            download_url(url, dest_dir, insecure=insecure,
+                         session=req_session)
 
         return dest_dir
 
