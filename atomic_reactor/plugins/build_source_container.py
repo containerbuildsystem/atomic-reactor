@@ -12,8 +12,10 @@ import subprocess
 import tempfile
 
 from atomic_reactor.build import BuildResult
-from atomic_reactor.constants import PLUGIN_SOURCE_CONTAINER_KEY, PLUGIN_FETCH_SOURCES_KEY
+from atomic_reactor.constants import (PLUGIN_SOURCE_CONTAINER_KEY, EXPORTED_SQUASHED_IMAGE_NAME,
+                                      IMAGE_TYPE_OCI_TAR, PLUGIN_FETCH_SOURCES_KEY)
 from atomic_reactor.plugin import BuildStepPlugin
+from atomic_reactor.util import get_exported_image_metadata
 
 
 class SourceContainerPlugin(BuildStepPlugin):
@@ -23,6 +25,24 @@ class SourceContainerPlugin(BuildStepPlugin):
     """
 
     key = PLUGIN_SOURCE_CONTAINER_KEY
+
+    def export_image(self, image_output_dir):
+        output_path = os.path.join(tempfile.mkdtemp(), EXPORTED_SQUASHED_IMAGE_NAME)
+
+        cmd = ['skopeo', 'copy']
+        source_img = 'oci:{}'.format(image_output_dir)
+        dest_img = 'oci-archive:{}'.format(output_path)
+        cmd += [source_img, dest_img]
+
+        self.log.info("Calling: %s", ' '.join(cmd))
+        try:
+            subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as e:
+            self.log.error("failed to save oci-archive :\n%s", e.output)
+            raise
+
+        img_metadata = get_exported_image_metadata(output_path, IMAGE_TYPE_OCI_TAR)
+        self.workflow.exported_image_sequence.append(img_metadata)
 
     def run(self):
         """Build image inside current environment.
@@ -57,6 +77,8 @@ class SourceContainerPlugin(BuildStepPlugin):
             return BuildResult(logs=e.output, fail_reason='BSI utility failed build source image')
 
         self.log.debug("Build log:\n%s\n", output)
+
+        self.export_image(image_output_dir)
 
         return BuildResult(
             logs=output,

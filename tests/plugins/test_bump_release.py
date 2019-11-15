@@ -30,6 +30,7 @@ except ImportError:
 
 from atomic_reactor.plugins.pre_bump_release import BumpReleasePlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
+from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
@@ -38,6 +39,9 @@ from atomic_reactor.constants import PROG
 from flexmock import flexmock
 import time
 import pytest
+
+
+KOJI_SOURCE_NVR = "sources_nvr"
 
 
 class MockedClientSessionGeneral(object):
@@ -72,7 +76,8 @@ class TestBumpRelease(object):
                 reactor_config_map=False,
                 reserve_build=False,
                 is_auto=False,
-                add_timestamp=None):
+                add_timestamp=None,
+                fetch_source=False):
         if labels is None:
             labels = {}
 
@@ -83,6 +88,10 @@ class TestBumpRelease(object):
         setattr(workflow, 'reserved_token ', None)
         setattr(workflow, 'source', MockSource(tmpdir, add_timestamp))
         setattr(workflow, 'prebuild_results', {CheckAndSetRebuildPlugin.key: is_auto})
+        if fetch_source:
+            workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
+                'sources_for_nvr': KOJI_SOURCE_NVR
+            }
 
         df = tmpdir.join('Dockerfile')
         df.write('FROM base\n')
@@ -424,3 +433,113 @@ class TestBumpRelease(object):
         if reserve_build and reactor_config_map and not next_release['scratch']:
             assert plugin.workflow.reserved_build_id == build_id
             assert plugin.workflow.reserved_token == token
+
+    @pytest.mark.parametrize('reserve_build, init_fails', [
+        (True, RuntimeError),
+        (True, koji.GenericError),
+        (True, None),
+        (False, None)
+    ])
+    @pytest.mark.parametrize('next_release', [
+        {'builds': [], 'scratch': False, 'expected': '1.1'},
+        {'builds': ['1.1', '1.2'], 'scratch': False, 'expected': '1.3'},
+        {'builds': [], 'scratch': True, 'expected': '1.scratch'},
+        {'builds': ['1.1', '1.2'], 'scratch': True, 'expected': '1.scratch'},
+    ])
+    def test_source_build_release(self, tmpdir, next_release, reserve_build, init_fails,
+                                  reactor_config_map):
+        build_id = '123456'
+        token = 'token_123456'
+        koji_name = 'component'
+        koji_version = '3.0'
+        koji_release = '1'
+        koji_source = 'git_reg/repo'
+
+        class MockedClientSession(object):
+            def __init__(self, hub, opts=None):
+                self.ca_path = None
+                self.cert_path = None
+                self.serverca_path = None
+
+            def getBuild(self, build_info):
+                if isinstance(build_info, dict):
+                    assert build_info['name'] == "%s-source" % koji_name
+                    assert build_info['version'] == koji_version
+
+                    if build_info['release'] in next_release['builds']:
+                        return True
+                    return None
+                else:
+                    return {'name': koji_name, 'version': koji_version,
+                            'release': koji_release, 'source': koji_source}
+
+            def ssl_login(self, cert=None, ca=None, serverca=None, proxyuser=None):
+                self.ca_path = ca
+                self.cert_path = cert
+                self.serverca_path = serverca
+                return True
+
+            def krb_login(self, *args, **kwargs):
+                return True
+
+            def CGInitBuild(self, cg_name, nvr_data):
+                assert cg_name == PROG
+                assert nvr_data['name'] == "%s-source" % koji_name
+                assert nvr_data['version'] == koji_version
+                if init_fails:
+                    raise init_fails('unable to pre-declare build {}'.format(nvr_data))
+                return {'build_id': build_id, 'token': token}
+
+        session = MockedClientSession('')
+        flexmock(time).should_receive('sleep').and_return(None)
+        flexmock(koji, ClientSession=session)
+
+        plugin = self.prepare(tmpdir, certs=True, reactor_config_map=reactor_config_map,
+                              reserve_build=reserve_build, fetch_source=True)
+
+        new_environ = deepcopy(os.environ)
+        if next_release['scratch']:
+            new_environ = deepcopy(os.environ)
+            new_environ["BUILD"] = dedent('''\
+                {
+                  "metadata": {
+                    "labels": {"scratch": "true"}
+                  }
+                }
+                ''')
+        else:
+            new_environ["BUILD"] = dedent('''\
+                {
+                  "metadata": {
+                  "labels": {}
+                  }
+                }
+                ''')
+        flexmock(os)
+        os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
+
+        if init_fails and reserve_build and reactor_config_map and not next_release['scratch']:
+            with pytest.raises(RuntimeError) as exc:
+                plugin.run()
+            assert 'unable to pre-declare build ' in str(exc.value)
+            return
+
+        plugin.run()
+
+        for file_path, expected in [(session.cert_path, 'cert'),
+                                    (session.serverca_path, 'serverca')]:
+
+            assert os.path.isfile(file_path)
+            with open(file_path, 'r') as fd:
+                assert fd.read() == expected
+
+        if reserve_build and reactor_config_map and not next_release['scratch']:
+            assert plugin.workflow.reserved_build_id == build_id
+            assert plugin.workflow.reserved_token == token
+
+        assert plugin.workflow.koji_source_source_url == koji_source
+
+        expected_nvr = {'name': "%s-source" % koji_name,
+                        'version': koji_version,
+                        'release': next_release['expected']}
+        plugin.workflow.koji_source_nvr = expected_nvr

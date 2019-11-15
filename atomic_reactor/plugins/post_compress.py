@@ -53,6 +53,7 @@ class CompressPlugin(PostBuildPlugin):
         self.load_exported_image = load_exported_image
         self.method = method
         self.uncompressed_size = 0
+        self.source_build = bool(self.workflow.build_result.oci_image_path)
 
     def _compress_image_stream(self, stream):
         outfile = os.path.join(self.workflow.source.workdir,
@@ -87,6 +88,9 @@ class CompressPlugin(PostBuildPlugin):
             with open(image, 'rb') as image_stream:
                 outfile = self._compress_image_stream(image_stream)
         else:
+            if self.source_build:
+                self.log.info('skipping, no exported source image to compress')
+                return
             image = self.workflow.image
             image_type = IMAGE_TYPE_DOCKER_ARCHIVE
             self.log.info('fetching image %s from docker', image)
