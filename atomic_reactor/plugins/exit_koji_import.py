@@ -15,6 +15,7 @@ import logging
 from tempfile import NamedTemporaryFile
 
 from atomic_reactor import start_time as atomic_reactor_start_time
+from atomic_reactor.constants import PROG
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.build_orchestrate_build import (get_worker_build_info,
@@ -47,7 +48,7 @@ from atomic_reactor.util import (Output, get_build_json,
                                  get_manifest_media_type,
                                  get_digests_map_from_annotations, is_scratch_build)
 from atomic_reactor.koji_util import (KojiUploadLogger, get_koji_task_owner)
-from atomic_reactor.plugins.pre_reactor_config import get_koji_session
+from atomic_reactor.plugins.pre_reactor_config import get_koji_session, get_koji
 from osbs.utils import Labels
 
 
@@ -124,6 +125,7 @@ class KojiImportPlugin(ExitPlugin):
         self.osbs = get_openshift_session(self.workflow, self.openshift_fallback)
         self.build_id = None
         self.session = None
+        self.reserve_build = get_koji(self.workflow, self.koji_fallback).get('reserve_build', False)
 
     def get_output(self, worker_metadatas):
         """
@@ -462,12 +464,18 @@ class KojiImportPlugin(ExitPlugin):
         """
         Run the plugin.
         """
+
+        # get the session and token information in case we need to refund a failed build
+        self.session = get_koji_session(self.workflow, self.koji_fallback)
+        build_token = self.workflow.reserved_token
+        build_id = self.workflow.reserved_build_id
+
         # Only run if the build was successful
         if self.workflow.build_process_failed:
             self.log.info("Not importing failed build to koji")
+            if self.reserve_build and build_token is not None:
+                self.session.CGRefundBuild(PROG, build_id, build_token)
             return
-
-        self.session = get_koji_session(self.workflow, self.koji_fallback)
 
         server_dir = get_koji_upload_dir(self.workflow)
 
@@ -486,11 +494,8 @@ class KojiImportPlugin(ExitPlugin):
                 if output.file:
                     output.file.close()
 
-        build_token = None
-        if (self.workflow.reserved_build_id is not None and
-                self.workflow.reserved_token is not None):
-            build_token = self.workflow.reserved_token
-            koji_metadata['build']['build_id'] = self.workflow.reserved_build_id
+        if build_id is not None and build_token is not None:
+            koji_metadata['build']['build_id'] = build_id
 
         try:
             if build_token:
