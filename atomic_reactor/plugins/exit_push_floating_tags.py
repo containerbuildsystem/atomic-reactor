@@ -22,20 +22,15 @@ class PushFloatingTagsPlugin(ExitPlugin):
     key = PLUGIN_PUSH_FLOATING_TAGS_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, registries=None):
+    def __init__(self, tasker, workflow):
         """
         constructor
 
         :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param registries: dict, keys are docker registries, values are dicts containing
-                           per-registry parameters.
-                           Params:
-                            * "secret" optional string - path to the secret, which stores
-                              login and password for remote registry
         """
         super(PushFloatingTagsPlugin, self).__init__(tasker, workflow)
-        self.manifest_util = ManifestUtil(workflow, registries, self.log)
+        self.manifest_util = ManifestUtil(workflow, None, self.log)
 
     def add_floating_tags(self, session, manifest_list_data, floating_images):
         list_type = manifest_list_data.get("media_type")
@@ -69,7 +64,7 @@ class PushFloatingTagsPlugin(ExitPlugin):
 
         floating_tags = get_floating_images(self.workflow)
         if not floating_tags:
-            self.log.info('No floating images to tag, skippping %s', PLUGIN_PUSH_FLOATING_TAGS_KEY)
+            self.log.info('No floating images to tag, skipping %s', PLUGIN_PUSH_FLOATING_TAGS_KEY)
             return
 
         #  can't run in the worker build

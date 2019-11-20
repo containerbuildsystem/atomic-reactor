@@ -16,13 +16,13 @@ from tempfile import mkdtemp
 import os
 from six import binary_type, text_type
 
-from tests.constants import SOURCE, MOCK, DOCKER0_REGISTRY
+from tests.constants import MOCK, DOCKER0_REGISTRY
 from tests.stubs import StubInsideBuilder
 
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import ExitPluginsRunner
-from atomic_reactor.inner import DockerBuildWorkflow, TagConf
+from atomic_reactor.inner import TagConf
 from atomic_reactor.util import ImageName, registry_hostname, ManifestDigest
 from atomic_reactor.plugins.exit_push_floating_tags import PushFloatingTagsPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin, WORKSPACE_CONF_KEY,
@@ -171,12 +171,11 @@ def mock_registries(registries, config, primary_images=None, manifest_results=No
     }
 
 
-def mock_environment(tmpdir, primary_images=None, floating_images=None, manifest_results=None,
-                     annotations=None):
+def mock_environment(tmpdir, workflow, primary_images=None, floating_images=None,
+                     manifest_results=None, annotations=None):
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(SOURCE, "test-image")
     base_image_id = '123456parent-id'
     setattr(workflow, '_base_image_inspect', {'Id': base_image_id})
     setattr(workflow, 'builder', StubInsideBuilder())
@@ -210,7 +209,7 @@ OTHER_V2 = 'registry.example.com:5001'
 
 GROUPED_V2_RESULTS = {
     "manifest_digest": ManifestDigest(v2_list="sha256:11c3ecdbfa"),
-    "mediaType": "application/vnd.docker.distribution.manifest.list.v2+json",
+    "media_type": "application/vnd.docker.distribution.manifest.list.v2+json",
     "manifest": json.dumps({
         "manifests": [
             {
@@ -238,7 +237,7 @@ GROUPED_V2_RESULTS = {
 }
 GROUPED_OCI_RESULTS = {
     "manifest_digest": ManifestDigest(oci_index="sha256:cf4d07b24d"),
-    "mediaType": "application/vnd.oci.image.index.v1+json",
+    "media_type": "application/vnd.oci.image.index.v1+json",
     "manifest": json.dumps({
         "manifests": [
             {
@@ -265,7 +264,7 @@ GROUPED_OCI_RESULTS = {
     }, indent=4, sort_keys=True, separators=(',', ': '))
 }
 NOGROUP_V2_RESULTS = {
-    "manifest_digest": ManifestDigest(v1="sha256:cd619643ae"),
+    "manifest_digest": ManifestDigest(v2="sha256:cd619643ae"),
     "media_type": "application/vnd.docker.distribution.manifest.v2+json",
     "manifest": json.dumps({
         "schemaVersion": 2,
@@ -397,7 +396,7 @@ NOGROUP_OCI_RESULTS = {
              OTHER_V2: ['namespace/httpd:worker-build-x86_64-latest'],
          }
      },
-     'No floating images to tag, skippping push_floating_tags'),
+     'No floating images to tag, skipping push_floating_tags'),
     ("called_from_worker",
      [REGISTRY_V2, OTHER_V2], GROUPED_V2_RESULTS, 'v2',
      ['namespace/httpd:2.4-1', 'namespace/httpd:latest'],
@@ -419,8 +418,8 @@ NOGROUP_OCI_RESULTS = {
      'No manifest digest available, skipping push_floating_tags'),
 ])
 @responses.activate  # noqa
-def test_floating_tags_push(tmpdir, test_name, registries, manifest_results, schema_version,
-                            floating_tags, workers, expected_exception, reactor_config_map,
+def test_floating_tags_push(tmpdir, workflow, test_name, registries, manifest_results,
+                            schema_version, floating_tags, workers, expected_exception,
                             caplog):
     if MOCK:
         mock_docker()
@@ -454,16 +453,13 @@ def test_floating_tags_push(tmpdir, test_name, registries, manifest_results, sch
 
     plugins_conf = [{
         'name': PushFloatingTagsPlugin.key,
-        'args': {
-            'registries': registry_conf,
-        },
     }]
 
     mocked_registries, annotations = mock_registries(registry_conf, workers,
                                                      primary_images=primary_images,
                                                      manifest_results=manifest_results,
                                                      schema_version=schema_version)
-    tasker, workflow = mock_environment(tmpdir, primary_images=primary_images,
+    tasker, workflow = mock_environment(tmpdir, workflow, primary_images=primary_images,
                                         floating_images=floating_tags,
                                         manifest_results=manifest_results,
                                         annotations=annotations)
@@ -471,37 +467,36 @@ def test_floating_tags_push(tmpdir, test_name, registries, manifest_results, sch
     if workers:
         workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}]
 
-    if reactor_config_map:
-        registries_list = []
+    registries_list = []
 
-        for docker_uri in registry_conf:
-            reg_ver = registry_conf[docker_uri]['version']
-            reg_secret = None
-            if 'secret' in registry_conf[docker_uri]:
-                reg_secret = registry_conf[docker_uri]['secret']
+    for docker_uri in registry_conf:
+        reg_ver = registry_conf[docker_uri]['version']
+        reg_secret = None
+        if 'secret' in registry_conf[docker_uri]:
+            reg_secret = registry_conf[docker_uri]['secret']
 
-            new_reg = {}
-            if reg_secret:
-                new_reg['auth'] = {'cfg_path': reg_secret}
-            else:
-                new_reg['auth'] = {'cfg_path': str(temp_dir)}
-            new_reg['url'] = 'https://' + docker_uri + '/' + reg_ver
+        new_reg = {}
+        if reg_secret:
+            new_reg['auth'] = {'cfg_path': reg_secret}
+        else:
+            new_reg['auth'] = {'cfg_path': str(temp_dir)}
+        new_reg['url'] = 'https://' + docker_uri + '/' + reg_ver
 
-            registries_list.append(new_reg)
+        registries_list.append(new_reg)
 
-        platform_descriptors_list = []
-        for platform in goarch:
-            new_plat = {
-                'platform': platform,
-                'architecture': goarch[platform],
-            }
-            platform_descriptors_list.append(new_plat)
+    platform_descriptors_list = []
+    for platform in goarch:
+        new_plat = {
+            'platform': platform,
+            'architecture': goarch[platform],
+        }
+        platform_descriptors_list.append(new_plat)
 
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1,
-                           'registries': registries_list,
-                           'platform_descriptors': platform_descriptors_list})
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+        ReactorConfig({'version': 1,
+                       'registries': registries_list,
+                       'platform_descriptors': platform_descriptors_list})
 
     runner = ExitPluginsRunner(tasker, workflow, plugins_conf)
     results = runner.run()
