@@ -107,6 +107,7 @@ class MockedClientSession(object):
 
         self.blocksize = None
         self.server_dir = None
+        self.refunded_build = False
 
     def krb_login(self, principal=None, keytab=None, proxyuser=None):
         return True
@@ -129,6 +130,9 @@ class MockedClientSession(object):
         self.metadata = metadata    # pylint: disable=attribute-defined-outside-init
         self.server_dir = server_dir
         return {"id": "123"}
+
+    def CGRefundBuild(self, cg, build_id, token):
+        self.refunded_build = True
 
     def getBuildTarget(self, target):
         return {'dest_tag_name': self.DEST_TAG}
@@ -531,12 +535,13 @@ def os_env(monkeypatch):
 
 def create_runner(tasker, workflow, ssl_certs=False, principal=None,
                   keytab=None, target=None, tag_later=False, reactor_config_map=False,
-                  blocksize=None):
+                  blocksize=None, reserve_build=False):
     args = {
         'kojihub': '',
         'url': '/',
     }
     koji_map = {
+        'reserve_build': reserve_build,
         'hub_url': '',
         'auth': {}
     }
@@ -634,7 +639,8 @@ class TestKojiImport(object):
 
         assert plugin.get_buildroot(metadatas) == results
 
-    def test_koji_import_failed_build(self, tmpdir, os_env, reactor_config_map):  # noqa
+    @pytest.mark.parametrize('reserved_build', [True, False])  # noqa
+    def test_koji_import_failed_build(self, reserved_build, tmpdir, os_env, reactor_config_map):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
                                             session=session,
@@ -642,11 +648,18 @@ class TestKojiImport(object):
                                             name='ns/name',
                                             version='1.0',
                                             release='1')
-        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
+        if reserved_build:
+            workflow.reserved_build_id = 1
+            workflow.reserved_token = 1
+
+        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map,
+                               reserve_build=reserved_build)
         runner.run()
 
         # Must not have importd this build
         assert not hasattr(session, 'metadata')
+        if reactor_config_map and reserved_build:
+            assert session.refunded_build
 
     def test_koji_import_no_build_env(self, tmpdir, monkeypatch, os_env, reactor_config_map):  # noqa
         tasker, workflow = mock_environment(tmpdir,
