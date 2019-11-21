@@ -93,8 +93,8 @@ In each buildroot, the extra.osbs key is used to define a map that contains thes
 - `build_id` (string): the build ID which resulted in the buildroot currently running atomic-reactor (**currently incorrect**)
 - `builder_image_id` (string): the docker pull-by-digest specification for the buildroot currently running atomic-reactor
 - `koji` (dict): a dictionary containing the following items
-- `name` (string): the koji name-nvr of the build
-- `builder_image_id` (dict): the docker digests of the build if availble or an empty dict otherwise.
+  - `build_name` (string): the koji name-nvr of the build
+  - `builder_image_id` (dict): the docker digests of the build if availble or an empty dict otherwise.
 
 # Type-specific output metadata:
 
