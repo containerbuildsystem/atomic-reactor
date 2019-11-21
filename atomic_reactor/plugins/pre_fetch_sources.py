@@ -10,6 +10,8 @@ from __future__ import absolute_import
 import os
 import tempfile
 
+from six import string_types
+
 from atomic_reactor.constants import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import (
@@ -46,8 +48,9 @@ class FetchSourcesPlugin(PreBuildPlugin):
         type_errors = []
         if koji_build_id is not None and not isinstance(koji_build_id, int):
             type_errors.append('koji_build_id must be an int. Got {}'.format(type(koji_build_id)))
-        if koji_build_nvr is not None and not isinstance(koji_build_nvr, str):
-            type_errors.append('koji_build_nvr must be a str. Got {}'.format(type(koji_build_nvr)))
+        if koji_build_nvr is not None and not isinstance(koji_build_nvr, string_types):
+            type_errors.append('koji_build_nvr must be a str. Got {}'
+                               .format(type(koji_build_nvr)))
         if type_errors:
             raise TypeError(type_errors)
 
