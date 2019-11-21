@@ -186,6 +186,10 @@ class FetchSourcesPlugin(PreBuildPlugin):
         :return: dict, signing intent object as per atomic_reactor/schemas/config.json
         """
         odcs_config = get_config(self.workflow).get_odcs_config()
+        if odcs_config is None:
+            self.log.warning('No ODCS configuration available. Allowing unsigned SRPMs')
+            return {'keys': None}
+
         if not self.signing_intent:
             try:
                 self.signing_intent = self.koji_build['extra']['image']['odcs']['signing_intent']
