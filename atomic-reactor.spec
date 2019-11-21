@@ -76,6 +76,7 @@ Requires:       python3-jsonschema
 Requires:       python3-PyYAML
 Requires:       python3-rpm
 Requires:       python3-six
+Requires:       skopeo
 Provides:       python3-dock = %{version}-%{release}
 Obsoletes:      python3-dock < %{dock_obsolete_vr}
 %{?python_provide:%python_provide python3-atomic-reactor}
@@ -140,6 +141,7 @@ Requires:       python-backports-lzma
 Requires:       python-jsonschema
 Requires:       python-six
 Requires:       PyYAML
+Requires:       skopeo
 %if 0%{?fedora}
 Requires:       python2-rpm
 %else
