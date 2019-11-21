@@ -266,6 +266,15 @@ class TestFetchSources(object):
         if build_nvr:
             assert nvr_msg in str(exc.value)
 
+    @pytest.mark.parametrize('build_nvr', ('foobar-1-1', u'foobar-1-1'))
+    def test_build_info_with_unicode(self, requests_mock, docker_tasker, koji_session, tmpdir,
+                                     caplog, build_nvr):
+        mock_koji_manifest_download(requests_mock)
+        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr=build_nvr)
+        runner.run()
+        nvr_msg = 'koji_build_nvr must be a str'
+        assert nvr_msg not in caplog.text
+
     def test_build_with_nvr(self, requests_mock, docker_tasker, koji_session, tmpdir):
         mock_koji_manifest_download(requests_mock)
         runner = mock_env(tmpdir, docker_tasker, koji_build_nvr='foobar-1-1')
