@@ -37,6 +37,15 @@ constants.HTTP_BACKOFF_FACTOR = 0
 
 DEFAULT_SIGNING_INTENT = 'empty'
 
+BASE_CONFIG_MAP = dedent("""\
+    version: 1
+    koji:
+       hub_url: {}
+       root_url: {}
+       auth:
+           ssl_certs_dir: not_needed_here
+    """.format(KOJI_HUB, KOJI_ROOT))
+
 
 def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_INTENT):
     if data is None:
@@ -82,7 +91,8 @@ class MockSource(StubSource):
         self.workdir = workdir
 
 
-def mock_workflow(tmpdir, for_orchestrator=False, default_si=DEFAULT_SIGNING_INTENT):
+def mock_workflow(tmpdir, for_orchestrator=False, config_map=None,
+                  default_si=DEFAULT_SIGNING_INTENT):
     workflow = DockerBuildWorkflow(
         TEST_IMAGE,
         source={"provider": "git", "uri": "asd"}
@@ -96,15 +106,16 @@ def mock_workflow(tmpdir, for_orchestrator=False, default_si=DEFAULT_SIGNING_INT
     if for_orchestrator:
         workflow.buildstep_plugins_conf = [{'name': constants.PLUGIN_BUILD_ORCHESTRATE_KEY}]
 
-    mock_reactor_config(workflow, tmpdir, default_si=default_si)
+    mock_reactor_config(workflow, tmpdir, data=config_map, default_si=default_si)
     return workflow
 
 
 def mock_env(tmpdir, docker_tasker, scratch=False, orchestrator=False, koji_build_id=None,
-             koji_build_nvr=None, default_si=DEFAULT_SIGNING_INTENT):
+             koji_build_nvr=None, config_map=None, default_si=DEFAULT_SIGNING_INTENT):
     build_json = {'metadata': {'labels': {'scratch': scratch}}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
-    workflow = mock_workflow(tmpdir, for_orchestrator=orchestrator, default_si=default_si)
+    workflow = mock_workflow(tmpdir, for_orchestrator=orchestrator, config_map=config_map,
+                             default_si=default_si)
     plugin_conf = [{'name': FetchSourcesPlugin.key}]
     plugin_conf[0]['args'] = {
         'koji_build_id': koji_build_id,
@@ -173,12 +184,14 @@ def mock_koji_manifest_download(requests_mock, retries=0):
 
 class TestFetchSources(object):
     @pytest.mark.parametrize('retries', (0, 1, constants.HTTP_MAX_RETRIES + 1))
+    @pytest.mark.parametrize('custom_rcm', (None, BASE_CONFIG_MAP))
     @pytest.mark.parametrize('signing_intent', ('unsigned', 'empty', 'one', 'multiple', 'invalid'))
     def test_fetch_sources(self, requests_mock, docker_tasker, koji_session, tmpdir, signing_intent,
-                          caplog, retries):
+                           caplog, retries, custom_rcm):
         mock_koji_manifest_download(requests_mock, retries)
-        runner = mock_env(tmpdir, docker_tasker, koji_build_id=1, default_si=signing_intent)
-        if signing_intent == 'invalid':
+        runner = mock_env(tmpdir, docker_tasker, koji_build_id=1, config_map=custom_rcm,
+                          default_si=signing_intent)
+        if signing_intent == 'invalid' and not custom_rcm:
             with pytest.raises(PluginFailedException) as exc:
                 runner.run()
             msg = 'Could not find files signed by'
@@ -205,6 +218,9 @@ class TestFetchSources(object):
                 assert get_srpm_url() in caplog.text
             if signing_intent in ['one, multiple']:
                 assert get_srpm_url('usedKey') in caplog.text
+            if custom_rcm:
+                assert get_srpm_url() in caplog.text
+                assert get_srpm_url('usedKey') not in caplog.text
 
     @pytest.mark.parametrize('signing_intent', ('unsigned', 'empty', 'one', 'multiple', 'invalid'))
     def test_koji_signing_intent(self, requests_mock, docker_tasker, koji_session, tmpdir,
