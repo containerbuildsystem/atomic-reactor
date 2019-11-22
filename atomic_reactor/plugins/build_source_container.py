@@ -75,14 +75,13 @@ class SourceContainerPlugin(BuildStepPlugin):
             volume_bindings=volume_bindings,
             command=command
         )
-        response = self.tasker.wait(container_id)
+        status_code = self.tasker.wait(container_id)
         output = self.tasker.logs(container_id, stream=False)
 
         self.log.debug("Build log:\n%s", "\n".join(output))
 
         self.tasker.cleanup_containers(container_id)
 
-        status_code = response['StatusCode']
         if status_code != 0:
             reason = (
                 "Source container build failed with error code {}. "
