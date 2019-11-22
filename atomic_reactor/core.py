@@ -852,7 +852,12 @@ class DockerTasker(CommonTasker):
         """
         logger.info("waiting for container '%s' to finish", container_id)
         logger.debug("container = '%s'", container_id)
-        response = self.d.wait(container_id)  # returns exit code as int
+        # docker < 3.0.0 wait methods return int representing the exit code
+        # docker >= 3.0.0 wait methods return dict representing the API response
+        response = self.d.wait(container_id)
+        if isinstance(response, dict):
+            response = response['StatusCode']
+
         logger.debug("container finished with exit code %s", response)
         return response
 
