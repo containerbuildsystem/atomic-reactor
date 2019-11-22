@@ -8,24 +8,19 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals, absolute_import
 
 import os
+import subprocess
 
 from flexmock import flexmock
-import pytest
 
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugin import BuildStepPluginsRunner
 from atomic_reactor.plugins.build_source_container import SourceContainerPlugin
 from atomic_reactor.plugins.pre_reactor_config import (
-    WORKSPACE_CONF_KEY,
-    ReactorConfig,
     ReactorConfigPlugin,
 )
 from tests.docker_mock import mock_docker
 from tests.constants import TEST_IMAGE, MOCK_SOURCE
-
-
-SOURCE_CONTAINERS_CONF = {'source_builder_image': "quay.io/ctrs/bsi:latest"}
 
 
 class MockSource(object):
@@ -56,7 +51,7 @@ class MockInsideBuilder(object):
         pass
 
 
-def mock_workflow(tmpdir, source_containers_conf=None):
+def mock_workflow(tmpdir):
     workflow = DockerBuildWorkflow(TEST_IMAGE, source=MOCK_SOURCE)
     builder = MockInsideBuilder()
     source = MockSource(tmpdir)
@@ -65,19 +60,16 @@ def mock_workflow(tmpdir, source_containers_conf=None):
     setattr(workflow, 'builder', builder)
 
     workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-    if source_containers_conf is not None:
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1, 'source_containers': source_containers_conf})
 
     return workflow
 
 
-def test_running_build(tmpdir):
+def test_running_build(tmpdir, caplog):
     """
     Test if proper result is returned and if plugin works
     """
-    workflow = mock_workflow(
-        tmpdir, source_containers_conf=SOURCE_CONTAINERS_CONF)
+    flexmock(subprocess).should_receive('check_output').and_return('stub stdout')
+    workflow = mock_workflow(tmpdir)
     mocked_tasker = flexmock(workflow.builder.tasker)
     mocked_tasker.should_receive('wait').and_return(0)
     runner = BuildStepPluginsRunner(
@@ -91,39 +83,17 @@ def test_running_build(tmpdir):
     build_result = runner.run()
     assert not build_result.is_failed()
     assert build_result.oci_image_path
+    assert 'stub stdout' in caplog.text
 
 
-@pytest.mark.parametrize('source_containers_conf,emsg', [
-    ({}, "Cannot build source containers, builder image is not specified in configuration"),
-    (None, "Cannot build source containers, builder image is not specified in configuration"),
-])
-def test_incorrect_config(tmpdir, source_containers_conf, emsg):
-    """
-    Test if plugin reports proper errors for incorrect configuration
-    """
-    workflow = mock_workflow(
-        tmpdir, source_containers_conf=source_containers_conf)
-    runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
-        workflow,
-        [{
-            'name': SourceContainerPlugin.key,
-            'args': {},
-        }]
-    )
-    if emsg is not None:
-        with pytest.raises(Exception) as exc_info:
-            runner.run()
-        assert emsg in str(exc_info.value)
-
-
-def test_failed_build(tmpdir):
+def test_failed_build(tmpdir, caplog):
     """
     Test if proper error state is returned when build inside build
     container failed
     """
-    workflow = mock_workflow(
-        tmpdir, source_containers_conf=SOURCE_CONTAINERS_CONF)
+    (flexmock(subprocess).should_receive('check_output')
+     .and_raise(subprocess.CalledProcessError(1, 'cmd', output='stub stdout')))
+    workflow = mock_workflow(tmpdir)
     mocked_tasker = flexmock(workflow.builder.tasker)
     mocked_tasker.should_receive('wait').and_return(1)
     runner = BuildStepPluginsRunner(
@@ -137,3 +107,5 @@ def test_failed_build(tmpdir):
 
     build_result = runner.run()
     assert build_result.is_failed()
+    assert 'BSI failed with output:' in caplog.text
+    assert 'stub stdout' in caplog.text
