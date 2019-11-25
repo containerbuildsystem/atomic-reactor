@@ -56,7 +56,7 @@ class MockedClientSessionGeneral(object):
 
 
 class MockSource(object):
-    def __init__(self, tmpdir, add_timestamp=None):
+    def __init__(self, tmpdir, add_timestamp=None, release_env=None):
         self.dockerfile_path = str(tmpdir.join('Dockerfile'))
         self.path = str(tmpdir)
         self.commit_id = None
@@ -64,6 +64,7 @@ class MockSource(object):
             self.config = flexmock(autorebuild=dict(add_timestamp_to_release=add_timestamp))
         else:
             self.config = flexmock(autorebuild=dict())
+        setattr(self.config, 'release_env_var', release_env)
 
 
 class TestBumpRelease(object):
@@ -77,6 +78,7 @@ class TestBumpRelease(object):
                 reserve_build=False,
                 is_auto=False,
                 add_timestamp=None,
+                release_env=None,
                 fetch_source=False):
         if labels is None:
             labels = {}
@@ -86,7 +88,7 @@ class TestBumpRelease(object):
         setattr(workflow, 'plugin_workspace', {})
         setattr(workflow, 'reserved_build_id', None)
         setattr(workflow, 'reserved_token ', None)
-        setattr(workflow, 'source', MockSource(tmpdir, add_timestamp))
+        setattr(workflow, 'source', MockSource(tmpdir, add_timestamp, release_env))
         setattr(workflow, 'prebuild_results', {CheckAndSetRebuildPlugin.key: is_auto})
         if fetch_source:
             workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
@@ -261,6 +263,7 @@ class TestBumpRelease(object):
         (True, None),
         (False, None)
     ])
+    @pytest.mark.parametrize('release_env', ['TEST_RELEASE_VAR', None])
     @pytest.mark.parametrize('next_release, base_release, append', [
         ({'actual': '1', 'builds': [], 'expected': '1', 'scratch': False},
          None, False),
@@ -324,9 +327,11 @@ class TestBumpRelease(object):
     ])
     def test_increment_and_append(self, tmpdir, component, version, next_release, base_release,
                                   append, include_target, reserve_build, init_fails,
+                                  release_env,
                                   reactor_config_map):
         build_id = '123456'
         token = 'token_123456'
+
         class MockedClientSession(object):
             def __init__(self, hub, opts=None):
                 self.ca_path = None
@@ -379,7 +384,8 @@ class TestBumpRelease(object):
                               certs=True,
                               reactor_config_map=reactor_config_map,
                               reserve_build=reserve_build,
-                              append=append)
+                              append=append,
+                              release_env=release_env)
 
         new_environ = deepcopy(os.environ)
         new_environ["BUILD"] = dedent('''\
@@ -433,6 +439,10 @@ class TestBumpRelease(object):
         if reserve_build and reactor_config_map and not next_release['scratch']:
             assert plugin.workflow.reserved_build_id == build_id
             assert plugin.workflow.reserved_token == token
+
+        if release_env:
+            expected = "ENV {}={}\n".format(release_env, next_release['expected'])
+            assert expected in parser.lines
 
     @pytest.mark.parametrize('reserve_build, init_fails', [
         (True, RuntimeError),
