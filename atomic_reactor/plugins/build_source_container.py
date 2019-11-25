@@ -7,11 +7,12 @@ of the BSD license. See the LICENSE file for details.
 """
 from __future__ import print_function, unicode_literals, absolute_import
 
+import os
 import subprocess
 import tempfile
 
 from atomic_reactor.build import BuildResult
-from atomic_reactor.constants import PLUGIN_SOURCE_CONTAINER_KEY
+from atomic_reactor.constants import PLUGIN_SOURCE_CONTAINER_KEY, PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import BuildStepPlugin
 
 
@@ -29,8 +30,15 @@ class SourceContainerPlugin(BuildStepPlugin):
         Returns:
             BuildResult
         """
-        source_data_dir = tempfile.mkdtemp()  # TODO: from pre_* plugin
-        # TODO fail when source dir is empty
+        fetch_sources_result = self.workflow.prebuild_results.get(PLUGIN_FETCH_SOURCES_KEY, {})
+        source_data_dir = fetch_sources_result.get('image_sources_dir')
+        if not source_data_dir or not os.path.isdir(source_data_dir):
+            err_msg = "No SRPMs directory '{}' available".format(source_data_dir)
+            self.log.error(err_msg)
+            return BuildResult(logs=err_msg, fail_reason=err_msg)
+
+        if not os.listdir(source_data_dir):
+            self.log.warning("SRPMs directory '%s' is empty", source_data_dir)
 
         image_output_dir = tempfile.mkdtemp()
 
