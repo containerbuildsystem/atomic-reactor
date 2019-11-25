@@ -165,6 +165,15 @@
         "demo"
       ]
     },
+    "set_release_env": {
+      "type": "string",
+      "description": "Name of an environment variable to set in the Dockerfile file with the release number",
+      "examples": [
+        "CONTAINER_RELEASE_NVR",
+        "IMAGE_RELEASE",
+        "OS_BUILD"
+      ]
+    },
     "version": {
       "type": "integer",
       "description": "Deprecated option kept for backwards compatibility. Should not be used",
