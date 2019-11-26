@@ -518,7 +518,7 @@ def test_floating_tags_push(tmpdir, workflow, test_name, registries, manifest_re
         assert isinstance(plugin_result, dict)
         # Check that plugin returns correct list of repos
         actual_repos = sorted(plugin_result.keys())
-        expected_repos = sorted(set([x.get_repo() for x in workflow.tag_conf.images]))
+        expected_repos = sorted(x.get_repo() for x in workflow.tag_conf.images)
         assert expected_repos == actual_repos
     else:
         assert not plugin_result
