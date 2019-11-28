@@ -9,12 +9,18 @@ from __future__ import unicode_literals, absolute_import
 
 import os
 import subprocess
+import tempfile
 
 from flexmock import flexmock
+import pytest
+import json
+import tarfile
 
+from atomic_reactor.constants import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME
 from atomic_reactor.core import DockerTasker
-from atomic_reactor.plugin import BuildStepPluginsRunner
+from atomic_reactor.plugin import BuildStepPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.build_source_container import SourceContainerPlugin
 from atomic_reactor.plugins.pre_reactor_config import (
     ReactorConfigPlugin,
@@ -51,7 +57,7 @@ class MockInsideBuilder(object):
         pass
 
 
-def mock_workflow(tmpdir):
+def mock_workflow(tmpdir, sources_dir=''):
     workflow = DockerBuildWorkflow(TEST_IMAGE, source=MOCK_SOURCE)
     builder = MockInsideBuilder()
     source = MockSource(tmpdir)
@@ -60,16 +66,31 @@ def mock_workflow(tmpdir):
     setattr(workflow, 'builder', builder)
 
     workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+    workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
+        'image_sources_dir': os.path.join(tmpdir.strpath, sources_dir),
+    }
 
     return workflow
 
 
-def test_running_build(tmpdir, caplog):
+@pytest.mark.parametrize('sources_dir, sources_dir_exists, sources_dir_empty', [
+    ('sources_dir', False, True),
+    ('sources_dir', True, True),
+    ('sources_dir', True, False)])
+@pytest.mark.parametrize('export_failed', (True, False))
+def test_running_build(tmpdir, caplog, sources_dir, sources_dir_exists, sources_dir_empty,
+                       export_failed):
     """
     Test if proper result is returned and if plugin works
     """
-    flexmock(subprocess).should_receive('check_output').and_return('stub stdout')
-    workflow = mock_workflow(tmpdir)
+    sources_dir_path = os.path.join(tmpdir.strpath, sources_dir)
+    if sources_dir_exists:
+        os.mkdir(sources_dir_path)
+        if not sources_dir_empty:
+            os.mknod(os.path.join(sources_dir_path, 'stub.srpm'))
+
+    workflow = mock_workflow(tmpdir, sources_dir)
+
     mocked_tasker = flexmock(workflow.builder.tasker)
     mocked_tasker.should_receive('wait').and_return(0)
     runner = BuildStepPluginsRunner(
@@ -80,10 +101,85 @@ def test_running_build(tmpdir, caplog):
             'args': {},
         }]
     )
-    build_result = runner.run()
-    assert not build_result.is_failed()
-    assert build_result.oci_image_path
-    assert 'stub stdout' in caplog.text
+
+    temp_image_output_dir = os.path.join(str(tmpdir), 'image_output_dir')
+    temp_image_export_dir = os.path.join(str(tmpdir), 'image_export_dir')
+    tempfile_chain = flexmock(tempfile).should_receive("mkdtemp").and_return(temp_image_output_dir)
+    tempfile_chain.and_return(temp_image_export_dir)
+    os.mkdir(temp_image_export_dir)
+    os.makedirs(os.path.join(temp_image_output_dir, 'blobs', 'sha256'))
+
+    def check_check_output(args, **kwargs):
+        if args[0] == 'skopeo':
+            assert args[0] == 'skopeo'
+            assert args[1] == 'copy'
+            assert args[2] == 'oci:%s' % temp_image_output_dir
+            assert args[3] == 'oci-archive:%s' % os.path.join(temp_image_export_dir,
+                                                              EXPORTED_SQUASHED_IMAGE_NAME)
+
+            if export_failed:
+                raise subprocess.CalledProcessError(returncode=1, cmd=args, output="Failed")
+
+            return ''
+        else:
+            assert args[0] == 'bsi'
+            assert args[1] == '-d'
+            assert args[2] == 'sourcedriver_rpm_dir'
+            assert args[3] == '-s'
+            assert args[4] == sources_dir_path
+            assert args[5] == '-o'
+            assert args[6] == temp_image_output_dir
+            return 'stub stdout'
+
+    check_output_times = 2
+    if not sources_dir_exists:
+        check_output_times = 0
+    (flexmock(subprocess)
+     .should_receive("check_output")
+     .times(check_output_times)
+     .replace_with(check_check_output))
+
+    blob_sha = "f568c411849e21aa3917973f1c5b120f6b52fe69b1944dfb977bc11bed6fbb6d"
+    index_json = {"schemaVersion": 2,
+                  "manifests":
+                      [{"mediaType": "application/vnd.oci.image.manifest.v1+json",
+                        "digest": "sha256:%s" % blob_sha,
+                        "size": 645,
+                        "annotations": {"org.opencontainers.image.ref.name": "latest-source"},
+                        "platform": {"architecture": "amd64", "os": "linux"}}]}
+    blob_json = {"schemaVersion": 2, "layers": []}
+
+    with open(os.path.join(temp_image_output_dir, 'index.json'), 'w') as fp:
+        fp.write(json.dumps(index_json))
+    with open(os.path.join(temp_image_output_dir, 'blobs', 'sha256', blob_sha), 'w') as fp:
+        fp.write(json.dumps(blob_json))
+
+    if not export_failed:
+        export_tar = os.path.join(temp_image_export_dir, EXPORTED_SQUASHED_IMAGE_NAME)
+        with open(export_tar, "wb") as f:
+            with tarfile.TarFile(mode="w", fileobj=f) as tf:
+                for f in os.listdir(temp_image_output_dir):
+                    tf.add(os.path.join(temp_image_output_dir, f), f)
+
+    if not sources_dir_exists:
+        build_result = runner.run()
+        err_msg = "No SRPMs directory '{}' available".format(sources_dir_path)
+        assert err_msg in caplog.text
+        assert build_result.is_failed()
+
+    elif export_failed:
+        with pytest.raises(PluginFailedException):
+            runner.run()
+    else:
+        build_result = runner.run()
+        assert not build_result.is_failed()
+        assert build_result.oci_image_path
+        assert 'stub stdout' in caplog.text
+        empty_msg = "SRPMs directory '{}' is empty".format(sources_dir_path)
+        if sources_dir_empty:
+            assert empty_msg in caplog.text
+        else:
+            assert empty_msg not in caplog.text
 
 
 def test_failed_build(tmpdir, caplog):

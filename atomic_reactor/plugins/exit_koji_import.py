@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals, absolute_import
 
+import copy
 import json
 import os
 import time
@@ -24,7 +25,9 @@ from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import (OSBSLogs, get_parent_image_koji_data, get_manifest_media_version,
                                  is_manifest_list)
+from atomic_reactor.koji_util import get_buildroot, get_output, generate_koji_upload_dir
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
+from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 
 try:
     from atomic_reactor.plugins.pre_flatpak_create_dockerfile import get_flatpak_source_info
@@ -126,21 +129,36 @@ class KojiImportPlugin(ExitPlugin):
         self.build_id = None
         self.session = None
         self.reserve_build = get_koji(self.workflow, self.koji_fallback).get('reserve_build', False)
+        self.source_build = bool(self.workflow.build_result.oci_image_path)
 
-    def get_output(self, worker_metadatas):
+    def get_output(self, worker_metadatas, buildroot_id):
         """
         Build the output entry of the metadata.
 
         :return: list, containing dicts of partial metadata
         """
         outputs = []
+        output_file = None
 
-        for platform in worker_metadatas:
-            for instance in worker_metadatas[platform]['output']:
-                instance['buildroot_id'] = '{}-{}'.format(platform, instance['buildroot_id'])
-                outputs.append(instance)
+        if self.source_build:
 
-        return outputs
+            registry = self.workflow.push_conf.docker_registries[0]
+
+            build_name = get_unique_images(self.workflow)[0]
+            pullspec = copy.deepcopy(build_name)
+            pullspec.registry = registry.uri
+
+            outputs, output_file = get_output(workflow=self.workflow, buildroot_id=buildroot_id,
+                                              pullspec=pullspec, platform=os.uname()[4],
+                                              source_build=True, logs=None)
+
+        else:
+            for platform in worker_metadatas:
+                for instance in worker_metadatas[platform]['output']:
+                    instance['buildroot_id'] = '{}-{}'.format(platform, instance['buildroot_id'])
+                    outputs.append(instance)
+
+        return outputs, output_file
 
     def get_buildroot(self, worker_metadatas):
         """
@@ -149,10 +167,30 @@ class KojiImportPlugin(ExitPlugin):
         :return: list, containing dicts of partial metadata
         """
         buildroots = []
-        for platform in sorted(worker_metadatas.keys()):
-            for instance in worker_metadatas[platform]['buildroots']:
-                instance['id'] = '{}-{}'.format(platform, instance['id'])
-                buildroots.append(instance)
+
+        if self.source_build:
+            buildroot = get_buildroot(build_id=self.build_id, tasker=self.tasker,
+                                      osbs=self.osbs, rpms=False)
+            buildroot['id'] = '{}-{}'.format(buildroot['container']['arch'], buildroot['id'])
+
+            registry = self.workflow.push_conf.docker_registries[0]
+            build_name = get_unique_images(self.workflow)[0].to_str()
+
+            manifest_digest = registry.digests[build_name]
+            digest_version = get_manifest_media_version(manifest_digest)
+            media_type = get_manifest_media_type(digest_version)
+
+            buildroot['extra']['osbs']['koji'] = {
+                'build_name': build_name,
+                'builder_image_id': {media_type: manifest_digest.default}
+            }
+
+            buildroots.append(buildroot)
+        else:
+            for platform in sorted(worker_metadatas.keys()):
+                for instance in worker_metadatas[platform]['buildroots']:
+                    instance['id'] = '{}-{}'.format(platform, instance['id'])
+                    buildroots.append(instance)
 
         return buildroots
 
@@ -175,11 +213,13 @@ class KojiImportPlugin(ExitPlugin):
 
     def set_media_types(self, extra, worker_metadatas):
         media_types = []
-        for platform in worker_metadatas:
-            annotations = get_worker_build_info(self.workflow, platform).build.get_annotations()
-            if annotations.get('media-types'):
-                media_types = json.loads(annotations['media-types'])
-                break
+        if not self.source_build:
+            for platform in worker_metadatas:
+                annotations = get_worker_build_info(self.workflow,
+                                                    platform).build.get_annotations()
+                if annotations.get('media-types'):
+                    media_types = json.loads(annotations['media-types'])
+                    break
 
         # Append media_types from verify images
         media_results = self.workflow.exit_results.get(PLUGIN_VERIFY_MEDIA_KEY)
@@ -298,19 +338,72 @@ class KojiImportPlugin(ExitPlugin):
 
     def get_build(self, metadata, worker_metadatas):
         start_time = int(atomic_reactor_start_time)
+        extra = {'image': {}}
 
-        labels = Labels(df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels)
-        _, component = labels.get_name_and_value(Labels.LABEL_TYPE_COMPONENT)
-        _, version = labels.get_name_and_value(Labels.LABEL_TYPE_VERSION)
-        _, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
+        if not self.source_build:
+            labels = Labels(df_parser(self.workflow.builder.df_path,
+                                      workflow=self.workflow).labels)
+            _, component = labels.get_name_and_value(Labels.LABEL_TYPE_COMPONENT)
+            _, version = labels.get_name_and_value(Labels.LABEL_TYPE_VERSION)
+            _, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
 
-        source = self.workflow.source
-        if not isinstance(source, GitSource):
-            raise RuntimeError('git source required')
+            source = self.workflow.source
+            if not isinstance(source, GitSource):
+                raise RuntimeError('git source required')
 
-        extra = {'image': {'autorebuild': is_rebuild(self.workflow)}}
-        if self.workflow.triggered_after_koji_task:
-            extra['image']['triggered_after_koji_task'] = self.workflow.triggered_after_koji_task
+            extra['image']['autorebuild'] = is_rebuild(self.workflow)
+            if self.workflow.triggered_after_koji_task:
+                extra['image']['triggered_after_koji_task'] =\
+                    self.workflow.triggered_after_koji_task
+
+            try:
+                isolated = str(metadata['labels']['isolated']).lower() == 'true'
+            except (IndexError, AttributeError, KeyError):
+                isolated = False
+            self.log.info("build is isolated: %r", isolated)
+            extra['image']['isolated'] = isolated
+
+            fs_result = self.workflow.prebuild_results.get(AddFilesystemPlugin.key)
+            if fs_result is not None:
+                try:
+                    fs_task_id = fs_result['filesystem-koji-task-id']
+                except KeyError:
+                    self.log.error("%s: expected filesystem-koji-task-id in result",
+                                   AddFilesystemPlugin.key)
+                else:
+                    try:
+                        task_id = int(fs_task_id)
+                    except ValueError:
+                        self.log.error("invalid task ID %r", fs_task_id, exc_info=1)
+                    else:
+                        extra['filesystem_koji_task_id'] = task_id
+
+            extra['image'].update(get_parent_image_koji_data(self.workflow))
+
+            flatpak_source_info = get_flatpak_source_info(self.workflow)
+            if flatpak_source_info is not None:
+                compose_info = get_compose_info(self.workflow)
+                koji_metadata = compose_info.koji_metadata()
+                koji_metadata['flatpak'] = True
+                extra['image'].update(koji_metadata)
+
+            resolve_comp_result = self.workflow.prebuild_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
+            if resolve_comp_result:
+                extra['image']['odcs'] = {
+                    'compose_ids': [item['id'] for item in resolve_comp_result['composes']],
+                    'signing_intent': resolve_comp_result['signing_intent'],
+                    'signing_intent_overridden': resolve_comp_result['signing_intent_overridden'],
+                }
+            if self.workflow.all_yum_repourls:
+                extra['image']['yum_repourls'] = self.workflow.all_yum_repourls
+
+            self.set_help(extra, worker_metadatas)
+            self.set_operators_metadata(extra, worker_metadatas)
+            self.set_go_metadata(extra)
+            self.set_group_manifest_info(extra, worker_metadatas)
+        else:
+            source_result = self.workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY]
+            extra['image']['sources_for_nvr'] = source_result['sources_for_nvr']
 
         koji_task_id = metadata.get('labels', {}).get('koji-task-id')
         if koji_task_id is not None:
@@ -321,66 +414,31 @@ class KojiImportPlugin(ExitPlugin):
             except ValueError:
                 self.log.error("invalid task ID %r", koji_task_id, exc_info=1)
 
-        try:
-            isolated = str(metadata['labels']['isolated']).lower() == 'true'
-        except (IndexError, AttributeError, KeyError):
-            isolated = False
-        self.log.info("build is isolated: %r", isolated)
-        extra['image']['isolated'] = isolated
-
-        fs_result = self.workflow.prebuild_results.get(AddFilesystemPlugin.key)
-        if fs_result is not None:
-            try:
-                fs_task_id = fs_result['filesystem-koji-task-id']
-            except KeyError:
-                self.log.error("%s: expected filesystem-koji-task-id in result",
-                               AddFilesystemPlugin.key)
-            else:
-                try:
-                    task_id = int(fs_task_id)
-                except ValueError:
-                    self.log.error("invalid task ID %r", fs_task_id, exc_info=1)
-                else:
-                    extra['filesystem_koji_task_id'] = task_id
-
-        extra['image'].update(get_parent_image_koji_data(self.workflow))
-
-        flatpak_source_info = get_flatpak_source_info(self.workflow)
-        if flatpak_source_info is not None:
-            compose_info = get_compose_info(self.workflow)
-            koji_metadata = compose_info.koji_metadata()
-            koji_metadata['flatpak'] = True
-            extra['image'].update(koji_metadata)
-
         koji_task_owner = get_koji_task_owner(self.session, koji_task_id).get('name')
         extra['submitter'] = self.session.getLoggedInUser()['name']
 
-        resolve_comp_result = self.workflow.prebuild_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
-        if resolve_comp_result:
-            extra['image']['odcs'] = {
-                'compose_ids': [item['id'] for item in resolve_comp_result['composes']],
-                'signing_intent': resolve_comp_result['signing_intent'],
-                'signing_intent_overridden': resolve_comp_result['signing_intent_overridden'],
-            }
-        if self.workflow.all_yum_repourls:
-            extra['image']['yum_repourls'] = self.workflow.all_yum_repourls
-
-        self.set_help(extra, worker_metadatas)
         self.set_media_types(extra, worker_metadatas)
-        self.set_go_metadata(extra)
-        self.set_operators_metadata(extra, worker_metadatas)
-        self.set_group_manifest_info(extra, worker_metadatas)
 
         build = {
-            'name': component,
-            'version': version,
-            'release': release,
-            'source': "{0}#{1}".format(source.uri, source.commit_id),
             'start_time': start_time,
             'end_time': int(time.time()),
             'extra': extra,
             'owner': koji_task_owner,
         }
+        if self.source_build:
+            build.update({
+                'name': self.workflow.koji_source_nvr['name'],
+                'version': self.workflow.koji_source_nvr['version'],
+                'release': self.workflow.koji_source_nvr['release'],
+                'source': self.workflow.koji_source_source_url,
+            })
+        else:
+            build.update({
+                'name': component,
+                'version': version,
+                'release': release,
+                'source': "{0}#{1}".format(source.uri, source.commit_id),
+            })
 
         return build
 
@@ -408,11 +466,14 @@ class KojiImportPlugin(ExitPlugin):
         build = self.get_build(metadata, worker_metadatas)
         buildroot = self.get_buildroot(worker_metadatas)
         buildroot_id = buildroot[0]['id']
-        output = self.get_output(worker_metadatas)
+        output, output_file = self.get_output(worker_metadatas, buildroot_id)
         osbs_logs = OSBSLogs(self.log)
         output_files = [add_log_type(add_buildroot_id(md, buildroot_id))
                         for md in osbs_logs.get_log_files(self.osbs, self.build_id)]
+
         output.extend([of.metadata for of in output_files])
+        if output_file:
+            output_files.append(output_file)
 
         koji_metadata = {
             'metadata_version': metadata_version,
@@ -477,7 +538,10 @@ class KojiImportPlugin(ExitPlugin):
                 self.session.CGRefundBuild(PROG, build_id, build_token)
             return
 
-        server_dir = get_koji_upload_dir(self.workflow)
+        if self.source_build:
+            server_dir = generate_koji_upload_dir()
+        else:
+            server_dir = get_koji_upload_dir(self.workflow)
 
         koji_metadata, output_files = self.combine_metadata_fragments()
 

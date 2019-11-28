@@ -11,21 +11,13 @@ from __future__ import unicode_literals, absolute_import, division
 from collections import namedtuple
 import os
 from tempfile import NamedTemporaryFile
-import copy
 
-from atomic_reactor import __version__ as atomic_reactor_version
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_reactor_config import (get_openshift_session,
                                                        get_koji_session)
-from atomic_reactor.constants import (PROG, PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
-                                      PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
-                                      OPERATOR_MANIFESTS_ARCHIVE)
-from atomic_reactor.util import (get_version_of_tools, get_checksums,
-                                 get_build_json, get_docker_architecture,
-                                 get_image_upload_filename,
-                                 get_manifest_media_type, ImageName, is_scratch_build)
-from atomic_reactor.rpm_util import get_rpm_list, parse_rpm_output
+from atomic_reactor.constants import PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
+from atomic_reactor.util import (get_build_json, ImageName, is_scratch_build)
+from atomic_reactor.koji_util import get_buildroot, get_output, get_output_metadata
 from osbs.exceptions import OsbsException
 
 # An output file and its metadata
@@ -132,112 +124,6 @@ class KojiUploadPlugin(PostBuildPlugin):
         self.pullspec_image = None
         self.platform = platform
 
-    def get_rpms(self):
-        """
-        Build a list of installed RPMs in the format required for the
-        metadata.
-        """
-
-        tags = [
-            'NAME',
-            'VERSION',
-            'RELEASE',
-            'ARCH',
-            'EPOCH',
-            'SIGMD5',
-            'SIGPGP:pgpsig',
-            'SIGGPG:pgpsig',
-        ]
-
-        output = get_rpm_list(tags)
-
-        return parse_rpm_output(output, tags)
-
-    def get_output_metadata(self, path, filename):
-        """
-        Describe a file by its metadata.
-
-        :return: dict
-        """
-
-        checksums = get_checksums(path, ['md5'])
-        metadata = {'filename': filename,
-                    'filesize': os.path.getsize(path),
-                    'checksum': checksums['md5sum'],
-                    'checksum_type': 'md5'}
-
-        return metadata
-
-    def get_builder_image_id(self):
-        """
-        Find out the docker ID of the buildroot image we are in.
-        """
-
-        try:
-            buildroot_tag = os.environ["OPENSHIFT_CUSTOM_BUILD_BASE_IMAGE"]
-        except KeyError:
-            return ''
-
-        try:
-            pod = self.osbs.get_pod_for_build(self.build_id)
-            all_images = pod.get_container_image_ids()
-        except OsbsException as ex:
-            self.log.error("unable to find image id: %s", ex)
-            return buildroot_tag
-
-        try:
-            return all_images[buildroot_tag]
-        except KeyError:
-            self.log.error("Unable to determine buildroot image ID for %s",
-                           buildroot_tag)
-            return buildroot_tag
-
-    def get_buildroot(self, build_id):
-        """
-        Build the buildroot entry of the metadata.
-
-        :return: dict, partial metadata
-        """
-
-        docker_info = self.tasker.get_info()
-        host_arch, docker_version = get_docker_architecture(self.tasker)
-
-        buildroot = {
-            'id': 1,
-            'host': {
-                'os': docker_info['OperatingSystem'],
-                'arch': host_arch,
-            },
-            'content_generator': {
-                'name': PROG,
-                'version': atomic_reactor_version,
-            },
-            'container': {
-                'type': 'docker',
-                'arch': os.uname()[4],
-            },
-            'tools': [
-                {
-                    'name': tool['name'],
-                    'version': tool['version'],
-                }
-                for tool in get_version_of_tools()] + [
-                {
-                    'name': 'docker',
-                    'version': docker_version,
-                },
-            ],
-            'components': self.get_rpms(),
-            'extra': {
-                'osbs': {
-                    'build_id': build_id,
-                    'builder_image_id': self.get_builder_image_id(),
-                }
-            },
-        }
-
-        return buildroot
-
     def get_logs(self):
         """
         Build the logs entry for the metadata 'output' section
@@ -252,180 +138,7 @@ class KojiUploadPlugin(PostBuildPlugin):
         build_logs.flush()
         filename = "{platform}-build.log".format(platform=self.platform)
         return [Output(file=build_logs,
-                       metadata=self.get_output_metadata(build_logs.name,
-                                                         filename))]
-
-    def get_image_components(self):
-        """
-        Re-package the output of the rpmqa plugin into the format required
-        for the metadata.
-        """
-
-        output = self.workflow.image_components
-        if output is None:
-            self.log.error("%s plugin did not run!",
-                           PostBuildRPMqaPlugin.key)
-            output = []
-
-        return output
-
-    def get_image_output(self):
-        """
-        Create the output for the image
-
-        This is the Koji Content Generator metadata, along with the
-        'docker save' output to upload.
-
-        :return: tuple, (metadata dict, Output instance)
-
-        """
-
-        saved_image = self.workflow.exported_image_sequence[-1].get('path')
-        image_name = get_image_upload_filename(self.workflow.exported_image_sequence[-1],
-                                               self.workflow.builder.image_id,
-                                               self.platform)
-        metadata = self.get_output_metadata(saved_image, image_name)
-        output = Output(file=open(saved_image), metadata=metadata)
-
-        return metadata, output
-
-    def select_digest(self, digests):
-        digest = digests.default
-
-        return digest
-
-    def get_repositories_and_digests(self):
-        """
-        Returns a map of images to their repositories and a map of media types to each digest
-
-        it creates a map of images to digests, which is need to create the image->repository
-        map and uses the same loop structure as media_types->digest, but the image->digest
-        map isn't needed after we have the image->repository map and can be discarded.
-        """
-        digests = {}  # image -> digests
-        typed_digests = {}  # media_type -> digests
-        for registry in self.workflow.push_conf.docker_registries:
-            for image in self.workflow.tag_conf.images:
-                image_str = image.to_str()
-                if image_str in registry.digests:
-                    image_digests = registry.digests[image_str]
-                    digest_list = [self.select_digest(image_digests)]
-                    digests[image.to_str(registry=False)] = digest_list
-                    for digest_version in image_digests.content_type:
-                        if digest_version == 'v1':
-                            continue
-                        if digest_version not in image_digests:
-                            continue
-                        digest_type = get_manifest_media_type(digest_version)
-                        typed_digests[digest_type] = image_digests[digest_version]
-
-        registries = self.workflow.push_conf.all_registries
-        repositories = []
-        for registry in registries:
-            image = self.pullspec_image.copy()
-            image.registry = registry.uri
-            pullspec = image.to_str()
-
-            repositories.append(pullspec)
-
-            digest_list = digests.get(image.to_str(registry=False), ())
-            for digest in digest_list:
-                digest_pullspec = image.to_str(tag=False) + "@" + digest
-                repositories.append(digest_pullspec)
-
-        return repositories, typed_digests
-
-    def get_output(self, buildroot_id):
-        """
-        Build the 'output' section of the metadata.
-
-        :return: list, Output instances
-        """
-
-        def add_buildroot_id(output):
-            logfile, metadata = output
-            metadata.update({'buildroot_id': buildroot_id})
-            return Output(file=logfile, metadata=metadata)
-
-        def add_log_type(output, arch):
-            logfile, metadata = output
-            metadata.update({'type': 'log', 'arch': arch})
-            return Output(file=logfile, metadata=metadata)
-
-        arch = os.uname()[4]
-        output_files = [add_log_type(add_buildroot_id(metadata), arch)
-                        for metadata in self.get_logs()]
-
-        # Parent of squashed built image is base image
-        image_id = self.workflow.builder.image_id
-        parent_id = None
-        if not self.workflow.builder.base_from_scratch:
-            parent_id = self.workflow.builder.base_image_inspect['Id']
-
-        # Read config from the registry using v2 schema 2 digest
-        registries = self.workflow.push_conf.docker_registries
-        config = copy.deepcopy(registries[0].config)
-
-        # We don't need container_config section
-        if config and 'container_config' in config:
-            del config['container_config']
-
-        repositories, typed_digests = self.get_repositories_and_digests()
-        tags = set(image.tag for image in self.workflow.tag_conf.images)
-        metadata, output = self.get_image_output()
-
-        metadata.update({
-            'arch': arch,
-            'type': 'docker-image',
-            'components': self.get_image_components(),
-            'extra': {
-                'image': {
-                    'arch': arch,
-                },
-                'docker': {
-                    'id': image_id,
-                    'parent_id': parent_id,
-                    'repositories': repositories,
-                    'layer_sizes': self.workflow.layer_sizes,
-                    'tags': list(tags),
-                    'config': config,
-                    'digests': typed_digests
-                },
-            },
-        })
-
-        if self.workflow.builder.base_from_scratch:
-            del metadata['extra']['docker']['parent_id']
-        if not config:
-            del metadata['extra']['docker']['config']
-
-        # Add the 'docker save' image to the output
-        image = add_buildroot_id(output)
-        output_files.append(image)
-
-        # add operator manifests to output
-        operator_manifests_path = (self.workflow.postbuild_results
-                                   .get(PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY))
-        if operator_manifests_path:
-            operator_manifests_file = open(operator_manifests_path)
-            manifests_metadata = self.get_output_metadata(operator_manifests_path,
-                                                          OPERATOR_MANIFESTS_ARCHIVE)
-            operator_manifests_output = Output(file=operator_manifests_file,
-                                               metadata=manifests_metadata)
-            operator_manifests_output.metadata.update({
-                'type': 'operator-manifests',
-                'extra': {
-                    'typeinfo': {
-                        'operator-manifests': {
-                        },
-                    },
-                },
-            })
-
-            operator_manifests = add_buildroot_id(operator_manifests_output)
-            output_files.append(operator_manifests)
-
-        return output_files
+                       metadata=get_output_metadata(build_logs.name, filename))]
 
     def update_buildroot_koji(self, buildroot, output):
         """
@@ -474,8 +187,11 @@ class KojiUploadPlugin(PostBuildPlugin):
 
         metadata_version = 0
 
-        buildroot = self.get_buildroot(build_id=self.build_id)
-        output_files = self.get_output(buildroot['id'])
+        buildroot = get_buildroot(build_id=self.build_id, tasker=self.tasker,
+                                  osbs=self.osbs, rpms=True)
+        output_files, _ = get_output(workflow=self.workflow, buildroot_id=buildroot['id'],
+                                     pullspec=self.pullspec_image, platform=self.platform,
+                                     source_build=False, logs=self.get_logs())
 
         output = [output.metadata for output in output_files]
         koji_metadata = {

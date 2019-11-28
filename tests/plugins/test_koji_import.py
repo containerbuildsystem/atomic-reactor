@@ -42,13 +42,14 @@ from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
+from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
 from atomic_reactor.util import (ImageName, ManifestDigest,
                                  get_manifest_media_version, get_manifest_media_type)
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.build import BuildResult
-from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
+from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_TAR,
                                       PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY, BASE_IMAGE_KOJI_BUILD,
                                       PARENT_IMAGES_KOJI_BUILDS, BASE_IMAGE_BUILD_ID_KEY,
@@ -56,7 +57,8 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
                                       PLUGIN_VERIFY_MEDIA_KEY, PARENT_IMAGE_BUILDS_KEY,
                                       PARENT_IMAGES_KEY, OPERATOR_MANIFESTS_ARCHIVE,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
-                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
+                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
+                                      INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS)
 from tests.constants import SOURCE, MOCK
 from tests.flatpak import MODULEMD_AVAILABLE, setup_flatpak_source_info
 from tests.stubs import StubInsideBuilder, StubSource
@@ -73,6 +75,7 @@ LogEntry = namedtuple('LogEntry', ['platform', 'line'])
 
 NAMESPACE = 'mynamespace'
 BUILD_ID = 'build-1'
+SOURCES_FOR_KOJI_NVR = 'component-release-version'
 
 PUSH_OPERATOR_MANIFESTS_RESULTS = {
     "endpoint": 'registry.url/endpoint',
@@ -241,7 +244,7 @@ def mock_environment(tmpdir, session=None, name=None,
                      has_config=None, add_tag_conf_primaries=True,
                      add_build_result_primaries=False, container_first=False,
                      yum_repourls=None, has_operator_manifests=False,
-                     push_operator_manifests_enabled=False):
+                     push_operator_manifests_enabled=False, source_build=False):
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -260,6 +263,7 @@ def mock_environment(tmpdir, session=None, name=None,
     workflow.builder.image_id = '123456imageid'
     workflow.builder.base_image = ImageName(repo='Fedora', tag='22')
     workflow.builder.set_inspection_data({'ParentId': base_image_id})
+    workflow.builder.tasker = tasker
     setattr(workflow, 'tag_conf', TagConf())
     setattr(workflow, 'reserved_build_id ', None)
     setattr(workflow, 'reserved_token', None)
@@ -291,9 +295,11 @@ def mock_environment(tmpdir, session=None, name=None,
     flexmock(subprocess, Popen=fake_Popen)
     flexmock(koji, ClientSession=lambda hub, opts: session)
     flexmock(GitSource)
-    logs = [LogEntry(None, 'orchestrator'),
-            LogEntry('x86_64', 'Hurray for bacon: \u2017'),
-            LogEntry('x86_64', 'line 2')]
+    logs = [LogEntry(None, 'orchestrator')]
+
+    if not source_build:
+        logs.append(LogEntry('x86_64', 'Hurray for bacon: \u2017'))
+        logs.append(LogEntry('x86_64', 'line 2'))
     (flexmock(OSBS)
         .should_receive('get_orchestrator_build_logs')
         .with_args(BUILD_ID)
@@ -321,10 +327,14 @@ def mock_environment(tmpdir, session=None, name=None,
                     'container_config': {}
                 }
 
+    if source_build:
+        exported_file_type = IMAGE_TYPE_OCI_TAR
+    else:
+        exported_file_type = IMAGE_TYPE_DOCKER_ARCHIVE
     with open(os.path.join(str(tmpdir), 'image.tar.xz'), 'wt') as fp:
         fp.write('x' * 2**12)
         setattr(workflow, 'exported_image_sequence', [{'path': fp.name,
-                                                       'type': IMAGE_TYPE_DOCKER_ARCHIVE}])
+                                                       'type': exported_file_type}])
 
     annotations = {
         'worker-builds': {
@@ -367,6 +377,7 @@ def mock_environment(tmpdir, session=None, name=None,
                                             image_id="id1234",
                                             annotations=annotations)
     workflow.prebuild_plugins_conf = {}
+    workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {'sources_for_nvr': SOURCES_FOR_KOJI_NVR}
     workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_rebuild
     workflow.postbuild_results[PostBuildRPMqaPlugin.key] = [
         "name1;1.0;1;x86_64;0;2000;" + FAKE_SIGMD5.decode() + ";23000;"
@@ -386,7 +397,8 @@ def mock_environment(tmpdir, session=None, name=None,
                     'extra': {
                         'osbs': {
                             'build_id': '12345',
-                            'builder_image_id': '67890'
+                            'builder_image_id': '67890',
+                            'koji': {'build_name': 'myproject/hello-world:unique-tag'}
                         }
                     },
                     'content_generator': {
@@ -905,7 +917,7 @@ class TestKojiImport(object):
             assert is_string_type(component_rpm['arch'])
             assert component_rpm['signature'] != '(none)'
 
-    def validate_buildroot(self, buildroot):
+    def validate_buildroot(self, buildroot, source=False):
         assert isinstance(buildroot, dict)
 
         assert set(buildroot.keys()) == set([
@@ -968,7 +980,10 @@ class TestKojiImport(object):
             assert tool['version']
             assert is_string_type(tool['version'])
 
-        self.check_components(buildroot['components'])
+        if not source:
+            self.check_components(buildroot['components'])
+        else:
+            assert buildroot['components'] == []
 
         extra = buildroot['extra']
         assert isinstance(extra, dict)
@@ -982,12 +997,13 @@ class TestKojiImport(object):
         assert set(osbs.keys()) == set([
             'build_id',
             'builder_image_id',
+            'koji',
         ])
 
         assert is_string_type(osbs['build_id'])
         assert is_string_type(osbs['builder_image_id'])
 
-    def validate_output(self, output, has_config):
+    def validate_output(self, output, has_config, source=False):
         assert isinstance(output, dict)
         assert 'buildroot_id' in output
         assert 'filename' in output
@@ -1032,7 +1048,10 @@ class TestKojiImport(object):
             assert is_string_type(output['arch'])
             assert output['arch'] != 'noarch'
             assert output['arch'] in output['filename']
-            self.check_components(output['components'])
+            if not source:
+                self.check_components(output['components'])
+            else:
+                assert output['components'] == []
 
             extra = output['extra']
             assert isinstance(extra, dict)
@@ -1052,19 +1071,30 @@ class TestKojiImport(object):
             assert 'docker' in extra
             docker = extra['docker']
             assert isinstance(docker, dict)
-            expected_keys_set = set([
-                'parent_id',
-                'id',
-                'repositories',
-                'tags',
-                'floating_tags',
-                'unique_tags',
-            ])
+            if source:
+                expected_keys_set = set([
+                    'tags',
+                    'digests',
+                    'layer_sizes',
+                    'repositories',
+                    'id',
+                ])
+            else:
+                expected_keys_set = set([
+                    'parent_id',
+                    'id',
+                    'repositories',
+                    'tags',
+                    'floating_tags',
+                    'unique_tags',
+                ])
             if has_config:
                 expected_keys_set.add('config')
+
             assert set(docker.keys()) == expected_keys_set
 
-            assert is_string_type(docker['parent_id'])
+            if not source:
+                assert is_string_type(docker['parent_id'])
             assert is_string_type(docker['id'])
             repositories = docker['repositories']
             assert isinstance(repositories, list)
@@ -2101,3 +2131,166 @@ class TestKojiImport(object):
             assert extra['operator_manifests']['appregistry'] == PUSH_OPERATOR_MANIFESTS_RESULTS
         else:
             assert 'operator_manifests' not in extra
+
+    @pytest.mark.parametrize('blocksize', (None, 1048576))
+    @pytest.mark.parametrize('has_config', (True, False))
+    @pytest.mark.parametrize('tag_later', (True, False))
+    @pytest.mark.parametrize(('verify_media', 'expect_id'), (
+        (['v1', 'v2', 'v2_list'], 'ab12'),
+        (['v1'], 'ab12'),
+        (False, 'ab12')
+    ))
+    @pytest.mark.parametrize('reserved_build', (True, False))
+    def test_koji_import_success_source(self, tmpdir, blocksize, os_env, has_config,
+                                        tag_later, verify_media, expect_id,
+                                        reserved_build, reactor_config_map):
+        session = MockedClientSession('')
+        # When target is provided koji build will always be tagged,
+        # either by koji_import or koji_tag_build.
+        component = 'component'
+        name = 'ns/name'
+        version = '1.0'
+        release = '1'
+
+        tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
+                                            name=name,
+                                            component=component,
+                                            version=version,
+                                            release=release,
+                                            has_config=has_config,
+                                            source_build=True)
+
+        workflow.build_result = BuildResult(oci_image_path="oci_path")
+        workflow.koji_source_nvr = {'name': component, 'version': version, 'release': release}
+        workflow.koji_source_source_url = 'git://hostname/path#123456'
+
+        if verify_media:
+            workflow.exit_results[PLUGIN_VERIFY_MEDIA_KEY] = verify_media
+        expected_media_types = verify_media or []
+
+        workflow.builder.image_id = expect_id
+
+        build_token = 'token_12345'
+        build_id = '123'
+        if reserved_build:
+            workflow.reserved_build_id = build_id
+            workflow.reserved_token = build_token
+
+        if reserved_build:
+            (flexmock(session)
+                .should_call('CGImport')
+                .with_args(dict, str, token=build_token)
+             )
+        else:
+            (flexmock(session)
+                .should_call('CGImport')
+                .with_args(dict, str)
+             )
+
+        target = 'images-docker-candidate'
+        flexmock(tasker).should_receive('pull_image').once()
+        inspect_json = {
+            'Id': expect_id,
+            INSPECT_ROOTFS: {
+                 INSPECT_ROOTFS_LAYERS: ['sha256:123456789', 'sha256:987654321']
+            }
+        }
+        history_json = {
+            'Id': expect_id,
+            'Size': 200000
+        }
+        flexmock(tasker).should_receive('inspect_image').and_return(inspect_json).once()
+        flexmock(tasker).should_receive('get_image_history').and_return([history_json]).once()
+
+        runner = create_runner(tasker, workflow, target=target, tag_later=tag_later,
+                               reactor_config_map=reactor_config_map,
+                               blocksize=blocksize)
+        runner.run()
+
+        data = session.metadata
+
+        assert set(data.keys()) == set([
+            'metadata_version',
+            'build',
+            'buildroots',
+            'output',
+        ])
+
+        assert data['metadata_version'] in ['0', 0]
+
+        build = data['build']
+        assert isinstance(build, dict)
+
+        buildroots = data['buildroots']
+        assert isinstance(buildroots, list)
+        assert len(buildroots) > 0
+
+        output_files = data['output']
+        assert isinstance(output_files, list)
+
+        expected_keys = set([
+            'name',
+            'version',
+            'release',
+            'source',
+            'start_time',
+            'end_time',
+            'extra',          # optional but always supplied
+            'owner',
+        ])
+
+        if reserved_build:
+            expected_keys.add('build_id')
+
+        assert set(build.keys()) == expected_keys
+
+        if reserved_build:
+            assert build['build_id'] == build_id
+        assert build['name'] == component
+        assert build['version'] == version
+        assert build['release'] == release
+        assert build['source'] == 'git://hostname/path#123456'
+        start_time = build['start_time']
+        assert isinstance(start_time, int) and start_time
+        end_time = build['end_time']
+        assert isinstance(end_time, int) and end_time
+
+        extra = build['extra']
+        assert isinstance(extra, dict)
+        assert 'image' in extra
+        image = extra['image']
+        assert isinstance(image, dict)
+
+        assert image['sources_for_nvr'] == SOURCES_FOR_KOJI_NVR
+
+        if expected_media_types:
+            media_types = image['media_types']
+            assert isinstance(media_types, list)
+            assert sorted(media_types) == sorted(expected_media_types)
+
+        for buildroot in buildroots:
+            self.validate_buildroot(buildroot, source=True)
+
+            # Unique within buildroots in this metadata
+            assert len([b for b in buildroots
+                        if b['id'] == buildroot['id']]) == 1
+
+        for output in output_files:
+            self.validate_output(output, has_config, source=True)
+            buildroot_id = output['buildroot_id']
+
+            # References one of the buildroots
+            assert len([buildroot for buildroot in buildroots
+                        if buildroot['id'] == buildroot_id]) == 1
+
+        build_id = runner.plugins_results[KojiImportPlugin.key]
+        assert build_id == "123"
+
+        uploaded_oic_file = 'oci-image-{}.{}.tar.xz'.format(expect_id, os.uname()[4])
+        assert set(session.uploaded_files.keys()) == set([
+            'orchestrator.log',
+            uploaded_oic_file,
+        ])
+        orchestrator_log = session.uploaded_files['orchestrator.log']
+        assert orchestrator_log == b'orchestrator\n'
