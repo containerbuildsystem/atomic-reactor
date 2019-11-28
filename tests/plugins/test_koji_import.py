@@ -57,8 +57,7 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_
                                       PLUGIN_VERIFY_MEDIA_KEY, PARENT_IMAGE_BUILDS_KEY,
                                       PARENT_IMAGES_KEY, OPERATOR_MANIFESTS_ARCHIVE,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
-                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
-                                      INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS)
+                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
 from tests.constants import SOURCE, MOCK
 from tests.flatpak import MODULEMD_AVAILABLE, setup_flatpak_source_info
 from tests.stubs import StubInsideBuilder, StubSource
@@ -2189,19 +2188,18 @@ class TestKojiImport(object):
              )
 
         target = 'images-docker-candidate'
-        flexmock(tasker).should_receive('pull_image').once()
-        inspect_json = {
-            'Id': expect_id,
-            INSPECT_ROOTFS: {
-                 INSPECT_ROOTFS_LAYERS: ['sha256:123456789', 'sha256:987654321']
-            }
+        source_manifest = {
+            'config': {
+                'digest': expect_id,
+            },
+            'layers': [
+                {'size': 20000,
+                 'digest': 'sha256:123456789'},
+                {'size': 30000,
+                 'digest': 'sha256:987654321'},
+            ]
         }
-        history_json = {
-            'Id': expect_id,
-            'Size': 200000
-        }
-        flexmock(tasker).should_receive('inspect_image').and_return(inspect_json).once()
-        flexmock(tasker).should_receive('get_image_history').and_return([history_json]).once()
+        workflow.koji_source_manifest = source_manifest
 
         runner = create_runner(tasker, workflow, target=target, tag_later=tag_later,
                                reactor_config_map=reactor_config_map,

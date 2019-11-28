@@ -24,7 +24,7 @@ from atomic_reactor.plugins.pre_reactor_config import (get_registries, get_group
                                                        get_registries_organization)
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.util import (get_manifest_digests, get_config_from_registry, Dockercfg,
-                                 ImageName)
+                                 ImageName, get_all_manifests)
 import osbs.utils
 from osbs.constants import RAND_DIGITS
 
@@ -149,7 +149,6 @@ class TagAndPushPlugin(PostBuildPlugin):
                 self.workflow.tag_conf.add_unique_image(source_unique_image)
             else:
                 self.workflow.tag_conf.add_unique_image(self.workflow.image)
-
         config_manifest_digest = None
         config_manifest_type = None
         config_registry_image = None
@@ -186,6 +185,17 @@ class TagAndPushPlugin(PostBuildPlugin):
                         self.tasker.tag_and_push_image(self.workflow.builder.image_id,
                                                        registry_image, insecure=insecure,
                                                        force=True, dockercfg=docker_push_secret)
+
+                    if source_oci_image_path:
+                        manifests_dict = get_all_manifests(registry_image, registry, insecure,
+                                                           docker_push_secret, versions=('v2',))
+                        try:
+                            koji_source_manifest_response = manifests_dict['v2']
+                        except KeyError:
+                            raise RuntimeError('Unable to fetch v2 schema 2 digest for {}'.
+                                               format(registry_image.to_str()))
+
+                        self.workflow.koji_source_manifest = koji_source_manifest_response.json()
 
                     digests = get_manifest_digests(registry_image, registry,
                                                    insecure, docker_push_secret)

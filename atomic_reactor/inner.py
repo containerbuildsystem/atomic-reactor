@@ -418,6 +418,7 @@ class DockerBuildWorkflow(object):
         self.triggered_after_koji_task = None
         self.koji_source_nvr = {}
         self.koji_source_source_url = None
+        self.koji_source_manifest = None
 
         if client_version:
             logger.debug("build json was built by osbs-client %s", client_version)
