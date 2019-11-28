@@ -22,13 +22,11 @@ from atomic_reactor import __version__ as atomic_reactor_version
 from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE,
                                       HTTP_BACKOFF_FACTOR, HTTP_MAX_RETRIES, PROG,
                                       PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
-                                      OPERATOR_MANIFESTS_ARCHIVE,
-                                      INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS)
+                                      OPERATOR_MANIFESTS_ARCHIVE)
 from atomic_reactor.util import (get_version_of_tools, get_docker_architecture,
                                  Output, get_image_upload_filename,
                                  get_checksums, get_manifest_media_type)
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
-from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.rpm_util import get_rpm_list, parse_rpm_output
 from osbs.exceptions import OsbsException
 
@@ -396,20 +394,11 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
     arch = os.uname()[4]
 
     if source_build:
-        workflow.builder.tasker.pull_image(pullspec)
-        defer_removal(workflow, pullspec)
-        image_inspect = workflow.builder.tasker.inspect_image(pullspec)
-        image_id = image_inspect['Id']
-
-        history = workflow.builder.tasker.get_image_history(image_id)
-        diff_ids = image_inspect[INSPECT_ROOTFS].get(INSPECT_ROOTFS_LAYERS, ())
-
-        # diff_ids is ordered oldest first
-        # history is ordered newest first
-        # We want layer_sizes to be ordered oldest first
-        layer_sizes = [{"diff_id": diff_id, "size": layer['Size']}
-                       for (diff_id, layer) in zip(diff_ids, reversed(history))]
-
+        image_id = workflow.koji_source_manifest['config']['digest']
+        # we are using digest from manifest, because we can't get diff_ids
+        # unless we pull image, which would fail due because there are so many layers
+        layer_sizes = [{'digest': layer['digest'], 'size': layer['size']}
+                       for layer in workflow.koji_source_manifest['layers']]
         platform = arch
 
     else:

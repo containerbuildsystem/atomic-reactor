@@ -30,7 +30,6 @@ from tests.constants import (LOCALHOST_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME, IN
 from tests.stubs import StubInsideBuilder
 
 import json
-import logging
 import os.path
 from tempfile import mkdtemp
 import requests
@@ -342,9 +341,11 @@ def test_tag_and_push_plugin(
                 assert workflow.push_conf.docker_registries[0].config is None
 
 
-@pytest.mark.parametrize("source_oci_image_path", [
-    True,
-    False,
+@pytest.mark.parametrize(("source_oci_image_path", "v2s2"), [
+    (True, True),
+    (True, False),
+    (False, True),
+    (False, False)
 ])
 @pytest.mark.parametrize("use_secret", [
     True,
@@ -354,7 +355,7 @@ def test_tag_and_push_plugin(
     False,
     True,
 ])
-def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, use_secret,
+def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, v2s2, use_secret,
                                  fail_push, caplog, reactor_config_map):
     # For now, we don't want to require having a skopeo and an OCI-supporting
     # registry in the test environment
@@ -419,12 +420,15 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, use
             secret_path = temp_dir
 
     CONFIG_DIGEST = 'sha256:b79482f7dcab2a326c1e8c7025a4336d900e99f50db8b35a659fda67b5ebb3c2'
-    MEDIA_TYPE = 'application/vnd.oci.image.manifest.v1+json'
+    if source_oci_image_path and reactor_config_map:
+        MEDIA_TYPE = 'application/vnd.docker.distribution.manifest.v2+json'
+    else:
+        MEDIA_TYPE = 'application/vnd.oci.image.manifest.v1+json'
     REF_NAME = "app/org.gnome.eog/x86_64/master"
 
     manifest_json = {
         "schemaVersion": 2,
-        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "mediaType": MEDIA_TYPE,
         "config": {
             "mediaType": MEDIA_TYPE,
             "digest": CONFIG_DIGEST,
@@ -557,7 +561,10 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, use
     def custom_get(method, url, headers, **kwargs):
         if url == manifest_latest_url or url == manifest_source_tag_url:
             if headers['Accept'] == MEDIA_TYPE:
-                return manifest_response
+                if source_oci_image_path and not v2s2 and reactor_config_map:
+                    return manifest_unacceptable_response
+                else:
+                    return manifest_response
             else:
                 return manifest_unacceptable_response
 
@@ -599,14 +606,15 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, use
         }]
     )
 
-    with caplog.at_level(logging.DEBUG):
-        if fail_push:
-            with pytest.raises(PluginFailedException):
-                output = runner.run()
-        else:
-            output = runner.run()
+    if fail_push or (source_oci_image_path and not v2s2 and reactor_config_map):
+        with pytest.raises(PluginFailedException):
+            runner.run()
 
-    if not fail_push:
+        if not fail_push and source_oci_image_path and not v2s2:
+            assert "Unable to fetch v2 schema 2 digest for" in caplog.text
+    else:
+        output = runner.run()
+
         image = output[TagAndPushPlugin.key][0]
         tasker.remove_image(image)
         assert len(workflow.push_conf.docker_registries) > 0
@@ -616,8 +624,8 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, use
         if source_oci_image_path and reactor_config_map:
             source_image_name = '{}:{}'.format(sources_koji_repo, sources_tagname)
             assert push_conf_digests[source_image_name].v1 is None
-            assert push_conf_digests[source_image_name].v2 is None
-            assert push_conf_digests[source_image_name].oci == DIGEST_OCI
+            assert push_conf_digests[source_image_name].v2 == DIGEST_OCI
+            assert push_conf_digests[source_image_name].oci is None
         else:
             assert push_conf_digests[TEST_IMAGE_NAME].v1 is None
             assert push_conf_digests[TEST_IMAGE_NAME].v2 is None
