@@ -11,6 +11,7 @@ from __future__ import absolute_import
 import io
 import os
 from textwrap import dedent
+from copy import deepcopy
 
 import koji
 import pytest
@@ -32,7 +33,8 @@ from tests.stubs import StubInsideBuilder, StubSource
 KOJI_HUB = 'http://koji.com/hub'
 KOJI_ROOT = 'http://koji.localhost/kojiroot'
 KOJI_UPLOAD_TEST_WORKDIR = 'temp_workdir'
-KOJI_BUILD = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1, 'release': 1}
+KOJI_BUILD = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1, 'release': 1,
+              'extra': {'image': {}, 'typeinfo': {'image': {}, 'operator-manifests': {}}}}
 constants.HTTP_BACKOFF_FACTOR = 0
 
 DEFAULT_SIGNING_INTENT = 'empty'
@@ -226,8 +228,12 @@ class TestFetchSources(object):
     def test_koji_signing_intent(self, requests_mock, docker_tasker, koji_session, tmpdir,
                                  signing_intent, caplog):
         """Make sure fetch_sources plugin prefers the koji image build signing intent"""
-        extra = {'image': {'odcs': {'signing_intent': 'unsigned'}}}
-        KOJI_BUILD.update({'extra': extra})
+        extra_image = {'odcs': {'signing_intent': 'unsigned'}}
+
+        koji_build = deepcopy(KOJI_BUILD)
+        koji_build['extra'].update({'image': extra_image})
+        flexmock(koji_session).should_receive('getBuild').and_return(koji_build)
+
         mock_koji_manifest_download(requests_mock)
         runner = mock_env(tmpdir, docker_tasker, koji_build_id=1, default_si=signing_intent)
         result = runner.run()
@@ -299,4 +305,35 @@ class TestFetchSources(object):
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
         msg = 'When specifying both an id and an nvr, they should point to the same image build'
+        assert msg in str(exc.value)
+
+    @pytest.mark.parametrize(('build_type', 'koji_build_nvr', 'source_build'), [
+        (['rpm', 'operator-manifests'], 'foobar-1-1', False),
+        (['module', 'operator-manifests'], 'foobar-1-1', False),
+        (['image', 'operator-manifests'], 'foobar-source-1-1', True),
+    ])
+    def test_invalid_source_build(self, requests_mock, docker_tasker, koji_session, tmpdir,
+                                  build_type, koji_build_nvr, source_build):
+        mock_koji_manifest_download(requests_mock)
+        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr=koji_build_nvr, koji_build_id=1)
+
+        typeinfo_dict = {b_type: {} for b_type in build_type}
+        name, version, release = koji_build_nvr.rsplit('-', 2)
+        koji_build = {'build_id': 1, 'nvr': koji_build_nvr, 'name': name, 'version': version,
+                      'release': release, 'extra': {'typeinfo': typeinfo_dict}}
+        if source_build:
+            koji_build['extra']['image'] = {'sources_for_nvr': 'some source'}
+
+        flexmock(koji_session).should_receive('getBuild').and_return(koji_build)
+
+        with pytest.raises(PluginFailedException) as exc:
+            runner.run()
+
+        if 'image' not in build_type:
+            msg = ('koji build {} is {} build, source container build '
+                   'needs image build'.format(koji_build_nvr, sorted(build_type)))
+        else:
+            msg = ('koji build {} is source container build, source container can not '
+                   'use source container build image'.format(koji_build_nvr))
+
         assert msg in str(exc.value)
