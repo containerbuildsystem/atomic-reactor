@@ -47,6 +47,17 @@ def get_plugins_with_user_data(user_params, user_data):
     return osbs.render_plugins_configuration(user_params)
 
 
+def validate_user_data(user_params, schema_path):
+    """Validates JSON user data against schema and returns them in python dict
+
+    :param str user_params: JSON with user data
+    :param str schema_path: path to JSON schema definitions
+    :return: dict with user data
+    """
+    read_yaml(user_params, schema_path)
+    return json.loads(user_params)
+
+
 class OSv3InputPlugin(InputPlugin):
     key = "osv3"
 
@@ -59,11 +70,6 @@ class OSv3InputPlugin(InputPlugin):
         self.target_registry = None
         self.reactor_env = None
         self.plugins_json = None
-
-    def validate_user_data(self, user_params):
-        # make sure the input json is valid
-        read_yaml(user_params, 'schemas/user_params.json')
-        return json.loads(user_params)
 
     def get_value(self, name, default=None):
         return self.reactor_env.get(name, default)
@@ -142,7 +148,7 @@ class OSv3InputPlugin(InputPlugin):
         arrangement_version = None
         try:
             user_params = os.environ['USER_PARAMS']
-            user_data = self.validate_user_data(user_params)
+            user_data = validate_user_data(user_params, 'schemas/user_params.json')
             git_commit_depth = user_data.get('git_commit_depth', None)
             git_branch = user_data.get('git_branch', None)
             arrangement_version = user_data.get('arrangement_version', None)
@@ -221,7 +227,7 @@ class OSv3SourceContainerInputPlugin(InputPlugin):
         self.target_registry = os.environ.get('OUTPUT_REGISTRY', None)
 
         user_params = os.environ['USER_PARAMS']
-        user_data = json.loads(user_params)  # TODO validate user params against schema
+        user_data = validate_user_data(user_params, 'schemas/source_containers_user_params.json')
         arrangement_version = user_data.get('arrangement_version', None)
         plugins_json_serialized = get_plugins_with_user_data(user_params, user_data)
         # if we get the USER_PARAMS, we'd better get the REACTOR_CONFIG too
