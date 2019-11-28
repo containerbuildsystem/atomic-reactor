@@ -31,6 +31,7 @@
     "image_tag": {"type": "string"},
     "imagestream_name": {"type": "string"},
     "isolated": {"type": "boolean"},
+    "kind": {"type": "string"},
     "koji_parent_build": {"type": "string"},
     "koji_target": {"type": "string"},
     "koji_task_id": {"type": "integer"},
@@ -57,6 +58,7 @@
       "additionalProperties": false
     },
     "operator_manifests_extract_platform": {"type": "string"},
+    "orchestrator_deadline": {"type": "integer"},
     "platform": {"type": "string"},
     "platforms": {
       "type": "array",
@@ -69,7 +71,9 @@
     "signing_intent": {"type": "string"},
     "tags_from_yaml": {"type": "boolean"},
     "trigger_imagestreamtag": {"type": "string"},
+    "triggered_after_koji_task": {"type": "integer"},
     "user": {"type": "string"},
+    "worker_deadline": {"type": "integer"},
     "yum_repourls": {
       "type": "array",
       "items": {"type": "string"}
