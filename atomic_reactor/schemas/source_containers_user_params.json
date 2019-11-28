@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+
+  "title": "atomic-reactor source containers user params",
+
+  "type": "object",
+  "properties": {
+    "arrangement_version": {"type": "integer"},
+    "build_from": {"type": "string"},
+    "build_image": {"type": "string"},
+    "build_imagestream": {"type": "string"},
+    "build_json_dir": {"type": "string"},
+    "component": {"type": "string"},
+    "customize_conf": {"type": "string"},
+    "image_tag": {"type": "string"},
+    "kind": {"type": "string"},
+    "koji_target": {"type": "string"},
+    "koji_task_id": {"type": "integer"},
+    "orchestrator_deadline": {"type": "integer"},
+    "platform": {"type": "string"},
+    "reactor_config_map": {"type": "string"},
+    "reactor_config_override": {"type": "object"},
+    "scratch": {"type": "boolean"},
+    "signing_intent": {"type": "string"},
+    "sources_for_koji_build_nvr": {"type": "string"},
+    "sources_for_koji_build_id": {"type": "integer"},
+    "user": {"type": "string"},
+    "worker_deadline": {"type": "integer"}
+  },
+  "required": ["build_json_dir", "user"]
+}
