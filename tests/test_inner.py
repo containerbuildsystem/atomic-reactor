@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -33,9 +33,9 @@ from tests.util import requires_internet, is_string_type
 import inspect
 import signal
 
-from atomic_reactor.inner import BuildResults, BuildResultsEncoder, BuildResultsJSONDecoder
-from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.inner import FSWatcher
+from atomic_reactor.inner import (BuildResults, BuildResultsEncoder,
+                                  BuildResultsJSONDecoder, DockerBuildWorkflow,
+                                  FSWatcher, PushConf, DockerRegistry)
 from atomic_reactor.constants import (INSPECT_ROOTFS,
                                       INSPECT_ROOTFS_LAYERS,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY)
@@ -1411,3 +1411,42 @@ def test_fs_watcher(monkeypatch):
     w.join(0.1)  # timeout if thread still running
     assert not w.is_alive()
     assert "mb_used" in w.get_usage_data()
+
+
+class TestPushConf(object):
+    def test_new_push_conf(self):
+        push_conf = PushConf()
+        assert not push_conf.has_some_docker_registry
+        assert push_conf.docker_registries == []
+        assert push_conf.all_registries == push_conf.docker_registries
+
+    @pytest.mark.parametrize('num_registries', [1, 2])
+    def test_add_docker_registry(self, num_registries):
+        push_conf = PushConf()
+        for n in range(num_registries):
+            r = push_conf.add_docker_registry('https://registry{}.example.com'
+                                              .format(n),
+                                              insecure=False)
+            assert isinstance(r, DockerRegistry)
+            assert push_conf.has_some_docker_registry
+            assert len(push_conf.docker_registries) == n + 1
+            assert push_conf.all_registries == push_conf.docker_registries
+
+    @pytest.mark.parametrize('insecure_differs', [False, True])
+    def test_readd_docker_registry(self, insecure_differs):
+        push_conf = PushConf()
+        uri = 'https://registry.example.com'
+        first = push_conf.add_docker_registry(uri, insecure=False)
+        second = push_conf.add_docker_registry(uri, insecure=insecure_differs)
+        assert isinstance(second, DockerRegistry)
+        assert first == second
+        assert len(push_conf.docker_registries) == 1
+        assert push_conf.all_registries == push_conf.docker_registries
+
+    def test_remove_docker_registry(self):
+        push_conf = PushConf()
+        r = push_conf.add_docker_registry('https://registry.example.com')
+        push_conf.remove_docker_registry(r)
+        assert not push_conf.has_some_docker_registry
+        assert len(push_conf.docker_registries) == 0
+        assert push_conf.all_registries == push_conf.docker_registries

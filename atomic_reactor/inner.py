@@ -231,26 +231,33 @@ class PushConf(object):
 
     def __init__(self):
         self._registries = {
-            "docker": [],
+            "docker": {},  # URI -> DockerRegistry instance
         }
 
     def add_docker_registry(self, registry_uri, insecure=False):
         if registry_uri is None:
             raise RuntimeError("registry URI cannot be None")
-        r = DockerRegistry(registry_uri, insecure=insecure)
-        self._registries["docker"].append(r)
+        try:
+            return self._registries["docker"][registry_uri]
+        except KeyError:
+            r = DockerRegistry(registry_uri, insecure=insecure)
+            self._registries["docker"][registry_uri] = r
+
         return r
 
     def remove_docker_registry(self, docker_registry):
-        self._registries["docker"].remove(docker_registry)
+        for uri, registry in self._registries["docker"].items():
+            if registry == docker_registry:
+                del self._registries["docker"][uri]
+                return
 
     @property
     def has_some_docker_registry(self):
-        return len(self.docker_registries) > 0
+        return bool(self.docker_registries)
 
     @property
     def docker_registries(self):
-        return self._registries["docker"]
+        return list(self._registries["docker"].values())
 
     @property
     def all_registries(self):

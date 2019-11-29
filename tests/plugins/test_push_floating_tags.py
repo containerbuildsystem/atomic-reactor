@@ -22,7 +22,6 @@ from tests.stubs import StubInsideBuilder
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import ExitPluginsRunner
-from atomic_reactor.inner import TagConf
 from atomic_reactor.util import ImageName, registry_hostname, ManifestDigest
 from atomic_reactor.plugins.exit_push_floating_tags import PushFloatingTagsPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin, WORKSPACE_CONF_KEY,
@@ -185,7 +184,6 @@ def mock_environment(tmpdir, workflow, primary_images=None, floating_images=None
     setattr(workflow.builder, 'built_image_info', {'ParentId': base_image_id})
     setattr(workflow.builder.source, 'dockerfile_path', None)
     setattr(workflow.builder.source, 'path', None)
-    setattr(workflow, 'tag_conf', TagConf())
     if primary_images:
         for image in primary_images:
             if '-' in ImageName.parse(image).tag:
@@ -450,6 +448,12 @@ def test_floating_tags_push(tmpdir, workflow, test_name, registries, manifest_re
     registry_conf = {
         k: v for k, v in all_registry_conf.items() if k in registries
     }
+
+    for registry, opts in registry_conf.items():
+        kwargs = {}
+        if 'insecure' in opts:
+            kwargs['insecure'] = opts['insecure']
+        workflow.push_conf.add_docker_registry(registry, **kwargs)
 
     plugins_conf = [{
         'name': PushFloatingTagsPlugin.key,
