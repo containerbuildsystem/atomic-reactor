@@ -34,7 +34,7 @@ KOJI_HUB = 'http://koji.com/hub'
 KOJI_ROOT = 'http://koji.localhost/kojiroot'
 KOJI_UPLOAD_TEST_WORKDIR = 'temp_workdir'
 KOJI_BUILD = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1, 'release': 1,
-              'extra': {'image': {}, 'typeinfo': {'image': {}, 'operator-manifests': {}}}}
+              'extra': {'image': {}, 'operator-manifests': {}}}
 constants.HTTP_BACKOFF_FACTOR = 0
 
 DEFAULT_SIGNING_INTENT = 'empty'
@@ -320,7 +320,7 @@ class TestFetchSources(object):
         typeinfo_dict = {b_type: {} for b_type in build_type}
         name, version, release = koji_build_nvr.rsplit('-', 2)
         koji_build = {'build_id': 1, 'nvr': koji_build_nvr, 'name': name, 'version': version,
-                      'release': release, 'extra': {'typeinfo': typeinfo_dict}}
+                      'release': release, 'extra': typeinfo_dict}
         if source_build:
             koji_build['extra']['image'] = {'sources_for_nvr': 'some source'}
 
@@ -330,8 +330,8 @@ class TestFetchSources(object):
             runner.run()
 
         if 'image' not in build_type:
-            msg = ('koji build {} is {} build, source container build '
-                   'needs image build'.format(koji_build_nvr, sorted(build_type)))
+            msg = ('koji build {} is not image build which source container requires'
+                   .format(koji_build_nvr))
         else:
             msg = ('koji build {} is source container build, source container can not '
                    'use source container build image'.format(koji_build_nvr))

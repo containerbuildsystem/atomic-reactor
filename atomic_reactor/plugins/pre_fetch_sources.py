@@ -115,11 +115,10 @@ class FetchSourcesPlugin(PreBuildPlugin):
                 )
             raise ValueError(err_msg)
 
-        build_types = self.koji_build['extra']['typeinfo']
-        if 'image' not in build_types:
-            types_list = sorted(build_types.keys())
-            err_msg = ('koji build {} is {} build, source container '
-                       'build needs image build'.format(self.koji_build['nvr'], types_list))
+        build_extras = self.koji_build['extra']
+        if 'image' not in build_extras:
+            err_msg = ('koji build {} is not image build which source container requires'.
+                       format(self.koji_build['nvr']))
             raise ValueError(err_msg)
 
         elif 'sources_for_nvr' in self.koji_build['extra']['image']:
