@@ -12,7 +12,7 @@ import os
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_hide_files
 from atomic_reactor.util import df_parser
-from atomic_reactor.constants import INSPECT_CONFIG
+from atomic_reactor.constants import INSPECT_CONFIG, SCRATCH_FROM
 
 
 class HideFilesPlugin(PreBuildPlugin):
@@ -91,6 +91,10 @@ class HideFilesPlugin(PreBuildPlugin):
         add_end_lines = []
 
         parent_image_id = from_structure['value'].split(' ', 1)[0]
+
+        if parent_image_id == SCRATCH_FROM:
+            return
+
         inspect = self.workflow.builder.parent_image_inspect(parent_image_id)
         inherited_user = inspect.get(INSPECT_CONFIG).get('User', '')
 

@@ -138,6 +138,22 @@ class TestHideFilesPlugin(object):
             """),
             "inherited_user"
         ),
+
+        (
+            dedent("""\
+                FROM scratch
+                RUN yum install -y python-flask
+                USER custom_docker_user
+                CMD /bin/bash
+            """),
+            dedent("""\
+                FROM scratch
+                RUN yum install -y python-flask
+                USER custom_docker_user
+                CMD /bin/bash
+            """),
+            "inherited_user"
+        ),
     ])
     def test_hide_files(self, tmpdir, df_content, expected_df, inherited_user):
         df = df_parser(str(tmpdir))
