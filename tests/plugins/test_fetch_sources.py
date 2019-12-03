@@ -146,10 +146,10 @@ def koji_session():
     return session
 
 
-def get_srpm_url(sign_key=None):
+def get_srpm_url(sign_key=None, srpm_filename_override=None):
     base = '{}/packages/{}/{}/{}'.format(KOJI_ROOT, KOJI_BUILD['name'], KOJI_BUILD['version'],
                                          KOJI_BUILD['release'])
-    filename = '{}.src.rpm'.format(KOJI_BUILD['nvr'])
+    filename = srpm_filename_override or '{}.src.rpm'.format(KOJI_BUILD['nvr'])
     if not sign_key:
         return '{}/src/{}'.format(base, filename)
     else:
@@ -337,3 +337,27 @@ class TestFetchSources(object):
                    'use source container build image'.format(koji_build_nvr))
 
         assert msg in str(exc.value)
+
+    @pytest.mark.parametrize('signing_key', [None, 'usedKey'])
+    @pytest.mark.parametrize('srpm_filename', [
+        'baz-1-1.src.rpm',
+        'baz-2-3.src.rpm',
+        'lib-foobar-1-1.src.rpm'
+    ])
+    def test_rpm_name_different_from_srpm_name(self, requests_mock, docker_tasker, koji_session,
+                                               tmpdir, caplog, srpm_filename, signing_key):
+        (flexmock(koji_session)
+            .should_receive('getRPMHeaders')
+            .and_return({'SOURCERPM': srpm_filename}))
+
+        key = None if signing_key is None else signing_key.lower()
+        srpm_url = get_srpm_url(key, srpm_filename_override=srpm_filename)
+        requests_mock.register_uri('HEAD', srpm_url)
+        requests_mock.register_uri('GET', srpm_url)
+
+        signing_intent = 'one' if signing_key is not None else 'empty'
+        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr='foobar-1-1',
+                          default_si=signing_intent)
+        runner.run()
+
+        assert srpm_url in caplog.text
