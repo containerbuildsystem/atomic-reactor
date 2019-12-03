@@ -1,5 +1,5 @@
 """
-Copyright (c) 2016, 2018 Red Hat, Inc
+Copyright (c) 2016, 2018, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -10,26 +10,11 @@ from __future__ import print_function, unicode_literals, absolute_import
 from textwrap import dedent
 from flexmock import flexmock
 
+import koji
 import pytest
 import os.path
 import responses
 import logging
-
-try:
-    import koji
-except ImportError:
-    import inspect
-    import sys
-
-    # Find our mocked koji module
-    import tests.koji as koji
-    mock_koji_path = os.path.dirname(inspect.getfile(koji.ClientSession))
-    if mock_koji_path not in sys.path:
-        sys.path.append(os.path.dirname(mock_koji_path))
-
-    # Now load it properly, the same way the plugin will
-    del koji
-    import koji
 
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import (

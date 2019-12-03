@@ -1,5 +1,5 @@
 """
-Copyright (c) 2016 Red Hat, Inc
+Copyright (c) 2016, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -9,24 +9,8 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import absolute_import, print_function, unicode_literals
 import time
 
+import koji
 import requests
-
-try:
-    import koji
-except ImportError:
-    import inspect
-    import os
-    import sys
-
-    # Find our mocked koji module
-    import tests.koji as koji
-    mock_koji_path = os.path.dirname(inspect.getfile(koji.ClientSession))
-    if mock_koji_path not in sys.path:
-        sys.path.append(os.path.dirname(mock_koji_path))
-
-    # Now load it properly, the same way the module we're testing will
-    del koji
-    import koji
 
 from osbs.repo_utils import ModuleSpec
 from atomic_reactor.koji_util import (koji_login, create_koji_session,

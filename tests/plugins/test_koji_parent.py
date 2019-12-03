@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -9,23 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals, absolute_import
 
 import json
-import os
-
-try:
-    import koji as koji
-except ImportError:
-    import inspect
-    import sys
-
-    # Find our mocked koji module
-    import tests.koji as koji
-    mock_koji_path = os.path.dirname(inspect.getfile(koji.ClientSession))
-    if mock_koji_path not in sys.path:
-        sys.path.append(os.path.dirname(mock_koji_path))
-
-    # Now load it properly, the same way the plugin will
-    del koji
-    import koji as koji
+import koji
 
 import atomic_reactor
 from atomic_reactor.constants import (

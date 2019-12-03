@@ -4,26 +4,10 @@ import smtplib
 from collections import namedtuple
 
 from flexmock import flexmock
+import koji
 import pytest
 import six
 import json
-
-try:
-    import koji
-except ImportError:
-    import inspect
-    import sys
-
-    # Find our mocked koji module
-    import tests.koji as koji
-    mock_koji_path = os.path.dirname(inspect.getfile(koji.ClientSession))
-    if mock_koji_path not in sys.path:
-        sys.path.append(os.path.dirname(mock_koji_path))
-
-    # Now load it properly, the same way the plugin will
-    del koji
-    import koji
-
 
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin

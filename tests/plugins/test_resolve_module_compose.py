@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -11,6 +11,7 @@ from __future__ import absolute_import
 from flexmock import flexmock
 
 import json
+import koji
 import responses
 import os
 import pytest
@@ -31,22 +32,6 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
 from atomic_reactor.source import VcsInfo, SourceConfig
 from atomic_reactor.util import ImageName
 from atomic_reactor.constants import REPO_CONTAINER_CONFIG, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
-
-try:
-    import koji
-except ImportError:
-    import inspect
-    import sys
-
-    # Find our mocked koji module
-    import tests.koji as koji
-    mock_koji_path = os.path.dirname(inspect.getfile(koji.ClientSession))
-    if mock_koji_path not in sys.path:
-        sys.path.append(os.path.dirname(mock_koji_path))
-
-    # Now load it properly, the same way the plugin will
-    del koji
-    import koji
 
 from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
 from tests.flatpak import FLATPAK_APP_MODULEMD, FLATPAK_APP_RPMS

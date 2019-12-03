@@ -10,23 +10,9 @@ from __future__ import unicode_literals, absolute_import
 
 from collections import namedtuple
 import json
+import koji
 import os
 from textwrap import dedent
-try:
-    import koji
-except ImportError:
-    import inspect
-    import sys
-
-    # Find our mocked koji module
-    import tests.koji as koji
-    mock_koji_path = os.path.dirname(inspect.getfile(koji.ClientSession))
-    if mock_koji_path not in sys.path:
-        sys.path.append(os.path.dirname(mock_koji_path))
-
-    # Now load it properly, the same way the plugin will
-    del koji
-    import koji
 
 from osbs.build.build_response import BuildResponse
 from atomic_reactor.core import DockerTasker
