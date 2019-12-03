@@ -10,6 +10,7 @@ from __future__ import unicode_literals, absolute_import
 
 import copy
 import json
+import koji
 import os
 import time
 import logging
@@ -533,9 +534,13 @@ class KojiImportPlugin(ExitPlugin):
 
         # Only run if the build was successful
         if self.workflow.build_process_failed:
-            self.log.info("Not importing failed build to koji")
+            self.log.info("Not importing %s build to koji",
+                          "canceled" if self.workflow.build_canceled else "failed")
             if self.reserve_build and build_token is not None:
-                self.session.CGRefundBuild(PROG, build_id, build_token)
+                state = koji.BUILD_STATES['FAILED']
+                if self.workflow.build_canceled:
+                    state = koji.BUILD_STATES['CANCELED']
+                self.session.CGRefundBuild(PROG, build_id, build_token, state)
             return
 
         if self.source_build:

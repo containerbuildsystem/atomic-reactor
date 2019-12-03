@@ -111,6 +111,7 @@ class MockedClientSession(object):
         self.blocksize = None
         self.server_dir = None
         self.refunded_build = False
+        self.fail_state = None
 
     def krb_login(self, principal=None, keytab=None, proxyuser=None):
         return True
@@ -134,8 +135,9 @@ class MockedClientSession(object):
         self.server_dir = server_dir
         return {"id": "123"}
 
-    def CGRefundBuild(self, cg, build_id, token):
+    def CGRefundBuild(self, cg, build_id, token, state):
         self.refunded_build = True
+        self.fail_state = state
 
     def getBuildTarget(self, target):
         return {'dest_tag_name': self.DEST_TAG}
@@ -237,7 +239,7 @@ class BuildInfo(object):
 
 def mock_environment(tmpdir, session=None, name=None,
                      component=None, version=None, release=None,
-                     source=None, build_process_failed=False,
+                     source=None, build_process_failed=False, build_process_canceled=False,
                      is_rebuild=True, docker_registry=True,
                      blocksize=None,
                      task_states=None, additional_tags=None,
@@ -372,6 +374,8 @@ def mock_environment(tmpdir, session=None, name=None,
     if build_process_failed:
         workflow.build_result = BuildResult(logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
                                             fail_reason="not built")
+        if build_process_canceled:
+            workflow.build_canceled = True
     else:
         workflow.build_result = BuildResult(logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
                                             image_id="id1234",
@@ -652,11 +656,17 @@ class TestKojiImport(object):
         assert plugin.get_buildroot(metadatas) == results
 
     @pytest.mark.parametrize('reserved_build', [True, False])  # noqa
-    def test_koji_import_failed_build(self, reserved_build, tmpdir, os_env, reactor_config_map):
+    @pytest.mark.parametrize(('canceled_build', 'refund_state'), [
+        (True, koji.BUILD_STATES['CANCELED']),
+        (False, koji.BUILD_STATES['FAILED']),
+    ])
+    def test_koji_import_failed_build(self, reserved_build, canceled_build, refund_state,
+                                      tmpdir, os_env, reactor_config_map):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
                                             session=session,
                                             build_process_failed=True,
+                                            build_process_canceled=canceled_build,
                                             name='ns/name',
                                             version='1.0',
                                             release='1')
@@ -672,6 +682,7 @@ class TestKojiImport(object):
         assert not hasattr(session, 'metadata')
         if reactor_config_map and reserved_build:
             assert session.refunded_build
+            assert session.fail_state is not None and session.fail_state == refund_state
 
     def test_koji_import_no_build_env(self, tmpdir, monkeypatch, os_env, reactor_config_map):  # noqa
         tasker, workflow = mock_environment(tmpdir,
