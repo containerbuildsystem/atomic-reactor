@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals, absolute_import
 
 from osbs.exceptions import OsbsResponseException
+from osbs.utils import retry_on_conflict
 
 from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
 from atomic_reactor.util import get_floating_images, ImageName
@@ -90,6 +91,7 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
             self.process_tags()
             self.osbs.import_image(self.imagestream_name, tags=self.get_trackable_tags())
 
+    @retry_on_conflict
     def get_or_create_imagestream(self):
         try:
             self.imagestream = self.osbs.get_image_stream(self.imagestream_name)
