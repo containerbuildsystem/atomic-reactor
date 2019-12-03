@@ -193,7 +193,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
 
         if missing_srpms:
             raise RuntimeError('Could not find files signed by any of {} for these SRPMS: {}'
-                               .format(sigkeys, srpm_filename))
+                               .format(sigkeys, missing_srpms))
 
         return srpm_urls
 
