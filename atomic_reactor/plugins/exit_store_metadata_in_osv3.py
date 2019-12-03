@@ -15,6 +15,7 @@ from osbs.utils import graceful_chain_get
 
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
+from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
@@ -46,6 +47,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             'insecure': not verify_ssl,
             'auth': {'enable': use_auth}
         }
+        self.source_build = PLUGIN_FETCH_SOURCES_KEY in self.workflow.prebuild_results
 
     def get_result(self, result):
         if isinstance(result, Exception):
@@ -161,7 +163,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         return data
 
-    def make_labels(self):
+    def make_labels(self, extra_labels=None):
         labels = {}
 
         koji_build_id = self.get_exit_result(PLUGIN_KOJI_IMPORT_PLUGIN_KEY)
@@ -178,6 +180,9 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         if updates:
             updates = {key: str(value) for key, value in updates.items()}
             labels.update(updates)
+
+        if extra_labels:
+            labels.update(extra_labels)
 
         return labels
 
@@ -198,56 +203,67 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         self.log.info("build id = %s", build_id)
         osbs = get_openshift_session(self.workflow, self.openshift_fallback)
 
-        try:
-            commit_id = self.workflow.source.commit_id
-        except AttributeError:
-            commit_id = ""
-
-        if hasattr(self.workflow.builder, "original_base_image"):
-            base_image = self.workflow.builder.original_base_image
-        else:
-            base_image = self.workflow.builder.base_image
-        if base_image is not None and not self.workflow.builder.base_from_scratch:
-            base_image_name = base_image.to_str()
+        if not self.source_build:
             try:
-                base_image_id = self.workflow.builder.base_image_inspect['Id']
-            except KeyError:
+                commit_id = self.workflow.source.commit_id
+            except AttributeError:
+                commit_id = ""
+
+            if hasattr(self.workflow.builder, "original_base_image"):
+                base_image = self.workflow.builder.original_base_image
+            else:
+                base_image = self.workflow.builder.base_image
+            if base_image is not None and not self.workflow.builder.base_from_scratch:
+                base_image_name = base_image.to_str()
+                try:
+                    base_image_id = self.workflow.builder.base_image_inspect['Id']
+                except KeyError:
+                    base_image_id = ""
+            else:
+                base_image_name = ""
                 base_image_id = ""
-        else:
-            base_image_name = ""
-            base_image_id = ""
 
-        try:
-            with open(self.workflow.builder.df_path) as f:
-                dockerfile_contents = f.read()
-        except AttributeError:
-            dockerfile_contents = ""
+            try:
+                with open(self.workflow.builder.df_path) as f:
+                    dockerfile_contents = f.read()
+            except AttributeError:
+                dockerfile_contents = ""
 
-        parent_images_strings = self.workflow.builder.parent_images_to_str()
-        if self.workflow.builder.base_from_scratch:
-            parent_images_strings[SCRATCH_FROM] = SCRATCH_FROM
+            parent_images_strings = self.workflow.builder.parent_images_to_str()
+            if self.workflow.builder.base_from_scratch:
+                parent_images_strings[SCRATCH_FROM] = SCRATCH_FROM
 
         annotations = {
-            "dockerfile": dockerfile_contents,
-            "repositories": json.dumps(self.get_repositories()),
-            "commit_id": commit_id,
-            "base-image-id": base_image_id,
-            "base-image-name": base_image_name,
-            "image-id": self.workflow.builder.image_id or '',
-            "digests": json.dumps(self.get_pullspecs(self.get_digests())),
-            "parent_images": json.dumps(parent_images_strings),
-            "plugins-metadata": json.dumps(self.get_plugin_metadata()),
-            "filesystem": json.dumps(self.get_filesystem_metadata()),
+            'repositories': json.dumps(self.get_repositories()),
+            'digests': json.dumps(self.get_pullspecs(self.get_digests())),
+            'plugins-metadata': json.dumps(self.get_plugin_metadata()),
+            'filesystem': json.dumps(self.get_filesystem_metadata()),
         }
+        extra_labels = {}
 
-        help_result = self.workflow.prebuild_results.get(AddHelpPlugin.key)
-        if isinstance(help_result, dict) and 'help_file' in help_result and 'status' in help_result:
-            if help_result['status'] == AddHelpPlugin.NO_HELP_FILE_FOUND:
-                annotations['help_file'] = json.dumps(None)
-            elif help_result['status'] == AddHelpPlugin.HELP_GENERATED:
-                annotations['help_file'] = json.dumps(help_result['help_file'])
-            else:
-                self.log.error("Unknown result from add_help plugin: %s", help_result)
+        if self.source_build:
+            source_result = self.workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY]
+            extra_labels['sources_for_nvr'] = source_result['sources_for_nvr']
+            annotations['image-id'] = ''
+            if self.workflow.koji_source_manifest:
+                annotations['image-id'] = self.workflow.koji_source_manifest['config']['digest']
+        else:
+            annotations['dockerfile'] = dockerfile_contents
+            annotations['commit_id'] = commit_id
+            annotations['base-image-id'] = base_image_id
+            annotations['base-image-name'] = base_image_name
+            annotations['image-id'] = self.workflow.builder.image_id or ''
+            annotations['parent_images'] = json.dumps(parent_images_strings)
+
+            help_result = self.workflow.prebuild_results.get(AddHelpPlugin.key)
+            if (isinstance(help_result, dict) and 'help_file' in help_result and
+                    'status' in help_result):
+                if help_result['status'] == AddHelpPlugin.NO_HELP_FILE_FOUND:
+                    annotations['help_file'] = json.dumps(None)
+                elif help_result['status'] == AddHelpPlugin.HELP_GENERATED:
+                    annotations['help_file'] = json.dumps(help_result['help_file'])
+                else:
+                    self.log.error("Unknown result from add_help plugin: %s", help_result)
 
         media_types = []
 
@@ -284,15 +300,17 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         # For arrangement version 4 onwards (where group_manifests
         # runs in the orchestrator build), restore the repositories
         # metadata which orchestrate_build adjusted.
-        if PLUGIN_GROUP_MANIFESTS_KEY in self.workflow.postbuild_results:
-            annotations['repositories'] = json.dumps(self.get_repositories())
+        if not self.source_build:
+            if PLUGIN_GROUP_MANIFESTS_KEY in self.workflow.postbuild_results:
+                annotations['repositories'] = json.dumps(self.get_repositories())
+
         try:
             osbs.update_annotations_on_build(build_id, annotations)
         except OsbsResponseException:
             self.log.debug("annotations: %r", annotations)
             raise
 
-        labels = self.make_labels()
+        labels = self.make_labels(extra_labels=extra_labels)
         if labels:
             try:
                 osbs.update_labels_on_build(build_id, labels)

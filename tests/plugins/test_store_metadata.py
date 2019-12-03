@@ -22,7 +22,8 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
                                       PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
-                                      PLUGIN_ADD_FILESYSTEM_KEY)
+                                      PLUGIN_ADD_FILESYSTEM_KEY,
+                                      PLUGIN_FETCH_SOURCES_KEY)
 from atomic_reactor.build import BuildResult
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
@@ -380,6 +381,163 @@ CMD blabla"""
         assert 'help_file' not in annotations
     else:
         assert json.loads(annotations['help_file']) == expected_help_results
+
+    if expected_media_results:
+        media_types = expected_media_results
+        assert sorted(json.loads(annotations['media-types'])) == sorted(list(set(media_types)))
+    else:
+        assert 'media-types' not in annotations
+
+
+@pytest.mark.parametrize('image_id', ('c9243f9abf2b', None))
+@pytest.mark.parametrize(('br_annotations', 'expected_br_annotations'), (
+    (None, None),
+    ('spam', '"spam"'),
+    (['s', 'p', 'a', 'm'], '["s", "p", "a", "m"]'),
+))
+@pytest.mark.parametrize(('br_labels', 'expected_br_labels'), (
+    (None, None),
+    ('bacon', 'bacon'),
+    (123, '123'),
+))
+@pytest.mark.parametrize(('verify_media_results', 'expected_media_results'), (
+    ([], False),
+    (["application/vnd.docker.distribution.manifest.v1+json"],
+     ["application/vnd.docker.distribution.manifest.v1+json"]),
+))
+def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotations,
+                                br_labels, expected_br_labels, verify_media_results,
+                                expected_media_results, reactor_config_map):
+    initial_timestamp = datetime.now()
+    workflow = prepare(reactor_config_map=reactor_config_map)
+
+    if image_id:
+        workflow.koji_source_manifest = {'config': {'digest': image_id}}
+
+    sources_for_nvr = 'image_build'
+    workflow.prebuild_results = {
+        PLUGIN_FETCH_SOURCES_KEY: {
+            'sources_for_koji_build_id': '12345',
+            'sources_for_nvr': sources_for_nvr,
+            'image_sources_dir': 'source_dir',
+        }
+    }
+    workflow.exit_results = {
+        PLUGIN_VERIFY_MEDIA_KEY: verify_media_results,
+    }
+    workflow.fs_watcher._data = dict(fs_data=None)
+
+    if br_annotations or br_labels:
+        workflow.build_result = BuildResult(
+            image_id=INPUT_IMAGE,
+            annotations={'br_annotations': br_annotations} if br_annotations else None,
+            labels={'br_labels': br_labels} if br_labels else None,
+        )
+
+    timestamp = (initial_timestamp + timedelta(seconds=3)).isoformat()
+    workflow.plugins_timestamps = {
+        PLUGIN_FETCH_SOURCES_KEY: timestamp,
+    }
+    workflow.plugins_durations = {
+        PLUGIN_FETCH_SOURCES_KEY: 3.03,
+    }
+    workflow.plugins_errors = {}
+
+    runner = ExitPluginsRunner(
+        None,
+        workflow,
+        [{
+            'name': StoreMetadataInOSv3Plugin.key,
+            "args": {
+                "url": "http://example.com/"
+            }
+        }]
+    )
+    output = runner.run()
+    assert StoreMetadataInOSv3Plugin.key in output
+    labels = output[StoreMetadataInOSv3Plugin.key]["labels"]
+    annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
+    assert "repositories" in annotations
+    assert is_string_type(annotations['repositories'])
+    assert "filesystem" in annotations
+    assert "fs_data" in annotations['filesystem']
+    assert "image-id" in annotations
+    assert is_string_type(annotations['image-id'])
+    assert annotations['image-id'] == (image_id if image_id else '')
+    assert "digests" in annotations
+    assert is_string_type(annotations['digests'])
+    digests = json.loads(annotations['digests'])
+    expected = [{
+        "registry": DOCKER0_REGISTRY,
+        "repository": TEST_IMAGE,
+        "tag": 'latest',
+        "digest": DIGEST_NOT_USED,
+        "version": "v1"
+    }, {
+        "registry": DOCKER0_REGISTRY,
+        "repository": TEST_IMAGE,
+        "tag": 'latest',
+        "digest": DIGEST1,
+        "version": "v2"
+    }, {
+        "registry": DOCKER0_REGISTRY,
+        "repository": "namespace/image",
+        "tag": 'asd123',
+        "digest": DIGEST_NOT_USED,
+        "version": "v1"
+    }, {
+        "registry": DOCKER0_REGISTRY,
+        "repository": "namespace/image",
+        "tag": 'asd123',
+        "digest": DIGEST2,
+        "version": "v2"
+    }, {
+        "registry": LOCALHOST_REGISTRY,
+        "repository": TEST_IMAGE,
+        "tag": 'latest',
+        "digest": DIGEST_NOT_USED,
+        "version": "v1"
+    }, {
+        "registry": LOCALHOST_REGISTRY,
+        "repository": TEST_IMAGE,
+        "tag": 'latest',
+        "digest": DIGEST1,
+        "version": "v2"
+    }, {
+        "registry": LOCALHOST_REGISTRY,
+        "repository": "namespace/image",
+        "tag": 'asd123',
+        "digest": DIGEST_NOT_USED,
+        "version": "v1"
+    }, {
+        "registry": LOCALHOST_REGISTRY,
+        "repository": "namespace/image",
+        "tag": 'asd123',
+        "digest": DIGEST2,
+        "version": "v2"
+    }]
+    assert all(digest in expected for digest in digests)
+    assert all(digest in digests for digest in expected)
+
+    assert "plugins-metadata" in annotations
+    assert "errors" in annotations["plugins-metadata"]
+    assert "durations" in annotations["plugins-metadata"]
+    assert "timestamps" in annotations["plugins-metadata"]
+
+    plugins_metadata = json.loads(annotations["plugins-metadata"])
+    assert PLUGIN_FETCH_SOURCES_KEY in plugins_metadata["durations"]
+
+    if br_annotations:
+        assert annotations['br_annotations'] == expected_br_annotations
+    else:
+        assert 'br_annotations' not in annotations
+
+    if br_labels:
+        assert labels['br_labels'] == expected_br_labels
+    else:
+        assert 'br_labels' not in labels
+    assert 'sources_for_nvr' in labels
+    assert labels['sources_for_nvr'] == sources_for_nvr
 
     if expected_media_results:
         media_types = expected_media_results
