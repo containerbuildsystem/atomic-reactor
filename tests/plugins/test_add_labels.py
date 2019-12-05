@@ -34,14 +34,18 @@ class MockSource(object):
     dockerfile_path = None
     path = None
 
+    def __init__(self, release_env=None):
+        self.config = flexmock()
+        setattr(self.config, 'release_env_var', release_env)
+
     def get_vcs_info(self):
         return VcsInfo(vcs_type="git", vcs_url=DOCKERFILE_GIT, vcs_ref=DOCKERFILE_SHA1)
 
 
 class X(object):
-    def __init__(self):
+    def __init__(self, release_env=None):
         self.image_id = "xxx"
-        self.source = MockSource()
+        self.source = MockSource(release_env)
         self.base_image = ImageName(repo="qwe", tag="asd")
         self.base_from_scratch = False
 
@@ -193,6 +197,7 @@ def test_add_labels_plugin(tmpdir, docker_tasker, workflow,
     setattr(workflow, 'builder', X())
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', labels_conf_base)
+    flexmock(workflow, source=MockSource())
 
     if reactor_config_map:
         # reactor_config should not return json
@@ -245,6 +250,7 @@ def test_add_labels_arrangement6(tmpdir, docker_tasker, workflow, release, use_r
     setattr(workflow, 'builder', X())
     setattr(workflow.builder, 'base_image_inspect', LABELS_CONF_BASE)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    flexmock(workflow, source=MockSource())
 
     if use_reactor:
         make_and_store_reactor_config_map(workflow, {'image_labels': LABELS_CONF})
@@ -301,9 +307,9 @@ def test_add_labels_plugin_generated(tmpdir, docker_tasker, workflow,
         mock_docker()
 
     setattr(workflow, 'builder', X())
-    flexmock(workflow, source=MockSource())
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', LABELS_CONF_BASE)
+    flexmock(workflow, source=MockSource())
 
     if reactor_config_map:
         make_and_store_reactor_config_map(workflow, {'image_labels': {}})
@@ -415,6 +421,7 @@ def test_add_labels_aliases(tmpdir, docker_tasker, workflow, caplog,
     setattr(workflow, 'builder', X())
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', base_labels)
+    flexmock(workflow, source=MockSource())
 
     if reactor_config_map:
         make_and_store_reactor_config_map(workflow, {'image_labels': plugin_labels})
@@ -493,6 +500,7 @@ def test_add_labels_equal_aliases(tmpdir, docker_tasker, workflow, caplog,
     setattr(workflow, 'builder', X())
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', base_labels)
+    flexmock(workflow, source=MockSource())
 
     if reactor_config_map:
         make_and_store_reactor_config_map(
@@ -573,6 +581,7 @@ def test_add_labels_equal_aliases2(tmpdir, docker_tasker, workflow, caplog, base
     setattr(workflow, 'builder', X())
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', base_labels)
+    flexmock(workflow, source=MockSource())
 
     if reactor_config_map:
         make_and_store_reactor_config_map(
@@ -657,6 +666,7 @@ def test_dont_overwrite_if_in_dockerfile(tmpdir, docker_tasker, workflow,
     setattr(workflow, 'builder', X())
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', labels_conf_base)
+    flexmock(workflow, source=MockSource())
 
     image_labels = {}
     for label_name in label_names:
@@ -710,6 +720,7 @@ def test_url_label(tmpdir, docker_tasker, workflow, url_format, info_url, reacto
     setattr(workflow, 'builder', X())
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', base_labels)
+    flexmock(workflow, source=MockSource())
 
     if reactor_config_map:
         make_and_store_reactor_config_map(workflow, {
@@ -768,9 +779,9 @@ def test_add_labels_plugin_explicit(tmpdir, docker_tasker, workflow,
         mock_docker()
 
     setattr(workflow, 'builder', X())
-    flexmock(workflow, source=MockSource())
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', labels_base)
+    flexmock(workflow, source=MockSource())
 
     prov_labels = {}
     prov_labels[auto_label] = 'explicit_value'
@@ -808,10 +819,10 @@ def test_add_labels_base_image(tmpdir, docker_tasker, workflow,
         mock_docker()
 
     setattr(workflow, 'builder', X())
-    flexmock(workflow, source=MockSource())
     setattr(workflow.builder, 'tasker', docker_tasker)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', {})
+    flexmock(workflow, source=MockSource())
     if parent == SCRATCH_FROM:
         workflow.builder.base_from_scratch = True
 
@@ -867,9 +878,10 @@ def test_add_labels_base_image(tmpdir, docker_tasker, workflow,
     ('B',   'A',   'B',   'B',   'setting label'),
     ('A',   'B',   'C',   'C',   'setting label'),
 ])
+@pytest.mark.parametrize('release_env', ['TEST_RELEASE_VAR', None])
 def test_release_label(tmpdir, docker_tasker, workflow, caplog,
                        base_new, df_new, plugin_new,
-                       expected_in_df, expected_log, reactor_config_map):
+                       expected_in_df, expected_log, release_env, reactor_config_map):
     if MOCK:
         mock_docker()
 
@@ -889,9 +901,10 @@ def test_release_label(tmpdir, docker_tasker, workflow, caplog,
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    setattr(workflow, 'builder', X())
+    setattr(workflow, 'builder', X(release_env))
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', base_labels)
+    flexmock(workflow, source=MockSource(release_env))
 
     if reactor_config_map:
         make_and_store_reactor_config_map(workflow, {'image_labels': plugin_labels})
@@ -914,6 +927,10 @@ def test_release_label(tmpdir, docker_tasker, workflow, caplog,
     assert AddLabelsPlugin.key is not None
     result_new = df.labels.get("release")
     assert result_new == expected_in_df
+
+    if release_env and expected_in_df:
+        expected = "ENV {}={}\n".format(release_env, expected_in_df)
+        assert expected in df.lines
 
     if expected_log:
         assert expected_log in caplog.text
