@@ -253,6 +253,18 @@ class AddLabelsPlugin(PreBuildPlugin):
         info_url = LabelFormatter().vformat(self.info_url_format, [], all_labels)
         self.labels['url'] = info_url
 
+    def add_release_env_var(self, df_parser):
+        release_env_var = self.workflow.source.config.release_env_var
+        if release_env_var:
+            final_labels = Labels(df_parser.labels)
+            try:
+                _, final_release = final_labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
+                release_line = "ENV {}={}".format(release_env_var, final_release)
+                df_parser.add_lines(release_line, at_start=True, all_stages=True)
+            except KeyError:
+                self.log.warning("environment release variable %s could not be set because no "
+                                 "release label found", release_env_var)
+
     def run(self):
         """
         run the plugin
@@ -325,5 +337,7 @@ class AddLabelsPlugin(PreBuildPlugin):
             # with FS, this should cause no harm)
             lines.append('\n' + content + '\n')
             dockerfile.lines = lines
+
+        self.add_release_env_var(dockerfile)
 
         return content

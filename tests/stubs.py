@@ -14,18 +14,18 @@ from atomic_reactor.util import ImageName
 
 
 # Stubs for commonly-mocked classes
+class StubConfig(object):
+    image_build_method = None
+    release_env_var = None
+
 
 class StubSource(object):
     dockerfile_path = None
     path = ''
-    config = None
+    config = StubConfig()
 
     def get_vcs_info(self):
         return None
-
-
-class StubConfig(object):
-    image_build_method = None
 
 
 class StubTagConf(object):

@@ -189,14 +189,6 @@ class BumpReleasePlugin(PreBuildPlugin):
             raise RuntimeError('build already exists in Koji: {}-{}-{} ({})'
                                .format(component, version, release, build.get('id')))
 
-    def add_release_env_var(self, parser):
-        release_env_var = self.workflow.source.config.release_env_var
-        final_labels = Labels(parser.labels)
-        _, final_release = final_labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
-        if release_env_var:
-            release_line = "ENV {}={}".format(release_env_var, final_release)
-            parser.add_lines(release_line, at_start=True, all_stages=True)
-
     def get_source_build_nvr(self, scratch=False):
         source_result = self.workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY]
         koji_build_nvr = source_result['sources_for_nvr']
@@ -298,5 +290,3 @@ class BumpReleasePlugin(PreBuildPlugin):
         if self.reserve_build and not is_scratch_build():
             self.reserve_build_in_koji(component, version, release, release_label,
                                        dockerfile_labels)
-
-        self.add_release_env_var(parser)
