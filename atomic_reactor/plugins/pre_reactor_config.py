@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -384,6 +384,10 @@ def get_deep_manifest_list_inspection(workflow, fallback=NO_FALLBACK):
 
 def get_fail_on_digest_mismatch(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'fail_on_digest_mismatch', fallback)
+
+
+def get_source_container(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'source_container', fallback)
 
 
 class ClusterConfig(object):

@@ -479,19 +479,7 @@
                     "additionalProperties": false,
                     "required": ["cfg_path"]
                 },
-                "expected_media_types": {
-                    "description": "Expected media types to be found in registry",
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "enum": ["application/json",
-                                 "application/vnd.docker.distribution.manifest.v1+json",
-                                 "application/vnd.docker.distribution.manifest.v2+json",
-                                 "application/vnd.docker.distribution.manifest.list.v2+json",
-                                 "application/vnd.oci.image.manifest.v1+json",
-                                 "application/vnd.oci.image.index.v1+json"]
-                    }
-                }
+                "expected_media_types": {"$ref": "#/definitions/media_types"}
             },
             "additionalProperties": false,
             "required": ["url"]
@@ -626,6 +614,17 @@
         "items": {
             "type": "string"
         }
+    },
+    "source_container": {
+        "description": "Properties relating to source containers",
+        "type": "object",
+        "properties": {
+          "limit_media_types": {
+            "description": "Do not report any media types other than these",
+            "allOf": [{"$ref": "#/definitions/media_types"}]
+          }
+        },
+        "additionalProperties": false
     }
   },
   "definitions": {
@@ -640,6 +639,19 @@
     "organization": {
         "description": "Registry organization",
         "type": "string"
+    },
+    "media_types": {
+      "description": "Media types to be found in registry",
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": ["application/json",
+                   "application/vnd.docker.distribution.manifest.v1+json",
+                   "application/vnd.docker.distribution.manifest.v2+json",
+                   "application/vnd.docker.distribution.manifest.list.v2+json",
+                   "application/vnd.oci.image.manifest.v1+json",
+                   "application/vnd.oci.image.index.v1+json"]
+        }
     }
   },
   "required": ["version"]

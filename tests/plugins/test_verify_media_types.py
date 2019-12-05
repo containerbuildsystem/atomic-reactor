@@ -10,6 +10,7 @@ from __future__ import absolute_import
 
 from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
+                                      PLUGIN_FETCH_SOURCES_KEY,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
@@ -133,7 +134,8 @@ class TestVerifyImageTypes(object):
               }))
 
     def workflow(self, build_process_failed=False, registries=None, registry_types=None,
-                 platforms=None, platform_descriptors=None, group=True, fail=False):
+                 platforms=None, platform_descriptors=None, group=True, fail=False,
+                 limit_media_types=None):
         tag_conf = TagConf()
         tag_conf.add_unique_image(self.TEST_UNIQUE_IMAGE)
 
@@ -170,6 +172,12 @@ class TestVerifyImageTypes(object):
             ReactorConfigKeys.VERSION_KEY: 1,
             'registries': registries,
         }
+
+        if limit_media_types is not None:
+            conf['source_container'] = {
+                'limit_media_types': limit_media_types,
+            }
+
         if platform_descriptors:
             conf['platform_descriptors'] = platform_descriptors
 
@@ -192,7 +200,7 @@ class TestVerifyImageTypes(object):
             url = re.compile(url_regex)
             responses.add_callback(responses.GET, url, callback=get_manifest)
 
-            expected_types = registry.get('expected_media_types', [])
+            expected_types = registry.get('expected_media_types', registry_types or [])
             if fail == "bad_results":
                 response_types = []
             elif not keep_types and no_amd64:
@@ -507,3 +515,36 @@ class TestVerifyImageTypes(object):
             plugin.run()
         assert 'expected media types were not found' in str(exc.value)
         assert failmsg in caplog.text
+
+    @responses.activate
+    @pytest.mark.parametrize('expected_media_types', [
+        None,
+        [MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2],
+    ])
+    def test_source_container(self, expected_media_types):
+        """
+        Test that v2 schema 1 images are not reported for source containers
+        """
+        registry = {
+            'url': 'https://container-registry.example.com/v2',
+            'version': 'v2',
+            'insecure': True,
+        }
+
+        if expected_media_types is not None:
+            registry['expected_media_types'] = expected_media_types
+
+        workflow = self.workflow(registries=[registry], group=False,
+                                 limit_media_types=[
+                                     MEDIA_TYPE_DOCKER_V2_SCHEMA2,
+                                 ],
+                                 registry_types=[
+                                     MEDIA_TYPE_DOCKER_V2_SCHEMA1,
+                                     MEDIA_TYPE_DOCKER_V2_SCHEMA2,
+                                 ])
+        workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {}
+        tasker = MockerTasker()
+
+        plugin = VerifyMediaTypesPlugin(tasker, workflow)
+        results = plugin.run()
+        assert results == [MEDIA_TYPE_DOCKER_V2_SCHEMA2]

@@ -11,6 +11,7 @@ the registry expects
 from __future__ import unicode_literals, absolute_import
 
 from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_VERIFY_MEDIA_KEY,
+                                      PLUGIN_FETCH_SOURCES_KEY,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
@@ -18,9 +19,11 @@ from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_VERIFY_
                                       MEDIA_TYPE_OCI_V1_INDEX)
 
 from atomic_reactor.plugin import ExitPlugin
-from atomic_reactor.util import get_manifest_digests, get_platforms, is_manifest_list
+from atomic_reactor.util import (get_manifest_digests, get_platforms,
+                                 is_manifest_list, ManifestDigest)
 from atomic_reactor.plugins.pre_reactor_config import (get_registries,
-                                                       get_platform_to_goarch_mapping)
+                                                       get_platform_to_goarch_mapping,
+                                                       get_source_container)
 from copy import deepcopy
 
 
@@ -57,8 +60,25 @@ class VerifyMediaTypesPlugin(ExitPlugin):
             insecure = registry.get('insecure', False)
             secret = registry.get('secret', None)
 
-            digests = get_manifest_digests(pullspec, registry_name, insecure, secret,
-                                           require_digest=False)
+            kwargs = {}
+            if PLUGIN_FETCH_SOURCES_KEY in self.workflow.prebuild_results:
+                # For source containers, limit the versions we ask
+                # about (and, if necessary, the expected media types).
+                # This can help to avoid issues with tooling that is
+                # unable to deal with the number of layers in these
+                # images.
+                src_config = get_source_container(self.workflow, fallback={})
+                limit_media_types = src_config.get('limit_media_types')
+                if limit_media_types is not None:
+                    short_name = {v: k for k, v in ManifestDigest.content_type.items()}
+                    versions = tuple(short_name[mt] for mt in limit_media_types)
+                    kwargs['versions'] = versions
+
+                    if expected_media_types:
+                        expected_media_types.intersection_update(set(limit_media_types))
+
+            digests = get_manifest_digests(pullspec, registry_name, insecure,
+                                           secret, require_digest=False, **kwargs)
             if digests:
                 if digests.v2_list:
                     media_types.add(MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
