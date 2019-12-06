@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015, 2018 Red Hat, Inc
+Copyright (c) 2015, 2018, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function, unicode_literals, absolute_import
 
 import hashlib
+import functools
 from itertools import chain
 import json
 import jsonschema
@@ -1585,3 +1586,56 @@ def get_platform_config(platform, build_annotations):
     cm_key = cm_key_tmp[cmlen:]
 
     return cm_key, cm_frag_key
+
+
+def annotation(*keys):
+    """
+    Annotate a `BuildPlugin` subclass. The `run()` method of this plugin will
+    store its results in the plugin's workflow as annotations.
+
+    The `run()` method of the plugin being annotated has to return a dict
+    containing all of the specified keys.
+
+    Example:
+    >>> from atomic_reactor.plugin import BuildPlugin
+
+    >>> @annotation('foo', 'bar')
+    >>> class MyBuildPlugin(BuildPlugin):
+    >>>     key = 'my_build_plugin'
+    >>>
+    >>>     def run(self):
+    >>>         return {'foo': 1, 'bar': 2, 'baz': 3}
+
+    >>> p = MyBuildPlugin(...)
+    >>> p.run()
+    >>> p.workflow.annotations  # {'foo': 1, 'bar': 2}
+
+    :param keys: Keys to annotate the plugin with
+    :return: Decorator that will turn the plugin into an annotated one
+    """
+    from atomic_reactor.plugin import BuildPlugin
+
+    def annotate(cls):
+        if not issubclass(cls, BuildPlugin):
+            raise TypeError('Only subclasses of BuildPlugin can be annotated')
+
+        run = cls.run
+
+        @functools.wraps(run)
+        def annotated_run(self):
+            result = run(self)
+            if not isinstance(result, dict):
+                raise TypeError('Annotated run() method did not return a dict')
+            annotations = self.workflow.annotations
+            for key in keys:
+                if key not in result:
+                    raise RuntimeError('Annotation not found in result: {!r}'.format(key))
+                if key in annotations:
+                    raise RuntimeError('Annotation already set: {!r}'.format(key))
+                annotations[key] = result[key]
+            return result
+
+        cls.run = annotated_run
+        return cls
+
+    return annotate

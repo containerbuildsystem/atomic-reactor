@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015, 2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -56,13 +56,14 @@ from atomic_reactor.util import (ImageName, wait_for_command,
                                  read_yaml, read_yaml_from_file_path, OSBSLogs,
                                  get_platforms_in_limits, get_orchestrator_platforms,
                                  dump_stacktraces, setup_introspection_signal_handler,
-                                 allow_repo_dir_in_dockerignore)
+                                 allow_repo_dir_in_dockerignore, annotation)
 from tests.constants import (DOCKERFILE_GIT,
                              INPUT_IMAGE, MOCK, MOCK_SOURCE,
                              REACTOR_CONFIG_MAP)
 import atomic_reactor.util
 from atomic_reactor.constants import INSPECT_CONFIG, PLUGIN_BUILD_ORCHESTRATE_KEY
 from atomic_reactor.source import SourceConfig
+from atomic_reactor.plugin import Plugin, BuildPlugin
 
 from tests.util import requires_internet
 from tests.stubs import StubInsideBuilder, StubSource
@@ -1616,3 +1617,84 @@ def test_allow_repo_dir_in_dockerignore(tmpdir, dockerignore_exists):
 
         assert ignore_lines[0:len(ignore_content)] == ignore_content
         assert ignore_lines[-1] == added_lines
+
+
+def test_annotation():
+    @annotation('foo', 'bar')
+    class BP1(BuildPlugin):
+        key = 'bp1'
+
+        def run(self):
+            return {'foo': 1, 'bar': 2}
+
+    @annotation('spam')
+    class BP2(BuildPlugin):
+        key = 'bp2'
+
+        def run(self):
+            return {'spam': 3, 'eggs': 4}
+
+    tasker = object()
+    workflow = DockerBuildWorkflow('test-image')
+    p1 = BP1(tasker, workflow)
+    p2 = BP2(tasker, workflow)
+
+    assert p1.run() == {'foo': 1, 'bar': 2}
+    assert p2.run() == {'spam': 3, 'eggs': 4}
+
+    assert workflow.annotations == {
+        'foo': 1,
+        'bar': 2,
+        'spam': 3,
+    }
+
+
+def test_annotation_wrong_class():
+    annotate = annotation('foo')
+    with pytest.raises(TypeError) as exc_info:
+        annotate(Plugin)
+    assert str(exc_info.value) == 'Only subclasses of BuildPlugin can be annotated'
+
+
+@pytest.mark.parametrize('keys, result, expected_err', [
+    (['foo', 'bar'],
+     {'foo': 1},
+     RuntimeError('Annotation not found in result: {!r}'.format('bar'))),
+    (['foo'],
+     1,
+     TypeError('Annotated run() method did not return a dict'))
+])
+def test_annotation_wrong_return(keys, result, expected_err):
+    @annotation(*keys)
+    class BP(BuildPlugin):
+        key = 'bp'
+
+        def run(self):
+            return result
+
+    tasker = object()
+    workflow = DockerBuildWorkflow('test-image')
+    p = BP(tasker, workflow)
+
+    with pytest.raises(type(expected_err)) as exc_info:
+        p.run()
+
+    assert str(exc_info.value) == str(expected_err)
+
+
+def test_annotation_conflict():
+    @annotation('foo')
+    class BP(BuildPlugin):
+        key = 'bp'
+
+        def run(self):
+            return {'foo': 1}
+
+    tasker = object()
+    workflow = DockerBuildWorkflow('test-image')
+    p = BP(tasker, workflow)
+
+    p.run()
+    with pytest.raises(RuntimeError) as exc_info:
+        p.run()
+    assert str(exc_info.value) == 'Annotation already set: {!r}'.format('foo')
