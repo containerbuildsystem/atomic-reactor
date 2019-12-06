@@ -120,6 +120,14 @@ class TestBumpRelease(object):
         with pytest.raises(RuntimeError):
             plugin.run()
 
+    @pytest.mark.parametrize(('reserve_build', 'koji_build_status'), [
+        (True, 'COMPLETE'),
+        (True, 'FAILED'),
+        (True, 'CANCELED'),
+        (False, 'COMPLETE'),
+        (False, 'FAILED'),
+        (False, 'CANCELED'),
+    ])
     @pytest.mark.parametrize('add_timestamp', [True, False])
     @pytest.mark.parametrize('is_auto', [True, False])
     @pytest.mark.parametrize('scratch', [True, False])
@@ -128,19 +136,23 @@ class TestBumpRelease(object):
          'release',
          'Release',
     ])
-    def test_release_label_already_set(self, tmpdir, caplog, add_timestamp, is_auto, scratch,
-                                       build_exists, release_label, reactor_config_map):
+    def test_release_label_already_set(self, tmpdir, caplog, reserve_build, koji_build_status,
+                                       add_timestamp, is_auto, scratch, build_exists,
+                                       release_label, reactor_config_map):
         class MockedClientSession(object):
             def __init__(self, hub, opts=None):
                 pass
 
             def getBuild(self, build_info):
                 if build_exists:
-                    return {'id': 12345}
+                    return {'id': 12345, 'state': koji.BUILD_STATES[koji_build_status]}
                 return build_exists
 
             def krb_login(self, *args, **kwargs):
                 return True
+
+            def CGInitBuild(self, cg_name, nvr_data):
+                return {'build_id': 'reserved_build', 'token': 'reserved_token'}
 
         session = MockedClientSession('')
         flexmock(koji, ClientSession=session)
@@ -168,9 +180,11 @@ class TestBumpRelease(object):
                                               'com.redhat.component': 'component',
                                               'version': 'version'},
                               add_timestamp=add_timestamp, is_auto=is_auto,
+                              reserve_build=reserve_build,
                               reactor_config_map=reactor_config_map)
 
-        if build_exists and not scratch:
+        refund_build = (reactor_config_map and reserve_build and koji_build_status != 'COMPLETE')
+        if build_exists and not scratch and not refund_build:
             with pytest.raises(RuntimeError) as exc:
                 plugin.run()
             assert 'build already exists in Koji: ' in str(exc.value)
@@ -228,87 +242,126 @@ class TestBumpRelease(object):
               ' undefined variables: {}'.format(all_wrong_labels)
         assert msg in str(exc.value)
 
-    @pytest.mark.parametrize('component', [
-        {'com.redhat.component': 'component1'},
-        {'BZComponent': 'component2'},
+    @pytest.mark.parametrize(('component', 'version'), [
+        ({'com.redhat.component': 'component1'}, {'version': '7.1'}),
+        ({'com.redhat.component': 'component1'}, {'Version': '7.2'}),
+        ({'BZComponent': 'component2'}, {'version': '7.1'}),
+        ({'BZComponent': 'component2'}, {'Version': '7.2'}),
     ])
-    @pytest.mark.parametrize('version', [
-        {'version': '7.1'},
-        {'Version': '7.2'},
-    ])
-    @pytest.mark.parametrize('include_target', [
-        True,
-        False
-    ])
-    @pytest.mark.parametrize('reserve_build, init_fails', [
-        (True, RuntimeError),
-        (True, koji.GenericError),
-        (True, None),
-        (False, None)
+    @pytest.mark.parametrize('reserve_build, init_fails, koji_build_state', [
+        (True, RuntimeError, 'COMPLETE'),
+        (True, koji.GenericError, 'COMPLETE'),
+        (True, None, 'COMPLETE'),
+        (True, None, 'FAILED'),
+        (True, None, 'CANCELED'),
+        (False, None, 'COMPLETE')
     ])
     @pytest.mark.parametrize('next_release, base_release, append', [
-        ({'actual': '1', 'builds': [], 'expected': '1', 'scratch': False},
+        ({'actual': '1', 'builds': [],
+          'expected': '1', 'expected_refund': '1', 'scratch': False},
          None, False),
-        ({'actual': '1', 'builds': ['1'], 'expected': '2', 'scratch': False},
+
+        ({'actual': '1', 'builds': ['1'],
+          'expected': '2', 'expected_refund': '1', 'scratch': False},
          None, False),
-        ({'actual': '1', 'builds': ['1', '2'], 'expected': '3', 'scratch': False},
+
+        ({'actual': '1', 'builds': ['1', '2'],
+          'expected': '3', 'expected_refund': '1', 'scratch': False},
          None, False),
-        ({'actual': '20', 'builds': ['19.1'], 'expected': '20', 'scratch': False},
+
+        ({'actual': '20', 'builds': ['19.1'],
+          'expected': '20', 'expected_refund': '20', 'scratch': False},
          None, False),
-        ({'actual': '20', 'builds': ['20', '20.1'], 'expected': '21', 'scratch': False},
+
+        ({'actual': '20', 'builds': ['20', '20.1'],
+          'expected': '21', 'expected_refund': '20', 'scratch': False},
          None, False),
-        ({'actual': '20.1', 'builds': ['19.1'], 'expected': '20', 'scratch': False},
+
+        ({'actual': '20.1', 'builds': ['19.1'],
+          'expected': '20', 'expected_refund': '20', 'scratch': False},
          None, False),
-        ({'actual': '20.1', 'builds': ['19.1', '20'], 'expected': '21', 'scratch': False},
+
+        ({'actual': '20.1', 'builds': ['19.1', '20'],
+          'expected': '21', 'expected_refund': '20', 'scratch': False},
          None, False),
-        ({'actual': '20.1', 'builds': ['20'], 'expected': '21', 'scratch': False},
+
+        ({'actual': '20.1', 'builds': ['20'],
+          'expected': '21', 'expected_refund': '20', 'scratch': False},
          None, False),
-        ({'actual': '20.1', 'builds': ['20', '20.1'], 'expected': '21', 'scratch': False},
+
+        ({'actual': '20.1', 'builds': ['20', '20.1'],
+          'expected': '21', 'expected_refund': '20', 'scratch': False},
          None, False),
-        ({'actual': '20.2', 'builds': ['20', '20.1'], 'expected': '21', 'scratch': False},
+
+        ({'actual': '20.2', 'builds': ['20', '20.1'],
+          'expected': '21', 'expected_refund': '20', 'scratch': False},
          None, False),
-        ({'actual': '20.2', 'builds': ['20', '20.1', '20.2'], 'expected': '21', 'scratch': False},
+
+        ({'actual': '20.2', 'builds': ['20', '20.1', '20.2'],
+          'expected': '21', 'expected_refund': '20', 'scratch': False},
          None, False),
-        ({'actual': '20.fc25', 'builds': ['20.fc24'], 'expected': '20.fc25', 'scratch': False},
+
+        ({'actual': '20.fc25', 'builds': ['20.fc24'],
+          'expected': '20.fc25', 'expected_refund': '20.fc25', 'scratch': False},
          None, False),
-        ({'actual': '20.fc25', 'builds': ['20.fc25'], 'expected': '21.fc25', 'scratch': False},
+
+        ({'actual': '20.fc25', 'builds': ['20.fc25'],
+          'expected': '21.fc25', 'expected_refund': '20.fc25', 'scratch': False},
          None, False),
+
         ({'actual': '20.foo.fc25', 'builds': ['20.foo.fc25'],
-         'expected': '21.foo.fc25', 'scratch': False},
+         'expected': '21.foo.fc25', 'expected_refund': '20.foo.fc25', 'scratch': False},
          None, False),
+
         ({'actual': '20.1.fc25', 'builds': ['20.fc25', '20.1.fc25'],
-         'expected': '21.fc25', 'scratch': False},
+         'expected': '21.fc25', 'expected_refund': '20.fc25', 'scratch': False},
          None, False),
+
         ({'actual': '20.1.fc25', 'builds': ['20.fc25', '20.1.fc25', '21.fc25'],
-         'expected': '22.fc25', 'scratch': False},
+         'expected': '22.fc25', 'expected_refund': '20.fc25', 'scratch': False},
          None, False),
-        ({'build_name': False, 'expected': '1', 'scratch': True},
+
+        ({'build_name': False, 'expected': '1', 'expected_refund': '1', 'scratch': True},
          None, False),
-        ({'build_name': False, 'expected': '1', 'scratch': True},
+
+        ({'build_name': False, 'expected': '1', 'expected_refund': '1', 'scratch': True},
          None, True),
-        ({'build_name': True, 'expected': 'scratch-123456', 'scratch': True},
+
+        ({'build_name': True, 'expected': 'scratch-123456', 'expected_refund': 'scratch-123456',
+          'scratch': True},
          None, False),
-        ({'build_name': True, 'expected': 'scratch-123456', 'scratch': True},
+
+        ({'build_name': True, 'expected': 'scratch-123456', 'expected_refund': 'scratch-123456',
+          'scratch': True},
          None, True),
-        ({'builds': [], 'expected': '42.1', 'scratch': False},
+
+        ({'builds': [], 'expected': '42.1', 'expected_refund': '42.1', 'scratch': False},
          '42', True),
-        ({'builds': ['42.1', '42.2'], 'expected': '42.3', 'scratch': False},
+
+        ({'builds': ['42.1', '42.2'], 'expected': '42.3', 'expected_refund': '42.1',
+          'scratch': False},
          '42', True),
+
         # No interpretation of the base release when appending - just treated as string
-        ({'builds': ['42.2'], 'expected': '42.1.1', 'scratch': False},
+        ({'builds': ['42.2'], 'expected': '42.1.1', 'expected_refund': '42.1.1', 'scratch': False},
          '42.1', True),
+
         # No interpretation of the base release when appending - just treated as string
-        ({'builds': ['42.1.1'], 'expected': '42.1.2', 'scratch': False},
+        ({'builds': ['42.1.1'], 'expected': '42.1.2', 'expected_refund': '42.1.1',
+          'scratch': False},
          '42.1', True),
-        ({'builds': [], 'expected': '1.1', 'scratch': False},
+
+        ({'builds': [], 'expected': '1.1', 'expected_refund': '1.1', 'scratch': False},
          None, True),
-        ({'builds': ['1.1'], 'expected': '1.2', 'scratch': False},
+
+        ({'builds': ['1.1'], 'expected': '1.2', 'expected_refund': '1.1', 'scratch': False},
          None, True),
-        ({'builds': ['1.1', '1.2'], 'expected': '1.3', 'scratch': False},
+
+        ({'builds': ['1.1', '1.2'], 'expected': '1.3', 'expected_refund': '1.1', 'scratch': False},
          None, True),
     ])
     def test_increment_and_append(self, tmpdir, component, version, next_release, base_release,
-                                  append, include_target, reserve_build, init_fails,
+                                  append, reserve_build, init_fails, koji_build_state,
                                   reactor_config_map):
         build_id = '123456'
         token = 'token_123456'
@@ -329,7 +382,7 @@ class TestBumpRelease(object):
                 assert build_info['version'] == list(version.values())[0]
 
                 if build_info['release'] in next_release['builds']:
-                    return True
+                    return {'state': koji.BUILD_STATES[koji_build_state]}
                 return None
 
             def ssl_login(self, cert=None, ca=None, serverca=None, proxyuser=None):
@@ -345,7 +398,10 @@ class TestBumpRelease(object):
                 assert cg_name == PROG
                 assert nvr_data['name'] == list(component.values())[0]
                 assert nvr_data['version'] == list(version.values())[0]
-                assert nvr_data['release'] == next_release['expected']
+                if reactor_config_map and reserve_build and koji_build_state != 'COMPLETE':
+                    assert nvr_data['release'] == next_release['expected_refund']
+                else:
+                    assert nvr_data['release'] == next_release['expected']
                 if init_fails:
                     raise init_fails('unable to pre-declare build {}'.format(nvr_data))
                 return {'build_id': build_id, 'token': token}
@@ -361,7 +417,6 @@ class TestBumpRelease(object):
             labels['release'] = base_release
 
         plugin = self.prepare(tmpdir, labels=labels,
-                              include_target=include_target,
                               certs=True,
                               reactor_config_map=reactor_config_map,
                               reserve_build=reserve_build,
@@ -412,7 +467,10 @@ class TestBumpRelease(object):
                 assert fd.read() == expected
 
         parser = df_parser(plugin.workflow.builder.df_path, workflow=plugin.workflow)
-        assert parser.labels['release'] == next_release['expected']
+        if reactor_config_map and reserve_build and koji_build_state != 'COMPLETE':
+            assert parser.labels['release'] == next_release['expected_refund']
+        else:
+            assert parser.labels['release'] == next_release['expected']
         # Old-style spellings should not be asserted
         assert 'Release' not in parser.labels
 
@@ -453,7 +511,7 @@ class TestBumpRelease(object):
                     assert build_info['version'] == koji_version
 
                     if build_info['release'] in next_release['builds']:
-                        return True
+                        return {'state': koji.BUILD_STATES['COMPLETE']}
                     return None
                 else:
                     return {'name': koji_name, 'version': koji_version,
