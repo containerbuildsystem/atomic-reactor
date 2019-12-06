@@ -19,6 +19,7 @@ from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY, PROG, KOJI_RESERV
                                       KOJI_RESERVE_RETRY_DELAY)
 from atomic_reactor.util import get_build_json, is_scratch_build
 from koji import GenericError
+import koji
 
 
 class BumpReleasePlugin(PreBuildPlugin):
@@ -113,6 +114,9 @@ class BumpReleasePlugin(PreBuildPlugin):
             build = self.xmlrpc.getBuild(build_info)
             if not build:
                 return next_release
+            elif self.reserve_build:
+                if build['state'] in (koji.BUILD_STATES['FAILED'], koji.BUILD_STATES['CANCELED']):
+                    return next_release
 
             next_release = self.get_patched_release(next_release, increment=True)
 
@@ -129,7 +133,9 @@ class BumpReleasePlugin(PreBuildPlugin):
             build = self.xmlrpc.getBuild(build_info)
             if not build:
                 return next_release
-
+            elif self.reserve_build:
+                if build['state'] in (koji.BUILD_STATES['FAILED'], koji.BUILD_STATES['CANCELED']):
+                    return next_release
             suffix += 1
 
     def reserve_build_in_koji(self, component, version, release, release_label,
@@ -186,6 +192,11 @@ class BumpReleasePlugin(PreBuildPlugin):
         self.log.debug('checking that the build does not exist: %s', build_info)
         build = self.xmlrpc.getBuild(build_info)
         if build:
+            if self.reserve_build:
+                if build['state'] in (koji.BUILD_STATES['FAILED'],
+                                      koji.BUILD_STATES['CANCELED']):
+                    return
+
             raise RuntimeError('build already exists in Koji: {}-{}-{} ({})'
                                .format(component, version, release, build.get('id')))
 
