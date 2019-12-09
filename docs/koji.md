@@ -88,6 +88,17 @@ Data which is placed here includes:
 
 - `build.extra.typeinfo.operator-manifests.archive` (string): name of the archive containing operator manifest files
 
+# Type-specific source container build metadata
+
+The same note about `image` and `build.extra.typeinfo.image` from previous section applies here.
+
+Data which is placed here includes:
+
+- `build.extra.image.media_types`: the same as for image builds (see previous section)
+- `build.extra.image.sources_for_nvr` (str): koji N-V-R for the original image build
+- `build.extra.image.sources_signing_intent` (str): signing intent used to fetch source RPMs
+- `build.extra.submitter`: the same as for regular image builds (see previous section)
+
 # Type-specific buildroot metadata:
 
 In each buildroot, the extra.osbs key is used to define a map that contains these items:
