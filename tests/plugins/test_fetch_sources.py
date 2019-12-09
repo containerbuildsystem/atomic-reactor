@@ -133,10 +133,20 @@ def koji_session():
     session = flexmock()
     flexmock(session).should_receive('ssl_login').and_return(True)
     flexmock(session).should_receive('listArchives').and_return([{'id': 1}, {'id': 2}])
-    flexmock(session).should_receive('listRPMs').with_args(imageID=1).and_return(
-        [{'id': 1, 'build_id': 1, 'nvr': 'foobar-1-1', 'arch': 'x86_64'}])
-    flexmock(session).should_receive('listRPMs').with_args(imageID=2).and_return(
-        [{'id': 2, 'build_id': 1, 'nvr': 'foobar-1-1', 'arch': 'aarch64'}])
+    flexmock(session).should_receive('listRPMs').with_args(imageID=1).and_return([
+        {'id': 1,
+         'build_id': 1,
+         'nvr': 'foobar-1-1',
+         'arch': 'x86_64',
+         'external_repo_name': 'INTERNAL'}
+    ])
+    flexmock(session).should_receive('listRPMs').with_args(imageID=2).and_return([
+        {'id': 2,
+         'build_id': 1,
+         'nvr': 'foobar-1-1',
+         'arch': 'x86_64',
+         'external_repo_name': 'INTERNAL'}
+    ])
     (flexmock(session)
      .should_receive('getRPMHeaders')
      .and_return({'SOURCERPM': 'foobar-1-1.src.rpm'}))
@@ -361,3 +371,31 @@ class TestFetchSources(object):
         runner.run()
 
         assert srpm_url in caplog.text
+
+    @pytest.mark.parametrize('reason', ['external', 'other'])
+    def test_missing_srpm_header(self, docker_tasker, koji_session, tmpdir, reason):
+        (flexmock(koji_session)
+            .should_receive('listArchives')
+            .and_return([{'id': 1}]))
+        (flexmock(koji_session)
+            .should_receive('listRPMs')
+            .with_args(imageID=1)
+            .and_return([
+                {'id': 1,
+                 'build_id': None,
+                 'nvr': 'foobar-1-1',
+                 'arch': 'x86_64',
+                 'external_repo_name': 'some-repo' if reason == 'external' else 'INTERNAL'}
+            ]))
+        (flexmock(koji_session)
+            .should_receive('getRPMHeaders')
+            .and_return({}))
+
+        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr='foobar-1-1')
+        with pytest.raises(PluginFailedException) as exc_info:
+            runner.run()
+
+        if reason == 'external':
+            assert 'RPM comes from an external repo' in str(exc_info.value)
+        else:
+            assert 'Missing SOURCERPM header' in str(exc_info.value)
