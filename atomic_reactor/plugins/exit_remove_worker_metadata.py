@@ -10,13 +10,8 @@ from __future__ import absolute_import
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.constants import PLUGIN_REMOVE_WORKER_METADATA_KEY
 from osbs.exceptions import OsbsResponseException
-
-
-def defer_removal(workflow, cf_map, osbs):
-    key = RemoveWorkerMetadataPlugin.key
-    workspace = workflow.plugin_workspace.setdefault(key, {})
-    workspace.setdefault('cf_maps_to_remove', set())
-    workspace['cf_maps_to_remove'].add((cf_map, osbs))
+from atomic_reactor.util import get_platform_config, BadConfigMapError
+from atomic_reactor.plugins.build_orchestrate_build import get_worker_build_info
 
 
 class RemoveWorkerMetadataPlugin(ExitPlugin):
@@ -30,12 +25,22 @@ class RemoveWorkerMetadataPlugin(ExitPlugin):
         """
         Run the plugin.
         """
+        build_result = self.workflow.build_result
 
-        workspace = self.workflow.plugin_workspace.get(self.key, {})
-        cf_maps_to_remove = workspace.get('cf_maps_to_remove', [])
-        for cm_key, osbs in cf_maps_to_remove:
+        worker_builds = build_result.annotations['worker-builds']
+
+        for platform, build_annotations in worker_builds.items():
+            try:
+                cm_key, _ = get_platform_config(platform, build_annotations)
+            except BadConfigMapError:
+                continue
+
+            build_info = get_worker_build_info(self.workflow, platform)
+            osbs = build_info.osbs
+
             try:
                 osbs.delete_config_map(cm_key)
-                self.log.debug("ConfigMap %s deleted", cm_key)
+                self.log.debug("ConfigMap %s on platform %s deleted", cm_key, platform)
             except OsbsResponseException as ex:
-                self.log.warning("Failed to delete ConfigMap %s: %s", cm_key, ex)
+                self.log.warning("Failed to delete ConfigMap %s on platform %s: %s",
+                                 cm_key, platform, ex)
