@@ -61,6 +61,7 @@ LogEntry = namedtuple('LogEntry', ['platform', 'line'])
 NAMESPACE = 'mynamespace'
 BUILD_ID = 'build-1'
 SOURCES_FOR_KOJI_NVR = 'component-release-version'
+SOURCES_SIGNING_INTENT = 'some_intent'
 
 PUSH_OPERATOR_MANIFESTS_RESULTS = {
     "endpoint": 'registry.url/endpoint',
@@ -366,7 +367,8 @@ def mock_environment(tmpdir, session=None, name=None,
                                             image_id="id1234",
                                             annotations=annotations)
     workflow.prebuild_plugins_conf = {}
-    workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {'sources_for_nvr': SOURCES_FOR_KOJI_NVR}
+    workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {'sources_for_nvr': SOURCES_FOR_KOJI_NVR,
+                                                           'signing_intent': SOURCES_SIGNING_INTENT}
     workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_rebuild
     workflow.postbuild_results[PostBuildRPMqaPlugin.key] = [
         "name1;1.0;1;x86_64;0;2000;" + FAKE_SIGMD5.decode() + ";23000;"
@@ -2258,6 +2260,7 @@ class TestKojiImport(object):
         assert isinstance(image, dict)
 
         assert image['sources_for_nvr'] == SOURCES_FOR_KOJI_NVR
+        assert image['sources_signing_intent'] == SOURCES_SIGNING_INTENT
 
         if expected_media_types:
             media_types = image['media_types']
