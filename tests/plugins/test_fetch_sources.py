@@ -238,7 +238,8 @@ class TestFetchSources(object):
     def test_koji_signing_intent(self, requests_mock, docker_tasker, koji_session, tmpdir,
                                  signing_intent, caplog):
         """Make sure fetch_sources plugin prefers the koji image build signing intent"""
-        extra_image = {'odcs': {'signing_intent': 'unsigned'}}
+        image_signing_intent = 'unsigned'
+        extra_image = {'odcs': {'signing_intent': image_signing_intent}}
 
         koji_build = deepcopy(KOJI_BUILD)
         koji_build['extra'].update({'image': extra_image})
@@ -259,6 +260,7 @@ class TestFetchSources(object):
             assert msg not in caplog.text
         if signing_intent in ['one, multiple']:
             assert get_srpm_url('usedKey') not in caplog.text
+        assert result[constants.PLUGIN_FETCH_SOURCES_KEY]['signing_intent'] == image_signing_intent
 
     def test_no_build_info(self, requests_mock, docker_tasker, koji_session, tmpdir):
         mock_koji_manifest_download(requests_mock)

@@ -405,6 +405,7 @@ class KojiImportPlugin(ExitPlugin):
         else:
             source_result = self.workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY]
             extra['image']['sources_for_nvr'] = source_result['sources_for_nvr']
+            extra['image']['sources_signing_intent'] = source_result['signing_intent']
 
         koji_task_id = metadata.get('labels', {}).get('koji-task-id')
         if koji_task_id is not None:

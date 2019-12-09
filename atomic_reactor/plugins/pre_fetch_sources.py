@@ -78,6 +78,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
                 'sources_for_koji_build_id': self.koji_build_id,
                 'sources_for_nvr': self.koji_build_nvr,
                 'image_sources_dir': sources_dir,
+                'signing_intent': self.signing_intent,
         }
 
     def download_sources(self, urls, insecure=False):
