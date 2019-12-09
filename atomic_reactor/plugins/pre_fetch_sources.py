@@ -166,6 +166,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
 
         srpm_build_paths = {}
         for rpm_id, rpm_build_id in rpm_build_ids.items():
+            self.log.debug('Resolving SRPM for RPM ID: %s', rpm_id)
             rpm_hdr = self.session.getRPMHeaders(rpm_id, headers=['SOURCERPM'])
             srpm_filename = rpm_hdr['SOURCERPM']
             if srpm_filename in srpm_build_paths:
