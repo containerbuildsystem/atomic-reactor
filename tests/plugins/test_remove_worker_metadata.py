@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function, unicode_literals, absolute_import
 
 import os
+import logging
 
 from flexmock import flexmock
 
@@ -17,8 +18,10 @@ from atomic_reactor.constants import PLUGIN_REMOVE_WORKER_METADATA_KEY
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import ExitPluginsRunner
 from atomic_reactor.util import ImageName
-from atomic_reactor.plugins.exit_remove_worker_metadata import (defer_removal)
+from atomic_reactor.build import BuildResult
 from osbs.exceptions import OsbsResponseException
+from atomic_reactor.plugins.build_orchestrate_build import (WorkerBuildInfo, ClusterInfo,
+                                                            OrchestrateBuildPlugin)
 
 from tests.constants import MOCK_SOURCE, TEST_IMAGE, INPUT_IMAGE
 from tests.docker_mock import mock_docker
@@ -34,14 +37,8 @@ class MockConfigMapResponse(object):
 
 
 class MockOSBS(object):
-    def __init__(self, config_map):
-        self.config_map = config_map
-
     def delete_config_map(self, name):
-        if name:
-            return name in self.config_map
-        else:
-            raise OsbsResponseException("Failed to delete config map", 404)
+        return name
 
 
 class MockSource(object):
@@ -89,29 +86,59 @@ def mock_workflow(tmpdir):
     return workflow
 
 
-@pytest.mark.parametrize('names', [['build-1-x86_64-md'],
-                                   ['build-1-ppc64le-md'],
-                                   ['build-1-x86_64-md', 'build-1-ppc64le-md'],
-                                   [None]])
+@pytest.mark.parametrize('platforms', [['x86_64'],
+                                       ['ppc64le'],
+                                       ['x86_64', 'ppc64le'],
+                                       [None]])
 @pytest.mark.parametrize('fragment_key', ['metadata.json', None])
-def test_remove_worker_plugin(tmpdir, caplog, names, fragment_key):
+@pytest.mark.parametrize('cm_not_found', [True, False])
+def test_remove_worker_plugin(tmpdir, caplog, platforms, fragment_key, cm_not_found):
     workflow = mock_workflow(tmpdir)
 
-    koji_metadata = {
-        'foo': 'bar',
-        'spam': 'bacon',
+    annotations = {'worker-builds': {}}
+    log = logging.getLogger("atomic_reactor.plugins." + OrchestrateBuildPlugin.key)
+    build = None
+    cluster = None
+    load = None
+    workspace = {
+        'build_info': {},
+        'koji_upload_dir': 'foo',
     }
-    metadata = {'metadata.json': koji_metadata}
 
-    for name in names:
-        osbs = MockOSBS({name: metadata})
-        defer_removal(workflow, name, osbs)
+    for platform in platforms:
+        build_name = 'build-1-%s' % platform
+        metadata_fragment = None
+        if platform:
+            config_name = 'build-1-%s-md' % platform
+            metadata_fragment = 'configmap/%s' % config_name
 
-        (flexmock(osbs)
-         .should_call("delete_config_map")
-         .with_args(name)
-         .once()
-         .and_return(True))
+            osbs = MockOSBS()
+            cluster_info = ClusterInfo(cluster, platform, osbs, load)
+            worker_info = WorkerBuildInfo(build, cluster_info, log)
+            workspace['build_info'][platform] = worker_info
+
+            if fragment_key:
+                if cm_not_found:
+                    (flexmock(osbs)
+                     .should_receive("delete_config_map")
+                     .with_args(config_name)
+                     .once()
+                     .and_raise(OsbsResponseException('none', 404)))
+                else:
+                    (flexmock(osbs)
+                     .should_receive("delete_config_map")
+                     .with_args(config_name)
+                     .once()
+                     .and_return(True))
+
+        annotations['worker-builds'][platform] = {
+            'build': {'build-name': build_name},
+            'metadata_fragment': metadata_fragment,
+            'metadata_fragment_key': fragment_key
+        }
+
+    workflow.build_result = BuildResult(annotations=annotations, image_id="id1234")
+    workflow.plugin_workspace[OrchestrateBuildPlugin.key] = workspace
 
     runner = ExitPluginsRunner(
         None,
@@ -124,8 +151,12 @@ def test_remove_worker_plugin(tmpdir, caplog, names, fragment_key):
 
     runner.run()
 
-    for name in names:
-        if name:
-            assert "ConfigMap {} deleted".format(name) in caplog.text
-        else:
-            assert "Failed to delete ConfigMap None" in caplog.text
+    for platform in platforms:
+        if platform and fragment_key:
+            cm_name = 'build-1-%s-md' % platform
+            if cm_not_found:
+                msg = "Failed to delete ConfigMap {} on platform {}:".format(cm_name, platform)
+                assert msg in caplog.text
+            else:
+                msg = "ConfigMap {} on platform {} deleted". format(cm_name, platform)
+                assert msg in caplog.text

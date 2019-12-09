@@ -10,13 +10,7 @@ from __future__ import absolute_import
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import get_worker_build_info
 from atomic_reactor.constants import PLUGIN_FETCH_WORKER_METADATA_KEY
-from atomic_reactor.plugins.exit_remove_worker_metadata import defer_removal
-
-
-class BadConfigMapError(Exception):
-    """
-    Build annotation does not indicate a valid ConfigMap.
-    """
+from atomic_reactor.util import get_platform_config, BadConfigMapError
 
 
 class FetchWorkerMetadataPlugin(PostBuildPlugin):
@@ -33,25 +27,11 @@ class FetchWorkerMetadataPlugin(PostBuildPlugin):
         """
         Return the metadata for the given platform.
         """
-
         # retrieve all the workspace data
+        cm_key, cm_frag_key = get_platform_config(platform, build_annotations)
+
         build_info = get_worker_build_info(self.workflow, platform)
         osbs = build_info.osbs
-
-        kind = "configmap/"
-        cmlen = len(kind)
-        cm_key_tmp = build_annotations['metadata_fragment']
-        cm_frag_key = build_annotations['metadata_fragment_key']
-
-        if not cm_key_tmp or not cm_frag_key or cm_key_tmp[:cmlen] != kind:
-            msg = "Bad ConfigMap annotations for platform {}".format(platform)
-            self.log.warning(msg)
-            raise BadConfigMapError(msg)
-
-        # use the key to get the configmap data and then use the
-        # fragment_key to get the build metadata inside the configmap data
-        # save the worker_build metadata
-        cm_key = cm_key_tmp[cmlen:]
         try:
             cm_data = osbs.get_config_map(cm_key)
         except Exception:
@@ -60,7 +40,6 @@ class FetchWorkerMetadataPlugin(PostBuildPlugin):
             raise
 
         metadata = cm_data.get_data_by_key(cm_frag_key)
-        defer_removal(self.workflow, cm_key, osbs)
         return metadata
 
     def run(self):

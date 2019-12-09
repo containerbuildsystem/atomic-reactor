@@ -1557,3 +1557,31 @@ def has_operator_manifest(workflow):
     except KeyError:
         operator_label = 'false'
     return operator_label.lower() == 'true'
+
+
+class BadConfigMapError(Exception):
+    """
+    Build annotation does not indicate a valid ConfigMap.
+    """
+
+
+def get_platform_config(platform, build_annotations):
+    """
+    Return tuple platform config map and config map key
+    """
+    kind = "configmap/"
+    cmlen = len(kind)
+    cm_key_tmp = build_annotations['metadata_fragment']
+    cm_frag_key = build_annotations['metadata_fragment_key']
+
+    if not cm_key_tmp or not cm_frag_key or cm_key_tmp[:cmlen] != kind:
+        msg = "Bad ConfigMap annotations for platform {}".format(platform)
+        logger.warning(msg)
+        raise BadConfigMapError(msg)
+
+    # use the key to get the configmap data and then use the
+    # fragment_key to get the build metadata inside the configmap data
+    # save the worker_build metadata
+    cm_key = cm_key_tmp[cmlen:]
+
+    return cm_key, cm_frag_key
