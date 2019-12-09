@@ -12,6 +12,8 @@ The `koji_parent` pre-build plugin determines the expected NVR (Name-Version-Rel
 
 The `fetch_maven_artifacts` pre-build plugin will use configuration files to download external maven artifacts. One of these sources can be a Koji build.
 
+The `fetch_sources` pre-build plugins determines and pulls sources which should be added into source container image, based on provided koji build N-V-R/ID.
+
 The `inject_parent_image` pre-build plugin overwrites the parent image to be used based on a given Koji build.
 
 ## Exit plugins
