@@ -161,17 +161,27 @@ class FetchSourcesPlugin(PreBuildPlugin):
             sigkeys = ['']
 
         archives = self.session.listArchives(self.koji_build_id, type='image')
-        rpm_build_ids = {rpm['id']: rpm['build_id'] for archive in archives
-                         for rpm in self.session.listRPMs(imageID=archive['id'])}
+        rpms = [rpm for archive in archives
+                for rpm in self.session.listRPMs(imageID=archive['id'])]
 
         srpm_build_paths = {}
-        for rpm_id, rpm_build_id in rpm_build_ids.items():
+        for rpm in rpms:
+            rpm_id = rpm['id']
             self.log.debug('Resolving SRPM for RPM ID: %s', rpm_id)
+
+            if rpm['external_repo_name'] != 'INTERNAL':
+                msg = ('RPM comes from an external repo (RPM ID: {}). '
+                       'External RPMs are currently not supported.').format(rpm_id)
+                raise RuntimeError(msg)
+
             rpm_hdr = self.session.getRPMHeaders(rpm_id, headers=['SOURCERPM'])
+            if 'SOURCERPM' not in rpm_hdr:
+                raise RuntimeError('Missing SOURCERPM header (RPM ID: {})'.format(rpm_id))
+
             srpm_filename = rpm_hdr['SOURCERPM']
             if srpm_filename in srpm_build_paths:
                 continue
-            rpm_build = self.session.getBuild(rpm_build_id, strict=True)
+            rpm_build = self.session.getBuild(rpm['build_id'], strict=True)
             base_url = self.pathinfo.build(rpm_build)
             srpm_build_paths[srpm_filename] = base_url
 
