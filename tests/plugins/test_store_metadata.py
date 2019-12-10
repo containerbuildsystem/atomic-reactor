@@ -902,3 +902,25 @@ def test_set_koji_annotations_whitelist(tmpdir, koji_conf):
         assert all(entry in whitelist for entry in koji_conf['task_annotations_whitelist'])
     else:
         assert 'koji_task_annotations_whitelist' not in annotations
+
+
+def test_plugin_annotations():
+    workflow = prepare()
+    workflow.annotations = {'foo': {'bar': 'baz'}, 'spam': ['eggs']}
+
+    runner = ExitPluginsRunner(
+        None,
+        workflow,
+        [{
+            'name': StoreMetadataInOSv3Plugin.key,
+            "args": {
+                "url": "http://example.com/"
+            }
+        }]
+    )
+
+    output = runner.run()
+    annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
+
+    assert annotations['foo'] == '{"bar": "baz"}'
+    assert annotations['spam'] == '["eggs"]'

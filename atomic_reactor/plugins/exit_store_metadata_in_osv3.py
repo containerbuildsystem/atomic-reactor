@@ -198,11 +198,16 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         if whitelist:
             annotations['koji_task_annotations_whitelist'] = whitelist
 
-    def apply_build_result_annotations(self, annotations):
-        updates = self.workflow.build_result.annotations
+    def _update_annotations(self, annotations, updates):
         if updates:
             updates = {key: json.dumps(value) for key, value in updates.items()}
             annotations.update(updates)
+
+    def apply_build_result_annotations(self, annotations):
+        self._update_annotations(annotations, self.workflow.build_result.annotations)
+
+    def apply_plugin_annotations(self, annotations):
+        self._update_annotations(annotations, self.workflow.annotations)
 
     def run(self):
         metadata = get_build_json().get("metadata", {})
@@ -307,6 +312,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         annotations.update(self.get_config_map())
 
+        self.apply_plugin_annotations(annotations)
         self.apply_build_result_annotations(annotations)
         self.set_koji_task_annotations_whitelist(annotations)
 
