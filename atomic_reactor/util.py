@@ -1596,6 +1596,9 @@ def annotation(*keys):
     The `run()` method of the plugin being annotated has to return a dict
     containing all of the specified keys.
 
+    The `store_metadata_in_osv3` plugin will automatically collect these
+    annotations and upload them to OpenShift.
+
     Example:
     >>> from atomic_reactor.plugin import BuildPlugin
 
