@@ -196,11 +196,12 @@ class FetchSourcesPlugin(PreBuildPlugin):
                 request = req_session.head(url_candidate, verify=not insecure)
                 if request.ok:
                     srpm_urls.append(url_candidate)
+                    self.log.debug('%s is available for signing key "%s"', srpm_filename, sigkey)
                     break
-                self.log.debug('%s not found for signing key "%s" at %s (returned %s)',
-                               srpm_filename, sigkey, url_candidate, request.status_code)
 
             else:
+                self.log.error('%s not found for the given signing intent: %s"', srpm_filename,
+                               self.signing_intent)
                 missing_srpms.append(srpm_filename)
 
         if missing_srpms:
