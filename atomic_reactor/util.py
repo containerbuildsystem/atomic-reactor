@@ -1616,29 +1616,53 @@ def annotation(*keys):
     :param keys: Keys to annotate the plugin with
     :return: Decorator that will turn the plugin into an annotated one
     """
+    annotate_plugin = _decorate_metadata('annotations', keys)
+    return annotate_plugin
+
+
+def label(*keys):
+    """
+    Label a `BuildPlugin` subclass. Identical to `annotation`, but will save
+    results as labels, not annotations.
+
+    :param keys: Keys to label the plugin with
+    :return: Decorator that will turn the plugin into a labeled one
+    """
+    label_plugin = _decorate_metadata('labels', keys)
+    return label_plugin
+
+
+def _decorate_metadata(metadata_type, keys):
     from atomic_reactor.plugin import BuildPlugin
 
-    def annotate(cls):
+    wrong_class = '[{}] Not a subclass of BuildPlugin'.format(metadata_type)
+    wrong_return = '[{}] run() method did not return a dict'.format(metadata_type)
+    not_found = '[{}] Not found in result: {{!r}}'.format(metadata_type)
+    already_set = '[{}] Already set: {{!r}}'.format(metadata_type)
+
+    def metadata_decorator(cls):
         if not issubclass(cls, BuildPlugin):
-            raise TypeError('Only subclasses of BuildPlugin can be annotated')
+            raise TypeError(wrong_class)
 
         run = cls.run
 
         @functools.wraps(run)
-        def annotated_run(self):
+        def run_and_store_metadata(self):
             result = run(self)
             if not isinstance(result, dict):
-                raise TypeError('Annotated run() method did not return a dict')
-            annotations = self.workflow.annotations
+                raise TypeError(wrong_return)
+
+            metadata = getattr(self.workflow, metadata_type)
             for key in keys:
                 if key not in result:
-                    raise RuntimeError('Annotation not found in result: {!r}'.format(key))
-                if key in annotations:
-                    raise RuntimeError('Annotation already set: {!r}'.format(key))
-                annotations[key] = result[key]
+                    raise RuntimeError(not_found.format(key))
+                if key in metadata:
+                    raise RuntimeError(already_set.format(key))
+                metadata[key] = result[key]
+
             return result
 
-        cls.run = annotated_run
+        cls.run = run_and_store_metadata
         return cls
 
-    return annotate
+    return metadata_decorator
