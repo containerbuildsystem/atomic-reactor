@@ -97,8 +97,7 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
                  compose_ids=tuple(),
                  odcs_url=None, odcs_insecure=False,
                  odcs_openidc_secret_path=None,
-                 signing_intent=None,
-                 pdc_url=None, pdc_insecure=False):
+                 signing_intent=None):
         """
         constructor
 
@@ -109,8 +108,6 @@ class ResolveModuleComposePlugin(PreBuildPlugin):
         :param odcs_insecure: If True, don't check SSL certificates for `odcs_url`
         :param odcs_openidc_secret_path: directory to look in for a `token` file (optional)
         :param signing_intent: override the signing intent from git repo configuration
-        :param pdc_url: unused
-        :param pdc_insecure: unused
         :
         """
         # call parent constructor
