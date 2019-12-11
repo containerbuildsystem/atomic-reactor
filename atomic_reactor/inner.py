@@ -420,7 +420,8 @@ class DockerBuildWorkflow(object):
         self.koji_source_source_url = None
         self.koji_source_manifest = None
 
-        # Plugins can store info here using the `@util.annotation` and `@util.label` decorators
+        # Plugins can store info here using the @annotation, @label,
+        # @annotation_map and @label_map decorators from atomic_reactor.util
         self.annotations = {}
         self.labels = {}
 

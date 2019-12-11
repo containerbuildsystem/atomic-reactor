@@ -1588,51 +1588,75 @@ def get_platform_config(platform, build_annotations):
     return cm_key, cm_frag_key
 
 
-def annotation(*keys):
+def annotation(key):
     """
     Annotate a `BuildPlugin` subclass. The `run()` method of this plugin will
-    store its results in the plugin's workflow as annotations.
+    store its result in the plugin's workflow as an annotation.
 
-    The `run()` method of the plugin being annotated has to return a dict
-    containing all of the specified keys or None (no annotations will be set).
+    If run() returns None, no annotation will be set.
 
     The `store_metadata_in_osv3` plugin will automatically collect these
     annotations and upload them to OpenShift.
 
     Example:
-    >>> from atomic_reactor.plugin import BuildPlugin
-
-    >>> @annotation('foo', 'bar')
+    >>> @annotation('foo')
     >>> class MyBuildPlugin(BuildPlugin):
     >>>     key = 'my_build_plugin'
     >>>
+    >>>     # sets annotation: {'foo': 1}
+    >>>     def run(self):
+    >>>         return 1
+
+    :param key: Key to annotate the plugin with
+    :return: Decorator that will turn the plugin into an annotated one
+    """
+    return _decorate_metadata('annotations', [key], match_keys=False)
+
+
+def annotation_map(*keys):
+    """
+    Annotate a `BuildPlugin` subclass. Works like `annotation`, but instead of
+    storing the run() result as is, annotations are set by matching the given
+    keys to those in the result (which has to be a dict).
+
+    Example:
+    >>> @annotation_map('foo', 'bar')
+    >>> class YourBuildPlugin(BuildPlugin):
+    >>>     key = 'your_build_plugin'
+    >>>
+    >>>     # sets annotations: {'foo': 1, 'bar': 2}
     >>>     def run(self):
     >>>         return {'foo': 1, 'bar': 2, 'baz': 3}
-
-    >>> p = MyBuildPlugin(...)
-    >>> p.run()
-    >>> p.workflow.annotations  # {'foo': 1, 'bar': 2}
 
     :param keys: Keys to annotate the plugin with
     :return: Decorator that will turn the plugin into an annotated one
     """
-    annotate_plugin = _decorate_metadata('annotations', keys)
-    return annotate_plugin
+    return _decorate_metadata('annotations', keys, match_keys=True)
 
 
-def label(*keys):
+def label(key):
     """
     Label a `BuildPlugin` subclass. Identical to `annotation`, but will save
-    results as labels, not annotations.
+    the result as a label, not an annotation.
+
+    :param key: Key to label the plugin with
+    :return: Decorator that will turn the plugin into a labeled one
+    """
+    return _decorate_metadata('labels', [key], match_keys=False)
+
+
+def label_map(*keys):
+    """
+    Label a `BuildPlugin` subclass. Identical to `annotation_map`, but will
+    save results as labels, not annotations.
 
     :param keys: Keys to label the plugin with
     :return: Decorator that will turn the plugin into a labeled one
     """
-    label_plugin = _decorate_metadata('labels', keys)
-    return label_plugin
+    return _decorate_metadata('labels', keys, match_keys=True)
 
 
-def _decorate_metadata(metadata_type, keys):
+def _decorate_metadata(metadata_type, keys, match_keys):
     from atomic_reactor.plugin import BuildPlugin
 
     wrong_class = '[{}] Not a subclass of BuildPlugin'.format(metadata_type)
@@ -1651,16 +1675,20 @@ def _decorate_metadata(metadata_type, keys):
             result = run(self)
             if result is None:
                 return None
-            if not isinstance(result, dict):
+            if match_keys and not isinstance(result, dict):
                 raise TypeError(wrong_return)
 
             metadata = getattr(self.workflow, metadata_type)
             for key in keys:
-                if key not in result:
+                if match_keys and key not in result:
                     raise RuntimeError(not_found.format(key))
                 if key in metadata:
                     raise RuntimeError(already_set.format(key))
-                metadata[key] = result[key]
+
+                if match_keys:
+                    metadata[key] = result[key]
+                else:
+                    metadata[key] = result
 
             return result
 
