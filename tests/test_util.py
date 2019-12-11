@@ -1638,13 +1638,22 @@ def test_store_metadata(metadata_decorator, metadata_attr):
         def run(self):
             return {'spam': 3, 'eggs': 4}
 
+    @metadata_decorator('baz')
+    class BP3(BuildPlugin):
+        key = 'bp3'
+
+        def run(self):
+            return None
+
     tasker = object()
     workflow = DockerBuildWorkflow('test-image')
     p1 = BP1(tasker, workflow)
     p2 = BP2(tasker, workflow)
+    p3 = BP3(tasker, workflow)
 
     assert p1.run() == {'foo': 1, 'bar': 2}
     assert p2.run() == {'spam': 3, 'eggs': 4}
+    assert p3.run() is None
 
     other_attr = 'labels' if metadata_attr == 'annotations' else 'annotations'
     assert getattr(workflow, metadata_attr) == {
