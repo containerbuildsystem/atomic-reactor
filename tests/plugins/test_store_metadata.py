@@ -924,3 +924,25 @@ def test_plugin_annotations():
 
     assert annotations['foo'] == '{"bar": "baz"}'
     assert annotations['spam'] == '["eggs"]'
+
+
+def test_plugin_labels():
+    workflow = prepare()
+    workflow.labels = {'foo': 1, 'bar': 'two'}
+
+    runner = ExitPluginsRunner(
+        None,
+        workflow,
+        [{
+            'name': StoreMetadataInOSv3Plugin.key,
+            "args": {
+                "url": "http://example.com/"
+            }
+        }]
+    )
+
+    output = runner.run()
+    labels = output[StoreMetadataInOSv3Plugin.key]["labels"]
+
+    assert labels['foo'] == '1'
+    assert labels['bar'] == 'two'
