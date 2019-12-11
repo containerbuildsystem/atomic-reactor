@@ -1594,7 +1594,7 @@ def annotation(*keys):
     store its results in the plugin's workflow as annotations.
 
     The `run()` method of the plugin being annotated has to return a dict
-    containing all of the specified keys.
+    containing all of the specified keys or None (no annotations will be set).
 
     The `store_metadata_in_osv3` plugin will automatically collect these
     annotations and upload them to OpenShift.
@@ -1649,6 +1649,8 @@ def _decorate_metadata(metadata_type, keys):
         @functools.wraps(run)
         def run_and_store_metadata(self):
             result = run(self)
+            if result is None:
+                return None
             if not isinstance(result, dict):
                 raise TypeError(wrong_return)
 
