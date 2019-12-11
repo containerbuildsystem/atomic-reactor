@@ -56,7 +56,8 @@ from atomic_reactor.util import (ImageName, wait_for_command,
                                  read_yaml, read_yaml_from_file_path, OSBSLogs,
                                  get_platforms_in_limits, get_orchestrator_platforms,
                                  dump_stacktraces, setup_introspection_signal_handler,
-                                 allow_repo_dir_in_dockerignore, annotation, label)
+                                 allow_repo_dir_in_dockerignore,
+                                 annotation, annotation_map, label, label_map)
 from tests.constants import (DOCKERFILE_GIT,
                              INPUT_IMAGE, MOCK, MOCK_SOURCE,
                              REACTOR_CONFIG_MAP)
@@ -1624,23 +1625,16 @@ def test_allow_repo_dir_in_dockerignore(tmpdir, dockerignore_exists):
     (label, 'labels')
 ])
 def test_store_metadata(metadata_decorator, metadata_attr):
-    @metadata_decorator('foo', 'bar')
+    @metadata_decorator('foo')
     class BP1(BuildPlugin):
         key = 'bp1'
 
         def run(self):
-            return {'foo': 1, 'bar': 2}
-
-    @metadata_decorator('spam')
-    class BP2(BuildPlugin):
-        key = 'bp2'
-
-        def run(self):
-            return {'spam': 3, 'eggs': 4}
+            return 1
 
     @metadata_decorator('baz')
-    class BP3(BuildPlugin):
-        key = 'bp3'
+    class BP2(BuildPlugin):
+        key = 'bp2'
 
         def run(self):
             return None
@@ -1649,37 +1643,64 @@ def test_store_metadata(metadata_decorator, metadata_attr):
     workflow = DockerBuildWorkflow('test-image')
     p1 = BP1(tasker, workflow)
     p2 = BP2(tasker, workflow)
-    p3 = BP3(tasker, workflow)
 
-    assert p1.run() == {'foo': 1, 'bar': 2}
-    assert p2.run() == {'spam': 3, 'eggs': 4}
-    assert p3.run() is None
+    assert p1.run() == 1
+    assert p2.run() is None
 
     other_attr = 'labels' if metadata_attr == 'annotations' else 'annotations'
-    assert getattr(workflow, metadata_attr) == {
-        'foo': 1,
-        'bar': 2,
-        'spam': 3,
-    }
+    assert getattr(workflow, metadata_attr) == {'foo': 1}
     assert getattr(workflow, other_attr) == {}
 
 
-def test_store_metadata_wrong_class():
-    annotate = annotation('foo')
-    add_label = label('foo')
+@pytest.mark.parametrize('metadata_map_decorator, metadata_attr', [
+    (annotation_map, 'annotations'),
+    (label_map, 'labels')
+])
+def test_store_metadata_map(metadata_map_decorator, metadata_attr):
+    @metadata_map_decorator('foo', 'bar')
+    class BP1(BuildPlugin):
+        key = 'bp1'
 
-    with pytest.raises(TypeError) as exc_info:
-        annotate(Plugin)
-    assert str(exc_info.value) == '[annotations] Not a subclass of BuildPlugin'
+        def run(self):
+            return {'foo': 1, 'bar': 2, 'baz': 3}
 
-    with pytest.raises(TypeError) as exc_info:
-        add_label(Plugin)
-    assert str(exc_info.value) == '[labels] Not a subclass of BuildPlugin'
+    @metadata_map_decorator('spam')
+    class BP2(BuildPlugin):
+        key = 'bp2'
+
+        def run(self):
+            return None
+
+    tasker = object()
+    workflow = DockerBuildWorkflow('test-image')
+    p1 = BP1(tasker, workflow)
+    p2 = BP2(tasker, workflow)
+
+    assert p1.run() == {'foo': 1, 'bar': 2, 'baz': 3}
+    assert p2.run() is None
+
+    other_attr = 'labels' if metadata_attr == 'annotations' else 'annotations'
+    assert getattr(workflow, metadata_attr) == {'foo': 1, 'bar': 2}
+    assert getattr(workflow, other_attr) == {}
 
 
 @pytest.mark.parametrize('metadata_decorator, expected_err_msg', [
-    (annotation, '[annotations] run() method did not return a dict'),
-    (label, '[labels] run() method did not return a dict')
+    (annotation, '[annotations] Not a subclass of BuildPlugin'),
+    (annotation_map, '[annotations] Not a subclass of BuildPlugin'),
+    (label, '[labels] Not a subclass of BuildPlugin'),
+    (label_map, '[labels] Not a subclass of BuildPlugin'),
+])
+def test_store_metadata_wrong_class(metadata_decorator, expected_err_msg):
+    decorate = metadata_decorator('foo')
+
+    with pytest.raises(TypeError) as exc_info:
+        decorate(Plugin)
+    assert str(exc_info.value) == expected_err_msg
+
+
+@pytest.mark.parametrize('metadata_decorator, expected_err_msg', [
+    (annotation_map, '[annotations] run() method did not return a dict'),
+    (label_map, '[labels] run() method did not return a dict')
 ])
 def test_store_metadata_wrong_return_type(metadata_decorator, expected_err_msg):
     @metadata_decorator('foo')
@@ -1700,8 +1721,8 @@ def test_store_metadata_wrong_return_type(metadata_decorator, expected_err_msg):
 
 
 @pytest.mark.parametrize('metadata_decorator, expected_err_msg', [
-    (annotation, '[annotations] Not found in result: {!r}'.format('bar')),
-    (label, '[labels] Not found in result: {!r}'.format('bar'))
+    (annotation_map, '[annotations] Not found in result: {!r}'.format('bar')),
+    (label_map, '[labels] Not found in result: {!r}'.format('bar'))
 ])
 def test_store_metadata_missing_key(metadata_decorator, expected_err_msg):
     @metadata_decorator('foo', 'bar')
@@ -1722,7 +1743,9 @@ def test_store_metadata_missing_key(metadata_decorator, expected_err_msg):
 
 @pytest.mark.parametrize('metadata_decorator, expected_err_msg', [
     (annotation, '[annotations] Already set: {!r}'.format('foo')),
-    (label, '[labels] Already set: {!r}'.format('foo'))
+    (annotation_map, '[annotations] Already set: {!r}'.format('foo')),
+    (label, '[labels] Already set: {!r}'.format('foo')),
+    (label_map, '[labels] Already set: {!r}'.format('foo'))
 ])
 def test_store_metadata_conflict(metadata_decorator, expected_err_msg):
     @metadata_decorator('foo')
@@ -1740,3 +1763,29 @@ def test_store_metadata_conflict(metadata_decorator, expected_err_msg):
     with pytest.raises(RuntimeError) as exc_info:
         p.run()
     assert str(exc_info.value) == expected_err_msg
+
+
+def test_store_metadata_combined():
+    @annotation('foo')
+    @annotation_map('bar')
+    @label('spam')
+    @label_map('eggs')
+    class BP(BuildPlugin):
+        key = 'bp'
+
+        def run(self):
+            return {'bar': 1, 'eggs': 2}
+
+    tasker = object()
+    workflow = DockerBuildWorkflow('test-image')
+    p = BP(tasker, workflow)
+
+    p.run()
+    assert workflow.annotations == {
+        'foo': {'bar': 1, 'eggs': 2},
+        'bar': 1
+    }
+    assert workflow.labels == {
+        'spam': {'bar': 1, 'eggs': 2},
+        'eggs': 2
+    }
