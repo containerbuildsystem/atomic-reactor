@@ -24,7 +24,7 @@ from atomic_reactor.constants import (
 logger = logging.getLogger(__name__)
 
 
-def download_url(url, dest_dir, insecure=False, session=None):
+def download_url(url, dest_dir, insecure=False, session=None, dest_filename=None):
     """Download file from URL, handling retries
 
     To download to a temporary directory, use:
@@ -34,6 +34,7 @@ def download_url(url, dest_dir, insecure=False, session=None):
     :param dest_dir: existing directory to create file in
     :param insecure: bool, whether to perform TLS checks
     :param session: optional existing requests session to use
+    :param dest_filename: optional filename for downloaded file
     :return: str, path of downloaded file
     """
 
@@ -41,7 +42,8 @@ def download_url(url, dest_dir, insecure=False, session=None):
         session = get_retrying_requests_session()
 
     parsed_url = urlparse(url)
-    dest_filename = os.path.basename(parsed_url.path)
+    if not dest_filename:
+        dest_filename = os.path.basename(parsed_url.path)
     dest_path = os.path.join(dest_dir, dest_filename)
     logger.debug('downloading %s', url)
 
