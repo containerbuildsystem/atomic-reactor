@@ -420,8 +420,9 @@ class DockerBuildWorkflow(object):
         self.koji_source_source_url = None
         self.koji_source_manifest = None
 
-        # Plugins can store info here using the `@util.annotation` decorator
+        # Plugins can store info here using the `@util.annotation` and `@util.label` decorators
         self.annotations = {}
+        self.labels = {}
 
         if client_version:
             logger.debug("build json was built by osbs-client %s", client_version)

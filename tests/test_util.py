@@ -56,7 +56,7 @@ from atomic_reactor.util import (ImageName, wait_for_command,
                                  read_yaml, read_yaml_from_file_path, OSBSLogs,
                                  get_platforms_in_limits, get_orchestrator_platforms,
                                  dump_stacktraces, setup_introspection_signal_handler,
-                                 allow_repo_dir_in_dockerignore, annotation)
+                                 allow_repo_dir_in_dockerignore, annotation, label)
 from tests.constants import (DOCKERFILE_GIT,
                              INPUT_IMAGE, MOCK, MOCK_SOURCE,
                              REACTOR_CONFIG_MAP)
@@ -1619,15 +1619,19 @@ def test_allow_repo_dir_in_dockerignore(tmpdir, dockerignore_exists):
         assert ignore_lines[-1] == added_lines
 
 
-def test_annotation():
-    @annotation('foo', 'bar')
+@pytest.mark.parametrize('metadata_decorator, metadata_attr', [
+    (annotation, 'annotations'),
+    (label, 'labels')
+])
+def test_store_metadata(metadata_decorator, metadata_attr):
+    @metadata_decorator('foo', 'bar')
     class BP1(BuildPlugin):
         key = 'bp1'
 
         def run(self):
             return {'foo': 1, 'bar': 2}
 
-    @annotation('spam')
+    @metadata_decorator('spam')
     class BP2(BuildPlugin):
         key = 'bp2'
 
@@ -1642,48 +1646,77 @@ def test_annotation():
     assert p1.run() == {'foo': 1, 'bar': 2}
     assert p2.run() == {'spam': 3, 'eggs': 4}
 
-    assert workflow.annotations == {
+    other_attr = 'labels' if metadata_attr == 'annotations' else 'annotations'
+    assert getattr(workflow, metadata_attr) == {
         'foo': 1,
         'bar': 2,
         'spam': 3,
     }
+    assert getattr(workflow, other_attr) == {}
 
 
-def test_annotation_wrong_class():
+def test_store_metadata_wrong_class():
     annotate = annotation('foo')
+    add_label = label('foo')
+
     with pytest.raises(TypeError) as exc_info:
         annotate(Plugin)
-    assert str(exc_info.value) == 'Only subclasses of BuildPlugin can be annotated'
+    assert str(exc_info.value) == '[annotations] Not a subclass of BuildPlugin'
+
+    with pytest.raises(TypeError) as exc_info:
+        add_label(Plugin)
+    assert str(exc_info.value) == '[labels] Not a subclass of BuildPlugin'
 
 
-@pytest.mark.parametrize('keys, result, expected_err', [
-    (['foo', 'bar'],
-     {'foo': 1},
-     RuntimeError('Annotation not found in result: {!r}'.format('bar'))),
-    (['foo'],
-     1,
-     TypeError('Annotated run() method did not return a dict'))
+@pytest.mark.parametrize('metadata_decorator, expected_err_msg', [
+    (annotation, '[annotations] run() method did not return a dict'),
+    (label, '[labels] run() method did not return a dict')
 ])
-def test_annotation_wrong_return(keys, result, expected_err):
-    @annotation(*keys)
+def test_store_metadata_wrong_return_type(metadata_decorator, expected_err_msg):
+    @metadata_decorator('foo')
     class BP(BuildPlugin):
         key = 'bp'
 
         def run(self):
-            return result
+            return 1
 
     tasker = object()
     workflow = DockerBuildWorkflow('test-image')
     p = BP(tasker, workflow)
 
-    with pytest.raises(type(expected_err)) as exc_info:
+    with pytest.raises(TypeError) as exc_info:
         p.run()
 
-    assert str(exc_info.value) == str(expected_err)
+    assert str(exc_info.value) == expected_err_msg
 
 
-def test_annotation_conflict():
-    @annotation('foo')
+@pytest.mark.parametrize('metadata_decorator, expected_err_msg', [
+    (annotation, '[annotations] Not found in result: {!r}'.format('bar')),
+    (label, '[labels] Not found in result: {!r}'.format('bar'))
+])
+def test_store_metadata_missing_key(metadata_decorator, expected_err_msg):
+    @metadata_decorator('foo', 'bar')
+    class BP(BuildPlugin):
+        key = 'bp'
+
+        def run(self):
+            return {'foo': 1}
+
+    tasker = object()
+    workflow = DockerBuildWorkflow('test-image')
+    p = BP(tasker, workflow)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        p.run()
+    assert str(exc_info.value) == expected_err_msg
+
+
+@pytest.mark.parametrize('metadata_decorator, expected_err_msg', [
+    (annotation, '[annotations] Already set: {!r}'.format('foo')),
+    (label, '[labels] Already set: {!r}'.format('foo'))
+])
+def test_store_metadata_conflict(metadata_decorator, expected_err_msg):
+    @metadata_decorator('foo')
     class BP(BuildPlugin):
         key = 'bp'
 
@@ -1697,4 +1730,4 @@ def test_annotation_conflict():
     p.run()
     with pytest.raises(RuntimeError) as exc_info:
         p.run()
-    assert str(exc_info.value) == 'Annotation already set: {!r}'.format('foo')
+    assert str(exc_info.value) == expected_err_msg
