@@ -167,6 +167,11 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         return data
 
+    def _update_labels(self, labels, updates):
+        if updates:
+            updates = {key: str(value) for key, value in updates.items()}
+            labels.update(updates)
+
     def make_labels(self, extra_labels=None):
         labels = {}
 
@@ -180,10 +185,8 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         if filesystem_koji_task_id:
             labels["filesystem-koji-task-id"] = str(filesystem_koji_task_id)
 
-        updates = self.workflow.build_result.labels
-        if updates:
-            updates = {key: str(value) for key, value in updates.items()}
-            labels.update(updates)
+        self._update_labels(labels, self.workflow.labels)
+        self._update_labels(labels, self.workflow.build_result.labels)
 
         if extra_labels:
             labels.update(extra_labels)
