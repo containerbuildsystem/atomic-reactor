@@ -123,6 +123,13 @@
             "delegated_task_priority": {
                 "description": "When delegate_build is enabled, delegated task will use this koji task priority, if not set it will use default koji priority",
                 "type": "integer"
+            },
+            "task_annotations_whitelist": {
+                "description": "Annotations to be included in the build_annotations.json task output file. If empty or not described, the file will not be generated",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
             }
         },
         "additionalProperties": false,
