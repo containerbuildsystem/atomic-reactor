@@ -156,6 +156,51 @@
       "description": "build-step plugin to be used",
       "enum": ["docker_api", "imagebuilder", "buildah_bud"]
     },
+    "remote_source": {
+      "type": ["object", "null"],
+      "properties": {
+        "repo": {
+          "type": "string",
+          "description": "URL to the SCM repository",
+          "examples": [
+            "https://git.example.com/team/repo.git",
+            "https://git.example.com/another-repo.git"
+          ]
+        },
+        "ref": {
+          "type": "string",
+          "pattern": "^[0-9a-z]{40}$",
+          "description": "SCM reference to fetch from repository",
+          "examples": [
+            "b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a",
+            "651abc41170e52866148cc0c99c3671a2ace7002"
+          ]
+        },
+        "pkg_managers": {
+          "description": "list of package managers to be used for resolving dependencies",
+          "type": ["array", "null"],
+          "items": {
+              "type": "string",
+              "examples": [
+                "gomod"
+              ]
+          }
+        },
+        "flags": {
+          "description": "list of flags to pass to the Cachito request",
+          "type": ["array", "null"],
+          "items": {
+              "type": "string",
+              "examples": [
+                "enable-confeti",
+                "enable-party-popper"
+              ]
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": ["repo", "ref"]
+    },
     "tags": {
       "type": "array",
       "description": "Tags to apply to the built image",

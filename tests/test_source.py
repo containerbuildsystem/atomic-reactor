@@ -234,6 +234,42 @@ class TestSourceConfigSchemaValidation(object):
             """,
             {'go': {'modules': [{'module': 'example.com/go/package'},
                                 {'module': 'example.com/go/package2'}]}}
+        ), (
+            """\
+            remote_source:
+              repo: https://git.example.com/team/repo.git
+              ref: b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a
+            """,
+            {'remote_source': {
+                'repo': 'https://git.example.com/team/repo.git',
+                'ref': 'b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a',
+            }}
+        ), (
+            """\
+            remote_source:
+              repo: https://git.example.com/team/repo.git
+              ref: b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a
+              flags:
+                - enable-confeti
+            """,
+            {'remote_source': {
+                'repo': 'https://git.example.com/team/repo.git',
+                'ref': 'b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a',
+                'flags': ['enable-confeti'],
+            }}
+        ), (
+            """\
+            remote_source:
+              repo: https://git.example.com/team/repo.git
+              ref: b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a
+              pkg_managers:
+                - gomod
+            """,
+            {'remote_source': {
+                'repo': 'https://git.example.com/team/repo.git',
+                'ref': 'b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a',
+                'pkg_managers': ['gomod'],
+            }}
         ),
     ])
     def test_valid_source_config(self, tmpdir, yml_config, attrs_updated):
@@ -293,6 +329,48 @@ class TestSourceConfigSchemaValidation(object):
         """\
         compose:
           inherit: not_a_boolean
+        """,
+
+        """\
+        remote_source: not_an_object
+        """,
+
+        """\
+        remote_source:
+          repo: https://git.example.com/team/repo.git
+        """,
+
+        """\
+        remote_source:
+          ref: b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a
+        """,
+
+        """\
+        remote_source:
+          repo: https://git.example.com/team/repo.git
+          # Hash too short
+          ref: b55c00f45ec3dfee0c766cea3d395d6e21cc2e5
+        """,
+
+        """\
+        remote_source:
+          repo: https://git.example.com/team/repo.git
+          # Hash too long
+          ref: b55c00f45ec3dfee0c766cea3d395d6e21cc2e5ab
+        """,
+
+        """\
+        remote_source:
+          repo: https://git.example.com/team/repo.git
+          # Hash contains non hex
+          ref: z55c00f45ec3dfee0c766cea3d395d6e21cc2e5ab
+        """,
+
+        """\
+        remote_source:
+          repo: https://git.example.com/team/repo.git
+          ref: b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a
+          extra_key: not_allowed
         """,
     ])
     def test_invalid_source_config_validation_error(self, tmpdir, yml_config):

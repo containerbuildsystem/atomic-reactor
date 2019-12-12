@@ -69,6 +69,7 @@ class SourceConfig(object):
                "unknown build method '{}' specified in {}; also, schema validated it."
                .format(meth, REPO_CONTAINER_CONFIG)
         )
+        self.remote_source = self.data.get('remote_source')
 
 
 class Source(object):
