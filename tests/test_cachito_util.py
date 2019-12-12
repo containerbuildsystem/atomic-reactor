@@ -20,6 +20,8 @@ import os.path
 
 CACHITO_URL = 'http://cachito.example.com'
 CACHITO_REQUEST_ID = 123
+CACHITO_REQUEST_DOWNLOAD_URL = \
+    '{}/api/v1/requests/{}/download'.format(CACHITO_URL, CACHITO_REQUEST_ID)
 CACHITO_REQUEST_REF = 'e1be527f39ec31323f0454f7d1422c6260b00580'
 CACHITO_REQUEST_REPO = 'https://github.com/release-engineering/retrodep.git'
 
@@ -170,3 +172,12 @@ def test_download_sources(tmpdir, cachito_request):
 def test_download_sources_bad_request_type(tmpdir):
     with pytest.raises(ValueError, match=r'Unexpected request type'):
         CachitoAPI(CACHITO_URL).download_sources('spam', str(tmpdir))
+
+
+@pytest.mark.parametrize('cachito_request', (
+    CACHITO_REQUEST_ID,
+    {'id': CACHITO_REQUEST_ID},
+))
+def test_assemble_download_url(tmpdir, cachito_request):
+    url = CachitoAPI(CACHITO_URL).assemble_download_url(cachito_request)
+    assert url == CACHITO_REQUEST_DOWNLOAD_URL
