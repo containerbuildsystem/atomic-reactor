@@ -22,6 +22,7 @@ from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
+                                      PLUGIN_RESOLVE_REMOTE_SOURCE,
                                       SCRATCH_FROM)
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import get_build_json
@@ -212,6 +213,13 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
     def apply_plugin_annotations(self, annotations):
         self._update_annotations(annotations, self.workflow.annotations)
 
+    def apply_remote_source_annotations(self, annotations):
+        try:
+            rs_annotations = self.get_pre_result(PLUGIN_RESOLVE_REMOTE_SOURCE)['annotations']
+        except (TypeError, KeyError):
+            return
+        annotations.update(rs_annotations)
+
     def run(self):
         metadata = get_build_json().get("metadata", {})
 
@@ -312,6 +320,8 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
                 "sha256sum": tar_sha256sum,
                 "filename": os.path.basename(tar_path),
             })
+
+        self.apply_remote_source_annotations(annotations)
 
         annotations.update(self.get_config_map())
 

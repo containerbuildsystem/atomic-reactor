@@ -99,6 +99,7 @@ PLUGIN_COMPARE_COMPONENTS_KEY = 'compare_components'
 PLUGIN_CHECK_AND_SET_PLATFORMS_KEY = 'check_and_set_platforms'
 PLUGIN_REMOVE_WORKER_METADATA_KEY = 'remove_worker_metadata'
 PLUGIN_RESOLVE_COMPOSES_KEY = 'resolve_composes'
+PLUGIN_RESOLVE_REMOTE_SOURCE = 'resolve_remote_source'
 PLUGIN_SENDMAIL_KEY = 'sendmail'
 PLUGIN_VERIFY_MEDIA_KEY = 'verify_media'
 PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY = 'export_operator_manifests'
@@ -162,3 +163,6 @@ OPERATOR_MANIFESTS_ARCHIVE = 'operator_manifests.zip'
 
 KOJI_BTYPE_IMAGE = 'image'
 KOJI_BTYPE_OPERATOR_MANIFESTS = 'operator-manifests'
+
+# Path to where the remote source bundle is copied to during the build process
+REMOTE_SOURCE_DIR = '/remote-source'
