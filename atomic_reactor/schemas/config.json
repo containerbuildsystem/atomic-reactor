@@ -323,6 +323,33 @@
         "additionalProperties": false,
         "required": ["host", "from_address"]
     },
+    "cachito": {
+        "description": "Cachito instance",
+        "type": "object",
+        "properties": {
+            "api_url": {
+                "description": "Cachito API url",
+                "type": "string"
+            },
+            "insecure": {
+                "description": "Don't check SSL certificate for api_url",
+                "type": "boolean"
+            },
+            "auth": {
+                "description": "Authentication information",
+                "type": "object",
+                "properties": {
+                    "ssl_certs_dir": {
+                        "description": "Path to directory with cert file",
+                        "type": "string"
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "additionalProperties": false,
+        "required": ["api_url", "auth"]
+    },
     "arrangement_version": {
         "description": "Arrangement version",
         "type": "integer"

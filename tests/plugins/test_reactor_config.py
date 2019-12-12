@@ -24,6 +24,7 @@ import koji
 from atomic_reactor.core import ContainerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import read_yaml
+import atomic_reactor.cachito_util
 import atomic_reactor.koji_util
 import atomic_reactor.odcs_util
 import osbs.conf
@@ -46,6 +47,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        get_buildstep_alias,
                                                        get_flatpak_base_image,
                                                        get_flatpak_metadata,
+                                                       get_cachito_session,
                                                        CONTAINER_DEFAULT_BUILD_METHOD,
                                                        get_build_image_override,
                                                        NO_FALLBACK)
@@ -1203,6 +1205,99 @@ class TestReactorConfigPlugin(object):
             .and_return(None))
 
         get_smtp_session(workflow, fallback_map)
+
+    @pytest.mark.parametrize(('config', 'error'), [
+        ("""\
+          version: 1
+          cachito:
+              api_url: https://cachito.example.com
+              auth:
+                  ssl_certs_dir: /var/run/secrets/atomic-reactor/cachitosecret
+        """, False),
+
+        ("""\
+          version: 1
+          cachito:
+              api_url: https://cachito.example.com
+              insecure: true
+              auth:
+                  ssl_certs_dir: /var/run/secrets/atomic-reactor/cachitosecret
+        """, False),
+
+        ("""\
+          version: 1
+          cachito:
+              api_url: https://cachito.example.com
+              auth:
+        """, ValidationError),
+
+        ("""\
+          version: 1
+          cachito:
+              api_url: https://cachito.example.com
+        """, ValidationError),
+
+        ("""\
+          version: 1
+          cachito:
+              auth:
+                  ssl_certs_dir: /var/run/secrets/atomic-reactor/cachitosecret
+        """, ValidationError),
+
+        ("""\
+          version: 1
+          cachito:
+              api_url: https://cachito.example.com
+              auth:
+                  ssl_certs_dir: /var/run/secrets/atomic-reactor/cachitosecret
+              spam: ham
+        """, ValidationError),
+
+        ("""\
+          version: 1
+          cachito:
+              api_url: https://cachito.example.com
+              auth:
+                  ssl_certs_dir: nonexistent
+        """, False),
+    ])
+    def test_get_cachito_session(self, tmpdir, config, error):
+        _, workflow = self.prepare()
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+
+        if error:
+            with pytest.raises(error):
+                read_yaml(config, 'schemas/config.json')
+            return
+        config_json = read_yaml(config, 'schemas/config.json')
+
+        auth_info = {'insecure': config_json['cachito'].get('insecure', False)}
+
+        ssl_dir_raise = False
+        if 'ssl_certs_dir' in config_json['cachito']['auth']:
+            if config_json['cachito']['auth']['ssl_certs_dir'] != "nonexistent":
+                config_json['cachito']['auth']['ssl_certs_dir'] = str(tmpdir)
+                filename = str(tmpdir.join('cert'))
+                with open(filename, 'w') as fp:
+                    fp.write("my_cert")
+                auth_info['cert'] = filename
+            else:
+                ssl_dir_raise = True
+
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig(config_json)
+
+        if not ssl_dir_raise:
+            (flexmock(atomic_reactor.cachito_util.CachitoAPI)
+                .should_receive('__init__')
+                .with_args(config_json['cachito']['api_url'], **auth_info)
+                .once()
+                .and_return(None))
+
+            get_cachito_session(workflow)
+        else:
+            with pytest.raises(RuntimeError, match="Cachito ssl_certs_dir doesn't exist"):
+                get_cachito_session(workflow)
 
     @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize('build_json_dir', [

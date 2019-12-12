@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import absolute_import
 
 from copy import deepcopy
+from atomic_reactor.cachito_util import CachitoAPI
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import (CONTAINER_BUILD_METHODS, CONTAINER_DEFAULT_BUILD_METHOD,
                                       CONTAINER_BUILDAH_BUILD_METHOD)
@@ -129,6 +130,26 @@ def get_smtp_session(workflow, fallback):
 
     import smtplib
     return smtplib.SMTP(config['host'])
+
+
+def get_cachito(workflow):
+    return get_value(workflow, 'cachito', NO_FALLBACK)
+
+
+def get_cachito_session(workflow):
+    config = get_cachito(workflow)
+
+    api_kwargs = {'insecure': config.get('insecure', False)}
+
+    ssl_certs_dir = config['auth'].get('ssl_certs_dir')
+    if ssl_certs_dir:
+        cert_path = os.path.join(ssl_certs_dir, 'cert')
+        if os.path.exists(cert_path):
+            api_kwargs['cert'] = cert_path
+        else:
+            raise RuntimeError("Cachito ssl_certs_dir doesn't exist")
+
+    return CachitoAPI(config['api_url'], **api_kwargs)
 
 
 def get_arrangement_version(workflow, fallback=NO_FALLBACK):
