@@ -55,6 +55,9 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         return result
 
+    def get_pre_result(self, key):
+        return self.get_result(self.workflow.prebuild_results.get(key, ''))
+
     def get_post_result(self, key):
         return self.get_result(self.workflow.postbuild_results.get(key, ''))
 
@@ -69,7 +72,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         return annotations
 
     def get_filesystem_koji_task_id(self):
-        res = self.get_result(self.workflow.prebuild_results.get(PLUGIN_ADD_FILESYSTEM_KEY))
+        res = self.get_pre_result(PLUGIN_ADD_FILESYSTEM_KEY)
         return graceful_chain_get(res, 'filesystem-koji-task-id')
 
     def get_digests(self):
