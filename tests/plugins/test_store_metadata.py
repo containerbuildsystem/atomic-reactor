@@ -856,3 +856,49 @@ CMD blabla"""
                 matched.add(repo)
 
     assert matched == set(primary_repositories)
+
+
+@pytest.mark.parametrize('koji_conf', (
+    None,
+    {},
+    {'task_annotations_whitelist': []},
+    {'task_annotations_whitelist': ['foo']},
+    ))
+def test_set_koji_annotations_whitelist(tmpdir, koji_conf):
+    workflow = prepare()
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+    if koji_conf is not None:
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1, 'koji': koji_conf})
+
+    df_content = dedent('''\
+        FROM nowhere
+        RUN nothing
+        CMD cowsay moo
+        ''')
+    df = df_parser(str(tmpdir))
+    df.content = df_content
+    workflow.builder.df_path = df.dockerfile_path
+    workflow.builder.df_dir = str(tmpdir)
+    runner = ExitPluginsRunner(
+        None,
+        workflow,
+        [{
+            'name': StoreMetadataInOSv3Plugin.key,
+            "args": {
+                "url": "http://example.com/"
+            }
+        }]
+    )
+    output = runner.run()
+    assert StoreMetadataInOSv3Plugin.key in output
+    annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
+    whitelist = None
+    if koji_conf:
+        whitelist = koji_conf.get('task_annotations_whitelist')
+
+    if whitelist:
+        assert 'koji_task_annotations_whitelist' in annotations
+        assert all(entry in whitelist for entry in koji_conf['task_annotations_whitelist'])
+    else:
+        assert 'koji_task_annotations_whitelist' not in annotations

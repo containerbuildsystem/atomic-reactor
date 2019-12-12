@@ -14,7 +14,7 @@ from osbs.exceptions import OsbsResponseException
 from osbs.utils import graceful_chain_get
 
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
-from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
+from atomic_reactor.plugins.pre_reactor_config import get_openshift_session, get_koji
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
                                       PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
@@ -186,6 +186,18 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         return labels
 
+    def set_koji_task_annotations_whitelist(self, annotations):
+        """Whitelist annotations to be included in koji task output
+
+        Allow annotations whose names are listed in task_annotations_whitelist
+        koji's configuration to be included in the build_annotations.json file,
+        which will be attached in the koji task output.
+        """
+        koji_config = get_koji(self.workflow, {})
+        whitelist = koji_config.get('task_annotations_whitelist')
+        if whitelist:
+            annotations['koji_task_annotations_whitelist'] = whitelist
+
     def apply_build_result_annotations(self, annotations):
         updates = self.workflow.build_result.annotations
         if updates:
@@ -296,6 +308,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         annotations.update(self.get_config_map())
 
         self.apply_build_result_annotations(annotations)
+        self.set_koji_task_annotations_whitelist(annotations)
 
         # For arrangement version 4 onwards (where group_manifests
         # runs in the orchestrator build), restore the repositories
