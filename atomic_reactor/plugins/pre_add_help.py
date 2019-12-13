@@ -26,11 +26,13 @@ from datetime import datetime as dt
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
+from atomic_reactor.metadata import annotation_map
 from osbs.utils import Labels
 
 DEFAULT_HELP_FILENAME = "help.md"
 
 
+@annotation_map('help_file')
 class AddHelpPlugin(PreBuildPlugin):
     key = "add_help"
     man_filename = "help.1"
@@ -59,17 +61,14 @@ class AddHelpPlugin(PreBuildPlugin):
         or self.HELP_GENERATED if help man page was generated
         """
 
-        result = {
-            'help_file': self.help_file,
-            'status': None
-        }
-
         help_path = os.path.join(self.workflow.builder.df_dir, self.help_file)
 
         if not os.path.exists(help_path):
             self.log.info("File %s not found", help_path)
-            result['status'] = self.NO_HELP_FILE_FOUND
-            return result
+            return {
+                'help_file': None,
+                'status': self.NO_HELP_FILE_FOUND
+            }
 
         dockerfile = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
         labels = Labels(dockerfile.labels)
@@ -125,5 +124,7 @@ class AddHelpPlugin(PreBuildPlugin):
 
         self.log.info("added %s", man_path)
 
-        result['status'] = self.HELP_GENERATED
-        return result
+        return {
+            'help_file': self.help_file,
+            'status': self.HELP_GENERATED
+        }
