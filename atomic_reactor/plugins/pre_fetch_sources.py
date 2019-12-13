@@ -24,8 +24,10 @@ from atomic_reactor.plugins.pre_reactor_config import (
 )
 from atomic_reactor.util import get_retrying_requests_session
 from atomic_reactor.download import download_url
+from atomic_reactor.metadata import label_map
 
 
+@label_map('sources_for_nvr')
 class FetchSourcesPlugin(PreBuildPlugin):
     """Download sources that may be used in further steps to compose Source Containers"""
     key = PLUGIN_FETCH_SOURCES_KEY
