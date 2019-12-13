@@ -26,6 +26,7 @@ from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session, get_koji_session
 from atomic_reactor.util import get_parent_image_koji_data
+from atomic_reactor.metadata import label
 
 try:
     from atomic_reactor.plugins.pre_flatpak_create_dockerfile import get_flatpak_source_info
@@ -50,6 +51,7 @@ from osbs.exceptions import OsbsException
 from osbs.utils import Labels
 
 
+@label('koji-build-id')
 class KojiPromotePlugin(ExitPlugin):
     """
     Promote this build to Koji

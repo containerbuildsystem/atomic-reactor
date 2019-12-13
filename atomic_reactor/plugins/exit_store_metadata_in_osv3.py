@@ -16,9 +16,7 @@ from osbs.utils import graceful_chain_get
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session, get_koji
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
-from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
-                                      PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
-                                      PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
+from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
@@ -174,12 +172,6 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
     def make_labels(self, extra_labels=None):
         labels = {}
-
-        koji_build_id = self.get_exit_result(PLUGIN_KOJI_IMPORT_PLUGIN_KEY)
-        if not koji_build_id:
-            koji_build_id = self.get_exit_result(PLUGIN_KOJI_PROMOTE_PLUGIN_KEY)
-        if koji_build_id:
-            labels["koji-build-id"] = str(koji_build_id)
 
         filesystem_koji_task_id = self.get_filesystem_koji_task_id()
         if filesystem_koji_task_id:

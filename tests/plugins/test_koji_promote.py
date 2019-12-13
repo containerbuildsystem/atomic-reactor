@@ -1217,6 +1217,7 @@ class TestKojiPromote(object):
 
         build_id = runner.plugins_results[KojiPromotePlugin.key]
         assert build_id == "123"
+        assert workflow.labels['koji-build-id'] == '123'
 
     @pytest.mark.parametrize(('primary', 'unique', 'invalid'), [
         (True, True, False),

@@ -53,9 +53,11 @@ from atomic_reactor.util import (Output, get_build_json,
                                  get_digests_map_from_annotations, is_scratch_build)
 from atomic_reactor.koji_util import (KojiUploadLogger, get_koji_task_owner)
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session, get_koji
+from atomic_reactor.metadata import label
 from osbs.utils import Labels
 
 
+@label('koji-build-id')
 class KojiImportPlugin(ExitPlugin):
     """
     Import this build to Koji

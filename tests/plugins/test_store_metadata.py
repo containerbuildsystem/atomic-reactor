@@ -18,9 +18,7 @@ from flexmock import flexmock
 from osbs.api import OSBS
 import osbs.conf
 from osbs.exceptions import OsbsResponseException
-from atomic_reactor.constants import (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
-                                      PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
-                                      PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
+from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
                                       PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_FETCH_SOURCES_KEY)
@@ -643,71 +641,6 @@ CMD blabla"""
     assert "all_rpm_packages" in plugins_metadata["durations"]
 
 
-@pytest.mark.parametrize('koji_plugin', (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
-                                         PLUGIN_KOJI_PROMOTE_PLUGIN_KEY))
-def test_labels_metadata_plugin(tmpdir, koji_plugin, reactor_config_map):
-
-    koji_build_id = 1234
-    workflow = prepare(reactor_config_map=reactor_config_map)
-    df_content = """
-FROM fedora
-RUN yum install -y python-django
-CMD blabla"""
-    df = df_parser(str(tmpdir))
-    df.content = df_content
-    workflow.builder.df_path = df.dockerfile_path
-    workflow.builder.df_dir = str(tmpdir)
-
-    workflow.exit_results = {
-        koji_plugin: koji_build_id,
-    }
-
-    runner = ExitPluginsRunner(
-        None,
-        workflow,
-        [{
-            'name': StoreMetadataInOSv3Plugin.key,
-            "args": {
-                "url": "http://example.com/"
-            }
-        }]
-    )
-    output = runner.run()
-    assert StoreMetadataInOSv3Plugin.key in output
-    labels = output[StoreMetadataInOSv3Plugin.key]["labels"]
-    assert "koji-build-id" in labels
-    assert is_string_type(labels["koji-build-id"])
-    assert int(labels["koji-build-id"]) == koji_build_id
-
-
-def test_missing_koji_build_id(tmpdir, reactor_config_map):  # noqa
-    workflow = prepare(reactor_config_map=reactor_config_map)
-    workflow.exit_results = {}
-    df_content = """
-FROM fedora
-RUN yum install -y python-django
-CMD blabla"""
-    df = df_parser(str(tmpdir))
-    df.content = df_content
-    workflow.builder.df_path = df.dockerfile_path
-    workflow.builder.df_dir = str(tmpdir)
-
-    runner = ExitPluginsRunner(
-        None,
-        workflow,
-        [{
-            'name': StoreMetadataInOSv3Plugin.key,
-            "args": {
-                "url": "http://example.com/"
-            }
-        }]
-    )
-    output = runner.run()
-    assert StoreMetadataInOSv3Plugin.key in output
-    labels = output[StoreMetadataInOSv3Plugin.key]["labels"]
-    assert "koji-build-id" not in labels
-
-
 def test_exit_before_dockerfile_created(tmpdir, reactor_config_map):  # noqa
     workflow = prepare(before_dockerfile=True, reactor_config_map=reactor_config_map)
     workflow.exit_results = {}
@@ -762,14 +695,9 @@ CMD blabla"""
     assert 'annotations:' in caplog.text
 
 
-@pytest.mark.parametrize('koji_plugin', (PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
-                                         PLUGIN_KOJI_PROMOTE_PLUGIN_KEY))
-def test_store_metadata_fail_update_labels(tmpdir, caplog, koji_plugin, reactor_config_map):
+def test_store_metadata_fail_update_labels(caplog, reactor_config_map):
     workflow = prepare(reactor_config_map=reactor_config_map)
-
-    workflow.exit_results = {
-        koji_plugin: 1234,
-    }
+    workflow.labels = {'some-label': 'some-value'}
 
     runner = ExitPluginsRunner(
         None,
