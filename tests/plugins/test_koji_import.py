@@ -1453,6 +1453,8 @@ class TestKojiImport(object):
             line 2
         """)
 
+        assert workflow.labels['koji-build-id'] == '123'
+
     def test_koji_import_owner_submitter(self, tmpdir, monkeypatch, reactor_config_map):  # noqa
         session = MockedClientSession('')
         session.getTaskInfo = lambda x: {'owner': 1234}
@@ -2343,3 +2345,5 @@ class TestKojiImport(object):
         ])
         orchestrator_log = session.uploaded_files['orchestrator.log']
         assert orchestrator_log == b'orchestrator\n'
+
+        assert workflow.labels['koji-build-id'] == '123'
