@@ -1325,7 +1325,7 @@ class TestKojiPromote(object):
 
         elif expect_result == 'no_help_file':
             workflow.prebuild_results[AddHelpPlugin.key] = {
-                'help_file': 'foo.md',
+                'help_file': None,
                 'status': AddHelpPlugin.NO_HELP_FILE_FOUND
             }
 

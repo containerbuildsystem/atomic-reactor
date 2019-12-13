@@ -13,7 +13,6 @@ import os
 from osbs.exceptions import OsbsResponseException
 from osbs.utils import graceful_chain_get
 
-from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session, get_koji
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
@@ -277,16 +276,6 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             annotations['base-image-name'] = base_image_name
             annotations['image-id'] = self.workflow.builder.image_id or ''
             annotations['parent_images'] = json.dumps(parent_images_strings)
-
-            help_result = self.workflow.prebuild_results.get(AddHelpPlugin.key)
-            if (isinstance(help_result, dict) and 'help_file' in help_result and
-                    'status' in help_result):
-                if help_result['status'] == AddHelpPlugin.NO_HELP_FILE_FOUND:
-                    annotations['help_file'] = json.dumps(None)
-                elif help_result['status'] == AddHelpPlugin.HELP_GENERATED:
-                    annotations['help_file'] = json.dumps(help_result['help_file'])
-                else:
-                    self.log.error("Unknown result from add_help plugin: %s", help_result)
 
         media_types = []
 

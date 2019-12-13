@@ -89,6 +89,8 @@ def test_add_help_plugin(tmpdir, docker_tasker, workflow, filename):
         ADD %s /%s
         CMD blabla""" % (AddHelpPlugin.man_filename, AddHelpPlugin.man_filename))
 
+    assert workflow.annotations['help_file'] == filename
+
 
 @pytest.mark.parametrize('filename', ['help.md', 'other_file.md'])  # noqa
 def test_add_help_no_help_file(workflow, tmpdir, docker_tasker, filename):
@@ -110,7 +112,7 @@ def test_add_help_no_help_file(workflow, tmpdir, docker_tasker, filename):
     result = runner.run()
     assert result == {'add_help': {
         'status': AddHelpPlugin.NO_HELP_FILE_FOUND,
-        'help_file': filename
+        'help_file': None
     }}
 
 
@@ -204,7 +206,7 @@ def test_add_help_md2man_error(workflow, tmpdir, docker_tasker, filename,
         expected_result = {
             'add_help': {
                 'status': AddHelpPlugin.NO_HELP_FILE_FOUND,
-                'help_file': filename
+                'help_file': None
             }
         }
         assert result == expected_result

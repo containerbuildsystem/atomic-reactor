@@ -178,7 +178,7 @@ def prepare(docker_registries=None, before_dockerfile=False,  # noqa
 ))
 @pytest.mark.parametrize('koji', [True, False])
 @pytest.mark.parametrize(('help_results', 'expected_help_results', 'base_from_scratch'), (
-    ({}, False, False),
+    (None, False, False),
     ({
         'help_file': None,
         'status': AddHelpPlugin.NO_HELP_FILE_FOUND,
@@ -222,6 +222,9 @@ CMD blabla"""
     workflow.prebuild_results = {
         AddHelpPlugin.key: help_results
     }
+    if help_results is not None:
+        workflow.annotations['help_file'] = help_results['help_file']
+
     workflow.postbuild_results = {
         PostBuildRPMqaPlugin.key: "rpm1\nrpm2",
     }
