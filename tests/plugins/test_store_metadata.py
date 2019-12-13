@@ -416,6 +416,7 @@ def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotation
         workflow.koji_source_manifest = {'config': {'digest': image_id}}
 
     sources_for_nvr = 'image_build'
+    workflow.labels['sources_for_nvr'] = sources_for_nvr
     workflow.prebuild_results = {
         PLUGIN_FETCH_SOURCES_KEY: {
             'sources_for_koji_build_id': '12345',

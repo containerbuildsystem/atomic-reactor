@@ -169,7 +169,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             updates = {key: str(value) for key, value in updates.items()}
             labels.update(updates)
 
-    def make_labels(self, extra_labels=None):
+    def make_labels(self):
         labels = {}
 
         filesystem_koji_task_id = self.get_filesystem_koji_task_id()
@@ -178,9 +178,6 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         self._update_labels(labels, self.workflow.labels)
         self._update_labels(labels, self.workflow.build_result.labels)
-
-        if extra_labels:
-            labels.update(extra_labels)
 
         return labels
 
@@ -261,11 +258,8 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             'plugins-metadata': json.dumps(self.get_plugin_metadata()),
             'filesystem': json.dumps(self.get_filesystem_metadata()),
         }
-        extra_labels = {}
 
         if self.source_build:
-            source_result = self.workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY]
-            extra_labels['sources_for_nvr'] = source_result['sources_for_nvr']
             annotations['image-id'] = ''
             if self.workflow.koji_source_manifest:
                 annotations['image-id'] = self.workflow.koji_source_manifest['config']['digest']
@@ -326,7 +320,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             self.log.debug("annotations: %r", annotations)
             raise
 
-        labels = self.make_labels(extra_labels=extra_labels)
+        labels = self.make_labels()
         if labels:
             try:
                 osbs.update_labels_on_build(build_id, labels)
