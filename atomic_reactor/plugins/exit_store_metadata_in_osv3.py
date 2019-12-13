@@ -11,12 +11,10 @@ import json
 import os
 
 from osbs.exceptions import OsbsResponseException
-from osbs.utils import graceful_chain_get
 
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session, get_koji
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
-                                      PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
                                       PLUGIN_RESOLVE_REMOTE_SOURCE,
@@ -68,10 +66,6 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             return {}
 
         return annotations
-
-    def get_filesystem_koji_task_id(self):
-        res = self.get_pre_result(PLUGIN_ADD_FILESYSTEM_KEY)
-        return graceful_chain_get(res, 'filesystem-koji-task-id')
 
     def get_digests(self):
         """
@@ -171,11 +165,6 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
     def make_labels(self):
         labels = {}
-
-        filesystem_koji_task_id = self.get_filesystem_koji_task_id()
-        if filesystem_koji_task_id:
-            labels["filesystem-koji-task-id"] = str(filesystem_koji_task_id)
-
         self._update_labels(labels, self.workflow.labels)
         self._update_labels(labels, self.workflow.build_result.labels)
 

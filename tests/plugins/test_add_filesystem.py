@@ -268,6 +268,7 @@ def test_add_filesystem_plugin_generated(tmpdir, docker_tasker, scratch, reactor
     assert 'base-image-id' in plugin_result
     assert 'filesystem-koji-task-id' in plugin_result
     assert plugin_result == expected_results
+    assert workflow.labels['filesystem-koji-task-id'] == FILESYSTEM_TASK_ID
 
 
 @pytest.mark.parametrize('scratch', [True, False])

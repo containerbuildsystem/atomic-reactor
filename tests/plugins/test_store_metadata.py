@@ -20,7 +20,6 @@ import osbs.conf
 from osbs.exceptions import OsbsResponseException
 from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
-                                      PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_FETCH_SOURCES_KEY)
 from atomic_reactor.build import BuildResult
 from atomic_reactor.inner import DockerBuildWorkflow
@@ -560,9 +559,8 @@ def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotation
 ))
 def test_koji_filesystem_label(res, reactor_config_map):
     workflow = prepare(reactor_config_map=reactor_config_map)
-    workflow.prebuild_results = {
-        PLUGIN_ADD_FILESYSTEM_KEY: res
-    }
+    if 'filesystem-koji-task-id' in res:
+        workflow.labels['filesystem-koji-task-id'] = res['filesystem-koji-task-id']
     runner = ExitPluginsRunner(
         None,
         workflow,

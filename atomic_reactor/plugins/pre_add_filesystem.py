@@ -33,10 +33,12 @@ from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 from atomic_reactor.koji_util import TaskWatcher, stream_task_output
 from atomic_reactor.yum_util import YumRepo
 from atomic_reactor.util import get_platforms, df_parser, base_image_is_custom, ImageName
+from atomic_reactor.metadata import label_map
 from atomic_reactor import util
 from osbs.utils import Labels
 
 
+@label_map('filesystem-koji-task-id')
 class AddFilesystemPlugin(PreBuildPlugin):
     """
     Creates a base image by using a filesystem generated through Koji
