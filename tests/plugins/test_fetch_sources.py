@@ -401,3 +401,18 @@ class TestFetchSources(object):
             assert 'RPM comes from an external repo' in str(exc_info.value)
         else:
             assert 'Missing SOURCERPM header' in str(exc_info.value)
+
+    def test_no_srpms(self, docker_tasker, koji_session, tmpdir):
+        (flexmock(koji_session)
+            .should_receive('listArchives')
+            .and_return([{'id': 1}]))
+        (flexmock(koji_session)
+            .should_receive('listRPMs')
+            .with_args(imageID=1)
+            .and_return([]))
+
+        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr='foobar-1-1')
+        with pytest.raises(PluginFailedException) as exc_info:
+            runner.run()
+
+        assert 'No srpms found for source container' in str(exc_info.value)
