@@ -73,6 +73,12 @@ class FetchSourcesPlugin(PreBuildPlugin):
         koji_config = get_koji(self.workflow, {})
         insecure = koji_config.get('insecure_download', False)
         urls = self.get_srpm_urls(signing_intent['keys'], insecure=insecure)
+
+        if not urls:
+            msg = "No srpms found for source container, would produce empty source container image"
+            self.log.error(msg)
+            raise RuntimeError(msg)
+
         sources_dir = self.download_sources(urls, insecure=insecure)
         return {
                 'sources_for_koji_build_id': self.koji_build_id,
