@@ -173,6 +173,15 @@ class SendMailPlugin(ExitPlugin):
         else:
             self.log.info("Koji task ID: %s", self.koji_task_id)
 
+        try:
+            metadata = get_build_json().get("metadata", {})
+            self.original_koji_task_id = int(metadata['labels']['original-koji-task-id'])
+        except Exception:
+            self.log.exception("Failed to fetch original koji task ID")
+            self.original_koji_task_id = None
+        else:
+            self.log.info("original Koji task ID: %s", self.original_koji_task_id)
+
         self.koji_build_id = self.workflow.exit_results.get(KojiImportPlugin.key)
         if not self.koji_build_id:
             self.koji_build_id = self.workflow.exit_results.get(KojiPromotePlugin.key)
@@ -343,7 +352,8 @@ class SendMailPlugin(ExitPlugin):
             return '@'.join([obj['name'], self.email_domain])
 
     def _get_koji_submitter(self):
-        koji_task_owner = get_koji_task_owner(self.session, self.koji_task_id)
+        koji_task_owner = get_koji_task_owner(self.session,
+                                              self.original_koji_task_id or self.koji_task_id)
         koji_task_owner_email = self._get_email_from_koji_obj(koji_task_owner)
         self.submitter = koji_task_owner_email
         return koji_task_owner_email

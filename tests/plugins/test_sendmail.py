@@ -29,6 +29,7 @@ MC, AC = SendMailPlugin.MANUAL_CANCELED, SendMailPlugin.AUTO_CANCELED
 
 MOCK_EMAIL_DOMAIN = "domain.com"
 MOCK_KOJI_TASK_ID = 12345
+MOCK_KOJI_ORIGINAL_TASK_ID = 54321
 MOCK_KOJI_BUILD_ID = 98765
 MOCK_KOJI_PACKAGE_ID = 123
 MOCK_KOJI_TAG_ID = 456
@@ -37,8 +38,11 @@ MOCK_KOJI_OWNER_NAME = "foo"
 MOCK_KOJI_OWNER_EMAIL = "foo@bar.com"
 MOCK_KOJI_OWNER_GENERATED = "@".join([MOCK_KOJI_OWNER_NAME, MOCK_EMAIL_DOMAIN])
 MOCK_KOJI_SUBMITTER_ID = 123456
+MOCK_KOJI_ORIGINAL_SUBMITTER_ID = 654321
 MOCK_KOJI_SUBMITTER_NAME = "baz"
+MOCK_KOJI_ORIGINAL_SUBMITTER_NAME = "original"
 MOCK_KOJI_SUBMITTER_EMAIL = "baz@bar.com"
+MOCK_KOJI_ORIGINAL_SUBMITTER_EMAIL = "original@original.com"
 MOCK_KOJI_SUBMITTER_GENERATED = "@".join([MOCK_KOJI_SUBMITTER_NAME, MOCK_EMAIL_DOMAIN])
 MOCK_ADDITIONAL_EMAIL = "spam@bar.com"
 MOCK_NAME_LABEL = 'foo/bar_in_df'
@@ -96,12 +100,21 @@ class MockedClientSession(object):
                 return {"krb_principal": "",
                         "name": MOCK_KOJI_SUBMITTER_NAME}
 
+        elif user_id == MOCK_KOJI_ORIGINAL_SUBMITTER_ID:
+            if self.has_kerberos:
+                return {"krb_principal": MOCK_KOJI_ORIGINAL_SUBMITTER_EMAIL}
+            else:
+                return {"krb_principal": "",
+                        "name": MOCK_KOJI_ORIGINAL_SUBMITTER_NAME}
         else:
             assert False, "Don't know user with id %s" % user_id
 
     def getTaskInfo(self, task_id):
-        assert task_id == MOCK_KOJI_TASK_ID
-        return {"owner": MOCK_KOJI_SUBMITTER_ID}
+        assert task_id == MOCK_KOJI_TASK_ID or task_id == MOCK_KOJI_ORIGINAL_TASK_ID
+        if task_id == MOCK_KOJI_TASK_ID:
+            return {"owner": MOCK_KOJI_SUBMITTER_ID}
+        elif task_id == MOCK_KOJI_ORIGINAL_TASK_ID:
+            return {"owner": MOCK_KOJI_ORIGINAL_SUBMITTER_ID}
 
     def listTaskOutput(self, task_id):
         assert task_id == MOCK_KOJI_TASK_ID
@@ -628,25 +641,29 @@ class TestSendMailPlugin(object):
         _, _, fail_logs = p._render_mail(True, False, False, False)
         assert not fail_logs
 
-    @pytest.mark.parametrize(
-        'has_koji_config, has_addit_address, to_koji_submitter, to_koji_pkgowner, expected_receivers', [  # noqa
-            (True, True, True, True,
+    @pytest.mark.parametrize(('has_koji_config', 'has_addit_address', 'to_koji_submitter',
+                              'has_original_task', 'to_koji_pkgowner', 'expected_receivers'), [  # noqa
+            (True, True, True, True, True,
+                [MOCK_ADDITIONAL_EMAIL, MOCK_KOJI_OWNER_EMAIL, MOCK_KOJI_ORIGINAL_SUBMITTER_EMAIL]),
+            (True, True, True, False, True,
                 [MOCK_ADDITIONAL_EMAIL, MOCK_KOJI_OWNER_EMAIL, MOCK_KOJI_SUBMITTER_EMAIL]),
-            (True, False, True, True, [MOCK_KOJI_OWNER_EMAIL, MOCK_KOJI_SUBMITTER_EMAIL]),
-            (True, False, True, False, [MOCK_KOJI_SUBMITTER_EMAIL]),
-            (True, False, False, True, [MOCK_KOJI_OWNER_EMAIL]),
-            (True, True, False, False, [MOCK_ADDITIONAL_EMAIL]),
-            (True, False, False, False, []),
-            (False, False, False, False, []),
-            (False, True, False, True, [MOCK_ADDITIONAL_EMAIL]),
-            (False, True, True, False, [MOCK_ADDITIONAL_EMAIL]),
+            (True, False, True, True, True, [MOCK_KOJI_OWNER_EMAIL,
+                                             MOCK_KOJI_ORIGINAL_SUBMITTER_EMAIL]),
+            (True, False, True, False, True, [MOCK_KOJI_OWNER_EMAIL, MOCK_KOJI_SUBMITTER_EMAIL]),
+            (True, False, True, True, False, [MOCK_KOJI_ORIGINAL_SUBMITTER_EMAIL]),
+            (True, False, True, False, False, [MOCK_KOJI_SUBMITTER_EMAIL]),
+            (True, False, False, False, True, [MOCK_KOJI_OWNER_EMAIL]),
+            (True, True, False, False, False, [MOCK_ADDITIONAL_EMAIL]),
+            (True, False, False, False, False, []),
+            (False, False, False, False, False, []),
+            (False, True, False, False, True, [MOCK_ADDITIONAL_EMAIL]),
+            (False, True, True, False, False, [MOCK_ADDITIONAL_EMAIL]),
         ])
     @pytest.mark.parametrize('use_import', [
         (True, False)
     ])
-    def test_recepients_from_koji(self, monkeypatch,
-                                  has_addit_address,
-                                  has_koji_config, to_koji_submitter, to_koji_pkgowner,
+    def test_recepients_from_koji(self, monkeypatch, has_addit_address, has_koji_config,
+                                  to_koji_submitter, has_original_task, to_koji_pkgowner,
                                   expected_receivers, use_import, reactor_config_map):
         class TagConf(object):
             unique_images = []
@@ -667,14 +684,17 @@ class TestSendMailPlugin(object):
                 }
             prebuild_results = {}
 
-        monkeypatch.setenv("BUILD", json.dumps({
+        meta_json = {
             'metadata': {
                 'labels': {
                     'koji-task-id': MOCK_KOJI_TASK_ID,
                 },
                 'name': {},
             }
-        }))
+        }
+        if has_original_task:
+            meta_json['metadata']['labels']['original-koji-task-id'] = MOCK_KOJI_ORIGINAL_TASK_ID
+        monkeypatch.setenv("BUILD", json.dumps(meta_json))
 
         session = MockedClientSession('', has_kerberos=True)
         flexmock(koji, ClientSession=lambda hub, opts: session, PathInfo=MockedPathInfo)
