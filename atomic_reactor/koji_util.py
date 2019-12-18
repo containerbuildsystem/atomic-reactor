@@ -9,9 +9,11 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import print_function, absolute_import, division
 
 import copy
+import json
 import logging
 import os
 import random
+import tempfile
 import time
 from string import ascii_letters
 
@@ -21,8 +23,11 @@ import requests
 from atomic_reactor import __version__ as atomic_reactor_version
 from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE,
                                       HTTP_BACKOFF_FACTOR, HTTP_MAX_RETRIES, PROG,
+                                      KOJI_BTYPE_OPERATOR_MANIFESTS,
+                                      OPERATOR_MANIFESTS_ARCHIVE,
                                       PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
-                                      OPERATOR_MANIFESTS_ARCHIVE)
+                                      PLUGIN_RESOLVE_REMOTE_SOURCE,
+                                      REMOTE_SOURCES_FILENAME)
 from atomic_reactor.util import (get_version_of_tools, get_docker_architecture,
                                  Output, get_image_upload_filename,
                                  get_checksums, get_manifest_media_type)
@@ -355,6 +360,34 @@ def get_image_output(workflow, image_id, arch):
     return metadata, output
 
 
+def get_source_tarball_output(workflow):
+    plugin_results = workflow.prebuild_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE, {})
+    remote_source_path = plugin_results.get('remote_source_path')
+    if not remote_source_path:
+        return None
+
+    metadata = get_output_metadata(remote_source_path, REMOTE_SOURCES_FILENAME)
+    output = Output(file=open(remote_source_path), metadata=metadata)
+    return output
+
+
+def get_remote_source_json_output(workflow):
+    plugin_results = workflow.prebuild_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE, {})
+    remote_source_json = plugin_results.get('remote_source_json')
+    if not remote_source_json:
+        return None
+
+    remote_source_json_filename = 'remote-source.json'
+    tmpdir = tempfile.mkdtemp()
+    file_path = os.path.join(tmpdir, remote_source_json_filename)
+    with open(file_path, 'w') as f:
+        json.dump(remote_source_json, f, indent=4, sort_keys=True)
+
+    metadata = get_output_metadata(file_path, remote_source_json_filename)
+    output = Output(file=open(file_path), metadata=metadata)
+    return output
+
+
 def get_image_components(workflow):
     """
     Re-package the output of the rpmqa plugin into the format required
@@ -366,6 +399,17 @@ def get_image_components(workflow):
         output = []
 
     return output
+
+
+def add_custom_type(output, custom_type, content=None):
+    output.metadata.update({
+        'type': custom_type,
+        'extra': {
+            'typeinfo': {
+                custom_type: content or {}
+            },
+        },
+    })
 
 
 def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, logs=None):
@@ -476,15 +520,7 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
                                                      OPERATOR_MANIFESTS_ARCHIVE)
             operator_manifests_output = Output(file=operator_manifests_file,
                                                metadata=manifests_metadata)
-            operator_manifests_output.metadata.update({
-                'type': 'operator-manifests',
-                'extra': {
-                    'typeinfo': {
-                        'operator-manifests': {
-                        },
-                    },
-                },
-            })
+            add_custom_type(operator_manifests_output, KOJI_BTYPE_OPERATOR_MANIFESTS)
 
             operator_manifests = add_buildroot_id(operator_manifests_output)
             output_files.append(operator_manifests)

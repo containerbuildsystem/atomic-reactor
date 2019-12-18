@@ -40,8 +40,10 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_
                                       PLUGIN_RESOLVE_COMPOSES_KEY, BASE_IMAGE_KOJI_BUILD,
                                       PARENT_IMAGES_KOJI_BUILDS, BASE_IMAGE_BUILD_ID_KEY,
                                       PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY,
+                                      PLUGIN_RESOLVE_REMOTE_SOURCE,
                                       PLUGIN_VERIFY_MEDIA_KEY, PARENT_IMAGE_BUILDS_KEY,
                                       PARENT_IMAGES_KEY, OPERATOR_MANIFESTS_ARCHIVE,
+                                      REMOTE_SOURCES_FILENAME,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
 from tests.constants import SOURCE, MOCK
@@ -232,7 +234,8 @@ def mock_environment(tmpdir, session=None, name=None,
                      has_config=None, add_tag_conf_primaries=True,
                      add_build_result_primaries=False, container_first=False,
                      yum_repourls=None, has_operator_manifests=False,
-                     push_operator_manifests_enabled=False, source_build=False):
+                     push_operator_manifests_enabled=False, source_build=False,
+                     has_remote_source=False):
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -506,6 +509,16 @@ def mock_environment(tmpdir, session=None, name=None,
             'buildroot_id': 1}
         (workflow.postbuild_results[FetchWorkerMetadataPlugin.key]['x86_64']['output']
          .append(manifests_entry))
+
+    if has_remote_source:
+        source_path = os.path.join(str(tmpdir), REMOTE_SOURCES_FILENAME)
+        with open(source_path, 'wt') as fp:
+            fp.write('dummy file')
+        remote_source_result = {
+            'annotations': {'remote_source_url': 'example.com'},
+            'remote_source_json': {'stub': 'data'},
+            'remote_source_path': source_path}
+        workflow.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = remote_source_result
 
     if push_operator_manifests_enabled:
         workflow.postbuild_results[PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY] = \
@@ -2129,6 +2142,44 @@ class TestKojiImport(object):
             assert extra['operator_manifests']['appregistry'] == PUSH_OPERATOR_MANIFESTS_RESULTS
         else:
             assert 'operator_manifests' not in extra
+
+    @pytest.mark.parametrize('has_remote_source', [True, False])
+    def test_remote_sources(self, tmpdir, os_env, has_remote_source, reactor_config_map):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(
+            tmpdir,
+            name='ns/name',
+            version='1.0',
+            release='1',
+            session=session,
+            has_remote_source=has_remote_source)
+
+        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
+        # https://github.com/PyCQA/pylint/issues/2186
+        # pylint: disable=W1655
+        if has_remote_source:
+            assert 'remote_source_url' in extra['image']
+            assert extra['image']['remote_source_url'] == 'example.com'
+            assert 'typeinfo' in extra
+            assert 'remote-sources' in extra['typeinfo']
+            assert 'remote_source_url' in extra['typeinfo']['remote-sources']
+            assert extra['typeinfo']['remote-sources']['remote_source_url'] == 'example.com'
+            assert REMOTE_SOURCES_FILENAME in session.uploaded_files.keys()
+            assert 'remote-source.json' in session.uploaded_files.keys()
+        else:
+            assert 'remote_source_url' not in extra['image']
+            assert 'typeinfo' not in extra
+            assert REMOTE_SOURCES_FILENAME not in session.uploaded_files.keys()
+            assert 'remote-source.json' not in session.uploaded_files.keys()
 
     @pytest.mark.parametrize('blocksize', (None, 1048576))
     @pytest.mark.parametrize('has_config', (True, False))

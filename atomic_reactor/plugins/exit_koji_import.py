@@ -17,7 +17,6 @@ import logging
 from tempfile import NamedTemporaryFile
 
 from atomic_reactor import start_time as atomic_reactor_start_time
-from atomic_reactor.constants import PROG
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.build_orchestrate_build import (get_worker_build_info,
@@ -26,7 +25,10 @@ from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import (OSBSLogs, get_parent_image_koji_data, get_manifest_media_version,
                                  is_manifest_list)
-from atomic_reactor.koji_util import get_buildroot, get_output, generate_koji_upload_dir
+from atomic_reactor.koji_util import (
+        get_buildroot, get_output, generate_koji_upload_dir, add_custom_type,
+        get_source_tarball_output, get_remote_source_json_output
+)
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 
@@ -39,11 +41,14 @@ except ImportError:
         return None
 
 from atomic_reactor.constants import (
+    PROG,
     PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
     PLUGIN_FETCH_WORKER_METADATA_KEY, PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
     PLUGIN_VERIFY_MEDIA_KEY,
     PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY,
+    PLUGIN_RESOLVE_REMOTE_SOURCE,
     METADATA_TAG, OPERATOR_MANIFESTS_ARCHIVE,
+    KOJI_BTYPE_CONTAINER_FIRST,
     KOJI_BTYPE_OPERATOR_MANIFESTS,
 )
 from atomic_reactor.util import (Output, get_build_json,
@@ -255,9 +260,23 @@ class KojiImportPlugin(ExitPlugin):
                             'archive': OPERATOR_MANIFESTS_ARCHIVE,
                         },
                     }
-                    extra.update({'typeinfo': operators_typeinfo})
+                    extra.setdefault('typeinfo', {}).update(operators_typeinfo)
 
                     return  # only one worker can process operator manifests
+
+    def set_remote_sources_metadata(self, extra):
+        remote_source_result = self.workflow.prebuild_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE)
+        if remote_source_result:
+            url = remote_source_result['annotations']['remote_source_url']
+            remote_source_typeinfo = {
+                KOJI_BTYPE_CONTAINER_FIRST: {
+                    'remote_source_url': url,
+                },
+            }
+            extra.setdefault('typeinfo', {}).update(remote_source_typeinfo)
+
+            # TODO: is setting it in the image metadata also needed?
+            extra['image']['remote_source_url'] = url
 
     def set_group_manifest_info(self, extra, worker_metadatas):
         version_release = None
@@ -400,6 +419,8 @@ class KojiImportPlugin(ExitPlugin):
 
             self.set_help(extra, worker_metadatas)
             self.set_operators_metadata(extra, worker_metadatas)
+            self.set_remote_sources_metadata(extra)
+
             self.set_go_metadata(extra)
             self.set_group_manifest_info(extra, worker_metadatas)
         else:
@@ -476,6 +497,17 @@ class KojiImportPlugin(ExitPlugin):
         output.extend([of.metadata for of in output_files])
         if output_file:
             output_files.append(output_file)
+
+        # add remote source tarball and remote-source.json files to output
+        for remote_source_output in [
+            get_source_tarball_output(self.workflow),
+            get_remote_source_json_output(self.workflow)
+        ]:
+            if remote_source_output:
+                add_custom_type(remote_source_output, KOJI_BTYPE_CONTAINER_FIRST)
+                remote_source = add_buildroot_id(remote_source_output, buildroot_id)
+                output_files.append(remote_source)
+                output.append(remote_source.metadata)
 
         koji_metadata = {
             'metadata_version': metadata_version,
