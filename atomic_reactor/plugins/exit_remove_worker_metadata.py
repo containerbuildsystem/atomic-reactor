@@ -31,6 +31,10 @@ class RemoveWorkerMetadataPlugin(ExitPlugin):
 
         for platform, build_annotations in worker_builds.items():
             try:
+                if ('metadata_fragment' not in build_annotations or
+                        'metadata_fragment_key' not in build_annotations):
+                    continue
+
                 cm_key, _ = get_platform_config(platform, build_annotations)
             except BadConfigMapError:
                 continue
