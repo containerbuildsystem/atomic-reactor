@@ -90,9 +90,11 @@ def mock_workflow(tmpdir):
                                        ['ppc64le'],
                                        ['x86_64', 'ppc64le'],
                                        [None]])
+@pytest.mark.parametrize('fragment_annotation', [True, False])
 @pytest.mark.parametrize('fragment_key', ['metadata.json', None])
 @pytest.mark.parametrize('cm_not_found', [True, False])
-def test_remove_worker_plugin(tmpdir, caplog, platforms, fragment_key, cm_not_found):
+def test_remove_worker_plugin(tmpdir, caplog, platforms, fragment_annotation, fragment_key,
+                              cm_not_found):
     workflow = mock_workflow(tmpdir)
 
     annotations = {'worker-builds': {}}
@@ -117,7 +119,7 @@ def test_remove_worker_plugin(tmpdir, caplog, platforms, fragment_key, cm_not_fo
             worker_info = WorkerBuildInfo(build, cluster_info, log)
             workspace['build_info'][platform] = worker_info
 
-            if fragment_key:
+            if fragment_key and fragment_annotation:
                 if cm_not_found:
                     (flexmock(osbs)
                      .should_receive("delete_config_map")
@@ -131,11 +133,10 @@ def test_remove_worker_plugin(tmpdir, caplog, platforms, fragment_key, cm_not_fo
                      .once()
                      .and_return(True))
 
-        annotations['worker-builds'][platform] = {
-            'build': {'build-name': build_name},
-            'metadata_fragment': metadata_fragment,
-            'metadata_fragment_key': fragment_key
-        }
+        annotations['worker-builds'][platform] = {'build': {'build-name': build_name}}
+        if fragment_annotation:
+            annotations['worker-builds'][platform]['metadata_fragment'] = metadata_fragment
+            annotations['worker-builds'][platform]['metadata_fragment_key'] = fragment_key
 
     workflow.build_result = BuildResult(annotations=annotations, image_id="id1234")
     workflow.plugin_workspace[OrchestrateBuildPlugin.key] = workspace
@@ -154,6 +155,8 @@ def test_remove_worker_plugin(tmpdir, caplog, platforms, fragment_key, cm_not_fo
     for platform in platforms:
         if platform and fragment_key:
             cm_name = 'build-1-%s-md' % platform
+            if not fragment_annotation:
+                continue
             if cm_not_found:
                 msg = "Failed to delete ConfigMap {} on platform {}:".format(cm_name, platform)
                 assert msg in caplog.text
