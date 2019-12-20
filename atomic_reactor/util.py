@@ -19,7 +19,7 @@ import sys
 import requests
 from requests.exceptions import SSLError, HTTPError, RetryError
 from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util import Retry
+from urllib3.util import Retry
 import shutil
 import tempfile
 import logging

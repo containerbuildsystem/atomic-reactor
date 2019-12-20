@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015-2019 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -12,7 +12,7 @@ from __future__ import print_function, unicode_literals, absolute_import
 from atomic_reactor.core import DockerTasker, retry, RetryGeneratorException, ContainerTasker
 from atomic_reactor.util import ImageName, clone_git_repo, CommandResult
 from tests.constants import LOCALHOST_REGISTRY, INPUT_IMAGE, DOCKERFILE_GIT, MOCK, COMMAND
-from requests.packages.urllib3.exceptions import ProtocolError, ReadTimeoutError
+from urllib3.exceptions import ProtocolError, ReadTimeoutError
 from tests.util import requires_internet
 
 from base64 import b64encode

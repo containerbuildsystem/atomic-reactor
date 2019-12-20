@@ -46,10 +46,10 @@ from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.util import ImageName, figure_out_build_file, Dockercfg
 from osbs.utils import clone_git_repo
 
-from requests.packages.urllib3.exceptions import (InsecureRequestWarning, ProtocolError,
-                                                  ReadTimeoutError)
-
-requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+from urllib3.exceptions import (InsecureRequestWarning, ProtocolError,
+                                ReadTimeoutError)
+from urllib3 import disable_warnings
+disable_warnings(InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
