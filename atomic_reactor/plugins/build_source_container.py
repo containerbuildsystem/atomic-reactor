@@ -31,14 +31,14 @@ class SourceContainerPlugin(BuildStepPlugin):
 
         cmd = ['skopeo', 'copy']
         source_img = 'oci:{}'.format(image_output_dir)
-        dest_img = 'oci-archive:{}'.format(output_path)
+        dest_img = 'docker-archive:{}'.format(output_path)
         cmd += [source_img, dest_img]
 
         self.log.info("Calling: %s", ' '.join(cmd))
         try:
             subprocess.check_output(cmd, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
-            self.log.error("failed to save oci-archive :\n%s", e.output)
+            self.log.error("failed to save docker-archive :\n%s", e.output)
             raise
 
         img_metadata = get_exported_image_metadata(output_path, IMAGE_TYPE_OCI_TAR)
