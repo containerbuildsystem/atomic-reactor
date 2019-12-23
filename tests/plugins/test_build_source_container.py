@@ -114,8 +114,8 @@ def test_running_build(tmpdir, caplog, sources_dir, sources_dir_exists, sources_
             assert args[0] == 'skopeo'
             assert args[1] == 'copy'
             assert args[2] == 'oci:%s' % temp_image_output_dir
-            assert args[3] == 'oci-archive:%s' % os.path.join(temp_image_export_dir,
-                                                              EXPORTED_SQUASHED_IMAGE_NAME)
+            assert args[3] == 'docker-archive:%s' % os.path.join(temp_image_export_dir,
+                                                                 EXPORTED_SQUASHED_IMAGE_NAME)
 
             if export_failed:
                 raise subprocess.CalledProcessError(returncode=1, cmd=args, output="Failed")
