@@ -13,7 +13,7 @@ import tempfile
 
 from atomic_reactor.build import BuildResult
 from atomic_reactor.constants import (PLUGIN_SOURCE_CONTAINER_KEY, EXPORTED_SQUASHED_IMAGE_NAME,
-                                      IMAGE_TYPE_OCI_TAR, PLUGIN_FETCH_SOURCES_KEY)
+                                      IMAGE_TYPE_DOCKER_ARCHIVE, PLUGIN_FETCH_SOURCES_KEY)
 from atomic_reactor.plugin import BuildStepPlugin
 from atomic_reactor.util import get_exported_image_metadata
 
@@ -41,7 +41,7 @@ class SourceContainerPlugin(BuildStepPlugin):
             self.log.error("failed to save docker-archive :\n%s", e.output)
             raise
 
-        img_metadata = get_exported_image_metadata(output_path, IMAGE_TYPE_OCI_TAR)
+        img_metadata = get_exported_image_metadata(output_path, IMAGE_TYPE_DOCKER_ARCHIVE)
         self.workflow.exported_image_sequence.append(img_metadata)
 
     def run(self):
