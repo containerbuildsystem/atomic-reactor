@@ -19,18 +19,22 @@ from tests.stubs import StubInsideBuilder
 from atomic_reactor.plugins.pre_download_remote_source import (
     DownloadRemoteSourcePlugin,
 )
+import pytest
 
 
 class TestDownloadRemoteSource(object):
     @responses.activate
-    def test_download_remote_source(self, docker_tasker):
+    @pytest.mark.parametrize('source_url', [True, False])
+    def test_download_remote_source(self, docker_tasker, source_url):
         workflow = DockerBuildWorkflow(
             TEST_IMAGE,
             source={"provider": "git", "uri": "asd"},
         )
         workflow.builder = StubInsideBuilder().for_workflow(workflow)
         filename = 'source.tar.gz'
-        url = 'https://example.com/dir/{}'.format(filename)
+        url = None
+        if source_url:
+            url = 'https://example.com/dir/{}'.format(filename)
 
         # Make a compressed tarfile with a single file 'abc'
         member = 'abc'
@@ -42,13 +46,18 @@ class TestDownloadRemoteSource(object):
             tf.addfile(ti, fileobj=BytesIO(abc_content))
 
         # GET from the url returns the compressed tarfile
-        responses.add(responses.GET, url, body=content.getvalue())
+        if source_url:
+            responses.add(responses.GET, url, body=content.getvalue())
 
         buildargs = {'spam': 'maps'}
         plugin = DownloadRemoteSourcePlugin(docker_tasker, workflow,
                                             remote_source_url=url,
                                             remote_source_build_args=buildargs)
         result = plugin.run()
+
+        if not source_url:
+            assert result is None
+            return
 
         # The return value should be the path to the downloaded archive itself
         with open(result, 'rb') as f:

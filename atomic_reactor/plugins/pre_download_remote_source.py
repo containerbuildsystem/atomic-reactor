@@ -20,7 +20,7 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
     key = 'download_remote_source'
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, remote_source_url,
+    def __init__(self, tasker, workflow, remote_source_url=None,
                  remote_source_build_args=None):
         """
         :param tasker: ContainerTasker instance
@@ -37,6 +37,10 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
         """
         Run the plugin.
         """
+        if not self.url:
+            self.log.info('No remote source url to download, skipping plugin')
+            return
+
         # Download the source code archive
         archive = download_url(self.url, self.workflow.source.workdir)
 
