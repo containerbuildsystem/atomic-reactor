@@ -13,6 +13,7 @@ import os
 import responses
 import tarfile
 
+from atomic_reactor.constants import REMOTE_SOURCE_DIR
 from atomic_reactor.inner import DockerBuildWorkflow
 from tests.constants import TEST_IMAGE
 from tests.stubs import StubInsideBuilder
@@ -57,7 +58,7 @@ class TestDownloadRemoteSource(object):
         assert filecontent == content.getvalue()
 
         # Expect a file 'abc' in the workdir
-        with open(os.path.join(workflow.source.workdir, member), 'rb') as f:
+        with open(os.path.join(workflow.source.workdir, plugin.REMOTE_SOURCE, member), 'rb') as f:
             filecontent = f.read()
 
         assert filecontent == abc_content
@@ -65,3 +66,8 @@ class TestDownloadRemoteSource(object):
         # Expect buildargs to have been set
         for arg, value in buildargs.items():
             assert workflow.builder.buildargs[arg] == value
+        # along with the args needed to add the sources in the Dockerfile
+        assert workflow.builder.buildargs['REMOTE_SOURCE'] == plugin.REMOTE_SOURCE
+        assert workflow.builder.buildargs['REMOTE_SOURCE_DIR'] == REMOTE_SOURCE_DIR
+        # https://github.com/openshift/imagebuilder/issues/139
+        assert not workflow.builder.buildargs['REMOTE_SOURCE'].startswith('/')
