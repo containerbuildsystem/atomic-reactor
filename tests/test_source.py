@@ -372,6 +372,18 @@ class TestSourceConfigSchemaValidation(object):
           ref: b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a
           extra_key: not_allowed
         """,
+
+        """\
+        remote_source:
+          repo: https://git.example.com/team/repo.git
+          ref: b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a
+          pkg_managers:
+            - gomod
+
+        go:
+          modules:
+            - module: example.com/go/package
+        """,
     ])
     def test_invalid_source_config_validation_error(self, tmpdir, yml_config):
         with pytest.raises(jsonschema.ValidationError):
