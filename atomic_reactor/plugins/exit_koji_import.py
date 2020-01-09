@@ -501,8 +501,9 @@ class KojiImportPlugin(ExitPlugin):
             output_files.append(output_file)
 
         # add remote source tarball and remote-source.json files to output
+        nvr = '{}-{}-{}'.format(build['name'], build['version'], build['release'])
         for remote_source_output in [
-            get_source_tarball_output(self.workflow),
+            get_source_tarball_output(self.workflow, nvr),
             get_remote_source_json_output(self.workflow)
         ]:
             if remote_source_output:

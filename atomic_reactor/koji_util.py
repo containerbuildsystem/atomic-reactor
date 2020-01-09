@@ -360,13 +360,14 @@ def get_image_output(workflow, image_id, arch):
     return metadata, output
 
 
-def get_source_tarball_output(workflow):
+def get_source_tarball_output(workflow, nvr):
     plugin_results = workflow.prebuild_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE) or {}
     remote_source_path = plugin_results.get('remote_source_path')
     if not remote_source_path:
         return None
 
-    metadata = get_output_metadata(remote_source_path, REMOTE_SOURCES_FILENAME)
+    koji_archive_filename = '{}-{}'.format(nvr, REMOTE_SOURCES_FILENAME)
+    metadata = get_output_metadata(remote_source_path, koji_archive_filename)
     output = Output(file=open(remote_source_path), metadata=metadata)
     return output
 

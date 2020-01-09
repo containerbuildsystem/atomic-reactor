@@ -2149,12 +2149,14 @@ class TestKojiImport(object):
 
     @pytest.mark.parametrize('has_remote_source', [True, False])
     def test_remote_sources(self, tmpdir, os_env, has_remote_source, reactor_config_map):
+        component, version, release = ('ns-name-container', '1.0', '1')
         session = MockedClientSession('')
         tasker, workflow = mock_environment(
             tmpdir,
             name='ns/name',
-            version='1.0',
-            release='1',
+            component=component,
+            version=version,
+            release=release,
             session=session,
             has_remote_source=has_remote_source)
 
@@ -2168,6 +2170,13 @@ class TestKojiImport(object):
         assert 'extra' in build
         extra = build['extra']
         assert isinstance(extra, dict)
+
+        uploaded_sources_name = '{}-{}-{}-{}'.format(
+            component,
+            version,
+            release,
+            REMOTE_SOURCES_FILENAME
+        )
         # https://github.com/PyCQA/pylint/issues/2186
         # pylint: disable=W1655
         if has_remote_source:
@@ -2177,12 +2186,12 @@ class TestKojiImport(object):
             assert 'remote-sources' in extra['typeinfo']
             assert 'remote_source_url' in extra['typeinfo']['remote-sources']
             assert extra['typeinfo']['remote-sources']['remote_source_url'] == 'example.com'
-            assert REMOTE_SOURCES_FILENAME in session.uploaded_files.keys()
+            assert uploaded_sources_name in session.uploaded_files.keys()
             assert 'remote-source.json' in session.uploaded_files.keys()
         else:
             assert 'remote_source_url' not in extra['image']
             assert 'typeinfo' not in extra
-            assert REMOTE_SOURCES_FILENAME not in session.uploaded_files.keys()
+            assert uploaded_sources_name not in session.uploaded_files.keys()
             assert 'remote-source.json' not in session.uploaded_files.keys()
 
     @pytest.mark.parametrize('blocksize', (None, 1048576))
