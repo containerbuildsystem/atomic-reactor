@@ -751,7 +751,7 @@ class TestResolveComposes(object):
         assert plugin_result['signing_intent'] == expected_intent
 
     def test_invalid_flag(self, workflow, reactor_config_map):
-        expect_error = "Additional properties are not allowed ('some_invalid_flag' was unexpected)"
+        expect_error = "is not valid under any of the given schemas"
         arches = ['x86_64']
         repo_config = dedent("""\
             compose:

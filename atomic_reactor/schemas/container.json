@@ -4,46 +4,142 @@
   "title": "container image build configuration",
 
   "type": ["object", "null"],
-  "properties": {
-    "go": {
-      "type": "object",
-      "properties": {
-        "modules": {
-          "type": ["array", "null"],
-          "items": {
-            "type": "object",
-            "properties": {
-              "module": {
-                "type": "string",
-                "description": "Top-level Go module (package) name which will be built",
-                "examples": [
-                  "example.com/go/packagename",
-                  "example.com/go/anotherpackage"
-                ]
+  "anyOf": [
+      {
+         "properties": {
+            "go": {
+              "type": "object",
+              "properties": {
+                "modules": {
+                  "type": ["array", "null"],
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "module": {
+                        "type": "string",
+                        "description": "Top-level Go module (package) name which will be built",
+                        "examples": [
+                          "example.com/go/packagename",
+                          "example.com/go/anotherpackage"
+                        ]
+                      },
+                      "archive": {
+                        "type": "string",
+                        "description": "Possibly-compressed archive containing full source code including dependencies",
+                        "examples": [
+                          "anotherpackage.tar.gz"
+                        ]
+                      },
+                      "path": {
+                        "type": "string",
+                        "description": "Path to directory containing source code (or its parent), possibly within archive",
+                        "examples": [
+                          "anotherpackage-v0.54.1"
+                        ]
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": ["module"]
+                  }
+                }
               },
-              "archive": {
-                "type": "string",
-                "description": "Possibly-compressed archive containing full source code including dependencies",
-                "examples": [
-                  "anotherpackage.tar.gz"
-                ]
-              },
-              "path": {
-                "type": "string",
-                "description": "Path to directory containing source code (or its parent), possibly within archive",
-                "examples": [
-                  "anotherpackage-v0.54.1"
-                ]
-              }
+              "additionalProperties": false
             },
-            "additionalProperties": false,
-            "required": ["module"]
-          }
-        }
+            "platforms": {"$ref": "#/definitions/all_platforms"},
+            "autorebuild": {"$ref": "#/definitions/autorebuild"},
+            "compose": {"$ref": "#/definitions/compose"},
+            "flatpak": {"$ref": "#/definitions/flatpak"},
+            "image_build_method": {"$ref": "#/definitions/image_build_method"},
+            "tags": {"$ref": "#/definitions/tags"},
+            "set_release_env": {"$ref": "#/definitions/set_release_env"},
+            "version": {"$ref": "#/definitions/version"}
+         },
+         "additionalProperties": false
       },
-      "additionalProperties": false
+
+      {
+         "properties": {
+            "platforms": {"$ref": "#/definitions/all_platforms"},
+            "autorebuild": {"$ref": "#/definitions/autorebuild"},
+            "compose": {"$ref": "#/definitions/compose"},
+            "flatpak": {"$ref": "#/definitions/flatpak"},
+            "image_build_method": {"$ref": "#/definitions/image_build_method"},
+            "remote_source": {
+              "type": ["object", "null"],
+              "properties": {
+                "repo": {
+                  "type": "string",
+                  "description": "URL to the SCM repository",
+                  "examples": [
+                    "https://git.example.com/team/repo.git",
+                    "https://git.example.com/another-repo.git"
+                  ]
+                },
+                "ref": {
+                  "type": "string",
+                  "pattern": "^[0-9a-z]{40}$",
+                  "description": "SCM reference to fetch from repository",
+                  "examples": [
+                    "b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a",
+                    "651abc41170e52866148cc0c99c3671a2ace7002"
+                  ]
+                },
+                "pkg_managers": {
+                  "description": "list of package managers to be used for resolving dependencies",
+                  "type": ["array", "null"],
+                  "items": {
+                      "type": "string",
+                      "examples": [
+                        "gomod"
+                      ]
+                  }
+                },
+                "flags": {
+                  "description": "list of flags to pass to the Cachito request",
+                  "type": ["array", "null"],
+                  "items": {
+                      "type": "string",
+                      "examples": [
+                        "enable-confeti",
+                        "enable-party-popper"
+                      ]
+                  }
+                }
+              },
+              "additionalProperties": false,
+              "required": ["repo", "ref"]
+            },
+            "tags": {"$ref": "#/definitions/tags"},
+            "set_release_env": {"$ref": "#/definitions/set_release_env"},
+            "version": {"$ref": "#/definitions/version"}
+         },
+         "additionalProperties": false
+      }
+  ],
+
+  "definitions": {
+    "platform": {
+      "type": "string",
+      "description": "Platform name",
+      "examples": [
+        "x86_64",
+        "ppc64le",
+        "armhfp"
+      ]
     },
     "platforms": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/platform"
+        },
+        { "type": "array",
+          "items": {
+            "$ref": "#/definitions/platform"
+          }
+        }
+      ]
+    },
+    "all_platforms": {
       "type": ["object", "null"],
       "properties": {
         "only": {
@@ -156,51 +252,6 @@
       "description": "build-step plugin to be used",
       "enum": ["docker_api", "imagebuilder", "buildah_bud"]
     },
-    "remote_source": {
-      "type": ["object", "null"],
-      "properties": {
-        "repo": {
-          "type": "string",
-          "description": "URL to the SCM repository",
-          "examples": [
-            "https://git.example.com/team/repo.git",
-            "https://git.example.com/another-repo.git"
-          ]
-        },
-        "ref": {
-          "type": "string",
-          "pattern": "^[0-9a-z]{40}$",
-          "description": "SCM reference to fetch from repository",
-          "examples": [
-            "b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a",
-            "651abc41170e52866148cc0c99c3671a2ace7002"
-          ]
-        },
-        "pkg_managers": {
-          "description": "list of package managers to be used for resolving dependencies",
-          "type": ["array", "null"],
-          "items": {
-              "type": "string",
-              "examples": [
-                "gomod"
-              ]
-          }
-        },
-        "flags": {
-          "description": "list of flags to pass to the Cachito request",
-          "type": ["array", "null"],
-          "items": {
-              "type": "string",
-              "examples": [
-                "enable-confeti",
-                "enable-party-popper"
-              ]
-          }
-        }
-      },
-      "additionalProperties": false,
-      "required": ["repo", "ref"]
-    },
     "tags": {
       "type": "array",
       "description": "Tags to apply to the built image",
@@ -224,31 +275,6 @@
       "description": "Deprecated option kept for backwards compatibility. Should not be used",
       "minimum": 1,
       "default": 1
-    }
-  },
-  "additionalProperties": false,
-
-  "definitions": {
-    "platform": {
-      "type": "string",
-      "description": "Platform name",
-      "examples": [
-        "x86_64",
-        "ppc64le",
-        "armhfp"
-      ]
-    },
-    "platforms": {
-      "oneOf": [
-        {
-          "$ref": "#/definitions/platform"
-        },
-        { "type": "array",
-          "items": {
-            "$ref": "#/definitions/platform"
-          }
-        }
-      ]
     }
   }
 }
