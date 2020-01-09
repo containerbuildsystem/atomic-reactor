@@ -519,6 +519,8 @@ def mock_environment(tmpdir, session=None, name=None,
             'remote_source_json': {'stub': 'data'},
             'remote_source_path': source_path}
         workflow.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = remote_source_result
+    else:
+        workflow.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = None
 
     if push_operator_manifests_enabled:
         workflow.postbuild_results[PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY] = \
