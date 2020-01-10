@@ -619,7 +619,8 @@ def build_inside(input_method, input_args=None, substitutions=None):
     try:
         build_result = dbw.build_docker_image()
     except Exception as e:
-        logger.info("Dockerfile used for build:\n%s", dbw.builder.original_df)
+        if dbw.builder:
+            logger.info("Dockerfile used for build:\n%s", dbw.builder.original_df)
         logger.error('image build failed: %s', e)
         raise
     else:
