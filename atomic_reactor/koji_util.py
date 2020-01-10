@@ -18,16 +18,15 @@ import time
 from string import ascii_letters
 
 import koji
-import requests
 
 from atomic_reactor import __version__ as atomic_reactor_version
-from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE,
-                                      HTTP_BACKOFF_FACTOR, HTTP_MAX_RETRIES, PROG,
+from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE, PROG,
                                       KOJI_BTYPE_OPERATOR_MANIFESTS,
                                       OPERATOR_MANIFESTS_ARCHIVE,
                                       PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
                                       PLUGIN_RESOLVE_REMOTE_SOURCE,
-                                      REMOTE_SOURCES_FILENAME)
+                                      REMOTE_SOURCES_FILENAME, KOJI_MAX_RETRIES,
+                                      KOJI_RETRY_INTERVAL, KOJI_OFFLINE_RETRY_INTERVAL)
 from atomic_reactor.util import (get_version_of_tools, get_docker_architecture,
                                  Output, get_image_upload_filename,
                                  get_checksums, get_manifest_media_type)
@@ -57,35 +56,6 @@ class KojiUploadLogger(object):
             self.last_percent_done = percent_done
             self.logger.debug("upload: %d%% done (%.1f MiB/sec)",
                               percent_done, size / t1 / 1024 / 1024)
-
-
-class KojiSessionWrapper(object):
-    """
-    Wrap all calls to koji.ClientSession methods in a catch/exception block, so that
-    improperly handled ConnectionErrors from koji.ClientSession will get retried silently.
-
-
-    """
-    def __init__(self, session):
-        self._wrapped_session = session
-
-    def __getattr__(self, name):
-        session_attr = getattr(self._wrapped_session, name)
-        if callable(session_attr):
-            def call_with_catch(*a, **kw):
-                retry_delay = HTTP_BACKOFF_FACTOR
-                last_exc = None
-                for retry in range(HTTP_MAX_RETRIES):
-                    try:
-                        return session_attr(*a, **kw)
-                    except requests.ConnectionError as exc:
-                        time.sleep(retry_delay * (2 ** retry))
-                        last_exc = exc
-                        continue
-                raise last_exc  # pylint: disable=raising-bad-type
-            return call_with_catch
-        else:
-            return session_attr
 
 
 def koji_login(session,
@@ -152,11 +122,14 @@ def create_koji_session(hub_url, auth_info=None, use_fast_upload=True):
     :param use_fast_upload: bool, flag to use or not Koji's fast upload API.
     :return: koji.ClientSession instance
     """
-    session = KojiSessionWrapper(koji.ClientSession(
-        hub_url,
-        opts={'krb_rdns': False, 'use_fast_upload': use_fast_upload}
-        )
-    )
+    session = koji.ClientSession(hub_url,
+                                 opts={'krb_rdns': False,
+                                       'use_fast_upload': use_fast_upload,
+                                       'anon_retry': True,
+                                       'max_retries': KOJI_MAX_RETRIES,
+                                       'retry_interval': KOJI_RETRY_INTERVAL,
+                                       'offline_retry': True,
+                                       'offline_retry_interval': KOJI_OFFLINE_RETRY_INTERVAL})
 
     if auth_info is not None:
         koji_login(session, **auth_info)
@@ -239,7 +212,7 @@ def get_koji_module_build(session, module_spec):
     include at least name, stream and version. For legacy support, you can omit
     context if there is only one build of the specified NAME:STREAM:VERSION.
 
-    :param session: KojiSessionWrapper, Session for talking to Koji
+    :param session: koji.ClientSession, Session for talking to Koji
     :param module_spec: ModuleSpec, specification of the module version
     :return: tuple, a dictionary of information about the build, and
         a list of RPMs in the module build

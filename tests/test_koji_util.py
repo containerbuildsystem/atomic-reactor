@@ -7,10 +7,8 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from __future__ import absolute_import, print_function, unicode_literals
-import time
 
 import koji
-import requests
 
 from osbs.repo_utils import ModuleSpec
 from atomic_reactor.koji_util import (koji_login, create_koji_session,
@@ -18,9 +16,15 @@ from atomic_reactor.koji_util import (koji_login, create_koji_session,
                                       get_koji_module_build)
 from atomic_reactor import koji_util
 from atomic_reactor.plugin import BuildCanceledException
-from atomic_reactor.constants import HTTP_MAX_RETRIES
+from atomic_reactor.constants import (KOJI_MAX_RETRIES, KOJI_RETRY_INTERVAL,
+                                      KOJI_OFFLINE_RETRY_INTERVAL)
 import flexmock
 import pytest
+
+
+KOJI_RETRY_OPTS = {'anon_retry': True, 'max_retries': KOJI_MAX_RETRIES,
+                   'retry_interval': KOJI_RETRY_INTERVAL, 'offline_retry': True,
+                   'offline_retry_interval': KOJI_OFFLINE_RETRY_INTERVAL}
 
 
 class TestKojiLogin(object):
@@ -88,10 +92,12 @@ class TestCreateKojiSession(object):
     def test_create_simple_session(self):
         url = 'https://example.com'
         session = flexmock()
+        opts = {'krb_rdns': False, 'use_fast_upload': True}
+        opts.update(KOJI_RETRY_OPTS)
 
         (flexmock(koji_util.koji).should_receive('ClientSession').with_args(
-            url, opts={'krb_rdns': False, 'use_fast_upload': True}).and_return(session))
-        assert create_koji_session(url)._wrapped_session == session
+            url, opts=opts).and_return(session))
+        assert create_koji_session(url) == session
 
     @pytest.mark.parametrize(('ssl_session'), [
         (True, False),
@@ -107,9 +113,12 @@ class TestCreateKojiSession(object):
         else:
             session.should_receive('krb_login').once().and_return(True)
 
+        opts = {'krb_rdns': False, 'use_fast_upload': True}
+        opts.update(KOJI_RETRY_OPTS)
+
         (flexmock(koji_util.koji).should_receive('ClientSession').with_args(
-            url, opts={'krb_rdns': False, 'use_fast_upload': True}).and_return(session))
-        assert create_koji_session(url, args)._wrapped_session == session
+            url, opts=opts).and_return(session))
+        assert create_koji_session(url, args) == session
 
     @pytest.mark.parametrize(('ssl_session'), [
         (True, False),
@@ -125,44 +134,13 @@ class TestCreateKojiSession(object):
         else:
             session.should_receive('krb_login').once().and_return(False)
 
+        opts = {'krb_rdns': False, 'use_fast_upload': True}
+        opts.update(KOJI_RETRY_OPTS)
+
         (flexmock(koji_util.koji).should_receive('ClientSession').with_args(
-            url, opts={'krb_rdns': False, 'use_fast_upload': True}).and_return(session))
+            url, opts=opts).and_return(session))
         with pytest.raises(RuntimeError):
             create_koji_session(url, args)
-
-    @pytest.mark.parametrize(('auth_type', 'auth_args'), [
-        ('ssl_login', {'ssl_certs_dir': 'value'}),
-        ('krb_login', {}),
-    ])
-    @pytest.mark.parametrize(('error_type', 'should_recover', 'attempts'), [
-        (requests.ConnectionError, True, HTTP_MAX_RETRIES - 1),
-        (requests.ConnectionError, False, HTTP_MAX_RETRIES),
-        (KeyError, False, 1),
-    ])
-    def test_create_session_failures(self, tmpdir, auth_type, auth_args,
-                                     error_type, should_recover, attempts):
-        url = 'https://example.com'
-        if auth_args.get('ssl_certs_dir', None) == 'value':
-            auth_args['ssl_certs_dir'] = str(tmpdir)
-
-        session = flexmock(_value="test_value")
-        (flexmock(koji_util.koji).should_receive('ClientSession').with_args(
-            url, opts={'krb_rdns': False, 'use_fast_upload': True}).and_return(session))
-
-        flexmock(time).should_receive('sleep').and_return(None)
-
-        if should_recover:
-            (session.should_receive(auth_type)
-                .and_raise(error_type)
-                .and_raise(error_type)
-                .and_return(True))
-            test_session = create_koji_session(url, auth_args)
-            assert test_session._wrapped_session == session
-            assert test_session._value == "test_value"
-        else:
-            session.should_receive(auth_type).and_raise(error_type).times(attempts)
-            with pytest.raises(error_type):
-                create_koji_session(url, auth_args)
 
 
 class TestStreamTaskOutput(object):
