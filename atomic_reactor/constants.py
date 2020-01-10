@@ -145,6 +145,9 @@ GIT_BACKOFF_FACTOR = 5
 KOJI_RESERVE_MAX_RETRIES = 20
 # wait for 2sec (usual time of bump_release with reserve)
 KOJI_RESERVE_RETRY_DELAY = 2
+KOJI_MAX_RETRIES = 120
+KOJI_RETRY_INTERVAL = 60
+KOJI_OFFLINE_RETRY_INTERVAL = 120
 
 # Media types
 MEDIA_TYPE_DOCKER_V2_SCHEMA1 = "application/vnd.docker.distribution.manifest.v1+json"
