@@ -169,4 +169,4 @@ KOJI_BTYPE_CONTAINER_FIRST = 'remote-sources'
 REMOTE_SOURCE_DIR = '/remote-source'
 
 # Name of downloaded remote sources tarball
-REMOTE_SOURCES_FILENAME = 'remote-sources.tar.gz'
+REMOTE_SOURCES_FILENAME = 'remote-source.tar.gz'

@@ -155,7 +155,7 @@ def test_wait_for_request_bad_request_type():
 ))
 def test_download_sources(tmpdir, cachito_request):
     blob = 'glop-glop-I\'m-a-blob'
-    expected_dest_path = os.path.join(str(tmpdir), 'remote-sources.tar.gz')
+    expected_dest_path = os.path.join(str(tmpdir), 'remote-source.tar.gz')
 
     responses.add(
         responses.GET,
