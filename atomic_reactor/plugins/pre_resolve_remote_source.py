@@ -10,12 +10,10 @@ from __future__ import unicode_literals, absolute_import
 import os.path
 
 from atomic_reactor.constants import PLUGIN_RESOLVE_REMOTE_SOURCE, REMOTE_SOURCE_DIR
-from atomic_reactor.koji_util import get_koji_task_owner
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.plugins.pre_reactor_config import (
-    get_cachito, get_cachito_session, get_koji_session, NO_FALLBACK)
-from atomic_reactor.util import get_build_json
+    get_cachito, get_cachito_session)
 
 
 class ResolveRemoteSourcePlugin(PreBuildPlugin):
@@ -50,9 +48,7 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
             self.log.info('Aborting plugin execution: missing remote_source configuration')
             return
 
-        user = self.get_koji_user()
-
-        source_request = self.cachito_session.request_sources(user=user, **remote_source_config)
+        source_request = self.cachito_session.request_sources(**remote_source_config)
         source_request = self.cachito_session.wait_for_request(source_request)
 
         remote_source_json = self.source_request_to_json(source_request)
@@ -98,24 +94,6 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
         data.update({k: source_request.get(k, []) for k in optional})
 
         return data
-
-    def get_koji_user(self):
-        try:
-            metadata = get_build_json()['metadata']
-        except KeyError:
-            msg = 'Unable to get koji user: No build metadata'
-            self.log.exception('Unable to get koji user: No build metadata')
-            raise ValueError(msg)
-
-        try:
-            koji_task_id = int(metadata.get('labels').get('koji-task-id'))
-        except (ValueError, TypeError, AttributeError):
-            msg = 'Unable to get koji user: Invalid Koji task ID'
-            self.log.exception(msg)
-            raise ValueError(msg)
-
-        koji_session = get_koji_session(self.workflow, NO_FALLBACK)
-        return get_koji_task_owner(koji_session, koji_task_id).get('name')
 
     @property
     def cachito_session(self):

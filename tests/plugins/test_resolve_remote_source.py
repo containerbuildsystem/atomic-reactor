@@ -14,13 +14,11 @@ import sys
 from flexmock import flexmock
 import pytest
 
-from atomic_reactor import koji_util
 from atomic_reactor import util
 from atomic_reactor.cachito_util import CachitoAPI
 from atomic_reactor.constants import PLUGIN_BUILD_ORCHESTRATE_KEY
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins import pre_reactor_config
 from atomic_reactor.plugins.build_orchestrate_build import (
     WORKSPACE_KEY_OVERRIDE_KWARGS, OrchestrateBuildPlugin)
 from atomic_reactor.plugins.pre_reactor_config import (
@@ -31,10 +29,6 @@ from atomic_reactor.source import SourceConfig
 from tests.constants import TEST_IMAGE
 from tests.stubs import StubInsideBuilder, StubSource
 
-
-KOJI_HUB = 'http://koji.com/hub'
-KOJI_TASK_ID = 123
-KOJI_TASK_OWNER = 'spam'
 
 CACHITO_URL = 'https://cachito.example.com'
 CACHITO_REQUEST_ID = 98765
@@ -70,9 +64,7 @@ def workflow(tmpdir):
 
     mock_repo_config(workflow)
     mock_reactor_config(workflow)
-    mock_build_json()
     mock_cachito_api(workflow)
-    mock_koji()
 
     return workflow
 
@@ -95,12 +87,6 @@ def mock_reactor_config(workflow, data=None):
     workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = ReactorConfig(config)
 
 
-def mock_build_json(build_json=None):
-    if build_json is None:
-        build_json = {'metadata': {'labels': {'koji-task-id': str(KOJI_TASK_ID)}}}
-    flexmock(util).should_receive('get_build_json').and_return(build_json)
-
-
 def mock_repo_config(workflow, data=None):
     if data is None:
         data = dedent("""\
@@ -116,7 +102,7 @@ def mock_repo_config(workflow, data=None):
     workflow.source.config = SourceConfig(str(workflow._tmpdir))
 
 
-def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None):
+def mock_cachito_api(workflow, source_request=None):
     if source_request is None:
         source_request = {
             'id': CACHITO_REQUEST_ID,
@@ -150,7 +136,6 @@ def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None):
         .with_args(
             repo=REMOTE_SOURCE_REPO,
             ref=REMOTE_SOURCE_REF,
-            user=user,
         )
         .and_return({'id': CACHITO_REQUEST_ID}))
 
@@ -167,12 +152,6 @@ def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None):
         .should_receive('assemble_download_url')
         .with_args(source_request)
         .and_return(CACHITO_REQUEST_DOWNLOAD_URL))
-
-
-def mock_koji(user=KOJI_TASK_OWNER):
-    koji_session = flexmock()
-    flexmock(pre_reactor_config).should_receive('get_koji_session').and_return(koji_session)
-    flexmock(koji_util).should_receive('get_koji_task_owner').and_return({'name': user})
 
 
 def expected_dowload_path(workflow):
@@ -234,19 +213,6 @@ def test_ignore_when_missing_remote_source_config(workflow):
     mock_repo_config(workflow, remote_source_config)
     result = run_plugin_with_args(workflow, expect_result=False)
     assert result is None
-
-
-@pytest.mark.parametrize(('build_json', 'expect_error'), (
-    ({}, 'No build metadata'),
-    ({'metadata': None}, 'Invalid Koji task ID'),
-    ({'metadata': {}}, 'Invalid Koji task ID'),
-    ({'metadata': {'labels': {}}}, 'Invalid Koji task ID'),
-    ({'metadata': {'labels': {'koji-task-id': None}}}, 'Invalid Koji task ID'),
-    ({'metadata': {'labels': {'koji-task-id': 'not-an-int'}}}, 'Invalid Koji task ID'),
-))
-def test_bad_build_metadata(workflow, build_json, expect_error):
-    mock_build_json(build_json=build_json)
-    run_plugin_with_args(workflow, expect_error=expect_error)
 
 
 def run_plugin_with_args(workflow, expect_error=None, expect_result=True):
