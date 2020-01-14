@@ -195,6 +195,25 @@ def test_resolve_remote_source(workflow):
     run_plugin_with_args(workflow)
 
 
+@pytest.mark.parametrize('build_json', ({}, {'metadata': {}}))
+def test_no_koji_user(workflow, build_json, caplog):
+    reactor_config = dedent("""\
+        version: 1
+        cachito:
+           api_url: {}
+           auth:
+               ssl_certs_dir: {}
+        """.format(CACHITO_URL, workflow._tmpdir))
+    mock_reactor_config(workflow, reactor_config)
+    mock_build_json(build_json=build_json)
+    mock_cachito_api(workflow, user='unknown_user')
+    log_msg = 'No build metadata'
+    if build_json:
+        log_msg = 'Invalid Koji task ID'
+    run_plugin_with_args(workflow)
+    assert log_msg in caplog.text
+
+
 @pytest.mark.parametrize('pop_key', ('repo', 'ref'))
 def test_invalid_remote_source_structure(workflow, pop_key):
     source_request = {
@@ -236,7 +255,7 @@ def test_ignore_when_missing_remote_source_config(workflow):
     assert result is None
 
 
-@pytest.mark.parametrize(('build_json', 'expect_error'), (
+@pytest.mark.parametrize(('build_json', 'log_entry'), (
     ({}, 'No build metadata'),
     ({'metadata': None}, 'Invalid Koji task ID'),
     ({'metadata': {}}, 'Invalid Koji task ID'),
@@ -244,9 +263,12 @@ def test_ignore_when_missing_remote_source_config(workflow):
     ({'metadata': {'labels': {'koji-task-id': None}}}, 'Invalid Koji task ID'),
     ({'metadata': {'labels': {'koji-task-id': 'not-an-int'}}}, 'Invalid Koji task ID'),
 ))
-def test_bad_build_metadata(workflow, build_json, expect_error):
+def test_bad_build_metadata(workflow, build_json, log_entry, caplog):
     mock_build_json(build_json=build_json)
-    run_plugin_with_args(workflow, expect_error=expect_error)
+    mock_cachito_api(workflow, user='unknown_user')
+    run_plugin_with_args(workflow)
+    assert log_entry in caplog.text
+    assert 'unknown_user' in caplog.text
 
 
 def run_plugin_with_args(workflow, expect_error=None, expect_result=True):

@@ -51,6 +51,7 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
             return
 
         user = self.get_koji_user()
+        self.log.info('Using user "%s" for cachito request', user)
 
         source_request = self.cachito_session.request_sources(user=user, **remote_source_config)
         source_request = self.cachito_session.wait_for_request(source_request)
@@ -100,22 +101,23 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
         return data
 
     def get_koji_user(self):
+        unknown_user = get_cachito(self.workflow).get('unknown_user', 'unknown_user')
         try:
             metadata = get_build_json()['metadata']
         except KeyError:
             msg = 'Unable to get koji user: No build metadata'
-            self.log.exception('Unable to get koji user: No build metadata')
-            raise ValueError(msg)
+            self.log.warning(msg)
+            return unknown_user
 
         try:
             koji_task_id = int(metadata.get('labels').get('koji-task-id'))
         except (ValueError, TypeError, AttributeError):
             msg = 'Unable to get koji user: Invalid Koji task ID'
-            self.log.exception(msg)
-            raise ValueError(msg)
+            self.log.warning(msg)
+            return unknown_user
 
         koji_session = get_koji_session(self.workflow, NO_FALLBACK)
-        return get_koji_task_owner(koji_session, koji_task_id).get('name')
+        return get_koji_task_owner(koji_session, koji_task_id).get('name', unknown_user)
 
     @property
     def cachito_session(self):
