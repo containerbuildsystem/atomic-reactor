@@ -335,6 +335,11 @@
                 "description": "Don't check SSL certificate for api_url",
                 "type": "boolean"
             },
+            "unknown_user": {
+                "description": "User to set in cachito request user param in case koji user is not found",
+                "type": "string",
+                "default": "unknown_user"
+            },
             "auth": {
                 "description": "Authentication information",
                 "type": "object",
