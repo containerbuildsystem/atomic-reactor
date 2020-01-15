@@ -48,7 +48,7 @@ class ImagebuilderPlugin(BuildStepPlugin):
         process_args = ['imagebuilder', '-t', image]
         for buildarg, buildargval in builder.buildargs.items():
             process_args.append('--build-arg')
-            process_args.append('%s="%s"' % (buildarg, buildargval))
+            process_args.append('%s=%s' % (buildarg, buildargval))
         process_args.append(builder.df_dir)
 
         ib_process = subprocess.Popen(process_args, **kwargs)
