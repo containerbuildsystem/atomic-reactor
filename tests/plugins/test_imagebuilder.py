@@ -90,7 +90,7 @@ def test_popen_cmd(docker_tasker, workflow, image_id):
     process_args = ['imagebuilder', '-t', fake_builder.image.to_str()]
     for argname, argval in fake_builder.buildargs.items():
         process_args.append('--build-arg')
-        process_args.append('%s="%s"' % (argname, argval))
+        process_args.append('%s=%s' % (argname, argval))
     process_args.append(fake_builder.df_dir)
 
     flexmock(subprocess, Popen=lambda *args, **kw: real_popen(['echo', '-n', str(args)], **kw))
