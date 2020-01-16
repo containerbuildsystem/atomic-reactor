@@ -48,7 +48,7 @@ from atomic_reactor.constants import (
     PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY,
     PLUGIN_RESOLVE_REMOTE_SOURCE,
     METADATA_TAG, OPERATOR_MANIFESTS_ARCHIVE,
-    KOJI_BTYPE_CONTAINER_FIRST,
+    KOJI_BTYPE_REMOTE_SOURCES,
     KOJI_BTYPE_OPERATOR_MANIFESTS,
 )
 from atomic_reactor.util import (Output, get_build_json,
@@ -271,7 +271,7 @@ class KojiImportPlugin(ExitPlugin):
         if remote_source_result:
             url = remote_source_result['annotations']['remote_source_url']
             remote_source_typeinfo = {
-                KOJI_BTYPE_CONTAINER_FIRST: {
+                KOJI_BTYPE_REMOTE_SOURCES: {
                     'remote_source_url': url,
                 },
             }
@@ -506,7 +506,7 @@ class KojiImportPlugin(ExitPlugin):
             get_remote_source_json_output(self.workflow)
         ]:
             if remote_source_output:
-                add_custom_type(remote_source_output, KOJI_BTYPE_CONTAINER_FIRST)
+                add_custom_type(remote_source_output, KOJI_BTYPE_REMOTE_SOURCES)
                 remote_source = add_buildroot_id(remote_source_output, buildroot_id)
                 output_files.append(remote_source)
                 output.append(remote_source.metadata)
