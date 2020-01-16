@@ -26,12 +26,13 @@ import pytest
 class TestDownloadRemoteSource(object):
     @responses.activate
     @pytest.mark.parametrize('source_url', [True, False])
-    def test_download_remote_source(self, docker_tasker, source_url):
+    @pytest.mark.parametrize('archive_dir_exists', [True, False])
+    def test_download_remote_source(self, tmpdir, docker_tasker, source_url, archive_dir_exists):
         workflow = DockerBuildWorkflow(
             TEST_IMAGE,
             source={"provider": "git", "uri": "asd"},
         )
-        workflow.builder = StubInsideBuilder().for_workflow(workflow)
+        workflow.builder = StubInsideBuilder().for_workflow(workflow).set_df_path(str(tmpdir))
         filename = 'source.tar.gz'
         url = None
         if source_url:
@@ -54,6 +55,14 @@ class TestDownloadRemoteSource(object):
         plugin = DownloadRemoteSourcePlugin(docker_tasker, workflow,
                                             remote_source_url=url,
                                             remote_source_build_args=buildargs)
+        if archive_dir_exists and source_url:
+            dest_dir = os.path.join(workflow.builder.df_dir, plugin.REMOTE_SOURCE)
+            os.makedirs(dest_dir)
+            with pytest.raises(RuntimeError):
+                plugin.run()
+            os.rmdir(dest_dir)
+            return
+
         result = plugin.run()
 
         if not source_url:
@@ -67,7 +76,7 @@ class TestDownloadRemoteSource(object):
         assert filecontent == content.getvalue()
 
         # Expect a file 'abc' in the workdir
-        with open(os.path.join(workflow.source.workdir, plugin.REMOTE_SOURCE, member), 'rb') as f:
+        with open(os.path.join(workflow.builder.df_dir, plugin.REMOTE_SOURCE, member), 'rb') as f:
             filecontent = f.read()
 
         assert filecontent == abc_content

@@ -47,10 +47,13 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
         # Download the source code archive
         archive = download_url(self.url, self.workflow.source.workdir)
 
-        # Unpack the source code archive into a dedicated dir in workdir
-        dest_dir = os.path.join(self.workflow.source.workdir, self.REMOTE_SOURCE)
+        # Unpack the source code archive into a dedicated dir in container build workdir
+        dest_dir = os.path.join(self.workflow.builder.df_dir, self.REMOTE_SOURCE)
         if not os.path.exists(dest_dir):
             os.makedirs(dest_dir)
+        else:
+            raise RuntimeError('Conflicting path {} already exists in the dist-git repository'
+                               .format(self.REMOTE_SOURCE))
 
         with tarfile.open(archive) as tf:
             tf.extractall(dest_dir)
