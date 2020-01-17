@@ -16,6 +16,7 @@ import pytest
 import responses
 import json
 import os.path
+from textwrap import dedent
 
 
 CACHITO_URL = 'http://cachito.example.com'
@@ -33,7 +34,8 @@ CACHITO_REQUEST_REPO = 'https://github.com/release-engineering/retrodep.git'
     {'pkg_managers': ['gomod']},
     {'user': 'ham'},
 ))
-def test_request_sources(additional_params):
+def test_request_sources(additional_params, caplog):
+    response_data = {'id': CACHITO_REQUEST_ID}
 
     def handle_request_sources(http_request):
         body_json = json.loads(http_request.body)
@@ -43,7 +45,7 @@ def test_request_sources(additional_params):
         for key, value in additional_params.items():
             assert body_json[key] == value
 
-        return (201, {}, json.dumps({'id': CACHITO_REQUEST_ID}))
+        return (201, {}, json.dumps(response_data))
 
     responses.add_callback(
         responses.POST,
@@ -55,13 +57,16 @@ def test_request_sources(additional_params):
     response = api.request_sources(CACHITO_REQUEST_REPO, CACHITO_REQUEST_REF, **additional_params)
     assert response['id'] == CACHITO_REQUEST_ID
 
+    response_json = json.dumps(response_data, indent=4)
+    assert 'Cachito response:\n{}'.format(response_json) in caplog.text
+
 
 @responses.activate
 @pytest.mark.parametrize(('status_code', 'error', 'error_body'), (
     (400, CachitoAPIInvalidRequest, json.dumps({'error': 'read the docs, please'})),
     (500, HTTPError, 'Internal Server Error'),
 ))
-def test_request_sources_error(status_code, error, error_body):
+def test_request_sources_error(status_code, error, error_body, caplog):
     responses.add(
         responses.POST,
         '{}/api/v1/requests'.format(CACHITO_URL),
@@ -72,6 +77,14 @@ def test_request_sources_error(status_code, error, error_body):
 
     with pytest.raises(error):
         CachitoAPI(CACHITO_URL).request_sources(CACHITO_REQUEST_REPO, CACHITO_REQUEST_REF)
+
+    try:
+        response_data = json.loads(error_body)
+    except ValueError:  # json.JSONDecodeError in py3
+        assert 'Cachito response' not in caplog.text
+    else:
+        response_json = json.dumps(response_data, indent=4)
+        assert 'Cachito response:\n{}'.format(response_json) in caplog.text
 
 
 @responses.activate
@@ -84,7 +97,7 @@ def test_request_sources_error(status_code, error, error_body):
     CACHITO_REQUEST_ID,
     {'id': CACHITO_REQUEST_ID},
 ))
-def test_wait_for_request(burst_params, cachito_request):
+def test_wait_for_request(burst_params, cachito_request, caplog):
     states = ['in_progress', 'in_progress', 'complete']
     expected_total_responses_calls = len(states)
     expected_final_state = states[-1]
@@ -104,15 +117,30 @@ def test_wait_for_request(burst_params, cachito_request):
     assert response['state'] == expected_final_state
     assert len(responses.calls) == expected_total_responses_calls
 
+    finished_response_json = json.dumps(
+        {'id': CACHITO_REQUEST_ID, 'state': expected_final_state},
+        indent=4
+    )
+    expect_in_logs = dedent(
+        """\
+        Request {} is complete
+        Details: {}
+        """
+    ).format(CACHITO_REQUEST_ID, finished_response_json)
+    assert expect_in_logs in caplog.text
+
 
 @responses.activate
-def test_wait_for_request_timeout():
+def test_wait_for_request_timeout(caplog):
+    request_url = '{}/api/v1/requests/{}'.format(CACHITO_URL, CACHITO_REQUEST_ID)
+    response_data = {'id': CACHITO_REQUEST_ID, 'state': 'in_progress'}
+
     responses.add(
         responses.GET,
-        '{}/api/v1/requests/{}'.format(CACHITO_URL, CACHITO_REQUEST_ID),
+        request_url,
         content_type='application/json',
         status=200,
-        body=json.dumps({'id': CACHITO_REQUEST_ID, 'state': 'in_progress'}),
+        body=json.dumps(response_data),
     )
 
     # Hit the timeout during bursting to make the test faster
@@ -120,10 +148,19 @@ def test_wait_for_request_timeout():
     with pytest.raises(CachitoAPIRequestTimeout):
         CachitoAPI(CACHITO_URL).wait_for_request(CACHITO_REQUEST_ID, **burst_params)
 
+    in_progress_response_json = json.dumps(response_data, indent=4)
+    expect_in_logs = dedent(
+        """\
+        Request {} not completed after 0.01 seconds
+        Details: {}
+        """
+    ).format(request_url, in_progress_response_json)
+    assert expect_in_logs in caplog.text
+
 
 @responses.activate
 @pytest.mark.parametrize('error_state', ('failed', 'stale'))
-def test_wait_for_unsuccessful_request(error_state):
+def test_wait_for_unsuccessful_request(error_state, caplog):
     states = ['in_progress', 'in_progress', error_state]
     expected_total_responses_calls = len(states)
 
@@ -141,6 +178,18 @@ def test_wait_for_unsuccessful_request(error_state):
     with pytest.raises(CachitoAPIUnsuccessfulRequest):
         CachitoAPI(CACHITO_URL).wait_for_request(CACHITO_REQUEST_ID, **burst_params)
     assert len(responses.calls) == expected_total_responses_calls
+
+    failed_response_json = json.dumps(
+        {'id': CACHITO_REQUEST_ID, 'state': error_state},
+        indent=4
+    )
+    expect_in_logs = dedent(
+        """\
+        Request {} is in "{}" state: Unknown
+        Details: {}
+        """
+    ).format(CACHITO_REQUEST_ID, error_state, failed_response_json)
+    assert expect_in_logs in caplog.text
 
 
 def test_wait_for_request_bad_request_type():

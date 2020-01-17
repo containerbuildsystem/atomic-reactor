@@ -77,10 +77,17 @@ class CachitoAPI(object):
         url = '{}/api/v1/requests'.format(self.api_url)
         logger.debug('Making request %s with payload:\n%s', url, json.dumps(payload, indent=4))
         response = self.session.post(url, json=payload)
+
+        try:
+            response_json = response.json()
+            logger.debug('Cachito response:\n%s', json.dumps(response_json, indent=4))
+        except ValueError:  # json.JSONDecodeError in py3 (is a subclass of ValueError)
+            response_json = None
+
         if response.status_code == requests.codes.bad_request:
-            raise CachitoAPIInvalidRequest(response.json()['error'])
+            raise CachitoAPIInvalidRequest(response_json['error'])
         response.raise_for_status()
-        return response.json()
+        return response_json
 
     def wait_for_request(
             self, request, burst_retry=1, burst_length=30, slow_retry=10, timeout=3600):
@@ -119,13 +126,20 @@ class CachitoAPI(object):
                    'Request {} is in "{}" state: {}'.format(request_id, state, state_reason))
 
             if state == 'complete':
-                logger.debug('Request %s is complete', request_id)
+                logger.debug(dedent("""\
+                    Request %s is complete
+                    Details: %s
+                    """), request_id, json.dumps(response_json, indent=4))
                 return response_json
 
             # All other states are expected to be transient and are not checked.
 
             elapsed = time.time() - start_time
             if elapsed > timeout:
+                logger.error(dedent("""\
+                    Request %s not completed after %s seconds
+                    Details: %s
+                    """), url, timeout, json.dumps(response_json, indent=4))
                 raise CachitoAPIRequestTimeout(
                     'Request %s not completed after %s seconds' % (url, timeout))
             else:
