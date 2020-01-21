@@ -27,7 +27,7 @@
 
 Name:           %{project}
 Version:        1.6.48
-Release:        0%{?dist}
+Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
