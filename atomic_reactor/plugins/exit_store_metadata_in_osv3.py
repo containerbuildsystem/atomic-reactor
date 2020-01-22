@@ -180,7 +180,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         koji_config = get_koji(self.workflow, {})
         whitelist = koji_config.get('task_annotations_whitelist')
         if whitelist:
-            annotations['koji_task_annotations_whitelist'] = whitelist
+            annotations['koji_task_annotations_whitelist'] = json.dumps(whitelist)
 
     def _update_annotations(self, annotations, updates):
         if updates:
