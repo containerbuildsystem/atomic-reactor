@@ -830,6 +830,8 @@ def test_set_koji_annotations_whitelist(tmpdir, koji_conf):
     if whitelist:
         assert 'koji_task_annotations_whitelist' in annotations
         assert all(entry in whitelist for entry in koji_conf['task_annotations_whitelist'])
+        assert all(entry in whitelist for entry in json.loads(
+            annotations['koji_task_annotations_whitelist']))
     else:
         assert 'koji_task_annotations_whitelist' not in annotations
 
