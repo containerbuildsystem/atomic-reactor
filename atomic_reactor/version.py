@@ -5,4 +5,4 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-__version__ = "1.6.48"
+__version__ = "1.6.48.1"
