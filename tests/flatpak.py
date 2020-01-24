@@ -314,9 +314,9 @@ SDK_CONFIG = {
 
 def build_flatpak_test_configs(extensions=None):
     configs = {
-        'app': APP_CONFIG,
-        'runtime': RUNTIME_CONFIG,
-        'sdk': SDK_CONFIG,
+        'app': dict(APP_CONFIG),
+        'runtime': dict(RUNTIME_CONFIG),
+        'sdk': dict(SDK_CONFIG),
     }
 
     extensions = extensions or {}

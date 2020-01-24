@@ -14,6 +14,7 @@ import responses
 import os
 import pytest
 import re
+import yaml
 
 from atomic_reactor.inner import DockerBuildWorkflow
 try:
@@ -83,16 +84,25 @@ CONFIGS = build_flatpak_test_configs()
 @responses.activate  # noqa - docker_tasker fixture
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,
                     reason='libmodulemd not available')
-@pytest.mark.parametrize('config_name,breakage', [
-    ('app', None),
-    ('runtime', None),
-    ('runtime', 'branch_mismatch'),
+@pytest.mark.parametrize('config_name,override_base_image,breakage', [
+    ('app', None, None),
+    ('app', 'registry.fedoraproject.org/fedora:29', None),
+    ('runtime', None, None),
+    ('runtime', None, 'branch_mismatch'),
 ])
-def test_flatpak_create_dockerfile(tmpdir, docker_tasker, config_name, breakage,
+def test_flatpak_create_dockerfile(tmpdir, docker_tasker,
+                                   config_name, override_base_image, breakage,
                                    reactor_config_map):
     config = CONFIGS[config_name]
 
-    workflow = mock_workflow(tmpdir, config['container_yaml'])
+    container_yaml = config['container_yaml']
+
+    if override_base_image is not None:
+        data = yaml.safe_load(container_yaml)
+        data['flatpak']['base_image'] = override_base_image
+        container_yaml = yaml.dump(data)
+
+    workflow = mock_workflow(tmpdir, container_yaml)
 
     compose = setup_flatpak_compose_info(workflow, config)
 
@@ -138,7 +148,8 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker, config_name, breakage,
         with open(workflow.builder.df_path) as f:
             df = f.read()
 
-        assert "FROM " + base_image in df
+        expect_base_image = override_base_image if override_base_image else base_image
+        assert "FROM " + expect_base_image in df
         assert 'name="{}"'.format(config['name']) in df
         assert 'com.redhat.component="{}"'.format(config['component']) in df
 
