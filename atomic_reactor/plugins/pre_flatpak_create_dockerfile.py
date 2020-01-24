@@ -104,7 +104,7 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
         # call parent constructor
         super(FlatpakCreateDockerfilePlugin, self).__init__(tasker, workflow)
 
-        self.base_image = get_flatpak_base_image(workflow, base_image)
+        self.default_base_image = get_flatpak_base_image(workflow, base_image)
 
     def _load_source(self):
         flatpak_yaml = self.workflow.source.config.flatpak
@@ -143,6 +143,7 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
 
         install_packages_str = ' '.join(builder.get_install_packages())
 
+        base_image = source.flatpak_yaml.get('base_image', self.default_base_image)
         name = source.flatpak_yaml.get('name', module_info.name)
         component = source.flatpak_yaml.get('component', module_info.name)
 
@@ -152,7 +153,7 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
                                                 component=component,
                                                 stream=module_info.stream.replace('-', '_'),
                                                 version=module_info.version,
-                                                base_image=self.base_image,
+                                                base_image=base_image,
                                                 modules=modules_str,
                                                 packages=install_packages_str,
                                                 rpm_qf_args=rpm_qf_args()))
