@@ -25,7 +25,7 @@ import os
 from flatpak_module_tools.flatpak_builder import FlatpakSourceInfo, FlatpakBuilder
 from osbs.repo_utils import ModuleSpec
 
-from atomic_reactor.constants import DOCKERFILE_FILENAME, YUM_REPOS_DIR
+from atomic_reactor.constants import DOCKERFILE_FILENAME, RELATIVE_REPOS_PATH, YUM_REPOS_DIR
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_flatpak_base_image
 from atomic_reactor.plugins.pre_resolve_module_compose import get_compose_info
@@ -39,12 +39,19 @@ from atomic_reactor.yum_util import YumRepo
 # /etc/os-release in the install root with the correct PLATFORM_ID
 # for our base package set. To make that work, we install system-release
 # into a *different* install root and copy /etc/os-release over.
+#
+# We also have to redo the addition of yum repos from the "pre_inject_yum_repo"
+# plugin after first removing any yum repos in the base image - we want
+# /only/ the yum repos from atomic_reactor, and nothing else.
 DOCKERFILE_TEMPLATE = '''FROM {base_image}
 
 LABEL name="{name}"
 LABEL com.redhat.component="{component}"
 LABEL version="{stream}"
 LABEL release="{version}"
+
+RUN rm -f {yum_repos_dir}*
+ADD {relative_repos_path}* {yum_repos_dir}
 
 ADD atomic-reactor-includepkgs /tmp/
 
@@ -55,9 +62,6 @@ RUN cat /tmp/atomic-reactor-includepkgs >> /etc/dnf/dnf.conf && \\
     INSTALLDIR=/var/tmp/flatpak-build && \\
     DNF='\\
     dnf -y --nogpgcheck \\
-    --disablerepo=* \\
-    --enablerepo=atomic-reactor-koji-plugin-* \\
-    --enablerepo=atomic-reactor-module-* \\
     ' && \\
     $DNF --installroot=$INSTALLDIR-init install system-release && \\
     mkdir -p $INSTALLDIR/etc/ && \\
@@ -156,7 +160,9 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
                                                 base_image=base_image,
                                                 modules=modules_str,
                                                 packages=install_packages_str,
-                                                rpm_qf_args=rpm_qf_args()))
+                                                relative_repos_path=RELATIVE_REPOS_PATH,
+                                                rpm_qf_args=rpm_qf_args(),
+                                                yum_repos_dir=YUM_REPOS_DIR))
 
         self.workflow.builder.set_df_path(df_path)
 

@@ -152,6 +152,8 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker,
         assert "FROM " + expect_base_image in df
         assert 'name="{}"'.format(config['name']) in df
         assert 'com.redhat.component="{}"'.format(config['component']) in df
+        assert "RUN rm -f /etc/yum.repos.d/*" in df
+        assert "ADD atomic-reactor-repos/* /etc/yum.repos.d/" in df
 
         m = re.search(r'module enable\s*(.*?)\s*&&', df)
         assert m
