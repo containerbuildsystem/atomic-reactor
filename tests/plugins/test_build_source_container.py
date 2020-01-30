@@ -57,7 +57,7 @@ class MockInsideBuilder(object):
         pass
 
 
-def mock_workflow(tmpdir, sources_dir=''):
+def mock_workflow(tmpdir, sources_dir='', remote_dir=''):
     workflow = DockerBuildWorkflow(TEST_IMAGE, source=MOCK_SOURCE)
     builder = MockInsideBuilder()
     source = MockSource(tmpdir)
@@ -68,6 +68,7 @@ def mock_workflow(tmpdir, sources_dir=''):
     workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
     workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
         'image_sources_dir': os.path.join(tmpdir.strpath, sources_dir),
+        'remote_sources_dir': os.path.join(tmpdir.strpath, remote_dir),
     }
 
     return workflow
@@ -77,9 +78,13 @@ def mock_workflow(tmpdir, sources_dir=''):
     ('sources_dir', False, True),
     ('sources_dir', True, True),
     ('sources_dir', True, False)])
+@pytest.mark.parametrize('remote_dir, remote_dir_exists, remote_dir_empty', [
+    ('remote_sources_dir', False, True),
+    ('remote_sources_dir', True, True),
+    ('remote_sources_dir', True, False)])
 @pytest.mark.parametrize('export_failed', (True, False))
 def test_running_build(tmpdir, caplog, sources_dir, sources_dir_exists, sources_dir_empty,
-                       export_failed):
+                       remote_dir, remote_dir_exists, remote_dir_empty, export_failed):
     """
     Test if proper result is returned and if plugin works
     """
@@ -89,7 +94,13 @@ def test_running_build(tmpdir, caplog, sources_dir, sources_dir_exists, sources_
         if not sources_dir_empty:
             os.mknod(os.path.join(sources_dir_path, 'stub.srpm'))
 
-    workflow = mock_workflow(tmpdir, sources_dir)
+    remote_dir_path = os.path.join(tmpdir.strpath, remote_dir)
+    if remote_dir_exists:
+        os.mkdir(remote_dir_path)
+        if not remote_dir_empty:
+            os.mknod(os.path.join(remote_dir_path, 'remote-sources.tar.gz'))
+
+    workflow = mock_workflow(tmpdir, sources_dir, remote_dir)
 
     mocked_tasker = flexmock(workflow.builder.tasker)
     mocked_tasker.should_receive('wait').and_return(0)
@@ -122,17 +133,28 @@ def test_running_build(tmpdir, caplog, sources_dir, sources_dir_exists, sources_
 
             return ''
         else:
-            assert args[0] == 'bsi'
-            assert args[1] == '-d'
-            assert args[2] == 'sourcedriver_rpm_dir'
-            assert args[3] == '-s'
-            assert args[4] == sources_dir_path
-            assert args[5] == '-o'
-            assert args[6] == temp_image_output_dir
+            args_expect = ['bsi', '-d']
+            drivers = []
+            if sources_dir and sources_dir_exists:
+                drivers.append('sourcedriver_rpm_dir')
+            if remote_dir and remote_dir_exists:
+                drivers.append('sourcedriver_extra_src_dir')
+            args_expect.append(','.join(drivers))
+
+            if sources_dir and sources_dir_exists:
+                args_expect.append('-s')
+                args_expect.append(sources_dir_path)
+            if remote_dir and remote_dir_exists:
+                args_expect.append('-e')
+                args_expect.append(remote_dir_path)
+            args_expect.append('-o')
+            args_expect.append(temp_image_output_dir)
+
+            assert args == args_expect
             return 'stub stdout'
 
     check_output_times = 2
-    if not sources_dir_exists:
+    if not sources_dir_exists and not remote_dir_exists:
         check_output_times = 0
     (flexmock(subprocess)
      .should_receive("check_output")
@@ -161,9 +183,10 @@ def test_running_build(tmpdir, caplog, sources_dir, sources_dir_exists, sources_
                 for f in os.listdir(temp_image_output_dir):
                     tf.add(os.path.join(temp_image_output_dir, f), f)
 
-    if not sources_dir_exists:
+    if not sources_dir_exists and not remote_dir_exists:
         build_result = runner.run()
         err_msg = "No SRPMs directory '{}' available".format(sources_dir_path)
+        err_msg += "\nNo Remote source directory '{}' available".format(remote_dir_path)
         assert err_msg in caplog.text
         assert build_result.is_failed()
 
@@ -175,11 +198,16 @@ def test_running_build(tmpdir, caplog, sources_dir, sources_dir_exists, sources_
         assert not build_result.is_failed()
         assert build_result.oci_image_path
         assert 'stub stdout' in caplog.text
-        empty_msg = "SRPMs directory '{}' is empty".format(sources_dir_path)
-        if sources_dir_empty:
-            assert empty_msg in caplog.text
+        empty_srpm_msg = "SRPMs directory '{}' is empty".format(sources_dir_path)
+        empty_remote_msg = "Remote source directory '{}' is empty".format(remote_dir_path)
+        if sources_dir_exists and sources_dir_empty:
+            assert empty_srpm_msg in caplog.text
         else:
-            assert empty_msg not in caplog.text
+            assert empty_srpm_msg not in caplog.text
+        if remote_dir_exists and remote_dir_empty:
+            assert empty_remote_msg in caplog.text
+        else:
+            assert empty_remote_msg not in caplog.text
 
 
 def test_failed_build(tmpdir, caplog):

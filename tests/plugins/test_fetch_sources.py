@@ -36,6 +36,7 @@ KOJI_UPLOAD_TEST_WORKDIR = 'temp_workdir'
 KOJI_BUILD = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1, 'release': 1,
               'extra': {'image': {}, 'operator-manifests': {}}}
 constants.HTTP_BACKOFF_FACTOR = 0
+REMOTE_SOURCES_FILE = 'remote-source.tar.gz'
 
 DEFAULT_SIGNING_INTENT = 'empty'
 
@@ -132,7 +133,14 @@ def mock_env(tmpdir, docker_tasker, scratch=False, orchestrator=False, koji_buil
 def koji_session():
     session = flexmock()
     flexmock(session).should_receive('ssl_login').and_return(True)
-    flexmock(session).should_receive('listArchives').and_return([{'id': 1}, {'id': 2}])
+    (flexmock(session)
+     .should_receive('listArchives')
+     .with_args(object, type='image')
+     .and_return([{'id': 1}, {'id': 2}]))
+    (flexmock(session)
+     .should_receive('listArchives')
+     .with_args(object, type='remote-sources')
+     .and_return([{'id': 1, 'type_name': 'tar', 'filename': REMOTE_SOURCES_FILE}]))
     flexmock(session).should_receive('listRPMs').with_args(imageID=1).and_return([
         {'id': 1,
          'build_id': 1,
@@ -166,6 +174,12 @@ def get_srpm_url(sign_key=None, srpm_filename_override=None):
         return '{}/data/signed/{}/src/{}'.format(base, sign_key, filename)
 
 
+def get_remote_url():
+    base = '{}/packages/{}/{}/{}'.format(KOJI_ROOT, KOJI_BUILD['name'], KOJI_BUILD['version'],
+                                         KOJI_BUILD['release'])
+    return '{}/files/remote-sources/{}'.format(base, REMOTE_SOURCES_FILE)
+
+
 def mock_koji_manifest_download(requests_mock, retries=0):
     class MockBytesIO(io.BytesIO):
         reads = 0
@@ -193,6 +207,10 @@ def mock_koji_manifest_download(requests_mock, retries=0):
                 return f
             requests_mock.register_uri('GET', url, body=body_callback)
 
+    def body_remote_callback(request, context):
+        f = MockBytesIO(b"remote sources content")
+        return f
+    requests_mock.register_uri('GET', get_remote_url(), body=body_remote_callback)
 
 class TestFetchSources(object):
     @pytest.mark.parametrize('retries', (0, 1, constants.HTTP_MAX_RETRIES + 1))
@@ -217,13 +235,16 @@ class TestFetchSources(object):
             result = runner.run()
             results = result[constants.PLUGIN_FETCH_SOURCES_KEY]
             sources_dir = results['image_sources_dir']
+            remote_sources_dir = results['remote_sources_dir']
             orig_build_id = results['sources_for_koji_build_id']
             orig_build_nvr = results['sources_for_nvr']
             sources_list = os.listdir(sources_dir)
+            remote_list = os.listdir(remote_sources_dir)
             assert orig_build_id == 1
             assert orig_build_nvr == 'foobar-1-1'
             assert len(sources_list) == 1
             assert sources_list[0] == '.'.join([KOJI_BUILD['nvr'], 'src', 'rpm'])
+            assert remote_list[0] == REMOTE_SOURCES_FILE
             with open(os.path.join(sources_dir, sources_list[0]), 'rb') as f:
                 assert f.read() == b'Source RPM'
             if signing_intent in ['unsigned, empty']:
@@ -362,6 +383,10 @@ class TestFetchSources(object):
         (flexmock(koji_session)
             .should_receive('getRPMHeaders')
             .and_return({'SOURCERPM': srpm_filename}))
+        (flexmock(koji_session)
+            .should_receive('listArchives')
+            .with_args(object, type='remote-sources')
+            .and_return([]))
 
         key = None if signing_key is None else signing_key.lower()
         srpm_url = get_srpm_url(key, srpm_filename_override=srpm_filename)
@@ -379,6 +404,7 @@ class TestFetchSources(object):
     def test_missing_srpm_header(self, docker_tasker, koji_session, tmpdir, reason):
         (flexmock(koji_session)
             .should_receive('listArchives')
+            .with_args(object, type='image')
             .and_return([{'id': 1}]))
         (flexmock(koji_session)
             .should_receive('listRPMs')
@@ -403,10 +429,15 @@ class TestFetchSources(object):
         else:
             assert 'Missing SOURCERPM header' in str(exc_info.value)
 
-    def test_no_srpms(self, docker_tasker, koji_session, tmpdir):
+    def test_no_srpms_and_remote_sources(self, docker_tasker, koji_session, tmpdir):
         (flexmock(koji_session)
             .should_receive('listArchives')
+            .with_args(object, type='image')
             .and_return([{'id': 1}]))
+        (flexmock(koji_session)
+            .should_receive('listArchives')
+            .with_args(object, type='remote-sources')
+            .and_return([]))
         (flexmock(koji_session)
             .should_receive('listRPMs')
             .with_args(imageID=1)
@@ -416,4 +447,4 @@ class TestFetchSources(object):
         with pytest.raises(PluginFailedException) as exc_info:
             runner.run()
 
-        assert 'No srpms found for source container' in str(exc_info.value)
+        assert 'No srpms or remote sources found' in str(exc_info.value)

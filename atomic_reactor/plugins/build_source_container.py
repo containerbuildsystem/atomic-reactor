@@ -52,23 +52,40 @@ class SourceContainerPlugin(BuildStepPlugin):
         """
         fetch_sources_result = self.workflow.prebuild_results.get(PLUGIN_FETCH_SOURCES_KEY, {})
         source_data_dir = fetch_sources_result.get('image_sources_dir')
-        if not source_data_dir or not os.path.isdir(source_data_dir):
+        remote_source_data_dir = fetch_sources_result.get('remote_sources_dir')
+
+        source_exists = source_data_dir and os.path.isdir(source_data_dir)
+        remote_source_exists = remote_source_data_dir and os.path.isdir(remote_source_data_dir)
+
+        if not source_exists and not remote_source_exists:
             err_msg = "No SRPMs directory '{}' available".format(source_data_dir)
+            err_msg += "\nNo Remote source directory '{}' available".format(remote_source_data_dir)
             self.log.error(err_msg)
             return BuildResult(logs=err_msg, fail_reason=err_msg)
 
-        if not os.listdir(source_data_dir):
+        if source_exists and not os.listdir(source_data_dir):
             self.log.warning("SRPMs directory '%s' is empty", source_data_dir)
+        if remote_source_exists and not os.listdir(remote_source_data_dir):
+            self.log.warning("Remote source directory '%s' is empty", remote_source_data_dir)
 
         image_output_dir = tempfile.mkdtemp()
+        cmd = ['bsi', '-d']
+        drivers = []
 
-        cmd = ['bsi',
-               '-d',
-               'sourcedriver_rpm_dir',
-               '-s',
-               '{}'.format(source_data_dir),
-               '-o',
-               '{}'.format(image_output_dir)]
+        if source_exists:
+            drivers.append('sourcedriver_rpm_dir')
+            cmd.append('-s')
+            cmd.append('{}'.format(source_data_dir))
+
+        if remote_source_exists:
+            drivers.append('sourcedriver_extra_src_dir')
+            cmd.append('-e')
+            cmd.append('{}'.format(remote_source_data_dir))
+
+        driver_str = ','.join(drivers)
+        cmd.insert(2, driver_str)
+        cmd.append('-o')
+        cmd.append('{}'.format(image_output_dir))
 
         try:
             output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
