@@ -7,6 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 from __future__ import unicode_literals, absolute_import
 
+from copy import deepcopy
 from datetime import datetime, timedelta
 import os
 import yaml
@@ -168,12 +169,20 @@ class ResolveComposesPlugin(PreBuildPlugin):
                            build_info['nvr'], build_info['id'])
 
         all_compose_ids = set(self.compose_ids)
+        original_compose_ids = deepcopy(all_compose_ids)
         all_compose_ids.update(parent_compose_ids)
         self.all_compose_ids = list(all_compose_ids)
+        for compose_id in all_compose_ids:
+            if compose_id not in original_compose_ids:
+                self.log.info('Inheriting compose id %s', compose_id)
 
         all_yum_repos = set(self.repourls)
+        original_yum_repos = deepcopy(all_yum_repos)
         all_yum_repos.update(parent_repourls)
         self.repourls = list(all_yum_repos)
+        for repo in all_yum_repos:
+            if repo not in original_yum_repos:
+                self.log.info('Inheriting yum repo %s', repo)
 
     def read_configs(self):
         self.odcs_config = get_config(self.workflow).get_odcs_config()
@@ -330,6 +339,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
 
         for arch, repofiles in repos_by_arch.items():
             override_build_kwarg(self.workflow, 'yum_repourls', repofiles, arch)
+
         # Only set the None override if there are no other repos
         if not repos_by_arch:
             override_build_kwarg(self.workflow, 'yum_repourls', noarch_repos, None)

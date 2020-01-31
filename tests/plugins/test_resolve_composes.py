@@ -299,7 +299,7 @@ class TestResolveComposes(object):
     ])
     def test_inherit_parents(self, workflow, reactor_config_map, parent_compose, parent_repourls,
                              repo_provided, inherit_parent, scratch, isolated, allow_inherit,
-                             compose_defined, ids):
+                             compose_defined, ids, caplog):
         arches = ['ppc64le', 'x86_64']
         if inherit_parent and compose_defined:
             repo_config = dedent("""\
@@ -447,11 +447,17 @@ class TestResolveComposes(object):
         else:
             assert set(nonearch_repourls) == set(expected_yum_repourls)
 
+        if allow_inherit and parent_compose:
+            for parent_id in parent_compose_ids:
+                assert 'Inheriting compose id {}'.format(parent_id) in caplog.text
+
         all_yum_repourls = []
         if repo_provided:
             all_yum_repourls = list(current_repourl)
         if allow_inherit and parent_repourls:
             all_yum_repourls.extend(parent_repo)
+            assert 'Inheriting yum repo http://example.com/parent.repo' in caplog.text
+
         assert set(workflow.all_yum_repourls) == set(all_yum_repourls)
 
     @pytest.mark.parametrize('arches', (
