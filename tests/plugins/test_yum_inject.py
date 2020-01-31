@@ -496,7 +496,7 @@ def test_multiple_repourls(tmpdir):
     ),
 ])
 def test_multistage_dockerfiles(name, inherited_user, dockerfile, expect_cleanup_lines,
-                                base_from_scratch, tmpdir):
+                                base_from_scratch, tmpdir, caplog):
     # expect repo ADD instructions where indicated in the content, and RUN rm at the end.
     # begin by splitting on "### ADD HERE" so we know where to expect changes.
     segments = re.split(r'^.*ADD HERE.*$\n?', dockerfile, flags=re.M)
@@ -527,6 +527,7 @@ def test_multistage_dockerfiles(name, inherited_user, dockerfile, expect_cleanup
     # the rest of the lines should be cleanup lines
     cleanup_lines = new_df[len(expected_lines):]
     assert remove_lines_match(cleanup_lines, expect_cleanup_lines, [repo_file])
+    assert "injected yum repo: /etc/yum.repos.d/myrepo.repo" in caplog.text
 
 
 def test_empty_dockerfile(tmpdir):
