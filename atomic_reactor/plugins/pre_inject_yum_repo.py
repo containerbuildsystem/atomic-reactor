@@ -92,3 +92,5 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         yum_repos = list(self.workflow.files)
         add_yum_repos_to_dockerfile(yum_repos, df, inherited_user,
                                     self.workflow.builder.base_from_scratch)
+        for repo in yum_repos:
+            self.log.info("injected yum repo: %s", repo)
