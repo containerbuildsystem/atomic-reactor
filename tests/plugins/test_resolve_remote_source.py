@@ -116,7 +116,8 @@ def mock_repo_config(workflow, data=None):
     workflow.source.config = SourceConfig(str(workflow._tmpdir))
 
 
-def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None):
+def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None,
+                     dependency_replacements=None):
     if source_request is None:
         source_request = {
             'id': CACHITO_REQUEST_ID,
@@ -151,6 +152,7 @@ def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None):
             repo=REMOTE_SOURCE_REPO,
             ref=REMOTE_SOURCE_REF,
             user=user,
+            dependency_replacements=dependency_replacements,
         )
         .and_return({'id': CACHITO_REQUEST_ID}))
 
@@ -191,8 +193,25 @@ def teardown_function(*args):
     sys.modules.pop('pre_resolve_remote_source', None)
 
 
-def test_resolve_remote_source(workflow):
-    run_plugin_with_args(workflow)
+@pytest.mark.parametrize('scratch', (True, False))
+@pytest.mark.parametrize('dependency_replacements', (None, [{
+    'name': 'foo.bar/project',
+    'type': 'gomod',
+    'version': '2',
+    }]))
+def test_resolve_remote_source(workflow, scratch, dependency_replacements):
+    build_json = {'metadata': {'labels': {'koji-task-id': str(KOJI_TASK_ID), 'scratch': scratch}}}
+    mock_build_json(build_json=build_json)
+    mock_cachito_api(workflow, dependency_replacements=dependency_replacements)
+    err = None
+    if dependency_replacements and not scratch:
+        err = 'Cachito dependency replacements are only allowed for scratch builds'
+
+    run_plugin_with_args(
+        workflow,
+        dependency_replacements=dependency_replacements,
+        expect_error=err
+    )
 
 
 @pytest.mark.parametrize('build_json', ({}, {'metadata': {}}))
@@ -271,12 +290,14 @@ def test_bad_build_metadata(workflow, build_json, log_entry, caplog):
     assert 'unknown_user' in caplog.text
 
 
-def run_plugin_with_args(workflow, expect_error=None, expect_result=True):
+def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=None,
+                         expect_result=True):
     runner = PreBuildPluginsRunner(
         workflow.builder.tasker,
         workflow,
         [
-            {'name': ResolveRemoteSourcePlugin.key, 'args': {}},
+            {'name': ResolveRemoteSourcePlugin.key,
+             'args': {'dependency_replacements': dependency_replacements}},
         ]
     )
 

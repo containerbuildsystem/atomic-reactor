@@ -33,6 +33,12 @@ CACHITO_REQUEST_REPO = 'https://github.com/release-engineering/retrodep.git'
     {'flags': ['spam', 'bacon']},
     {'pkg_managers': ['gomod']},
     {'user': 'ham'},
+    {'dependency_replacements': [{
+        'name': 'eample.com/repo/project',
+        'type': 'gomod',
+        'version': '1.1.1',
+        }]
+     },
 ))
 def test_request_sources(additional_params, caplog):
     response_data = {'id': CACHITO_REQUEST_ID}
