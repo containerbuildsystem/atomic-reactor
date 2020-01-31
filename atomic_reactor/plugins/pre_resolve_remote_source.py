@@ -15,7 +15,7 @@ from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.plugins.pre_reactor_config import (
     get_cachito, get_cachito_session, get_koji_session, NO_FALLBACK)
-from atomic_reactor.util import get_build_json
+from atomic_reactor.util import get_build_json, is_scratch_build
 
 
 class ResolveRemoteSourcePlugin(PreBuildPlugin):
@@ -29,7 +29,7 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
     key = PLUGIN_RESOLVE_REMOTE_SOURCE
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow):
+    def __init__(self, tasker, workflow, dependency_replacements=None):
         """
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
@@ -37,6 +37,7 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
         super(ResolveRemoteSourcePlugin, self).__init__(tasker, workflow)
         self._cachito_session = None
         self._osbs = None
+        self._dependency_replacements = dependency_replacements
 
     def run(self):
         try:
@@ -50,10 +51,17 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
             self.log.info('Aborting plugin execution: missing remote_source configuration')
             return
 
+        if self._dependency_replacements and not is_scratch_build():
+            raise ValueError('Cachito dependency replacements are only allowed for scratch builds')
+
         user = self.get_koji_user()
         self.log.info('Using user "%s" for cachito request', user)
 
-        source_request = self.cachito_session.request_sources(user=user, **remote_source_config)
+        source_request = self.cachito_session.request_sources(
+            user=user,
+            dependency_replacements=self._dependency_replacements,
+            **remote_source_config
+        )
         source_request = self.cachito_session.wait_for_request(source_request)
 
         remote_source_json = self.source_request_to_json(source_request)

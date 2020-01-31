@@ -52,14 +52,18 @@ class CachitoAPI(object):
             session.cert = cert
         return session
 
-    def request_sources(self, repo, ref, flags=None, pkg_managers=None, user=None):
+    def request_sources(self, repo, ref, flags=None, pkg_managers=None, user=None,
+                        dependency_replacements=None):
         """Start a new Cachito request
 
         :param repo: str, the URL to the SCM repository
         :param ref: str, the SCM reference to fetch
+        :param flags: list<str>, list of flag names
         :param pkg_managers: list<str>, list of package managers to be used for resolving
                              dependencies
-        :param flags: list<str>, list of flag names
+        :param user: str, user the request is created on behalf of. This is reserved for privileged
+                     users that can act as cachito representatives
+        :param dependency_replacements: list<dict>, dependencies to be replaced by cachito
 
         :return: dict, representation of the created Cachito request
         :raise CachitoAPIInvalidRequest: if Cachito determines the request is invalid
@@ -70,6 +74,7 @@ class CachitoAPI(object):
             'flags': flags,
             'pkg_managers': pkg_managers,
             'user': user,
+            'dependency_replacements': dependency_replacements,
         }
         # Remove None values
         payload = {k: v for k, v in payload.items() if v}
