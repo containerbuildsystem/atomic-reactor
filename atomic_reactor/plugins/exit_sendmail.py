@@ -259,6 +259,7 @@ class SendMailPlugin(ExitPlugin):
             'Repositories: %(repositories)s',
             'Status: %(endstate)s',
             'Submitted by: %(user)s',
+            'Task id: %(task_id)s'
         ])
 
         # Failed autorebuilds include logs as attachments.
@@ -286,7 +287,8 @@ class SendMailPlugin(ExitPlugin):
             'image_name': image_name,
             'endstate': endstate,
             'user': '<autorebuild>' if rebuild else self.submitter,
-            'logs': url
+            'logs': url,
+            'task_id': self.koji_task_id
         }
 
         vcs = self.workflow.source.get_vcs_info()

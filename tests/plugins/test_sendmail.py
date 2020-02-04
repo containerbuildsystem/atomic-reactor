@@ -537,17 +537,18 @@ class TestSendMailPlugin(object):
         common_body = [
             'Status: ' + status,
             'Submitted by: ',
+            'Task id: ' + str(MOCK_KOJI_TASK_ID),
             'Source url: ' + git_source_url,
             'Source ref: ' + git_source_ref,
         ]
         exp_body.extend(common_body)
 
         if autorebuild:
-            exp_body[-3] += '<autorebuild>'
+            exp_body[-4] += '<autorebuild>'
         elif koji_integration and to_koji_submitter:
-            exp_body[-3] += MOCK_KOJI_SUBMITTER_EMAIL
+            exp_body[-4] += MOCK_KOJI_SUBMITTER_EMAIL
         else:
-            exp_body[-3] += SendMailPlugin.DEFAULT_SUBMITTER
+            exp_body[-4] += SendMailPlugin.DEFAULT_SUBMITTER
 
         if log_url_cases[(koji_integration, autorebuild, success)]:
             if has_koji_logs:
