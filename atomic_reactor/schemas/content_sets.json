@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+
+  "title": "Content sets container definition",
+
+  "type": ["object", "null"],
+  "patternProperties": {
+    "^[a-z].*$": {
+      "type": "array",
+      "description": "List of content sets for specific architecture",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^.*-rpms$"
+      }
+    }
+  },
+  "additionalProperties": false
+}

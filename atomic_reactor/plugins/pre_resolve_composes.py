@@ -10,7 +10,6 @@ from __future__ import unicode_literals, absolute_import
 from copy import deepcopy
 from datetime import datetime, timedelta
 import os
-import yaml
 from collections import defaultdict
 
 from atomic_reactor.constants import (PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
@@ -22,7 +21,10 @@ from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.pre_reactor_config import (get_config,
                                                        get_odcs_session,
                                                        get_koji_session, get_koji)
-from atomic_reactor.util import get_platforms, is_isolated_build, is_scratch_build
+from atomic_reactor.util import (get_platforms,
+                                 is_isolated_build,
+                                 is_scratch_build,
+                                 read_yaml_from_file_path)
 
 ODCS_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 MINIMUM_TIME_TO_EXPIRE = timedelta(hours=2).total_seconds()
@@ -197,8 +199,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
         file_path = os.path.join(workdir, REPO_CONTENT_SETS_CONFIG)
         pulp_data = None
         if os.path.exists(file_path):
-            with open(file_path) as f:
-                pulp_data = yaml.safe_load(f) or {}
+            pulp_data = read_yaml_from_file_path(file_path, 'schemas/content_sets.json') or {}
 
         platforms = get_platforms(self.workflow)
         if platforms:

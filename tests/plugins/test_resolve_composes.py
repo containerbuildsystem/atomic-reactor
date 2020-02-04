@@ -187,9 +187,9 @@ def mock_content_sets_config(tmpdir, data=None):
     if data is None:
         data = dedent("""\
             x86_64:
-            - pulp-spam
-            - pulp-bacon
-            - pulp-eggs
+            - pulp-spam-rpms
+            - pulp-bacon-rpms
+            - pulp-eggs-rpms
         """)
 
     tmpdir.join('content_sets.yml').write(data)
@@ -583,7 +583,7 @@ class TestResolveComposes(object):
         for arch in pulp_arches or []:
             pulp_repos = []
             for repo in base_repos:
-                pulp_repos.append(repo + '-' + arch)
+                pulp_repos.append('{repo}-{arch}-rpms'.format(repo=repo, arch=arch))
             content_dict[arch] = pulp_repos
 
         mock_content_sets_config(workflow._tmpdir, yaml.safe_dump(content_dict))
@@ -676,7 +676,7 @@ class TestResolveComposes(object):
             pulp_repos = []
             content_set += """\n    {0}:""".format(arch)
             for repo in base_repos:
-                pulp_repo = repo + '-' + arch
+                pulp_repo = '{repo}-{arch}-rpms'.format(repo=repo, arch=arch)
                 pulp_repos.append(pulp_repo)
                 content_set += """\n    - {0}""".format(pulp_repo)
             source = ' '.join(pulp_repos)
@@ -1080,7 +1080,7 @@ class TestResolveComposes(object):
             .should_receive('start_compose')
             .with_args(
                 source_type='pulp',
-                source='pulp-spam pulp-bacon pulp-eggs',
+                source='pulp-spam-rpms pulp-bacon-rpms pulp-eggs-rpms',
                 sigkeys=[],
                 flags=None,
                 arches=['x86_64'])
@@ -1275,6 +1275,29 @@ class TestResolveComposes(object):
             assert self.get_override_yum_repourls(workflow) is None
             assert results is None
         return results
+
+    @pytest.mark.parametrize('content_sets_content, expect_error', [
+        ('', None),
+        ('null', None),
+        ('{}', None),
+        ('x86_64: ["spam-rpms"]', None),
+
+        ('"string"', 'is not of type {}'.format(', '.join([repr('object'), repr('null')]))),
+        ('x86_64: "not an array"', 'is not of type {!r}'.format('array')),
+
+        ('x86_64: []', '[] is too short'),
+        ('x86_64: [1]', '1 is not of type {!r}'.format('string')),
+        ('x86_64: ["spam"]', 'does not match'),
+        ('x86_64: ["spam-rpms-spam"]', 'does not match'),
+
+        # Does not start with lowercase letter
+        ('"86_64": []', 'Additional properties are not allowed'),
+    ])
+    def test_content_sets_validation(self, workflow, reactor_config_map,
+                                     content_sets_content, expect_error):
+        mock_content_sets_config(workflow._tmpdir, content_sets_content)
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
+                                  expect_error=expect_error)
 
     def get_override_yum_repourls(self, workflow, arch=ODCS_COMPOSE_DEFAULT_ARCH):
         return (workflow.plugin_workspace
