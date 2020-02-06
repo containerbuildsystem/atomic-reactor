@@ -1327,6 +1327,30 @@ class LabelFormatter(string.Formatter):
         return (self.get_value(field_name, args, kwargs), field_name)
 
 
+# Make sure to escape '\' and '"' characters.
+try:
+    # py3
+    _label_env_trans = str.maketrans({'\\': '\\\\',
+                                      '"': '\\"'})
+except AttributeError:
+    # py2
+    _label_env_trans = None
+
+
+def _label_escape(s):
+    if _label_env_trans:
+        return s.translate(_label_env_trans)
+    return s.replace('\\', '\\\\').replace('"', '\\"')
+
+
+def label_to_string(key, value):
+    """Return a string "<key>"="<value>" with proper escaping to appear in
+    a label statement. Multiple values results can be combined and used as
+    LABEL "key"="value" "key2"="value2"
+    """
+    return '"%s"="%s"' % (_label_escape(key), _label_escape(value))
+
+
 class SessionWithTimeout(requests.Session):
     """
     requests Session with added timeout

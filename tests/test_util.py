@@ -46,6 +46,7 @@ from atomic_reactor.util import (ImageName, wait_for_command,
                                  get_build_json, is_scratch_build, is_isolated_build, df_parser,
                                  base_image_is_custom,
                                  are_plugins_in_order, LabelFormatter,
+                                 label_to_string,
                                  guess_manifest_media_type,
                                  get_manifest_media_type,
                                  get_manifest_media_version,
@@ -1041,6 +1042,16 @@ def test_label_formatter(labels, test_string, expected):
     else:
         with pytest.raises(KeyError):
             LabelFormatter().vformat(test_string, [], labels)
+
+
+@pytest.mark.parametrize(('key', 'value', 'expected'), [
+    ('a', 'b', '"a"="b"'),
+    ('a"', 'b"', '"a\\""="b\\""'),
+    ('a""', 'b""', '"a\\"\\""="b\\"\\""'),
+    ('a\\', 'b\\', '"a\\\\"="b\\\\"'),
+])
+def test_label_to_string(key, value, expected):
+    assert expected == label_to_string(key, value)
 
 
 @pytest.mark.parametrize(('tag_conf', 'tag_annotation', 'expected_primary',
