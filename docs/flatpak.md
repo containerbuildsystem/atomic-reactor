@@ -43,6 +43,8 @@ The `flatpak` section of container.yaml contains extra information needed to cre
 
 **command**: (optional, application only). The name of the executable to run to start the application. If not specified, defaults to the first executable found in /usr/bin.
 
+**labels**: (optional). A map defining additional labels to be added to the resulting image.
+
 **tags**: (optional, application only). Tags to add to the Flatpak metadata for searching.
 
 **finish-args**: (optional, application only). Arguments to `flatpak build-finish`. (see the flatpak-build-finish man page.) This is a string split on whitespace with shell style quoting.
@@ -74,6 +76,8 @@ flatpak:
     id: org.gnome.eog
     branch: stable
     command: eog
+    labels:
+        maintainer: susan@example.com
     tags: ["Viewer"]
     finish-args: >
         --filesystem=host
