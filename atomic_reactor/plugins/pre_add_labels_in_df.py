@@ -59,7 +59,10 @@ from __future__ import unicode_literals, absolute_import
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import INSPECT_CONFIG
-from atomic_reactor.util import (get_docker_architecture, df_parser, LabelFormatter)
+from atomic_reactor.util import (df_parser,
+                                 get_docker_architecture,
+                                 label_to_string,
+                                 LabelFormatter)
 from atomic_reactor.plugins.pre_reactor_config import (get_image_equal_labels,
                                                        get_image_labels,
                                                        get_image_label_info_url_format)
@@ -295,23 +298,6 @@ class AddLabelsPlugin(PreBuildPlugin):
             self.add_info_url(base_image_labels.copy(), dockerfile.labels.copy(),
                               self.labels.copy())
 
-        # correct syntax is:
-        #   LABEL "key"="value" "key2"="value2"
-
-        # Make sure to escape '\' and '"' characters.
-        try:
-            # py3
-            env_trans = str.maketrans({'\\': '\\\\',
-                                       '"': '\\"'})
-        except AttributeError:
-            # py2
-            env_trans = None
-
-        def escape(s):
-            if env_trans:
-                return s.translate(env_trans)
-            return s.replace('\\', '\\\\').replace('"', '\\"')
-
         labels = []
         for key, value in self.labels.items():
 
@@ -326,7 +312,7 @@ class AddLabelsPlugin(PreBuildPlugin):
                     self.log.info("denying overwrite of label %r, using from baseimage", key)
 
                 else:
-                    label = '"%s"="%s"' % (escape(key), escape(value))
+                    label = label_to_string(key, value)
                     self.log.info("setting label %r", label)
                     labels.append(label)
 
