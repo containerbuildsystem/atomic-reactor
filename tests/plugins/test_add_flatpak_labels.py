@@ -1,0 +1,107 @@
+"""
+Copyright (c) 2017 Red Hat, Inc
+All rights reserved.
+
+This software may be modified and distributed under the terms
+of the BSD license. See the LICENSE file for details.
+"""
+
+from __future__ import absolute_import
+
+import os
+import pytest
+
+from flexmock import flexmock
+import yaml
+
+from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.plugins.pre_add_flatpak_labels import AddFlatpakLabelsPlugin
+
+from atomic_reactor.plugin import PreBuildPluginsRunner
+from atomic_reactor.source import SourceConfig
+from atomic_reactor.util import ImageName, df_parser
+
+from tests.constants import MOCK_SOURCE
+
+
+DF_CONTENT = """FROM fedora:latest
+CMD sleep 1000
+"""
+
+
+class MockSource(object):
+    def __init__(self, tmpdir):
+        tmpdir = str(tmpdir)
+        self.dockerfile_path = "./"
+        self.path = tmpdir
+
+        self.container_yaml_path = os.path.join(tmpdir, 'container.yaml')
+        self.config = None
+
+
+class MockBuilder(object):
+    def __init__(self):
+        self.base_image = ImageName(repo="qwe", tag="asd")
+        self.df_path = None
+        self.image_id = "xxx"
+
+
+def mock_workflow(tmpdir, container_yaml):
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+
+    mock_source = MockSource(tmpdir)
+    setattr(workflow, 'builder', MockBuilder())
+    workflow.builder.source = mock_source
+    flexmock(workflow, source=mock_source)
+
+    with open(mock_source.container_yaml_path, "w") as f:
+        f.write(container_yaml)
+    workflow.builder.source.config = SourceConfig(str(tmpdir))
+
+    df = df_parser(str(tmpdir))
+    df.content = DF_CONTENT
+
+    setattr(workflow.builder, 'df_dir', str(tmpdir))
+    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+
+    return workflow
+
+
+@pytest.mark.parametrize('labels,expected', [
+    (None, None),
+    ({}, None),
+    ({'a': 'b'}, 'LABEL "a"="b"'),
+    ({'a': 'b', 'c': 'd"'}, 'LABEL "a"="b" "c"="d\\""'),
+]) # noqa - docker_tasker fixture
+def test_add_flatpak_labels(tmpdir, docker_tasker,
+                            labels, expected):
+
+    if labels is not None:
+        data = {'flatpak': {'labels': labels}}
+    else:
+        data = {}
+    container_yaml = yaml.dump(data)
+
+    workflow = mock_workflow(tmpdir, container_yaml)
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': AddFlatpakLabelsPlugin.key,
+            'args': {}
+        }]
+    )
+
+    runner.run()
+
+    assert os.path.exists(workflow.builder.df_path)
+    with open(workflow.builder.df_path) as f:
+        df = f.read()
+
+    last_line = df.strip().split('\n')[-1]
+
+    if expected:
+        assert last_line == expected
+    else:
+        assert last_line == "CMD sleep 1000"
