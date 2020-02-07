@@ -29,11 +29,10 @@ from atomic_reactor.util import get_parent_image_koji_data
 from atomic_reactor.metadata import label
 
 try:
-    from atomic_reactor.plugins.pre_flatpak_create_dockerfile import get_flatpak_source_info
-    from atomic_reactor.plugins.pre_resolve_module_compose import get_compose_info
+    from atomic_reactor.plugins.pre_flatpak_update_dockerfile import get_flatpak_compose_info
 except ImportError:
     # modulemd not available
-    def get_flatpak_source_info(_):
+    def get_flatpak_compose_info(_):
         return None
 
 from atomic_reactor.constants import (PROG, PLUGIN_KOJI_PROMOTE_PLUGIN_KEY,
@@ -514,10 +513,9 @@ class KojiPromotePlugin(ExitPlugin):
             else:
                 self.log.error("Unknown result from add_help plugin: %s", help_result)
 
-        flatpak_source_info = get_flatpak_source_info(self.workflow)
-        if flatpak_source_info is not None:
-            compose_info = get_compose_info(self.workflow)
-            koji_metadata = compose_info.koji_metadata()
+        flatpak_compose_info = get_flatpak_compose_info(self.workflow)
+        if flatpak_compose_info:
+            koji_metadata = flatpak_compose_info.koji_metadata()
             koji_metadata['flatpak'] = True
             extra['image'].update(koji_metadata)
 

@@ -47,7 +47,9 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
 from tests.constants import SOURCE, MOCK
-from tests.flatpak import MODULEMD_AVAILABLE, setup_flatpak_source_info
+from tests.flatpak import (MODULEMD_AVAILABLE,
+                           setup_flatpak_composes,
+                           setup_flatpak_source_info)
 from tests.stubs import StubInsideBuilder, StubSource
 
 from flexmock import flexmock
@@ -1608,6 +1610,7 @@ class TestKojiImport(object):
                                             release='1',
                                             session=session)
 
+        setup_flatpak_composes(workflow)
         setup_flatpak_source_info(workflow)
 
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
@@ -1629,6 +1632,7 @@ class TestKojiImport(object):
                                         'flatpak-runtime-f28-20170701152209']
         assert image.get('source_modules') == ['eog:f28']
         assert image.get('odcs') == {
+            'compose_ids': [22422, 42],
             'signing_intent': 'unsigned',
             'signing_intent_overridden': False,
         }
