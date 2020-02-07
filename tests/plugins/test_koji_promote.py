@@ -34,7 +34,9 @@ from atomic_reactor.rpm_util import parse_rpm_output
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.build import BuildResult
 from tests.constants import SOURCE, MOCK
-from tests.flatpak import MODULEMD_AVAILABLE, setup_flatpak_source_info
+from tests.flatpak import (MODULEMD_AVAILABLE,
+                           setup_flatpak_composes,
+                           setup_flatpak_source_info)
 from tests.stubs import StubInsideBuilder, StubSource
 
 from flexmock import flexmock
@@ -1374,6 +1376,7 @@ class TestKojiPromote(object):
                                             release='1',
                                             session=session)
 
+        setup_flatpak_composes(workflow)
         setup_flatpak_source_info(workflow)
 
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
@@ -1395,6 +1398,7 @@ class TestKojiPromote(object):
                                         'flatpak-runtime-f28-20170701152209']
         assert image.get('source_modules') == ['eog:f28']
         assert image.get('odcs') == {
+            'compose_ids': [22422, 42],
             'signing_intent': 'unsigned',
             'signing_intent_overridden': False,
         }

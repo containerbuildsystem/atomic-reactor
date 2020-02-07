@@ -4,15 +4,18 @@ import yaml
 
 from osbs.repo_utils import ModuleSpec
 
+from atomic_reactor.constants import PLUGIN_RESOLVE_COMPOSES_KEY
+
 try:
-    from atomic_reactor.plugins.pre_resolve_module_compose import (ComposeInfo,
-                                                                   set_compose_info)
-    from atomic_reactor.plugins.pre_flatpak_create_dockerfile import set_flatpak_source_info
+    from atomic_reactor.plugins.pre_flatpak_update_dockerfile import (ComposeInfo,
+                                                                      set_flatpak_compose_info,
+                                                                      set_flatpak_source_info)
     from flatpak_module_tools.flatpak_builder import FlatpakSourceInfo, ModuleInfo
     from gi.repository import Modulemd
     MODULEMD_AVAILABLE = True
 except ImportError:
     MODULEMD_AVAILABLE = False
+
 
 PLATFORM_MODULEMD = """
 document: modulemd
@@ -104,6 +107,29 @@ FLATPAK_APP_RPMS = [
     "libpeas-loader-python3-0:1.20.0-5.module_7b96ed10.x86_64.rpm",
 ]
 
+FLATPAK_APP_KOJI_RPMS = [
+    {'arch': 'src',
+     'epoch': None,
+     'id': 15197182,
+     'name': 'eog',
+     'release': '1.module_2123+73a9ef6f',
+     'version': '3.28.3'},
+    {'arch': 'x86_64',
+     'epoch': None,
+     'id': 15197187,
+     'metadata_only': False,
+     'name': 'eog',
+     'release': '1.module_2123+73a9ef6f',
+     'version': '3.28.3'},
+    {'arch': 'ppc64le',
+     'epoch': None,
+     'id': 15197188,
+     'metadata_only': False,
+     'name': 'eog',
+     'release': '1.module_2123+73a9ef6f',
+     'version': '3.28.3'},
+]
+
 FLATPAK_APP_FINISH_ARGS = [
     "--filesystem=host",
     "--share=ipc",
@@ -119,7 +145,7 @@ FLATPAK_APP_FINISH_ARGS = [
 FLATPAK_APP_CONTAINER_YAML = """
 compose:
     modules:
-    - eog:f28
+    - eog:f28:20170629213428
 flatpak:
     id: org.gnome.eog
     branch: stable
@@ -241,71 +267,94 @@ flatpak:
         fc-cache -fs
 """
 
+EOG_MODULE = {
+    'stream': 'f28',
+    'version': '20170629213428',
+    'context': 'f636be4b',
+    'package_id': 303,
+    'build_id': 1138198,
+    'archive_id': 147879,
+    'metadata': FLATPAK_APP_MODULEMD,
+    'rpms': FLATPAK_APP_RPMS,
+    'koji_rpms': FLATPAK_APP_KOJI_RPMS,
+}
+
+FLATPAK_RUNTIME_MODULE = {
+    'stream': 'f28',
+    'version': '20170701152209',
+    'context': '6c81f848',
+    'package_id': 25428,
+    'build_id': 1111111,
+    'archive_id': 1234567,
+    'metadata': FLATPAK_RUNTIME_MODULEMD,
+    'rpms': [],  # We don't use this currently
+    'koji_rpms': [],
+}
+
+PLATFORM_MODULE = {
+    'stream': 'f28',
+    'version': '5',
+    'context': 'a5b0195c',
+    'package_id': 20824,
+    'build_id': 2222222,
+    'archive_id': 7654321,
+    'metadata': PLATFORM_MODULEMD,
+    'rpms': [],  # We don't use this currently
+    'koji_rpms': [],
+}
+
 APP_CONFIG = {
+    'source_spec': 'eog:f28:20170629213428',
     'base_module': 'eog',
     'modules': {
-        'eog': {
-            'stream': 'f28',
-            'version': '20170629213428',
-            'metadata': FLATPAK_APP_MODULEMD,
-            'rpms': FLATPAK_APP_RPMS,
-        },
-        'flatpak-runtime': {
-            'stream': 'f28',
-            'version': '20170701152209',
-            'metadata': FLATPAK_RUNTIME_MODULEMD,
-            'rpms': [],  # We don't use this currently
-        },
-        'platform': {
-            'stream': 'f28',
-            'version': '5',
-            'metadata': PLATFORM_MODULEMD,
-            'rpms': [],  # We don't use this currently
-        },
+        'eog': EOG_MODULE,
+        'flatpak-runtime': FLATPAK_RUNTIME_MODULE,
+        'platform': PLATFORM_MODULE,
     },
+    'odcs_composes': [{
+        'id': 22422,
+        'source_type': 1,
+        'source': 'f28',
+    }, {
+        'id': 42,
+        'source_type': 2,
+        'source': 'eog:f28:20170629213428 flatpak-runtime:f28:20170701152209 platform:f28:5',
+    }],
     'container_yaml': FLATPAK_APP_CONTAINER_YAML,
     'name': 'eog',
     'component': 'eog',
 }
 
 RUNTIME_CONFIG = {
+    'source_spec': 'flatpak-runtime:f28',
     'base_module': 'flatpak-runtime',
     'modules': {
-        'flatpak-runtime': {
-            'stream': 'f28',
-            'version': '20170701152209',
-            'metadata': FLATPAK_RUNTIME_MODULEMD,
-            'rpms': [],  # We don't use this currently
-        },
-        'platform': {
-            'stream': 'f28',
-            'version': '5',
-            'metadata': PLATFORM_MODULEMD,
-            'rpms': [],  # We don't use this currently
-        },
+        'flatpak-runtime': FLATPAK_RUNTIME_MODULE,
+        'platform': PLATFORM_MODULE,
     },
+    'odcs_composes': [{
+        'id': 43,
+        'source_type': 2,
+        'source': 'flatpak-runtime:f28:20170701152209 platform:f28:5',
+    }],
     'container_yaml': FLATPAK_RUNTIME_CONTAINER_YAML,
     'name': 'flatpak-runtime',
     'component': 'flatpak-runtime-container',
 }
 
 SDK_CONFIG = {
+    'source_spec': 'flatpak-runtime:f28/sdk',
     'base_module': 'flatpak-runtime',
     'profile': 'sdk',
     'modules': {
-        'flatpak-runtime': {
-            'stream': 'f28',
-            'version': '20170701152209',
-            'metadata': FLATPAK_RUNTIME_MODULEMD,
-            'rpms': [],  # We don't use this currently
-        },
-        'platform': {
-            'stream': 'f28',
-            'version': '5',
-            'metadata': PLATFORM_MODULEMD,
-            'rpms': [],  # We don't use this currently
-        },
+        'flatpak-runtime': FLATPAK_RUNTIME_MODULE,
+        'platform': PLATFORM_MODULE,
     },
+    'odcs_composes': [{
+        'id': 44,
+        'source_type': 2,
+        'source': 'flatpak-runtime:f28:20170701152209 platform:f28:5',
+    }],
     'container_yaml': FLATPAK_SDK_CONTAINER_YAML,
     'name': 'flatpak-sdk',
     'component': 'flatpak-sdk-container',
@@ -326,6 +375,16 @@ def build_flatpak_test_configs(extensions=None):
     return configs
 
 
+def setup_flatpak_composes(workflow, config=None):
+    config = APP_CONFIG if config is None else config
+
+    workflow.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {
+        'composes': config['odcs_composes'],
+        'signing_intent': 'unsigned',
+        'signing_intent_overridden': False,
+    }
+
+
 def setup_flatpak_compose_info(workflow, config=None):
     config = APP_CONFIG if config is None else config
     modules = {}
@@ -337,8 +396,6 @@ def setup_flatpak_compose_info(workflow, config=None):
                                    mmd,
                                    module_config['rpms'])
 
-    repo_url = 'http://odcs.example/composes/latest-odcs-42-1/compose/Temporary/$basearch/os/'
-
     base_module = modules[config['base_module']]
     source_spec = base_module.name + ':' + base_module.stream
 
@@ -346,12 +403,9 @@ def setup_flatpak_compose_info(workflow, config=None):
         source_spec += '/' + config['profile']
 
     compose = ComposeInfo(source_spec,
-                          42, base_module,
-                          modules,
-                          repo_url,
-                          'unsigned',
-                          False)
-    set_compose_info(workflow, compose)
+                          base_module,
+                          modules)
+    set_flatpak_compose_info(workflow, compose)
 
     return compose
 
@@ -364,7 +418,7 @@ def setup_flatpak_source_info(workflow, config=None):
 
     module_spec = ModuleSpec.from_str(compose.source_spec)
 
-    source = FlatpakSourceInfo(flatpak_yaml, compose.modules, compose.base_module,
+    source = FlatpakSourceInfo(flatpak_yaml, compose.modules, compose.main_module,
                                module_spec.profile)
     set_flatpak_source_info(workflow, source)
 

@@ -13,12 +13,12 @@ from flexmock import flexmock
 import responses
 import os
 import pytest
-import re
 import yaml
 
 from atomic_reactor.inner import DockerBuildWorkflow
 try:
-    from atomic_reactor.plugins.pre_flatpak_create_dockerfile import FlatpakCreateDockerfilePlugin
+    from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (get_flatpak_source_spec,
+                                                                      FlatpakCreateDockerfilePlugin)
 except ImportError:
     pass
 
@@ -30,7 +30,7 @@ from atomic_reactor.source import VcsInfo, SourceConfig
 from atomic_reactor.util import ImageName
 
 from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
-from tests.flatpak import MODULEMD_AVAILABLE, build_flatpak_test_configs, setup_flatpak_compose_info
+from tests.flatpak import MODULEMD_AVAILABLE, build_flatpak_test_configs
 
 
 class MockSource(object):
@@ -88,33 +88,36 @@ CONFIGS = build_flatpak_test_configs()
     ('app', None, None),
     ('app', 'registry.fedoraproject.org/fedora:29', None),
     ('runtime', None, None),
-    ('runtime', None, 'branch_mismatch'),
+    ('app', None, 'no_modules'),
+    ('app', None, 'multiple_modules'),
 ])
 def test_flatpak_create_dockerfile(tmpdir, docker_tasker,
                                    config_name, override_base_image, breakage,
                                    reactor_config_map):
     config = CONFIGS[config_name]
 
-    container_yaml = config['container_yaml']
-
-    if override_base_image is not None:
-        data = yaml.safe_load(container_yaml)
-        data['flatpak']['base_image'] = override_base_image
-        container_yaml = yaml.dump(data)
-
-    workflow = mock_workflow(tmpdir, container_yaml)
-
-    compose = setup_flatpak_compose_info(workflow, config)
-
-    if breakage == 'branch_mismatch':
-        xmd = compose.base_module.mmd.get_xmd()
-        xmd['flatpak']['branch'] = 'MISMATCH'
-        compose.base_module.mmd.set_xmd(xmd)
-
-        expected_exception = "Mismatch for 'branch'"
+    modules = None
+    if breakage == 'no_modules':
+        modules = []
+        expected_exception = "a module is required for Flatpaks"
+    elif breakage == 'multiple_modules':
+        modules = ['eog:f28:20170629213428', 'flatpak-common:f28:123456']
+        expected_exception = None  # Just a warning
     else:
         assert breakage is None
         expected_exception = None
+
+    data = yaml.safe_load(config['container_yaml'])
+    if override_base_image is not None:
+        data['flatpak']['base_image'] = override_base_image
+    if modules is not None:
+        data['compose']['modules'] = modules
+    container_yaml = yaml.dump(data)
+
+    workflow = mock_workflow(tmpdir, container_yaml)
+
+    source_spec = get_flatpak_source_spec(workflow)
+    assert source_spec is None
 
     base_image = "registry.fedoraproject.org/fedora:latest"
 
@@ -155,21 +158,5 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker,
         assert "RUN rm -f /etc/yum.repos.d/*" in df
         assert "ADD atomic-reactor-repos/* /etc/yum.repos.d/" in df
 
-        m = re.search(r'module enable\s*(.*?)\s*&&', df)
-        assert m
-        enabled_modules = sorted(m.group(1).split())
-
-        if config_name == 'app':
-            assert enabled_modules == ['eog:f28', 'flatpak-runtime:f28']
-        else:
-            assert enabled_modules == ['flatpak-runtime:f28']
-
-        includepkgs_path = os.path.join(workflow.builder.df_dir, 'atomic-reactor-includepkgs')
-        assert os.path.exists(includepkgs_path)
-        with open(includepkgs_path) as f:
-            includepkgs = f.read()
-            assert 'librsvg2' in includepkgs
-            if config_name == 'app':
-                assert 'eog-0:3.24.1-1.module_7b96ed10.x86_64' in includepkgs
-
-        assert os.path.exists(os.path.join(workflow.builder.df_dir, 'cleanup.sh'))
+        source_spec = get_flatpak_source_spec(workflow)
+        assert source_spec == config['source_spec']
