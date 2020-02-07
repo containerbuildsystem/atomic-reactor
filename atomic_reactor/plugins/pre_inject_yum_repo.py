@@ -33,7 +33,7 @@ def add_yum_repos_to_dockerfile(yumrepos, df, inherited_user, base_from_scratch)
 
     # Insert the ADD line at the beginning of each stage
     df.add_lines(
-        "ADD %s* '%s'" % (RELATIVE_REPOS_PATH, YUM_REPOS_DIR),
+        "ADD %s* %s" % (RELATIVE_REPOS_PATH, YUM_REPOS_DIR),
         all_stages=True, at_start=True, skip_scratch=True
     )
 

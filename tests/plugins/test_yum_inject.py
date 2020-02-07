@@ -85,7 +85,7 @@ CMD blabla"""
     assert InjectYumRepoPlugin.key is not None
 
     expected_output = r"""FROM fedora
-ADD atomic-reactor-repos/* '/etc/yum.repos.d/'
+ADD atomic-reactor-repos/* /etc/yum.repos.d/
 RUN yum install -y python-django
 CMD blabla
 RUN rm -f '/etc/yum.repos.d/atomic-reactor-injected.repo'
@@ -117,7 +117,7 @@ CMD blabla"""
     assert InjectYumRepoPlugin.key is not None
 
     expected_output = r"""FROM fedora
-ADD atomic-reactor-repos/* '/etc/yum.repos.d/'
+ADD atomic-reactor-repos/* /etc/yum.repos.d/
 RUN yum install -y httpd                    uwsgi
 CMD blabla
 RUN rm -f '/etc/yum.repos.d/atomic-reactor-injected.repo'
@@ -269,7 +269,7 @@ def test_single_repourl(tmpdir):
         # Should see a single add line.
         after_add = before_add + 1
         assert (newdf[before_add:after_add] ==
-                ["ADD %s* '/etc/yum.repos.d/'\n" % RELATIVE_REPOS_PATH])
+                ["ADD %s* /etc/yum.repos.d/\n" % RELATIVE_REPOS_PATH])
 
         # Lines from there up to the remove line should be unchanged.
         before_remove = after_add + len(df_content.lines_before_remove)
@@ -319,7 +319,7 @@ def test_multiple_repourls(tmpdir):
         # Should see a single add line.
         after_add = before_add + 1
         assert (newdf[before_add:after_add] ==
-                ["ADD %s* '/etc/yum.repos.d/'\n" % RELATIVE_REPOS_PATH])
+                ["ADD %s* /etc/yum.repos.d/\n" % RELATIVE_REPOS_PATH])
 
         # Lines from there up to the remove line should be unchanged.
         before_remove = after_add + len(df_content.lines_before_remove)
@@ -504,7 +504,7 @@ def test_multistage_dockerfiles(name, inherited_user, dockerfile, expect_cleanup
 
     # build expected contents by manually inserting expected ADD lines between the segments
     for lines in segment_lines[:-1]:
-        lines.append("ADD %s* '/etc/yum.repos.d/'\n" % RELATIVE_REPOS_PATH)
+        lines.append("ADD %s* /etc/yum.repos.d/\n" % RELATIVE_REPOS_PATH)
     expected_lines = list(itertools.chain.from_iterable(segment_lines))  # flatten lines
 
     # now run the plugin to transform the given dockerfile
