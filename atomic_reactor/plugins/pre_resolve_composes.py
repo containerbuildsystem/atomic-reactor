@@ -109,15 +109,13 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self.composes_info = None
         self._parent_signing_intent = None
         self.repourls = repourls or []
-        self.inherit = self.workflow.source.config.inherit
         self.plugin_result = self.workflow.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY)
-        self.allow_inheritance = self.inherit and not (is_scratch_build() or is_isolated_build())
         self.all_compose_ids = list(self.compose_ids)
 
     def run(self):
         try:
             self.adjust_for_autorebuild()
-            if self.allow_inheritance:
+            if self.allow_inheritance():
                 self.adjust_for_inherit()
             self.workflow.all_yum_repourls = self.repourls
             self.read_configs()
@@ -130,6 +128,20 @@ class ResolveComposesPlugin(PreBuildPlugin):
         except SkipResolveComposesPlugin as abort_exc:
             override_build_kwarg(self.workflow, 'yum_repourls', self.repourls, None)
             self.log.info('Aborting plugin execution: %s', abort_exc)
+
+    def allow_inheritance(self):
+        """Returns boolean if composes can be inherited"""
+        if not self.workflow.source.config.inherit:
+            return False
+        self.log.info("Inheritance requested in config file")
+
+        if is_scratch_build() or is_isolated_build():
+            self.log.warning(
+                "Inheritance is not allowed for scratch or isolated builds. "
+                "Skipping inheritance.")
+            return False
+
+        return True
 
     def adjust_for_autorebuild(self):
         """Ignore pre-filled signing_intent and compose_ids for autorebuids
