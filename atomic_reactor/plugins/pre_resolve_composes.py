@@ -345,6 +345,9 @@ class ResolveComposesPlugin(PreBuildPlugin):
         if not repos_by_arch:
             override_build_kwarg(self.workflow, 'yum_repourls', noarch_repos, None)
 
+        # So that plugins like flatpak_update_dockerfile can get information about the composes
+        override_build_kwarg(self.workflow, 'compose_ids', self.all_compose_ids)
+
     def make_result(self):
         result = {
             'composes': self.composes_info,
