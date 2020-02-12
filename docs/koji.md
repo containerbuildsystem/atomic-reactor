@@ -88,9 +88,16 @@ Data which is placed here includes:
 
 - `build.extra.typeinfo.operator-manifests.archive` (string): name of the archive containing operator manifest files
 
+General build info metadata is placed in `build.extra.osbs_build`.
+
+Data which is placed here includes:
+- `build.extra.osbs_build.kind` (string): build kind, either container_build or source_container_build
+- `build.extra.osbs_build.subtypes`(str list): build subtypes: flatpak, operator_appregistry and others might be added in future
+- `build.extra.osbs_build.engine` (string): build engine to build image, bsi (for source containers), docker_api, imagebuilder, buildah_bud
+
 # Type-specific source container build metadata
 
-The same note about `image` and `build.extra.typeinfo.image` from previous section applies here.
+The same note about `image`, `build.extra.typeinfo.image` and `build.extra.osbs_build` from previous section applies here.
 
 Data which is placed here includes:
 

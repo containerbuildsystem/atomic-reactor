@@ -50,6 +50,10 @@ from atomic_reactor.constants import (
     METADATA_TAG, OPERATOR_MANIFESTS_ARCHIVE,
     KOJI_BTYPE_REMOTE_SOURCES,
     KOJI_BTYPE_OPERATOR_MANIFESTS,
+    KOJI_KIND_IMAGE_BUILD,
+    KOJI_KIND_IMAGE_SOURCE_BUILD,
+    KOJI_SUBTYPE_OP_APPREGISTRY,
+    KOJI_SOURCE_ENGINE,
 )
 from atomic_reactor.util import (Output, get_build_json,
                                  df_parser, ImageName, get_primary_images,
@@ -360,7 +364,7 @@ class KojiImportPlugin(ExitPlugin):
 
     def get_build(self, metadata, worker_metadatas):
         start_time = int(atomic_reactor_start_time)
-        extra = {'image': {}}
+        extra = {'image': {}, 'osbs_build': {'subtypes': []}}
 
         if not self.source_build:
             labels = Labels(df_parser(self.workflow.builder.df_path,
@@ -408,6 +412,7 @@ class KojiImportPlugin(ExitPlugin):
                 koji_metadata = compose_info.koji_metadata()
                 koji_metadata['flatpak'] = True
                 extra['image'].update(koji_metadata)
+                extra['osbs_build']['subtypes'].append('flatpak')
 
             resolve_comp_result = self.workflow.prebuild_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
             if resolve_comp_result:
@@ -425,10 +430,16 @@ class KojiImportPlugin(ExitPlugin):
 
             self.set_go_metadata(extra)
             self.set_group_manifest_info(extra, worker_metadatas)
+            extra['osbs_build']['kind'] = KOJI_KIND_IMAGE_BUILD
+            extra['osbs_build']['engine'] = self.workflow.builder.tasker.build_method
+            if 'operator_manifests' in extra:
+                extra['osbs_build']['subtypes'].append(KOJI_SUBTYPE_OP_APPREGISTRY)
         else:
             source_result = self.workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY]
             extra['image']['sources_for_nvr'] = source_result['sources_for_nvr']
             extra['image']['sources_signing_intent'] = source_result['signing_intent']
+            extra['osbs_build']['kind'] = KOJI_KIND_IMAGE_SOURCE_BUILD
+            extra['osbs_build']['engine'] = KOJI_SOURCE_ENGINE
 
         koji_task_id = metadata.get('labels', {}).get('koji-task-id')
         if koji_task_id is not None:

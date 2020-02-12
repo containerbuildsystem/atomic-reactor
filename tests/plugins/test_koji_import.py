@@ -15,7 +15,7 @@ import os
 from textwrap import dedent
 
 from osbs.build.build_response import BuildResponse
-from atomic_reactor.core import DockerTasker
+from atomic_reactor.core import DockerTasker, ContainerTasker
 from atomic_reactor.plugins.post_fetch_worker_metadata import FetchWorkerMetadataPlugin
 from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
                                                             WORKSPACE_KEY_UPLOAD_DIR,
@@ -45,7 +45,11 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_
                                       PARENT_IMAGES_KEY, OPERATOR_MANIFESTS_ARCHIVE,
                                       REMOTE_SOURCES_FILENAME,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
-                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
+                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
+                                      KOJI_KIND_IMAGE_BUILD,
+                                      KOJI_KIND_IMAGE_SOURCE_BUILD,
+                                      KOJI_SUBTYPE_OP_APPREGISTRY,
+                                      KOJI_SOURCE_ENGINE)
 from tests.constants import SOURCE, MOCK
 from tests.flatpak import MODULEMD_AVAILABLE, setup_flatpak_source_info
 from tests.stubs import StubInsideBuilder, StubSource
@@ -235,7 +239,7 @@ def mock_environment(tmpdir, session=None, name=None,
                      add_build_result_primaries=False, container_first=False,
                      yum_repourls=None, has_operator_manifests=False,
                      push_operator_manifests_enabled=False, source_build=False,
-                     has_remote_source=False):
+                     has_remote_source=False, build_method='docker'):
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -243,7 +247,9 @@ def mock_environment(tmpdir, session=None, name=None,
 
     if MOCK:
         mock_docker()
-    tasker = DockerTasker()
+    tasker = ContainerTasker()
+    tasker._tasker = DockerTasker()
+    tasker.build_method = build_method
     workflow = DockerBuildWorkflow("test-image", source=SOURCE)
     base_image_id = '123456parent-id'
 
@@ -1300,10 +1306,13 @@ class TestKojiImport(object):
         (['v1'], 'ab12'),
         (False, 'ab12')
     ))
-    @pytest.mark.parametrize('reserved_build', (True, False))
+    @pytest.mark.parametrize(('reserved_build', 'build_method'), [
+        (True, 'docker'),
+        (False, 'imagebuilder')
+    ])
     def test_koji_import_success(self, tmpdir, blocksize, os_env, has_config, is_autorebuild,
                                  triggered_task, tag_later, verify_media, expect_id,
-                                 reserved_build, reactor_config_map):
+                                 reserved_build, build_method, reactor_config_map):
         session = MockedClientSession('')
         # When target is provided koji build will always be tagged,
         # either by koji_import or koji_tag_build.
@@ -1323,7 +1332,8 @@ class TestKojiImport(object):
                                             component=component,
                                             version=version,
                                             release=release,
-                                            has_config=has_config)
+                                            has_config=has_config,
+                                            build_method=build_method)
         workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_autorebuild
         workflow.triggered_after_koji_task = triggered_task
 
@@ -1406,6 +1416,17 @@ class TestKojiImport(object):
 
         extra = build['extra']
         assert isinstance(extra, dict)
+
+        assert 'osbs_build' in extra
+        osbs_build = extra['osbs_build']
+        assert isinstance(osbs_build, dict)
+        assert 'kind' in osbs_build
+        assert osbs_build['kind'] == KOJI_KIND_IMAGE_BUILD
+        assert 'subtypes' in osbs_build
+        assert osbs_build['subtypes'] == []
+        assert 'engine' in osbs_build
+        assert osbs_build['engine'] == build_method
+
         assert 'image' in extra
         image = extra['image']
         assert isinstance(image, dict)
@@ -1623,6 +1644,9 @@ class TestKojiImport(object):
         assert 'image' in extra
         image = extra['image']
         assert isinstance(image, dict)
+        assert 'osbs_build' in extra
+        osbs_build = extra['osbs_build']
+        assert osbs_build['subtypes'] == ['flatpak']
 
         assert image.get('flatpak') is True
         assert image.get('modules') == ['eog-f28-20170629213428',
@@ -2126,6 +2150,8 @@ class TestKojiImport(object):
         assert 'extra' in build
         extra = build['extra']
         assert isinstance(extra, dict)
+        assert 'osbs_build' in extra
+        osbs_build = extra['osbs_build']
         if has_manifests:
             assert 'operator_manifests_archive' in extra
             operator_manifests = extra['operator_manifests_archive']
@@ -2144,8 +2170,10 @@ class TestKojiImport(object):
         # results independently so test it this way
         if push_operator_manifests:
             assert extra['operator_manifests']['appregistry'] == PUSH_OPERATOR_MANIFESTS_RESULTS
+            assert osbs_build['subtypes'] == [KOJI_SUBTYPE_OP_APPREGISTRY]
         else:
             assert 'operator_manifests' not in extra
+            assert osbs_build['subtypes'] == []
 
     @pytest.mark.parametrize('has_remote_source', [True, False])
     def test_remote_sources(self, tmpdir, os_env, has_remote_source, reactor_config_map):
@@ -2310,6 +2338,17 @@ class TestKojiImport(object):
 
         extra = build['extra']
         assert isinstance(extra, dict)
+
+        assert 'osbs_build' in extra
+        osbs_build = extra['osbs_build']
+        assert isinstance(osbs_build, dict)
+        assert 'kind' in osbs_build
+        assert osbs_build['kind'] == KOJI_KIND_IMAGE_SOURCE_BUILD
+        assert 'subtypes' in osbs_build
+        assert osbs_build['subtypes'] == []
+        assert 'engine' in osbs_build
+        assert osbs_build['engine'] == KOJI_SOURCE_ENGINE
+
         assert 'image' in extra
         image = extra['image']
         assert isinstance(image, dict)
