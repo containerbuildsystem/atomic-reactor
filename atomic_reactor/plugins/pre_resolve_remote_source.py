@@ -33,11 +33,37 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
         """
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
+        :param dependency_replacements: list<str>, dependencies for the cachito fetched artifact to
+        be replaced. Must be of the form pkg_manager:name:version[:new_name]
         """
         super(ResolveRemoteSourcePlugin, self).__init__(tasker, workflow)
         self._cachito_session = None
         self._osbs = None
-        self._dependency_replacements = dependency_replacements
+        self._dependency_replacements = self.parse_dependency_replacements(dependency_replacements)
+
+    def parse_dependency_replacements(self, replacement_strings):
+        """Parse dependency_replacements param and return cachito-reaady dependency replacement dict
+
+        param replacement_strings: list<str>, pkg_manager:name:version[:new_name]
+        return: list<dict>, cachito formated dependency replacements param
+        """
+        if not replacement_strings:
+            return
+
+        dependency_replacements = []
+        for dr_str in replacement_strings:
+            pkg_manager, name, version, new_name = (dr_str.split(':', 3) + [None] * 4)[:4]
+            if None in [pkg_manager, name, version]:
+                raise ValueError('Cachito dependency replacements must be '
+                                 '"pkg_manager:name:version[:new_name]". got {}'.format(dr_str))
+
+            dr = {'type': pkg_manager, 'name': name, 'version': version}
+            if new_name:
+                dr['new_name'] = new_name
+
+            dependency_replacements.append(dr)
+
+        return dependency_replacements
 
     def run(self):
         try:
