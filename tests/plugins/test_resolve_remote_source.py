@@ -194,22 +194,34 @@ def teardown_function(*args):
 
 
 @pytest.mark.parametrize('scratch', (True, False))
-@pytest.mark.parametrize('dependency_replacements', (None, [{
-    'name': 'foo.bar/project',
-    'type': 'gomod',
-    'version': '2',
-    }]))
-def test_resolve_remote_source(workflow, scratch, dependency_replacements):
+@pytest.mark.parametrize('dr_strs, dependency_replacements',
+                         ((None, None),
+                          (['gomod:foo.bar/project:2'],
+                           [{
+                             'name': 'foo.bar/project',
+                             'type': 'gomod',
+                             'version': '2'}]),
+                          (['gomod:foo.bar/project:2:newproject'],
+                          [{
+                            'name': 'foo.bar/project',
+                            'type': 'gomod',
+                            'new_name': 'newproject',
+                            'version': '2'}]),
+                          (['gomod:foo.bar/project'], None)))
+def test_resolve_remote_source(workflow, scratch, dr_strs, dependency_replacements):
     build_json = {'metadata': {'labels': {'koji-task-id': str(KOJI_TASK_ID), 'scratch': scratch}}}
     mock_build_json(build_json=build_json)
     mock_cachito_api(workflow, dependency_replacements=dependency_replacements)
     err = None
-    if dependency_replacements and not scratch:
+    if dr_strs and not scratch:
         err = 'Cachito dependency replacements are only allowed for scratch builds'
+
+    if dr_strs and any(len(dr.split(':')) < 3 for dr in dr_strs):
+        err = 'Cachito dependency replacements must be'
 
     run_plugin_with_args(
         workflow,
-        dependency_replacements=dependency_replacements,
+        dependency_replacements=dr_strs,
         expect_error=err
     )
 
