@@ -173,3 +173,9 @@ REMOTE_SOURCE_DIR = '/remote-source'
 
 # Name of downloaded remote sources tarball
 REMOTE_SOURCES_FILENAME = 'remote-source.tar.gz'
+
+# koji osbs_build metadata
+KOJI_KIND_IMAGE_BUILD = 'container_build'
+KOJI_KIND_IMAGE_SOURCE_BUILD = 'source_container_build'
+KOJI_SUBTYPE_OP_APPREGISTRY = 'operator_appregistry'
+KOJI_SOURCE_ENGINE = 'bsi'
