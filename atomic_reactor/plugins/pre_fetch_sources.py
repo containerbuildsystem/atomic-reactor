@@ -99,14 +99,15 @@ class FetchSourcesPlugin(PreBuildPlugin):
                 'signing_intent': self.signing_intent,
         }
 
-    def download_sources(self, urls, insecure=False, download_dir=SRPMS_DOWNLOAD_DIR):
+    def download_sources(self, sources, insecure=False, download_dir=SRPMS_DOWNLOAD_DIR):
         """Download sources content
 
         Download content in the given URLs into a new temporary directory and
         return a list with each downloaded artifact's path.
 
-        :param urls: int, Koji build id of the container image we want SRPMs for
+        :param sources: list, dicts with URLs to download
         :param insecure: bool, whether to perform TLS checks of urls
+        :param download_dir: str, directory where to download content
         :return: str, paths to directory with downloaded sources
         """
         workdir = tempfile.mkdtemp()
@@ -115,9 +116,9 @@ class FetchSourcesPlugin(PreBuildPlugin):
             os.makedirs(dest_dir)
 
         req_session = get_retrying_requests_session()
-        for url in urls:
-            download_url(url, dest_dir, insecure=insecure,
-                         session=req_session)
+        for source in sources:
+            download_url(source['url'], dest_dir, insecure=insecure,
+                         session=req_session, dest_filename=source.get('dest'))
 
         return dest_dir
 
@@ -167,21 +168,41 @@ class FetchSourcesPlugin(PreBuildPlugin):
             srpm_path = self.pathinfo.rpm(srpm_info)
         return '/'.join([base_url, srpm_path])
 
-    def get_remote_urls(self):
-        """Fetch remote source urls
+    def _get_remote_urls_helper(self, koji_build):
+        """Fetch remote source urls from specific build
 
+        :param koji_build: dict, koji build
         :return: str, URL pointing to remote sources
         """
-        self.log.debug('get remote_urls: %s', self.koji_build_id)
-        archives = self.session.listArchives(self.koji_build_id, type='remote-sources')
+        self.log.debug('get remote_urls: %s', koji_build['build_id'])
+        archives = self.session.listArchives(koji_build['build_id'], type='remote-sources')
         self.log.debug('archives: %s', archives)
-        remote_sources_path = self.pathinfo.typedir(self.koji_build, btype='remote-sources')
+        remote_sources_path = self.pathinfo.typedir(koji_build, btype='remote-sources')
         remote_sources_urls = []
 
         for archive in archives:
             if archive['type_name'] == 'tar':
-                remote_source = os.path.join(remote_sources_path, archive['filename'])
+                remote_source = {}
+                remote_source['url'] = os.path.join(remote_sources_path, archive['filename'])
+                remote_source['dest'] = '-'.join([koji_build['nvr'], archive['filename']])
                 remote_sources_urls.append(remote_source)
+        return remote_sources_urls
+
+    def get_remote_urls(self):
+        """Fetch remote source urls from all builds
+
+        :return: list, dicts with URL pointing to remote sources
+        """
+        remote_sources_urls = []
+
+        remote_sources_urls.extend(self._get_remote_urls_helper(self.koji_build))
+
+        koji_build = self.koji_build
+
+        while 'parent_build_id' in koji_build['extra']['image']:
+            koji_build = self.session.getBuild(koji_build['extra']['image']['parent_build_id'],
+                                               strict=True)
+            remote_sources_urls.extend(self._get_remote_urls_helper(koji_build))
 
         return remote_sources_urls
 
@@ -233,7 +254,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
                 url_candidate = self.assemble_srpm_url(base_url, srpm_filename, sigkey.lower())
                 request = req_session.head(url_candidate, verify=not insecure)
                 if request.ok:
-                    srpm_urls.append(url_candidate)
+                    srpm_urls.append({'url': url_candidate})
                     self.log.debug('%s is available for signing key "%s"', srpm_filename, sigkey)
                     break
 
