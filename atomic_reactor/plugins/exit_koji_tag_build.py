@@ -12,7 +12,6 @@ from atomic_reactor.constants import PLUGIN_KOJI_TAG_BUILD_KEY
 from atomic_reactor.koji_util import tag_koji_build
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
-from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 
 
@@ -77,11 +76,8 @@ class KojiTagBuildPlugin(ExitPlugin):
 
         build_id = self.workflow.exit_results.get(KojiImportPlugin.key)
         if not build_id:
-            build_id = self.workflow.exit_results.get(KojiPromotePlugin.key)
-            if not build_id:
-                self.log.info('No koji build from %s or %s', KojiImportPlugin.key,
-                              KojiPromotePlugin.key)
-                return
+            self.log.info('No koji build from %s', KojiImportPlugin.key)
+            return
 
         session = get_koji_session(self.workflow, self.koji_fallback)
         build_tag = tag_koji_build(session, build_id, self.target,

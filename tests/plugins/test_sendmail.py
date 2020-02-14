@@ -14,7 +14,6 @@ from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildP
 from atomic_reactor.plugins.exit_sendmail import SendMailPlugin, validate_address
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
-from atomic_reactor.plugins.exit_koji_promote import KojiPromotePlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
@@ -223,7 +222,7 @@ class TestSendMailPlugin(object):
                          reactor_config_map):
         class WF(object):
             exit_results = {
-                KojiPromotePlugin.key: MOCK_KOJI_BUILD_ID
+                KojiImportPlugin.key: MOCK_KOJI_BUILD_ID
             }
             plugin_workspace = {}
 
@@ -273,7 +272,7 @@ class TestSendMailPlugin(object):
             build_canceled = False
             tag_conf = TagConf()
             exit_results = {
-                KojiPromotePlugin.key: MOCK_KOJI_BUILD_ID
+                KojiImportPlugin.key: MOCK_KOJI_BUILD_ID
             }
             prebuild_results = {}
             plugin_workspace = {}
@@ -401,7 +400,7 @@ class TestSendMailPlugin(object):
             build_canceled = manual_cancel
             tag_conf = TagConf()
             exit_results = {
-                KojiPromotePlugin.key: MOCK_KOJI_BUILD_ID
+                KojiImportPlugin.key: MOCK_KOJI_BUILD_ID
             }
             prebuild_results = {}
             plugin_workspace = {}
@@ -577,7 +576,7 @@ class TestSendMailPlugin(object):
             build_canceled = False
             tag_conf = TagConf()
             exit_results = {
-                KojiPromotePlugin.key: MOCK_KOJI_BUILD_ID
+                KojiImportPlugin.key: MOCK_KOJI_BUILD_ID
             }
             prebuild_results = {}
             plugin_workspace = {}
@@ -660,12 +659,9 @@ class TestSendMailPlugin(object):
             (False, True, False, False, True, [MOCK_ADDITIONAL_EMAIL]),
             (False, True, True, False, False, [MOCK_ADDITIONAL_EMAIL]),
         ])
-    @pytest.mark.parametrize('use_import', [
-        (True, False)
-    ])
     def test_recepients_from_koji(self, monkeypatch, has_addit_address, has_koji_config,
                                   to_koji_submitter, has_original_task, to_koji_pkgowner,
-                                  expected_receivers, use_import, reactor_config_map):
+                                  expected_receivers, reactor_config_map):
         class TagConf(object):
             unique_images = []
 
@@ -675,14 +671,9 @@ class TestSendMailPlugin(object):
             build_process_failed = False
             tag_conf = TagConf()
             plugin_workspace = {}
-            if use_import:
-                exit_results = {
-                    KojiImportPlugin.key: MOCK_KOJI_BUILD_ID,
-                }
-            else:
-                exit_results = {
-                    KojiPromotePlugin.key: MOCK_KOJI_BUILD_ID,
-                }
+            exit_results = {
+                KojiImportPlugin.key: MOCK_KOJI_BUILD_ID,
+            }
             prebuild_results = {}
 
         meta_json = {
@@ -771,7 +762,7 @@ class TestSendMailPlugin(object):
             build_process_failed = False
             tag_conf = TagConf()
             exit_results = {
-                KojiPromotePlugin.key: MOCK_KOJI_BUILD_ID
+                KojiImportPlugin.key: MOCK_KOJI_BUILD_ID
             }
             plugin_workspace = {}
 
@@ -860,7 +851,7 @@ class TestSendMailPlugin(object):
             build_process_failed = False
             tag_conf = TagConf()
             exit_results = {
-                KojiPromotePlugin.key: koji_build_id
+                KojiImportPlugin.key: koji_build_id
             }
             plugin_workspace = {}
 

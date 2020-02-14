@@ -1,6 +1,6 @@
 ## Koji integration
 
-The `add_filesystem`, `koji`, `fetch_maven_artifacts`, `inject_parent_image` pre-build plugins and the `koji_promote` and `koji_tag_build` exit plugins provide integration with [Koji](https://docs.pagure.org/koji/).
+The `add_filesystem`, `koji`, `fetch_maven_artifacts`, `inject_parent_image` pre-build plugins, the `koji_upload` post-build plugin, and the `koji_import` and `koji_tag_build` exit plugins provide integration with [Koji](https://docs.pagure.org/koji/).
 
 ## Pre-build plugins
 
@@ -16,22 +16,19 @@ The `fetch_sources` pre-build plugins determines and pulls sources which should 
 
 The `inject_parent_image` pre-build plugin overwrites the parent image to be used based on a given Koji build.
 
+## Post-build plugins
+
+`koji_upload` runs as a post build plugin in the worker build to upload platform specific information to koji, and capture platform specifc metadata.
+
 ## Exit plugins
 
-The `koji_promote` exit plugin uses the [Koji Content Generator API](https://docs.pagure.org/koji/content_generators/) to import the built image, and logs generated during the build, into Koji.
+`koji_import` runs as an exit plugin in the orchestrator build to gather the platform specific
+metadata from each worker build and combine into a single build to be imported into Koji via
+[Koji Content Generator API](https://docs.pagure.org/koji/content_generators/).
 
 When importing a build using the Content Generator API, metadata to describe the build is generated. This follows [the metadata format specification](https://docs.pagure.org/koji/content_generator_metadata/) but in some cases content generators are free to choose how metadata is expressed.
 
 Each build creates a single output archive, in the [Combined Image JSON + Filesystem Changeset format](https://github.com/docker/docker/blob/master/image/spec/v1.2.md#combined-image-json--filesystem-changeset-format).
-
-This plugin will also tag the imported build, if `koji_tag_build` is *not* configured. Otherwise, it assumes `koji_tag_build` will perform build tagging.
-
-The `koji_upload` and `koji_import` plugins work in conjuction as a replacement to `koji_promote`.
-`koji_upload` runs as a post build plugin in the worker build to upload platform specific to koji,
-and capture platform specifc metadata.
-`koji_import` runs as an exit plugin in the orchestrator build to gather the platform specific
-metadata from each worker build and combine into a single build to be imported into Koji via
-[Koji Content Generator API](https://docs.pagure.org/koji/content_generators/).
 
 The `koji_tag_build` exit plugin is used to tag the imported koji build based on a target. [Koji Tags and Targets](https://docs.pagure.org/koji/#tags-and-targets)
 
