@@ -34,7 +34,10 @@ KOJI_HUB = 'http://koji.com/hub'
 KOJI_ROOT = 'http://koji.localhost/kojiroot'
 KOJI_UPLOAD_TEST_WORKDIR = 'temp_workdir'
 KOJI_BUILD = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1, 'release': 1,
-              'extra': {'image': {}, 'operator-manifests': {}}}
+              'extra': {'image': {'parent_build_id': 10}, 'operator-manifests': {}}}
+KOJI_PARENT_BUILD = {'build_id': 10, 'nvr': 'parent-1-1', 'name': 'parent', 'version': 1,
+                     'release': 1,
+                     'extra': {'image': {''}, 'operator-manifests': {}}}
 constants.HTTP_BACKOFF_FACTOR = 0
 REMOTE_SOURCES_FILE = 'remote-source.tar.gz'
 
@@ -158,7 +161,18 @@ def koji_session():
     (flexmock(session)
      .should_receive('getRPMHeaders')
      .and_return({'SOURCERPM': 'foobar-1-1.src.rpm'}))
-    flexmock(session).should_receive('getBuild').and_return(KOJI_BUILD)
+    (flexmock(session)
+     .should_receive('getBuild')
+     .with_args(KOJI_BUILD['build_id'], strict=True)
+     .and_return(KOJI_BUILD))
+    (flexmock(session)
+     .should_receive('getBuild')
+     .with_args(KOJI_BUILD['nvr'], strict=True)
+     .and_return(KOJI_BUILD))
+    (flexmock(session)
+     .should_receive('getBuild')
+     .with_args(KOJI_PARENT_BUILD['build_id'], strict=True)
+     .and_return(KOJI_PARENT_BUILD))
     flexmock(session).should_receive('krb_login').and_return(True)
     flexmock(koji).should_receive('ClientSession').and_return(session)
     return session
@@ -174,9 +188,9 @@ def get_srpm_url(sign_key=None, srpm_filename_override=None):
         return '{}/data/signed/{}/src/{}'.format(base, sign_key, filename)
 
 
-def get_remote_url():
-    base = '{}/packages/{}/{}/{}'.format(KOJI_ROOT, KOJI_BUILD['name'], KOJI_BUILD['version'],
-                                         KOJI_BUILD['release'])
+def get_remote_url(koji_build):
+    base = '{}/packages/{}/{}/{}'.format(KOJI_ROOT, koji_build['name'], koji_build['version'],
+                                         koji_build['release'])
     return '{}/files/remote-sources/{}'.format(base, REMOTE_SOURCES_FILE)
 
 
@@ -210,7 +224,8 @@ def mock_koji_manifest_download(requests_mock, retries=0):
     def body_remote_callback(request, context):
         f = MockBytesIO(b"remote sources content")
         return f
-    requests_mock.register_uri('GET', get_remote_url(), body=body_remote_callback)
+    requests_mock.register_uri('GET', get_remote_url(KOJI_BUILD), body=body_remote_callback)
+    requests_mock.register_uri('GET', get_remote_url(KOJI_PARENT_BUILD), body=body_remote_callback)
 
 class TestFetchSources(object):
     @pytest.mark.parametrize('retries', (0, 1, constants.HTTP_MAX_RETRIES + 1))
@@ -239,12 +254,15 @@ class TestFetchSources(object):
             orig_build_id = results['sources_for_koji_build_id']
             orig_build_nvr = results['sources_for_nvr']
             sources_list = os.listdir(sources_dir)
-            remote_list = os.listdir(remote_sources_dir)
+            remote_list = set(os.listdir(remote_sources_dir))
             assert orig_build_id == 1
             assert orig_build_nvr == 'foobar-1-1'
             assert len(sources_list) == 1
             assert sources_list[0] == '.'.join([KOJI_BUILD['nvr'], 'src', 'rpm'])
-            assert remote_list[0] == REMOTE_SOURCES_FILE
+            expected_remotes = set()
+            expected_remotes.add('-'.join([KOJI_BUILD['nvr'], REMOTE_SOURCES_FILE]))
+            expected_remotes.add('-'.join([KOJI_PARENT_BUILD['nvr'], REMOTE_SOURCES_FILE]))
+            assert remote_list == expected_remotes
             with open(os.path.join(sources_dir, sources_list[0]), 'rb') as f:
                 assert f.read() == b'Source RPM'
             if signing_intent in ['unsigned, empty']:
