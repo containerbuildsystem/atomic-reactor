@@ -929,6 +929,8 @@ def get_manifest(image, registry_session, version):
     try:
         response = query_registry(registry_session, image, digest=None, version=version)
     except (HTTPError, RetryError) as ex:
+        if ex.response is None:
+            raise
         if ex.response.status_code == requests.codes.not_found:
             saved_not_found = ex
         # If the registry has a v2 manifest that can't be converted into a v1
