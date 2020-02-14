@@ -15,6 +15,7 @@ import os
 import tempfile
 import pytest
 import requests
+from requests.exceptions import HTTPError, RetryError
 import responses
 import inspect
 import signal
@@ -1197,6 +1198,11 @@ def test_osbs_logs_get_log_files(tmpdir):
         assert entry[1] == metadata[entry[1]['filename']]
 
 
+@pytest.mark.parametrize('raise_error', [
+    HTTPError,
+    RetryError,
+    None,
+])
 @pytest.mark.parametrize('insecure', [
     True,
     False,
@@ -1218,7 +1224,7 @@ def test_osbs_logs_get_log_files(tmpdir):
      '/v2/spam/manifests/latest'),
 ])
 @responses.activate
-def test_get_manifest_list(tmpdir, image, registry, insecure, creds, path):
+def test_get_manifest_list(tmpdir, raise_error, image, registry, insecure, creds, path):
     kwargs = {}
 
     image = ImageName.parse(image)
@@ -1242,6 +1248,9 @@ def test_get_manifest_list(tmpdir, image, registry, insecure, creds, path):
     def request_callback(request, all_headers=True):
         if creds and creds[0] and creds[1]:
             assert request.headers['Authorization']
+
+        if raise_error:
+            raise raise_error('request test error')
 
         media_type = request.headers['Accept']
         if media_type.endswith('list.v2+json'):
@@ -1276,6 +1285,12 @@ def test_get_manifest_list(tmpdir, image, registry, insecure, creds, path):
         else:
             url = 'https://' + registry + path
     responses.add_callback(responses.GET, url, callback=request_callback)
+
+    if raise_error:
+        with pytest.raises(raise_error) as e:
+            get_manifest_list(**kwargs)
+        assert 'request test error' in str(e.value)
+        return
 
     manifest_list = get_manifest_list(**kwargs)
     assert manifest_list
