@@ -13,7 +13,7 @@ import koji
 from osbs.repo_utils import ModuleSpec
 from atomic_reactor.koji_util import (koji_login, create_koji_session,
                                       TaskWatcher, tag_koji_build,
-                                      get_koji_module_build)
+                                      get_koji_module_build, KojiUploadLogger)
 from atomic_reactor import koji_util
 from atomic_reactor.plugin import BuildCanceledException
 from atomic_reactor.constants import (KOJI_MAX_RETRIES, KOJI_RETRY_INTERVAL,
@@ -366,3 +366,38 @@ class TestGetKojiModuleBuild(object):
         else:
             self.mock_get_rpms(session)
             get_koji_module_build(session, spec)
+
+
+class TestKojiUploadLogger(object):
+    @pytest.mark.parametrize('totalsize', [0, 1024])
+    def test_with_zero(self, totalsize):
+        logger = flexmock()
+        logger.should_receive('debug').once()
+        upload_logger = KojiUploadLogger(logger)
+        upload_logger.callback(0, totalsize, 0, 0, 0)
+
+    @pytest.mark.parametrize(('totalsize', 'step', 'expected_times'), [
+        (10, 1, 11),
+        (12, 1, 7),
+        (12, 3, 5),
+    ])
+    def test_with_defaults(self, totalsize, step, expected_times):
+        logger = flexmock()
+        logger.should_receive('debug').times(expected_times)
+        upload_logger = KojiUploadLogger(logger)
+        upload_logger.callback(0, totalsize, 0, 0, 0)
+        for offset in range(step, totalsize + step, step):
+            upload_logger.callback(offset, totalsize, step, 1.0, 1.0)
+
+    @pytest.mark.parametrize(('totalsize', 'step', 'notable', 'expected_times'), [
+        (10, 1, 10, 11),
+        (10, 1, 20, 6),
+        (10, 1, 25, 5),
+        (12, 3, 25, 5),
+    ])
+    def test_with_notable(self, totalsize, step, notable, expected_times):
+        logger = flexmock()
+        logger.should_receive('debug').times(expected_times)
+        upload_logger = KojiUploadLogger(logger, notable_percent=notable)
+        for offset in range(0, totalsize + step, step):
+            upload_logger.callback(offset, totalsize, step, 1.0, 1.0)
