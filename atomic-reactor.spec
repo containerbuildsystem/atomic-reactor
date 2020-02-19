@@ -74,6 +74,7 @@ Requires:       python3-dockerfile-parse >= 0.0.11
 Requires:       python3-docker-squash >= 1.0.7
 Requires:       python3-jsonschema
 Requires:       python3-PyYAML
+Requires:       python3-ruamel-yaml
 Requires:       python3-rpm
 Requires:       python3-six
 Requires:       skopeo
@@ -141,6 +142,7 @@ Requires:       python-backports-lzma
 Requires:       python-jsonschema
 Requires:       python-six
 Requires:       PyYAML
+Requires:       python2-ruamel-yaml
 Requires:       skopeo
 %if 0%{?fedora}
 Requires:       python2-rpm

@@ -1624,3 +1624,24 @@ def get_platform_config(platform, build_annotations):
     cm_key = cm_key_tmp[cmlen:]
 
     return cm_key, cm_frag_key
+
+
+def chain_get(d, path, default=None):
+    """
+    Traverse nested dicts/lists (typically in data loaded from yaml/json)
+    according to keys/indices in `path`, return found value.
+
+    If any of the lookups would fail, return `default`.
+
+    :param d: Data to chain-get a value from (a dict)
+    :param path: List of keys/indices specifying a path in the data
+    :param default: Value to return if any key/index lookup fails along the way
+    :return: Value found in data or `default`
+    """
+    obj = d
+    for key_or_index in path:
+        try:
+            obj = obj[key_or_index]
+        except (IndexError, KeyError):
+            return default
+    return obj
