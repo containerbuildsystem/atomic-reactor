@@ -17,7 +17,7 @@ import zipfile
 from atomic_reactor.constants import (PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
                                       OPERATOR_MANIFESTS_ARCHIVE)
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.util import is_scratch_build, has_operator_manifest
+from atomic_reactor.util import is_scratch_build, has_operator_appregistry_manifest
 from docker.errors import APIError
 from platform import machine
 
@@ -61,7 +61,7 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
         if is_scratch_build():
             self.log.info("Scratch build. Skipping")
             return False
-        if not has_operator_manifest(self.workflow):
+        if not has_operator_appregistry_manifest(self.workflow):
             self.log.info("Operator manifests label not set in Dockerfile. Skipping")
             return False
         return True

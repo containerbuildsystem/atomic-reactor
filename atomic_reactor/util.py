@@ -1570,9 +1570,9 @@ def exception_message(exc):
     return '{exc.__class__.__name__}: {exc}'.format(exc=exc)
 
 
-def has_operator_manifest(workflow):
+def has_operator_appregistry_manifest(workflow):
     """
-    Check if Dockerfile sets the operator manifest label
+    Check if Dockerfile sets the operator manifest appregistry label
 
     :return: bool
     """
