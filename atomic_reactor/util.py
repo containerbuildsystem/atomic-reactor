@@ -1570,19 +1570,32 @@ def exception_message(exc):
     return '{exc.__class__.__name__}: {exc}'.format(exc=exc)
 
 
+def _has_label_flag(workflow, label):
+    dockerfile = df_parser(workflow.builder.df_path, workflow=workflow)
+    labels = Labels(dockerfile.labels)
+    try:
+        _, value = labels.get_name_and_value(label)
+    except KeyError:
+        value = 'false'
+    return value.lower() == 'true'
+
+
 def has_operator_appregistry_manifest(workflow):
     """
     Check if Dockerfile sets the operator manifest appregistry label
 
     :return: bool
     """
-    dockerfile = df_parser(workflow.builder.df_path, workflow=workflow)
-    labels = Labels(dockerfile.labels)
-    try:
-        _, operator_label = labels.get_name_and_value(Labels.LABEL_TYPE_OPERATOR_MANIFESTS)
-    except KeyError:
-        operator_label = 'false'
-    return operator_label.lower() == 'true'
+    return _has_label_flag(workflow, Labels.LABEL_TYPE_OPERATOR_MANIFESTS)
+
+
+def has_operator_bundle_manifest(workflow):
+    """
+    Check if Dockerfile sets the operator manifest bundle label
+
+    :return: bool
+    """
+    return _has_label_flag(workflow, Labels.LABEL_TYPE_OPERATOR_BUNDLE_MANIFESTS)
 
 
 class BadConfigMapError(Exception):
