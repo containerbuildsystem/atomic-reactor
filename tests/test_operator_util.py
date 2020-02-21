@@ -14,7 +14,7 @@ import pytest
 from ruamel.yaml import YAML
 
 from atomic_reactor.util import ImageName, chain_get
-from atomic_reactor.operator_util import OperatorCSV
+from atomic_reactor.operator_util import OperatorCSV, OperatorManifest, NotOperatorCSV
 
 
 yaml = YAML()
@@ -84,6 +84,7 @@ PULLSPECS = {p.name: p for p in [FOO, BAR, SPAM, EGGS, HAM, JAM]}
 
 ORIGINAL_CONTENT = """\
 # A meaningful comment
+kind: ClusterServiceVersion
 spec:
   relatedImages:
   - name: foo
@@ -132,6 +133,7 @@ random:
 
 REPLACED_CONTENT = """\
 # A meaningful comment
+kind: ClusterServiceVersion
 spec:
   relatedImages:
   - name: foo
@@ -180,6 +182,7 @@ random:
 
 REPLACED_EVERYWHERE_CONTENT = """\
 # A meaningful comment
+kind: ClusterServiceVersion
 spec:
   relatedImages:
   - name: foo
@@ -245,6 +248,19 @@ REPLACED_EVERYWHERE = CSVFile(REPLACED_EVERYWHERE_CONTENT)
 class TestOperatorCSV(object):
     _original_pullspecs = {p.value for p in PULLSPECS.values()}
     _replacement_pullspecs = {p.value: p.replace for p in PULLSPECS.values()}
+
+    def test_wrong_kind(self):
+        data = ORIGINAL.data
+
+        del data["kind"]
+        with pytest.raises(NotOperatorCSV) as exc_info:
+            OperatorCSV("original.yaml", data)
+        assert str(exc_info.value) == "Not a ClusterServiceVersion"
+
+        data["kind"] = "ClusterResourceDefinition"
+        with pytest.raises(NotOperatorCSV) as exc_info:
+            OperatorCSV("original.yaml", data)
+        assert str(exc_info.value) == "Not a ClusterServiceVersion"
 
     def test_from_file(self, tmpdir):
         path = tmpdir.join("original.yaml")
@@ -369,3 +385,43 @@ class TestOperatorCSV(object):
             csv.get_pullspecs()
 
         assert '"valueFrom" references are not supported' in str(exc_info.value)
+
+
+class TestOperatorManifest(object):
+    def test_from_directory(self, tmpdir):
+        subdir = tmpdir.mkdir("nested")
+
+        original = tmpdir.join("original.yaml")
+        original.write(ORIGINAL.content)
+        replaced = subdir.join("replaced.yaml")
+        replaced.write(REPLACED.content)
+
+        manifest = OperatorManifest.from_directory(str(tmpdir))
+
+        original_csv = manifest.files[0]
+        replaced_csv = manifest.files[1]
+
+        assert original_csv.path == str(original)
+        assert replaced_csv.path == str(replaced)
+
+        assert original_csv.data == ORIGINAL.data
+        assert replaced_csv.data == REPLACED.data
+
+    def test_from_directory_no_csvs(self, tmpdir):
+        subdir = tmpdir.mkdir("nested")
+
+        original = tmpdir.join("original.yaml")
+        replaced = subdir.join("replaced.yaml")
+
+        original_data = ORIGINAL.data
+        original_data["kind"] = "IDK"
+        with open(str(original), "w") as f:
+            yaml.dump(original_data, f)
+
+        replaced_data = REPLACED.data
+        del replaced_data["kind"]
+        with open(str(replaced), "w") as f:
+            yaml.dump(replaced_data, f)
+
+        manifest = OperatorManifest.from_directory(str(tmpdir))
+        assert manifest.files == []
