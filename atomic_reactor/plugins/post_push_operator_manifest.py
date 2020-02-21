@@ -27,6 +27,7 @@ from atomic_reactor.util import (
     is_isolated_build,
     is_scratch_build,
     has_operator_appregistry_manifest,
+    has_operator_bundle_manifest,
     get_retrying_requests_session,
 )
 
@@ -52,6 +53,12 @@ class PushOperatorManifestsPlugin(PostBuildPlugin):
 
         if not get_omps_config(self.workflow, None):
             self.log.info("Integration with OMPS is not configured. Skipping")
+            return False
+
+        if has_operator_bundle_manifest(self.workflow):
+            self.log.info(
+                "Operator bundle format is not compatible with appregistry. "
+                "Skipping publishing into appregistry.")
             return False
 
         if not has_operator_appregistry_manifest(self.workflow):
