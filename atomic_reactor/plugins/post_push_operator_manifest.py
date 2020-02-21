@@ -26,7 +26,7 @@ from atomic_reactor.plugins.pre_reactor_config import (
 from atomic_reactor.util import (
     is_isolated_build,
     is_scratch_build,
-    has_operator_manifest,
+    has_operator_appregistry_manifest,
     get_retrying_requests_session,
 )
 
@@ -54,7 +54,7 @@ class PushOperatorManifestsPlugin(PostBuildPlugin):
             self.log.info("Integration with OMPS is not configured. Skipping")
             return False
 
-        if not has_operator_manifest(self.workflow):
+        if not has_operator_appregistry_manifest(self.workflow):
             self.log.info("Not an operator build. Skipping")
             return False
 
