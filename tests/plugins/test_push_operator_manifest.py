@@ -34,6 +34,7 @@ from atomic_reactor.omps_util import OMPS, OMPSError
 
 from tests.constants import TEST_IMAGE
 from tests.stubs import StubInsideBuilder, StubSource
+from tests.plugins.test_export_operator_manifests import mock_dockerfile
 
 
 KOJIROOT_TEST_URL = 'http://koji.localhost/kojiroot'
@@ -43,16 +44,6 @@ TEST_OMPS_NAMESPACE = 'test_org'
 TEST_OMPS_APPREGISTRY = 'https://quay.io./cnr'
 TEST_OMPS_REPO = 'test_repo'
 TEST_OMPS_VERSION = '0.0.1'
-
-
-def mock_dockerfile(tmpdir, has_label=True, label=True):
-    base = 'From fedora:30'
-    cmd = 'CMD /bin/cowsay moo'
-    operator_label = ''
-    if has_label:
-        operator_label = 'LABEL com.redhat.delivery.appregistry={}'.format(str(label).lower())
-    data = '\n'.join([base, operator_label, cmd])
-    tmpdir.join('Dockerfile').write(data)
 
 
 class MockSource(StubSource):
@@ -105,7 +96,9 @@ def mock_koji_manifest_download(requests_mock):
     requests_mock.register_uri('GET', url, content=b'zip archive')
 
 
-def mock_env(tmpdir, docker_tasker, has_label=True, label=True,
+def mock_env(tmpdir, docker_tasker,
+             has_appregistry_label=True, appregistry_label=True,
+             has_bundle_label=False, bundle_label=False,
              scratch=False, isolated=False, rebuild=False,
              orchestrator=True, omps_configured=True, omps_push_fail=False):
     build_json = {'metadata': {'labels': {
@@ -113,7 +106,11 @@ def mock_env(tmpdir, docker_tasker, has_label=True, label=True,
         'isolated': isolated,
     }}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
-    mock_dockerfile(tmpdir, has_label, label)
+    mock_dockerfile(
+        tmpdir,
+        has_appregistry_label=has_appregistry_label, appregistry_label=appregistry_label,
+        has_bundle_label=has_bundle_label, bundle_label=bundle_label,
+    )
     workflow = mock_workflow(tmpdir, for_orchestrator=orchestrator)
     if omps_configured:
         omps_map = {
@@ -149,28 +146,36 @@ def mock_env(tmpdir, docker_tasker, has_label=True, label=True,
 
 class TestPushOperatorManifests(object):
 
-    @pytest.mark.parametrize('has_label', [True, False])
-    @pytest.mark.parametrize('label', [True, False])
+    @pytest.mark.parametrize('has_appregistry_label', [True, False])
+    @pytest.mark.parametrize('appregistry_label', [True, False])
+    @pytest.mark.parametrize('has_bundle_label', [True, False])
+    @pytest.mark.parametrize('bundle_label', [True, False])
     @pytest.mark.parametrize('scratch', [True, False])
     @pytest.mark.parametrize('isolated', [True, False])
     @pytest.mark.parametrize('rebuild', [True, False])
     @pytest.mark.parametrize('orchestrator', [True, False])
     @pytest.mark.parametrize('omps_configured', [True, False])
     def test_skip(
-        self, requests_mock, tmpdir, docker_tasker, caplog, has_label, label, scratch,
+        self, requests_mock, tmpdir, docker_tasker, caplog,
+        has_appregistry_label, appregistry_label,
+        has_bundle_label, bundle_label, scratch,
         isolated, rebuild, orchestrator, omps_configured
     ):
         """Test if plugin execution is skipped in expected cases"""
         mock_koji_manifest_download(requests_mock)
-        runner = mock_env(tmpdir, docker_tasker, has_label=has_label,
-                          label=label,
+        runner = mock_env(tmpdir, docker_tasker,
+                          has_appregistry_label=has_appregistry_label,
+                          appregistry_label=appregistry_label,
+                          has_bundle_label=has_bundle_label,
+                          bundle_label=bundle_label,
                           scratch=scratch,
                           isolated=isolated,
                           rebuild=rebuild,
                           orchestrator=orchestrator,
                           omps_configured=omps_configured)
         should_skip = any([
-            not has_label, not label,
+            not (has_appregistry_label and appregistry_label),
+            has_bundle_label and bundle_label,
             scratch, rebuild, isolated,
             not orchestrator, not omps_configured
         ])
