@@ -53,13 +53,17 @@ from atomic_reactor.constants import (
     KOJI_KIND_IMAGE_BUILD,
     KOJI_KIND_IMAGE_SOURCE_BUILD,
     KOJI_SUBTYPE_OP_APPREGISTRY,
+    KOJI_SUBTYPE_OP_BUNDLE,
     KOJI_SOURCE_ENGINE,
 )
 from atomic_reactor.util import (Output, get_build_json,
                                  df_parser, ImageName, get_primary_images,
                                  get_floating_images, get_unique_images,
                                  get_manifest_media_type,
-                                 get_digests_map_from_annotations, is_scratch_build)
+                                 get_digests_map_from_annotations, is_scratch_build,
+                                 has_operator_bundle_manifest,
+                                 has_operator_appregistry_manifest,
+                                 )
 from atomic_reactor.koji_util import (KojiUploadLogger, get_koji_task_owner)
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session, get_koji
 from atomic_reactor.metadata import label
@@ -432,8 +436,10 @@ class KojiImportPlugin(ExitPlugin):
             self.set_group_manifest_info(extra, worker_metadatas)
             extra['osbs_build']['kind'] = KOJI_KIND_IMAGE_BUILD
             extra['osbs_build']['engine'] = self.workflow.builder.tasker.build_method
-            if 'operator_manifests' in extra:
+            if has_operator_appregistry_manifest(self.workflow):
                 extra['osbs_build']['subtypes'].append(KOJI_SUBTYPE_OP_APPREGISTRY)
+            if has_operator_bundle_manifest(self.workflow):
+                extra['osbs_build']['subtypes'].append(KOJI_SUBTYPE_OP_BUNDLE)
         else:
             source_result = self.workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY]
             extra['image']['sources_for_nvr'] = source_result['sources_for_nvr']

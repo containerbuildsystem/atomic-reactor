@@ -92,7 +92,7 @@ General build info metadata is placed in `build.extra.osbs_build`.
 
 Data which is placed here includes:
 - `build.extra.osbs_build.kind` (string): build kind, either container_build or source_container_build
-- `build.extra.osbs_build.subtypes`(str list): build subtypes: flatpak, operator_appregistry and others might be added in future
+- `build.extra.osbs_build.subtypes`(str list): build subtypes: flatpak, operator_appregistry, operator_bundle and others might be added in future
 - `build.extra.osbs_build.engine` (string): build engine to build image, bsi (for source containers), docker_api, imagebuilder, buildah_bud
 
 # Type-specific source container build metadata

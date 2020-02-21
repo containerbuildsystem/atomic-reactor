@@ -49,6 +49,7 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_
                                       KOJI_KIND_IMAGE_BUILD,
                                       KOJI_KIND_IMAGE_SOURCE_BUILD,
                                       KOJI_SUBTYPE_OP_APPREGISTRY,
+                                      KOJI_SUBTYPE_OP_BUNDLE,
                                       KOJI_SOURCE_ENGINE)
 from tests.constants import SOURCE, MOCK
 from tests.flatpak import MODULEMD_AVAILABLE, setup_flatpak_source_info
@@ -237,7 +238,9 @@ def mock_environment(tmpdir, session=None, name=None,
                      task_states=None, additional_tags=None,
                      has_config=None, add_tag_conf_primaries=True,
                      add_build_result_primaries=False, container_first=False,
-                     yum_repourls=None, has_operator_manifests=False,
+                     yum_repourls=None,
+                     has_op_appregistry_manifests=False,
+                     has_op_bundle_manifests=False,
                      push_operator_manifests_enabled=False, source_build=False,
                      has_remote_source=False, build_method='docker'):
     if session is None:
@@ -270,6 +273,10 @@ def mock_environment(tmpdir, session=None, name=None,
                  'LABEL Version={version} version={version}\n'
                  'LABEL Release={release} release={release}\n'
                  .format(component=component, version=version, release=release))
+        if has_op_appregistry_manifests:
+            df.write('LABEL com.redhat.delivery.appregistry=true\n')
+        if has_op_bundle_manifests:
+            df.write('LABEL com.redhat.delivery.operator.bundle=true\n')
         setattr(workflow.builder, 'df_path', df.name)
     if container_first:
         with open(os.path.join(str(tmpdir), 'container.yaml'), 'wt') as container_conf:
@@ -508,7 +515,7 @@ def mock_environment(tmpdir, session=None, name=None,
             ]
         }
     }
-    if has_operator_manifests:
+    if has_op_appregistry_manifests or has_op_bundle_manifests:
         manifests_entry = {
             'type': 'log',
             'filename': OPERATOR_MANIFESTS_ARCHIVE,
@@ -2126,10 +2133,13 @@ class TestKojiImport(object):
         else:
             assert 'yum_repourls' not in image
 
-    @pytest.mark.parametrize('has_manifests', [True, False])
+    @pytest.mark.parametrize('has_appregistry_manifests', [True, False])
+    @pytest.mark.parametrize('has_bundle_manifests', [True, False])
     @pytest.mark.parametrize('push_operator_manifests', [True, False])
-    def test_set_operators_metadata(self, tmpdir, os_env, has_manifests, reactor_config_map,
-                                    push_operator_manifests):
+    def test_set_operators_metadata(
+            self, tmpdir, os_env,
+            has_appregistry_manifests, has_bundle_manifests,
+            reactor_config_map, push_operator_manifests):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(
             tmpdir,
@@ -2137,7 +2147,8 @@ class TestKojiImport(object):
             version='1.0',
             release='1',
             session=session,
-            has_operator_manifests=has_manifests,
+            has_op_appregistry_manifests=has_appregistry_manifests,
+            has_op_bundle_manifests=has_bundle_manifests,
             push_operator_manifests_enabled=push_operator_manifests)
 
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
@@ -2149,10 +2160,11 @@ class TestKojiImport(object):
         assert isinstance(build, dict)
         assert 'extra' in build
         extra = build['extra']
+
         assert isinstance(extra, dict)
         assert 'osbs_build' in extra
         osbs_build = extra['osbs_build']
-        if has_manifests:
+        if has_appregistry_manifests or has_bundle_manifests:
             assert 'operator_manifests_archive' in extra
             operator_manifests = extra['operator_manifests_archive']
             assert isinstance(operator_manifests, str)
@@ -2170,10 +2182,15 @@ class TestKojiImport(object):
         # results independently so test it this way
         if push_operator_manifests:
             assert extra['operator_manifests']['appregistry'] == PUSH_OPERATOR_MANIFESTS_RESULTS
-            assert osbs_build['subtypes'] == [KOJI_SUBTYPE_OP_APPREGISTRY]
         else:
             assert 'operator_manifests' not in extra
-            assert osbs_build['subtypes'] == []
+
+        assert osbs_build['subtypes'] == [
+            stype for yes, stype in [
+                (has_appregistry_manifests, KOJI_SUBTYPE_OP_APPREGISTRY),
+                (has_bundle_manifests, KOJI_SUBTYPE_OP_BUNDLE)
+            ] if yes
+        ]
 
     @pytest.mark.parametrize('has_remote_source', [True, False])
     def test_remote_sources(self, tmpdir, os_env, has_remote_source, reactor_config_map):
