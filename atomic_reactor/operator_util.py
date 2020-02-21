@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import absolute_import, unicode_literals
 
+import os
 import logging
 
 from ruamel.yaml import YAML
@@ -20,6 +21,15 @@ yaml = YAML()
 log = logging.getLogger(__name__)
 
 
+OPERATOR_CSV_KIND = "ClusterServiceVersion"
+
+
+class NotOperatorCSV(Exception):
+    """
+    Data is not from a valid ClusterServiceVersion document
+    """
+
+
 class OperatorCSV(object):
     """
     A single ClusterServiceVersion file in an operator manifest.
@@ -28,6 +38,14 @@ class OperatorCSV(object):
     """
 
     def __init__(self, path, data):
+        """
+        Initialize an OperatorCSV
+
+        :param path: Path where data was found or where it should be written
+        :param data: ClusterServiceVersion yaml data
+        """
+        if data.get("kind") != OPERATOR_CSV_KIND:
+            raise NotOperatorCSV("Not a ClusterServiceVersion")
         self.path = path
         self.data = data
 
@@ -173,3 +191,47 @@ class OperatorCSV(object):
             # Doesn't matter if string was not a pullspec, it will simply not match anything
             # in replacement_pullspecs and no replacement will be done
             self._replace_pullspec(obj, k_or_i, replacement_pullspecs, log_template)
+
+
+class OperatorManifest(object):
+    """
+    A collection of operator files.
+
+    Currently, only ClusterServiceVersion files are considered relevant.
+    """
+
+    def __init__(self, files):
+        """
+        Initialize an OperatorManifest
+
+        :param files: list of OperatorCSVs
+        """
+        self.files = files
+
+    @classmethod
+    def from_directory(cls, path):
+        """
+        Make an OperatorManifest from all the relevant files found in
+        a directory (or its subdirectories)
+
+        :param path: Path to directory
+        :return: OperatorManifest
+        """
+        yaml_files = cls._get_yaml_files(path)
+        operator_csvs = list(cls._get_csvs(yaml_files))
+        return cls(operator_csvs)
+
+    @classmethod
+    def _get_yaml_files(cls, dirpath):
+        for d, _, files in os.walk(dirpath):
+            for f in files:
+                if f.endswith(".yaml") or f.endswith(".yml"):
+                    yield os.path.join(d, f)
+
+    @classmethod
+    def _get_csvs(cls, yaml_files):
+        for f in yaml_files:
+            try:
+                yield OperatorCSV.from_file(f)
+            except NotOperatorCSV:
+                pass
