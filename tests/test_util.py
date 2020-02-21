@@ -58,7 +58,10 @@ from atomic_reactor.util import (ImageName, wait_for_command,
                                  read_yaml, read_yaml_from_file_path, OSBSLogs,
                                  get_platforms_in_limits, get_orchestrator_platforms,
                                  dump_stacktraces, setup_introspection_signal_handler,
-                                 allow_repo_dir_in_dockerignore)
+                                 allow_repo_dir_in_dockerignore,
+                                 has_operator_appregistry_manifest,
+                                 has_operator_bundle_manifest,
+                                 )
 from tests.constants import (DOCKERFILE_GIT,
                              INPUT_IMAGE, MOCK, MOCK_SOURCE,
                              REACTOR_CONFIG_MAP)
@@ -1642,3 +1645,49 @@ def test_allow_repo_dir_in_dockerignore(tmpdir, dockerignore_exists):
 
         assert ignore_lines[0:len(ignore_content)] == ignore_content
         assert ignore_lines[-1] == added_lines
+
+
+@pytest.mark.parametrize('labels,f_true,f_false', [
+    (
+        ['com.redhat.delivery.appregistry=true'],
+        [has_operator_appregistry_manifest],
+        [has_operator_bundle_manifest],
+    ),
+    (
+        ['com.redhat.delivery.operator.bundle=true'],
+        [has_operator_bundle_manifest],
+        [has_operator_appregistry_manifest],
+    ),
+    (
+        ['com.redhat.delivery.operator.bundle=true',
+         'com.redhat.delivery.appregistry=true'],
+        [has_operator_bundle_manifest, has_operator_appregistry_manifest],
+        [],
+    ),
+    (
+        ['com.redhat.delivery.operator.bundle=meh',
+         'com.redhat.delivery.appregistry=meh'],
+        [],
+        [has_operator_bundle_manifest, has_operator_appregistry_manifest],
+    )
+
+])
+def test_has_operator_manifest(tmpdir, workflow, labels, f_true, f_false):
+    df_content = dedent("""\
+        FROM fedora
+        ENV foo=bar
+        """)
+    for label in labels:
+        df_content += 'LABEL {}\n'.format(label)
+    workflow.source = StubSource()
+    workflow.builder = StubInsideBuilder()
+    cont_path = os.path.join(str(tmpdir), 'Dockerfile')
+    with open(cont_path, 'w') as f:
+        f.write(df_content)
+    workflow.builder.df_path = cont_path
+
+    for func in f_true:
+        assert func(workflow), 'Label not properly detected'
+
+    for func in f_false:
+        assert not func(workflow), 'Label false positively detected'
