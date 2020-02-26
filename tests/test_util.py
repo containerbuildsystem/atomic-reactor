@@ -107,13 +107,6 @@ TEST_DATA = {
 }
 
 
-class CustomTestException(Exception):
-    """
-    Custom Exception used to prematurely end function call
-    """
-    pass
-
-
 def test_image_name_parse():
     for inp, parsed in TEST_DATA.items():
         assert ImageName.parse(inp) == parsed

@@ -36,6 +36,7 @@ disable=I,
         comprehension-escape, # throws false positives on 1.9.0 (Fedora 29)
         deprecated-lambda,  # nice to have
         fixme,
+        import-outside-toplevel,
         import-error,  # requires to having all modules installed
         invalid-name,
         len-as-condition,  # nice to have
