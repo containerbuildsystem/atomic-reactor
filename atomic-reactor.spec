@@ -27,7 +27,7 @@
 
 Name:           %{project}
 Version:        1.6.49
-Release:        1%{?dist}
+Release:        2%{?dist}
 
 Summary:        Improved builder for Docker images
 Group:          Development/Tools
@@ -257,7 +257,6 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %{python3_sitelib}/atomic_reactor/schemas
 %{python3_sitelib}/atomic_reactor/__pycache__/*.py*
 %exclude %{python3_sitelib}/atomic_reactor/koji_util.py
-%exclude %{python3_sitelib}/atomic_reactor/plugins/exit_koji_promote.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_koji_import.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_sendmail.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py
@@ -270,7 +269,6 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_koji_parent.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_inject_parent_image.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/pre_fetch_maven_artifacts.py*
-%exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_promote*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_import*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_sendmail*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_store_metadata_in_osv3*.py*
@@ -304,7 +302,6 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %{python3_sitelib}/atomic_reactor/plugins/pre_inject_parent_image.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_fetch_maven_artifacts.py
 %{python3_sitelib}/atomic_reactor/plugins/post_koji_upload.py
-%{python3_sitelib}/atomic_reactor/plugins/exit_koji_promote.py
 %{python3_sitelib}/atomic_reactor/plugins/exit_koji_import.py
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_add_filesystem*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_bump_release*.py*
@@ -313,7 +310,6 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_inject_parent_image*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_fetch_maven_artifacts*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/post_koji_upload*.py*
-%{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_promote*.py*
 %{python3_sitelib}/atomic_reactor/plugins/__pycache__/exit_koji_import*.py*
 
 
@@ -345,7 +341,6 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %{python2_sitelib}/atomic_reactor/plugins
 %{python2_sitelib}/atomic_reactor/schemas
 %exclude %{python2_sitelib}/atomic_reactor/koji_util.py*
-%exclude %{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_koji_import.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_sendmail.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
@@ -373,7 +368,6 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %{python2_sitelib}/atomic_reactor/plugins/pre_inject_parent_image.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_fetch_maven_artifacts.py*
 %{python2_sitelib}/atomic_reactor/plugins/post_koji_upload.py*
-%{python2_sitelib}/atomic_reactor/plugins/exit_koji_promote.py*
 %{python2_sitelib}/atomic_reactor/plugins/exit_koji_import.py*
 
 
@@ -388,6 +382,9 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 
 
 %changelog
+* Wed Feb 26 2020 Martin Bašti <mbasti@redhat.com> - 1.6.49-2
+- Remove koji-promote plugin
+
 * Tue Feb 18 2020 Robert Cerven <rcerven@redhat.com> - 1.6.49-1
 - new upstream release: 1.6.49
 
