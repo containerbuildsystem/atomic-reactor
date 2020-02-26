@@ -15,6 +15,7 @@ from flexmock import flexmock
 import pytest
 import json
 import tarfile
+import re
 
 from atomic_reactor.constants import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.inner import DockerBuildWorkflow
@@ -187,7 +188,8 @@ def test_running_build(tmpdir, caplog, sources_dir, sources_dir_exists, sources_
         build_result = runner.run()
         err_msg = "No SRPMs directory '{}' available".format(sources_dir_path)
         err_msg += "\nNo Remote source directory '{}' available".format(remote_dir_path)
-        assert err_msg in caplog.text
+        # Since Python 3.7 logger adds additional whitespaces by default -> checking without them
+        assert re.sub(r'\s+', " ", err_msg) in re.sub(r'\s+', " ", caplog.text)
         assert build_result.is_failed()
 
     elif export_failed:

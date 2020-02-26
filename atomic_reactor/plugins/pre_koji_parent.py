@@ -33,8 +33,6 @@ DEFAULT_POLL_INTERVAL = 10  # 10 seconds
 
 class KojiParentBuildMissing(ValueError):
     """Expected to find a build for the parent image in koji, did not find it within timeout."""
-    pass
-
 
 class KojiParentPlugin(PreBuildPlugin):
     """Wait for Koji build of parent images to be available

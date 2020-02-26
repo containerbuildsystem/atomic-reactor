@@ -16,6 +16,7 @@ import pytest
 import responses
 import json
 import os.path
+import re
 from textwrap import dedent
 
 
@@ -63,8 +64,9 @@ def test_request_sources(additional_params, caplog):
     response = api.request_sources(CACHITO_REQUEST_REPO, CACHITO_REQUEST_REF, **additional_params)
     assert response['id'] == CACHITO_REQUEST_ID
 
-    response_json = json.dumps(response_data, indent=4)
-    assert 'Cachito response:\n{}'.format(response_json) in caplog.text
+    response_json = 'Cachito response:\n{}'.format(json.dumps(response_data, indent=4))
+    # Since Python 3.7 logger adds additional whitespaces by default -> checking without them
+    assert re.sub(r'\s+', " ", response_json) in re.sub(r'\s+', " ", caplog.text)
 
 
 @responses.activate
@@ -89,8 +91,9 @@ def test_request_sources_error(status_code, error, error_body, caplog):
     except ValueError:  # json.JSONDecodeError in py3
         assert 'Cachito response' not in caplog.text
     else:
-        response_json = json.dumps(response_data, indent=4)
-        assert 'Cachito response:\n{}'.format(response_json) in caplog.text
+        response_json = 'Cachito response:\n{}'.format(json.dumps(response_data, indent=4))
+        # Since Python 3.7 logger adds additional whitespaces by default -> checking without them
+        assert re.sub(r'\s+', " ", response_json) in re.sub(r'\s+', " ", caplog.text)
 
 
 @responses.activate
@@ -133,7 +136,8 @@ def test_wait_for_request(burst_params, cachito_request, caplog):
         Details: {}
         """
     ).format(CACHITO_REQUEST_ID, finished_response_json)
-    assert expect_in_logs in caplog.text
+    # Since Python 3.7 logger adds additional whitespaces by default -> checking without them
+    assert re.sub(r'\s+', " ", expect_in_logs) in re.sub(r'\s+', r" ", caplog.text)
 
 
 @responses.activate
@@ -161,7 +165,8 @@ def test_wait_for_request_timeout(caplog):
         Details: {}
         """
     ).format(request_url, in_progress_response_json)
-    assert expect_in_logs in caplog.text
+    # Since Python 3.7 logger adds additional whitespaces by default -> checking without them
+    assert re.sub(r'\s+', " ", expect_in_logs) in re.sub(r'\s+', " ", caplog.text)
 
 
 @responses.activate
@@ -195,7 +200,8 @@ def test_wait_for_unsuccessful_request(error_state, caplog):
         Details: {}
         """
     ).format(CACHITO_REQUEST_ID, error_state, failed_response_json)
-    assert expect_in_logs in caplog.text
+    # Since Python 3.7 logger adds additional whitespaces by default -> checking without them
+    assert re.sub(r'\s+', " ", expect_in_logs) in re.sub(r'\s+', " ", caplog.text)
 
 
 def test_wait_for_request_bad_request_type():
