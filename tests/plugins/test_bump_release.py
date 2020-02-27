@@ -478,6 +478,98 @@ class TestBumpRelease(object):
             assert plugin.workflow.reserved_build_id == build_id
             assert plugin.workflow.reserved_token == token
 
+    @pytest.mark.parametrize('next_release', [
+        {'last': '20', 'builds': ['19', '20'], 'expected': '21', 'search': [{'id': 12345}]},
+
+        {'last': '19', 'builds': ['19', '20'], 'expected': '21', 'search': [{'id': 12345}]},
+
+        {'last': '19.1', 'builds': ['19.1'], 'expected': '20', 'search': [{'id': 12345}]},
+
+        {'builds': ['1', '2'], 'expected': '3', 'search': []},
+    ])
+    def test_get_next_release(self, tmpdir, next_release):
+        build_id = '123456'
+        token = 'token_123456'
+        component = {'com.redhat.component': 'component1'}
+        version = {'version': '7.1'}
+        koji_build_state = 'COMPLETE'
+
+        class MockedClientSession(object):
+            def __init__(self, hub, opts=None):
+                self.ca_path = None
+                self.cert_path = None
+                self.serverca_path = None
+
+            def getNextRelease(self, build_info):
+                raise koji.BuildError('Unable to increment release')
+
+            def search(self, terms, searchtype, matchType, queryOpts=None):
+                return next_release['search']
+
+            def getBuild(self, build_info):
+                if isinstance(build_info, int):
+                    return {'release': next_release['last']}
+
+                assert build_info['name'] == list(component.values())[0]
+                assert build_info['version'] == list(version.values())[0]
+
+                if build_info['release'] in next_release['builds']:
+                    return {'state': koji.BUILD_STATES[koji_build_state]}
+                return None
+
+            def ssl_login(self, cert=None, ca=None, serverca=None, proxyuser=None):
+                self.ca_path = ca
+                self.cert_path = cert
+                self.serverca_path = serverca
+                return True
+
+            def krb_login(self, *args, **kwargs):
+                return True
+
+            def CGInitBuild(self, cg_name, nvr_data):
+                assert cg_name == PROG
+                assert nvr_data['name'] == list(component.values())[0]
+                assert nvr_data['version'] == list(version.values())[0]
+                assert nvr_data['release'] == next_release['expected']
+                return {'build_id': build_id, 'token': token}
+
+        session = MockedClientSession('')
+        flexmock(time).should_receive('sleep').and_return(None)
+        flexmock(koji, ClientSession=session)
+
+        labels = {}
+        labels.update(component)
+        labels.update(version)
+
+        plugin = self.prepare(tmpdir, labels=labels,
+                              certs=True,
+                              reactor_config_map=True,
+                              reserve_build=True,
+                              append=False)
+
+        new_environ = deepcopy(os.environ)
+        new_environ["BUILD"] = dedent('''\
+            {
+              "metadata": {
+              "labels": {}
+              }
+            }
+            ''')
+        flexmock(os)
+        os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
+
+        plugin.run()
+
+        for file_path, expected in [(session.cert_path, 'cert'),
+                                    (session.serverca_path, 'serverca')]:
+
+            assert os.path.isfile(file_path)
+            with open(file_path, 'r') as fd:
+                assert fd.read() == expected
+
+        parser = df_parser(plugin.workflow.builder.df_path, workflow=plugin.workflow)
+        assert parser.labels['release'] == next_release['expected']
+
     @pytest.mark.parametrize('reserve_build, init_fails', [
         (True, RuntimeError),
         (True, koji.GenericError),

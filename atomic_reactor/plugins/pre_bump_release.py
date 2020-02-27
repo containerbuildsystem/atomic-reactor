@@ -102,7 +102,12 @@ class BumpReleasePlugin(PreBuildPlugin):
     def get_next_release_standard(self, component, version):
         build_info = {'name': component, 'version': version}
         self.log.debug('getting next release from build info: %s', build_info)
-        next_release = self.get_patched_release(self.xmlrpc.getNextRelease(build_info))
+        try:
+            next_release = self.get_patched_release(self.xmlrpc.getNextRelease(build_info))
+        # when release can't be bumped via koji's getNextRelease (unsupported format,
+        # eg. multiple dots, strings etc) it will raise exception
+        except koji.BuildError:
+            next_release = self.get_next_release(build_info)
 
         # getNextRelease will return the release of the last successful build
         # but next_release might be a failed build. Koji's CGImport doesn't
@@ -137,6 +142,20 @@ class BumpReleasePlugin(PreBuildPlugin):
                 if build['state'] in (koji.BUILD_STATES['FAILED'], koji.BUILD_STATES['CANCELED']):
                     return next_release
             suffix += 1
+
+    def get_next_release(self, build_info):
+        queryopts = {'order': '-build.id', 'limit': 1}
+        # release is either single number or with decimal point, so we can easily bump next release
+        search_str = r'^{}-{}-\d+(\.\d+)?$'.format(build_info['name'], build_info['version'])
+
+        query_builds = self.xmlrpc.search(search_str, 'build', 'regexp', queryOpts=queryopts)
+        # if query did not find any build, we will use release 1
+        next_release = '1'
+        if query_builds:
+            build = self.xmlrpc.getBuild(query_builds[0]['id'])
+            next_release = self.get_patched_release(build['release'], increment=True)
+
+        return next_release
 
     def reserve_build_in_koji(self, component, version, release, release_label,
                               dockerfile_labels, source_build=False):
