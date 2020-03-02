@@ -27,7 +27,8 @@ from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
-                                      PLUGIN_BUILD_ORCHESTRATE_KEY)
+                                      PLUGIN_BUILD_ORCHESTRATE_KEY,
+                                      PLUGIN_RESOLVE_COMPOSES_KEY)
 from atomic_reactor import koji_util, util
 from tests.constants import (MOCK_SOURCE, DOCKERFILE_GIT, DOCKERFILE_SHA1,
                              MOCK, IMPORTED_IMAGE_ID)
@@ -414,8 +415,17 @@ def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_err
 
 # with a task_id is the new standard, None is legacy-mode support
 @pytest.mark.parametrize('task_id', [FILESYSTEM_TASK_ID, None])
+@pytest.mark.parametrize(('resolve_compose', 'yum_repos'), [
+    (None, None),
+    ({'composes': [{'result_repofile': 'http://odcs-compose.com/compose1.repo'}]},
+     ['http://odcs-compose.com/$arch/compose1.repo']),
+    ({'composes': [{'result_repofile': 'http://odcs-compose.com/compose1.repo'},
+                   {'result_repofile': 'http://odcs-compose.com/compose2.repo'}]},
+     ['http://odcs-compose.com/$arch/compose1.repo',
+      'http://odcs-compose.com/$arch/compose2.repo']),
+])
 @responses.activate
-def test_image_build_defaults(tmpdir, task_id, reactor_config_map):
+def test_image_build_defaults(tmpdir, task_id, resolve_compose, yum_repos, reactor_config_map):
     repos = [
         'http://install-tree.com/fedora23.repo',
         'http://repo.com/fedora/os',
@@ -433,8 +443,21 @@ def test_image_build_defaults(tmpdir, task_id, reactor_config_map):
                     [fedora-os2]
                     baseurl = http://repo.com/fedora/$basearch/os2
                     """))
+    responses.add(responses.GET, 'http://odcs-compose.com/compose1.repo',
+                  body=dedent("""\
+                    [compose1]
+                    baseurl = http://odcs-compose.com/$basearch/compose1.repo
+                    """))
+    responses.add(responses.GET, 'http://odcs-compose.com/compose2.repo',
+                  body=dedent("""\
+                    [compose2]
+                    baseurl = http://odcs-compose.com/$basearch/compose2.repo
+                    """))
     plugin = create_plugin_instance(tmpdir, {'repos': repos, 'from_task_id': task_id},
                                     reactor_config_map=reactor_config_map)
+    if resolve_compose:
+        plugin.workflow.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = resolve_compose
+
     image_build_conf = dedent("""\
         [image-build]
         version = 1.0
@@ -445,6 +468,7 @@ def test_image_build_defaults(tmpdir, task_id, reactor_config_map):
         """)
 
     file_name = mock_image_build_file(str(tmpdir), contents=image_build_conf)
+    plugin.update_repos_from_composes()
     image_name, config, opts = plugin.parse_image_build_config(file_name)
     assert image_name == 'default-name'
     assert config == [
@@ -454,6 +478,13 @@ def test_image_build_defaults(tmpdir, task_id, reactor_config_map):
         'guest-fedora-23-docker',
         'http://install-tree.com/$arch/fedora23',
     ]
+
+    all_repos = ['http://install-tree.com/$arch/fedora23',
+                 'http://repo.com/fedora/$arch/os',
+                 'http://repo.com/fedora/$arch/os2']
+    if resolve_compose:
+        all_repos.extend(yum_repos)
+
     assert opts['opts'] == {
         'disk_size': 10,
         'distro': 'Fedora-23',
@@ -462,11 +493,7 @@ def test_image_build_defaults(tmpdir, task_id, reactor_config_map):
         'kickstart': 'kickstart.ks',
         'ksurl': '{}#{}'.format(DOCKERFILE_GIT, DOCKERFILE_SHA1),
         'ksversion': 'FEDORA23',
-        'repo': [
-            'http://install-tree.com/$arch/fedora23',
-            'http://repo.com/fedora/$arch/os',
-            'http://repo.com/fedora/$arch/os2',
-        ],
+        'repo': all_repos,
     }
 
 

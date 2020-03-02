@@ -26,7 +26,8 @@ import json
 import re
 import os
 
-from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE, PLUGIN_ADD_FILESYSTEM_KEY)
+from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE, PLUGIN_ADD_FILESYSTEM_KEY,
+                                      PLUGIN_RESOLVE_COMPOSES_KEY)
 from atomic_reactor.plugin import PreBuildPlugin, BuildCanceledException
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
@@ -395,10 +396,21 @@ class AddFilesystemPlugin(PreBuildPlugin):
             image_build_conf = 'image-build.conf'
         return image_build_conf
 
+    def update_repos_from_composes(self):
+        resolve_comp_result = self.workflow.prebuild_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
+        if not resolve_comp_result:
+            return
+
+        for compose_info in resolve_comp_result['composes']:
+            self.log.info('adding repo file from compose: %s', compose_info['result_repofile'])
+            self.repos.append(compose_info['result_repofile'])
+
     def run(self):
         if not self.workflow.builder.custom_parent_image:
             self.log.info('Nothing to do for non-custom base images')
             return
+
+        self.update_repos_from_composes()
 
         image_build_conf = self.get_image_build_conf()
 
