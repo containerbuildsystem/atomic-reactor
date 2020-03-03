@@ -44,10 +44,13 @@ def mock_workflow(tmpdir):
     return workflow
 
 
-def mock_env(tmpdir, docker_tasker, labels):
-    mock_dockerfile(tmpdir, labels)
+def mock_env(tmpdir, docker_tasker, labels=(), flatpak=False):
+    if not flatpak:
+        # flatpak build has no Dockefile
+        mock_dockerfile(tmpdir, labels)
     workflow = mock_workflow(tmpdir)
-    plugin_conf = [{'name': CheckUserSettingsPlugin.key}]
+    plugin_conf = [{'name': CheckUserSettingsPlugin.key,
+                    'args': {'flatpak': flatpak}}]
 
     runner = PreBuildPluginsRunner(docker_tasker, workflow, plugin_conf)
 
@@ -71,10 +74,17 @@ class TestDockerfileChecks(object):
     ))
     def test_mutual_exclusivity_of_labels(self, tmpdir, docker_tasker, labels, expected_fail):
         """Appregistry and operator.bundle labels are mutually exclusive"""
-        runner = mock_env(tmpdir, docker_tasker, labels)
+        runner = mock_env(tmpdir, docker_tasker, labels=labels)
         if expected_fail:
             with pytest.raises(PluginFailedException) as e:
                 runner.run()
             assert 'only one of labels' in str(e.value)
         else:
             runner.run()
+
+    def test_flatpak_skip_dockerfile_check(self, tmpdir, docker_tasker, caplog):
+        """Flatpak builds have no user Dockerfiles, dockefile check must be skipped"""
+        runner = mock_env(tmpdir, docker_tasker, flatpak=True)
+        runner.run()
+
+        assert 'Skipping Dockerfile checks' in caplog.text
