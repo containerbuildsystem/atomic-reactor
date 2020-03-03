@@ -56,7 +56,7 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
         are mutually exclusive. Fail when both are specified.
         """
         msg = (
-            "only one of labels com.redhat.com.delivery.appregistry"
+            "only one of labels com.redhat.com.delivery.appregistry "
             "and com.redhat.delivery.operator.bundle is allowed"
         )
         self.log.debug("Running check: %s", msg)
