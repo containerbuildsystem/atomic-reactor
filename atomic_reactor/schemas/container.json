@@ -254,6 +254,31 @@
           "description": "Relative path to directory containing operator manifests",
           "type": "string",
           "pattern": "^[^/].*$"
+        },
+        "repo_replacements": {
+          "description": "Additional replacements for repos not available in OSBS site config",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "registry": {
+                "description": "Configure replacements for this registry",
+                "type": "string"
+              },
+              "package_mappings": {
+                "description": "Repo replacement mappings",
+                "type": "object",
+                "patternProperties": {
+                  ".*": {"type": "string"}
+                },
+                "examples": [
+                  {"foo-bar": "foo/bar", "spam-eggs": "spam/eggs"}
+                ]
+              }
+            },
+            "required": ["registry", "package_mappings"],
+            "additionalProperties": false
+          }
         }
       },
       "required": ["manifests_dir"],

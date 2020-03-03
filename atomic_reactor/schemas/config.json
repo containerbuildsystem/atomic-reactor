@@ -678,6 +678,24 @@
             "minItems": 1,
             "examples": [null, ["registry.fedoraproject.org", "quay.io"]]
           },
+          "repo_replacements": {
+            "description": "Replacements for repos found in pullspecs, configured per registry",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "registry": {
+                  "type": "string"
+                },
+                "package_mappings_file": {
+                  "description": "Path to file containing repo replacement mappings",
+                  "type": "string"
+                }
+              },
+              "required": ["registry", "package_mappings_file"],
+              "additionalProperties": false
+            }
+          },
           "registry_post_replace": {
             "description": "After looking up image digest, replace original registries",
             "type": "array",

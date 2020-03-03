@@ -1474,6 +1474,9 @@ class TestReactorConfigPlugin(object):
               allowed_registries:
                 - foo
                 - bar
+              repo_replacements:
+                - registry: foo
+                  package_mappings_file: mapping.yaml
               registry_post_replace:
                 - old: foo
                   new: bar
@@ -1511,6 +1514,20 @@ class TestReactorConfigPlugin(object):
               registry_post_replace:
                 - new: foo
         """, False),  # missing original registry
+        ("""\
+          version: 1
+          operator_manifests:
+              allowed_registries: null
+              repo_replacements:
+                - registry: foo
+        """, False),  # missing package mappings file
+        ("""\
+          version: 1
+          operator_manifests:
+              allowed_registries: null
+              repo_replacements:
+                - package_mappings_file: mapping.yaml
+        """, False),  # missing registry
     ])
     def test_get_operator_manifests(self, config, valid):
         _, workflow = self.prepare()
