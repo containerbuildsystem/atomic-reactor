@@ -278,6 +278,23 @@ class TestSourceConfigSchemaValidation(object):
           {'operator_manifests': {
               'manifests_dir': 'path/to/manifests'
           }}
+        ), (
+          """\
+          operator_manifests:
+            manifests_dir: path/to/manifests
+            repo_replacements:
+              - registry: foo
+                package_mappings:
+                  bar: baz
+                  spam: eggs
+          """,
+          {'operator_manifests': {
+              'manifests_dir': 'path/to/manifests',
+              'repo_replacements': [
+                  {'registry': 'foo',
+                   'package_mappings': {'bar': 'baz', 'spam': 'eggs'}}
+              ]
+          }}
         ),
     ])
     def test_valid_source_config(self, tmpdir, yml_config, attrs_updated):
@@ -400,6 +417,15 @@ class TestSourceConfigSchemaValidation(object):
         """\
         operator_manifests:
           manifests_dir: /absolute/path
+        """,
+
+        """\
+        operator_manifests:
+          manifests_dir: some/path
+          repo_replacements:
+            - registry: foo
+              package_mappings:
+                bar: 1  # not a string
         """,
     ])
     def test_invalid_source_config_validation_error(self, tmpdir, yml_config):
