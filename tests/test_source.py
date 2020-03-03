@@ -270,6 +270,14 @@ class TestSourceConfigSchemaValidation(object):
                 'ref': 'b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a',
                 'pkg_managers': ['gomod'],
             }}
+        ), (
+          """\
+          operator_manifest:
+            manifests_dir: path/to/manifests
+          """,
+          {'operator_manifest': {
+              'manifests_dir': 'path/to/manifests'
+          }}
         ),
     ])
     def test_valid_source_config(self, tmpdir, yml_config, attrs_updated):
@@ -383,6 +391,15 @@ class TestSourceConfigSchemaValidation(object):
         go:
           modules:
             - module: example.com/go/package
+        """,
+
+        """\
+        operator_manifest: {}
+        """,
+
+        """\
+        operator_manifest:
+          manifests_dir: /absolute/path
         """,
     ])
     def test_invalid_source_config_validation_error(self, tmpdir, yml_config):

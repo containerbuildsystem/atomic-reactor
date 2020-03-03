@@ -411,6 +411,10 @@ def get_source_container(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'source_container', fallback)
 
 
+def get_operator_manifests(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'operator_manifests', fallback)
+
+
 class ClusterConfig(object):
     """
     Configuration relating to a particular cluster

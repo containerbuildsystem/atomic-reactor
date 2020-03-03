@@ -48,6 +48,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        get_flatpak_base_image,
                                                        get_flatpak_metadata,
                                                        get_cachito_session,
+                                                       get_operator_manifests,
                                                        CONTAINER_DEFAULT_BUILD_METHOD,
                                                        get_build_image_override,
                                                        NO_FALLBACK)
@@ -1460,3 +1461,69 @@ class TestReactorConfigPlugin(object):
         flexmock(os, environ={'BUILD': '{"metadata": {"namespace": "namespace"}}'})
 
         get_openshift_session(workflow, fallback_map)
+
+    @pytest.mark.parametrize('config, valid', [
+        ("""\
+          version: 1
+          operator_manifests:
+              allowed_registries: null
+        """, True),  # minimal valid example, allows all registries
+        ("""\
+          version: 1
+          operator_manifests:
+              allowed_registries:
+                - foo
+                - bar
+              registry_post_replace:
+                - old: foo
+                  new: bar
+        """, True),  # all known properties
+        ("""\
+          version: 1
+          operator_manifests: null
+        """, False),  # has to be a dict
+        ("""\
+          version: 1
+          operator_manifests: {}
+        """, False),  # allowed_registries is required
+        ("""\
+          version: 1
+          operator_manifests:
+              allowed_registries: []
+        """, False),  # if not null, allowed_registries must not be empty
+        ("""\
+          version: 1
+          operator_manifests:
+              allowed_registries: null
+              something_else: null
+        """, False),  # additional properties not allowed
+        ("""\
+          version: 1
+          operator_manifests:
+              allowed_registries: null
+              registry_post_replace:
+                - old: foo
+        """, False),  # missing replacement registry
+        ("""\
+          version: 1
+          operator_manifests:
+              allowed_registries: null
+              registry_post_replace:
+                - new: foo
+        """, False),  # missing original registry
+    ])
+    def test_get_operator_manifests(self, config, valid):
+        _, workflow = self.prepare()
+        if valid:
+            config_json = read_yaml(config, 'schemas/config.json')
+        else:
+            with pytest.raises(ValidationError):
+                read_yaml(config, 'schemas/config.json')
+            return
+
+        reactor_config_results = workflow.plugin_workspace.setdefault(ReactorConfigPlugin.key, {})
+        reactor_config_results[WORKSPACE_CONF_KEY] = ReactorConfig(config_json)
+
+        operator_config = get_operator_manifests(workflow)
+        assert isinstance(operator_config, dict)
+        assert "allowed_registries" in operator_config

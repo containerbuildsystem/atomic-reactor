@@ -70,6 +70,7 @@ class SourceConfig(object):
                .format(meth, REPO_CONTAINER_CONFIG)
         )
         self.remote_source = self.data.get('remote_source')
+        self.operator_manifest = self.data.get('operator_manifest')
 
 
 class Source(object):

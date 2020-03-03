@@ -49,6 +49,7 @@
             "autorebuild": {"$ref": "#/definitions/autorebuild"},
             "compose": {"$ref": "#/definitions/compose"},
             "flatpak": {"$ref": "#/definitions/flatpak"},
+            "operator_manifest": {"$ref": "#/definitions/operator_manifest"},
             "image_build_method": {"$ref": "#/definitions/image_build_method"},
             "tags": {"$ref": "#/definitions/tags"},
             "set_release_env": {"$ref": "#/definitions/set_release_env"},
@@ -63,6 +64,7 @@
             "autorebuild": {"$ref": "#/definitions/autorebuild"},
             "compose": {"$ref": "#/definitions/compose"},
             "flatpak": {"$ref": "#/definitions/flatpak"},
+            "operator_manifest": {"$ref": "#/definitions/operator_manifest"},
             "image_build_method": {"$ref": "#/definitions/image_build_method"},
             "remote_source": {
               "type": ["object", "null"],
@@ -242,6 +244,19 @@
           }
         }
       },
+      "additionalProperties": false
+    },
+    "operator_manifest": {
+      "description": "Configuration for operator manifest bundle builds",
+      "type": "object",
+      "properties": {
+        "manifests_dir": {
+          "description": "Relative path to directory containing operator manifests",
+          "type": "string",
+          "pattern": "^[^/].*$"
+        }
+      },
+      "required": ["manifests_dir"],
       "additionalProperties": false
     },
     "flatpak": {
