@@ -664,6 +664,42 @@
           }
         },
         "additionalProperties": false
+    },
+    "operator_manifests": {
+        "description": "Configuration for operator manifest bundle builds",
+        "type": "object",
+        "properties": {
+          "allowed_registries": {
+            "description": "Registries allowed to appear in pullspecs, use null to allow all",
+            "type": ["array", "null"],
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "examples": [null, ["registry.fedoraproject.org", "quay.io"]]
+          },
+          "registry_post_replace": {
+            "description": "After looking up image digest, replace original registries",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "old": {
+                  "description": "Original registry",
+                  "type": "string"
+                },
+                "new": {
+                  "description": "Replacement registry",
+                  "type": "string"
+                }
+              },
+              "required": ["old", "new"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["allowed_registries"],
+        "additionalProperties": false
     }
   },
   "definitions": {
