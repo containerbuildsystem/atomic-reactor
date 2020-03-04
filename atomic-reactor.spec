@@ -20,7 +20,7 @@
 %global owner containerbuildsystem
 %global project atomic-reactor
 
-%global commit a88e506f85129ef83d5971e60da584526206d830
+%global commit 82cd704b9faf4f4c20d0d278218ada2baf590b4b
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 
 %global dock_obsolete_vr 1.3.7-2
