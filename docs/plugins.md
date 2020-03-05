@@ -145,7 +145,7 @@ These are run after 'git clone' is used to fetch the git repository content cont
    * Status: enabled
    * Overwrite parent image image reference.
  * **pin_operator_digest**
-   * Status: not yet enabled (implementation in progress)
+   * Status: enabled
    * Replace image pullspecs in operator manifest files (tag => digest, other replacements based on OSBS configuration)
 
 ### Buildstep plugins
