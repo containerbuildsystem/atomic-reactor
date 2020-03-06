@@ -111,6 +111,9 @@ These are run after 'git clone' is used to fetch the git repository content cont
  * **change_from_in_dockerfile**
    * Status: enabled
    * The FROM line in the Dockerfile is changed so that it references the specific docker image ID we pulled/imported earlier.
+ * **check_user_settings**
+   * Status: enabled
+   * Checks user settings (like container.yaml, Dockerfile) on early phase to fail early and save resources.
  * **add_help**
    * Status: enabled
    * Markdown help page is converted to a man page and ADD'ed into the built image in order to show a correct page when 'atomic help' is called.
