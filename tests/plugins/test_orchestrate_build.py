@@ -409,7 +409,7 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
     # always has precedence over worker_build_image param.
     if config_kwargs is not None:
         expected_kwargs.update(config_kwargs)
-    expected_kwargs['build_image'] = 'registry/some_image@sha256:123456'
+    expected_kwargs['build_from'] = 'image:registry/some_image@sha256:123456'
 
     (flexmock(atomic_reactor.plugins.pre_reactor_config)
      .should_receive('get_openshift_session')
@@ -1639,10 +1639,10 @@ def test_set_build_image_with_override(tmpdir, platforms, override):
     runner.run()
 
     for plat in platforms:
-        used_build_image = get_worker_build_info(workflow, plat).osbs.build_conf.get_build_image()
-        expected_build_image = reactor_config['build_image_override'].get(plat,
-                                                                          default_build_image)
-        assert used_build_image == expected_build_image
+        used_image = get_worker_build_info(workflow, plat).osbs.build_conf.get_build_from()
+        expected_image = 'image:' + reactor_config['build_image_override'].get(plat,
+                                                                               default_build_image)
+        assert used_image == expected_image
 
 
 def test_no_platforms(tmpdir):
