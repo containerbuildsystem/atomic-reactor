@@ -447,7 +447,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
                                                               self.osbs_client_config_fallback)
 
         if platform in self.build_image_digests:
-            kwargs['build_image'] = self.build_image_digests[platform]
+            kwargs['build_from'] = 'image:' + self.build_image_digests[platform]
         else:
             raise RuntimeError("build_image for platform '%s' not available" % platform)
 
