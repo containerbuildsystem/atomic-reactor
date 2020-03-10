@@ -217,6 +217,8 @@ class OperatorManifest(object):
         :param path: Path to directory
         :return: OperatorManifest
         """
+        if not os.path.isdir(path):
+            raise RuntimeError("Path does not exist or is not a directory: {}".format(path))
         yaml_files = cls._get_yaml_files(path)
         operator_csvs = list(cls._get_csvs(yaml_files))
         return cls(operator_csvs)

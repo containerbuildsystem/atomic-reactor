@@ -425,3 +425,21 @@ class TestOperatorManifest(object):
 
         manifest = OperatorManifest.from_directory(str(tmpdir))
         assert manifest.files == []
+
+    def test_directory_does_not_exist(self, tmpdir):
+        nonexistent = tmpdir.join("nonexistent")
+
+        with pytest.raises(RuntimeError) as exc_info:
+            OperatorManifest.from_directory(str(nonexistent))
+
+        msg = "Path does not exist or is not a directory: {}".format(nonexistent)
+        assert str(exc_info.value) == msg
+
+        regular_file = tmpdir.join("some_file")
+        regular_file.write("hello")
+
+        with pytest.raises(RuntimeError) as exc_info:
+            OperatorManifest.from_directory(str(regular_file))
+
+        msg = "Path does not exist or is not a directory: {}".format(regular_file)
+        assert str(exc_info.value) == msg
