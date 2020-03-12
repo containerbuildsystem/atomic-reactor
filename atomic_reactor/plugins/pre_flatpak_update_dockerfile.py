@@ -30,7 +30,7 @@ from gi.repository import Modulemd
 from osbs.repo_utils import ModuleSpec
 
 from atomic_reactor.constants import PLUGIN_RESOLVE_COMPOSES_KEY
-from atomic_reactor.koji_util import get_koji_module_build
+from atomic_reactor.utils.koji import get_koji_module_build
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (FLATPAK_INCLUDEPKGS_FILENAME,
                                                                   FLATPAK_CLEANUPSCRIPT_FILENAME,

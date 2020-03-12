@@ -25,7 +25,7 @@ from atomic_reactor.core import ContainerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import read_yaml
 import atomic_reactor.utils.cachito
-import atomic_reactor.koji_util
+import atomic_reactor.utils.koji
 import atomic_reactor.utils.odcs
 import osbs.conf
 import osbs.api
@@ -967,7 +967,7 @@ class TestReactorConfigPlugin(object):
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = \
                 ReactorConfig(config_json)
 
-        (flexmock(atomic_reactor.koji_util)
+        (flexmock(atomic_reactor.utils.koji)
             .should_receive('create_koji_session')
             .with_args(config_json['koji']['hub_url'], auth_info, use_fast_upload)
             .once()

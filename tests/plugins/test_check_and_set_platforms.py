@@ -14,7 +14,7 @@ import yaml
 from atomic_reactor.constants import (PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, REPO_CONTAINER_CONFIG,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY)
 import atomic_reactor.plugins.pre_reactor_config as reactor_config
-import atomic_reactor.koji_util as koji_util
+import atomic_reactor.utils.koji as koji_util
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner

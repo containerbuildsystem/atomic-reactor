@@ -37,7 +37,7 @@ from atomic_reactor.plugins.pre_reactor_config import (get_config,
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import (df_parser, get_build_json, get_manifest_list, get_platforms,
                                  ImageName)
-from atomic_reactor.koji_util import generate_koji_upload_dir
+from atomic_reactor.utils.koji import generate_koji_upload_dir
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY)
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException

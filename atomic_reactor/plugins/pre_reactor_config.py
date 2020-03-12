@@ -70,7 +70,7 @@ def get_koji(workflow, fallback=NO_FALLBACK):
 def get_koji_session(workflow, fallback):
     config = get_koji(workflow, fallback)
 
-    from atomic_reactor.koji_util import create_koji_session
+    from atomic_reactor.utils.koji import create_koji_session
 
     auth_info = {
         "proxyuser": config['auth'].get('proxyuser'),

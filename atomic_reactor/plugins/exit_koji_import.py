@@ -25,7 +25,7 @@ from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import (OSBSLogs, get_parent_image_koji_data, get_manifest_media_version,
                                  is_manifest_list)
-from atomic_reactor.koji_util import (
+from atomic_reactor.utils.koji import (
         get_buildroot, get_output, generate_koji_upload_dir, add_custom_type,
         get_source_tarball_output, get_remote_source_json_output
 )
@@ -63,7 +63,7 @@ from atomic_reactor.util import (Output, get_build_json,
                                  has_operator_bundle_manifest,
                                  has_operator_appregistry_manifest,
                                  )
-from atomic_reactor.koji_util import (KojiUploadLogger, get_koji_task_owner)
+from atomic_reactor.utils.koji import (KojiUploadLogger, get_koji_task_owner)
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session, get_koji
 from atomic_reactor.metadata import label
 from osbs.utils import Labels
