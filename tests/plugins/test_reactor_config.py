@@ -24,7 +24,7 @@ import koji
 from atomic_reactor.core import ContainerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import read_yaml
-import atomic_reactor.cachito_util
+import atomic_reactor.utils.cachito
 import atomic_reactor.koji_util
 import atomic_reactor.odcs_util
 import osbs.conf
@@ -1288,7 +1288,7 @@ class TestReactorConfigPlugin(object):
             ReactorConfig(config_json)
 
         if not ssl_dir_raise:
-            (flexmock(atomic_reactor.cachito_util.CachitoAPI)
+            (flexmock(atomic_reactor.utils.cachito.CachitoAPI)
                 .should_receive('__init__')
                 .with_args(config_json['cachito']['api_url'], **auth_info)
                 .once()

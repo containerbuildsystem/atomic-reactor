@@ -8,7 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import absolute_import
 
-from atomic_reactor.cachito_util import (
+from atomic_reactor.utils.cachito import (
     CachitoAPI, CachitoAPIInvalidRequest, CachitoAPIRequestTimeout, CachitoAPIUnsuccessfulRequest)
 
 from requests.exceptions import HTTPError
