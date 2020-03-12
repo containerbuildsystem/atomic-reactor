@@ -9,7 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals, absolute_import
 
 from atomic_reactor.constants import PLUGIN_PUSH_FLOATING_TAGS_KEY, PLUGIN_GROUP_MANIFESTS_KEY
-from atomic_reactor.manifest_util import ManifestUtil
+from atomic_reactor.utils.manifest import ManifestUtil
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import get_floating_images, get_unique_images
 

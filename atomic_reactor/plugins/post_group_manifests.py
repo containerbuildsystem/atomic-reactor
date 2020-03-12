@@ -17,7 +17,7 @@ from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_platform_descriptors, get_group_manifests
 from atomic_reactor.util import (ManifestDigest, get_manifest_media_type,
                                  get_primary_images, get_unique_images)
-from atomic_reactor.manifest_util import ManifestUtil
+from atomic_reactor.utils.manifest import ManifestUtil
 from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY, MEDIA_TYPE_OCI_V1_INDEX
 
 # The plugin requires that the worker builds have already pushed their images into
