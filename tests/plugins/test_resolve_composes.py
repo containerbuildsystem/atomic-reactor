@@ -21,7 +21,7 @@ from atomic_reactor.constants import (
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.source import SourceConfig
-from atomic_reactor.odcs_util import ODCSClient
+from atomic_reactor.utils.odcs import ODCSClient
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins import pre_check_and_set_rebuild
 from atomic_reactor.plugins.build_orchestrate_build import (WORKSPACE_KEY_OVERRIDE_KWARGS,

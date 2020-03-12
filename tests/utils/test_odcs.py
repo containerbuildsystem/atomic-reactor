@@ -8,7 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import absolute_import
 
-from atomic_reactor.odcs_util import ODCSClient, MULTILIB_METHOD_DEFAULT
+from atomic_reactor.utils.odcs import ODCSClient, MULTILIB_METHOD_DEFAULT
 from tests.retry_mock import mock_get_retry_session
 
 import flexmock

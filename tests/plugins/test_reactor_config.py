@@ -26,7 +26,7 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import read_yaml
 import atomic_reactor.utils.cachito
 import atomic_reactor.koji_util
-import atomic_reactor.odcs_util
+import atomic_reactor.utils.odcs
 import osbs.conf
 import osbs.api
 from osbs.utils import RegistryURI
@@ -1144,7 +1144,7 @@ class TestReactorConfigPlugin(object):
                 ReactorConfig(config_json)
 
         if not ssl_dir_raise:
-            (flexmock(atomic_reactor.odcs_util.ODCSClient)
+            (flexmock(atomic_reactor.utils.odcs.ODCSClient)
                 .should_receive('__init__')
                 .with_args(config_json['odcs']['api_url'], **auth_info)
                 .once()
