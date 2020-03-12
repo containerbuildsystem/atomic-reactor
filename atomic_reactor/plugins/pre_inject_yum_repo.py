@@ -14,7 +14,7 @@ import os
 from atomic_reactor.constants import YUM_REPOS_DIR, RELATIVE_REPOS_PATH, INSPECT_CONFIG
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
-from atomic_reactor.yum_util import YumRepo
+from atomic_reactor.utils.yum import YumRepo
 
 
 def add_yum_repos_to_dockerfile(yumrepos, df, inherited_user, base_from_scratch):

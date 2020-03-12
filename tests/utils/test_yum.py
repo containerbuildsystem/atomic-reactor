@@ -13,7 +13,7 @@ from __future__ import absolute_import
 from fnmatch import fnmatch
 import os
 import sys
-from atomic_reactor.yum_util import YumRepo
+from atomic_reactor.utils.yum import YumRepo
 import pytest
 
 
