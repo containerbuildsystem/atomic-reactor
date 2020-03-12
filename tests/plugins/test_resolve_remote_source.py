@@ -16,7 +16,7 @@ import pytest
 
 from atomic_reactor import koji_util
 from atomic_reactor import util
-from atomic_reactor.cachito_util import CachitoAPI
+from atomic_reactor.utils.cachito import CachitoAPI
 from atomic_reactor.constants import PLUGIN_BUILD_ORCHESTRATE_KEY
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
