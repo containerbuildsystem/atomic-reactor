@@ -17,7 +17,7 @@ import pytest
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
-from atomic_reactor.rpm_util import parse_rpm_output
+from atomic_reactor.utils.rpm import parse_rpm_output
 from tests.constants import DOCKERFILE_GIT
 from tests.docker_mock import mock_docker
 from tests.stubs import StubInsideBuilder, StubSource

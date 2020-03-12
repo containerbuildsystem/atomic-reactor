@@ -31,7 +31,7 @@ from atomic_reactor.util import (get_version_of_tools, get_docker_architecture,
                                  Output, get_image_upload_filename,
                                  get_checksums, get_manifest_media_type)
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
-from atomic_reactor.rpm_util import get_rpm_list, parse_rpm_output
+from atomic_reactor.utils.rpm import get_rpm_list, parse_rpm_output
 from osbs.exceptions import OsbsException
 
 logger = logging.getLogger(__name__)
