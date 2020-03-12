@@ -100,7 +100,7 @@ def get_odcs(workflow, fallback=NO_FALLBACK):
 
 def get_odcs_session(workflow, fallback):
     config = get_odcs(workflow, fallback)
-    from atomic_reactor.odcs_util import ODCSClient
+    from atomic_reactor.utils.odcs import ODCSClient
 
     client_kwargs = {'insecure': config.get('insecure', False)}
 

@@ -26,7 +26,7 @@ try:
 except ImportError:
     pass
 
-from atomic_reactor.odcs_util import ODCSClient
+from atomic_reactor.utils.odcs import ODCSClient
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        ReactorConfig,
