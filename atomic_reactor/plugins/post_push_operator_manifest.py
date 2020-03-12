@@ -14,7 +14,7 @@ from atomic_reactor.constants import (
     PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY,
     OPERATOR_MANIFESTS_ARCHIVE,
 )
-from atomic_reactor.omps_util import OMPS, OMPSError
+from atomic_reactor.utils.omps import OMPS, OMPSError
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import get_koji_upload_dir
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild

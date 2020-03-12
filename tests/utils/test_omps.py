@@ -13,7 +13,7 @@ import os
 
 import pytest
 
-from atomic_reactor.omps_util import OMPS, OMPSError
+from atomic_reactor.utils.omps import OMPS, OMPSError
 
 
 class TestOMPS(object):

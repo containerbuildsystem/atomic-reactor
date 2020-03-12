@@ -30,7 +30,7 @@ from atomic_reactor.plugins.pre_reactor_config import (
     ReactorConfig,
 )
 from atomic_reactor.plugins.post_push_operator_manifest import PushOperatorManifestsPlugin
-from atomic_reactor.omps_util import OMPS, OMPSError
+from atomic_reactor.utils.omps import OMPS, OMPSError
 
 from tests.constants import TEST_IMAGE
 from tests.stubs import StubInsideBuilder, StubSource
