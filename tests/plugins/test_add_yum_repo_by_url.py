@@ -19,7 +19,7 @@ from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from atomic_reactor.yum_util import YumRepo
+from atomic_reactor.utils.yum import YumRepo
 import requests
 import pytest
 from flexmock import flexmock

@@ -13,7 +13,7 @@ from __future__ import absolute_import
 import os
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import YUM_REPOS_DIR
-from atomic_reactor.yum_util import YumRepo
+from atomic_reactor.utils.yum import YumRepo
 from atomic_reactor.util import render_yum_repo
 from atomic_reactor.plugins.pre_reactor_config import (get_koji_session, get_yum_proxy,
                                                        get_koji_path_info)

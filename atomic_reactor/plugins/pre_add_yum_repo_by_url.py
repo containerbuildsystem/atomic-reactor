@@ -27,7 +27,7 @@ from __future__ import absolute_import
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import is_scratch_build
-from atomic_reactor.yum_util import YumRepo
+from atomic_reactor.utils.yum import YumRepo
 from atomic_reactor.plugins.pre_reactor_config import get_yum_repo_allowed_domains
 from six.moves.urllib.parse import urlparse
 
