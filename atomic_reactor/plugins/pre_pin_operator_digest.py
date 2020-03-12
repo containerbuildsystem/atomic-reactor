@@ -15,7 +15,7 @@ from atomic_reactor.constants import PLUGIN_PIN_OPERATOR_DIGESTS_KEY
 from atomic_reactor.util import has_operator_bundle_manifest, get_manifest_digests, ImageName
 from atomic_reactor.plugins.pre_reactor_config import get_operator_manifests
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
-from atomic_reactor.operator_util import OperatorManifest
+from atomic_reactor.utils.operator import OperatorManifest
 
 
 class PinOperatorDigestsPlugin(PreBuildPlugin):

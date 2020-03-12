@@ -14,7 +14,7 @@ import pytest
 from ruamel.yaml import YAML
 
 from atomic_reactor.util import ImageName, chain_get
-from atomic_reactor.operator_util import OperatorCSV, OperatorManifest, NotOperatorCSV
+from atomic_reactor.utils.operator import OperatorCSV, OperatorManifest, NotOperatorCSV
 
 
 yaml = YAML()
