@@ -10,7 +10,7 @@ from __future__ import unicode_literals, absolute_import
 import os.path
 
 from atomic_reactor.constants import PLUGIN_RESOLVE_REMOTE_SOURCE, REMOTE_SOURCE_DIR
-from atomic_reactor.koji_util import get_koji_task_owner
+from atomic_reactor.utils.koji import get_koji_task_owner
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.plugins.pre_reactor_config import (

@@ -31,7 +31,7 @@ from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE, PLUGIN_ADD_FI
 from atomic_reactor.plugin import PreBuildPlugin, BuildCanceledException
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
-from atomic_reactor.koji_util import TaskWatcher, stream_task_output
+from atomic_reactor.utils.koji import TaskWatcher, stream_task_output
 from atomic_reactor.utils.yum import YumRepo
 from atomic_reactor.util import get_platforms, df_parser, base_image_is_custom, ImageName
 from atomic_reactor.metadata import label_map

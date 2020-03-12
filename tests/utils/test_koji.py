@@ -9,12 +9,12 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import absolute_import, print_function, unicode_literals
 
 import koji
+import atomic_reactor.utils.koji as koji_util
 
 from osbs.repo_utils import ModuleSpec
-from atomic_reactor.koji_util import (koji_login, create_koji_session,
+from atomic_reactor.utils.koji import (koji_login, create_koji_session,
                                       TaskWatcher, tag_koji_build,
                                       get_koji_module_build, KojiUploadLogger)
-from atomic_reactor import koji_util
 from atomic_reactor.plugin import BuildCanceledException
 from atomic_reactor.constants import (KOJI_MAX_RETRIES, KOJI_RETRY_INTERVAL,
                                       KOJI_OFFLINE_RETRY_INTERVAL)

@@ -14,7 +14,7 @@ import sys
 from flexmock import flexmock
 import pytest
 
-from atomic_reactor import koji_util
+import atomic_reactor.utils.koji as koji_util
 from atomic_reactor import util
 from atomic_reactor.utils.cachito import CachitoAPI
 from atomic_reactor.constants import PLUGIN_BUILD_ORCHESTRATE_KEY

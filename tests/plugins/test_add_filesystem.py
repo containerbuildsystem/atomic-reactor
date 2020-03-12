@@ -29,7 +29,8 @@ from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY)
-from atomic_reactor import koji_util, util
+from atomic_reactor import util
+import atomic_reactor.utils.koji as koji_util
 from tests.constants import (MOCK_SOURCE, DOCKERFILE_GIT, DOCKERFILE_SHA1,
                              MOCK, IMPORTED_IMAGE_ID)
 if MOCK:

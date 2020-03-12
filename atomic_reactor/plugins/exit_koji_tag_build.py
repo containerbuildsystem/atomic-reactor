@@ -9,7 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals, absolute_import
 
 from atomic_reactor.constants import PLUGIN_KOJI_TAG_BUILD_KEY
-from atomic_reactor.koji_util import tag_koji_build
+from atomic_reactor.utils.koji import tag_koji_build
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
