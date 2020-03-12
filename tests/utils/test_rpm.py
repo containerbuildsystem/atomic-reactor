@@ -10,7 +10,7 @@ from __future__ import absolute_import, print_function
 
 import pytest
 
-from atomic_reactor.rpm_util import rpm_qf_args, parse_rpm_output
+from atomic_reactor.utils.rpm import rpm_qf_args, parse_rpm_output
 
 FAKE_SIGMD5 = b'0' * 32
 FAKE_SIGNATURE = "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abc"

@@ -18,7 +18,7 @@ from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.plugin import PrePublishPlugin
 from atomic_reactor.plugins.pre_flatpak_update_dockerfile import get_flatpak_source_info
 from atomic_reactor.plugins.pre_reactor_config import get_flatpak_metadata
-from atomic_reactor.rpm_util import parse_rpm_output
+from atomic_reactor.utils.rpm import parse_rpm_output
 from atomic_reactor.util import df_parser, get_exported_image_metadata
 
 

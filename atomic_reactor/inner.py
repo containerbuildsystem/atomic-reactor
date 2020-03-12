@@ -404,7 +404,7 @@ class DockerBuildWorkflow(object):
 
         self.openshift_build_selflink = openshift_build_selflink
 
-        # List of RPMs that go into the final result, as per rpm_util.parse_rpm_output
+        # List of RPMs that go into the final result, as per utils.rpm.parse_rpm_output
         self.image_components = None
 
         # List of all yum repos. The provided repourls might be changed (by resolve_composes) when

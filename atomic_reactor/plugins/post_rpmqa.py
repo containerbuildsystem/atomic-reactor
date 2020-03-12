@@ -9,7 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import absolute_import
 
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.rpm_util import rpm_qf_args, parse_rpm_output
+from atomic_reactor.utils.rpm import rpm_qf_args, parse_rpm_output
 
 __all__ = ('PostBuildRPMqaPlugin', )
 

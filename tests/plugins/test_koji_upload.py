@@ -30,7 +30,7 @@ from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
 from atomic_reactor.util import ImageName, ManifestDigest
-from atomic_reactor.rpm_util import parse_rpm_output
+from atomic_reactor.utils.rpm import parse_rpm_output
 from atomic_reactor.source import GitSource
 from atomic_reactor.build import BuildResult
 from tests.constants import SOURCE, MOCK
