@@ -255,6 +255,7 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %{python3_sitelib}/atomic_reactor/cli
 %{python3_sitelib}/atomic_reactor/plugins
 %{python3_sitelib}/atomic_reactor/schemas
+%{python3_sitelib}/atomic_reactor/utils
 %{python3_sitelib}/atomic_reactor/__pycache__/*.py*
 %exclude %{python3_sitelib}/atomic_reactor/koji_util.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_koji_import.py
@@ -340,6 +341,7 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %{python2_sitelib}/atomic_reactor/cli
 %{python2_sitelib}/atomic_reactor/plugins
 %{python2_sitelib}/atomic_reactor/schemas
+%{python2_sitelib}/atomic_reactor/utils
 %exclude %{python2_sitelib}/atomic_reactor/koji_util.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_koji_import.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_sendmail.py*
