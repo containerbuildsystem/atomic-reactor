@@ -1,0 +1,11 @@
+# See the documentation for more information:
+# https://packit.dev/docs/configuration/
+
+jobs:
+- job: copr_build
+  trigger: pull_request
+  metadata:
+    targets:
+    - epel-7-x86_64
+    - epel-8-x86_64
+    - fedora-all
