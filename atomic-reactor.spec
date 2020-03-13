@@ -283,7 +283,7 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_inject_parent_image*.py*
 %exclude %{python3_sitelib}/atomic_reactor/plugins/__pycache__/pre_fetch_maven_artifacts*.py*
 
-%{python3_sitelib}/atomic_reactor-%{version}-py3.*.egg-info
+%{python3_sitelib}/atomic_reactor-*.egg-info
 %dir %{_datadir}/%{name}
 # ship reactor in form of tarball so it can be installed within build image
 %{_datadir}/%{name}/atomic-reactor.tar.gz
@@ -355,7 +355,7 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_inject_parent_image.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/pre_fetch_maven_artifacts.py*
 
-%{python2_sitelib}/atomic_reactor-%{version}-py2.*.egg-info
+%{python2_sitelib}/atomic_reactor-*.egg-info
 %dir %{_datadir}/%{name}
 %{_datadir}/%{name}/atomic-reactor.tar.gz
 %{_datadir}/%{name}/images
