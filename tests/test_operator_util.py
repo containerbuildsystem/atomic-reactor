@@ -78,13 +78,20 @@ JAM = PullSpec(
     ["spec", "install", "spec", "deployments", 1,
      "spec", "template", "spec", "containers", 0, "image"]
 )
+BAZ = PullSpec(
+    "baz", "registry/namespace/baz:latest", "r-registry/r-namespace/r-baz:latest",
+    ["metadata", "annotations", "containerImage"]
+)
 
-PULLSPECS = {p.name: p for p in [FOO, BAR, SPAM, EGGS, HAM, JAM]}
+PULLSPECS = {p.name: p for p in [FOO, BAR, SPAM, EGGS, HAM, JAM, BAZ]}
 
 
 ORIGINAL_CONTENT = """\
 # A meaningful comment
 kind: ClusterServiceVersion
+metadata:
+  annotations:
+    containerImage: {baz}
 spec:
   relatedImages:
   - name: foo
@@ -122,6 +129,7 @@ random:
       d: {eggs}
       e: {ham}
       f: {jam}
+      g: {baz}
     list:
     - {foo}
     - {bar}
@@ -129,11 +137,15 @@ random:
     - {eggs}
     - {ham}
     - {jam}
+    - {baz}
 """.format(**PULLSPECS)
 
 REPLACED_CONTENT = """\
 # A meaningful comment
 kind: ClusterServiceVersion
+metadata:
+  annotations:
+    containerImage: {baz.replace}
 spec:
   relatedImages:
   - name: foo
@@ -171,6 +183,7 @@ random:
       d: {eggs}
       e: {ham}
       f: {jam}
+      g: {baz}
     list:
     - {foo}
     - {bar}
@@ -178,11 +191,15 @@ random:
     - {eggs}
     - {ham}
     - {jam}
+    - {baz}
 """.format(**PULLSPECS)
 
 REPLACED_EVERYWHERE_CONTENT = """\
 # A meaningful comment
 kind: ClusterServiceVersion
+metadata:
+  annotations:
+    containerImage: {baz.replace}
 spec:
   relatedImages:
   - name: foo
@@ -220,6 +237,7 @@ random:
       d: {eggs.replace}
       e: {ham.replace}
       f: {jam.replace}
+      g: {baz.replace}
     list:
     - {foo.replace}
     - {bar.replace}
@@ -227,6 +245,7 @@ random:
     - {eggs.replace}
     - {ham.replace}
     - {jam.replace}
+    - {baz.replace}
 """.format(**PULLSPECS)
 
 
@@ -281,7 +300,8 @@ class TestOperatorCSV(object):
             "original.yaml - Found pullspec in RELATED_IMAGE_EGGS var: {eggs}",
             "original.yaml - Found pullspec for container spam: {spam}",
             "original.yaml - Found pullspec for container ham: {ham}",
-            "original.yaml - Found pullspec for container jam: {jam}"
+            "original.yaml - Found pullspec for container jam: {jam}",
+            "original.yaml - Found pullspec in annotations: {baz}",
         ]
         for log in expected_logs:
             assert log.format(**PULLSPECS) in caplog.text
@@ -297,7 +317,8 @@ class TestOperatorCSV(object):
             "{file} - Replaced pullspec in RELATED_IMAGE_EGGS var: {eggs} -> {eggs.replace}",
             "{file} - Replaced pullspec for container spam: {spam} -> {spam.replace}",
             "{file} - Replaced pullspec for container ham: {ham} -> {ham.replace}",
-            "{file} - Replaced pullspec for container jam: {jam} -> {jam.replace}"
+            "{file} - Replaced pullspec for container jam: {jam} -> {jam.replace}",
+            "{file} - Replaced pullspec in annotations: {baz} -> {baz.replace}",
         ]
         for log in expected_logs:
             assert log.format(file="original.yaml", **PULLSPECS) in caplog.text
@@ -313,7 +334,8 @@ class TestOperatorCSV(object):
             "original.yaml - Replaced pullspec: {eggs} -> {eggs.replace}": 4,
             "original.yaml - Replaced pullspec: {spam} -> {spam.replace}": 3,
             "original.yaml - Replaced pullspec: {ham} -> {ham.replace}": 3,
-            "original.yaml - Replaced pullspec: {jam} -> {jam.replace}": 3
+            "original.yaml - Replaced pullspec: {jam} -> {jam.replace}": 3,
+            "original.yaml - Replaced pullspec: {baz} -> {baz.replace}": 3,
         }
         for log, count in expected_logs.items():
             assert caplog.text.count(log.format(**PULLSPECS)) == count
@@ -349,27 +371,34 @@ class TestOperatorCSV(object):
         assert foo_log.format(foo=FOO) not in caplog.text
         assert bar_log.format(bar=BAR) not in caplog.text
 
-    @pytest.mark.parametrize("rel_images, rel_envs, containers, expected", [
-        (False, False, False, set()),
-        (True, False, False, {FOO.value, BAR.value}),
-        # (False, True, False) - Cannot have envs without containers
-        (False, False, True, {SPAM.value, HAM.value, JAM.value}),
-        # (True, True, False) - Cannot have envs without containers
-        (True, False, True, {FOO.value, BAR.value, SPAM.value, HAM.value, JAM.value}),
-        (False, True, True, {SPAM.value, EGGS.value, HAM.value, JAM.value}),
+    @pytest.mark.parametrize("rel_images", [True, False])
+    @pytest.mark.parametrize("rel_envs, containers", [
+        (False, False),
+        (False, True),
+        # (True, False) - Cannot have envs without containers
+        (True, True),
     ])
-    def test_get_pullspecs_some_locations(self, rel_images, rel_envs, containers, expected):
+    @pytest.mark.parametrize("annotations", [True, False])
+    def test_get_pullspecs_some_locations(self, rel_images, rel_envs, containers, annotations):
         data = ORIGINAL.data
+        expected = {p.value for p in PULLSPECS.values()}
+
         if not rel_images:
+            expected -= {FOO.value, BAR.value}
             del data["spec"]["relatedImages"]
         deployments = chain_get(data, ["spec", "install", "spec", "deployments"])
         if not rel_envs:
+            expected -= {EGGS.value}
             for d in deployments:
                 for c in chain_get(d, ["spec", "template", "spec", "containers"]):
                     c.pop("env", None)
         if not containers:
+            expected -= {SPAM.value, HAM.value, JAM.value}
             for d in deployments:
                 del d["spec"]["template"]["spec"]["containers"]
+        if not annotations:
+            expected -= {BAZ.value}
+            del data["metadata"]["annotations"]
 
         csv = OperatorCSV("x.yaml", data)
         assert csv.get_pullspecs() == expected
