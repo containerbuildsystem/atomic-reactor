@@ -78,6 +78,7 @@ class OperatorCSV(object):
         pullspecs = self._get_related_image_pullspecs()
         pullspecs.update(self._get_env_pullspecs())
         pullspecs.update(self._get_container_image_pullspecs())
+        pullspecs.update(self._get_annotations_pullspecs())
         return pullspecs
 
     def replace_pullspecs(self, replacement_pullspecs):
@@ -90,6 +91,7 @@ class OperatorCSV(object):
         self._replace_related_image_pullspecs(replacement_pullspecs)
         self._replace_env_pullspecs(replacement_pullspecs)
         self._replace_container_image_pullspecs(replacement_pullspecs)
+        self._replace_annotation_pullspecs(replacement_pullspecs)
 
     def replace_pullspecs_everywhere(self, replacement_pullspecs):
         """
@@ -114,6 +116,10 @@ class OperatorCSV(object):
             c for d in deployments for c in chain_get(d, containers_path, default=[])
         ]
         return containers
+
+    def _get_annotations(self):
+        annotations_path = ("metadata", "annotations")
+        return chain_get(self.data, annotations_path, default={})
 
     def _get_related_image_envs(self):
         containers = self._get_containers()
@@ -150,6 +156,14 @@ class OperatorCSV(object):
         log_template = "%(path)s - Found pullspec for container %(name)s: %(pullspec)s"
         return set(self._get_pullspec(c, "image", log_template) for c in containers)
 
+    def _get_annotations_pullspecs(self):
+        annotations = self._get_annotations()
+        log_template = "%(path)s - Found pullspec in annotations: %(pullspec)s"
+        pullspecs = set()
+        if "containerImage" in annotations:
+            pullspecs.add(self._get_pullspec(annotations, "containerImage", log_template))
+        return pullspecs
+
     def _replace_pullspec(self, obj, key, replacement_pullspecs, log_template=None):
         old = ImageName.parse(obj[key])
         new = replacement_pullspecs.get(old)
@@ -178,6 +192,12 @@ class OperatorCSV(object):
         log_template = "%(path)s - Replaced pullspec for container %(name)s: %(old)s -> %(new)s"
         for c in containers:
             self._replace_pullspec(c, "image", replacement_pullspecs, log_template)
+
+    def _replace_annotation_pullspecs(self, replacement_pullspecs):
+        annotations = self._get_annotations()
+        log_tmpl = "%(path)s - Replaced pullspec in annotations: %(old)s -> %(new)s"
+        if "containerImage" in annotations:
+            self._replace_pullspec(annotations, "containerImage", replacement_pullspecs, log_tmpl)
 
     def _replace_pullspecs_everywhere(self, obj, k_or_i, replacement_pullspecs, log_template):
         item = obj[k_or_i]
