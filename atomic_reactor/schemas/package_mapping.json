@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+
+  "title": "Schema for [package => repos] mapping files used in operator bundle builds",
+
+  "type": "object",
+  "patternProperties": {
+    ".*": {
+      "type": "array",
+      "description": "List of possible repos that package can be mapped to",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    }
+  }
+}

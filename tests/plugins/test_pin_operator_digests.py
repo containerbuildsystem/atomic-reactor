@@ -6,15 +6,19 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from __future__ import absolute_import
+from __future__ import absolute_import, unicode_literals
 
+import jsonschema
 from ruamel.yaml import YAML
 
 import pytest
 import responses
+from flexmock import flexmock
 
+import atomic_reactor.util
 from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
-                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
+                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
+                                      INSPECT_CONFIG)
 from atomic_reactor.util import ImageName
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
@@ -28,6 +32,9 @@ from atomic_reactor.plugins.pre_pin_operator_digest import (PinOperatorDigestsPl
 
 from tests.constants import TEST_IMAGE
 from tests.stubs import StubInsideBuilder, StubSource, StubConfig
+
+
+PKG_LABEL = 'com.redhat.component'
 
 
 yaml = YAML()
@@ -123,6 +130,20 @@ def mock_operator_csv(tmpdir, filename, pullspecs):
     return path
 
 
+def mock_package_mapping_files(tmpdir, repo_replacements):
+    repo_replacements = repo_replacements or {}
+
+    # write mappings to files, update repo_replacements to point to those files
+    for registry, mapping in repo_replacements.items():
+        filename = 'mapping-{}.yaml'.format(registry)
+        path = tmpdir.join(filename)
+        with open(str(path), 'w') as f:
+            yaml.dump(mapping, f)
+        repo_replacements[registry] = str(path)
+
+    return repo_replacements
+
+
 def mock_digest_query(pullspec, digest):
     i = ImageName.parse(pullspec)
     url = 'https://{}/v2/{}/{}/manifests/{}'.format(i.registry, i.namespace, i.repo, i.tag)
@@ -131,6 +152,20 @@ def mock_digest_query(pullspec, digest):
         'Docker-Content-Digest': digest
     }
     responses.add(responses.GET, url, headers=headers)
+
+
+def mock_inspect_query(pullspec, labels, times=1):
+    image = ImageName.parse(pullspec)
+    inspect = {
+        INSPECT_CONFIG: {
+            'Labels': labels
+        }
+    }
+    (flexmock(atomic_reactor.util)
+        .should_receive('get_inspect_for_image')
+        .with_args(image, image.registry)
+        .and_return(inspect)
+        .times(times))
 
 
 def get_build_kwarg(workflow, k, platform=None):
@@ -144,19 +179,29 @@ def get_build_kwarg(workflow, k, platform=None):
     return override_kwargs.get(platform, {}).get(k)
 
 
-def get_site_config(allowed_registries=None, registry_post_replace=None):
+def get_site_config(allowed_registries=None, registry_post_replace=None, repo_replacements=None):
     registry_post_replace = registry_post_replace or {}
+    repo_replacements = repo_replacements or {}
     return {
         'allowed_registries': allowed_registries,
         'registry_post_replace': [
             {'old': old, 'new': new} for old, new in registry_post_replace.items()
+        ],
+        'repo_replacements': [
+            {'registry': registry, 'package_mappings_file': path}
+            for registry, path in repo_replacements.items()
         ]
     }
 
 
-def get_user_config(manifests_dir):
+def get_user_config(manifests_dir, repo_replacements=None):
+    repo_replacements = repo_replacements or {}
     return {
-        'manifests_dir': manifests_dir
+        'manifests_dir': manifests_dir,
+        'repo_replacements': [
+            {'registry': registry, 'package_mappings': mapping}
+            for registry, mapping in repo_replacements.items()
+        ]
     }
 
 
@@ -249,24 +294,56 @@ class TestPinOperatorDigest(object):
     @responses.activate
     def test_orchestrator(self, docker_tasker, tmpdir, caplog):
         pullspecs = [
-            'keep-registry/ns/foo',
-            'replace-registry/ns/bar:1',
-            'keep-registry/ns/spam@sha256:123456',
-            'replace-registry/ns/eggs@sha256:654321',
+            # final-registry: do not replace registry or repos
+            'final-registry/ns/foo@sha256:1',  # -> no change
+            'final-registry/ns/foo:1',  # -> final-registry/ns/foo@sha256:1
+
+            # weird-registry: keep registry but replace repos
+            'weird-registry/ns/bar@sha256:2',  # -> weird-registry/new-bar@sha256:2
+            'weird-registry/ns/bar:1',  # -> weird-registry/new-bar@sha256:2
+
+            # private-registry: replace registry but keep repos
+            'private-registry/ns/baz@sha256:3',  # -> public-registry/ns/baz@sha256:3
+            'private-registry/ns/baz:1',  # -> public-registry/ns/baz@sha256:3
+
+            # old-registry: replace everything
+            'old-registry/ns/spam@sha256:4',  # -> new-registry/new-ns/new-spam@sha256:4
+            'old-registry/ns/spam:1',  # -> new-registry/new-ns/new-spam@sha256:4
         ]
         replacement_registries = {
-            'replace-registry': 'new-registry'
+            'private-registry': 'public-registry',
+            'old-registry': 'new-registry',
+        }
+        site_replace_repos = {
+            'old-registry': {
+                'spam-package': ['new-ns/new-spam']
+            }
+        }
+        user_replace_repos = {
+            'weird-registry': {
+                'bar-package': 'new-bar'
+            }
         }
 
-        mock_digest_query('keep-registry/ns/foo:latest', 'sha256:abcdef')
-        mock_digest_query('replace-registry/ns/bar:1', 'sha256:fedcba')
+        mock_digest_query('final-registry/ns/foo:1', 'sha256:1')
+        mock_digest_query('weird-registry/ns/bar:1', 'sha256:2')
+        mock_digest_query('private-registry/ns/baz:1', 'sha256:3')
+        mock_digest_query('old-registry/ns/spam:1', 'sha256:4')
         # there should be no queries for the pullspecs which already contain a digest
+
+        # images should be inspected after their digests are pinned
+        mock_inspect_query('weird-registry/ns/bar@sha256:2', {PKG_LABEL: 'bar-package'}, times=2)
+        mock_inspect_query('old-registry/ns/spam@sha256:4', {PKG_LABEL: 'spam-package'}, times=2)
 
         f = mock_operator_csv(tmpdir, 'csv.yaml', pullspecs)
         pre_content = f.read()
 
-        user_config = get_user_config(manifests_dir=str(tmpdir))
-        site_config = get_site_config(registry_post_replace=replacement_registries)
+        mock_package_mapping_files(tmpdir, site_replace_repos)
+
+        user_config = get_user_config(manifests_dir=str(tmpdir),
+                                      repo_replacements=user_replace_repos)
+        site_config = get_site_config(registry_post_replace=replacement_registries,
+                                      repo_replacements=site_replace_repos)
 
         runner = mock_env(docker_tasker, tmpdir, orchestrator=True,
                           user_config=user_config, site_config=site_config)
@@ -280,10 +357,14 @@ class TestPinOperatorDigest(object):
         # pullspecs are logged in alphabetical order, if tag is missing, :latest is added
         pullspecs_log = (
             'Found pullspecs:\n'
-            'keep-registry/ns/foo:latest\n'
-            'keep-registry/ns/spam@sha256:123456\n'
-            'replace-registry/ns/bar:1\n'
-            'replace-registry/ns/eggs@sha256:654321'
+            'final-registry/ns/foo:1\n'
+            'final-registry/ns/foo@sha256:1\n'
+            'old-registry/ns/spam:1\n'
+            'old-registry/ns/spam@sha256:4\n'
+            'private-registry/ns/baz:1\n'
+            'private-registry/ns/baz@sha256:3\n'
+            'weird-registry/ns/bar:1\n'
+            'weird-registry/ns/bar@sha256:2'
         )
         assert pullspecs_log in caplog_text
 
@@ -292,17 +373,26 @@ class TestPinOperatorDigest(object):
         # replacements are logged in alphabetical order (ordered by the original pullspec)
         replacements_log = (
             'To be replaced:\n'
-            'keep-registry/ns/foo:latest -> keep-registry/ns/foo@sha256:abcdef\n'
-            'keep-registry/ns/spam@sha256:123456 - no change\n'
-            'replace-registry/ns/bar:1 -> new-registry/ns/bar@sha256:fedcba\n'
-            'replace-registry/ns/eggs@sha256:654321 -> new-registry/ns/eggs@sha256:654321'
+            'final-registry/ns/foo:1 -> final-registry/ns/foo@sha256:1\n'
+            'final-registry/ns/foo@sha256:1 - no change\n'
+            'old-registry/ns/spam:1 -> new-registry/new-ns/new-spam@sha256:4\n'
+            'old-registry/ns/spam@sha256:4 -> new-registry/new-ns/new-spam@sha256:4\n'
+            'private-registry/ns/baz:1 -> public-registry/ns/baz@sha256:3\n'
+            'private-registry/ns/baz@sha256:3 -> public-registry/ns/baz@sha256:3\n'
+            'weird-registry/ns/bar:1 -> weird-registry/new-bar@sha256:2\n'
+            'weird-registry/ns/bar@sha256:2 -> weird-registry/new-bar@sha256:2'
         )
         assert replacements_log in caplog_text
 
         replacement_pullspecs = {
-            'keep-registry/ns/foo:latest': 'keep-registry/ns/foo@sha256:abcdef',
-            'replace-registry/ns/bar:1': 'new-registry/ns/bar@sha256:fedcba',
-            'replace-registry/ns/eggs@sha256:654321': 'new-registry/ns/eggs@sha256:654321',
+            'final-registry/ns/foo:1': 'final-registry/ns/foo@sha256:1',
+            # final-registry/ns/foo@sha256:1 - no change
+            'weird-registry/ns/bar@sha256:2': 'weird-registry/new-bar@sha256:2',
+            'weird-registry/ns/bar:1': 'weird-registry/new-bar@sha256:2',
+            'private-registry/ns/baz@sha256:3': 'public-registry/ns/baz@sha256:3',
+            'private-registry/ns/baz:1': 'public-registry/ns/baz@sha256:3',
+            'old-registry/ns/spam@sha256:4': 'new-registry/new-ns/new-spam@sha256:4',
+            'old-registry/ns/spam:1': 'new-registry/new-ns/new-spam@sha256:4',
         }
         assert self._get_worker_arg(runner.workflow) == replacement_pullspecs
 
@@ -391,3 +481,132 @@ class TestPullspecReplacer(object):
         replacer = PullspecReplacer(user_config={}, site_config=site_config)
 
         assert replacer.replace_registry(image) == replaced
+
+    @pytest.mark.parametrize('image,site_replacements,user_replacements,replaced,should_query', [
+        # can replace repo if only 1 option in site config
+        ('a/x/foo:1',
+         {'a': {'foo-package': ['y/bar']}},
+         None,
+         'a/y/bar:1',
+         True),
+        # user can define replacement if package not in site config
+        ('a/x/foo:1',
+         None,
+         {'a': {'foo-package': 'y/bar'}},
+         'a/y/bar:1',
+         True),
+        # user can choose one of the options in site config
+        ('a/x/foo:1',
+         {'a': {'foo-package': ['y/bar', 'y/baz']}},
+         {'a': {'foo-package': 'y/baz'}},
+         'a/y/baz:1',
+         True),
+        # replacement can be just repo
+        ('a/x/foo:1',
+         {'a': {'foo-package': ['bar']}},
+         None,
+         ImageName(registry='a', repo='bar', tag='1'),
+         True),
+        # no config, no replacement
+        ('a/x/foo:1',
+         None,
+         None,
+         'a/x/foo:1',
+         False),
+        # missing registry, no replacement
+        ('foo:1',
+         {'a': {'foo-package': ['y/bar']}},
+         {'a': {'foo-package': 'y/bar'}},
+         'foo:1',
+         False),
+    ])
+    def test_replace_repo(self, image, site_replacements, user_replacements,
+                          replaced, should_query, tmpdir):
+        image = ImageName.parse(image)
+        replaced = ImageName.parse(replaced)
+
+        mock_package_mapping_files(tmpdir, site_replacements)
+        mock_inspect_query(image,
+                           {PKG_LABEL: '{}-package'.format(image.repo)},
+                           times=1 if should_query else 0)
+
+        site_config = get_site_config(repo_replacements=site_replacements)
+        user_config = get_user_config(manifests_dir=str(tmpdir),
+                                      repo_replacements=user_replacements)
+
+        replacer = PullspecReplacer(user_config=user_config, site_config=site_config)
+
+        assert replacer.replace_repo(image) == replaced
+
+    @pytest.mark.parametrize('image,site_replacements,user_replacements,inspect_labels,exc_msg', [
+        # replacements configured in site config, repo missing
+        ('a/x/foo:1',
+         {'a': {}},
+         None,
+         {PKG_LABEL: 'foo-package'},
+         'Replacement not configured for package foo-package (from a/x/foo:1)'),
+        # replacements configured in user config, repo missing
+        ('a/x/foo:1',
+         None,
+         {'a': {}},
+         {PKG_LABEL: 'foo-package'},
+         'Replacement not configured for package foo-package (from a/x/foo:1)'),
+        # multiple options for replacement in site config
+        ('a/x/foo:1',
+         {'a': {'foo-package': ['bar', 'baz']}},
+         None,
+         {PKG_LABEL: 'foo-package'},
+         'Multiple replacements for package foo-package (from a/x/foo:1): bar, baz'),
+        # user tried to override with an invalid replacement
+        ('a/x/foo:1',
+         {'a': {'foo-package': ['bar', 'baz']}},
+         {'a': {'foo-package': 'spam'}},
+         {PKG_LABEL: 'foo-package'},
+         'Invalid replacement for package foo-package: spam (choices: bar, baz)'),
+        # replacements configured, image has no component label
+        ('a/x/foo:1',
+         {'a': {}},
+         None,
+         {},
+         'Image has no component label: a/x/foo:1'),
+    ])
+    def test_replace_repo_failure(self, image, site_replacements, user_replacements,
+                                  inspect_labels, exc_msg, tmpdir):
+        image = ImageName.parse(image)
+
+        mock_package_mapping_files(tmpdir, site_replacements)
+        mock_inspect_query(image, inspect_labels)
+
+        site_config = get_site_config(repo_replacements=site_replacements)
+        user_config = get_user_config(manifests_dir=str(tmpdir),
+                                      repo_replacements=user_replacements)
+
+        replacer = PullspecReplacer(user_config=user_config, site_config=site_config)
+
+        with pytest.raises(RuntimeError) as exc_info:
+            replacer.replace_repo(image)
+
+        assert str(exc_info.value) == exc_msg
+
+    @pytest.mark.parametrize('site_replacements, exc_msg', [
+        # replacement is not a list
+        ({'a': {'foo-package': 'bar'}},
+         'is not of type {!r}'.format('array')),
+        # replacement is an empty list
+        ({'a': {'foo-package': []}},
+         '[] is too short'),
+    ])
+    def test_replace_repo_schema_validation(self, site_replacements, exc_msg, tmpdir):
+        image = ImageName.parse('a/x/foo')
+
+        mock_package_mapping_files(tmpdir, site_replacements)
+        mock_inspect_query(image, {}, times=0)
+
+        site_config = get_site_config(repo_replacements=site_replacements)
+
+        replacer = PullspecReplacer(user_config={}, site_config=site_config)
+
+        with pytest.raises(jsonschema.ValidationError) as exc_info:
+            replacer.replace_repo(image)
+
+        assert exc_msg in str(exc_info.value)
