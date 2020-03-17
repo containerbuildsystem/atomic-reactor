@@ -257,7 +257,7 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %{python3_sitelib}/atomic_reactor/schemas
 %{python3_sitelib}/atomic_reactor/utils
 %{python3_sitelib}/atomic_reactor/__pycache__/*.py*
-%exclude %{python3_sitelib}/atomic_reactor/koji_util.py
+%exclude %{python3_sitelib}/atomic_reactor/utils/koji.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_koji_import.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_sendmail.py
 %exclude %{python3_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py
@@ -294,8 +294,8 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 
 
 %files -n python3-atomic-reactor-koji
-%{python3_sitelib}/atomic_reactor/koji_util.py
-%{python3_sitelib}/atomic_reactor/__pycache__/koji_util*.py*
+%{python3_sitelib}/atomic_reactor/utils/koji.py
+%{python3_sitelib}/atomic_reactor/utils/__pycache__/koji*.py*
 %{python3_sitelib}/atomic_reactor/plugins/pre_add_filesystem.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_bump_release.py
 %{python3_sitelib}/atomic_reactor/plugins/pre_koji.py
@@ -342,7 +342,7 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %{python2_sitelib}/atomic_reactor/plugins
 %{python2_sitelib}/atomic_reactor/schemas
 %{python2_sitelib}/atomic_reactor/utils
-%exclude %{python2_sitelib}/atomic_reactor/koji_util.py*
+%exclude %{python2_sitelib}/atomic_reactor/utils/koji.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_koji_import.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_sendmail.py*
 %exclude %{python2_sitelib}/atomic_reactor/plugins/exit_store_metadata_in_osv3.py*
@@ -362,7 +362,7 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 
 
 %files -n python-atomic-reactor-koji
-%{python2_sitelib}/atomic_reactor/koji_util.py*
+%{python2_sitelib}/atomic_reactor/utils/koji.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_add_filesystem.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_bump_release.py*
 %{python2_sitelib}/atomic_reactor/plugins/pre_koji.py*
