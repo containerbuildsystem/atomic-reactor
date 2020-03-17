@@ -10,9 +10,15 @@ from __future__ import absolute_import, print_function
 
 import os.path
 
+from osbs.utils import Labels
+
+from atomic_reactor import util
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.constants import PLUGIN_PIN_OPERATOR_DIGESTS_KEY
-from atomic_reactor.util import has_operator_bundle_manifest, get_manifest_digests, ImageName
+from atomic_reactor.constants import PLUGIN_PIN_OPERATOR_DIGESTS_KEY, INSPECT_CONFIG
+from atomic_reactor.util import (has_operator_bundle_manifest,
+                                 get_manifest_digests,
+                                 read_yaml_from_file_path,
+                                 ImageName)
 from atomic_reactor.plugins.pre_reactor_config import get_operator_manifests
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.utils.operator import OperatorManifest
@@ -26,6 +32,8 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
     - finds container pullspecs in operator ClusterServiceVersion files
     - computes replacement pullspecs:
         - replaces tags with manifest list digests
+        - replaces repos (and namespaces) based on operator_manifests.repo_replacements
+          configuration in container.yaml and r-c-m*
         - replaces registries based on operator_manifests.registry_post_replace in r-c-m*
 
     When running in a worker:
@@ -155,9 +163,11 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
 
         for original in pullspecs:
             pinned = replacer.pin_digest(original)
-            replaced = replacer.replace_registry(pinned)
-            if replaced != original:
-                replacements[original] = replaced
+            repo_replaced = replacer.replace_repo(pinned)
+            registry_replaced = replacer.replace_registry(repo_replaced)
+
+            if registry_replaced != original:
+                replacements[original] = registry_replaced
 
         replacement_lines = "\n".join(
             "{} -> {}".format(p, replacements[p]) if p in replacements
@@ -197,6 +207,22 @@ class PullspecReplacer(object):
             for registry in site_config.get("registry_post_replace", [])
         }
 
+        self.package_mapping_files = {
+            mapping["registry"]: mapping["package_mappings_file"]
+            for mapping in site_config.get("repo_replacements", [])
+        }
+        # Mapping of [file path => package mapping]
+        # Loaded when needed, see _get_site_mapping
+        self.file_package_mappings = {}
+
+        self.user_package_mappings = {
+            mapping["registry"]: mapping["package_mappings"]
+            for mapping in user_config.get("repo_replacements", [])
+        }
+        # Final package mapping that you get by combining site mapping with user mapping
+        # Loaded when needed, see _get_final_mapping
+        self.final_package_mappings = {}
+
     def registry_is_allowed(self, image):
         """
         Is image registry allowed in OSBS config?
@@ -229,7 +255,100 @@ class PullspecReplacer(object):
             return image
         return self._replace(image, registry=self.registry_replace[image.registry])
 
+    def replace_repo(self, image):
+        """
+        Replace image repo based on OSBS site/user configuration for image registry
+
+        Note: repo can also mean "namespace/repo"
+
+        :param image: ImageName
+        :return: ImageName
+        """
+        site_mapping = self._get_site_mapping(image.registry)
+        if site_mapping is None and image.registry not in self.user_package_mappings:
+            # repo_replacements not configured for registry
+            return image
+
+        package = self._get_component_name(image)
+        mapping = self._get_final_mapping(image.registry, package)
+        replacements = mapping.get(package)
+
+        if replacements is None:
+            raise RuntimeError("Replacement not configured for package {} (from {})"
+                               .format(package, image))
+        elif len(replacements) > 1:
+            options = ", ".join(replacements)
+            raise RuntimeError("Multiple replacements for package {} (from {}): {}"
+                               .format(package, image, options))
+
+        replacement = ImageName.parse(replacements[0])
+        return self._replace(image, namespace=replacement.namespace, repo=replacement.repo)
+
+    def _get_site_mapping(self, registry):
+        """
+        Get the package mapping file for the given registry. If said file has
+        not yet been read, read it and save mapping for later. Return mapping.
+        """
+        mapping_file = self.package_mapping_files.get(registry)
+
+        if mapping_file is None:
+            return None
+        elif mapping_file in self.file_package_mappings:
+            return self.file_package_mappings[mapping_file]
+
+        mapping = read_yaml_from_file_path(mapping_file, "schemas/package_mapping.json")
+        self.file_package_mappings[mapping_file] = mapping
+        return mapping
+
+    def _get_component_name(self, image):
+        """
+        Get package for image by querying registry and looking at labels.
+        """
+        # Do not import get_inspect_for_image directly, needs to be mocked in tests
+        inspect = util.get_inspect_for_image(image, image.registry)
+        labels = Labels(inspect[INSPECT_CONFIG].get("Labels", {}))
+
+        try:
+            _, package = labels.get_name_and_value(Labels.LABEL_TYPE_COMPONENT)
+        except KeyError:
+            raise RuntimeError("Image has no component label: {}".format(image))
+
+        return package
+
+    def _get_final_mapping(self, registry, package):
+        """
+        Get final mapping for given registry (combine site and user mappings).
+
+        Build final mapping package by package. If the user configures the
+        replacement for a package incorrectly, build should only fail when
+        replacing repos for that specific package, not before.
+        """
+        mapping = self.final_package_mappings.setdefault(registry, {})
+        if package in mapping:
+            return mapping
+
+        site_mapping = self._get_site_mapping(registry) or {}
+        user_mapping = self.user_package_mappings.get(registry, {})
+
+        if package in user_mapping:
+            user_replacement = user_mapping[package]
+            if package not in site_mapping or user_replacement in site_mapping[package]:
+                # Mapping file is [package => list of repos], user mapping is [package => repo]
+                # Stick to [package => list of repos]
+                mapping[package] = [user_replacement]
+            else:
+                choices = ", ".join(site_mapping[package])
+                raise RuntimeError("Invalid replacement for package {}: {} (choices: {})"
+                                   .format(package, user_replacement, choices))
+        elif package in site_mapping:
+            mapping[package] = site_mapping[package]
+
+        return mapping
+
     def _replace(self, image, registry=_KEEP, namespace=_KEEP, repo=_KEEP, tag=_KEEP):
+        """
+        Replace specified parts of image pullspec, keep the rest
+        """
         return ImageName(
             registry=image.registry if registry is _KEEP else registry,
             namespace=image.namespace if namespace is _KEEP else namespace,
