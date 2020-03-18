@@ -216,7 +216,7 @@ class PullspecReplacer(object):
         if image.tag.startswith("sha256:"):
             return image
         digests = get_manifest_digests(image, image.registry, versions=("v2_list",))
-        return self._replace(image, tag="sha256:{}".format(digests["v2_list"]))
+        return self._replace(image, tag=digests["v2_list"])
 
     def replace_registry(self, image):
         """

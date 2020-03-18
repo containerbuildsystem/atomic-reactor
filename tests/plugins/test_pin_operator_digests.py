@@ -258,8 +258,8 @@ class TestPinOperatorDigest(object):
             'replace-registry': 'new-registry'
         }
 
-        mock_digest_query('keep-registry/ns/foo:latest', 'abcdef')
-        mock_digest_query('replace-registry/ns/bar:1', 'fedcba')
+        mock_digest_query('keep-registry/ns/foo:latest', 'sha256:abcdef')
+        mock_digest_query('replace-registry/ns/bar:1', 'sha256:fedcba')
         # there should be no queries for the pullspecs which already contain a digest
 
         f = mock_operator_csv(tmpdir, 'csv.yaml', pullspecs)
@@ -361,8 +361,8 @@ class TestPullspecReplacer(object):
         assert replacer.registry_is_allowed(image) == allowed
 
     @pytest.mark.parametrize('image, should_query, digest', [
-        ('registry/ns/foo', True, '123456'),
-        ('registry/ns/bar@sha256:654321', False, '654321'),
+        ('registry/ns/foo', True, 'sha256:123456'),
+        ('registry/ns/bar@sha256:654321', False, 'sha256:654321'),
     ])
     @responses.activate
     def test_pin_digest(self, image, should_query, digest):
@@ -377,7 +377,7 @@ class TestPullspecReplacer(object):
         assert replaced.registry == image.registry
         assert replaced.namespace == image.namespace
         assert replaced.repo == image.repo
-        assert replaced.tag == 'sha256:{}'.format(digest)
+        assert replaced.tag == digest
 
     @pytest.mark.parametrize('image, replacement_registries, replaced', [
         ('old-registry/ns/foo', {'old-registry': 'new-registry'}, 'new-registry/ns/foo'),
