@@ -49,7 +49,7 @@
             "autorebuild": {"$ref": "#/definitions/autorebuild"},
             "compose": {"$ref": "#/definitions/compose"},
             "flatpak": {"$ref": "#/definitions/flatpak"},
-            "operator_manifest": {"$ref": "#/definitions/operator_manifest"},
+            "operator_manifests": {"$ref": "#/definitions/operator_manifests"},
             "image_build_method": {"$ref": "#/definitions/image_build_method"},
             "tags": {"$ref": "#/definitions/tags"},
             "set_release_env": {"$ref": "#/definitions/set_release_env"},
@@ -64,7 +64,7 @@
             "autorebuild": {"$ref": "#/definitions/autorebuild"},
             "compose": {"$ref": "#/definitions/compose"},
             "flatpak": {"$ref": "#/definitions/flatpak"},
-            "operator_manifest": {"$ref": "#/definitions/operator_manifest"},
+            "operator_manifests": {"$ref": "#/definitions/operator_manifests"},
             "image_build_method": {"$ref": "#/definitions/image_build_method"},
             "remote_source": {
               "type": ["object", "null"],
@@ -246,7 +246,7 @@
       },
       "additionalProperties": false
     },
-    "operator_manifest": {
+    "operator_manifests": {
       "description": "Configuration for operator manifest bundle builds",
       "type": "object",
       "properties": {

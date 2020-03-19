@@ -51,7 +51,7 @@ def make_reactor_config(operators_config):
 
 def make_user_config(operator_config):
     config = StubConfig()
-    setattr(config, 'operator_manifest', operator_config)
+    setattr(config, 'operator_manifests', operator_config)
     return config
 
 
@@ -192,7 +192,7 @@ class TestPinOperatorDigest(object):
 
         with pytest.raises(PluginFailedException) as exc_info:
             runner.run()
-        msg = "operator_manifest configuration missing in container.yaml"
+        msg = "operator_manifests configuration missing in container.yaml"
         assert msg in str(exc_info.value)
 
     @pytest.mark.parametrize('replacements', [None, {}])
