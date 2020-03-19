@@ -48,7 +48,7 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
                                       provided to workers by osbs-client
         """
         super(PinOperatorDigestsPlugin, self).__init__(tasker, workflow)
-        self.user_config = workflow.source.config.operator_manifest
+        self.user_config = workflow.source.config.operator_manifests
         self.site_config = None  # Only relevant (and available) in orchestrator
         self.replacement_pullspecs = replacement_pullspecs
 
@@ -115,7 +115,7 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
 
     def _get_operator_manifest(self):
         if self.user_config is None:
-            raise RuntimeError("operator_manifest configuration missing in container.yaml")
+            raise RuntimeError("operator_manifests configuration missing in container.yaml")
 
         manifests_dir = os.path.join(self.workflow.source.path, self.user_config["manifests_dir"])
         self.log.info("Looking for operator CSV files in %s", manifests_dir)

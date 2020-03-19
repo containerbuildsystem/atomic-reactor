@@ -272,10 +272,10 @@ class TestSourceConfigSchemaValidation(object):
             }}
         ), (
           """\
-          operator_manifest:
+          operator_manifests:
             manifests_dir: path/to/manifests
           """,
-          {'operator_manifest': {
+          {'operator_manifests': {
               'manifests_dir': 'path/to/manifests'
           }}
         ),
@@ -394,11 +394,11 @@ class TestSourceConfigSchemaValidation(object):
         """,
 
         """\
-        operator_manifest: {}
+        operator_manifests: {}
         """,
 
         """\
-        operator_manifest:
+        operator_manifests:
           manifests_dir: /absolute/path
         """,
     ])
