@@ -109,6 +109,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self.composes_info = None
         self._parent_signing_intent = None
         self.repourls = repourls or []
+        self.has_complete_repos = len(self.repourls) > 0
         self.plugin_result = self.workflow.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY)
         self.all_compose_ids = list(self.compose_ids)
 
@@ -197,6 +198,8 @@ class ResolveComposesPlugin(PreBuildPlugin):
         for repo in all_yum_repos:
             if repo not in original_yum_repos:
                 self.log.info('Inheriting yum repo %s', repo)
+        if len(parent_repourls) > 0:
+            self.has_complete_repos = True
 
     def read_configs(self):
         self.odcs_config = get_config(self.workflow).get_odcs_config()
@@ -219,6 +222,8 @@ class ResolveComposesPlugin(PreBuildPlugin):
 
         self.compose_config = ComposeConfig(data, pulp_data, self.odcs_config,
                                             arches=platforms)
+        if self.compose_config.has_complete_repos():
+            self.has_complete_repos = True
 
     def adjust_compose_config(self):
         if self.signing_intent:
@@ -357,6 +362,13 @@ class ResolveComposesPlugin(PreBuildPlugin):
         if not repos_by_arch:
             override_build_kwarg(self.workflow, 'yum_repourls', noarch_repos, None)
 
+        # If we don't think the set of packages available from the user-supplied repourls,
+        # inherited repourls, and composed repositories is complete, set the 'include_koji_repo'
+        # kwarg so that the so that the 'yum_repourls' kwarg that we just set doesn't
+        # result in the 'koji' plugin being omitted.
+        if not self.has_complete_repos:
+            override_build_kwarg(self.workflow, 'include_koji_repo', True)
+
         # So that plugins like flatpak_update_dockerfile can get information about the composes
         override_build_kwarg(self.workflow, 'compose_ids', self.all_compose_ids)
 
@@ -421,6 +433,23 @@ class ComposeConfig(object):
 
     def has_signing_intent_changed(self):
         return self.signing_intent['name'] != self._original_signing_intent_name
+
+    def has_complete_repos(self):
+        """Check if the result of the compose looks complete by itself"""
+
+        # A module compose is not standalone - it depends on packages from the
+        # virtual platform module - if no extra repourls or composes are provided,
+        # we'll need packages from the target build tag using the 'koji' plugin.
+
+        # A packages compose is indeterminate - we don't know if all the packages
+        # needed were listed, or some extras are needed. (from pulp repos, say)
+        # However, it wouldn't make sense to use a packages compose if we expected
+        # packages to be directly pulled from the target build tag as well,
+        # so we say it's complete, so that the 'koji' plugin is disabled.
+
+        # Assume pulp repos are complete
+
+        return bool(self.pulp) or self.use_packages
 
     def render_requests(self):
         self.validate_for_request()

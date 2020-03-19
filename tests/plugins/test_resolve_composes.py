@@ -234,6 +234,53 @@ def mock_koji_session():
     return koji_session
 
 
+def mock_koji_parent(workflow,
+                     scratch=False, isolated=False, parent_repo=None, parent_compose_ids=None):
+    new_environ = {}
+    new_environ["BUILD"] = dedent('''\
+        {
+          "metadata": {
+            "labels": {}
+          }
+        }
+        ''')
+
+    if scratch:
+        new_environ["BUILD"] = dedent('''\
+            {
+              "metadata": {
+                "labels": {"scratch": "true"}
+              }
+            }
+            ''')
+    elif isolated:
+        new_environ["BUILD"] = dedent('''\
+           {
+             "metadata": {
+               "labels": {"isolated": "true"}
+             }
+           }
+           ''')
+    flexmock(os)
+    os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
+
+    parent_build_info = {
+        'id': 1234,
+        'nvr': 'fedora-27-1',
+        'extra': {'image': {'odcs': {'compose_ids': parent_compose_ids,
+                                     'signing_intent': 'unsigned'},
+                            'yum_repourls': [parent_repo]}},
+    }
+    if not parent_repo:
+        parent_build_info['extra']['image'].pop('yum_repourls')
+    if not parent_compose_ids:
+        parent_build_info['extra']['image'].pop('odcs')
+
+    workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = {
+        BASE_IMAGE_KOJI_BUILD: parent_build_info,
+    }
+
+
 class TestResolveComposes(object):
 
     def teardown_method(self, method):
@@ -320,51 +367,12 @@ class TestResolveComposes(object):
         elif not compose_defined:
             workflow._tmpdir.join('container.yaml').write("")
 
-        new_environ = {}
-        new_environ["BUILD"] = dedent('''\
-            {
-              "metadata": {
-                "labels": {}
-              }
-            }
-            ''')
-
-        if scratch:
-            new_environ["BUILD"] = dedent('''\
-                {
-                  "metadata": {
-                    "labels": {"scratch": "true"}
-                  }
-                }
-                ''')
-        elif isolated:
-            new_environ["BUILD"] = dedent('''\
-               {
-                 "metadata": {
-                   "labels": {"isolated": "true"}
-                 }
-               }
-               ''')
-        flexmock(os)
-        os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
-
         parent_compose_ids = [10, 11]
-        parent_repo = ["http://example.com/parent.repo", ]
-        parent_build_info = {
-            'id': 1234,
-            'nvr': 'fedora-27-1',
-            'extra': {'image': {'odcs': {'compose_ids': parent_compose_ids,
-                                         'signing_intent': 'unsigned'},
-                                'yum_repourls': parent_repo}},
-        }
-        if not parent_repourls:
-            parent_build_info['extra']['image'].pop('yum_repourls')
-        if not parent_compose:
-            parent_build_info['extra']['image'].pop('odcs')
-
-        workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = {
-            BASE_IMAGE_KOJI_BUILD: parent_build_info,
-        }
+        parent_repo = "http://example.com/parent.repo"
+        mock_koji_parent(workflow,
+                         parent_compose_ids=parent_compose_ids if parent_compose else None,
+                         parent_repo=parent_repo if parent_repourls else None,
+                         scratch=scratch, isolated=isolated)
 
         if ids:
             (flexmock(ODCSClient)
@@ -398,7 +406,7 @@ class TestResolveComposes(object):
         if not ids and compose_defined:
             expected_yum_repourls.append(ODCS_COMPOSE['result_repofile'])
         if allow_inherit and parent_repourls:
-            expected_yum_repourls.extend(parent_repo)
+            expected_yum_repourls.append(parent_repo)
 
         if ids:
             for compose_id in range(3, 6):
@@ -455,7 +463,7 @@ class TestResolveComposes(object):
         if repo_provided:
             all_yum_repourls = list(current_repourl)
         if allow_inherit and parent_repourls:
-            all_yum_repourls.extend(parent_repo)
+            all_yum_repourls.append(parent_repo)
             assert 'Inheriting yum repo http://example.com/parent.repo' in caplog.text
 
         assert set(workflow.all_yum_repourls) == set(all_yum_repourls)
@@ -1298,6 +1306,51 @@ class TestResolveComposes(object):
         mock_content_sets_config(workflow._tmpdir, content_sets_content)
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
                                   expect_error=expect_error)
+
+    @pytest.mark.parametrize('parent_repourls,modules,packages,content_sets,expect_include_repo', [
+        (True, True, False, None, None),
+        (False, True, False, None, True),
+        (False, False, True, None, None),
+        (False, True, False, '{}', True),
+        (False, False, False, 'x86_64: ["spam-rpms"]', None),
+    ])
+    def test_include_koji_repo(self, workflow, reactor_config_map,
+                               parent_repourls, modules, packages, content_sets,
+                               expect_include_repo):
+
+        mock_koji_parent(workflow, parent_repo="http://example.com/parent.repo")
+
+        repo_config = {
+            'compose': {
+            }
+        }
+
+        if parent_repourls:
+            repo_config['compose']['inherit'] = True
+        if modules:
+            repo_config['compose']['modules'] = ['mymodule:stable']
+        if packages:
+            repo_config['compose']['packages'] = ['bash']
+        if content_sets is not None:
+            repo_config['compose']['pulp_repos'] = True
+
+        mock_repo_config(workflow._tmpdir, yaml.safe_dump(repo_config))
+        if content_sets:
+            mock_content_sets_config(workflow._tmpdir, content_sets)
+
+        (flexmock(ODCSClient)
+            .should_receive('start_compose')
+            .and_return(ODCS_COMPOSE))
+
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
+
+        assert self.get_override_yum_repourls(workflow) is not None
+        include_koji_repo = (workflow.plugin_workspace
+                             .get(OrchestrateBuildPlugin.key, {})
+                             .get(WORKSPACE_KEY_OVERRIDE_KWARGS, {})
+                             .get(None, {})
+                             .get('include_koji_repo'))
+        assert include_koji_repo == expect_include_repo
 
     def get_override_yum_repourls(self, workflow, arch=ODCS_COMPOSE_DEFAULT_ARCH):
         return (workflow.plugin_workspace
