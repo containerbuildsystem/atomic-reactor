@@ -661,6 +661,13 @@
           "limit_media_types": {
             "description": "Do not report any media types other than these",
             "allOf": [{"$ref": "#/definitions/media_types"}]
+          },
+          "blacklist_srpms": {
+              "description": "Don't include specified srpms to source container image, specify SRPM name",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
           }
         },
         "additionalProperties": false

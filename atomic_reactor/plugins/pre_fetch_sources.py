@@ -20,6 +20,7 @@ from atomic_reactor.plugins.pre_reactor_config import (
     get_koji_path_info,
     get_koji_session,
     get_config,
+    get_source_container,
     NO_FALLBACK
 )
 from atomic_reactor.util import get_retrying_requests_session
@@ -224,6 +225,9 @@ class FetchSourcesPlugin(PreBuildPlugin):
         rpms = [rpm for archive in archives
                 for rpm in self.session.listRPMs(imageID=archive['id'])]
 
+        src_config = get_source_container(self.workflow, fallback={})
+        blacklist_srpms = src_config.get('blacklist_srpms', [])
+
         srpm_build_paths = {}
         for rpm in rpms:
             rpm_id = rpm['id']
@@ -237,6 +241,12 @@ class FetchSourcesPlugin(PreBuildPlugin):
             rpm_hdr = self.session.getRPMHeaders(rpm_id, headers=['SOURCERPM'])
             if 'SOURCERPM' not in rpm_hdr:
                 raise RuntimeError('Missing SOURCERPM header (RPM ID: {})'.format(rpm_id))
+
+            srpm_name = rpm_hdr['SOURCERPM'].rsplit('-', 2)[0]
+
+            if any(black == srpm_name for black in blacklist_srpms):
+                self.log.debug('skipping blacklisted srpm %s', rpm_hdr['SOURCERPM'])
+                continue
 
             srpm_filename = rpm_hdr['SOURCERPM']
             if srpm_filename in srpm_build_paths:
