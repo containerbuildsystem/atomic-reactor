@@ -418,6 +418,32 @@ class TestFetchSources(object):
 
         assert srpm_url in caplog.text
 
+    @pytest.mark.parametrize('black_list', [[], ['foobar'], ['foobar', 'kernel']])
+    def test_blacklist_srpms(self, requests_mock, docker_tasker, koji_session, tmpdir,
+                             caplog, black_list):
+        black_cm = dedent("""\
+            version: 1
+            koji:
+               hub_url: {}
+               root_url: {}
+               auth:
+                   ssl_certs_dir: not_needed_here
+            source_container:
+               blacklist_srpms: {}
+            """.format(KOJI_HUB, KOJI_ROOT, black_list))
+
+        mock_koji_manifest_download(requests_mock)
+        koji_build_nvr = 'foobar-1-1'
+        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr=koji_build_nvr, config_map=black_cm)
+        runner.run()
+
+        pkg_name = koji_build_nvr.rsplit('-', 2)[0]
+        err_msg = 'skipping blacklisted srpm %s' % koji_build_nvr
+        if pkg_name in black_list:
+            assert err_msg in caplog.text
+        else:
+            assert err_msg not in caplog.text
+
     @pytest.mark.parametrize('reason', ['external', 'other'])
     def test_missing_srpm_header(self, docker_tasker, koji_session, tmpdir, reason):
         (flexmock(koji_session)
