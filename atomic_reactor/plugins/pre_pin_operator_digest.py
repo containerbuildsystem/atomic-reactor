@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import absolute_import, unicode_literals
 
+import logging
 import os.path
 
 from osbs.utils import Labels
@@ -162,9 +163,18 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         replacements = {}
 
         for original in pullspecs:
+            self.log.info("Computing replacement for %s", original)
+
+            self.log.debug("Making sure tag is manifest list digest")
             pinned = replacer.pin_digest(original)
+
+            self.log.debug("Replacing namespace/repo")
             repo_replaced = replacer.replace_repo(pinned)
+
+            self.log.debug("Replacing registry")
             registry_replaced = replacer.replace_registry(repo_replaced)
+
+            self.log.info("Final pullspec: %s", registry_replaced)
 
             if registry_replaced != original:
                 replacements[original] = registry_replaced
@@ -198,6 +208,9 @@ class PullspecReplacer(object):
         :param user_config: container.yaml operator_manifest configuration
         :param site_config: reactor-config-map operator_manifests configuration
         """
+        log_name = "atomic_reactor.plugins.{}".format(PinOperatorDigestsPlugin.key)
+        self.log = logging.getLogger(log_name)
+
         self.allowed_registries = site_config["allowed_registries"]
         if self.allowed_registries is not None:
             self.allowed_registries = set(self.allowed_registries)
@@ -240,7 +253,9 @@ class PullspecReplacer(object):
         :return: ImageName
         """
         if image.tag.startswith("sha256:"):
+            self.log.debug("%s looks like a digest, skipping query", image.tag)
             return image
+        self.log.debug("Querying %s for manifest list digest", image.registry)
         digests = get_manifest_digests(image, image.registry, versions=("v2_list",))
         return self._replace(image, tag=digests["v2_list"])
 
@@ -252,6 +267,7 @@ class PullspecReplacer(object):
         :return: ImageName
         """
         if image.registry not in self.registry_replace:
+            self.log.debug("registry_post_replace not configured for %s", image.registry)
             return image
         return self._replace(image, registry=self.registry_replace[image.registry])
 
@@ -266,7 +282,7 @@ class PullspecReplacer(object):
         """
         site_mapping = self._get_site_mapping(image.registry)
         if site_mapping is None and image.registry not in self.user_package_mappings:
-            # repo_replacements not configured for registry
+            self.log.debug("repo_replacements not configured for %s", image.registry)
             return image
 
         package = self._get_component_name(image)
@@ -281,6 +297,7 @@ class PullspecReplacer(object):
             raise RuntimeError("Multiple replacements for package {} (from {}): {}"
                                .format(package, image, options))
 
+        self.log.debug("Replacement for package %s: %s", package, replacements[0])
         replacement = ImageName.parse(replacements[0])
         return self._replace(image, namespace=replacement.namespace, repo=replacement.repo)
 
@@ -304,12 +321,14 @@ class PullspecReplacer(object):
         """
         Get package for image by querying registry and looking at labels.
         """
+        self.log.debug("Querying %s for image labels", image.registry)
         # Do not import get_inspect_for_image directly, needs to be mocked in tests
         inspect = util.get_inspect_for_image(image, image.registry)
         labels = Labels(inspect[INSPECT_CONFIG].get("Labels", {}))
 
         try:
             _, package = labels.get_name_and_value(Labels.LABEL_TYPE_COMPONENT)
+            self.log.debug("Resolved package name: %s", package)
         except KeyError:
             raise RuntimeError("Image has no component label: {}".format(image))
 
@@ -331,15 +350,16 @@ class PullspecReplacer(object):
         user_mapping = self.user_package_mappings.get(registry, {})
 
         if package in user_mapping:
-            user_replacement = user_mapping[package]
-            if package not in site_mapping or user_replacement in site_mapping[package]:
+            replacement = user_mapping[package]
+            if package not in site_mapping or replacement in site_mapping[package]:
+                self.log.debug("User set replacement for package %s: %s", package, replacement)
                 # Mapping file is [package => list of repos], user mapping is [package => repo]
                 # Stick to [package => list of repos]
-                mapping[package] = [user_replacement]
+                mapping[package] = [replacement]
             else:
                 choices = ", ".join(site_mapping[package])
                 raise RuntimeError("Invalid replacement for package {}: {} (choices: {})"
-                                   .format(package, user_replacement, choices))
+                                   .format(package, replacement, choices))
         elif package in site_mapping:
             mapping[package] = site_mapping[package]
 
