@@ -455,7 +455,7 @@ class TestPullspecReplacer(object):
         ('registry/ns/bar@sha256:654321', False, 'sha256:654321'),
     ])
     @responses.activate
-    def test_pin_digest(self, image, should_query, digest):
+    def test_pin_digest(self, image, should_query, digest, caplog):
         image = ImageName.parse(image)
         if should_query:
             mock_digest_query(image, digest)
@@ -469,11 +469,16 @@ class TestPullspecReplacer(object):
         assert replaced.repo == image.repo
         assert replaced.tag == digest
 
+        if should_query:
+            assert "Querying {} for manifest list digest".format(image.registry) in caplog.text
+        else:
+            assert "{} looks like a digest, skipping query".format(digest) in caplog.text
+
     @pytest.mark.parametrize('image, replacement_registries, replaced', [
         ('old-registry/ns/foo', {'old-registry': 'new-registry'}, 'new-registry/ns/foo'),
         ('registry/ns/foo', {}, 'registry/ns/foo'),
     ])
-    def test_replace_registry(self, image, replacement_registries, replaced):
+    def test_replace_registry(self, image, replacement_registries, replaced, caplog):
         image = ImageName.parse(image)
         replaced = ImageName.parse(replaced)
 
@@ -481,6 +486,10 @@ class TestPullspecReplacer(object):
         replacer = PullspecReplacer(user_config={}, site_config=site_config)
 
         assert replacer.replace_registry(image) == replaced
+
+        if image.registry not in replacement_registries:
+            msg = "registry_post_replace not configured for {}".format(image.registry)
+            assert msg in caplog.text
 
     @pytest.mark.parametrize('image,site_replacements,user_replacements,replaced,should_query', [
         # can replace repo if only 1 option in site config
@@ -521,7 +530,7 @@ class TestPullspecReplacer(object):
          False),
     ])
     def test_replace_repo(self, image, site_replacements, user_replacements,
-                          replaced, should_query, tmpdir):
+                          replaced, should_query, tmpdir, caplog):
         image = ImageName.parse(image)
         replaced = ImageName.parse(replaced)
 
@@ -537,6 +546,13 @@ class TestPullspecReplacer(object):
         replacer = PullspecReplacer(user_config=user_config, site_config=site_config)
 
         assert replacer.replace_repo(image) == replaced
+
+        if should_query:
+            assert "Querying {} for image labels".format(image.registry) in caplog.text
+            assert "Resolved package name" in caplog.text
+            assert "Replacement for package" in caplog.text
+        else:
+            assert "repo_replacements not configured for {}".format(image.registry) in caplog.text
 
     @pytest.mark.parametrize('image,site_replacements,user_replacements,inspect_labels,exc_msg', [
         # replacements configured in site config, repo missing
