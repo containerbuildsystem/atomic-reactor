@@ -55,7 +55,8 @@ from atomic_reactor.util import (ImageName, wait_for_command,
                                  get_floating_images,
                                  get_unique_images,
                                  get_image_upload_filename,
-                                 read_yaml, read_yaml_from_file_path, OSBSLogs,
+                                 read_yaml, read_yaml_from_file_path, read_yaml_from_url,
+                                 OSBSLogs,
                                  get_platforms_in_limits, get_orchestrator_platforms,
                                  dump_stacktraces, setup_introspection_signal_handler,
                                  allow_repo_dir_in_dockerignore,
@@ -1125,7 +1126,7 @@ def test_get_primary_and_floating_images(workflow, tag_conf, tag_annotation, exp
         assert unique_image.tag == expected_unique[index]
 
 
-@pytest.mark.parametrize('from_file', [True, False])
+@pytest.mark.parametrize('source', ['file', 'string', 'url'])
 @pytest.mark.parametrize('config', [
     ("""\
       version: 1
@@ -1145,14 +1146,19 @@ def test_get_primary_and_floating_images(workflow, tag_conf, tag_annotation, exp
     """),
     REACTOR_CONFIG_MAP,
 ])
-def test_read_yaml_file_or_yaml(tmpdir, from_file, config):
+@responses.activate
+def test_read_yaml(tmpdir, source, config):
     expected = yaml.safe_load(config)
 
-    if from_file:
+    if source == 'file':
         config_path = os.path.join(str(tmpdir), 'config.yaml')
         with open(config_path, 'w') as fp:
             fp.write(config)
         output = read_yaml_from_file_path(config_path, 'schemas/config.json')
+    elif source == 'url':
+        url = 'https://somewhere.net/config.yaml'
+        responses.add(responses.GET, url, body=config)
+        output = read_yaml_from_url(url, 'schemas/config.json')
     else:
         output = read_yaml(config, 'schemas/config.json')
 
