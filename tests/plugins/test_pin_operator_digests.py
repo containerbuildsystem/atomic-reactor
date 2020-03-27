@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import absolute_import, unicode_literals
 
+import io
 import os
 
 import jsonschema
@@ -133,16 +134,21 @@ def mock_operator_csv(tmpdir, filename, pullspecs):
     return path
 
 
-def mock_package_mapping_files(tmpdir, repo_replacements):
+def mock_package_mapping_files(repo_replacements):
     repo_replacements = repo_replacements or {}
 
-    # write mappings to files, update repo_replacements to point to those files
+    # create unique url for each registry, mock responses, update mapping to point to urls
     for registry, mapping in repo_replacements.items():
-        filename = 'mapping-{}.yaml'.format(registry)
-        path = tmpdir.join(filename)
-        with open(str(path), 'w') as f:
-            yaml.dump(mapping, f)
-        repo_replacements[registry] = str(path)
+        url = 'https://somewhere.net/mapping-{}.yaml'.format(registry)
+
+        # ruamel.yaml does not support dumping to str, use an io stream
+        # on python2, it also does not support writing to a StringIO stream, use BytesIO
+        f = io.BytesIO()
+        yaml.dump(mapping, f)
+        f.seek(0)
+
+        responses.add(responses.GET, url, body=f.read().decode('utf-8'))
+        repo_replacements[registry] = url
 
     return repo_replacements
 
@@ -370,7 +376,7 @@ class TestPinOperatorDigest(object):
         f = mock_operator_csv(tmpdir, 'csv.yaml', pullspecs)
         pre_content = f.read()
 
-        mock_package_mapping_files(tmpdir, site_replace_repos)
+        mock_package_mapping_files(site_replace_repos)
 
         user_config = get_user_config(manifests_dir=str(tmpdir),
                                       repo_replacements=user_replace_repos)
@@ -561,12 +567,13 @@ class TestPullspecReplacer(object):
          'foo:1',
          False),
     ])
+    @responses.activate
     def test_replace_repo(self, image, site_replacements, user_replacements,
                           replaced, should_query, tmpdir, caplog):
         image = ImageName.parse(image)
         replaced = ImageName.parse(replaced)
 
-        mock_package_mapping_files(tmpdir, site_replacements)
+        mock_package_mapping_files(site_replacements)
         mock_inspect_query(image,
                            {PKG_LABEL: '{}-package'.format(image.repo)},
                            times=1 if should_query else 0)
@@ -578,6 +585,9 @@ class TestPullspecReplacer(object):
         replacer = PullspecReplacer(user_config=user_config, site_config=site_config)
 
         assert replacer.replace_repo(image) == replaced
+
+        if site_replacements and image.registry in site_replacements:
+            assert "Downloading mapping file for {}".format(image.registry) in caplog.text
 
         if should_query:
             assert "Querying {} for image labels".format(image.registry) in caplog.text
@@ -618,11 +628,12 @@ class TestPullspecReplacer(object):
          {},
          'Image has no component label: a/x/foo:1'),
     ])
+    @responses.activate
     def test_replace_repo_failure(self, image, site_replacements, user_replacements,
                                   inspect_labels, exc_msg, tmpdir):
         image = ImageName.parse(image)
 
-        mock_package_mapping_files(tmpdir, site_replacements)
+        mock_package_mapping_files(site_replacements)
         mock_inspect_query(image, inspect_labels)
 
         site_config = get_site_config(repo_replacements=site_replacements)
@@ -644,10 +655,11 @@ class TestPullspecReplacer(object):
         ({'a': {'foo-package': []}},
          '[] is too short'),
     ])
-    def test_replace_repo_schema_validation(self, site_replacements, exc_msg, tmpdir):
+    @responses.activate
+    def test_replace_repo_schema_validation(self, site_replacements, exc_msg):
         image = ImageName.parse('a/x/foo')
 
-        mock_package_mapping_files(tmpdir, site_replacements)
+        mock_package_mapping_files(site_replacements)
         mock_inspect_query(image, {}, times=0)
 
         site_config = get_site_config(repo_replacements=site_replacements)

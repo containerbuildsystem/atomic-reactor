@@ -18,7 +18,7 @@ from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import PLUGIN_PIN_OPERATOR_DIGESTS_KEY, INSPECT_CONFIG
 from atomic_reactor.util import (has_operator_bundle_manifest,
                                  get_manifest_digests,
-                                 read_yaml_from_file_path,
+                                 read_yaml_from_url,
                                  ImageName)
 from atomic_reactor.plugins.pre_reactor_config import get_operator_manifests
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
@@ -322,7 +322,8 @@ class PullspecReplacer(object):
         elif mapping_file in self.file_package_mappings:
             return self.file_package_mappings[mapping_file]
 
-        mapping = read_yaml_from_file_path(mapping_file, "schemas/package_mapping.json")
+        self.log.debug("Downloading mapping file for %s from %s", registry, mapping_file)
+        mapping = read_yaml_from_url(mapping_file, "schemas/package_mapping.json")
         self.file_package_mappings[mapping_file] = mapping
         return mapping
 
