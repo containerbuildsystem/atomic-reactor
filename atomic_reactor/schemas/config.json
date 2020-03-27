@@ -694,12 +694,13 @@
                 "registry": {
                   "type": "string"
                 },
-                "package_mappings_file": {
-                  "description": "Path to file containing repo replacement mappings",
-                  "type": "string"
+                "package_mappings_url": {
+                  "description": "URL of file containing repo replacement mappings",
+                  "type": "string",
+                  "pattern": "^http(s?)://.*$"
                 }
               },
-              "required": ["registry", "package_mappings_file"],
+              "required": ["registry", "package_mappings_url"],
               "additionalProperties": false
             }
           },

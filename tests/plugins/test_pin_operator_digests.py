@@ -197,7 +197,7 @@ def get_site_config(allowed_registries=None, registry_post_replace=None, repo_re
             {'old': old, 'new': new} for old, new in registry_post_replace.items()
         ],
         'repo_replacements': [
-            {'registry': registry, 'package_mappings_file': path}
+            {'registry': registry, 'package_mappings_url': path}
             for registry, path in repo_replacements.items()
         ]
     }

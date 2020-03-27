@@ -1476,7 +1476,7 @@ class TestReactorConfigPlugin(object):
                 - bar
               repo_replacements:
                 - registry: foo
-                  package_mappings_file: mapping.yaml
+                  package_mappings_url: https://somewhere.net/mapping.yaml
               registry_post_replace:
                 - old: foo
                   new: bar
@@ -1520,14 +1520,22 @@ class TestReactorConfigPlugin(object):
               allowed_registries: null
               repo_replacements:
                 - registry: foo
-        """, False),  # missing package mappings file
+        """, False),  # missing package mappings url
         ("""\
           version: 1
           operator_manifests:
               allowed_registries: null
               repo_replacements:
-                - package_mappings_file: mapping.yaml
+                - package_mappings_url: https://somewhere.net/mapping.yaml
         """, False),  # missing registry
+        ("""\
+          version: 1
+          operator_manifests:
+              allowed_registries: null,
+              repo_replacements:
+                - registry: foo
+                  package_mappings_url: mapping.yaml
+        """, False),  # package mappings url is not a url
     ])
     def test_get_operator_manifests(self, config, valid):
         _, workflow = self.prepare()

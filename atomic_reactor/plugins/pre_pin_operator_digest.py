@@ -229,13 +229,13 @@ class PullspecReplacer(object):
             for registry in site_config.get("registry_post_replace", [])
         }
 
-        self.package_mapping_files = {
-            mapping["registry"]: mapping["package_mappings_file"]
+        self.package_mapping_urls = {
+            mapping["registry"]: mapping["package_mappings_url"]
             for mapping in site_config.get("repo_replacements", [])
         }
-        # Mapping of [file path => package mapping]
+        # Mapping of [url => package mapping]
         # Loaded when needed, see _get_site_mapping
-        self.file_package_mappings = {}
+        self.url_package_mappings = {}
 
         self.user_package_mappings = {
             mapping["registry"]: mapping["package_mappings"]
@@ -315,16 +315,16 @@ class PullspecReplacer(object):
         Get the package mapping file for the given registry. If said file has
         not yet been read, read it and save mapping for later. Return mapping.
         """
-        mapping_file = self.package_mapping_files.get(registry)
+        mapping_url = self.package_mapping_urls.get(registry)
 
-        if mapping_file is None:
+        if mapping_url is None:
             return None
-        elif mapping_file in self.file_package_mappings:
-            return self.file_package_mappings[mapping_file]
+        elif mapping_url in self.url_package_mappings:
+            return self.url_package_mappings[mapping_url]
 
-        self.log.debug("Downloading mapping file for %s from %s", registry, mapping_file)
-        mapping = read_yaml_from_url(mapping_file, "schemas/package_mapping.json")
-        self.file_package_mappings[mapping_file] = mapping
+        self.log.debug("Downloading mapping file for %s from %s", registry, mapping_url)
+        mapping = read_yaml_from_url(mapping_url, "schemas/package_mapping.json")
+        self.url_package_mappings[mapping_url] = mapping
         return mapping
 
     def _get_component_name(self, image):
