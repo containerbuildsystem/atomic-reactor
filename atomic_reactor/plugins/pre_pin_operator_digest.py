@@ -140,12 +140,16 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         return operator_manifest
 
     def _get_pullspecs(self, operator_manifest):
-        pullspecs = set()
+        pullspec_set = set()
         for operator_csv in operator_manifest.files:
-            pullspecs.update(operator_csv.get_pullspecs())
+            pullspec_set.update(operator_csv.get_pullspecs())
+
+        # Make sure pullspecs are handled in a deterministic order
+        # ImageName does not implement ordering, use str() as key for sorting
+        pullspecs = sorted(pullspec_set, key=str)
 
         if pullspecs:
-            pullspec_lines = "\n".join(sorted(map(str, pullspecs)))
+            pullspec_lines = "\n".join(image.to_str() for image in pullspecs)
             self.log.info("Found pullspecs:\n%s", pullspec_lines)
         else:
             self.log.info("No pullspecs found")
@@ -182,7 +186,7 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         replacement_lines = "\n".join(
             "{} -> {}".format(p, replacements[p]) if p in replacements
             else "{} - no change".format(p)
-            for p in sorted(pullspecs, key=str)  # ImageName does not implement ordering
+            for p in pullspecs
         )
         self.log.info("To be replaced:\n%s", replacement_lines)
 
