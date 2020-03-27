@@ -8,6 +8,8 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import absolute_import, unicode_literals
 
+import os
+
 import jsonschema
 from ruamel.yaml import YAML
 
@@ -68,6 +70,7 @@ def mock_workflow(tmpdir, orchestrator, user_config=None, site_config=None):
         source={'provider': 'git', 'uri': 'asd'}
     )
     workflow.source = StubSource()
+    workflow.source.path = str(tmpdir)
     workflow.source.config = make_user_config(user_config)
     workflow.builder = (
         StubInsideBuilder().for_workflow(workflow).set_df_path(str(tmpdir))
@@ -239,6 +242,35 @@ class TestPinOperatorDigest(object):
             runner.run()
         msg = "operator_manifests configuration missing in container.yaml"
         assert msg in str(exc_info.value)
+
+    @pytest.mark.parametrize('orchestrator', [True, False])
+    @pytest.mark.parametrize('manifests_dir, symlinks', [
+        ('/foo/bar', None),
+        ('../foo', None),
+        ('foo/../../bar', None),
+        ('foo', {'foo': '../..'}),
+    ])
+    def test_manifests_dir_not_subdir_of_repo(self, manifests_dir, symlinks,
+                                              orchestrator, docker_tasker, tmpdir):
+        # make sure operator run does not fail because of missing site config
+        site_config = get_site_config()
+        # make sure worker run is not skipped because of missing replacements
+        replacement_pullspecs = {'a': 'b'}
+
+        # make symlinks
+        for rel_dest, src in (symlinks or {}).items():
+            dest = tmpdir.join(rel_dest)
+            os.symlink(src, str(dest))
+
+        user_config = get_user_config(manifests_dir)
+
+        runner = mock_env(docker_tasker, tmpdir, orchestrator, site_config=site_config,
+                          user_config=user_config, replacement_pullspecs=replacement_pullspecs)
+
+        with pytest.raises(PluginFailedException) as exc_info:
+            runner.run()
+
+        assert "manifests_dir points outside of cloned repo" in str(exc_info.value)
 
     @pytest.mark.parametrize('replacements', [None, {}])
     def test_skip_worker_with_empty_replacements(self, replacements,

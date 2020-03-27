@@ -126,9 +126,14 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         if self.user_config is None:
             raise RuntimeError("operator_manifests configuration missing in container.yaml")
 
-        manifests_dir = os.path.join(self.workflow.source.path, self.user_config["manifests_dir"])
-        self.log.info("Looking for operator CSV files in %s", manifests_dir)
+        repo_dir = os.path.realpath(self.workflow.source.path)
+        manifests_rel_path = self.user_config["manifests_dir"]
 
+        manifests_dir = os.path.realpath(os.path.join(repo_dir, manifests_rel_path))
+        if not manifests_dir.startswith(repo_dir):
+            raise RuntimeError("manifests_dir points outside of cloned repository")
+
+        self.log.info("Looking for operator CSV files in %s", manifests_dir)
         operator_manifest = OperatorManifest.from_directory(manifests_dir)
 
         if operator_manifest.files:
