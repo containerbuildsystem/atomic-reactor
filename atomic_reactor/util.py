@@ -12,6 +12,7 @@ import hashlib
 from itertools import chain
 import json
 import jsonschema
+import io
 import os
 import re
 import sys
@@ -48,7 +49,7 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG
                                       PARENT_IMAGE_BUILDS_KEY, PARENT_IMAGES_KOJI_BUILDS,
                                       BASE_IMAGE_KOJI_BUILD, BASE_IMAGE_BUILD_ID_KEY,
                                       PARENT_IMAGES_KEY, SCRATCH_FROM, RELATIVE_REPOS_PATH,
-                                      DOCKERIGNORE)
+                                      DOCKERIGNORE, DEFAULT_DOWNLOAD_BLOCK_SIZE)
 from atomic_reactor.auth import HTTPRegistryAuth
 
 from dockerfile_parse import DockerfileParser
@@ -1267,6 +1268,19 @@ def read_yaml_from_file_path(file_path, schema):
     with open(file_path) as f:
         yaml_data = f.read()
     return read_yaml(yaml_data, schema)
+
+
+def read_yaml_from_url(url, schema):
+    session = get_retrying_requests_session()
+    resp = session.get(url, stream=True)
+    resp.raise_for_status()
+
+    f = io.StringIO()
+    for chunk in resp.iter_content(chunk_size=DEFAULT_DOWNLOAD_BLOCK_SIZE, decode_unicode=True):
+        f.write(chunk)
+
+    f.seek(0)
+    return read_yaml(f.read(), schema)
 
 
 def read_yaml(yaml_data, schema):
