@@ -116,7 +116,7 @@ def mock_env(docker_tasker, tmpdir, orchestrator,
     return runner
 
 
-def mock_operator_csv(tmpdir, filename, pullspecs):
+def mock_operator_csv(tmpdir, filename, pullspecs, for_ocp_44=False):
     path = tmpdir.join(filename)
     data = {
         'kind': 'ClusterServiceVersion',
@@ -129,6 +129,11 @@ def mock_operator_csv(tmpdir, filename, pullspecs):
             ]
         }
     }
+    # To test OCP 4.4 workaround, also add pullspecs under a random key which
+    # is not normally considered a pullspec location
+    if for_ocp_44:
+        data['foo'] = pullspecs
+
     with open(str(path), 'w') as f:
         yaml.dump(data, f)
     return path
@@ -434,7 +439,8 @@ class TestPinOperatorDigest(object):
         }
         assert self._get_worker_arg(runner.workflow) == replacement_pullspecs
 
-    def test_worker(self, docker_tasker, tmpdir, caplog):
+    @pytest.mark.parametrize('ocp_44', [True, False])
+    def test_worker(self, ocp_44, docker_tasker, tmpdir, caplog):
         pullspecs = [
             'keep-registry/ns/foo',
             'replace-registry/ns/bar:1',
@@ -454,9 +460,9 @@ class TestPinOperatorDigest(object):
         ]
 
         manifests_dir = tmpdir.mkdir('manifests')
-        gets_replaced = mock_operator_csv(manifests_dir, 'csv1.yaml', pullspecs)
+        gets_replaced = mock_operator_csv(manifests_dir, 'csv1.yaml', pullspecs, for_ocp_44=ocp_44)
         # this a reference file, make sure it does not get touched by putting it in parent dir
-        reference = mock_operator_csv(tmpdir, 'csv2.yaml', replaced_pullspecs)
+        reference = mock_operator_csv(tmpdir, 'csv2.yaml', replaced_pullspecs, for_ocp_44=ocp_44)
 
         user_config = get_user_config(manifests_dir=str(manifests_dir))
 

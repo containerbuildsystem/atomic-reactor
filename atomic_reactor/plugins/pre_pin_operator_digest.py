@@ -119,7 +119,9 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
 
         for operator_csv in operator_manifest.files:
             self.log.info("Replacing pullspecs in %s", operator_csv.path)
-            operator_csv.replace_pullspecs(replacement_pullspecs)
+            # Replace pullspecs everywhere, not just in locations in which they
+            # are expected to be found - OCP 4.4 workaround
+            operator_csv.replace_pullspecs_everywhere(replacement_pullspecs)
             operator_csv.dump()
 
     def _get_operator_manifest(self):
