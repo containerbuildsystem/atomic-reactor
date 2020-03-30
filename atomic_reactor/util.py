@@ -11,7 +11,6 @@ from __future__ import print_function, unicode_literals, absolute_import
 import hashlib
 from itertools import chain
 import json
-import jsonschema
 import io
 import os
 import re
@@ -25,7 +24,6 @@ import tempfile
 import logging
 import uuid
 import yaml
-import codecs
 import string
 import signal
 import traceback
@@ -53,13 +51,13 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG
 from atomic_reactor.auth import HTTPRegistryAuth
 
 from dockerfile_parse import DockerfileParser
-from pkg_resources import resource_stream
 
 from importlib import import_module
 from requests.utils import guess_json_utf
 
 from osbs.exceptions import OsbsException
 from osbs.utils import clone_git_repo, reset_git_repo, Labels
+from osbs.utils.yaml import read_yaml as osbs_read_yaml
 
 from tempfile import NamedTemporaryFile
 try:
@@ -1264,13 +1262,23 @@ def are_plugins_in_order(plugins_conf, *plugins_names):
     return True
 
 
-def read_yaml_from_file_path(file_path, schema):
+def read_yaml_from_file_path(file_path, schema, package='atomic_reactor'):
+    """
+    :param yaml_data: string, path to the yaml data
+    :param schema: string, path to the JSON schema file
+    :param package: string, package name containing the JSON schema file
+    """
     with open(file_path) as f:
         yaml_data = f.read()
-    return read_yaml(yaml_data, schema)
+    return osbs_read_yaml(yaml_data, schema, package)
 
 
-def read_yaml_from_url(url, schema):
+def read_yaml_from_url(url, schema, package='atomic_reactor'):
+    """
+    :param url: string, URL of the yaml data
+    :param schema: string, path to the JSON schema file
+    :param package: string, package name containing the JSON schema file
+    """
     session = get_retrying_requests_session()
     resp = session.get(url, stream=True)
     resp.raise_for_status()
@@ -1280,48 +1288,16 @@ def read_yaml_from_url(url, schema):
         f.write(chunk)
 
     f.seek(0)
-    return read_yaml(f.read(), schema)
+    return osbs_read_yaml(f.read(), schema, package)
 
 
-def read_yaml(yaml_data, schema):
+def read_yaml(yaml_data, schema, package='atomic_reactor'):
     """
     :param yaml_data: string, yaml content
+    :param schema: string, path to the JSON schema file
+    :param package: string, package name containing the JSON schema file
     """
-    try:
-        resource = resource_stream('atomic_reactor', schema)
-        schema = codecs.getreader('utf-8')(resource)
-    except (IOError, TypeError):
-        logger.error('unable to extract JSON schema, cannot validate')
-        raise
-
-    try:
-        schema = json.load(schema)
-    except ValueError:
-        logger.error('unable to decode JSON schema, cannot validate')
-        raise
-    data = yaml.safe_load(yaml_data)
-    validator = jsonschema.Draft4Validator(schema=schema)
-    try:
-        jsonschema.Draft4Validator.check_schema(schema)
-        validator.validate(data)
-    except jsonschema.SchemaError:
-        logger.error('invalid schema, cannot validate')
-        raise
-    except jsonschema.ValidationError:
-        for error in validator.iter_errors(data):
-            path = "".join(
-                ('[{}]' if isinstance(element, int) else '.{}').format(element)
-                for element in error.path
-            )
-
-            if path.startswith('.'):
-                path = path[1:]
-
-            logger.error('validation error (%s): %s', path or 'at top level', error.message)
-
-        raise
-
-    return data
+    return osbs_read_yaml(yaml_data, schema, package)
 
 
 def allow_repo_dir_in_dockerignore(build_path):

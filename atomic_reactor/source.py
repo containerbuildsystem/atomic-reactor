@@ -45,7 +45,7 @@ class SourceConfig(object):
             try:
                 # read file and validate against schema
                 self.data = read_yaml_from_file_path(
-                    self.file_path, 'schemas/container.json'
+                    self.file_path, 'schemas/container.json', 'osbs'
                 ) or {}
             except Exception:
                 logger.exception(
