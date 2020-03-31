@@ -170,7 +170,8 @@ class TestKojiDelegate(object):
          'git_branch': 'test_branch',
          'yum_repourls': ['yum_url1', 'yum_url2'],
          'signing_intent': 'test_intent',
-         'compose_ids': [1, 2, 3]},
+         'compose_ids': [1, 2, 3],
+         'flatpak': True},
     ])
     @pytest.mark.parametrize(('koji_task_id', 'original_koji_task_id'), [
         (12345, None),
@@ -217,6 +218,8 @@ class TestKojiDelegate(object):
                     expect_opts['signing_intent'] = user_params.get('signing_intent')
                 if user_params.get('compose_ids'):
                     expect_opts['compose_ids'] = user_params.get('compose_ids')
+                if user_params.get('flatpak'):
+                    expect_opts['flatpak'] = user_params.get('flatpak')
                 if not expect_opts['triggered_after_koji_task']:
                     expect_opts['triggered_after_koji_task'] = koji_task_id or 0
 

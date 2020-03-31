@@ -78,7 +78,7 @@ class KojiDelegatePlugin(PreBuildPlugin):
                 koji_task_id = 0
 
         task_opts = {}
-        for key in ('yum_repourls', 'git_branch', 'signing_intent', 'compose_ids'):
+        for key in ('yum_repourls', 'git_branch', 'signing_intent', 'compose_ids', 'flatpak'):
             if key in user_data:
                 if user_data[key]:
                     task_opts[key] = user_data[key]
