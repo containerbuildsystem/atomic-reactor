@@ -287,13 +287,19 @@ class TestSourceConfigSchemaValidation(object):
                 package_mappings:
                   bar: baz
                   spam: eggs
+            enable_digest_pinning: true
+            enable_repo_replacements: false
+            enable_registry_replacements: true
           """,
           {'operator_manifests': {
               'manifests_dir': 'path/to/manifests',
               'repo_replacements': [
                   {'registry': 'foo',
                    'package_mappings': {'bar': 'baz', 'spam': 'eggs'}}
-              ]
+              ],
+              "enable_digest_pinning": True,
+              "enable_repo_replacements": False,
+              "enable_registry_replacements": True,
           }}
         ),
     ])
@@ -426,6 +432,24 @@ class TestSourceConfigSchemaValidation(object):
             - registry: foo
               package_mappings:
                 bar: 1  # not a string
+        """,
+
+        """
+        operator_manifests:
+          manifests_dir: some/path
+          enable_digest_pinning: null  # not a boolean
+        """,
+
+        """
+        operator_manifests:
+          manifests_dir: some/path
+          enable_repo_replacements: 1  # not a boolean
+        """,
+
+        """
+        operator_manifests:
+          manifests_dir: some/path
+          enable_registry_replacements: "true"  # not a boolean
         """,
     ])
     def test_invalid_source_config_validation_error(self, tmpdir, yml_config):
