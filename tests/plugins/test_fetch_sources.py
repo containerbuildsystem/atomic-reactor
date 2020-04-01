@@ -26,15 +26,17 @@ from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_fetch_sources import FetchSourcesPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY, ReactorConfig)
+import atomic_reactor
 from tests.constants import TEST_IMAGE
-from tests.stubs import StubInsideBuilder, StubSource
+from tests.stubs import StubInsideBuilder
 
 
 KOJI_HUB = 'http://koji.com/hub'
 KOJI_ROOT = 'http://koji.localhost/kojiroot'
 KOJI_UPLOAD_TEST_WORKDIR = 'temp_workdir'
 KOJI_BUILD = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1, 'release': 1,
-              'extra': {'image': {'parent_build_id': 10}, 'operator-manifests': {}}}
+              'extra': {'image': {'parent_build_id': 10}, 'operator-manifests': {}},
+              'source': 'registry.com/repo#ref'}
 KOJI_PARENT_BUILD = {'build_id': 10, 'nvr': 'parent-1-1', 'name': 'parent', 'version': 1,
                      'release': 1,
                      'extra': {'image': {''}, 'operator-manifests': {}}}
@@ -90,20 +92,11 @@ def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_
     workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = ReactorConfig(config)
 
 
-class MockSource(StubSource):
-
-    def __init__(self, workdir):
-        super(MockSource, self).__init__()
-        self.workdir = workdir
-
-
 def mock_workflow(tmpdir, for_orchestrator=False, config_map=None,
                   default_si=DEFAULT_SIGNING_INTENT):
     workflow = DockerBuildWorkflow(
-        TEST_IMAGE,
-        source={"provider": "git", "uri": "asd"}
+        TEST_IMAGE
     )
-    workflow.source = MockSource(str(tmpdir))
     builder = StubInsideBuilder().for_workflow(workflow)
     builder.set_df_path(str(tmpdir))
     builder.tasker = flexmock()
@@ -128,6 +121,7 @@ def mock_env(tmpdir, docker_tasker, scratch=False, orchestrator=False, koji_buil
         'koji_build_nvr': koji_build_nvr
         }
 
+    flexmock(atomic_reactor.source.GitSource, get=str(tmpdir))
     runner = PreBuildPluginsRunner(docker_tasker, workflow, plugin_conf)
     return runner
 
@@ -443,6 +437,28 @@ class TestFetchSources(object):
             assert err_msg in caplog.text
         else:
             assert err_msg not in caplog.text
+
+    @pytest.mark.parametrize('use_cache', [True, False, None])
+    def test_lookaside_cache(self, requests_mock, docker_tasker, koji_session, tmpdir, use_cache):
+        mock_koji_manifest_download(requests_mock)
+        koji_build_nvr = 'foobar-1-1'
+        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr=koji_build_nvr)
+
+        if use_cache:
+            tmpdir.join('sources').write('#ref file.tar.gz')
+        elif use_cache is None:
+            tmpdir.join('sources').write('')
+
+        err_msg = 'Repository is using lookaside cache, which is not allowed ' \
+                  'for source container builds'
+
+        if use_cache:
+            with pytest.raises(PluginFailedException) as exc_info:
+                runner.run()
+
+            assert err_msg in str(exc_info.value)
+        else:
+            runner.run()
 
     @pytest.mark.parametrize('reason', ['external', 'other'])
     def test_missing_srpm_header(self, docker_tasker, koji_session, tmpdir, reason):

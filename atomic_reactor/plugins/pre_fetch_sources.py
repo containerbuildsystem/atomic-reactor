@@ -23,6 +23,7 @@ from atomic_reactor.plugins.pre_reactor_config import (
     get_source_container,
     NO_FALLBACK
 )
+from atomic_reactor.source import GitSource
 from atomic_reactor.util import get_retrying_requests_session
 from atomic_reactor.download import download_url
 from atomic_reactor.metadata import label_map
@@ -73,6 +74,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
         downloaded sources
         """
         self.set_koji_image_build_data()
+        self.check_lookaside_cache_usage()
         signing_intent = self.get_signing_intent()
         koji_config = get_koji(self.workflow, {})
         insecure = koji_config.get('insecure_download', False)
@@ -153,6 +155,20 @@ class FetchSourcesPlugin(PreBuildPlugin):
             self.koji_build_id = self.koji_build['build_id']
         if not self.koji_build_nvr:
             self.koji_build_nvr = self.koji_build['nvr']
+
+    def check_lookaside_cache_usage(self):
+        """Check usage of lookaside cache, and fail if used"""
+        git_uri, git_commit = self.koji_build['source'].split('#')
+
+        source = GitSource('git', git_uri, provider_params={'git_commit': git_commit})
+        source_path = source.get()
+        sources_cache_file = os.path.join(source_path, 'sources')
+
+        if os.path.exists(sources_cache_file):
+            if os.path.getsize(sources_cache_file) > 0:
+                raise RuntimeError('Repository is using lookaside cache, which is not allowed '
+                                   'for source container builds')
+        source.remove_tmpdir()
 
     def assemble_srpm_url(self, base_url, srpm_filename, sign_key=None):
         """Assemble the URL used to fetch an SRPM file
