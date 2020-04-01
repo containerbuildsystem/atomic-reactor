@@ -165,6 +165,12 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
 
     def _get_replacement_pullspecs(self, pullspecs):
         self.log.info("Computing replacement pullspecs")
+
+        pin_digest, replace_repo, replace_registry = self._are_features_enabled()
+        if not any([pin_digest, replace_repo, replace_registry]):
+            self.log.warning("All replacement features disabled, skipping")
+            return {}
+
         replacer = PullspecReplacer(user_config=self.user_config, site_config=self.site_config)
 
         for p in pullspecs:
@@ -175,20 +181,24 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
 
         for original in pullspecs:
             self.log.info("Computing replacement for %s", original)
+            replaced = original
 
-            self.log.debug("Making sure tag is manifest list digest")
-            pinned = replacer.pin_digest(original)
+            if pin_digest:
+                self.log.debug("Making sure tag is manifest list digest")
+                replaced = replacer.pin_digest(original)
 
-            self.log.debug("Replacing namespace/repo")
-            repo_replaced = replacer.replace_repo(pinned)
+            if replace_repo:
+                self.log.debug("Replacing namespace/repo")
+                replaced = replacer.replace_repo(replaced)
 
-            self.log.debug("Replacing registry")
-            registry_replaced = replacer.replace_registry(repo_replaced)
+            if replace_registry:
+                self.log.debug("Replacing registry")
+                replaced = replacer.replace_registry(replaced)
 
-            self.log.info("Final pullspec: %s", registry_replaced)
+            self.log.info("Final pullspec: %s", replaced)
 
-            if registry_replaced != original:
-                replacements[original] = registry_replaced
+            if replaced != original:
+                replacements[original] = replaced
 
         replacement_lines = "\n".join(
             "{} -> {}".format(p, replacements[p]) if p in replacements
@@ -198,6 +208,20 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         self.log.info("To be replaced:\n%s", replacement_lines)
 
         return replacements
+
+    def _are_features_enabled(self):
+        pin_digest = self.user_config.get("enable_digest_pinning", True)
+        replace_repo = self.user_config.get("enable_repo_replacements", True)
+        replace_registry = self.user_config.get("enable_registry_replacements", True)
+
+        if not pin_digest:
+            self.log.warning("User disabled digest pinning")
+        if not replace_repo:
+            self.log.warning("User disabled repo replacements")
+        if not replace_registry:
+            self.log.warning("User disabled registry replacements")
+
+        return pin_digest, replace_repo, replace_registry
 
     def _set_worker_arg(self, replacement_pullspecs):
         arg = {str(old): str(new) for old, new in replacement_pullspecs.items()}

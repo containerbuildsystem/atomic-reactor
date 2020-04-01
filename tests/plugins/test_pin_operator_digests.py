@@ -208,14 +208,18 @@ def get_site_config(allowed_registries=None, registry_post_replace=None, repo_re
     }
 
 
-def get_user_config(manifests_dir, repo_replacements=None):
+def get_user_config(manifests_dir, repo_replacements=None, enable_digest_pinning=True,
+                    enable_repo_replacements=True, enable_registry_replacements=True):
     repo_replacements = repo_replacements or {}
     return {
         'manifests_dir': manifests_dir,
         'repo_replacements': [
             {'registry': registry, 'package_mappings': mapping}
             for registry, mapping in repo_replacements.items()
-        ]
+        ],
+        'enable_digest_pinning': enable_digest_pinning,
+        'enable_repo_replacements': enable_repo_replacements,
+        'enable_registry_replacements': enable_registry_replacements,
     }
 
 
@@ -438,6 +442,70 @@ class TestPinOperatorDigest(object):
             'old-registry/ns/spam:1': 'new-registry/new-ns/new-spam@sha256:4',
         }
         assert self._get_worker_arg(runner.workflow) == replacement_pullspecs
+
+    @pytest.mark.parametrize('pin_digest', [True, False])
+    @pytest.mark.parametrize('replace_repo', [True, False])
+    @pytest.mark.parametrize('replace_registry', [True, False])
+    @responses.activate
+    def test_orchestrator_replacement_opt_out(self, pin_digest, replace_repo, replace_registry,
+                                              docker_tasker, tmpdir, caplog):
+        original = 'registry/ns/foo:1'
+        replaced = ImageName.parse(original)
+
+        mock_operator_csv(tmpdir, 'csv.yaml', [original])
+
+        if pin_digest:
+            replaced.tag = 'sha256:123456'
+            mock_digest_query(original, 'sha256:123456')
+
+        if replace_repo:
+            replaced.namespace = 'new-ns'
+            replaced.repo = 'new-foo'
+            user_replace_repos = {
+                'registry': {
+                    'foo-package': 'new-ns/new-foo'
+                }
+            }
+            query_image = ImageName.parse(original)
+            if pin_digest:
+                # inspect query is done after pinning digest
+                query_image.tag = 'sha256:123456'
+            mock_inspect_query(query_image, {PKG_LABEL: 'foo-package'})
+        else:
+            user_replace_repos = None
+
+        if replace_registry:
+            replaced.registry = 'new-registry'
+            registry_post_replace = {'registry': 'new-registry'}
+        else:
+            registry_post_replace = None
+
+        user_config = get_user_config(manifests_dir=str(tmpdir),
+                                      repo_replacements=user_replace_repos,
+                                      enable_digest_pinning=pin_digest,
+                                      enable_repo_replacements=replace_repo,
+                                      enable_registry_replacements=replace_registry)
+        site_config = get_site_config(registry_post_replace=registry_post_replace)
+
+        runner = mock_env(docker_tasker, tmpdir, orchestrator=True,
+                          user_config=user_config, site_config=site_config)
+        runner.run()
+
+        if not pin_digest:
+            assert "User disabled digest pinning" in caplog.text
+            assert "Making sure tag is manifest list digest" not in caplog.text
+        if not replace_repo:
+            assert "User disabled repo replacements" in caplog.text
+            assert "Replacing namespace/repo" not in caplog.text
+        if not replace_registry:
+            assert "User disabled registry replacements" in caplog.text
+            assert "Replacing registry" not in caplog.text
+
+        if not any([pin_digest, replace_repo, replace_registry]):
+            assert "All replacement features disabled, skipping" in caplog.text
+            assert self._get_worker_arg(runner.workflow) == {}
+        else:
+            assert self._get_worker_arg(runner.workflow) == {original: replaced.to_str()}
 
     @pytest.mark.parametrize('ocp_44', [True, False])
     def test_worker(self, ocp_44, docker_tasker, tmpdir, caplog):
