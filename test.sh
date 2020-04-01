@@ -8,6 +8,12 @@ OS_VERSION=${OS_VERSION:="7"}
 PYTHON_VERSION=${PYTHON_VERSION:="2"}
 ACTION=${ACTION:="test"}
 IMAGE="$OS:$OS_VERSION"
+
+# Optionally specify repo and branch for osbs-client to test changes
+# which depend on osbs-client patches not yet available in upstream master
+OSBS_CLIENT_REPO=${OSBS_CLIENT_REPO:-https://github.com/containerbuildsystem/osbs-client}
+OSBS_CLIENT_BRANCH=${OSBS_CLIENT_BRANCH:-master}
+
 # Pull fedora images from registry.fedoraproject.org
 if [[ $OS == "fedora" ]]; then
   IMAGE="registry.fedoraproject.org/$IMAGE"
@@ -93,13 +99,16 @@ fi
 
 # Install other dependencies for tests
 
-# Install latest osbs-client by installing dependencies from the master branch
-# and running pip install with '--no-deps' to avoid compilation
-# This would also ensure all the deps are specified in the spec
+# Install osbs-client dependencies based on specfile
+# from specified git source (default: upstream master)
 $RUN rm -rf /tmp/osbs-client
-$RUN git clone --depth 1 https://github.com/containerbuildsystem/osbs-client /tmp/osbs-client
+$RUN git clone --depth 1 --single-branch \
+    "${OSBS_CLIENT_REPO}" --branch "${OSBS_CLIENT_BRANCH}" /tmp/osbs-client
 $RUN $BUILDDEP --define "with_python3 ${WITH_PY3}" -y /tmp/osbs-client/osbs-client.spec
-$RUN $PIP install --upgrade --no-deps --force-reinstall git+https://github.com/containerbuildsystem/osbs-client
+# Run pip install with '--no-deps' to avoid compilation
+# This would also ensure all the deps are specified in the spec
+$RUN $PIP install --upgrade --no-deps --force-reinstall \
+    "git+${OSBS_CLIENT_REPO}@${OSBS_CLIENT_BRANCH}"
 
 $RUN $PIP install --upgrade --no-deps --force-reinstall git+https://github.com/DBuildService/dockerfile-parse
 if [[ $PYTHON_VERSION == 2* ]]; then
