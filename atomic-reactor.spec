@@ -20,8 +20,6 @@
 %global owner containerbuildsystem
 %global project atomic-reactor
 
-%global commit 82cd704b9faf4f4c20d0d278218ada2baf590b4b
-%global shortcommit %(c=%{commit}; echo ${c:0:7})
 
 %global dock_obsolete_vr 1.3.7-2
 
@@ -33,7 +31,7 @@ Summary:        Improved builder for Docker images
 Group:          Development/Tools
 License:        BSD
 URL:            https://github.com/%{owner}/%{project}
-Source0:        https://github.com/%{owner}/%{project}/archive/%{commit}/%{project}-%{commit}.tar.gz
+Source0:        https://github.com/containerbuildsystem/%{name}/archive/%{version}.tar.gz
 
 BuildArch:      noarch
 
@@ -202,7 +200,7 @@ Plugins for automated rebuilds
 
 
 %prep
-%setup -qn %{name}-%{commit}
+%setup -q
 
 
 %build
