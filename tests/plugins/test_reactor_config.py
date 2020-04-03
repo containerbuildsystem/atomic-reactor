@@ -515,6 +515,35 @@ class TestReactorConfigPlugin(object):
             unknown signing intent name "spam", valid names: unsigned, beta, release
             """.rstrip())
 
+    def test_odcs_config_deprecated_signing_intent(self, tmpdir, caplog):
+        filename = str(tmpdir.join('config.yaml'))
+        with open(filename, 'w') as fp:
+            fp.write(dedent("""\
+                version: 1
+                odcs:
+                   signing_intents:
+                   - name: release
+                     keys: [R123]
+                     deprecated_keys: [R122]
+                   default_signing_intent: release
+                   api_url: http://odcs.example.com
+                   auth:
+                       ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
+                """))
+
+        tasker, workflow = self.prepare()
+        plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
+        assert plugin.run() is None
+
+        odcs_config = get_config(workflow).get_odcs_config()
+        signing_intent = odcs_config.get_signing_intent_by_keys(['R123'])
+        assert signing_intent['name'] == 'release'
+        assert 'contain deprecated entries' not in caplog.text
+
+        signing_intent = odcs_config.get_signing_intent_by_keys(['R123', 'R122'])
+        assert signing_intent['name'] == 'release'
+        assert 'contain deprecated entries' in caplog.text
+
     @pytest.mark.parametrize('fallback', (True, False, None))
     @pytest.mark.parametrize('method', [
         'koji', 'odcs', 'smtp', 'arrangement_version',
