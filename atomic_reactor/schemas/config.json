@@ -235,6 +235,13 @@
                           "items": {
                               "type": "string"
                           }
+                      },
+                      "deprecated_keys": {
+                          "description": "deprecated signing intent keys",
+                          "type": "array",
+                          "items": {
+                              "type": "string"
+                          }
                       }
                     },
                     "additionalProperties": false,
