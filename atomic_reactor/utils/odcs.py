@@ -108,7 +108,7 @@ class ODCSClient(object):
 
         return response.json()
 
-    def renew_compose(self, compose_id):
+    def renew_compose(self, compose_id, sigkeys=None):
         """Renew, or extend, existing compose
 
         If the compose has already been removed, ODCS creates a new compose.
@@ -116,11 +116,17 @@ class ODCSClient(object):
         cases, caller should assume the compose ID will change.
 
         :param compose_id: int, compose ID to renew
+        :param sigkeys: list, new signing intent keys to regenerate compose with
 
         :return: dict, status of compose being renewed.
         """
+        params = {}
+        if sigkeys is not None:
+            params['sigkeys'] = sigkeys
+
         logger.info("Renewing compose %d", compose_id)
-        response = self.session.patch('{}composes/{}'.format(self.url, compose_id))
+        response = self.session.patch('{}composes/{}'.format(self.url, compose_id),
+                                      params)
         response.raise_for_status()
         response_json = response.json()
         compose_id = response_json['id']

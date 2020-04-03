@@ -287,7 +287,19 @@ class ResolveComposesPlugin(PreBuildPlugin):
             compose_info = self.odcs_client.wait_for_compose(compose_id)
 
             if self._needs_renewal(compose_info):
-                compose_info = self.odcs_client.renew_compose(compose_id)
+                sigkeys = compose_info.get('sigkeys', '').split()
+                updated_signing_intent = self.odcs_config.get_signing_intent_by_keys(sigkeys)
+                if set(sigkeys) != set(updated_signing_intent['keys']):
+                    self.log.info('Updating signing keys in "%s" from "%s", to "%s" in compose '
+                                  '"%s" due to sigkeys deprecation',
+                                  updated_signing_intent['name'],
+                                  sigkeys,
+                                  updated_signing_intent['keys'],
+                                  compose_info['id']
+                                  )
+                    sigkeys = updated_signing_intent['keys']
+
+                compose_info = self.odcs_client.renew_compose(compose_id, sigkeys)
                 compose_id = compose_info['id']
                 compose_info = self.odcs_client.wait_for_compose(compose_id)
 

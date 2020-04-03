@@ -1103,8 +1103,15 @@ class TestResolveComposes(object):
         ('done', timedelta(minutes=118), True),
         ('done', timedelta(hours=3), False),
     ))
+    @pytest.mark.parametrize('sigkeys, depkeys', (
+        ('', ''),
+        ('KEY1', ''),
+        ('KEY1 KEY2', ''),
+        ('KEY1 KEY2', 'KEY3'),
+        ('', 'KEY3'),
+    ))
     def test_renew_compose(self, workflow, state_name, time_to_expire_delta, expect_renew,
-                           reactor_config_map):
+                           reactor_config_map, sigkeys, depkeys, tmpdir, caplog):
         old_odcs_compose = ODCS_COMPOSE.copy()
         time_to_expire = (ODCS_COMPOSE_TIME_TO_EXPIRE -
                           ODCS_COMPOSE_SECONDS_TO_LIVE +
@@ -1112,11 +1119,13 @@ class TestResolveComposes(object):
         old_odcs_compose.update({
             'state_name': state_name,
             'time_to_expire': time_to_expire.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            'sigkeys': ' '.join([sigkeys, depkeys]),
         })
 
         new_odcs_compose = ODCS_COMPOSE.copy()
         new_odcs_compose.update({
-            'id': old_odcs_compose['id'] + 1
+            'id': old_odcs_compose['id'] + 1,
+            'sigkeys': sigkeys,
         })
 
         (flexmock(ODCSClient)
@@ -1132,7 +1141,7 @@ class TestResolveComposes(object):
         (flexmock(ODCSClient)
             .should_receive('renew_compose')
             .times(1 if expect_renew else 0)
-            .with_args(old_odcs_compose['id'])
+            .with_args(old_odcs_compose['id'], sigkeys.split())
             .and_return(new_odcs_compose))
 
         (flexmock(ODCSClient)
@@ -1145,13 +1154,35 @@ class TestResolveComposes(object):
             'compose_ids': [old_odcs_compose['id']],
             'minimum_time_to_expire': timedelta(hours=2).total_seconds(),
         }
+
+        data = dedent("""\
+            version: 1
+            odcs:
+               signing_intents:
+               - name: release
+                 keys: [{}]
+                 deprecated_keys: [{}]
+               - name: unsigned
+                 keys: []
+               default_signing_intent: release
+               api_url: {}
+               auth:
+                   ssl_certs_dir: {}
+            """.format(sigkeys.replace(' ', ','), depkeys.replace(' ', ','), ODCS_URL, tmpdir))
+        mock_reactor_config(workflow, tmpdir, data=data)
+
         plugin_result = self.run_plugin_with_args(workflow, plugin_args,
                                                   reactor_config_map=reactor_config_map)
 
         if expect_renew:
             assert plugin_result['composes'] == [new_odcs_compose]
+            if depkeys:
+                assert 'Updating signing keys' in caplog.text
+            else:
+                assert 'Updating signing keys' not in caplog.text
         else:
             assert plugin_result['composes'] == [old_odcs_compose]
+            assert 'Updating signing keys' not in caplog.text
 
     def test_inject_yum_repos_from_new_compose(self, workflow, reactor_config_map):
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
