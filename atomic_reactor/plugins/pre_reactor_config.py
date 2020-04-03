@@ -17,6 +17,7 @@ from atomic_reactor.util import (read_yaml, read_yaml_from_file_path,
                                  get_build_json, DefaultKeyDict)
 from osbs.utils import RegistryURI
 
+import logging
 import os
 import six
 
@@ -494,6 +495,8 @@ class ODCSConfig(object):
     """
 
     def __init__(self, signing_intents, default_signing_intent):
+        self.log = logging.getLogger(self.__class__.__name__)
+
         self.default_signing_intent = default_signing_intent
 
         self.signing_intents = []
@@ -521,12 +524,25 @@ class ODCSConfig(object):
         if isinstance(keys, six.text_type):
             keys = keys.split()
         keys = set(keys)
+        intents_matching_deprecated_keys = []
         for entry in reversed(self.signing_intents):
             keys_set = set(entry['keys'])
             if (keys and keys_set >= keys) or keys == keys_set:
                 return entry
 
-        raise ValueError('unknown signing intent keys "{}"'.format(keys))
+            permissive_keys_set = set(entry['keys'] + entry.get('deprecated_keys', []))
+            if keys and permissive_keys_set >= keys:
+                intents_matching_deprecated_keys.append(entry)
+
+        if not intents_matching_deprecated_keys:
+            raise ValueError('unknown signing intent keys "{}"'.format(keys))
+
+        self.log.warning(
+            'signing intent keys "%s" contain deprecated entries in the "%s" signing intent',
+            keys,
+            intents_matching_deprecated_keys[0]['name']
+         )
+        return intents_matching_deprecated_keys[0]
 
 
 class ReactorConfigPlugin(PreBuildPlugin):
