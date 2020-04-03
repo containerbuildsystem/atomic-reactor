@@ -194,6 +194,7 @@ def test_renew_compose(odcs_client):
                            callback=handle_composes_patch)
 
     odcs_client.renew_compose(COMPOSE_ID)
+    odcs_client.renew_compose(COMPOSE_ID, ['SIGKEY1', 'SIGKEY2'])
 
 
 def assert_request_token(request, session):
