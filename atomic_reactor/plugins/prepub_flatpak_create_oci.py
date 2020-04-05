@@ -12,6 +12,9 @@ and turns it into a Flatpak application or runtime.
 
 from __future__ import absolute_import
 
+import json
+import subprocess
+
 from flatpak_module_tools.flatpak_builder import FlatpakBuilder, FLATPAK_METADATA_ANNOTATIONS
 
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
@@ -93,6 +96,12 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
             self.log.info("Cleaning up docker container")
             self.tasker.remove_container(container_id)
 
+    def _get_oci_image_id(self, oci_path):
+        cmd = ['skopeo', 'inspect', '--raw', 'oci:{}'.format(oci_path)]
+        raw_manifest = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        oci_image_manifest = json.loads(raw_manifest)
+        return oci_image_manifest['config']['digest']
+
     def run(self):
         source = get_flatpak_source_info(self.workflow)
         if source is None:
@@ -114,6 +123,10 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         self.workflow.image_components = image_components
 
         ref_name, outfile, tarred_outfile = self.builder.build_container(tarred_filesystem)
+
+        image_id = self._get_oci_image_id(outfile)
+        self.log.info('New OCI image ID is %s', image_id)
+        self.workflow.builder.image_id = image_id
 
         metadata = get_exported_image_metadata(outfile, IMAGE_TYPE_OCI)
         metadata['ref_name'] = ref_name
