@@ -33,7 +33,7 @@ if [[ $OS == "fedora" ]]; then
   PIP="pip$PYTHON_VERSION"
   PKG="dnf"
   ENABLE_REPO="--enablerepo=updates-testing"
-  PKG_EXTRA="dnf-plugins-core desktop-file-utils flatpak ostree python$PYTHON_VERSION-libmodulemd glibc-langpack-en"
+  PKG_EXTRA="dnf-plugins-core desktop-file-utils flatpak ostree skopeo python$PYTHON_VERSION-libmodulemd glibc-langpack-en"
   BUILDDEP="dnf builddep"
   PYTHON="python$PYTHON_VERSION"
 else
@@ -41,7 +41,7 @@ else
   PIP="pip"
   PKG="yum"
   ENABLE_REPO=
-  PKG_EXTRA="yum-utils epel-release git-core desktop-file-utils flatpak ostree python2-libmodulemd2"
+  PKG_EXTRA="yum-utils epel-release git-core desktop-file-utils flatpak ostree skopeo python2-libmodulemd2"
   BUILDDEP="yum-builddep"
   PYTHON="python"
 fi

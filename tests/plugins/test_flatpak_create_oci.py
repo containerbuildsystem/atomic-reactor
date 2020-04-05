@@ -363,10 +363,11 @@ class MockSource(object):
     path = None
 
 
-class X(object):
-    image_id = "xxx"
-    source = MockSource()
-    base_image = ImageName(repo="qwe", tag="asd")
+class MockBuilder(object):
+    def __init__(self):
+        self.image_id = "xxx"
+        self.source = MockSource()
+        self.base_image = ImageName(repo="qwe", tag="asd")
 
 
 def load_labels_and_annotations(metadata):
@@ -491,14 +492,20 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, flatpak_metadata
     if not have_flatpak:
         return
 
+    # Check if we have skopeo
+    try:
+        subprocess.check_output(['skopeo', '--version'])
+    except (subprocess.CalledProcessError, OSError):
+        pytest.skip(msg='skopeo not available')
+
     config = CONFIGS[config_name]
 
     workflow = DockerBuildWorkflow(
         TEST_IMAGE,
         source={"provider": "git", "uri": "asd"}
     )
-    setattr(workflow, 'builder', X)
-    X.df_path = write_docker_file(config, str(tmpdir))
+    setattr(workflow, 'builder', MockBuilder())
+    workflow.builder.df_path = write_docker_file(config, str(tmpdir))
     setattr(workflow.builder, 'tasker', docker_tasker)
 
     make_and_store_reactor_config_map(workflow, flatpak_metadata)
@@ -595,7 +602,9 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, flatpak_metadata
             runner.run()
         assert expected_exception in str(ex.value)
     else:
+        assert workflow.builder.image_id == 'xxx'
         runner.run()
+        assert re.match(r'^sha256:\w{64}$', workflow.builder.image_id)
 
         dir_metadata = workflow.exported_image_sequence[-2]
         assert dir_metadata['type'] == IMAGE_TYPE_OCI
