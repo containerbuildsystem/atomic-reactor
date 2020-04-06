@@ -42,6 +42,7 @@ class YumRepo(object):
         self.repourl = repourl
         self.dst_repos_dir = dst_repos_dir
 
+        self._content = None
         self.content = content
         self.config = None
 
@@ -69,6 +70,17 @@ class YumRepo(object):
     def dst_filename(self):
         return os.path.join(self.dst_repos_dir, self.filename)
 
+    @property
+    def content(self):
+        return self._content.encode('utf-8')
+
+    @content.setter
+    def content(self, content):
+        try:
+            self._content = content.decode('unicode_escape')
+        except AttributeError:
+            self._content = content
+
     def fetch(self):
         session = get_retrying_requests_session()
         response = session.get(self.repourl)
@@ -83,7 +95,7 @@ class YumRepo(object):
             try:
                 try:
                     # Try python3 method
-                    self.config.read_string(self.content.decode('unicode_escape'))
+                    self.config.read_string(self._content)
                 except AttributeError:
                     # Fall back to python2 method
                     self.config.readfp(buf)  # pylint: disable=deprecated-method
@@ -104,6 +116,6 @@ class YumRepo(object):
     def write_content(self):
         logger.info("writing repo to '%s'", self.dst_filename)
         with open(self.dst_filename, "wb") as fp:
-            fp.write(self.content.encode("utf-8"))
+            fp.write(self.content)
             fp.flush()
         logger.debug("%s\n%s", self.repourl, self.content.strip())

@@ -76,7 +76,7 @@ def test_single_repourl(inject_proxy):
     runner.run()
     repo_content = repocontent
     if inject_proxy:
-        repo_content = '%sproxy = %s\n\n' % (repocontent.decode('utf-8'), inject_proxy)
+        repo_content = b'%sproxy = %s\n\n' % (repocontent, inject_proxy.encode('utf-8'))
     # next(iter(...)) is for py 2/3 compatibility
     assert next(iter(workflow.files.keys())) == os.path.join(YUM_REPOS_DIR, filename)
     assert next(iter(workflow.files.values())) == repo_content
@@ -110,7 +110,7 @@ def test_multiple_repourls(caplog, base_from_scratch, parent_images, inject_prox
     else:
         repo_content = repocontent
         if inject_proxy:
-            repo_content = '%sproxy = %s\n\n' % (repocontent.decode('utf-8'), inject_proxy)
+            repo_content = b'%sproxy = %s\n\n' % (repocontent, inject_proxy.encode('utf-8'))
 
         for filename in filenames:
             assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)]
@@ -130,7 +130,7 @@ def test_single_repourl_no_suffix(inject_proxy):
     runner.run()
     repo_content = repocontent
     if inject_proxy:
-        repo_content = '%sproxy = %s\n\n' % (repocontent.decode('utf-8'), inject_proxy)
+        repo_content = b'%sproxy = %s\n\n' % (repocontent, inject_proxy.encode('utf-8'))
     # next(iter(...)) is for py 2/3 compatibility
     assert fnmatch(next(iter(workflow.files.keys())), os.path.join(YUM_REPOS_DIR, pattern))
     assert next(iter(workflow.files.values())) == repo_content
@@ -160,7 +160,7 @@ def test_multiple_repourls_no_suffix(inject_proxy, repos, patterns):
     runner.run()
     repo_content = repocontent
     if inject_proxy:
-        repo_content = '%sproxy = %s\n\n' % (repocontent.decode('utf-8'), inject_proxy)
+        repo_content = b'%sproxy = %s\n\n' % (repocontent, inject_proxy.encode('utf-8'))
 
     assert len(workflow.files) == 2
     for pattern in patterns:
