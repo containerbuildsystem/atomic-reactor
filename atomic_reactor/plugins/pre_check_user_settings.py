@@ -49,6 +49,7 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
             return
 
         self.appregistry_bundle_label_mutually_exclusive()
+        self.operator_bundle_from_scratch()
 
     def appregistry_bundle_label_mutually_exclusive(self):
         """Labels com.redhat.com.delivery.appregistry and
@@ -63,6 +64,20 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
         if (
             has_operator_appregistry_manifest(self.workflow) and
             has_operator_bundle_manifest(self.workflow)
+        ):
+            raise ValueError(msg)
+
+    def operator_bundle_from_scratch(self):
+        """Only from scratch image can be used for operator bundle build"""
+        msg = "Operator bundle build can be only 'FROM scratch' build (single stage)"
+        self.log.debug("Running check: %s", msg)
+
+        if not has_operator_bundle_manifest(self.workflow):
+            return
+
+        if (
+            not self.workflow.builder.base_from_scratch or
+            len(self.workflow.builder.parents_ordered) > 1
         ):
             raise ValueError(msg)
 

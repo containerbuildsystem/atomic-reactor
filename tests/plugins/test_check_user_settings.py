@@ -7,6 +7,8 @@ of the BSD license. See the LICENSE file for details.
 """
 from __future__ import absolute_import
 
+from functools import partial
+
 from flexmock import flexmock
 import pytest
 
@@ -18,8 +20,8 @@ from tests.constants import TEST_IMAGE
 from tests.stubs import StubInsideBuilder, StubSource
 
 
-def mock_dockerfile(tmpdir, labels):
-    base = 'From fedora:30'
+def mock_dockerfile(tmpdir, labels, from_scratch=False):
+    base = 'FROM scratch' if from_scratch else 'FROM fedora:30'
     cmd = 'CMD /bin/cowsay moo'
     extra_labels = [
         'LABEL {}'.format(label)
@@ -28,6 +30,25 @@ def mock_dockerfile(tmpdir, labels):
     ]
     data = '\n'.join([base] + extra_labels + [cmd])
     tmpdir.join('Dockerfile').write(data)
+
+
+def mock_dockerfile_multistage(tmpdir, labels, from_scratch=False):
+    data = """\
+    FROM scratch
+    RUN echo *
+
+    {data_from}
+    {extra_labels}
+    CMD /bin/cowsay moo
+    """
+    extra_labels = '\n'.join(
+        'LABEL {}'.format(label)
+        for label in labels
+    )
+    data_from = 'FROM scratch' if from_scratch else 'FROM fedora:30'
+    tmpdir.join('Dockerfile').write(
+        data.format(data_from=data_from, extra_labels=extra_labels)
+    )
 
 
 def mock_workflow(tmpdir):
@@ -39,15 +60,16 @@ def mock_workflow(tmpdir):
     builder = StubInsideBuilder().for_workflow(workflow)
     builder.set_df_path(str(tmpdir))
     builder.tasker = flexmock()
+    builder.base_from_scratch = True
     workflow.builder = flexmock(builder)
 
     return workflow
 
 
-def mock_env(tmpdir, docker_tasker, labels=(), flatpak=False):
+def mock_env(tmpdir, docker_tasker, labels=(), flatpak=False, dockerfile_f=mock_dockerfile):
     if not flatpak:
         # flatpak build has no Dockefile
-        mock_dockerfile(tmpdir, labels)
+        dockerfile_f(tmpdir, labels)
     workflow = mock_workflow(tmpdir)
     plugin_conf = [{'name': CheckUserSettingsPlugin.key,
                     'args': {'flatpak': flatpak}}]
@@ -79,6 +101,42 @@ class TestDockerfileChecks(object):
             with pytest.raises(PluginFailedException) as e:
                 runner.run()
             assert 'only one of labels' in str(e.value)
+        else:
+            runner.run()
+
+    @pytest.mark.parametrize('from_scratch,multistage,labels,expected_fail', (
+        [True, False, ['com.redhat.delivery.operator.bundle=true'], False],
+        [False, False, ['com.redhat.delivery.operator.bundle=true'], True],
+        [True, True, ['com.redhat.delivery.operator.bundle=true'], True],
+        [False, True, ['com.redhat.delivery.operator.bundle=true'], True],
+        [True, False, [], False],
+        [False, False, [], False],
+        [True, True, [], False],
+    ))
+    def test_operator_bundle_from_scratch(
+        self, tmpdir, docker_tasker, from_scratch, multistage, labels, expected_fail
+    ):
+        """Operator bundle can be only single stage and FROM scratch"""
+        if multistage:
+            dockerfile_f = mock_dockerfile_multistage
+        else:
+            dockerfile_f = mock_dockerfile
+
+        dockerfile_f = partial(dockerfile_f, from_scratch=from_scratch)
+
+        runner = mock_env(
+            tmpdir, docker_tasker,
+            dockerfile_f=dockerfile_f, labels=labels
+        )
+        runner.workflow.builder.base_from_scratch = from_scratch
+        runner.workflow.builder.parents_ordered = (
+            ['scratch', 'scratch'] if multistage else ['scratch']
+        )
+
+        if expected_fail:
+            with pytest.raises(PluginFailedException) as e:
+                runner.run()
+            assert 'Operator bundle build can be only' in str(e.value)
         else:
             runner.run()
 
