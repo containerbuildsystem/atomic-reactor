@@ -70,8 +70,7 @@ class OperatorCSV(object):
 
     def get_pullspecs(self):
         """
-        Find pullspecs for containers, related images and RELATED_IMAGE_*
-        environment variables in containers.
+        Find pullspecs in predefined locations.
 
         :return: set of ImageName pullspecs
         """
@@ -79,12 +78,12 @@ class OperatorCSV(object):
         pullspecs.update(self._get_env_pullspecs())
         pullspecs.update(self._get_container_image_pullspecs())
         pullspecs.update(self._get_annotations_pullspecs())
+        pullspecs.update(self._get_init_container_pullspecs())
         return pullspecs
 
     def replace_pullspecs(self, replacement_pullspecs):
         """
-        Replace pullspecs for containers, related images and RELATED_IMAGE_*
-        environment variables in containers.
+        Replace pullspecs in predefined locations.
 
         :param replacement_pullspecs: mapping of pullspec -> replacement
         """
@@ -92,6 +91,7 @@ class OperatorCSV(object):
         self._replace_env_pullspecs(replacement_pullspecs)
         self._replace_container_image_pullspecs(replacement_pullspecs)
         self._replace_annotation_pullspecs(replacement_pullspecs)
+        self._replace_init_container_pullspecs(replacement_pullspecs)
 
     def replace_pullspecs_everywhere(self, replacement_pullspecs):
         """
@@ -107,10 +107,12 @@ class OperatorCSV(object):
         related_images_path = ("spec", "relatedImages")
         return chain_get(self.data, related_images_path, default=[])
 
-    def _get_containers(self):
+    def _get_deployments(self):
         deployments_path = ("spec", "install", "spec", "deployments")
-        deployments = chain_get(self.data, deployments_path, default=[])
+        return chain_get(self.data, deployments_path, default=[])
 
+    def _get_containers(self):
+        deployments = self._get_deployments()
         containers_path = ("spec", "template", "spec", "containers")
         containers = [
             c for d in deployments for c in chain_get(d, containers_path, default=[])
@@ -132,6 +134,14 @@ class OperatorCSV(object):
                 msg = '{}: "valueFrom" references are not supported'.format(env["name"])
                 raise RuntimeError(msg)
         return envs
+
+    def _get_init_containers(self):
+        deployments = self._get_deployments()
+        init_containers_path = ("spec", "template", "spec", "initContainers")
+        init_containers = [
+            c for d in deployments for c in chain_get(d, init_containers_path, default=[])
+        ]
+        return init_containers
 
     def _get_pullspec(self, obj, key, log_template=None):
         pullspec = ImageName.parse(obj[key])
@@ -163,6 +173,11 @@ class OperatorCSV(object):
         if "containerImage" in annotations:
             pullspecs.add(self._get_pullspec(annotations, "containerImage", log_template))
         return pullspecs
+
+    def _get_init_container_pullspecs(self):
+        init_containers = self._get_init_containers()
+        log_template = "%(path)s - Found pullspec for initContainer %(name)s: %(pullspec)s"
+        return set(self._get_pullspec(c, "image", log_template) for c in init_containers)
 
     def _replace_pullspec(self, obj, key, replacement_pullspecs, log_template=None):
         old = ImageName.parse(obj[key])
@@ -198,6 +213,14 @@ class OperatorCSV(object):
         log_tmpl = "%(path)s - Replaced pullspec in annotations: %(old)s -> %(new)s"
         if "containerImage" in annotations:
             self._replace_pullspec(annotations, "containerImage", replacement_pullspecs, log_tmpl)
+
+    def _replace_init_container_pullspecs(self, replacement_pullspecs):
+        init_containers = self._get_init_containers()
+        log_template = (
+            "%(path)s - Replaced pullspec for initContainer %(name)s: %(old)s -> %(new)s"
+        )
+        for c in init_containers:
+            self._replace_pullspec(c, "image", replacement_pullspecs, log_template)
 
     def _replace_pullspecs_everywhere(self, obj, k_or_i, replacement_pullspecs, log_template):
         item = obj[k_or_i]

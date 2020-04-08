@@ -82,8 +82,14 @@ BAZ = PullSpec(
     "baz", "registry/namespace/baz:latest", "r-registry/r-namespace/r-baz:latest",
     ["metadata", "annotations", "containerImage"]
 )
+# I'm running out of throwaway variable names here...
+P1 = PullSpec(
+    "p1", "pullspec:1", "r-pullspec:1",
+    ["spec", "install", "spec", "deployments", 1,
+     "spec", "template", "spec", "initContainers", 0, "image"]
+)
 
-PULLSPECS = {p.name: p for p in [FOO, BAR, SPAM, EGGS, HAM, JAM, BAZ]}
+PULLSPECS = {p.name: p for p in [FOO, BAR, SPAM, EGGS, HAM, JAM, BAZ, P1]}
 
 
 ORIGINAL_CONTENT = """\
@@ -120,6 +126,9 @@ spec:
               containers:
               - name: jam
                 image: {jam}
+              initContainers:
+              - name: p1
+                image: {p1}
 random:
   nested:
     dict:
@@ -130,6 +139,7 @@ random:
       e: {ham}
       f: {jam}
       g: {baz}
+      h: {p1}
     list:
     - {foo}
     - {bar}
@@ -138,6 +148,7 @@ random:
     - {ham}
     - {jam}
     - {baz}
+    - {p1}
 """.format(**PULLSPECS)
 
 REPLACED_CONTENT = """\
@@ -174,6 +185,9 @@ spec:
               containers:
               - name: jam
                 image: {jam.replace}
+              initContainers:
+              - name: p1
+                image: {p1.replace}
 random:
   nested:
     dict:
@@ -184,6 +198,7 @@ random:
       e: {ham}
       f: {jam}
       g: {baz}
+      h: {p1}
     list:
     - {foo}
     - {bar}
@@ -192,6 +207,7 @@ random:
     - {ham}
     - {jam}
     - {baz}
+    - {p1}
 """.format(**PULLSPECS)
 
 REPLACED_EVERYWHERE_CONTENT = """\
@@ -228,6 +244,9 @@ spec:
               containers:
               - name: jam
                 image: {jam.replace}
+              initContainers:
+              - name: p1
+                image: {p1.replace}
 random:
   nested:
     dict:
@@ -238,6 +257,7 @@ random:
       e: {ham.replace}
       f: {jam.replace}
       g: {baz.replace}
+      h: {p1.replace}
     list:
     - {foo.replace}
     - {bar.replace}
@@ -246,6 +266,7 @@ random:
     - {ham.replace}
     - {jam.replace}
     - {baz.replace}
+    - {p1.replace}
 """.format(**PULLSPECS)
 
 
@@ -302,6 +323,7 @@ class TestOperatorCSV(object):
             "original.yaml - Found pullspec for container ham: {ham}",
             "original.yaml - Found pullspec for container jam: {jam}",
             "original.yaml - Found pullspec in annotations: {baz}",
+            "original.yaml - Found pullspec for initContainer p1: {p1}",
         ]
         for log in expected_logs:
             assert log.format(**PULLSPECS) in caplog.text
@@ -319,6 +341,7 @@ class TestOperatorCSV(object):
             "{file} - Replaced pullspec for container ham: {ham} -> {ham.replace}",
             "{file} - Replaced pullspec for container jam: {jam} -> {jam.replace}",
             "{file} - Replaced pullspec in annotations: {baz} -> {baz.replace}",
+            "{file} - Replaced pullspec for initContainer p1: {p1} -> {p1.replace}",
         ]
         for log in expected_logs:
             assert log.format(file="original.yaml", **PULLSPECS) in caplog.text
@@ -336,6 +359,7 @@ class TestOperatorCSV(object):
             "original.yaml - Replaced pullspec: {ham} -> {ham.replace}": 3,
             "original.yaml - Replaced pullspec: {jam} -> {jam.replace}": 3,
             "original.yaml - Replaced pullspec: {baz} -> {baz.replace}": 3,
+            "original.yaml - Replaced pullspec: {p1} -> {p1.replace}": 3,
         }
         for log, count in expected_logs.items():
             assert caplog.text.count(log.format(**PULLSPECS)) == count
@@ -379,7 +403,9 @@ class TestOperatorCSV(object):
         (True, True),
     ])
     @pytest.mark.parametrize("annotations", [True, False])
-    def test_get_pullspecs_some_locations(self, rel_images, rel_envs, containers, annotations):
+    @pytest.mark.parametrize("init_containers", [True, False])
+    def test_get_pullspecs_some_locations(self, rel_images, rel_envs,
+                                          containers, annotations, init_containers):
         data = ORIGINAL.data
         expected = {p.value for p in PULLSPECS.values()}
 
@@ -399,6 +425,10 @@ class TestOperatorCSV(object):
         if not annotations:
             expected -= {BAZ.value}
             del data["metadata"]["annotations"]
+        if not init_containers:
+            expected -= {P1.value}
+            for d in deployments:
+                d["spec"]["template"]["spec"].pop("initContainers", None)
 
         csv = OperatorCSV("x.yaml", data)
         assert csv.get_pullspecs() == expected
