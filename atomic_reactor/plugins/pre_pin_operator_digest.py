@@ -15,7 +15,11 @@ from osbs.utils import Labels
 
 from atomic_reactor import util
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.constants import PLUGIN_PIN_OPERATOR_DIGESTS_KEY, INSPECT_CONFIG
+from atomic_reactor.constants import (
+    PLUGIN_PIN_OPERATOR_DIGESTS_KEY,
+    INSPECT_CONFIG,
+    REPO_CONTAINER_CONFIG,
+)
 from atomic_reactor.util import (has_operator_bundle_manifest,
                                  get_manifest_digests,
                                  read_yaml_from_url,
@@ -325,12 +329,14 @@ class PullspecReplacer(object):
         replacements = mapping.get(package)
 
         if replacements is None:
-            raise RuntimeError("Replacement not configured for package {} (from {})"
-                               .format(package, image))
+            raise RuntimeError("Replacement not configured for package {} (from {}). "
+                               "Please specify replacement in {}"
+                               .format(package, image, REPO_CONTAINER_CONFIG))
         elif len(replacements) > 1:
             options = ", ".join(replacements)
-            raise RuntimeError("Multiple replacements for package {} (from {}): {}"
-                               .format(package, image, options))
+            raise RuntimeError("Multiple replacements for package {} (from {}): {}. "
+                               "Please specify replacement in {}"
+                               .format(package, image, options, REPO_CONTAINER_CONFIG))
 
         self.log.debug("Replacement for package %s: %s", package, replacements[0])
         replacement = ImageName.parse(replacements[0])
