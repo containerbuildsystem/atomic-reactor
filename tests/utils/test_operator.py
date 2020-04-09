@@ -88,8 +88,13 @@ P1 = PullSpec(
     ["spec", "install", "spec", "deployments", 1,
      "spec", "template", "spec", "initContainers", 0, "image"]
 )
+P2 = PullSpec(
+    "p2", "pullspec:2", "r-pullspec:2",
+    ["spec", "install", "spec", "deployments", 1,
+     "spec", "template", "spec", "initContainers", 0, "env", 0, "value"]
+)
 
-PULLSPECS = {p.name: p for p in [FOO, BAR, SPAM, EGGS, HAM, JAM, BAZ, P1]}
+PULLSPECS = {p.name: p for p in [FOO, BAR, SPAM, EGGS, HAM, JAM, BAZ, P1, P2]}
 
 
 ORIGINAL_CONTENT = """\
@@ -129,6 +134,9 @@ spec:
               initContainers:
               - name: p1
                 image: {p1}
+                env:
+                - name: RELATED_IMAGE_P2
+                  value: {p2}
 random:
   nested:
     dict:
@@ -140,6 +148,7 @@ random:
       f: {jam}
       g: {baz}
       h: {p1}
+      i: {p2}
     list:
     - {foo}
     - {bar}
@@ -149,6 +158,7 @@ random:
     - {jam}
     - {baz}
     - {p1}
+    - {p2}
 """.format(**PULLSPECS)
 
 REPLACED_CONTENT = """\
@@ -188,6 +198,9 @@ spec:
               initContainers:
               - name: p1
                 image: {p1.replace}
+                env:
+                - name: RELATED_IMAGE_P2
+                  value: {p2.replace}
 random:
   nested:
     dict:
@@ -199,6 +212,7 @@ random:
       f: {jam}
       g: {baz}
       h: {p1}
+      i: {p2}
     list:
     - {foo}
     - {bar}
@@ -208,6 +222,7 @@ random:
     - {jam}
     - {baz}
     - {p1}
+    - {p2}
 """.format(**PULLSPECS)
 
 REPLACED_EVERYWHERE_CONTENT = """\
@@ -247,6 +262,9 @@ spec:
               initContainers:
               - name: p1
                 image: {p1.replace}
+                env:
+                - name: RELATED_IMAGE_P2
+                  value: {p2.replace}
 random:
   nested:
     dict:
@@ -258,6 +276,7 @@ random:
       f: {jam.replace}
       g: {baz.replace}
       h: {p1.replace}
+      i: {p2.replace}
     list:
     - {foo.replace}
     - {bar.replace}
@@ -267,6 +286,7 @@ random:
     - {jam.replace}
     - {baz.replace}
     - {p1.replace}
+    - {p2.replace}
 """.format(**PULLSPECS)
 
 
@@ -319,6 +339,7 @@ class TestOperatorCSV(object):
             "original.yaml - Found pullspec for related image foo: {foo}",
             "original.yaml - Found pullspec for related image bar: {bar}",
             "original.yaml - Found pullspec in RELATED_IMAGE_EGGS var: {eggs}",
+            "original.yaml - Found pullspec in RELATED_IMAGE_P2 var: {p2}",
             "original.yaml - Found pullspec for container spam: {spam}",
             "original.yaml - Found pullspec for container ham: {ham}",
             "original.yaml - Found pullspec for container jam: {jam}",
@@ -337,6 +358,7 @@ class TestOperatorCSV(object):
             "{file} - Replaced pullspec for related image foo: {foo} -> {foo.replace}",
             "{file} - Replaced pullspec for related image bar: {bar} -> {bar.replace}",
             "{file} - Replaced pullspec in RELATED_IMAGE_EGGS var: {eggs} -> {eggs.replace}",
+            "{file} - Replaced pullspec in RELATED_IMAGE_P2 var: {p2} -> {p2.replace}",
             "{file} - Replaced pullspec for container spam: {spam} -> {spam.replace}",
             "{file} - Replaced pullspec for container ham: {ham} -> {ham.replace}",
             "{file} - Replaced pullspec for container jam: {jam} -> {jam.replace}",
@@ -360,6 +382,7 @@ class TestOperatorCSV(object):
             "original.yaml - Replaced pullspec: {jam} -> {jam.replace}": 3,
             "original.yaml - Replaced pullspec: {baz} -> {baz.replace}": 3,
             "original.yaml - Replaced pullspec: {p1} -> {p1.replace}": 3,
+            "original.yaml - Replaced pullspec: {p2} -> {p2.replace}": 3,
         }
         for log, count in expected_logs.items():
             assert caplog.text.count(log.format(**PULLSPECS)) == count
@@ -403,9 +426,14 @@ class TestOperatorCSV(object):
         (True, True),
     ])
     @pytest.mark.parametrize("annotations", [True, False])
-    @pytest.mark.parametrize("init_containers", [True, False])
-    def test_get_pullspecs_some_locations(self, rel_images, rel_envs,
-                                          containers, annotations, init_containers):
+    @pytest.mark.parametrize("init_rel_envs, init_containers", [
+        (False, False),
+        (False, True),
+        # (True, False) - Cannot have initContainer envs without initContainers
+        (True, True),
+    ])
+    def test_get_pullspecs_some_locations(self, rel_images, rel_envs, containers,
+                                          annotations, init_rel_envs, init_containers):
         data = ORIGINAL.data
         expected = {p.value for p in PULLSPECS.values()}
 
@@ -425,6 +453,11 @@ class TestOperatorCSV(object):
         if not annotations:
             expected -= {BAZ.value}
             del data["metadata"]["annotations"]
+        if not init_rel_envs:
+            expected -= {P2.value}
+            for d in deployments:
+                for c in chain_get(d, ["spec", "template", "spec", "initContainers"], default=[]):
+                    c.pop("env", None)
         if not init_containers:
             expected -= {P1.value}
             for d in deployments:

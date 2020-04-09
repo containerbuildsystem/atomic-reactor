@@ -124,7 +124,7 @@ class OperatorCSV(object):
         return chain_get(self.data, annotations_path, default={})
 
     def _get_related_image_envs(self):
-        containers = self._get_containers()
+        containers = self._get_containers() + self._get_init_containers()
         envs = [
             e for c in containers
             for e in c.get("env", []) if e["name"].startswith("RELATED_IMAGE_")
