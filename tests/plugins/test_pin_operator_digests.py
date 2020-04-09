@@ -676,19 +676,22 @@ class TestPullspecReplacer(object):
          {'a': {}},
          None,
          {PKG_LABEL: 'foo-package'},
-         'Replacement not configured for package foo-package (from a/x/foo:1)'),
+         'Replacement not configured for package foo-package (from a/x/foo:1). '
+         'Please specify replacement in container.yaml'),
         # replacements configured in user config, repo missing
         ('a/x/foo:1',
          None,
          {'a': {}},
          {PKG_LABEL: 'foo-package'},
-         'Replacement not configured for package foo-package (from a/x/foo:1)'),
+         'Replacement not configured for package foo-package (from a/x/foo:1). '
+         'Please specify replacement in container.yaml'),
         # multiple options for replacement in site config
         ('a/x/foo:1',
          {'a': {'foo-package': ['bar', 'baz']}},
          None,
          {PKG_LABEL: 'foo-package'},
-         'Multiple replacements for package foo-package (from a/x/foo:1): bar, baz'),
+         'Multiple replacements for package foo-package (from a/x/foo:1): bar, baz. '
+         'Please specify replacement in container.yaml'),
         # user tried to override with an invalid replacement
         ('a/x/foo:1',
          {'a': {'foo-package': ['bar', 'baz']}},
