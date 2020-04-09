@@ -126,7 +126,7 @@ class ODCSClient(object):
 
         logger.info("Renewing compose %d", compose_id)
         response = self.session.patch('{}composes/{}'.format(self.url, compose_id),
-                                      params)
+                                      json=params)
         response.raise_for_status()
         response_json = response.json()
         compose_id = response_json['id']
