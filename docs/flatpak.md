@@ -1,21 +1,25 @@
-## Building Flatpaks
+# Building Flatpaks
 
-In addition to building docker images from Dockerfiles, atomic-reactor can also build Flatpak OCI images for both runtimes and applications. A Flatpak OCI image is defined by two things: by a [module](https://docs.pagure.org/modularity/docs.html) containing the RPMs to build into the Flatpak, and by information included in a `container.yaml` file.
+In addition to building docker images from Dockerfiles, atomic-reactor can also
+build Flatpak OCI images for both runtimes and applications. A Flatpak OCI image
+is defined by two things: by a [module][] containing the RPMs to build into the
+Flatpak, and by information included in a `container.yaml` file.
 
 Building Flatpaks requires, in addition to a Koji installation:
 
- * A [MBS (module-build-service)](https://pagure.io/fm-orchestrator/) instance set up to build modules in Koji
- * An [ODCS (on demand compose service)](https://pagure.io/odcs/) instance to create repositories for the build modules
+- An [MBS][] (Module-Build-Service) instance set up to build modules in Koji
+- An [ODCS][] (On Demand Compose Service) instance to create repositories for
+  the build modules
 
-A modified version of osbs-box for testing Flatpak building can be found at:
+A [modified version][] of osbs-box, for testing Flatpak building, is available.
+It sets up everything other than the MBS instance, and contains scripts to
+create fake module builds for an [example runtime][], and an [example
+application][].
 
-  https://github.com/owtaylor/osbs-box
+## container.yaml
 
-It sets up everything other than the MBS instance, and contains scripts to create fake module builds for an [example runtime](https://github.com/owtaylor/minimal-runtime), and an [example application](https://github.com/owtaylor/banner).
-
-### container.yaml
-
-To build a flatpak, you need a `container.yaml`. The `compose` section, should have:
+To build a flatpak, you need a `container.yaml`. The `compose` section should
+contain
 
 ``` yaml
 compose:
@@ -23,31 +27,37 @@ compose:
     - MODULE_NAME:MODULE_STREAM[/PROFILE]
 ```
 
-where `PROFILE` defaults to `runtime` for runtimes and `default` for applications. Specifying a
-different profile is useful to build additional runtimes from the same module content - for
-example, building both a normal runtime and an SDK.
+where `PROFILE` defaults to `runtime` for runtimes and `default` for
+applications. Specifying a different profile is useful to build additional
+runtimes from the same module content ― for example, building both a normal
+runtime and an SDK.
 
-The `flatpak` section of container.yaml contains extra information needed to create the flatpak:
+The `flatpak` section of container.yaml contains extra information needed to
+create the flatpak:
 
-**id**: (required) The ID of the application or runtime
-
-**name**: (optional). `name` label in generated Dockerfile. Used for the repository when pushing to a registry. Defaults to the module name.
-
-**component**: (optional). `com.redhat.component` label in generated Dockerfile. Used to name the build when uploading to Koji. Defaults to the module name.
-
-**base_image**: (optional). image to use when creating filesystem; also will be recorded as the parent image of the output image. This overrides the `flatpak: base_image` setting in the reactor config.
-
-**branch**: (required) The branch of the application or runtime. In many cases, this will match the stream name of the module.
-
-**cleanup-commands**: (optional, runtime only). A shell script that is run after installing all packages.
-
-**command**: (optional, application only). The name of the executable to run to start the application. If not specified, defaults to the first executable found in /usr/bin.
-
-**labels**: (optional). A map defining additional labels to be added to the resulting image.
-
-**tags**: (optional, application only). Tags to add to the Flatpak metadata for searching.
-
-**finish-args**: (optional, application only). Arguments to `flatpak build-finish`. (see the flatpak-build-finish man page.) This is a string split on whitespace with shell style quoting.
+- **id**: (required) The ID of the application or runtime
+- **name**: (optional) `name` label in generated Dockerfile. Used for the
+  repository when pushing to a registry. Defaults to the module name
+- **component**: (optional) `com.redhat.component` label in generated
+  Dockerfile. Used to name the build when uploading to Koji. Defaults to the
+  module name
+- **base_image**: (optional) Image to use when creating filesystem; also will
+  be recorded as the parent image of the output image. This overrides the
+  `flatpak: base_image` setting in the reactor config
+- **branch**: (required) The branch of the application or runtime. In many
+  cases, this will match the stream name of the module
+- **cleanup-commands**: (optional, runtime only) A shell script that is run
+  after installing all packages
+- **command**: (optional, application only) The name of the executable to run
+  to start the application. If not specified, defaults to the first executable
+  found in `/usr/bin`
+- **labels**: (optional) A map defining additional labels to be added to the
+  resulting image
+- **tags**: (optional, application only) Tags to add to the Flatpak metadata
+  for searching
+- **finish-args**: (optional, application only) Arguments to `flatpak
+  build-finish` (see the flatpak-build-finish man page) This is a string, split
+  on whitespace, with shell-style quoting
 
 ### container.yaml examples
 
@@ -90,3 +100,10 @@ flatpak:
         --talk-name=ca.desrt.dconf
         --env=DCONF_USER_CONFIG_DIR=.config/dconf
 ```
+
+[module]: https://docs.pagure.org/modularity/docs.html
+[MBS]: https://pagure.io/fm-orchestrator
+[ODCS]: https://pagure.io/odcs
+[modified version]: https://github.com/owtaylor/osbs-box
+[example runtime]: https://github.com/owtaylor/minimal-runtime
+[example application]: https://github.com/owtaylor/banner

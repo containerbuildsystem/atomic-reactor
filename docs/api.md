@@ -1,9 +1,11 @@
 # API
 
-atomic-reactor has a proper Python API. You can use it in your scripts or services without invoking shell:
+Atomic-Reactor has a proper Python API. You can use it in your scripts or
+services without invoking a shell:
 
 ```python
 from atomic_reactor.api import build_image_in_privileged_container
+
 response = build_image_in_privileged_container(
     "privileged-buildroot",
     source={
@@ -16,19 +18,21 @@ response = build_image_in_privileged_container(
 
 ## Source
 
-The `source` argument to API functions specifies how to obtain the source code that should
-be put in the image. It has keys `provider`, `uri`, `dockerfile_path` and `provider_params`.
+The `source` argument to API functions specifies how to obtain the source code
+that should be put in the image.
 
-* `provider` can be `git` or `path`
-* `uri`
-  * if `provider` is `git`, `uri` is a Git repo URI
-  * if `provider` is `path`, `uri` is path in format `file:///abs/path`
-* `dockerfile_path` (optional) is path to Dockerfile inside a directory obtained from URI;
-  `./` is default
-* `provider_params` (optional)
-  * if `provider` is `git`, `provider_params` can contain key `git_commit` (git commit
-    to put inside the image)
-  * there are no params for `path` as of now
+- `provider`
+  - `git`
+  - `path`
+- `uri`
+  - If `provider` is `git`, `uri` is a Git repo URI
+  - If `provider` is `path`, `uri` is path in format `file:///abs/path`
+- `dockerfile_path` (optional): Path to Dockerfile inside a directory obtained
+  from URI; `./` is default
+- `provider_params` (optional):
+  - If `provider` is `git`, `provider_params` can contain key `git_commit` (git
+    commit to put inside the image)
+  - There are no params for `path` as of now
 
 For example:
 
@@ -46,18 +50,31 @@ path_params = {
     'dockerfile_path': 'foo/',
 }
 ```
+
 ## Module 'api'
+
 Copyright (c) 2015 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 
-Python API for atomic-reactor. This is the official way of interacting with atomic-reactor.
+Python API for atomic-reactor. This is the official way of interacting with
+atomic-reactor.
 
-### Functions
-**build\_image\_here**(source, image, parent\_registry=None, target\_registries=None, parent\_registry\_insecure=False, target\_registries\_insecure=False, dont\_pull\_base\_image=False, \*\*kwargs):
+### 'api' Functions
+
+```python
+build_image_here(source, image,
+                 parent_registry=None,
+                 target_registries=None,
+                 parent_registry_insecure=False,
+                 target_registries_insecure=False,
+                 dont_pull_base_image=False,
+                 **kwargs):
 ```
+
+```text
     build image from provided dockerfile (specified by `source`) in current environment
 
     :param source: dict, where/how to get source code to put in image
@@ -71,8 +88,18 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     :return: BuildResults
 ```
 
-**build\_image\_in\_privileged\_container**(build\_image, source, image, parent\_registry=None, target\_registries=None, push\_buildroot\_to=None, parent\_registry\_insecure=False, target\_registries\_insecure=False, dont\_pull\_base\_image=False, \*\*kwargs):
+```python
+build_image_in_privileged_container(build_image, source, image,
+                                    parent_registry=None,
+                                    target_registries=None,
+                                    push_buildroot_to=None,
+                                    parent_registry_insecure=False,
+                                    target_registries_insecure=False,
+                                    dont_pull_base_image=False,
+                                    **kwargs)
 ```
+
+```text
     build image from provided dockerfile (specified by `source`) in privileged container by
     running another docker instance inside the container
 
@@ -89,8 +116,18 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     :return: BuildResults
 ```
 
-**build\_image\_using\_hosts\_docker**(build\_image, source, image, parent\_registry=None, target\_registries=None, push\_buildroot\_to=None, parent\_registry\_insecure=False, target\_registries\_insecure=False, dont\_pull\_base\_image=False, \*\*kwargs):
+```python
+build_image_using_hosts_docker(build_image, source, image,
+                               parent_registry=None,
+                               target_registries=None,
+                               push_buildroot_to=None,
+                               parent_registry_insecure=False,
+                               target_registries_insecure=False,
+                               dont_pull_base_image=False,
+                               **kwargs)
 ```
+
+```text
     build image from provided dockerfile (specified by `source`) in privileged container
     using docker from host
 
@@ -106,27 +143,45 @@ Python API for atomic-reactor. This is the official way of interacting with atom
 
     :return: BuildResults
 ```
+
 ## Module 'core'
 
-### Classes
-### `class` DockerTasker 
-#### Instance variables
-* d
+### 'core' Classes
 
-* last_logs  
-`logs from last operation `
+#### DockerTasker class
 
-#### Methods
-**\_\_init\_\_**(self, base\_url=None, timeout=120, \*\*kwargs):
+##### DockerTasker Instance variables
+
+- d
+- last_logs
+  - `logs from last operation`
+
+##### DockerTasker Methods
+
+```python
+__init__(self,
+         base_url=None,
+         timeout=120,
+         **kwargs)
 ```
+
+```text
     Constructor
 
     :param base_url: str, docker connection URL
     :param timeout: int, timeout for docker client
 ```
 
-**build\_image\_from\_git**(self, url, image, git\_path=None, git\_commit=None, copy\_dockerfile\_to=None, stream=False, use\_cache=False):
+```python
+build_image_from_git(self, url, image,
+                     git_path=None,
+                     git_commit=None,
+                     copy_dockerfile_to=None,
+                     stream=False,
+                     use_cache=False)
 ```
+
+```text
     build image from provided url and tag it
 
     this operation is asynchronous and you should consume returned generator in order to wait
@@ -141,11 +196,18 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     :return: generator
 ```
 
-**build\_image\_from\_path**(self, path, image, stream=False, use\_cache=False, remove\_im=True):
+```python
+build_image_from_path(self, path, image,
+                      stream=False,
+                      use_cache=False,
+                      remove_im=True)
 ```
+
+```text
     build image from provided path and tag it
 
-    this operation is asynchronous and you should consume returned generator in order to wait
+    this operation is asynchronous and you should consume returned generator in
+        order to wait
     for build to finish
 
     :param path: str
@@ -156,8 +218,13 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     :return: generator
 ```
 
-**commit\_container**(self, container\_id, image=None, message=None):
+```python
+commit_container(self, container_id,
+                 image=None
+                 message=None)
 ```
+
+```text
     create image from provided container
 
     :param container_id: str
@@ -166,64 +233,91 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     :return: image_id
 ```
 
-**get\_image\_info\_by\_image\_id**(self, image\_id):
+```python
+get_image_info_by_image_id(self, image_id)
 ```
+
+```text
     using `docker images`, provide information about an image
 
     :param image_id: str, hash of image to get info
     :return: str or None
 ```
 
-**get\_image\_info\_by\_image\_name**(self, image, exact\_tag=True):
+```python
+get_image_info_by_image_name(self, image,
+                             exact_tag=True)
 ```
+
+```text
     using `docker images`, provide information about an image
 
     :param image: ImageName, name of image
     :param exact_tag: bool, if false then return info for all images of the
-                      given name regardless what their tag is
+                        given name regardless what their tag is
     :return: list of dicts
 ```
 
-**get\_info**(self):
+```python
+get_info(self)
 ```
+
+```text
     get info about used docker environment
 
     :return: dict, json output of `docker info`
 ```
 
-**get\_version**(self):
+```python
+get_version(self)
 ```
+
+```text
     get version of used docker environment
 
     :return: dict, json output of `docker version`
 ```
 
-**image\_exists**(self, image\_id):
+```python
+image_exists(self, image_id)
 ```
+
+```text
     does provided image exists?
 
     :param image_id: str or ImageName
     :return: True if exists, False if not
 ```
 
-**inspect\_image**(self, image\_id):
+```python
+inspect_image(self, image_id)
 ```
+
+```text
     return detailed metadata about provided image (see 'man docker-inspect')
 
     :param image_id: str or ImageName, id or name of the image
     :return: dict
 ```
 
-**login**(self, registry, docker\_secret\_path):
+```python
+login(self, registry, docker_secret_path)
 ```
+
+```text
     login to docker registry
 
     :param registry: registry name
     :param docker_secret_path: path to docker config directory
 ```
 
-**logs**(self, container\_id, stderr=True, stream=True):
+```python
+logs(self, container_id,
+     stderr=True,
+     stream=True)
 ```
+
+```text
     acquire output (stdout, stderr) from provided container
 
     :param container_id: str
@@ -232,8 +326,12 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     :return: either generator, or list of strings
 ```
 
-**pull\_image**(self, image, insecure=False):
+```python
+pull_image(self, image,
+           insecure=False)
 ```
+
+```text
     pull provided image from registry
 
     :param image_name: ImageName, image to pull
@@ -241,8 +339,12 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     :return: str, image (reg.om/img:v1)
 ```
 
-**push\_image**(self, image, insecure=False):
+```python
+push_image(self, image,
+           insecure=False)
 ```
+
+```text
     push provided image to registry
 
     :param image: ImageName
@@ -250,18 +352,27 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     :return: str, logs from push
 ```
 
-**remove\_container**(self, container\_id, force=False):
+```python
+remove_container(self, container_id,
+                 force=False)
 ```
-    remove provided container from filesystem
+
+```text
+    Remove provided container from filesystem
 
     :param container_id: str
     :param force: bool, remove forcefully?
     :return: None
 ```
 
-**remove\_image**(self, image\_id, force=False, noprune=False):
+```python
+remove_image(self, image_id,
+             force=False,
+             noprune=False)
 ```
-    remove provided image from filesystem
+
+```text
+    Remove provided image from filesystem
 
     :param image_id: str or ImageName
     :param noprune: bool, keep untagged parents?
@@ -269,13 +380,19 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     :return: None
 ```
 
-**run**(self, image, command=None, create\_kwargs=None, start\_kwargs=None):
+```python
+run(self, image,
+    command=None,
+    create_kwargs=None,
+    start_kwargs=None)
 ```
-    create container from provided image and start it
 
-    for more info, see documentation of REST API calls:
-     * containers/{}/start
-     * container/create
+```text
+    Create container from provided image and start it
+
+    For more info, see documentation of REST API calls:
+        - containers/{}/start
+        - container/create
 
     :param image: ImageName or string, name or id of the image
     :param command: str
@@ -284,8 +401,14 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     :return: str, container id
 ```
 
-**tag\_and\_push\_image**(self, image, target\_image, insecure=False, force=False, dockercfg=None):
+```python
+tag_and_push_image(self, image, target_image,
+                   insecure=False,
+                   force=False,
+                   dockercfg=None)
 ```
+
+```text
     tag provided image and push it to registry
 
     :param image: str or ImageName, image id or name
@@ -296,8 +419,12 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     :return: str, image (reg.com/img:v1)
 ```
 
-**tag\_image**(self, image, target\_image, force=False):
+```python
+tag_image(self, image, target_image,
+          force=False)
 ```
+
+```text
     tag provided image with specified image_name, registry and tag
 
     :param image: str or ImageName, image to tag
@@ -306,164 +433,181 @@ Python API for atomic-reactor. This is the official way of interacting with atom
     :return: str, image (reg.om/img:v1)
 ```
 
-**wait**(self, container\_id):
+```python
+wait(self, container_id)
 ```
+
+```text
     wait for container to finish the job (may run infinitely)
 
     :param container_id: str
     :return: int, exit code
 ```
+
 ## Module 'inner'
 
-### Classes
-### `class` DockerBuildWorkflow 
-    This class defines a workflow for building images:
+### 'inner' Classes
 
-    1. pull image from registry
-    2. tag it properly if needed
-    3. obtain source
-    4. build image
-    5. tag it
-    6. push it to registries
+#### DockerBuildWorkflow class
 
-#### Instance variables
-* autorebuild_canceled
+This class defines a workflow for building images
 
-* base_image_inspect
+1. Pull image from registry
+1. Tag it properly if needed
+1. Obtain source
+1. Build image
+1. Tag it
+1. Push it to registries
 
-* build_result
+##### DockerBuildWorkflow instance variables
 
-* build_process_failed  
-`Has any aspect of the build process failed?`
+- autorebuild_canceled
+- base_image_inspect
+- build_result
+- build_process_failed
+  - `Has any aspect of the build process failed?`
+- builder
+- built_image_inspect
+- exit_plugins_conf
+- exit_results
+- exported_image_sequence
+- files
+- image
+- kwargs
+- openshift_build_selflink
+- plugin_failed
+- plugin_files
+- plugin_workspace
+- plugins_durations
+- plugins_errors
+- plugins_timestamps
+- postbuild_plugins_conf
+- postbuild_results
+- prebuild_plugins_conf
+- prebuild_results
+- prepub_results
+- prepublish_plugins_conf
+- pulled_base_images
+- push_conf
+- source
+- tag_conf
 
-* builder
+##### DockerBuildWorkflow methods
 
-* built_image_inspect
-
-* exit_plugins_conf
-
-* exit_results
-
-* exported_image_sequence
-
-* files
-
-* image
-
-* kwargs
-
-* openshift_build_selflink
-
-* plugin_failed
-
-* plugin_files
-
-* plugin_workspace
-
-* plugins_durations
-
-* plugins_errors
-
-* plugins_timestamps
-
-* postbuild_plugins_conf
-
-* postbuild_results
-
-* prebuild_plugins_conf
-
-* prebuild_results
-
-* prepub_results
-
-* prepublish_plugins_conf
-
-* pulled_base_images
-
-* push_conf
-
-* source
-
-* tag_conf
-
-#### Methods
-**\_\_init\_\_**(self, source, image, prebuild\_plugins=None, prepublish\_plugins=None, postbuild\_plugins=None, exit\_plugins=None, plugin\_files=None, openshift\_build\_selflink=None, \*\*kwargs):
+```python
+__init__(self, source, image,
+         prebuild_plugins=None,
+         prepublish_plugins=None,
+         postbuild_plugins=None,
+         exit_plugins=None,
+         plugin_files=None,
+         openshift_build_selflink=None,
+         kwargs)
 ```
+
+```text
+    Constructor
+
     :param source: dict, where/how to get source code to put in image
     :param image: str, tag for built image ([registry/]image_name[:tag])
     :param prebuild_plugins: dict, arguments for pre-build plugins
     :param prepublish_plugins: dict, arguments for test-build plugins
     :param postbuild_plugins: dict, arguments for post-build plugins
     :param plugin_files: list of str, load plugins also from these files
-    :param openshift_build_selflink: str, link to openshift build (if we're actually running
-        on openshift) without the actual hostname/IP address
+    :param openshift_build_selflink: str, link to openshift build (if we're actually
+            running on openshift) without the actual hostname/IP address
 ```
 
-**build\_docker\_image**(self):
+```python
+build_docker_image(self)
 ```
+
+```text
     build docker image
 
     :return: BuildResults
 ```
+
 ## Module 'build'
 
-### Classes
-### `class` InsideBuilder 
-    This is expected to run within container
+### 'build' Classes
 
-#### Instance variables
-* base_image_id
+#### InsideBuilder class
 
-* built_image_info
+This is expected to run within container
 
-* image
+##### InsideBuilder instance variables
 
-* image_id
+- base_image_id
+- built_image_info
+- image
+- image_id
+- last_logs
+  - `logs from last operation`
+- source
+- tasker
 
-* last_logs  
-`logs from last operation `
+##### InsideBuilder methods
 
-* source
-
-* tasker
-
-#### Methods
-**\_\_init\_\_**(self, source, image, \*\*kwargs):
-
-**build**(self):
+```python
+__init__(self, source, image, kwargs)
 ```
+
+```text
+    Constructor
+```
+
+```python
+build(self)
+```
+
+```text
     build image inside current environment;
     it's expected this may run within (privileged) docker container
 
     :return: image string (e.g. fedora-python:34)
 ```
 
-**get\_base\_image\_info**(self):
+```python
+get_base_image_info(self)
 ```
+
+```text
     query docker about base image
 
     :return dict
 ```
 
-**get\_built\_image\_info**(self):
+```python
+get_built_image_info(self)
 ```
+
+```text
     query docker about built image
 
     :return dict
 ```
 
-**inspect\_base\_image**(self):
+```python
+inspect_base_image(self)
 ```
+
+```text
     inspect base image
 
     :return: dict
 ```
 
-**inspect\_built\_image**(self):
+```python
+inspect_built_image(self)
 ```
+
+```text
     inspect built image
 
     :return: dict
 ```
 
-**set\_base\_image**(self, base\_image):
+```python
+set_base_image(self, base_image)
+```

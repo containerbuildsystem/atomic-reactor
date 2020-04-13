@@ -1,6 +1,8 @@
-## build.json
+# build.json
 
-If you want to take advantage of _inner_ part logic of Atomic Reactor, you can do that pretty easily. All you need to know, is the structure of json, which is used within build container. Here it is:
+If you want to take advantage of the *inner* part logic of Atomic Reactor, you
+can do that pretty easily. All you need to know is the structure of the JSON
+which is used within build container. To wit:
 
 ```json
 {
@@ -54,32 +56,55 @@ If you want to take advantage of _inner_ part logic of Atomic Reactor, you can d
 }
 ```
 
- * provider - string, `git` or `path`
- * uri - string, path to git repo with Dockerfile (can be local file reference for `path` provider)
- * dockerfile_path - string, optional, path to dockerfile relative to `uri`
- * provider_params - dict, optional, extra parameters that may be different across providers
-  * git_commit - string, allowed for `git` source, git commit to checkout
- * image - string, tag for built image
- * target_registries - list of strings, optional, registries where built image should be pushed
- * openshift_build_selflink - string, optional; link to the build that is being done (without the actual hostname/IP address)
- * prebuild_plugins - list of dicts, optional
-  * list of plugins which are executed prior to build, order _matters_! First plugin pulls base image from the given registry (optional). The second plugin generates yum repo for koji f22 tag and the third injects it into dockerfile.
- * prepublish_plugins - list of dicts, optional
-  * these plugins are executed after the prebuild plugins but before the image is pushed to the registry
- * postbuild_plugins - list of dicts, optional
-  * these plugins are executed after/during the image is pushed to the registry (done by the `tag_and_push` plugin). The `tag_and_push` has a `registries` argument which is a dictionary that maps target registries to registry-specific options.
- * exit_plugins - list of dicts, optional
-  * these plugins are executed last of all and will always be run, even for a failed build
+- provider: String, `git` or `path`
+- uri: String, path to git repo with Dockerfile (can be local file reference
+  for `path` provider)
+- dockerfile_path: String, optional, path to dockerfile relative to `uri`
+- provider_params: Dict, optional, extra parameters that may be different
+  across providers
+  - git_commit: String, allowed for `git` source, git commit to checkout
+- image: String, tag for built image
+- target_registries: List of strings, optional, registries where built image
+  should be pushed
+- openshift_build_selflink: String, optional; link to the build that is being
+  done (without the actual hostname/IP address)
+- prebuild_plugins: List of dicts, optional
+  - List of plugins which are executed prior to build; order **matters**! First
+    plugin pulls base image from the given registry (optional). The second
+    plugin generates yum repo for koji f22 tag and the third injects it into
+    dockerfile
+- prepublish_plugins: List of dicts, optional
+  - These plugins are executed after the prebuild plugins but before the image
+    is pushed to the registry
+- postbuild_plugins: List of dicts, optional
+  - These plugins are executed after/during the image is pushed to the registry
+    (done by the `tag_and_push` plugin). The `tag_and_push` has a `registries`
+    argument which is a dictionary that maps target registries to
+    registry-specific options
+- exit_plugins: List of dicts, optional
+  - These plugins are executed last of all and will always be run, even for a
+    failed build
 
 For each plugin dict:
- * name - string, plugin name (its 'key' attribute)
- * args - dict, arguments for plugin
- * required - bool, optional, whether this plugin is required to be present for a successful build
 
-Atomic Reactor is able to read this build json from various places (see input plugins in source code). There is an argument for command `inside-build` called `--input`. Currently there are 3 available inputs:
+- name: String, plugin name (its 'key' attribute)
+- args: Dict, arguments for plugin
+- required: Bool, optional, whether this plugin is required to be present for a
+  successful build
 
- 1. `--input path` load build json from arbitrary path (if not specified, it tries to load it from `/run/share/build.json`). You can specify the path like this: `--input-arg path=/my/cool/path/with/build.json`.
- 2. `--input env` load it from environment variable: `--input-arg env_name=HERE_IS_THE_JSON`
- 3. `--input osv3` import input from OpenShift v3 environment (check github.com/openshift/origin/ for more info)
+Atomic Reactor is able to read this build json from various places (see input
+plugins in source code). There is an argument for command `inside-build` called
+`--input`. Currently there are 3 available inputs:
 
-If the `--input` argument is omitted, and exactly one available input method is detected, Atomic Reactor will use that input method.
+1. `--input path` load build json from arbitrary path (if not specified, it
+   tries to load it from `/run/share/build.json`). You can specify the path
+   like `--input-arg path=/my/cool/path/with/build.json`.
+1. `--input env` load it from environment variable:
+     `--input-arg env_name=HERE_IS_THE_JSON`
+1. `--input osv3` import input from OpenShift v3 environment (check
+   [openshift origin][] for more info)
+
+If the `--input` argument is omitted, and exactly one available input method is
+detected, Atomic Reactor will use that input method.
+
+[openshift origin]: https://github.com/openshift/origin

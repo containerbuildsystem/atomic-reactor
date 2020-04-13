@@ -1,4 +1,4 @@
-## RPM build
+# RPM Build
 
 Install tito and mock:
 
@@ -38,5 +38,3 @@ tito release copr-test
 # or submit build from the latest tag
 tito release copr
 ```
-
-
