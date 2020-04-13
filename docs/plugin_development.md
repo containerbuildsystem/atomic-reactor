@@ -1,22 +1,22 @@
-Writing plugins for Atomic Reactor
-==================================
+# Writing Plugins for Atomic Reactor
 
-For more information about plugins, see [plugins](https://github.com/containerbuildsystem/atomic-reactor/blob/master/docs/plugins.md) document.
+For more information about plugins, see [plugins][] document.
 
-Let's create a plugin, which sends build log to provided URL.
+Let's create a plugin, which sends the build log to a provided URL.
 
 ## Clone Atomic Reactor
 
-We'll use Atomic Reactor from git (you can also get it from your distribution, once it's there):
+We'll use Atomic Reactor from git (you can also get it from your distribution,
+once it's there):
 
-```
+```bash
 git clone https://github.com/containerbuildsystem/atomic-reactor.git
 cd atomic-reactor
 ```
 
 Python should know where it can find our local copy of Atomic Reactor:
 
-```
+```bash
 export PYTHONPATH="$(pwd):${PYTHONPATH}"
 ```
 
@@ -24,9 +24,9 @@ export PYTHONPATH="$(pwd):${PYTHONPATH}"
 
 Time to create the plugin itself. Let's setup the directory first:
 
-```
+```bash
 mkdir atomic-reactor-plugin-logs-submitter
-cd atomic-reactor-plugin-logs-submitter/
+cd atomic-reactor-plugin-logs-submitter
 ```
 
 Plugin code:
@@ -58,9 +58,11 @@ class LogSubmitter(PostBuildPlugin):
 
     def run(self):
         """
-        each plugin has to implement this method — it is used to run the plugin actually
+        Each plugin has to implement this method — it is used to run the
+        plugin actually.
 
-        response from this method is stored in `workflow.postbuild_results[self.key]`
+        Response from this method is stored in
+        `workflow.postbuild_results[self.key]`
         """
         json_data = {"logs": self.workflow.build_result.logs}
         return requests.post(self.url, json=json_data).content
@@ -68,41 +70,50 @@ class LogSubmitter(PostBuildPlugin):
 
 There are two objects which enable you access to all the Atomic Reactor's magic:
 
-1. **self.tasker** — instance of `atomic_reactor.core.DockerTasker`: it is a thin wrapper on top of [docker-py](https://github.com/docker/docker-py) — this is your access to docker
-2. **self.workflow** — instance of `atomic_reactor.inner.DockerBuildWorkflow`: also contains a link, `self.workflow.builder`, to instance of `atomic_reactor.build.InsideBuilder` — these instances contain whole configuration, go ahead and change it however you want
+1. **self.tasker**: (instance of `atomic_reactor.core.DockerTasker`) A thin
+   wrapper on top of [docker-py][] — this is
+   your access to docker
+1. **self.workflow**: (instance of `atomic_reactor.inner.DockerBuildWorkflow`)
+   Also contains a link, `self.workflow.builder`, to instance of
+   `atomic_reactor.build.InsideBuilder` — these instances contain whole
+   configuration, go ahead and change it however you want
 
-Neat! Let's try our plugin. We'll have a webserver in terminal 1:
+Neat! Let's try our plugin. We'll have a webserver in terminal 1
 
-```
+```bash
 terminal1 $ ncat -kl localhost 9099
 ```
 
-We also need an input json for the build itself (let's use my [hello world dockerfile](http://github.com/TomasTomecek/docker-hello-world)), the name of the file will be `build.json`:
+We also need an input json for the build itself (let's use my "Hello, world"
+[dockerfile][]), the name of the file will be `build.json`:
 
-```
+```json
 {
-        "image": "test-image",
-        "git_url": "http://github.com/TomasTomecek/docker-hello-world",
-        "postbuild_plugins": [{
-                "name": "logs_submitter",
-                "args": {
-                    "url": "http://localhost:9099"
-                }
-        }]
+  "image": "test-image",
+  "git_url": "http://github.com/TomasTomecek/docker-hello-world",
+  "postbuild_plugins": [{
+     "name": "logs_submitter",
+     "args": {
+       "url": "http://localhost:9099"
+     }
+   }]
 }
 ```
 
-Time to run the build (we'll build an image, `test-image`, in current environment (not inside a build container), getting data from `./build.json` and finally, we'll tell Atomic Reactor to load our plugin):
+Time to run the build (we'll build an image, `test-image`, in current
+environment (not inside a build container), getting data from `./build.json` and
+finally, we'll tell Atomic Reactor to load our plugin):
 
-```
-terminal2 $ atomic-reactor -v build json --method here ./build.json --load-plugin ./post_logs_submitter.py
+```bash
+terminal2 $ atomic-reactor -v build json --method here ./build.json \
+                --load-plugin ./post_logs_submitter.py
 ...
 2015-02-19 13:26:05,450 - atomic_reactor.plugin - DEBUG - running plugin 'logs_submitter' with args: '{u'url': u'http://localhost:9099'}'
 ```
 
 What's in terminal 1?
 
-```
+```bash
 terminal1 $ ncat -kl localhost 9099
 
 POST / HTTP/1.1
@@ -119,8 +130,11 @@ Content-Type: application/json
 
 As you can see, Atomic Reactor posted the json to the provided URL. Sweet!
 
-'...now's ncat waiting with response — it may actually look stuck. Just hit "enter" or `ctrl+c`.'
-
+...now ncat's waiting with response — it may actually look stuck. Just hit
+`ENTER` or `ctrl+c`.
 
 And that's it.
 
+[plugins]: ./plugins.md
+[docker-py]: https://github.com/docker/docker-py
+[dockerfile]: https://github.com/TomasTomecek/docker-hello-world

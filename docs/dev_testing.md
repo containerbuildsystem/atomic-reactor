@@ -32,5 +32,6 @@ COMPONENT=""
 DISTGIT=""
 DISTGIT_BRANCH=""
 KOJI_TARGET=""
-osbs --instance $INSTANCE build -g ${GIT}${COMPONENT} -c $COMPONENT -t $KOJI_TARGET -u me --git-commit $DISTGIT_BRANCH
+osbs --instance $INSTANCE build -g ${GIT}${COMPONENT} -c $COMPONENT \
+     -t $KOJI_TARGET -u me --git-commit $DISTGIT_BRANCH
 ```
