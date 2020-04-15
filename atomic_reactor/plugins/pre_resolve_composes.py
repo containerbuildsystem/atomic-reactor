@@ -30,6 +30,8 @@ ODCS_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 MINIMUM_TIME_TO_EXPIRE = timedelta(hours=2).total_seconds()
 # flag to let ODCS see hidden pulp repos
 UNPUBLISHED_REPOS = 'include_unpublished_pulp_repos'
+# flag to let ODCS ignore missing content sets
+IGNORE_ABSENT_REPOS = 'ignore_absent_pulp_repos'
 
 
 class ResolveComposesPlugin(PreBuildPlugin):
@@ -424,9 +426,12 @@ class ComposeConfig(object):
             for arch in pulp_data or {}:
                 if arch in self.arches:
                     self.pulp[arch] = pulp_data[arch]
-            self.flags = None
+            self.flags = []
             if data.get(UNPUBLISHED_REPOS):
-                self.flags = [UNPUBLISHED_REPOS]
+                self.flags.append(UNPUBLISHED_REPOS)
+            if data.get(IGNORE_ABSENT_REPOS):
+                self.flags.append(IGNORE_ABSENT_REPOS)
+
         for arch in data.get('multilib_arches', []):
             if arch in arches:
                 self.multilib_arches.append(arch)
