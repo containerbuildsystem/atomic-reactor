@@ -475,7 +475,6 @@ def write_docker_file(config, tmpdir):
     ('app', 'both', None),
     ('runtime', 'annotations', None),
     ('sdk', 'annotations', None),
-    ('sdk', 'annotations', None),
 ])
 def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, flatpak_metadata, breakage):
     # Check that we actually have flatpak available
