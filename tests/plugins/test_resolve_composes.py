@@ -667,8 +667,8 @@ class TestResolveComposes(object):
         (['x86_64', 'ppce64le', 'arm64'], None, 'beta', 'beta'),
     ))
     @pytest.mark.parametrize(('flags', 'expected_flags'), [
-        ({}, None),
-        ({UNPUBLISHED_REPOS: False}, None),
+        ({}, []),
+        ({UNPUBLISHED_REPOS: False}, []),
         ({UNPUBLISHED_REPOS: True}, [UNPUBLISHED_REPOS])
     ])
     def test_request_pulp_and_multiarch(self, workflow, reactor_config_map, pulp_arches, arches,
@@ -1090,7 +1090,7 @@ class TestResolveComposes(object):
                 source_type='pulp',
                 source='pulp-spam-rpms pulp-bacon-rpms pulp-eggs-rpms',
                 sigkeys=[],
-                flags=None,
+                flags=[],
                 arches=['x86_64'])
             .and_return(ODCS_COMPOSE))
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)

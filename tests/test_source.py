@@ -199,6 +199,20 @@ class TestSourceConfigSchemaValidation(object):
         ), (
             """\
             compose:
+              ignore_absent_pulp_repos: true
+            """,
+            {'compose': {'ignore_absent_pulp_repos': True}}
+         ), (
+            """\
+            compose:
+              include_unpublished_pulp_repos: true
+              ignore_absent_pulp_repos: true
+            """,
+            {'compose': {'include_unpublished_pulp_repos': True,
+                         'ignore_absent_pulp_repos': True}}
+        ), (
+            """\
+            compose:
             """,
             {}
 
