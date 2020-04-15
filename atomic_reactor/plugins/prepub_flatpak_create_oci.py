@@ -19,10 +19,12 @@ from flatpak_module_tools.flatpak_builder import FlatpakBuilder, FLATPAK_METADAT
 
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.plugin import PrePublishPlugin
+from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_flatpak_update_dockerfile import get_flatpak_source_info
 from atomic_reactor.plugins.pre_reactor_config import get_flatpak_metadata
 from atomic_reactor.utils.rpm import parse_rpm_output
 from atomic_reactor.util import df_parser, get_exported_image_metadata
+from osbs.utils import Labels
 
 
 # This converts the generator provided by the export() operation to a file-like
@@ -102,6 +104,26 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         oci_image_manifest = json.loads(raw_manifest)
         return oci_image_manifest['config']['digest']
 
+    def _copy_oci_to_local_storage(self, oci_path, name, tag):
+        """Copy OCI image to internal container storage
+
+        The internal storage to copy the image to is defined by the workflow.
+
+        :param oci_path: str, path to OCI directory
+        :param name: str, name to be given to the image in the internal storage
+        :param tag: str, tag to apply to name in the internal storage
+        """
+        skopeo_copy_dst = '{}:{}:{}'.format(self.workflow.storage_transport, name, tag)
+        cmd = ['skopeo', 'copy', 'oci:{}'.format(oci_path), skopeo_copy_dst]
+
+        self.log.info("Copying built image to internal container image storage as %s:%s", name, tag)
+        self.log.info("Calling: %s", ' '.join(cmd))
+        try:
+            subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as e:
+            self.log.error("image copy failed with output:\n%s", e.output)
+            raise
+
     def run(self):
         source = get_flatpak_source_info(self.workflow)
         if source is None:
@@ -124,9 +146,23 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
 
         ref_name, outfile, tarred_outfile = self.builder.build_container(tarred_filesystem)
 
+        self.log.info('Marking filesystem image "%s" for removal', self.workflow.builder.image_id)
+        defer_removal(self.workflow, self.workflow.builder.image_id)
+
         image_id = self._get_oci_image_id(outfile)
         self.log.info('New OCI image ID is %s', image_id)
         self.workflow.builder.image_id = image_id
+
+        labels = Labels(df_labels)
+        _, image_name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)
+        _, image_version = labels.get_name_and_value(Labels.LABEL_TYPE_VERSION)
+        _, image_release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
+
+        name = '{}-{}'.format(self.key, image_name)
+        tag = '{}-{}'.format(image_version, image_release)
+        # The OCI id is tracked by the builder. The image will be removed in the exit phase
+        # No need to mark it for removal after pushing to the local storage
+        self._copy_oci_to_local_storage(outfile, name, tag)
 
         metadata = get_exported_image_metadata(outfile, IMAGE_TYPE_OCI)
         metadata['ref_name'] = ref_name
