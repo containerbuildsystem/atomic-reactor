@@ -469,6 +469,7 @@ def write_docker_file(config, tmpdir):
                     reason="libmodulemd not available")
 @pytest.mark.parametrize('config_name, flatpak_metadata, breakage', [
     ('app', 'annotations', None),
+    ('app', 'annotations', 'copy_error'),
     ('app', 'annotations', 'no_runtime'),
     ('app', 'labels', None),
     ('app', 'both', None),
@@ -507,6 +508,9 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, flatpak_metadata
     setattr(workflow, 'builder', MockBuilder())
     workflow.builder.df_path = write_docker_file(config, str(tmpdir))
     setattr(workflow.builder, 'tasker', docker_tasker)
+
+    #  Make a local copy instead of pushing oci to docker storage
+    workflow.storage_transport = 'oci:{}'.format(str(tmpdir))
 
     make_and_store_reactor_config_map(workflow, flatpak_metadata)
 
@@ -550,6 +554,9 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, flatpak_metadata
         module_config['metadata'] = mmd_index.dump_to_string()
 
         expected_exception = 'Failed to identify runtime module'
+    elif breakage == 'copy_error':
+        workflow.storage_transport = 'idontexist'
+        expected_exception = 'CalledProcessError'
     else:
         assert breakage is None
         expected_exception = None
@@ -602,9 +609,16 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, flatpak_metadata
             runner.run()
         assert expected_exception in str(ex.value)
     else:
-        assert workflow.builder.image_id == 'xxx'
+        # Check if run replaces image_id and marks filesystem image for removal
+        filesystem_image_id = 'xxx'
+        for_removal = workflow.plugin_workspace.get(
+            'remove_built_image', {}).get('images_to_remove', [])
+        assert workflow.builder.image_id == filesystem_image_id
+        assert filesystem_image_id not in for_removal
         runner.run()
+        for_removal = workflow.plugin_workspace['remove_built_image']['images_to_remove']
         assert re.match(r'^sha256:\w{64}$', workflow.builder.image_id)
+        assert filesystem_image_id in for_removal
 
         dir_metadata = workflow.exported_image_sequence[-2]
         assert dir_metadata['type'] == IMAGE_TYPE_OCI

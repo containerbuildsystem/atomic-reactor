@@ -32,9 +32,11 @@ from atomic_reactor.plugin import (
     PrePublishPluginsRunner,
 )
 from atomic_reactor.source import get_source_instance_for, DummySource
-from atomic_reactor.constants import INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS
 from atomic_reactor.constants import (
     CONTAINER_DEFAULT_BUILD_METHOD,
+    DOCKER_STORAGE_TRANSPORT_NAME,
+    INSPECT_ROOTFS,
+    INSPECT_ROOTFS_LAYERS,
     PLUGIN_BUILD_ORCHESTRATE_KEY
 )
 from atomic_reactor.util import ImageName, exception_message
@@ -383,6 +385,7 @@ class DockerBuildWorkflow(object):
         self.built_image_inspect = None
         self.layer_sizes = []
         self.default_image_build_method = CONTAINER_DEFAULT_BUILD_METHOD
+        self.storage_transport = DOCKER_STORAGE_TRANSPORT_NAME
 
         # list of images pulled during the build, to be deleted after the build
         self.pulled_base_images = set()

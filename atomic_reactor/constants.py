@@ -182,3 +182,6 @@ KOJI_KIND_IMAGE_SOURCE_BUILD = 'source_container_build'
 KOJI_SUBTYPE_OP_APPREGISTRY = 'operator_appregistry'
 KOJI_SUBTYPE_OP_BUNDLE = 'operator_bundle'
 KOJI_SOURCE_ENGINE = 'bsi'
+
+# Storage names as defined in skopeo
+DOCKER_STORAGE_TRANSPORT_NAME = 'docker-daemon'
