@@ -142,7 +142,9 @@ function setup_osbs() {
 case ${ACTION} in
 "test")
   setup_osbs
-  TEST_CMD="pytest tests --cov atomic_reactor --cov-report html"
+  # shellcheck disable=SC2124
+  TEST_CMD="pytest --cov atomic_reactor --cov-report html $@"
+  shift $#  # To avoid $@ expansion again later.
   ;;
 "pylint")
   setup_osbs
@@ -168,6 +170,7 @@ case ${ACTION} in
 esac
 
 # Run tests
+# shellcheck disable=SC2086
 $RUN ${TEST_CMD} "$@"
 
 echo "To run tests again:"
