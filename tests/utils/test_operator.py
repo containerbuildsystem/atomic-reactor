@@ -336,14 +336,14 @@ class TestOperatorCSV(object):
         assert pullspecs == self._original_pullspecs
 
         expected_logs = [
-            "original.yaml - Found pullspec for related image foo: {foo}",
-            "original.yaml - Found pullspec for related image bar: {bar}",
-            "original.yaml - Found pullspec in RELATED_IMAGE_EGGS var: {eggs}",
-            "original.yaml - Found pullspec in RELATED_IMAGE_P2 var: {p2}",
+            "original.yaml - Found pullspec for relatedImage foo: {foo}",
+            "original.yaml - Found pullspec for relatedImage bar: {bar}",
+            "original.yaml - Found pullspec for RELATED_IMAGE_EGGS var: {eggs}",
+            "original.yaml - Found pullspec for RELATED_IMAGE_P2 var: {p2}",
             "original.yaml - Found pullspec for container spam: {spam}",
             "original.yaml - Found pullspec for container ham: {ham}",
             "original.yaml - Found pullspec for container jam: {jam}",
-            "original.yaml - Found pullspec in annotations: {baz}",
+            "original.yaml - Found pullspec for containerImage annotation: {baz}",
             "original.yaml - Found pullspec for initContainer p1: {p1}",
         ]
         for log in expected_logs:
@@ -355,14 +355,14 @@ class TestOperatorCSV(object):
         assert csv.data == REPLACED.data
 
         expected_logs = [
-            "{file} - Replaced pullspec for related image foo: {foo} -> {foo.replace}",
-            "{file} - Replaced pullspec for related image bar: {bar} -> {bar.replace}",
-            "{file} - Replaced pullspec in RELATED_IMAGE_EGGS var: {eggs} -> {eggs.replace}",
-            "{file} - Replaced pullspec in RELATED_IMAGE_P2 var: {p2} -> {p2.replace}",
+            "{file} - Replaced pullspec for relatedImage foo: {foo} -> {foo.replace}",
+            "{file} - Replaced pullspec for relatedImage bar: {bar} -> {bar.replace}",
+            "{file} - Replaced pullspec for RELATED_IMAGE_EGGS var: {eggs} -> {eggs.replace}",
+            "{file} - Replaced pullspec for RELATED_IMAGE_P2 var: {p2} -> {p2.replace}",
             "{file} - Replaced pullspec for container spam: {spam} -> {spam.replace}",
             "{file} - Replaced pullspec for container ham: {ham} -> {ham.replace}",
             "{file} - Replaced pullspec for container jam: {jam} -> {jam.replace}",
-            "{file} - Replaced pullspec in annotations: {baz} -> {baz.replace}",
+            "{file} - Replaced pullspec for containerImage annotation: {baz} -> {baz.replace}",
             "{file} - Replaced pullspec for initContainer p1: {p1} -> {p1.replace}",
         ]
         for log in expected_logs:
