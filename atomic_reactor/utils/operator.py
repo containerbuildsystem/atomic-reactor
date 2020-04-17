@@ -30,6 +30,87 @@ class NotOperatorCSV(Exception):
     """
 
 
+class NamedPullspec(object):
+    """
+    Pullspec with a name and description
+    """
+
+    _image_key = "image"
+
+    def __init__(self, data):
+        """
+        Initialize a NamedPullspec
+
+        :param data: Dict-like object in JSON/YAML data
+                     in which the name and image can be found
+        """
+        self.data = data
+
+    @property
+    def name(self):
+        return self.data["name"]
+
+    @property
+    def image(self):
+        return self.data[self._image_key]
+
+    @image.setter
+    def image(self, value):
+        self.data[self._image_key] = value
+
+    @property
+    def description(self):
+        raise NotImplementedError
+
+
+class Container(NamedPullspec):
+    @property
+    def description(self):
+        return "container {}".format(self.name)
+
+
+class InitContainer(NamedPullspec):
+    @property
+    def description(self):
+        return "initContainer {}".format(self.name)
+
+
+class RelatedImage(NamedPullspec):
+    @property
+    def description(self):
+        return "relatedImage {}".format(self.name)
+
+
+class RelatedImageEnv(NamedPullspec):
+    _image_key = "value"
+
+    @property
+    def name(self):
+        # Construct name by removing prefix and converting to lowercase
+        return self.data["name"][len("RELATED_IMAGE_"):].lower()
+
+    @property
+    def description(self):
+        return "{} var".format(self.data["name"])
+
+
+class Annotation(NamedPullspec):
+    _image_key = NotImplemented
+
+    @property
+    def name(self):
+        # Construct name by taking image repo and adding suffix
+        return ImageName.parse(self.image).repo + "-annotation"
+
+    @property
+    def description(self):
+        return "{} annotation".format(self._image_key)
+
+    def with_key(self, image_key):
+        self._image_key = image_key
+        return self
+
+
 class OperatorCSV(object):
     """
     A single ClusterServiceVersion file in an operator manifest.
@@ -74,11 +155,14 @@ class OperatorCSV(object):
 
         :return: set of ImageName pullspecs
         """
-        pullspecs = self._get_related_image_pullspecs()
-        pullspecs.update(self._get_env_pullspecs())
-        pullspecs.update(self._get_container_image_pullspecs())
-        pullspecs.update(self._get_annotations_pullspecs())
-        pullspecs.update(self._get_init_container_pullspecs())
+        named_pullspecs = self._named_pullspecs()
+        pullspecs = set()
+
+        for p in named_pullspecs:
+            image = ImageName.parse(p.image)
+            log.debug("%s - Found pullspec for %s: %s", self.path, p.description, image)
+            pullspecs.add(image)
+
         return pullspecs
 
     def replace_pullspecs(self, replacement_pullspecs):
@@ -87,11 +171,16 @@ class OperatorCSV(object):
 
         :param replacement_pullspecs: mapping of pullspec -> replacement
         """
-        self._replace_related_image_pullspecs(replacement_pullspecs)
-        self._replace_env_pullspecs(replacement_pullspecs)
-        self._replace_container_image_pullspecs(replacement_pullspecs)
-        self._replace_annotation_pullspecs(replacement_pullspecs)
-        self._replace_init_container_pullspecs(replacement_pullspecs)
+        named_pullspecs = self._named_pullspecs()
+
+        for p in named_pullspecs:
+            old = ImageName.parse(p.image)
+            new = replacement_pullspecs.get(old)
+
+            if new is not None and old != new:
+                log.debug("%s - Replaced pullspec for %s: %s -> %s",
+                          self.path, p.description, old, new)
+                p.image = new.to_str()  # `new` is an ImageName
 
     def replace_pullspecs_everywhere(self, replacement_pullspecs):
         """
@@ -99,141 +188,86 @@ class OperatorCSV(object):
 
         :param replacement_pullspecs: mapping of pullspec -> replacment
         """
-        log_template = "%(path)s - Replaced pullspec: %(old)s -> %(new)s"
         for k in self.data:
-            self._replace_pullspecs_everywhere(self.data, k, replacement_pullspecs, log_template)
+            self._replace_pullspecs_everywhere(self.data, k, replacement_pullspecs)
 
-    def _get_related_images(self):
+    def _named_pullspecs(self):
+        pullspecs = []
+        pullspecs.extend(self._annotation_pullspecs())
+        pullspecs.extend(self._related_image_pullspecs())
+        pullspecs.extend(self._container_pullspecs())
+        pullspecs.extend(self._init_container_pullspecs())
+        pullspecs.extend(self._related_image_env_pullspecs())
+        return pullspecs
+
+    def _related_image_pullspecs(self):
         related_images_path = ("spec", "relatedImages")
-        return chain_get(self.data, related_images_path, default=[])
+        return [
+            RelatedImage(r)
+            for r in chain_get(self.data, related_images_path, default=[])
+        ]
 
-    def _get_deployments(self):
+    def _deployments(self):
         deployments_path = ("spec", "install", "spec", "deployments")
         return chain_get(self.data, deployments_path, default=[])
 
-    def _get_containers(self):
-        deployments = self._get_deployments()
+    def _container_pullspecs(self):
+        deployments = self._deployments()
         containers_path = ("spec", "template", "spec", "containers")
-        containers = [
-            c for d in deployments for c in chain_get(d, containers_path, default=[])
+        return [
+            Container(c)
+            for d in deployments for c in chain_get(d, containers_path, default=[])
         ]
-        return containers
 
-    def _get_annotations(self):
+    def _annotation_pullspecs(self):
         annotations_path = ("metadata", "annotations")
-        return chain_get(self.data, annotations_path, default={})
+        annotations = chain_get(self.data, annotations_path, default={})
+        pullspecs = []
+        if "containerImage" in annotations:
+            pullspecs.append(Annotation(annotations).with_key("containerImage"))
+        return pullspecs
 
-    def _get_related_image_envs(self):
-        containers = self._get_containers() + self._get_init_containers()
+    def _related_image_env_pullspecs(self):
+        containers = self._container_pullspecs() + self._init_container_pullspecs()
         envs = [
             e for c in containers
-            for e in c.get("env", []) if e["name"].startswith("RELATED_IMAGE_")
+            for e in c.data.get("env", []) if e["name"].startswith("RELATED_IMAGE_")
         ]
         for env in envs:
             if "valueFrom" in env:
                 msg = '{}: "valueFrom" references are not supported'.format(env["name"])
                 raise RuntimeError(msg)
-        return envs
-
-    def _get_init_containers(self):
-        deployments = self._get_deployments()
-        init_containers_path = ("spec", "template", "spec", "initContainers")
-        init_containers = [
-            c for d in deployments for c in chain_get(d, init_containers_path, default=[])
+        return [
+            RelatedImageEnv(env) for env in envs
         ]
-        return init_containers
 
-    def _get_pullspec(self, obj, key, log_template=None):
-        pullspec = ImageName.parse(obj[key])
-        if log_template is not None:
-            name = obj.get("name") if isinstance(obj, CommentedMap) else None
-            log.debug(log_template,
-                      {"path": self.path, "name": name, "pullspec": pullspec})
-        return pullspec
+    def _init_container_pullspecs(self):
+        deployments = self._deployments()
+        init_containers_path = ("spec", "template", "spec", "initContainers")
+        return [
+            InitContainer(c)
+            for d in deployments for c in chain_get(d, init_containers_path, default=[])
+        ]
 
-    def _get_related_image_pullspecs(self):
-        rel_images = self._get_related_images()
-        log_template = "%(path)s - Found pullspec for related image %(name)s: %(pullspec)s"
-        return set(self._get_pullspec(i, "image", log_template) for i in rel_images)
-
-    def _get_env_pullspecs(self):
-        envs = self._get_related_image_envs()
-        log_template = "%(path)s - Found pullspec in %(name)s var: %(pullspec)s"
-        return set(self._get_pullspec(e, "value", log_template) for e in envs)
-
-    def _get_container_image_pullspecs(self):
-        containers = self._get_containers()
-        log_template = "%(path)s - Found pullspec for container %(name)s: %(pullspec)s"
-        return set(self._get_pullspec(c, "image", log_template) for c in containers)
-
-    def _get_annotations_pullspecs(self):
-        annotations = self._get_annotations()
-        log_template = "%(path)s - Found pullspec in annotations: %(pullspec)s"
-        pullspecs = set()
-        if "containerImage" in annotations:
-            pullspecs.add(self._get_pullspec(annotations, "containerImage", log_template))
-        return pullspecs
-
-    def _get_init_container_pullspecs(self):
-        init_containers = self._get_init_containers()
-        log_template = "%(path)s - Found pullspec for initContainer %(name)s: %(pullspec)s"
-        return set(self._get_pullspec(c, "image", log_template) for c in init_containers)
-
-    def _replace_pullspec(self, obj, key, replacement_pullspecs, log_template=None):
+    def _replace_unnamed_pullspec(self, obj, key, replacement_pullspecs):
         old = ImageName.parse(obj[key])
         new = replacement_pullspecs.get(old)
-        if new is None or new == old:
-            return
-        if log_template is not None:
-            name = obj.get("name") if isinstance(obj, CommentedMap) else None
-            log.debug(log_template,
-                      {"path": self.path, "name": name, "old": old, "new": new})
-        obj[key] = str(new)  # `new` is an ImageName
+        if new is not None and new != old:
+            log.debug("%s - Replaced pullspec: %s -> %s", self.path, old, new)
+            obj[key] = new.to_str()  # `new` is an ImageName
 
-    def _replace_related_image_pullspecs(self, replacement_pullspecs):
-        related_images = self._get_related_images()
-        log_tmpl = "%(path)s - Replaced pullspec for related image %(name)s: %(old)s -> %(new)s"
-        for i in related_images:
-            self._replace_pullspec(i, "image", replacement_pullspecs, log_tmpl)
-
-    def _replace_env_pullspecs(self, replacement_pullspecs):
-        envs = self._get_related_image_envs()
-        log_template = "%(path)s - Replaced pullspec in %(name)s var: %(old)s -> %(new)s"
-        for e in envs:
-            self._replace_pullspec(e, "value", replacement_pullspecs, log_template)
-
-    def _replace_container_image_pullspecs(self, replacement_pullspecs):
-        containers = self._get_containers()
-        log_template = "%(path)s - Replaced pullspec for container %(name)s: %(old)s -> %(new)s"
-        for c in containers:
-            self._replace_pullspec(c, "image", replacement_pullspecs, log_template)
-
-    def _replace_annotation_pullspecs(self, replacement_pullspecs):
-        annotations = self._get_annotations()
-        log_tmpl = "%(path)s - Replaced pullspec in annotations: %(old)s -> %(new)s"
-        if "containerImage" in annotations:
-            self._replace_pullspec(annotations, "containerImage", replacement_pullspecs, log_tmpl)
-
-    def _replace_init_container_pullspecs(self, replacement_pullspecs):
-        init_containers = self._get_init_containers()
-        log_template = (
-            "%(path)s - Replaced pullspec for initContainer %(name)s: %(old)s -> %(new)s"
-        )
-        for c in init_containers:
-            self._replace_pullspec(c, "image", replacement_pullspecs, log_template)
-
-    def _replace_pullspecs_everywhere(self, obj, k_or_i, replacement_pullspecs, log_template):
+    def _replace_pullspecs_everywhere(self, obj, k_or_i, replacement_pullspecs):
         item = obj[k_or_i]
         if isinstance(item, CommentedMap):
             for k in item:
-                self._replace_pullspecs_everywhere(item, k, replacement_pullspecs, log_template)
+                self._replace_pullspecs_everywhere(item, k, replacement_pullspecs)
         elif isinstance(item, CommentedSeq):
             for i in range(len(item)):
-                self._replace_pullspecs_everywhere(item, i, replacement_pullspecs, log_template)
+                self._replace_pullspecs_everywhere(item, i, replacement_pullspecs)
         elif isinstance(item, str):
             # Doesn't matter if string was not a pullspec, it will simply not match anything
             # in replacement_pullspecs and no replacement will be done
-            self._replace_pullspec(obj, k_or_i, replacement_pullspecs, log_template)
+            self._replace_unnamed_pullspec(obj, k_or_i, replacement_pullspecs)
 
 
 class OperatorManifest(object):
