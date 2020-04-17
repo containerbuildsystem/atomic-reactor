@@ -9,9 +9,11 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import absolute_import, unicode_literals
 
 import copy
+from collections import Counter
 
 import pytest
 from ruamel.yaml import YAML
+from ruamel.yaml.comments import CommentedMap
 
 from atomic_reactor.util import ImageName, chain_get
 from atomic_reactor.utils.operator import OperatorCSV, OperatorManifest, NotOperatorCSV
@@ -477,6 +479,134 @@ class TestOperatorCSV(object):
             csv.get_pullspecs()
 
         assert '"valueFrom" references are not supported' in str(exc_info.value)
+
+    def test_set_related_images(self, caplog):
+        data = ORIGINAL.data
+        csv = OperatorCSV("original.yaml", data)
+        csv.set_related_images()
+
+        # the order is:
+        #   1. existing relatedImages
+        #   2. annotations
+        #   3. containers
+        #   4. initContainers
+        #   5. container env vars
+        #   6. initContainer env vars
+        expected_related_images = [
+            CommentedMap([("name", name), ("image", pullspec.value.to_str())])
+            for name, pullspec in [
+                ("foo", FOO),
+                ("bar", BAR),
+                ("baz-annotation", BAZ),
+                ("spam", SPAM),
+                ("ham", HAM),
+                ("jam", JAM),
+                ("p1", P1),
+                ("eggs", EGGS),
+                ("p2", P2),
+            ]
+        ]
+        assert csv.data["spec"]["relatedImages"] == expected_related_images
+
+        expected_logs = [
+            "{path} - Set relatedImage foo (from relatedImage foo): {foo}",
+            "{path} - Set relatedImage bar (from relatedImage bar): {bar}",
+            "{path} - Set relatedImage baz-annotation (from containerImage annotation): {baz}",
+            "{path} - Set relatedImage spam (from container spam): {spam}",
+            "{path} - Set relatedImage ham (from container ham): {ham}",
+            "{path} - Set relatedImage jam (from container jam): {jam}",
+            "{path} - Set relatedImage p1 (from initContainer p1): {p1}",
+            "{path} - Set relatedImage eggs (from RELATED_IMAGE_EGGS var): {eggs}",
+            "{path} - Set relatedImage p2 (from RELATED_IMAGE_P2 var): {p2}",
+        ]
+        for log in expected_logs:
+            assert log.format(path="original.yaml", **PULLSPECS) in caplog.text
+
+    @pytest.mark.parametrize("related_images, containers, err_msg", [
+        (
+            # conflict in original relatedImages
+            [{"name": "foo", "image": "foo"}, {"name": "foo", "image": "bar"}],
+            [],
+            ("{path} - Found conflicts when setting relatedImages:\n"
+             "relatedImage foo: foo X relatedImage foo: bar")
+        ),
+        (
+            # conflict in new relatedImages
+            [],
+            [{"name": "foo", "image": "foo"}, {"name": "foo", "image": "bar"}],
+            ("{path} - Found conflicts when setting relatedImages:\n"
+             "container foo: foo X container foo: bar")
+        ),
+        (
+            # conflict between original and new relatedImages
+            [{"name": "foo", "image": "foo"}],
+            [{"name": "foo", "image": "bar"}],
+            ("{path} - Found conflicts when setting relatedImages:\n"
+             "relatedImage foo: foo X container foo: bar")
+        ),
+        (
+            # duplicate in original relatedImages, no conflict
+            [{"name": "foo", "image": "foo"}, {"name": "foo", "image": "foo"}],
+            [],
+            None
+        ),
+        (
+            # duplicate in new relatedImages, no conflict
+            [],
+            [{"name": "foo", "image": "foo"}, {"name": "foo", "image": "foo"}],
+            None
+        ),
+        (
+            # duplicate between original and new relatedImages, no conflict
+            [{"name": "foo", "image": "foo"}],
+            [{"name": "foo", "image": "foo"}],
+            None
+        ),
+        (
+            # multiple conflicts in original and new relatedImages
+            [{"name": "foo", "image": "foo"}, {"name": "foo", "image": "bar"}],
+            [{"name": "foo", "image": "baz"}, {"name": "foo", "image": "spam"}],
+            # all messages should be (first found pullspec X conflicting pullspec)
+            ("{path} - Found conflicts when setting relatedImages:\n"
+             "relatedImage foo: foo X relatedImage foo: bar\n"
+             "relatedImage foo: foo X container foo: baz\n"
+             "relatedImage foo: foo X container foo: spam")
+        )
+    ])
+    def test_set_related_images_conflicts(self, related_images, containers, err_msg):
+        data = {
+            "kind": "ClusterServiceVersion",
+            "spec": {
+                "relatedImages": related_images,
+                "install": {
+                    "spec": {
+                        "deployments": [
+                            {
+                                "spec": {
+                                    "template": {
+                                        "spec": {
+                                            "containers": containers
+                                        }
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        csv = OperatorCSV("original.yaml", data)
+
+        if err_msg is not None:
+            with pytest.raises(RuntimeError) as exc_info:
+                csv.set_related_images()
+            assert str(exc_info.value) == err_msg.format(path="original.yaml")
+        else:
+            csv.set_related_images()
+            updated_counts = Counter(x['name'] for x in csv.data['spec']['relatedImages'])
+            # check that there are no duplicates in .spec.relatedImages
+            for name, count in updated_counts.items():
+                assert count == 1, 'Duplicate in relatedImages: {}'.format(name)
 
 
 class TestOperatorManifest(object):

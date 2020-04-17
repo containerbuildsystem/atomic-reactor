@@ -10,6 +10,7 @@ from __future__ import absolute_import, unicode_literals
 
 import os
 import logging
+from collections import OrderedDict
 
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
@@ -61,6 +62,14 @@ class NamedPullspec(object):
     @property
     def description(self):
         raise NotImplementedError
+
+    def as_yaml_object(self):
+        """
+        Convert pullspec to a {"name": <name>, "image": <image>} object
+
+        :return: dict-like object compatible with ruamel.yaml
+        """
+        return CommentedMap([("name", self.name), ("image", self.image)])
 
 
 class Container(NamedPullspec):
@@ -191,10 +200,45 @@ class OperatorCSV(object):
         for k in self.data:
             self._replace_pullspecs_everywhere(self.data, k, replacement_pullspecs)
 
+    def set_related_images(self):
+        """
+        Find pullspecs in predefined locations and put all of them in the
+        .spec.relatedImages section (if it already exists, clear it first)
+        """
+        named_pullspecs = self._named_pullspecs()
+
+        by_name = OrderedDict()
+        conflicts = []
+
+        for new in named_pullspecs:
+            # Keep track only of the first instance with a given name.
+            # Ideally, existing relatedImages should come first in the list,
+            # otherwise error messages could be confusing.
+            old = by_name.setdefault(new.name, new)
+            # Check for potential conflict (same name, different image)
+            if new.image != old.image:
+                msg = ("{old.description}: {old.image} X {new.description}: {new.image}"
+                       .format(old=old, new=new))
+                conflicts.append(msg)
+
+        if conflicts:
+            raise RuntimeError("{} - Found conflicts when setting relatedImages:\n{}"
+                               .format(self.path, "\n".join(conflicts)))
+
+        related_images = (self.data.setdefault("spec", CommentedMap())
+                                   .setdefault("relatedImages", CommentedSeq()))
+        del related_images[:]
+
+        for p in by_name.values():
+            log.debug("%s - Set relatedImage %s (from %s): %s",
+                      self.path, p.name, p.description, p.image)
+            related_images.append(p.as_yaml_object())
+
     def _named_pullspecs(self):
         pullspecs = []
-        pullspecs.extend(self._annotation_pullspecs())
+        # relatedImages should come first in the list
         pullspecs.extend(self._related_image_pullspecs())
+        pullspecs.extend(self._annotation_pullspecs())
         pullspecs.extend(self._container_pullspecs())
         pullspecs.extend(self._init_container_pullspecs())
         pullspecs.extend(self._related_image_env_pullspecs())
