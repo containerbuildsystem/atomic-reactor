@@ -369,7 +369,6 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
             ReactorConfig(reactor_dict)
 
         expected_kwargs['smtp_host'] = None
-        expected_kwargs['odcs_insecure'] = None
         expected_kwargs['koji_hub'] = None
         expected_kwargs['smtp_email_domain'] = None
         expected_kwargs['smtp_from'] = None
@@ -377,6 +376,7 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
         expected_kwargs['source_registry_uri'] = None
         expected_kwargs['yum_proxy'] = None
         expected_kwargs['odcs_url'] = None
+        expected_kwargs['odcs_insecure'] = False
         expected_kwargs['smtp_additional_addresses'] = ''
         expected_kwargs['koji_root'] = None
         expected_kwargs['smtp_error_addresses'] = ''
@@ -416,6 +416,7 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
      .and_return(None))
 
     (flexmock(Configuration).should_call('__init__').with_args(**expected_kwargs).once())
+
     build_result = runner.run()
     assert not build_result.is_failed()
 

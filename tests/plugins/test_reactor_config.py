@@ -1052,7 +1052,6 @@ class TestReactorConfigPlugin(object):
             .once())
         get_koji_path_info(workflow, fallback_map)
 
-    @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize(('config', 'raise_error'), [
         ("""\
           version: 1
@@ -1134,7 +1133,7 @@ class TestReactorConfigPlugin(object):
               default_signing_intent: default
         """, True),
     ])
-    def test_get_odcs_session(self, tmpdir, fallback, config, raise_error):
+    def test_get_odcs_session(self, tmpdir, config, raise_error):
         _, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
@@ -1163,15 +1162,8 @@ class TestReactorConfigPlugin(object):
             else:
                 ssl_dir_raise = True
 
-        fallback_map = {}
-        if fallback:
-            fallback_map = {'auth': deepcopy(auth_info),
-                            'api_url': config_json['odcs']['api_url']}
-            fallback_map['auth']['ssl_certs_dir'] = config_json['odcs']['auth'].get('ssl_certs_dir')
-            fallback_map['auth']['openidc_dir'] = config_json['odcs']['auth'].get('openidc_dir')
-        else:
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig(config_json)
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig(config_json)
 
         if not ssl_dir_raise:
             (flexmock(atomic_reactor.utils.odcs.ODCSClient)
@@ -1180,10 +1172,10 @@ class TestReactorConfigPlugin(object):
                 .once()
                 .and_return(None))
 
-            get_odcs_session(workflow, fallback_map)
+            get_odcs_session(workflow)
         else:
             with pytest.raises(KeyError):
-                get_odcs_session(workflow, fallback_map)
+                get_odcs_session(workflow)
 
     @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize(('config', 'raise_error'), [
