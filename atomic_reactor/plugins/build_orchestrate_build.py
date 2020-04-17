@@ -329,12 +329,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         self.config_kwargs['koji_hub'] = koji_map['hub_url']
         self.config_kwargs['koji_root'] = koji_map['root_url']
 
-        odcs_fallback = {
-            'api_url': self.config_kwargs.get('odcs_url'),
-            'insecure': self.config_kwargs.get('odcs_insecure')
-        }
-        odcs_map = get_odcs(self.workflow, odcs_fallback)
-        self.config_kwargs['odcs_url'] = odcs_map['api_url']
+        odcs_map = get_odcs(self.workflow, {})
+        self.config_kwargs['odcs_url'] = odcs_map.get('api_url')
         self.config_kwargs['odcs_insecure'] = odcs_map.get('insecure', False)
 
         smtp_fallback = {

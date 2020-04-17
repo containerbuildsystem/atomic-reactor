@@ -45,10 +45,6 @@ class ResolveComposesPlugin(PreBuildPlugin):
     is_allowed_to_fail = False
 
     def __init__(self, tasker, workflow,
-                 odcs_url=None,
-                 odcs_insecure=False,
-                 odcs_openidc_secret_path=None,
-                 odcs_ssl_secret_path=None,
                  koji_target=None,
                  koji_hub=None,
                  koji_ssl_certs_dir=None,
@@ -60,11 +56,6 @@ class ResolveComposesPlugin(PreBuildPlugin):
         """
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param odcs_url: URL of ODCS (On Demand Compose Service)
-        :param odcs_insecure: If True, don't check SSL certificates for `odcs_url`
-        :param odcs_openidc_secret_path: directory to look in for a `token` file
-        :param odcs_ssl_secret_path: directory to look in for `cert` file - a PEM file
-                                     containing both cert and key
         :param koji_target: str, contains build tag to be used when requesting compose from "tag"
         :param koji_hub: str, koji hub (xmlrpc), required if koji_target is used
         :param koji_ssl_certs_dir: str, path to "cert", and "serverca"
@@ -82,14 +73,6 @@ class ResolveComposesPlugin(PreBuildPlugin):
 
         self.signing_intent = signing_intent
         self.compose_ids = compose_ids
-        self.odcs_fallback = {
-            'api_url': odcs_url,
-            'insecure': odcs_insecure,
-            'auth': {
-                'ssl_certs_dir': odcs_ssl_secret_path,
-                'openidc_dir': odcs_openidc_secret_path
-            }
-        }
 
         self.koji_target = koji_target
         self.koji_fallback = {
@@ -398,7 +381,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
     @property
     def odcs_client(self):
         if not self._odcs_client:
-            self._odcs_client = get_odcs_session(self.workflow, self.odcs_fallback)
+            self._odcs_client = get_odcs_session(self.workflow)
 
         return self._odcs_client
 

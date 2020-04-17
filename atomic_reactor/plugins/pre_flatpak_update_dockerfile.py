@@ -116,7 +116,7 @@ class FlatpakUpdateDockerfilePlugin(PreBuildPlugin):
         self.compose_ids = compose_ids
 
     def _load_composes(self):
-        odcs_client = get_odcs_session(self.workflow, fallback=NO_FALLBACK)
+        odcs_client = get_odcs_session(self.workflow)
         self.log.info(odcs_client)
 
         composes = []

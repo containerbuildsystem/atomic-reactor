@@ -624,7 +624,6 @@ class TestResolveComposes(object):
         # just confirm that render_requests is returning valid data, without the overhead of
         # mocking the compose results
         plugin = ResolveComposesPlugin(workflow.builder.tasker, workflow,
-                                       odcs_url=ODCS_URL,
                                        koji_target=KOJI_TARGET_NAME, koji_hub=KOJI_HUB)
         plugin.read_configs()
         plugin.adjust_compose_config()
