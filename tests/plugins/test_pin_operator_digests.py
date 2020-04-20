@@ -8,11 +8,13 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import absolute_import, unicode_literals
 
+import copy
 import io
 import os
 
 import jsonschema
 from ruamel.yaml import YAML
+from ruamel.yaml.comments import CommentedMap
 
 import pytest
 import responses
@@ -116,23 +118,53 @@ def mock_env(docker_tasker, tmpdir, orchestrator,
     return runner
 
 
-def mock_operator_csv(tmpdir, filename, pullspecs, for_ocp_44=False):
+def mock_operator_csv(tmpdir, filename, pullspecs, for_ocp_44=False,
+                      with_related_images=False, with_related_image_envs=False):
     path = tmpdir.join(filename)
+    containers = [
+        # utils.operator adds related images as ordered dicts
+        # ("name" first, "image" second) - make sure order matches here
+        CommentedMap([('name', 'foo-{}'.format(i + 1)), ('image', image)])
+        for i, image in enumerate(pullspecs)
+    ]
+    # Add a random RELATED_IMAGE env var, only for testing
+    # relatedImages vs. RELATED_IMAGE_* conflicts
+    if with_related_image_envs:
+        containers[0]['env'] = [{'name': 'RELATED_IMAGE_XYZ', 'value': 'xyz'}]
     data = {
         'kind': 'ClusterServiceVersion',
         'spec': {
+            'relatedImages': [],
             # It does not really matter where in the CSV these pullspecs go
-            # as long as operator_util is known to work properly
-            'relatedImages': [
-                {'name': 'foo-{}'.format(i + 1), 'image': image}
-                for i, image in enumerate(pullspecs)
-            ]
+            # as long as utils.operator is known to work properly, just do not
+            # put them in relatedImages because those get special handling
+            'install': {
+                'spec': {
+                    'deployments': [
+                        {
+                            'spec': {
+                                'template': {
+                                    'spec': {
+                                        'containers': containers
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
         }
     }
     # To test OCP 4.4 workaround, also add pullspecs under a random key which
     # is not normally considered a pullspec location
     if for_ocp_44:
         data['foo'] = pullspecs
+    # To mock what the file should look like after relatedImages are updated,
+    # add pullspecs also under .spec.relatedImages
+    if with_related_images:
+        # deepcopy the containers list to prevent ruamel.yaml from being overly
+        # clever and using YAML anchors to refer to the same objects
+        data['spec']['relatedImages'] = copy.deepcopy(containers)
 
     with open(str(path), 'w') as f:
         yaml.dump(data, f)
@@ -287,15 +319,6 @@ class TestPinOperatorDigest(object):
 
         assert "manifests_dir points outside of cloned repo" in str(exc_info.value)
 
-    @pytest.mark.parametrize('replacements', [None, {}])
-    def test_skip_worker_with_empty_replacements(self, replacements,
-                                                 docker_tasker, tmpdir, caplog):
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=False,
-                          replacement_pullspecs=replacements)
-        runner.run()
-        assert "No pullspecs need to be replaced" in caplog.text
-        assert "Looking for operator CSV files" not in caplog.text
-
     @pytest.mark.parametrize('filepaths', [
         [],
         ['csv1.yaml', 'csv2.yaml']
@@ -337,6 +360,31 @@ class TestPinOperatorDigest(object):
             runner.run()
         msg = "Registry not allowed: disallowed-registry (in disallowed-registry/ns/bar:2)"
         assert msg in str(exc_info.value)
+
+    @pytest.mark.parametrize('has_envs, raises', [
+        (False, False),
+        (True, True)
+    ])
+    def test_orchestrator_exclude_csvs(self, docker_tasker, tmpdir, caplog, has_envs, raises):
+        csv = mock_operator_csv(tmpdir, 'csv.yaml', ['foo'], with_related_images=True,
+                                with_related_image_envs=has_envs)
+
+        user_config = get_user_config(str(tmpdir))
+        site_config = get_site_config()
+
+        runner = mock_env(docker_tasker, tmpdir, orchestrator=True,
+                          user_config=user_config, site_config=site_config)
+
+        if raises:
+            with pytest.raises(PluginFailedException) as exc_info:
+                runner.run()
+            expected = ("Both relatedImages and RELATED_IMAGE_* env vars present in {}. "
+                        "Please remove the relatedImages section, it will be reconstructed "
+                        "automatically.".format(csv))
+            assert expected in str(exc_info.value)
+        else:
+            runner.run()
+            assert "{} has a relatedImages section, skipping".format(csv) in caplog.text
 
     @responses.activate
     def test_orchestrator(self, docker_tasker, tmpdir, caplog):
@@ -507,6 +555,23 @@ class TestPinOperatorDigest(object):
         else:
             assert self._get_worker_arg(runner.workflow) == {original: replaced.to_str()}
 
+    @pytest.mark.parametrize('has_envs', [True, False])
+    def test_worker_exclude_csvs(self, docker_tasker, tmpdir, caplog, has_envs):
+        # Worker does not care if there is a conflict between relatedImages
+        # and RELATED_IMAGE_* env vars, orchestrator should have caught this already
+        csv = mock_operator_csv(tmpdir, 'csv.yaml', ['foo'], with_related_images=True,
+                                with_related_image_envs=has_envs)
+        original_content = csv.read()
+
+        user_config = get_user_config(str(tmpdir))
+
+        runner = mock_env(docker_tasker, tmpdir, orchestrator=False, user_config=user_config)
+        runner.run()
+
+        assert "Replacing pullspecs" not in caplog.text
+        assert "Creating relatedImages section" not in caplog.text
+        assert csv.read() == original_content
+
     @pytest.mark.parametrize('ocp_44', [True, False])
     def test_worker(self, ocp_44, docker_tasker, tmpdir, caplog):
         pullspecs = [
@@ -530,7 +595,8 @@ class TestPinOperatorDigest(object):
         manifests_dir = tmpdir.mkdir('manifests')
         gets_replaced = mock_operator_csv(manifests_dir, 'csv1.yaml', pullspecs, for_ocp_44=ocp_44)
         # this a reference file, make sure it does not get touched by putting it in parent dir
-        reference = mock_operator_csv(tmpdir, 'csv2.yaml', replaced_pullspecs, for_ocp_44=ocp_44)
+        reference = mock_operator_csv(tmpdir, 'csv2.yaml', replaced_pullspecs,
+                                      for_ocp_44=ocp_44, with_related_images=True)
 
         user_config = get_user_config(manifests_dir=str(manifests_dir))
 
@@ -546,7 +612,10 @@ class TestPinOperatorDigest(object):
         assert str(reference) not in caplog_text
 
         assert 'Replacing pullspecs in {}'.format(gets_replaced) in caplog_text
+        assert 'Creating relatedImages section in {}'.format(gets_replaced) in caplog_text
+
         assert 'Replacing pullspecs in {}'.format(reference) not in caplog_text
+        assert 'Creating relatedImages section in {}'.format(reference) not in caplog_text
 
 
 class TestPullspecReplacer(object):
