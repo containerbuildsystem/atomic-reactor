@@ -44,6 +44,9 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
     When running in a worker:
     - receives replacement pullspec mapping computed by orchestrator
     - replaces pullspecs in ClusterServiceVersion files based on said mapping
+    - creates relatedImages sections in ClusterServiceVersion files
+
+    Files that already have a relatedImages section are excluded.
 
     * reactor-config-map
     """
@@ -63,7 +66,7 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         super(PinOperatorDigestsPlugin, self).__init__(tasker, workflow)
         self.user_config = workflow.source.config.operator_manifests
         self.site_config = None  # Only relevant (and available) in orchestrator
-        self.replacement_pullspecs = replacement_pullspecs
+        self.replacement_pullspecs = replacement_pullspecs or {}
 
     def run(self):
         """
@@ -90,7 +93,9 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
     def run_in_orchestrator(self):
         """
         Run plugin in orchestrator. Find all image pullspecs,
-        compute their replacements and set build arg for worker
+        compute their replacements and set build arg for worker.
+
+        Exclude CSVs which already have a relatedImages section.
         """
         try:
             self.site_config = get_operator_manifests(self.workflow)
@@ -108,25 +113,32 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
 
     def run_in_worker(self):
         """
-        Run plugin in worker. Replace image pullspecs
-        based on replacements computed in orchestrator.
-        """
-        if not self.replacement_pullspecs:
-            self.log.info("No pullspecs need to be replaced")
-            return
+        Run plugin in worker. Replace image pullspecs based on replacements
+        computed in orchestrator, then create relatedImages sections in CSVs.
 
+        Exclude CSVs which already have a relatedImages section.
+        """
         operator_manifest = self._get_operator_manifest()
         replacement_pullspecs = {
             ImageName.parse(old): ImageName.parse(new)
             for old, new in self.replacement_pullspecs.items()
         }
 
+        self.log.info("Updating operator CSV files")
+
         for operator_csv in operator_manifest.files:
-            self.log.info("Replacing pullspecs in %s", operator_csv.path)
-            # Replace pullspecs everywhere, not just in locations in which they
-            # are expected to be found - OCP 4.4 workaround
-            operator_csv.replace_pullspecs_everywhere(replacement_pullspecs)
-            operator_csv.dump()
+            if not operator_csv.has_related_images():
+                self.log.info("Replacing pullspecs in %s", operator_csv.path)
+                # Replace pullspecs everywhere, not just in locations in which they
+                # are expected to be found - OCP 4.4 workaround
+                operator_csv.replace_pullspecs_everywhere(replacement_pullspecs)
+
+                self.log.info("Creating relatedImages section in %s", operator_csv.path)
+                operator_csv.set_related_images()
+
+                operator_csv.dump()
+            else:
+                self.log.warning("%s has a relatedImages section, skipping", operator_csv.path)
 
     def _get_operator_manifest(self):
         if self.user_config is None:
@@ -151,9 +163,20 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         return operator_manifest
 
     def _get_pullspecs(self, operator_manifest):
+        self.log.info("Looking for pullspecs in operator CSV files")
         pullspec_set = set()
+
         for operator_csv in operator_manifest.files:
-            pullspec_set.update(operator_csv.get_pullspecs())
+            if not operator_csv.has_related_images():
+                self.log.info("Getting pullspecs from %s", operator_csv.path)
+                pullspec_set.update(operator_csv.get_pullspecs())
+            elif operator_csv.has_related_image_envs():
+                msg = ("Both relatedImages and RELATED_IMAGE_* env vars present in {}. "
+                       "Please remove the relatedImages section, it will be reconstructed "
+                       "automatically.".format(operator_csv.path))
+                raise RuntimeError(msg)
+            else:
+                self.log.warning("%s has a relatedImages section, skipping", operator_csv.path)
 
         # Make sure pullspecs are handled in a deterministic order
         # ImageName does not implement ordering, use str() as key for sorting
