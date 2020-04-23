@@ -21,6 +21,8 @@ from atomic_reactor.util import get_retrying_requests_session
 
 logger = logging.getLogger(__name__)
 
+CFG_TYPE_B64 = 'base64'
+
 
 class CachitoAPIError(Exception):
     """Top level exception for errors in interacting with Cachito's API"""

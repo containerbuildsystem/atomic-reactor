@@ -9,12 +9,14 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import absolute_import
 
 from io import BytesIO
+import base64
 import os
 import responses
 import tarfile
 
 from atomic_reactor.constants import REMOTE_SOURCE_DIR
 from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.utils.cachito import CFG_TYPE_B64
 from tests.constants import TEST_IMAGE
 from tests.stubs import StubInsideBuilder
 from atomic_reactor.plugins.pre_download_remote_source import (
@@ -23,16 +25,28 @@ from atomic_reactor.plugins.pre_download_remote_source import (
 import pytest
 
 
+CFG_CONTENT = b'configContent'
+
+
 class TestDownloadRemoteSource(object):
     @responses.activate
     @pytest.mark.parametrize('source_url', [True, False])
     @pytest.mark.parametrize('archive_dir_exists', [True, False])
-    def test_download_remote_source(self, tmpdir, docker_tasker, source_url, archive_dir_exists):
+    @pytest.mark.parametrize('has_configuration', [True, False])
+    @pytest.mark.parametrize('configuration_type, configuration_content', (
+        [CFG_TYPE_B64, base64.b64encode(CFG_CONTENT)],
+        ['unknown', 'shouldNotMatter']
+        ))
+    def test_download_remote_source(
+        self, tmpdir, docker_tasker, source_url, archive_dir_exists,
+        has_configuration, configuration_type, configuration_content
+    ):
         workflow = DockerBuildWorkflow(
             TEST_IMAGE,
             source={"provider": "git", "uri": "asd"},
         )
-        workflow.builder = StubInsideBuilder().for_workflow(workflow).set_df_path(str(tmpdir))
+        df_path = os.path.join(str(tmpdir), 'stub_df_path')
+        workflow.builder = StubInsideBuilder().for_workflow(workflow).set_df_path(df_path)
         filename = 'source.tar.gz'
         url = None
         if source_url:
@@ -51,16 +65,33 @@ class TestDownloadRemoteSource(object):
         if source_url:
             responses.add(responses.GET, url, body=content.getvalue())
 
+        config_data = []
+        config_path = 'abc.conf'
+        if has_configuration:
+            config_data = [
+                {
+                    'type': configuration_type,
+                    'path': config_path,
+                    'content': configuration_content
+                }
+            ]
+
         buildargs = {'spam': 'maps'}
         plugin = DownloadRemoteSourcePlugin(docker_tasker, workflow,
                                             remote_source_url=url,
-                                            remote_source_build_args=buildargs)
+                                            remote_source_build_args=buildargs,
+                                            remote_source_configs=config_data)
         if archive_dir_exists and source_url:
             dest_dir = os.path.join(workflow.builder.df_dir, plugin.REMOTE_SOURCE)
             os.makedirs(dest_dir)
             with pytest.raises(RuntimeError):
                 plugin.run()
             os.rmdir(dest_dir)
+            return
+
+        if source_url and has_configuration and configuration_type == 'unknown':
+            with pytest.raises(ValueError):
+                plugin.run()
             return
 
         result = plugin.run()
@@ -80,6 +111,13 @@ class TestDownloadRemoteSource(object):
             filecontent = f.read()
 
         assert filecontent == abc_content
+
+        if has_configuration:
+            injected_cfg = os.path.join(workflow.builder.df_dir, plugin.REMOTE_SOURCE, config_path)
+            with open(injected_cfg, 'rb') as f:
+                filecontent = f.read()
+
+            assert filecontent == CFG_CONTENT
 
         # Expect buildargs to have been set
         for arg, value in buildargs.items():

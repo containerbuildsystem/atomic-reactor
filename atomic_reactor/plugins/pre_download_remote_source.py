@@ -10,12 +10,14 @@ Downloads and unpacks the source code archive from Cachito and sets appropriate 
 
 from __future__ import absolute_import
 
+import base64
 import os
 import tarfile
 
 from atomic_reactor.constants import REMOTE_SOURCE_DIR
-from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.download import download_url
+from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.utils.cachito import CFG_TYPE_B64
 
 
 class DownloadRemoteSourcePlugin(PreBuildPlugin):
@@ -24,17 +26,21 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
     REMOTE_SOURCE = 'unpacked_remote_sources'
 
     def __init__(self, tasker, workflow, remote_source_url=None,
-                 remote_source_build_args=None):
+                 remote_source_build_args=None,
+                 remote_source_configs=None):
         """
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param remote_source_url: URL to download source archive from
         :param remote_source_build_args: dict of container build args
                                          to be used when building the image
+        :param remote_source_configs: list with configuration files data to be
+                                      injected in the exploded remote sources dir
         """
         super(DownloadRemoteSourcePlugin, self).__init__(tasker, workflow)
         self.url = remote_source_url
         self.buildargs = remote_source_build_args or {}
+        self.config_files = remote_source_configs or []
 
     def run(self):
         """
@@ -57,6 +63,19 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
 
         with tarfile.open(archive) as tf:
             tf.extractall(dest_dir)
+
+        # Inject cachito provided configuration files
+        for config in self.config_files:
+            config_path = os.path.join(dest_dir, config['path'])
+            if config['type'] == CFG_TYPE_B64:
+                data = base64.b64decode(config['content'])
+                with open(config_path, 'wb') as f:
+                    f.write(data)
+            else:
+                err_msg = "Unknown cachito configuration file data type '{}'".format(config['type'])
+                raise ValueError(err_msg)
+
+            os.chmod(config_path, 0o444)
 
         # Set build args
         self.workflow.builder.buildargs.update(self.buildargs)
