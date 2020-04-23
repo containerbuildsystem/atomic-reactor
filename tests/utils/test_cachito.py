@@ -242,3 +242,43 @@ def test_download_sources_bad_request_type(tmpdir):
 def test_assemble_download_url(tmpdir, cachito_request):
     url = CachitoAPI(CACHITO_URL).assemble_download_url(cachito_request)
     assert url == CACHITO_REQUEST_DOWNLOAD_URL
+
+
+@responses.activate
+@pytest.mark.parametrize('cachito_request', (
+    CACHITO_REQUEST_ID,
+    {'id': CACHITO_REQUEST_ID},
+))
+@pytest.mark.parametrize('response_data', (
+    [],
+    [
+        {
+            "content": "cmVnaXN0cnk9aHR0cDovL2RvbWFpbi5sb2NhbC9yZXBvLwo=",
+            "path": "app/.npmrc",
+            "type": "base64",
+        }
+    ],
+    [
+        {
+            "content": "cmVnaXN0cnk9aHR0cDovL2RvbWFpbi5sb2NhbC9yZXBvLwo=",
+            "path": "app/.npmrc",
+            "type": "base64",
+        },
+        {
+            "content": "cmVnaXN0cnk9aHR0cDovL2RvbWFpbi5sb2NhbC9yZXBvLwo=",
+            "path": "app/.npmrc2",
+            "type": "base64",
+        }
+    ],
+))
+def test_get_request_config(tmpdir, cachito_request, response_data):
+    responses.add(
+        responses.GET,
+        '{}/api/v1/requests/{}/configuration-files'.format(CACHITO_URL, CACHITO_REQUEST_ID),
+        content_type='application/json',
+        status=200,
+        body=json.dumps(response_data))
+
+    response_json = CachitoAPI(CACHITO_URL).get_request_config(cachito_request)
+
+    assert response_json == response_data
