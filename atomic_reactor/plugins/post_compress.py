@@ -20,7 +20,7 @@ import os
 from atomic_reactor.constants import (EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE,
                                       IMAGE_TYPE_DOCKER_ARCHIVE)
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.util import get_exported_image_metadata, human_size
+from atomic_reactor.util import get_exported_image_metadata, human_size, is_scratch_build
 
 
 class CompressPlugin(PostBuildPlugin):
@@ -80,6 +80,11 @@ class CompressPlugin(PostBuildPlugin):
         return outfile
 
     def run(self):
+        if is_scratch_build(self.workflow):
+            # required only to make an archive for Koji
+            self.log.info('scratch build, skipping plugin')
+            return
+
         if self.load_exported_image and len(self.workflow.exported_image_sequence) > 0:
             image_metadata = self.workflow.exported_image_sequence[-1]
             image = image_metadata.get('path')

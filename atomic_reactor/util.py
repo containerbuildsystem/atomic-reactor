@@ -583,22 +583,16 @@ def get_build_json():
         raise
 
 
-def is_scratch_build():
-    build_json = get_build_json()
-    try:
-        return build_json['metadata']['labels'].get('scratch', False)
-    except KeyError:
-        logger.error('metadata.labels not found in build json')
-        raise
+def is_scratch_build(workflow):
+    return workflow.user_params.get('scratch', False)
 
 
-def is_isolated_build():
-    build_json = get_build_json()
-    try:
-        return build_json['metadata']['labels'].get('isolated', False)
-    except KeyError:
-        logger.error('metadata.labels not found in build json')
-        raise
+def is_isolated_build(workflow):
+    return workflow.user_params.get('isolated', False)
+
+
+def is_flatpak_build(workflow):
+    return workflow.user_params.get('flatpak', False)
 
 
 def base_image_is_scratch(base_image_name):

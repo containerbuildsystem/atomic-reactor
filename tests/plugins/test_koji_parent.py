@@ -450,13 +450,24 @@ class TestKojiParent(object):
                     assert fetch_error in caplog.text
                     assert rebuild_str in caplog.text
 
+    def test_skip_build(self, workflow, caplog, koji_session,
+                                  reactor_config_map):  # noqa
+        user_params = {'scratch': True}
+        self.run_plugin_with_args(workflow, {'poll_timeout': 0.01},
+                                  reactor_config_map=reactor_config_map,
+                                  user_params=user_params)
+
+        assert 'scratch build, skipping plugin' in caplog.text
+
     def run_plugin_with_args(self, workflow, plugin_args=None, expect_result=True,  # noqa
                              reactor_config_map=False, external_base=False, deep_inspection=True,
-                             mismatch_failure=False):
+                             mismatch_failure=False, user_params=None):
         plugin_args = plugin_args or {}
+        user_params = user_params or {}
         plugin_args.setdefault('koji_hub', KOJI_HUB)
         plugin_args.setdefault('poll_interval', 0.01)
         plugin_args.setdefault('poll_timeout', 1)
+        workflow.user_params = user_params
 
         if reactor_config_map:
 
@@ -481,6 +492,8 @@ class TestKojiParent(object):
         )
 
         result = runner.run()
+        if user_params:
+            return
         if expect_result is True:
             expected_result = {BASE_IMAGE_KOJI_BUILD: KOJI_BUILD,
                                PARENT_IMAGES_KOJI_BUILDS: {

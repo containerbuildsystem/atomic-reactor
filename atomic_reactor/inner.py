@@ -422,6 +422,8 @@ class DockerBuildWorkflow(object):
         self.koji_source_nvr = {}
         self.koji_source_source_url = None
         self.koji_source_manifest = None
+        # user params from env
+        self.user_params = {}
 
         # Plugins can store info here using the @annotation, @annotation_map,
         # @label and @label_map decorators from atomic_reactor.metadata

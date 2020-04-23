@@ -17,7 +17,7 @@ from atomic_reactor.plugins.pre_reactor_config import (
     get_skip_koji_check_for_base_image, get_fail_on_digest_mismatch
 )
 from atomic_reactor.util import (
-    base_image_is_custom, get_manifest_list, get_manifest_media_type
+    base_image_is_custom, get_manifest_list, get_manifest_media_type, is_scratch_build
 )
 from copy import copy
 from osbs.utils import Labels
@@ -84,6 +84,10 @@ class KojiParentPlugin(PreBuildPlugin):
                                                                                 fallback=True)
 
     def run(self):
+        if is_scratch_build(self.workflow):
+            self.log.info('scratch build, skipping plugin')
+            return
+
         if not (self.workflow.builder.base_from_scratch or self.workflow.builder.custom_base_image):
             self._base_image_nvr = self.detect_parent_image_nvr(
                 self.workflow.builder.base_image,

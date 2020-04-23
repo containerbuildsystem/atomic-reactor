@@ -59,7 +59,7 @@ DEFAULT_TAGS_AMOUNT = 6
 def prepare(tmpdir, insecure_registry=None, namespace=None,
             primary_images_tag_conf=DEFAULT_TAGS_AMOUNT,
             primary_images_annotations=DEFAULT_TAGS_AMOUNT, build_process_failed=False,
-            organization=None, reactor_config_map=False,):
+            organization=None, reactor_config_map=False, imagestream_name=TEST_IMAGESTREAM):
     """
     Boiler-plate test set-up
     """
@@ -107,7 +107,7 @@ def prepare(tmpdir, insecure_registry=None, namespace=None,
                               verify_ssl=not insecure_registry, openshift_url="/",
                               use_auth=False, build_json_dir="/var/json_dir")
 
-    plugin_args = {'imagestream': TEST_IMAGESTREAM}
+    plugin_args = {'imagestream': imagestream_name}
 
     if reactor_config_map:
         openshift_map = {
@@ -413,3 +413,28 @@ def test_exception_during_import(tmpdir, monkeypatch, reactor_config_map):  # no
 
     with pytest.raises(PluginFailedException):
         runner.run()
+
+
+@pytest.mark.parametrize('imagestream, scratch', [
+    (None, False),
+    ('', False),
+    ('some', True),
+    ('', True),
+    (None, True),
+])
+def test_skip_plugin(tmpdir, caplog, monkeypatch, reactor_config_map,
+                     imagestream, scratch):  # noqa
+    runner = prepare(tmpdir, reactor_config_map=reactor_config_map, imagestream_name=imagestream)
+    runner.workflow.user_params['scratch'] = scratch
+    monkeypatch.setenv("BUILD", json.dumps({
+        "metadata": {}
+    }))
+
+    runner.run()
+
+    if scratch:
+        log_msg = 'scratch build, skipping plugin'
+    elif not imagestream:
+        log_msg = 'no imagestream provided, skipping plugin'
+
+    assert log_msg in caplog.text

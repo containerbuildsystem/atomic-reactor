@@ -43,9 +43,9 @@ from atomic_reactor.util import (ImageName, wait_for_command,
                                  registry_hostname, Dockercfg, RegistrySession,
                                  get_manifest_digests, ManifestDigest,
                                  get_manifest_list, get_all_manifests,
-                                 get_inspect_for_image, get_manifest,
-                                 get_build_json, is_scratch_build, is_isolated_build, df_parser,
-                                 base_image_is_custom,
+                                 get_inspect_for_image, get_manifest, get_build_json,
+                                 is_scratch_build, is_isolated_build, is_flatpak_build,
+                                 df_parser, base_image_is_custom,
                                  are_plugins_in_order, LabelFormatter,
                                  label_to_string,
                                  guess_manifest_media_type,
@@ -891,20 +891,15 @@ def test_get_build_json(environ, expected):
             get_build_json()
 
 
-@pytest.mark.parametrize('build_json,scratch', [
-    ({'metadata': {'labels': {'scratch': True}}}, True),
-    ({'metadata': {'labels': {'scratch': False}}}, False),
-    ({'metadata': {'labels': {}}}, False),
-    ({'metadata': {}}, None),
-    ({}, None),
+@pytest.mark.parametrize('user_params,scratch', [
+    ({'scratch': True}, True),
+    ({'scratch': False}, False),
+    ({}, False),
 ])
-def test_is_scratch_build(build_json, scratch):
-    flexmock(atomic_reactor.util).should_receive('get_build_json').and_return(build_json)
-    if scratch is None:
-        with pytest.raises(KeyError):
-            is_scratch_build()
-    else:
-        assert is_scratch_build() == scratch
+def test_is_scratch_build(user_params, scratch):
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+    workflow.user_params = user_params
+    assert is_scratch_build(workflow) == scratch
 
 
 @pytest.mark.parametrize(('base_image', 'is_custom'), [
@@ -919,20 +914,26 @@ def test_is_custom_base_build(base_image, is_custom):
     assert base_image_is_custom(base_image) == is_custom
 
 
-@pytest.mark.parametrize(('build_json', 'isolated'), [
-    ({'metadata': {'labels': {'isolated': True}}}, True),
-    ({'metadata': {'labels': {'isolated': False}}}, False),
-    ({'metadata': {'labels': {}}}, False),
-    ({'metadata': {}}, None),
-    ({}, None),
+@pytest.mark.parametrize(('user_params', 'isolated'), [
+    ({'isolated': True}, True),
+    ({'isolated': False}, False),
+    ({}, False),
 ])
-def test_is_isolated_build(build_json, isolated):
-    flexmock(atomic_reactor.util).should_receive('get_build_json').and_return(build_json)
-    if isolated is None:
-        with pytest.raises(KeyError):
-            is_isolated_build()
-    else:
-        assert is_isolated_build() == isolated
+def test_is_isolated_build(user_params, isolated):
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+    workflow.user_params = user_params
+    assert is_isolated_build(workflow) == isolated
+
+
+@pytest.mark.parametrize(('user_params', 'flatpak'), [
+    ({'flatpak': True}, True),
+    ({'flatpak': False}, False),
+    ({}, False),
+])
+def test_is_flatpak_build(user_params, flatpak):
+    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+    workflow.user_params = user_params
+    assert is_flatpak_build(workflow) == flatpak
 
 
 @pytest.mark.parametrize(('inputs', 'results'), [

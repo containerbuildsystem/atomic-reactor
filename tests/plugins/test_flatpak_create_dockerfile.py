@@ -33,6 +33,9 @@ from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
 from tests.flatpak import MODULEMD_AVAILABLE, build_flatpak_test_configs
 
 
+USER_PARAMS = {'flatpak': True}
+
+
 class MockSource(object):
     def __init__(self, tmpdir):
         tmpdir = str(tmpdir)
@@ -62,12 +65,15 @@ class MockBuilder(object):
         self.df_path = path
 
 
-def mock_workflow(tmpdir, container_yaml):
+def mock_workflow(tmpdir, container_yaml, user_params=None):
+    if user_params is None:
+        user_params = USER_PARAMS
     workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', MockBuilder())
     workflow.builder.source = mock_source
     flexmock(workflow, source=mock_source)
+    workflow.user_params = user_params
 
     with open(mock_source.container_yaml_path, "w") as f:
         f.write(container_yaml)
@@ -160,3 +166,32 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker,
 
         source_spec = get_flatpak_source_spec(workflow)
         assert source_spec == config['source_spec']
+
+
+def test_skip_plugin(tmpdir, caplog, docker_tasker, reactor_config_map):
+    workflow = mock_workflow(tmpdir, "", user_params={})
+
+    base_image = "registry.fedoraproject.org/fedora:latest"
+
+    args = {
+        'base_image': base_image,
+    }
+
+    if reactor_config_map:
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {
+            WORKSPACE_CONF_KEY: ReactorConfig({'version': 1,
+                                               'flatpak': {'base_image': base_image}})
+        }
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': FlatpakCreateDockerfilePlugin.key,
+            'args': args
+        }]
+    )
+
+    runner.run()
+
+    assert 'not flatpak build, skipping plugin' in caplog.text

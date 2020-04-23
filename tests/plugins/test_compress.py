@@ -99,3 +99,30 @@ class TestCompress(object):
             assert 'uncompressed_size' in metadata
             assert isinstance(metadata['uncompressed_size'], integer_types)
             assert ", ratio: " in caplog.text
+
+    def test_skip_plugin(self, caplog):
+        if MOCK:
+            mock_docker()
+
+        tasker = DockerTasker()
+        workflow = DockerBuildWorkflow(
+            'test-image',
+            source={'provider': 'git', 'uri': 'asd'}
+        )
+        workflow.builder = X()
+        workflow.user_params['scratch'] = True
+
+        runner = PostBuildPluginsRunner(
+            tasker,
+            workflow,
+            [{
+                'name': CompressPlugin.key,
+                'args': {
+                    'method': 'gzip',
+                    'load_exported_image': True,
+                },
+            }]
+        )
+
+        runner.run()
+        assert 'scratch build, skipping plugin' in caplog.text

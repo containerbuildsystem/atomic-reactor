@@ -40,7 +40,8 @@ class InjectParentImage(PreBuildPlugin):
     key = PLUGIN_INJECT_PARENT_IMAGE_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, koji_parent_build, koji_hub=None, koji_ssl_certs_dir=None):
+    def __init__(self, tasker, workflow, koji_parent_build=None, koji_hub=None,
+                 koji_ssl_certs_dir=None):
         """
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
@@ -68,6 +69,10 @@ class InjectParentImage(PreBuildPlugin):
         self._new_parent_image = None
 
     def run(self):
+        if not self.koji_parent_build:
+            self.log.info('no koji parent build, skipping plugin')
+            return
+
         if self.workflow.builder.base_from_scratch:
             self.log.info("from scratch can't inject parent image")
             return

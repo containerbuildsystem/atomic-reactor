@@ -22,6 +22,7 @@ from atomic_reactor.constants import DOCKERFILE_FILENAME, RELATIVE_REPOS_PATH, Y
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_flatpak_base_image
 from atomic_reactor.utils.rpm import rpm_qf_args
+from atomic_reactor.util import is_flatpak_build
 
 
 # /var/tmp/flatpak-build is the final image we'll turn into a Flaptak
@@ -122,6 +123,9 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
         """
         run the plugin
         """
+        if not is_flatpak_build(self.workflow):
+            self.log.info('not flatpak build, skipping plugin')
+            return
 
         self._load_source_spec()
         source_spec = get_flatpak_source_spec(self.workflow)

@@ -263,3 +263,21 @@ def test_mismatch_reporting(tmpdir, caplog, mismatch):
         runner.run()
         for entry in log_entries:
             assert entry not in caplog.text
+
+
+def test_skip_plugin(tmpdir, caplog):
+    workflow = mock_workflow(tmpdir)
+    workflow.user_params['scratch'] = True
+
+    runner = PostBuildPluginsRunner(
+        None,
+        workflow,
+        [{
+            'name': PLUGIN_COMPARE_COMPONENTS_KEY,
+            "args": {}
+        }]
+    )
+
+    runner.run()
+
+    assert 'scratch build, skipping plugin' in caplog.text

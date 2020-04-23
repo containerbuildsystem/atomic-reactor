@@ -238,7 +238,7 @@ def mock_environment(tmpdir, session=None, name=None,
                      component=None, version=None, release=None,
                      source=None, build_process_failed=False,
                      blocksize=None, task_states=None,
-                     additional_tags=None, has_config=None):
+                     additional_tags=None, has_config=None, scratch=False):
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -253,6 +253,7 @@ def mock_environment(tmpdir, session=None, name=None,
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
     workflow.builder.image_id = '123456imageid'
     workflow.builder.set_inspection_data({'Id': base_image_id})
+    workflow.user_params['scratch'] = scratch
     setattr(workflow, 'tag_conf', TagConf())
     with open(os.path.join(str(tmpdir), 'Dockerfile'), 'wt') as df:
         df.write('FROM base\n'
@@ -1069,13 +1070,13 @@ class TestKojiUpload(object):
                                             session=session,
                                             name='name',
                                             version='1.0',
-                                            release='1')
+                                            release='1',
+                                            scratch=is_scratch)
         monkeypatch.setenv('BUILD', json.dumps({
             "metadata": {
                 "creationTimestamp": "2015-07-27T09:24:00Z",
                 "namespace": NAMESPACE,
                 "name": BUILD_ID,
-                "labels": {'scratch': is_scratch},
             }
         }))
         runner = create_runner(tasker, workflow, platform=platform,

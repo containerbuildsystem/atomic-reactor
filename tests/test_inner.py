@@ -1276,6 +1276,7 @@ def test_buildstep_alias(buildstep_alias, buildstep_plugin):
     exit_plugins = []
 
     os.environ['REACTOR_CONFIG'] = "version: 1"
+    os.environ['USER_PARAMS'] = "{}"
     if buildstep_alias:
         os.environ['REACTOR_CONFIG'] = dedent("""\
         version: 1

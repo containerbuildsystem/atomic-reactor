@@ -121,7 +121,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
             return False
         self.log.info("Inheritance requested in config file")
 
-        if is_scratch_build() or is_isolated_build():
+        if is_scratch_build(self.workflow) or is_isolated_build(self.workflow):
             self.log.warning(
                 "Inheritance is not allowed for scratch or isolated builds. "
                 "Skipping inheritance.")

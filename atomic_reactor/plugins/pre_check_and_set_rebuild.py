@@ -10,7 +10,7 @@ from __future__ import unicode_literals, absolute_import
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
-from atomic_reactor.util import get_build_json
+from atomic_reactor.util import get_build_json, is_scratch_build, is_isolated_build
 
 
 def is_rebuild(workflow):
@@ -76,6 +76,13 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
         """
         run the plugin
         """
+        if is_scratch_build(self.workflow):
+            self.log.info('scratch build, skipping plugin')
+            return
+        if is_isolated_build(self.workflow):
+            self.log.info('isolated build, skipping plugin')
+            return
+
         if self.workflow.builder.base_from_scratch:
             self.log.info("Skipping check and set rebuild: unsupported for FROM-scratch images")
             return False

@@ -13,7 +13,6 @@ import os
 import pytest
 import tarfile
 import zipfile
-from atomic_reactor import util
 from atomic_reactor.constants import (
     PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
     PLUGIN_BUILD_ORCHESTRATE_KEY)
@@ -93,14 +92,13 @@ def mock_env(tmpdir, docker_tasker,
              has_archive=True,
              scratch=False, orchestrator=False, selected_platform=True, empty_archive=False,
              remove_fails=False):
-    build_json = {'metadata': {'labels': {'scratch': scratch}}}
-    flexmock(util).should_receive('get_build_json').and_return(build_json)
     mock_dockerfile(
         tmpdir,
         has_appregistry_label=has_appregistry_label, appregistry_label=appregistry_label,
         has_bundle_label=has_bundle_label, bundle_label=bundle_label
     )
     workflow = mock_workflow(tmpdir, for_orchestrator=orchestrator)
+    workflow.user_params['scratch'] = scratch
     mock_stream = generate_archive(tmpdir, empty_archive)
     plugin_conf = [{'name': ExportOperatorManifestsPlugin.key}]
     if selected_platform:

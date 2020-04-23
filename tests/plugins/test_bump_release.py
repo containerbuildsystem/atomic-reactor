@@ -62,7 +62,8 @@ class TestBumpRelease(object):
                 reserve_build=False,
                 is_auto=False,
                 add_timestamp=None,
-                fetch_source=False):
+                fetch_source=False,
+                scratch=None):
         if labels is None:
             labels = {}
 
@@ -73,6 +74,9 @@ class TestBumpRelease(object):
         setattr(workflow, 'reserved_token ', None)
         setattr(workflow, 'source', MockSource(tmpdir, add_timestamp))
         setattr(workflow, 'prebuild_results', {CheckAndSetRebuildPlugin.key: is_auto})
+        setattr(workflow, 'user_params', {})
+        if scratch is not None:
+            workflow.user_params['scratch'] = scratch
         if fetch_source:
             workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
                 'sources_for_nvr': KOJI_SOURCE_NVR
@@ -157,31 +161,13 @@ class TestBumpRelease(object):
         session = MockedClientSession('')
         flexmock(koji, ClientSession=session)
 
-        new_environ = deepcopy(os.environ)
-        new_environ["BUILD"] = dedent('''\
-            {
-              "metadata": {
-              "labels": {}
-              }
-            }
-            ''')
-        if scratch:
-            new_environ["BUILD"] = dedent('''\
-                {
-                  "metadata": {
-                    "labels": {"scratch": "true"}
-                  }
-                }
-                ''')
-        flexmock(os)
-        os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
-
         plugin = self.prepare(tmpdir, labels={release_label: '1',
                                               'com.redhat.component': 'component',
                                               'version': 'version'},
                               add_timestamp=add_timestamp, is_auto=is_auto,
                               reserve_build=reserve_build,
-                              reactor_config_map=reactor_config_map)
+                              reactor_config_map=reactor_config_map,
+                              scratch=scratch)
 
         refund_build = (reactor_config_map and reserve_build and koji_build_status != 'COMPLETE')
         if build_exists and not scratch and not refund_build:
@@ -420,34 +406,22 @@ class TestBumpRelease(object):
                               certs=True,
                               reactor_config_map=reactor_config_map,
                               reserve_build=reserve_build,
-                              append=append)
+                              append=append, scratch=next_release['scratch'])
 
         new_environ = deepcopy(os.environ)
         new_environ["BUILD"] = dedent('''\
             {
-              "metadata": {
-              "labels": {}
-              }
+              "metadata": {}
             }
             ''')
-        if next_release['scratch']:
-            new_environ = deepcopy(os.environ)
+        if next_release['scratch'] and next_release['build_name']:
             new_environ["BUILD"] = dedent('''\
                 {
                   "metadata": {
-                    "labels": {"scratch": "true"}
+                    "name": "scratch-123456"
                   }
                 }
                 ''')
-            if next_release['build_name']:
-                new_environ["BUILD"] = dedent('''\
-                    {
-                      "metadata": {
-                        "name": "scratch-123456",
-                        "labels": {"scratch": "true"}
-                      }
-                    }
-                    ''')
         flexmock(os)
         os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
 
@@ -631,28 +605,8 @@ class TestBumpRelease(object):
         flexmock(koji, ClientSession=session)
 
         plugin = self.prepare(tmpdir, certs=True, reactor_config_map=reactor_config_map,
-                              reserve_build=reserve_build, fetch_source=True)
-
-        new_environ = deepcopy(os.environ)
-        if next_release['scratch']:
-            new_environ = deepcopy(os.environ)
-            new_environ["BUILD"] = dedent('''\
-                {
-                  "metadata": {
-                    "labels": {"scratch": "true"}
-                  }
-                }
-                ''')
-        else:
-            new_environ["BUILD"] = dedent('''\
-                {
-                  "metadata": {
-                  "labels": {}
-                  }
-                }
-                ''')
-        flexmock(os)
-        os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
+                              reserve_build=reserve_build, fetch_source=True,
+                              scratch=next_release['scratch'])
 
         if init_fails and reserve_build and reactor_config_map and not next_release['scratch']:
             with pytest.raises(RuntimeError) as exc:
@@ -679,3 +633,12 @@ class TestBumpRelease(object):
                         'version': koji_version,
                         'release': next_release['expected']}
         plugin.workflow.koji_source_nvr = expected_nvr
+
+    def test_skip_plugin(self, tmpdir, caplog, reactor_config_map):
+        session = MockedClientSessionGeneral('')
+        flexmock(koji, ClientSession=session)
+        plugin = self.prepare(tmpdir, reactor_config_map=reactor_config_map)
+        plugin.workflow.user_params['release'] = 'release_provided'
+        plugin.run()
+
+        assert 'release value supplied as user parameter, skipping plugin' in caplog.text

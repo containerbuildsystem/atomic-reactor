@@ -12,7 +12,7 @@ from osbs.exceptions import OsbsResponseException
 from osbs.utils import retry_on_conflict
 
 from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
-from atomic_reactor.util import get_floating_images, ImageName
+from atomic_reactor.util import get_floating_images, ImageName, is_scratch_build
 from atomic_reactor.plugins.pre_reactor_config import (get_openshift_session, get_source_registry,
                                                        get_registries_organization)
 
@@ -30,7 +30,7 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
     key = 'import_image'
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, imagestream, docker_image_repo=None,
+    def __init__(self, tasker, workflow, imagestream=None, docker_image_repo=None,
                  url=None, build_json_dir=None, verify_ssl=True, use_auth=True,
                  insecure_registry=None):
         """
@@ -71,6 +71,14 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
         # Only run if the build was successful
         if self.workflow.build_process_failed:
             self.log.info("Not importing failed build")
+            return
+
+        if is_scratch_build(self.workflow):
+            self.log.info('scratch build, skipping plugin')
+            return
+
+        if not self.imagestream_name:
+            self.log.info('no imagestream provided, skipping plugin')
             return
 
         self.floating_images = get_floating_images(self.workflow)

@@ -10,6 +10,7 @@ from __future__ import unicode_literals, absolute_import
 
 from atomic_reactor.constants import PLUGIN_KOJI_TAG_BUILD_KEY
 from atomic_reactor.utils.koji import tag_koji_build
+from atomic_reactor.util import is_scratch_build
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
@@ -34,7 +35,7 @@ class KojiTagBuildPlugin(ExitPlugin):
     key = PLUGIN_KOJI_TAG_BUILD_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, target, kojihub=None,
+    def __init__(self, tasker, workflow, target=None, kojihub=None,
                  koji_ssl_certs=None, koji_proxy_user=None,
                  koji_principal=None, koji_keytab=None,
                  poll_interval=5):
@@ -72,6 +73,14 @@ class KojiTagBuildPlugin(ExitPlugin):
         """
         if self.workflow.build_process_failed:
             self.log.info('Build failed, skipping koji tagging')
+            return
+
+        if is_scratch_build(self.workflow):
+            self.log.info('scratch build, skipping plugin')
+            return
+
+        if not self.target:
+            self.log.info('no koji target provided, skipping plugin')
             return
 
         build_id = self.workflow.exit_results.get(KojiImportPlugin.key)

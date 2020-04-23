@@ -9,6 +9,7 @@ from __future__ import unicode_literals, absolute_import
 
 from jsonschema import ValidationError
 import io
+import json
 import logging
 import os
 import pkg_resources
@@ -58,6 +59,9 @@ from tests.stubs import StubInsideBuilder
 from flexmock import flexmock
 
 
+USER_PARAMS = {'git_uri': 'test_uri', 'git_ref': 'test_ref', 'git_breanch': 'test_branch'}
+
+
 class TestReactorConfigPlugin(object):
     def prepare(self):
         mock_docker()
@@ -68,6 +72,8 @@ class TestReactorConfigPlugin(object):
         )
         workflow.builder = StubInsideBuilder()
         workflow.builder.tasker = tasker
+
+        os.environ['USER_PARAMS'] = json.dumps(USER_PARAMS)
         return tasker, workflow
 
     @pytest.mark.parametrize(('fallback'), [
@@ -1573,3 +1579,15 @@ class TestReactorConfigPlugin(object):
         operator_config = get_operator_manifests(workflow)
         assert isinstance(operator_config, dict)
         assert "allowed_registries" in operator_config
+
+    def test_set_user_params(self, tmpdir):
+        filename = os.path.join(str(tmpdir), 'config.yaml')
+        with open(filename, 'w'):
+            pass
+
+        tasker, workflow = self.prepare()
+        plugin = ReactorConfigPlugin(tasker, workflow,
+                                     config_path=str(tmpdir),
+                                     basename=filename)
+        plugin.run()
+        assert plugin.workflow.user_params == USER_PARAMS

@@ -78,7 +78,7 @@ class MockedClientSession(object):
 
 
 def mock_environment(tmpdir, session=None, build_process_failed=False,
-                     koji_build_id=None):
+                     koji_build_id=None, scratch=None):
     if session is None:
         session = MockedClientSession('')
 
@@ -92,6 +92,8 @@ def mock_environment(tmpdir, session=None, build_process_failed=False,
     setattr(workflow.builder, 'source', X())
     setattr(workflow.builder.source, 'dockerfile_path', None)
     setattr(workflow.builder.source, 'path', None)
+    if scratch is not None:
+        workflow.user_params['scratch'] = scratch
 
     flexmock(koji, ClientSession=lambda hub, opts: session)
 
@@ -111,10 +113,10 @@ def mock_environment(tmpdir, session=None, build_process_failed=False,
 
 def create_runner(tasker, workflow, ssl_certs=False, principal=None,
                   keytab=None, poll_interval=0.01, proxy_user=None,
-                  reactor_config_map=False, use_args=True):
+                  reactor_config_map=False, use_args=True, koji_target='koji-target'):
     args = {
         'kojihub': '',
-        'target': 'koji-target',
+        'target': koji_target,
     }
     koji_map = {
         'hub_url': '',
@@ -151,7 +153,7 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
     if use_args:
         plugin_conf['args'] = args
     else:
-        plugin_conf['args'] = {'target': 'koji-target'}
+        plugin_conf['args'] = {'target': koji_target}
 
     runner = ExitPluginsRunner(tasker, workflow, [plugin_conf])
 
@@ -266,3 +268,23 @@ class TestKojiPromote(object):
                                use_args=False)
         result = runner.run()
         assert result[KojiTagBuildPlugin.key] == 'images-candidate'
+
+    @pytest.mark.parametrize(('scratch', 'target'), [
+        (True, None),
+        (True, ''),
+        (True, 'some_target'),
+        (False, None),
+        (False, ''),
+    ])
+    def test_skip_plugin(self, tmpdir, caplog, reactor_config_map, scratch, target):  # noqa
+        tasker, workflow = mock_environment(tmpdir, koji_build_id='98765', scratch=scratch)
+        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map,
+                               use_args=False, koji_target=target)
+        runner.run()
+
+        if scratch:
+            log_msg = 'scratch build, skipping plugin'
+        elif not target:
+            log_msg = 'no koji target provided, skipping plugin'
+
+        assert log_msg in caplog.text

@@ -59,7 +59,7 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
             platforms = koji_platforms.split()
             self.log.info("Koji platforms are %s", sorted(platforms))
 
-            if is_scratch_build() or is_isolated_build():
+            if is_scratch_build(self.workflow) or is_isolated_build(self.workflow):
                 override_platforms = get_orchestrator_platforms(self.workflow)
                 if override_platforms and set(override_platforms) != set(platforms):
                     sort_platforms = sorted(override_platforms)

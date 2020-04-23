@@ -236,7 +236,7 @@ class KojiUploadPlugin(PostBuildPlugin):
 
         koji_metadata, output_files = self.get_metadata()
 
-        if not is_scratch_build():
+        if not is_scratch_build(self.workflow):
             try:
                 session = get_koji_session(self.workflow, self.koji_fallback)
                 for output in output_files:

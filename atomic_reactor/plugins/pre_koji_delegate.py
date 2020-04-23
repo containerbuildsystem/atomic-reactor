@@ -8,8 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals, absolute_import
 
-import os
-import json
 import koji
 
 from atomic_reactor.plugin import PreBuildPlugin, BuildCanceledException
@@ -63,13 +61,10 @@ class KojiDelegatePlugin(PreBuildPlugin):
         """
         create new koji task for autorebuild
         """
-        user_params = os.environ['USER_PARAMS']
-        user_data = json.loads(user_params)
-
-        git_uri = user_data.get('git_uri')
-        git_ref = user_data.get('git_ref')
+        git_uri = self.workflow.user_params.get('git_uri')
+        git_ref = self.workflow.user_params.get('git_ref')
         source = "%s#%s" % (git_uri, git_ref)
-        container_target = user_data.get('koji_target')
+        container_target = self.workflow.user_params.get('koji_target')
 
         koji_task_id = self.metadata.get('labels', {}).get('original-koji-task-id')
         if not koji_task_id:
@@ -79,9 +74,9 @@ class KojiDelegatePlugin(PreBuildPlugin):
 
         task_opts = {}
         for key in ('yum_repourls', 'git_branch', 'signing_intent', 'compose_ids', 'flatpak'):
-            if key in user_data:
-                if user_data[key]:
-                    task_opts[key] = user_data[key]
+            if key in self.workflow.user_params:
+                if self.workflow.user_params[key]:
+                    task_opts[key] = self.workflow.user_params[key]
         task_opts['triggered_after_koji_task'] = int(koji_task_id)
 
         task_id = self.kojisession.buildContainer(source, container_target, task_opts,

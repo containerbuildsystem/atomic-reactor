@@ -74,7 +74,7 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
             self.log.info("Skipping add yum repo by url: unsupported for FROM-scratch images")
             return
 
-        if self.repourls and not is_scratch_build():
+        if self.repourls and not is_scratch_build(self.workflow):
             self.validate_yum_repo_files_url()
 
         for repourl in self.repourls:

@@ -206,3 +206,23 @@ class TestCheckRebuild(object):
         else:
             assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] is True
             assert is_rebuild(workflow)
+
+    @pytest.mark.parametrize(('scratch', 'isolated'), [
+        (True, False),
+        (True, True),
+        (False, True),
+    ])
+    def test_skip_build(self, tmpdir, caplog, reactor_config_map, scratch, isolated):
+        workflow, runner = self.prepare(tmpdir, 'is_autorebuild', 'true',
+                                        reactor_config_map=reactor_config_map)
+        workflow.user_params['scratch'] = scratch
+        workflow.user_params['isolated'] = isolated
+
+        runner.run()
+
+        if scratch:
+            log_msg = 'scratch build, skipping plugin'
+        elif isolated:
+            log_msg = 'isolated build, skipping plugin'
+
+        assert log_msg in caplog.text
