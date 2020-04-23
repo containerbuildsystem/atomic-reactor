@@ -831,3 +831,39 @@ def test_fetch_maven_artifacts_url_allowed_domains(tmpdir, docker_tasker, domain
         for download in plugin_result:
             dest = os.path.join(str(tmpdir), FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest)
             assert os.path.exists(dest)
+
+
+@responses.activate  # noqa
+def test_fetch_maven_artifacts_commented_out_files(tmpdir, docker_tasker, reactor_config_map):
+    workflow = mock_workflow(tmpdir)
+    mock_koji_session()
+    contents = dedent("""\
+        # This file
+
+        # is completely
+        # and absolutely
+        # commented out!
+        """)
+    mock_fetch_artifacts_by_nvr(str(tmpdir), contents=contents)
+    mock_fetch_artifacts_by_url(str(tmpdir), contents=contents)
+    mock_nvr_downloads()
+    mock_url_downloads()
+
+    if reactor_config_map:
+        make_and_store_reactor_config_map(workflow)
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': FetchMavenArtifactsPlugin.key,
+            'args': {'koji_hub': KOJI_HUB, 'koji_root': KOJI_ROOT}
+        }]
+    )
+
+    results = runner.run()
+    plugin_result = results[FetchMavenArtifactsPlugin.key]
+
+    assert len(plugin_result) == 0
+    artifacts_dir = os.path.join(str(tmpdir), FetchMavenArtifactsPlugin.DOWNLOAD_DIR)
+    assert not os.path.exists(artifacts_dir)
