@@ -158,6 +158,18 @@ class OperatorCSV(object):
         with open(self.path, "w") as f:
             yaml.dump(self.data, f)
 
+    def has_related_images(self):
+        """
+        Check if OperatorCSV has a non-empty relatedImages section.
+        """
+        return bool(self._related_image_pullspecs())
+
+    def has_related_image_envs(self):
+        """
+        Check if OperatorCSV has any RELATED_IMAGE_* env vars.
+        """
+        return bool(self._related_image_env_pullspecs())
+
     def get_pullspecs(self):
         """
         Find pullspecs in predefined locations.

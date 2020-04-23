@@ -608,6 +608,55 @@ class TestOperatorCSV(object):
             for name, count in updated_counts.items():
                 assert count == 1, 'Duplicate in relatedImages: {}'.format(name)
 
+    @pytest.mark.parametrize('pullspecs, does_have', [
+        (None, False),
+        ([], False),
+        ({'name': 'foo', 'image': 'bar'}, True),
+    ])
+    def test_has_related_images(self, pullspecs, does_have):
+        data = {
+            'kind': 'ClusterServiceVersion',
+            'spec': {}
+        }
+        if pullspecs is not None:
+            data['spec']['relatedImages'] = pullspecs
+        csv = OperatorCSV('original.yaml', data)
+        assert csv.has_related_images() == does_have
+
+    @pytest.mark.parametrize('var, does_have', [
+        (None, False),
+        ({'name': 'UNRELATED_IMAGE', 'value': 'foo'}, False),
+        ({'name': 'RELATED_IMAGE_BAR', 'value': 'baz'}, True),
+    ])
+    def test_has_related_image_envs(self, var, does_have):
+        data = {
+            'kind': 'ClusterServiceVersion',
+            'spec': {
+                'install': {
+                    'spec': {
+                        'deployments': [
+                            {
+                                'spec': {
+                                    'template': {
+                                        'spec': {
+                                            'containers': [
+                                                {'name': 'spam', 'image': 'eggs', 'env': []}
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        if var is not None:
+            deployment = data['spec']['install']['spec']['deployments'][0]
+            deployment['spec']['template']['spec']['containers'][0]['env'].append(var)
+        csv = OperatorCSV('original.yaml', data)
+        assert csv.has_related_image_envs() == does_have
+
 
 class TestOperatorManifest(object):
     def test_from_directory(self, tmpdir):
