@@ -243,3 +243,40 @@ class TestKoji(object):
 
         if expected_file:
             assert expected_file in workflow.files
+
+    @pytest.mark.parametrize('target, yum_repos, include_repo', [
+        ('target', ['repo'], False),
+        (None, ['repo'], False),
+        (None, ['repo'], True),
+        (None, [], False),
+        (None, [], True),
+    ])
+    def test_skip_plugin(self, caplog, target, yum_repos, include_repo):
+        tasker, workflow = prepare()
+        args = {'target': target}
+
+        koji_map = {
+            'hub_url': '',
+            'root_url': 'http://example.com',
+            'auth': {}}
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1,
+                           'koji': koji_map})
+
+        workflow.user_params['include_koji_repo'] = include_repo
+        workflow.user_params['yum_repourls'] = yum_repos
+
+        runner = PreBuildPluginsRunner(tasker, workflow, [{
+            'name': KojiPlugin.key,
+            'args': args,
+        }])
+
+        runner.run()
+
+        if (not include_repo and yum_repos):
+            log_msg = 'there is a yum repo user parameter, skipping plugin'
+        else:
+            log_msg = 'no target provided, skipping plugin'
+
+        assert log_msg in caplog.text

@@ -244,7 +244,7 @@ def mock_environment(tmpdir, session=None, name=None,
                      has_op_appregistry_manifests=False,
                      has_op_bundle_manifests=False,
                      push_operator_manifests_enabled=False, source_build=False,
-                     has_remote_source=False, build_method='docker'):
+                     has_remote_source=False, build_method='docker', scratch=False):
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -256,6 +256,7 @@ def mock_environment(tmpdir, session=None, name=None,
     tasker._tasker = DockerTasker()
     tasker.build_method = build_method
     workflow = DockerBuildWorkflow("test-image", source=SOURCE)
+    workflow.user_params['scratch'] = scratch
     base_image_id = '123456parent-id'
 
     workflow.source = StubSource()
@@ -1798,7 +1799,8 @@ class TestKojiImport(object):
                                             release=release,
                                             session=session,
                                             docker_registry=True,
-                                            add_tag_conf_primaries=not is_scratch)
+                                            add_tag_conf_primaries=not is_scratch,
+                                            scratch=is_scratch)
         group_manifest_result = {"media_type": MEDIA_TYPE_DOCKER_V2_SCHEMA2}
         if digest:
             group_manifest_result = {
@@ -1813,7 +1815,6 @@ class TestKojiImport(object):
                 "creationTimestamp": "2015-07-27T09:24:00Z",
                 "namespace": NAMESPACE,
                 "name": BUILD_ID,
-                "labels": {'scratch': is_scratch},
             }
         }))
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)

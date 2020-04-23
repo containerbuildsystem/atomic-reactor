@@ -49,6 +49,7 @@ ODCS_URL = 'https://odcs.fedoraproject.org/odcs/1'
 
 CONFIGS = build_flatpak_test_configs()
 
+USER_PARAMS = {'flatpak': True}
 
 class MockSource(object):
     def __init__(self, tmpdir):
@@ -79,7 +80,9 @@ class MockBuilder(object):
         self.df_path = path
 
 
-def mock_workflow(tmpdir, container_yaml):
+def mock_workflow(tmpdir, container_yaml, user_params=None):
+    if user_params is None:
+        user_params = USER_PARAMS
     workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', MockBuilder())
@@ -89,6 +92,7 @@ def mock_workflow(tmpdir, container_yaml):
     with open(mock_source.container_yaml_path, "w") as f:
         f.write(container_yaml)
     workflow.builder.source.config = SourceConfig(str(tmpdir))
+    workflow.user_params = user_params
 
     df = df_parser(str(tmpdir))
     df.content = DF_CONTENT
@@ -298,3 +302,22 @@ def test_flatpak_update_dockerfile(tmpdir, docker_tasker,
 
         source_info = get_flatpak_source_info(workflow)
         assert source_info.base_module.name == config['base_module']
+
+
+@pytest.mark.skipif(not MODULEMD_AVAILABLE,
+                    reason='libmodulemd not available')
+def test_skip_plugin(tmpdir, caplog, docker_tasker):
+    workflow = mock_workflow(tmpdir, "", user_params={})
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': FlatpakUpdateDockerfilePlugin.key,
+            'args': {}
+        }]
+    )
+
+    runner.run()
+
+    assert 'not flatpak build, skipping plugin' in caplog.text

@@ -130,7 +130,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         self.repos = repos or []
         self.architectures = get_platforms(self.workflow)
         self.architecture = architecture
-        self.scratch = util.is_scratch_build()
+        self.scratch = util.is_scratch_build(self.workflow)
         self.koji_target = koji_target
         self.session = None
 

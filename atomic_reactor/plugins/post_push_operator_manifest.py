@@ -65,7 +65,7 @@ class PushOperatorManifestsPlugin(PostBuildPlugin):
             self.log.info("Not an operator build. Skipping")
             return False
 
-        if is_scratch_build():
+        if is_scratch_build(self.workflow):
             self.log.info('Scratch build. Skipping')
             return False
 
@@ -73,7 +73,7 @@ class PushOperatorManifestsPlugin(PostBuildPlugin):
             self.log.info('Autorebuild. Skipping')
             return False
 
-        if is_isolated_build():
+        if is_isolated_build(self.workflow):
             self.log.info('Isolated build. Skipping')
             return False
 

@@ -12,7 +12,6 @@ import os
 import flexmock
 import pytest
 
-from atomic_reactor import util
 from atomic_reactor.constants import (
     PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY,
     PLUGIN_BUILD_ORCHESTRATE_KEY
@@ -56,11 +55,13 @@ class MockSource(StubSource):
         return os.path.join(self.workdir, 'Dockerfile'), self.workdir
 
 
-def mock_workflow(tmpdir, for_orchestrator=False):
+def mock_workflow(tmpdir, for_orchestrator=False, scratch=False, isolated=False):
     workflow = DockerBuildWorkflow(
         TEST_IMAGE,
         source={"provider": "git", "uri": "asd"},
     )
+    workflow.user_params['scratch'] = scratch
+    workflow.user_params['isolated'] = isolated
     workflow.source = MockSource(str(tmpdir))
     builder = StubInsideBuilder().for_workflow(workflow)
     builder.set_df_path(str(tmpdir))
@@ -101,17 +102,13 @@ def mock_env(tmpdir, docker_tasker,
              has_bundle_label=False, bundle_label=False,
              scratch=False, isolated=False, rebuild=False,
              orchestrator=True, omps_configured=True, omps_push_fail=False):
-    build_json = {'metadata': {'labels': {
-        'scratch': scratch,
-        'isolated': isolated,
-    }}}
-    flexmock(util).should_receive('get_build_json').and_return(build_json)
     mock_dockerfile(
         tmpdir,
         has_appregistry_label=has_appregistry_label, appregistry_label=appregistry_label,
         has_bundle_label=has_bundle_label, bundle_label=bundle_label,
     )
-    workflow = mock_workflow(tmpdir, for_orchestrator=orchestrator)
+    workflow = mock_workflow(tmpdir, for_orchestrator=orchestrator, scratch=scratch,
+                             isolated=isolated)
     if omps_configured:
         omps_map = {
             'omps_url': 'https://localhost',

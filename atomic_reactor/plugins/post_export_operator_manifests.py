@@ -62,7 +62,7 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
             self.log.info("Only platform [%s] will upload operators metadata. Skipping",
                           self.operator_manifests_extract_platform)
             return False
-        if is_scratch_build():
+        if is_scratch_build(self.workflow):
             self.log.info("Scratch build. Skipping")
             return False
         if not (

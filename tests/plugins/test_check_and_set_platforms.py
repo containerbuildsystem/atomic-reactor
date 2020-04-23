@@ -113,11 +113,14 @@ def set_orchestrator_platforms(workflow, orchestrator_platforms):
                                         'args': {'platforms': orchestrator_platforms}}]
 
 
-def prepare(tmpdir):
+def prepare(tmpdir, labels=None):
     if MOCK:
         mock_docker()
+    labels = labels or {}
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow("test-image", source=SOURCE)
+    workflow.user_params['scratch'] = labels.get('scratch', False)
+    workflow.user_params['isolated'] = labels.get('isolated', False)
     setattr(workflow, 'builder', X())
     source = MockSource(tmpdir)
 
@@ -199,12 +202,9 @@ def test_check_isolated_or_scratch(tmpdir, caplog, labels, platforms,
                                    orchestrator_platforms, platform_only, result):
     write_container_yaml(tmpdir, platform_only=platform_only)
 
-    tasker, workflow = prepare(tmpdir)
+    tasker, workflow = prepare(tmpdir, labels=labels)
     if orchestrator_platforms:
         set_orchestrator_platforms(workflow, orchestrator_platforms)
-
-    build_json = {'metadata': {'labels': labels}}
-    flexmock(util).should_receive('get_build_json').and_return(build_json)
 
     session = mock_session(platforms)
     mock_koji_config = {

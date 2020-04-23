@@ -48,6 +48,7 @@ class TestKojiDelegate(object):
         setattr(workflow, 'triggered_after_koji_task', None)
         setattr(workflow, 'source', MockSource(tmpdir))
         setattr(workflow, 'prebuild_results', {CheckAndSetRebuildPlugin.key: is_auto})
+        setattr(workflow, 'user_params', {})
 
         df = tmpdir.join('Dockerfile')
         df.write('FROM base\n')
@@ -240,7 +241,6 @@ class TestKojiDelegate(object):
         if original_koji_task_id:
             build_json['metadata']['labels']['original-koji-task-id'] = original_koji_task_id
         new_environ["BUILD"] = json.dumps(build_json)
-        new_environ["USER_PARAMS"] = json.dumps(user_params)
 
         flexmock(os)
         os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
@@ -249,6 +249,8 @@ class TestKojiDelegate(object):
         plugin = self.prepare(tmpdir, is_auto=True, delegate_task=True,
                               delegated_priority=task_priority,
                               triggered_after_koji_task=triggered_task)
+
+        plugin.workflow.user_params = user_params
 
         with pytest.raises(BuildCanceledException):
             plugin.run()

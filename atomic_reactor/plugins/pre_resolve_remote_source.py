@@ -77,7 +77,7 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
             self.log.info('Aborting plugin execution: missing remote_source configuration')
             return
 
-        if self._dependency_replacements and not is_scratch_build():
+        if self._dependency_replacements and not is_scratch_build(self.workflow):
             raise ValueError('Cachito dependency replacements are only allowed for scratch builds')
 
         user = self.get_koji_user()

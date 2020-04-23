@@ -257,10 +257,18 @@ class TestKojiParent(object):
         assert 'A suitable archive' in str(exc_info.value)
         assert 'not found' in str(exc_info.value)
 
+    def test_skip_build(self, workflow, caplog, reactor_config_map):  # noqa
+        koji_session(archives=[])
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
+                                  koji_parent_build='')
+
+        assert 'no koji parent build, skipping plugin' in caplog.text
+
     def run_plugin_with_args(self, workflow, plugin_args=None, reactor_config_map=False,  # noqa
-                             organization=None, base_from_scratch=False, custom_base_image=False):
+                             organization=None, base_from_scratch=False, custom_base_image=False,
+                             koji_parent_build=KOJI_BUILD_ID):
         plugin_args = plugin_args or {}
-        plugin_args.setdefault('koji_parent_build', KOJI_BUILD_ID)
+        plugin_args.setdefault('koji_parent_build', koji_parent_build)
         plugin_args.setdefault('koji_hub', KOJI_HUB)
 
         if reactor_config_map:
@@ -282,6 +290,8 @@ class TestKojiParent(object):
         )
 
         result = runner.run()
+        if not koji_parent_build:
+            return
         if base_from_scratch or custom_base_image:
             assert result[InjectParentImage.key] is None
         else:

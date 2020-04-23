@@ -236,33 +236,10 @@ def mock_koji_session():
 
 def mock_koji_parent(workflow,
                      scratch=False, isolated=False, parent_repo=None, parent_compose_ids=None):
-    new_environ = {}
-    new_environ["BUILD"] = dedent('''\
-        {
-          "metadata": {
-            "labels": {}
-          }
-        }
-        ''')
-
     if scratch:
-        new_environ["BUILD"] = dedent('''\
-            {
-              "metadata": {
-                "labels": {"scratch": "true"}
-              }
-            }
-            ''')
+        workflow.user_params['scratch'] = True
     elif isolated:
-        new_environ["BUILD"] = dedent('''\
-           {
-             "metadata": {
-               "labels": {"isolated": "true"}
-             }
-           }
-           ''')
-    flexmock(os)
-    os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
+        workflow.user_params['isolated'] = True
 
     parent_build_info = {
         'id': 1234,

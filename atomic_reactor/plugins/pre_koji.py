@@ -23,7 +23,7 @@ class KojiPlugin(PreBuildPlugin):
     key = "koji"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, target, hub=None, root=None, proxy=None,
+    def __init__(self, tasker, workflow, target=None, hub=None, root=None, proxy=None,
                  koji_ssl_certs_dir=None):
         """
         constructor
@@ -57,6 +57,15 @@ class KojiPlugin(PreBuildPlugin):
         """
         run the plugin
         """
+        if (not self.workflow.user_params.get('include_koji_repo') and
+                self.workflow.user_params.get('yum_repourls')):
+            self.log.info('there is a yum repo user parameter, skipping plugin')
+            return
+
+        if not self.target:
+            self.log.info('no target provided, skipping plugin')
+            return
+
         if self.workflow.builder.base_from_scratch and not self.workflow.builder.parent_images:
             self.log.info("from scratch single stage can't add repos from koji target")
             return

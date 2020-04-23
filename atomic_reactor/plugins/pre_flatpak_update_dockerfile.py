@@ -39,7 +39,7 @@ from atomic_reactor.plugins.pre_reactor_config import (get_koji_session,
                                                        get_odcs_session,
                                                        NO_FALLBACK)
 
-from atomic_reactor.util import df_parser
+from atomic_reactor.util import df_parser, is_flatpak_build
 
 
 # ODCS API constant
@@ -213,6 +213,9 @@ class FlatpakUpdateDockerfilePlugin(PreBuildPlugin):
         """
         run the plugin
         """
+        if not is_flatpak_build(self.workflow):
+            self.log.info('not flatpak build, skipping plugin')
+            return
 
         self._load_compose_info()
         compose_info = get_flatpak_compose_info(self.workflow)

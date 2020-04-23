@@ -29,7 +29,6 @@ from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY)
-from atomic_reactor import util
 import atomic_reactor.utils.koji as koji_util
 from tests.constants import (MOCK_SOURCE, DOCKERFILE_GIT, DOCKERFILE_SHA1,
                              MOCK, IMPORTED_IMAGE_ID)
@@ -184,8 +183,8 @@ def mock_image_build_file(tmpdir, contents=None):
 
 def mock_workflow(tmpdir, dockerfile=DEFAULT_DOCKERFILE,
                   scratch=False, for_orchestrator=False):
-    flexmock(util).should_receive('is_scratch_build').and_return(scratch)
     workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+    workflow.user_params['scratch'] = scratch
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', X())
     workflow.builder.source = mock_source

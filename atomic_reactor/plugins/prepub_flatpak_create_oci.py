@@ -23,7 +23,7 @@ from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_flatpak_update_dockerfile import get_flatpak_source_info
 from atomic_reactor.plugins.pre_reactor_config import get_flatpak_metadata
 from atomic_reactor.utils.rpm import parse_rpm_output
-from atomic_reactor.util import df_parser, get_exported_image_metadata
+from atomic_reactor.util import df_parser, get_exported_image_metadata, is_flatpak_build
 from osbs.utils import Labels
 
 
@@ -125,6 +125,10 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
             raise
 
     def run(self):
+        if not is_flatpak_build(self.workflow):
+            self.log.info('not flatpak build, skipping plugin')
+            return
+
         source = get_flatpak_source_info(self.workflow)
         if source is None:
             raise RuntimeError("flatpak_create_dockerfile must be run before flatpak_create_oci")

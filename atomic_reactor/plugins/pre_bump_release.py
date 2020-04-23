@@ -85,7 +85,7 @@ class BumpReleasePlugin(PreBuildPlugin):
         """
         get next release for build and set it in dockerfile
         """
-        if is_scratch_build():
+        if is_scratch_build(self.workflow):
             # no need to append for scratch build
             metadata = get_build_json().get("metadata", {})
             next_release = metadata.get("name", "1")
@@ -241,13 +241,17 @@ class BumpReleasePlugin(PreBuildPlugin):
         """
         run the plugin
         """
+        if self.workflow.user_params.get('release'):
+            self.log.info('release value supplied as user parameter, skipping plugin')
+            return
+
         # source container build
         if PLUGIN_FETCH_SOURCES_KEY in self.workflow.prebuild_results:
-            source_nvr = self.get_source_build_nvr(scratch=is_scratch_build())
+            source_nvr = self.get_source_build_nvr(scratch=is_scratch_build(self.workflow))
             self.log.info("Setting source_build_nvr: %s", source_nvr)
             self.workflow.koji_source_nvr = source_nvr
 
-            if self.reserve_build and not is_scratch_build():
+            if self.reserve_build and not is_scratch_build(self.workflow):
                 self.reserve_build_in_koji(source_nvr['name'], source_nvr['version'],
                                            source_nvr['release'], None, None, source_build=True)
 
@@ -307,7 +311,7 @@ class BumpReleasePlugin(PreBuildPlugin):
                 else:
                     self.log.debug("release set explicitly so not incrementing")
 
-                if not is_scratch_build():
+                if not is_scratch_build(self.workflow):
                     self.check_build_existence_for_explicit_release(component, version, release)
                     dockerfile_labels[release_label] = release
                 else:
@@ -317,6 +321,6 @@ class BumpReleasePlugin(PreBuildPlugin):
             self.next_release_general(component, version, release, release_label,
                                       dockerfile_labels)
 
-        if self.reserve_build and not is_scratch_build():
+        if self.reserve_build and not is_scratch_build(self.workflow):
             self.reserve_build_in_koji(component, version, release, release_label,
                                        dockerfile_labels)

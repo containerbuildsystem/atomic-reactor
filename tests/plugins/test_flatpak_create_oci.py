@@ -39,6 +39,8 @@ CONTAINER_ID = 'CONTAINER-ID'
 
 ROOT = '/var/tmp/flatpak-build'
 
+USER_PARAMS = {'flatpak': True}
+
 DESKTOP_FILE_CONTENTS = b"""[Desktop Entry]
 Name=Image Viewer
 Comment=Browse and rotate images
@@ -504,6 +506,7 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, flatpak_metadata
         TEST_IMAGE,
         source={"provider": "git", "uri": "asd"}
     )
+    workflow.user_params = USER_PARAMS
     setattr(workflow, 'builder', MockBuilder())
     workflow.builder.df_path = write_docker_file(config, str(tmpdir))
     setattr(workflow.builder, 'tasker', docker_tasker)
@@ -697,3 +700,26 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, flatpak_metadata
             assert 'name=org.fedoraproject.Platform' in metadata_lines
         else:  # SDK
             assert 'name=org.fedoraproject.Sdk' in metadata_lines
+
+@pytest.mark.skipif(not MODULEMD_AVAILABLE,  # noqa - docker_tasker fixture
+                    reason="libmodulemd not available")
+def test_skip_plugin(caplog, docker_tasker):
+    workflow = DockerBuildWorkflow(
+        TEST_IMAGE,
+        source={"provider": "git", "uri": "asd"}
+    )
+    workflow.user_params = {}
+    setattr(workflow, 'builder', MockBuilder())
+
+    runner = PrePublishPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': FlatpakCreateOciPlugin.key,
+            'args': {}
+        }]
+    )
+
+    runner.run()
+
+    assert 'not flatpak build, skipping plugin' in caplog.text

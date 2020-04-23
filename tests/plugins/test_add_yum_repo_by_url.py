@@ -8,8 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals, absolute_import
 
-from atomic_reactor import util
-
 from atomic_reactor.constants import YUM_REPOS_DIR
 
 from atomic_reactor.core import DockerTasker
@@ -38,13 +36,12 @@ repocontent = b'''[repo]\n'''
 def prepare(scratch=False):
     if MOCK:
         mock_docker()
-    build_json = {'metadata': {'labels': {'scratch': scratch}}}
-    flexmock(util).should_receive('get_build_json').and_return(build_json)
     tasker = DockerTasker()
     workflow = DockerBuildWorkflow(
         "test-image", source={"provider": "git", "uri": DOCKERFILE_GIT})
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
+    workflow.user_params['scratch'] = scratch
     (flexmock(requests.Response, content=repocontent)
         .should_receive('raise_for_status')
         .and_return(None))

@@ -13,7 +13,7 @@ created for a flatpak, based on the flatpak: labels key in container.yaml.
 from __future__ import unicode_literals, absolute_import
 
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import df_parser, label_to_string
+from atomic_reactor.util import df_parser, label_to_string, is_flatpak_build
 
 
 class AddFlatpakLabelsPlugin(PreBuildPlugin):
@@ -34,6 +34,10 @@ class AddFlatpakLabelsPlugin(PreBuildPlugin):
         """
         run the plugin
         """
+        if not is_flatpak_build(self.workflow):
+            self.log.info('not flatpak build, skipping plugin')
+            return
+
         flatpak_yaml = self.workflow.source.config.flatpak
         if flatpak_yaml is None:
             return

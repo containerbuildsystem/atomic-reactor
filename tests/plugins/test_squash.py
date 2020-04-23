@@ -135,6 +135,12 @@ class TestSquashPlugin(object):
         self.should_squash_with_kwargs(output_path=None)
         self.run_plugin_with_args({'save_archive': False})
 
+    def test_skip_plugin(self, caplog):
+        self.should_squash_with_kwargs(output_path=None)
+        self.workflow.user_params = {'flatpak': True}
+        self.run_plugin_with_args({'save_archive': False})
+        assert 'flatpak build, skipping plugin' in caplog.text
+
     def should_squash_with_kwargs(self, new_id='abc', base_from_scratch=False, **kwargs):
         kwargs.setdefault('image', self.workflow.builder.image_id)
         kwargs.setdefault('load_image', True)

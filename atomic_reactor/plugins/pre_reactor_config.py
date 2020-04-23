@@ -18,6 +18,7 @@ from atomic_reactor.util import (read_yaml, read_yaml_from_file_path,
 from osbs.utils import RegistryURI
 
 import logging
+import json
 import os
 import six
 
@@ -578,6 +579,8 @@ class ReactorConfigPlugin(PreBuildPlugin):
         Parse and validate config.
         Store in workflow workspace for later retrieval.
         """
+        self.workflow.user_params = json.loads(os.environ['USER_PARAMS'])
+
         if self.reactor_config_map:
             self.log.info("reading config from REACTOR_CONFIG env variable")
             conf = read_yaml(self.reactor_config_map, 'schemas/config.json')

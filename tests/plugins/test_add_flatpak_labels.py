@@ -27,6 +27,7 @@ from tests.constants import MOCK_SOURCE
 DF_CONTENT = """FROM fedora:latest
 CMD sleep 1000
 """
+USER_PARAMS = {'flatpak': True}
 
 
 class MockSource(object):
@@ -46,12 +47,15 @@ class MockBuilder(object):
         self.image_id = "xxx"
 
 
-def mock_workflow(tmpdir, container_yaml):
+def mock_workflow(tmpdir, container_yaml, user_params=None):
     workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+    if user_params is None:
+        user_params = USER_PARAMS
 
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', MockBuilder())
     workflow.builder.source = mock_source
+    workflow.user_params = user_params
     flexmock(workflow, source=mock_source)
 
     with open(mock_source.container_yaml_path, "w") as f:
@@ -105,3 +109,20 @@ def test_add_flatpak_labels(tmpdir, docker_tasker,
         assert last_line == expected
     else:
         assert last_line == "CMD sleep 1000"
+
+
+def test_skip_plugin(tmpdir, caplog, docker_tasker):
+    workflow = mock_workflow(tmpdir, '', user_params={})
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': AddFlatpakLabelsPlugin.key,
+            'args': {}
+        }]
+    )
+
+    runner.run()
+
+    assert 'not flatpak build, skipping plugin' in caplog.text

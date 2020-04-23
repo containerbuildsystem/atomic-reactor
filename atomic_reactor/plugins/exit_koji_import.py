@@ -295,7 +295,7 @@ class KojiImportPlugin(ExitPlugin):
         if primary_images:
             version_release = primary_images[0].tag
 
-        if is_scratch_build():
+        if is_scratch_build(self.workflow):
             tags = [image.tag for image in self.workflow.tag_conf.images]
             version_release = tags[0]
         else:
@@ -600,7 +600,7 @@ class KojiImportPlugin(ExitPlugin):
 
         koji_metadata, output_files = self.combine_metadata_fragments()
 
-        if is_scratch_build():
+        if is_scratch_build(self.workflow):
             self.upload_scratch_metadata(koji_metadata, server_dir, self.session)
             return
 

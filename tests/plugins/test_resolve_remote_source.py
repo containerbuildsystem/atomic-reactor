@@ -209,9 +209,10 @@ def teardown_function(*args):
                             'version': '2'}]),
                           (['gomod:foo.bar/project'], None)))
 def test_resolve_remote_source(workflow, scratch, dr_strs, dependency_replacements):
-    build_json = {'metadata': {'labels': {'koji-task-id': str(KOJI_TASK_ID), 'scratch': scratch}}}
+    build_json = {'metadata': {'labels': {'koji-task-id': str(KOJI_TASK_ID)}}}
     mock_build_json(build_json=build_json)
     mock_cachito_api(workflow, dependency_replacements=dependency_replacements)
+    workflow.user_params['scratch'] = scratch
     err = None
     if dr_strs and not scratch:
         err = 'Cachito dependency replacements are only allowed for scratch builds'
