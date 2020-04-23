@@ -39,6 +39,7 @@ KOJI_TASK_OWNER = 'spam'
 CACHITO_URL = 'https://cachito.example.com'
 CACHITO_REQUEST_ID = 98765
 CACHITO_REQUEST_DOWNLOAD_URL = '{}/api/v1/{}/download'.format(CACHITO_URL, CACHITO_REQUEST_ID)
+CACHITO_REQUEST_CONFIGS = [{'eggs': 'bacon'}, {'bread': 'jam'}]
 
 REMOTE_SOURCE_REPO = 'https://git.example.com/team/repo.git'
 REMOTE_SOURCE_REF = 'b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a'
@@ -169,6 +170,11 @@ def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None,
         .should_receive('assemble_download_url')
         .with_args(source_request)
         .and_return(CACHITO_REQUEST_DOWNLOAD_URL))
+
+    (flexmock(CachitoAPI)
+        .should_receive('get_request_config')
+        .with_args(source_request)
+        .and_return(CACHITO_REQUEST_CONFIGS))
 
 
 def mock_koji(user=KOJI_TASK_OWNER):
@@ -353,6 +359,7 @@ def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=No
         orchestrator_build_workspace = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
         worker_params = orchestrator_build_workspace[WORKSPACE_KEY_OVERRIDE_KWARGS][None]
         assert worker_params['remote_source_url'] == CACHITO_REQUEST_DOWNLOAD_URL
+        assert worker_params['remote_source_configs'] == CACHITO_REQUEST_CONFIGS
         assert worker_params['remote_source_build_args'] == {
             'GOPATH': '/remote-source/deps/gomod',
             'GOCACHE': '/remote-source/deps/gomod',
