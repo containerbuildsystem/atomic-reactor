@@ -42,6 +42,7 @@ except ImportError:
 from atomic_reactor.constants import (
     PROG,
     PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
+    PLUGIN_FETCH_MAVEN_KEY,
     PLUGIN_FETCH_WORKER_METADATA_KEY, PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
     PLUGIN_VERIFY_MEDIA_KEY,
     PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY,
@@ -406,6 +407,13 @@ class KojiImportPlugin(ExitPlugin):
                         self.log.error("invalid task ID %r", fs_task_id, exc_info=1)
                     else:
                         extra['filesystem_koji_task_id'] = task_id
+
+            fetch_result = self.workflow.prebuild_results.get(PLUGIN_FETCH_MAVEN_KEY)
+            if fetch_result:
+                for key in ('koji_artifacts', 'url_artifacts'):
+                    fetched = fetch_result.get(key)
+                    if fetched:
+                        extra["image"][key] = fetched
 
             extra['image'].update(get_parent_image_koji_data(self.workflow))
 

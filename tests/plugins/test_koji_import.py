@@ -36,6 +36,7 @@ from atomic_reactor.util import (ImageName, ManifestDigest,
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.build import BuildResult
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_TAR,
+                                      PLUGIN_FETCH_MAVEN_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY, BASE_IMAGE_KOJI_BUILD,
                                       PARENT_IMAGES_KOJI_BUILDS, BASE_IMAGE_BUILD_ID_KEY,
@@ -56,6 +57,8 @@ from tests.flatpak import (MODULEMD_AVAILABLE,
                            setup_flatpak_composes,
                            setup_flatpak_source_info)
 from tests.stubs import StubInsideBuilder, StubSource
+
+import tests.plugins.test_fetch_maven_artifacts as test_fetch_maven
 
 from flexmock import flexmock
 import pytest
@@ -244,7 +247,9 @@ def mock_environment(tmpdir, session=None, name=None,
                      has_op_appregistry_manifests=False,
                      has_op_bundle_manifests=False,
                      push_operator_manifests_enabled=False, source_build=False,
-                     has_remote_source=False, build_method='docker'):
+                     has_remote_source=False, build_method='docker',
+                     fetch_maven=False):
+
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -388,6 +393,18 @@ def mock_environment(tmpdir, session=None, name=None,
     workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {'sources_for_nvr': SOURCES_FOR_KOJI_NVR,
                                                            'signing_intent': SOURCES_SIGNING_INTENT}
     workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_rebuild
+
+    if fetch_maven:
+        workflow.prebuild_results[PLUGIN_FETCH_MAVEN_KEY] = {
+            'koji_artifacts': [
+                {"nvr": test_fetch_maven.DEFAULT_KOJI_BUILD["nvr"],
+                 "build_id": test_fetch_maven.DEFAULT_KOJI_BUILD_ID,
+                 "archives": test_fetch_maven.DEFAULT_ARCHIVES},
+            ],
+            'url_artifacts': test_fetch_maven.DEFAULT_REMOTE_FILES,
+            'downloads': None,
+        }
+
     workflow.postbuild_results[PostBuildRPMqaPlugin.key] = [
         "name1;1.0;1;x86_64;0;2000;" + FAKE_SIGMD5.decode() + ";23000;"
         "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abc;(none)",
@@ -775,6 +792,46 @@ class TestKojiImport(object):
             assert build_metadata is True
         else:
             assert build_metadata is False
+
+    def test_fetch_metadata_json(self, tmpdir, monkeypatch, os_env, reactor_config_map):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1',
+                                            fetch_maven=True)
+
+        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
+
+        patch = {
+            'metadata': {
+                'creationTimestamp': '2015-07-27T09:24:00Z',
+                'namespace': NAMESPACE,
+                'name': BUILD_ID,
+                'labels': {
+                },
+            }
+        }
+
+        monkeypatch.setenv("BUILD", json.dumps(patch))
+
+        runner.run()
+
+        image = session.metadata['build']['extra']['image']
+
+        assert "koji_artifacts" in image
+        koji_artifacts = image["koji_artifacts"]
+
+        assert len(koji_artifacts) == 1
+        assert koji_artifacts[0]["nvr"] == test_fetch_maven.DEFAULT_KOJI_BUILD["nvr"]
+        assert koji_artifacts[0]["build_id"] == test_fetch_maven.DEFAULT_KOJI_BUILD_ID
+        assert len(koji_artifacts[0]["archives"]) == len(test_fetch_maven.DEFAULT_ARCHIVES)
+
+        assert "url_artifacts" in image
+        url_artifacts = image["url_artifacts"]
+        assert len(url_artifacts) == len(test_fetch_maven.DEFAULT_REMOTE_FILES)
+
 
     @pytest.mark.parametrize(('koji_task_id', 'expect_success'), [
         (12345, True),

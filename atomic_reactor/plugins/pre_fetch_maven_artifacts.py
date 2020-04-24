@@ -35,6 +35,10 @@ class NvrRequest(object):
         for archive in self.archives:
             archive['matched'] = False
 
+        # fulfilled during process_by_nvr
+        self.build_id = None
+        self.matched_archives = None
+
     def match(self, build_archive):
         if not self.archives:
             return True
@@ -143,6 +147,9 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
                                                        type='maven')
             build_archives = nvr_request.match_all(build_archives)
 
+            nvr_request.build_id = build_info["build_id"]
+            nvr_request.matched_archives = build_archives
+
             for build_archive in build_archives:
                 maven_file_path = self.path_info.mavenfile(build_archive)
                 # NOTE: Don't use urljoin here because maven_build_path does
@@ -162,6 +169,7 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
         if errors:
             raise ValueError('Errors found while processing {}: {}'
                              .format(self.NVR_REQUESTS_FILENAME, ', '.join(errors)))
+
         return download_queue
 
     def process_by_url(self, url_requests):
@@ -233,5 +241,11 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
 
         self.download_files(download_queue)
 
-        # TODO: Return a list of files for koji metadata
-        return download_queue
+        koji_artifacts = [{"nvr": r.nvr,
+                           "build_id": r.build_id,
+                           "archives": r.matched_archives} for
+                          r in nvr_requests]
+
+        return {'koji_artifacts': koji_artifacts,
+                'url_artifacts': url_requests,
+                'downloads': download_queue}
