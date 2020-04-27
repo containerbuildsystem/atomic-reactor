@@ -32,7 +32,6 @@ from atomic_reactor.util import (get_version_of_tools, get_docker_architecture,
                                  get_checksums, get_manifest_media_type)
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.utils.rpm import get_rpm_list, parse_rpm_output
-from osbs.exceptions import OsbsException
 
 logger = logging.getLogger(__name__)
 
@@ -552,26 +551,9 @@ def get_rpms():
 
 def get_builder_image_id(build_id, osbs):
     """
-    Find out the docker ID of the buildroot image we are in.
+    Retrieve the docker ID of the buildroot image we are in from the environment.
     """
-    try:
-        buildroot_tag = os.environ["OPENSHIFT_CUSTOM_BUILD_BASE_IMAGE"]
-    except KeyError:
-        return ''
-
-    try:
-        pod = osbs.get_pod_for_build(build_id)
-        all_images = pod.get_container_image_ids()
-    except OsbsException as ex:
-        logger.error("unable to find image id: %s", ex)
-        return buildroot_tag
-
-    try:
-        return all_images[buildroot_tag]
-    except KeyError:
-        logger.error("Unable to determine buildroot image ID for %s",
-                     buildroot_tag)
-        return buildroot_tag
+    return os.environ.get('OPENSHIFT_CUSTOM_BUILD_BASE_IMAGE', '')
 
 
 def select_digest(digests):
