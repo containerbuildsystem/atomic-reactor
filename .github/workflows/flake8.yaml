@@ -1,0 +1,15 @@
+name: Lint with flake8
+
+on: [pull_request]
+
+jobs:
+  flake8:
+    name: Flake8 for Python 3
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v2
+
+      - name: Run flake8 for Python 3
+        uses: containerbuildsystem/actions/flake8@master

@@ -10,12 +10,6 @@ ACTION=${ACTION:="test"}
 IMAGE="$OS:$OS_VERSION"
 CONTAINER_NAME="atomic-reactor-$OS-$OS_VERSION-py$PYTHON_VERSION"
 
-if [[ $ACTION == "markdownlint" ]]; then
-  IMAGE="ruby"
-  CONTAINER_NAME="atomic-reactor-$ACTION-$IMAGE"
-  RUN="$ENGINE exec -ti $CONTAINER_NAME"
-fi
-
 # Use arrays to prevent globbing and word splitting
 engine_mounts=(-v "$PWD":"$PWD":z)
 for dir in ${EXTRA_MOUNT:-}; do
@@ -43,7 +37,7 @@ function setup_osbs() {
 
   # PIP_PREFIX: osbs-client provides input templates that must be copied into /usr/share/...
   ENVS='-e PIP_PREFIX=/usr'
-  RUN="$ENGINE exec -ti ${ENVS} $CONTAINER_NAME"
+  RUN="$ENGINE exec -i ${ENVS} $CONTAINER_NAME"
   PYTHON="python$PYTHON_VERSION"
   if [[ $OS == "fedora" ]]; then
     PIP_PKG="python$PYTHON_VERSION-pip"
@@ -143,7 +137,7 @@ function setup_osbs() {
 case ${ACTION} in
 "test")
   setup_osbs
-  TEST_CMD="pytest tests --cov atomic_reactor --cov-report html"
+  TEST_CMD="coverage run --source=atomic_reactor -m pytest --color=yes tests"
   ;;
 "pylint")
   setup_osbs
@@ -157,10 +151,6 @@ case ${ACTION} in
   setup_osbs
   $RUN "${PIP_INST[@]}" bandit
   TEST_CMD="bandit-baseline -r atomic_reactor -ll -ii"
-  ;;
-"markdownlint")
-  $RUN gem install mdl
-  TEST_CMD="mdl -g ."
   ;;
 *)
   echo "Unknown action: ${ACTION}"

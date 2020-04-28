@@ -1,0 +1,15 @@
+name: Shellcheck
+
+on: [pull_request]
+
+jobs:
+  shellcheck:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v2
+
+      - name: Run ShellCheck
+        uses: containerbuildsystem/actions/shellcheck@master
