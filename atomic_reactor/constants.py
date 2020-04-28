@@ -110,6 +110,7 @@ PLUGIN_SOURCE_CONTAINER_KEY = 'source_container'
 PLUGIN_FETCH_SOURCES_KEY = 'fetch_sources'
 PLUGIN_KOJI_DELEGATE_KEY = 'koji_delegate'
 PLUGIN_PUSH_FLOATING_TAGS_KEY = 'push_floating_tags'
+PLUGIN_ADD_CONTENT_SETS = 'add_content_sets'
 
 # some shared dict keys for build metadata that gets recorded with koji.
 # for consistency of metadata in historical builds, these values basically cannot change.
@@ -185,3 +186,6 @@ KOJI_SOURCE_ENGINE = 'bsi'
 
 # Storage names as defined in skopeo
 DOCKER_STORAGE_TRANSPORT_NAME = 'docker-daemon'
+
+# location for build info directory in the image
+IMAGE_BUILD_INFO_DIR = '/root/buildinfo/'
