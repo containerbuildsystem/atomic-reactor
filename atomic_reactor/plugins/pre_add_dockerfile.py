@@ -6,7 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 
 
-Include user-provided Dockerfile in the /root/buildinfo/
+Include user-provided Dockerfile in the IMAGE_BUILD_INFO_DIR
 (or other if provided) directory in the built image.
 This is accomplished by appending an ADD command to it.
 Name of the Dockerfile is changed to include N-V-R of the build.
@@ -40,7 +40,7 @@ from __future__ import absolute_import
 
 import os
 import shutil
-from atomic_reactor.constants import DOCKERFILE_FILENAME
+from atomic_reactor.constants import DOCKERFILE_FILENAME, IMAGE_BUILD_INFO_DIR
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
 from osbs.utils import Labels
@@ -49,7 +49,7 @@ from osbs.utils import Labels
 class AddDockerfilePlugin(PreBuildPlugin):
     key = "add_dockerfile"
 
-    def __init__(self, tasker, workflow, nvr=None, destdir="/root/buildinfo/",
+    def __init__(self, tasker, workflow, nvr=None, destdir=IMAGE_BUILD_INFO_DIR,
                  use_final_dockerfile=False):
         """
         constructor
