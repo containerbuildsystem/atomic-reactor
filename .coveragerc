@@ -1,2 +1,3 @@
 [run]
 omit = /tmp/*
+relative_files = True

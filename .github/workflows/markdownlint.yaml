@@ -1,0 +1,15 @@
+name: markdownlint
+
+on: [pull_request]
+
+jobs:
+  markdownlint:
+    name: markdownlint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v2
+
+      - name: Run markdownlint
+        uses: containerbuildsystem/actions/markdownlint@master
