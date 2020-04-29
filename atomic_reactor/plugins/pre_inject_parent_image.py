@@ -61,7 +61,7 @@ class InjectParentImage(PreBuildPlugin):
         self.koji_session = get_koji_session(self.workflow, self.koji_fallback)
         try:
             self.koji_parent_build = int(koji_parent_build)
-        except ValueError:
+        except (ValueError, TypeError):
             self.koji_parent_build = koji_parent_build
 
         self._koji_parent_build_info = None
