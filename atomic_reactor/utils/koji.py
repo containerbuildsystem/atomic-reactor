@@ -246,8 +246,8 @@ def get_koji_module_build(session, module_spec):
                     else:
                         build = b
 
-        if build is None:
-            raise RuntimeError("No build found for {}".format(module_spec.to_str()))
+    if build is None:
+        raise RuntimeError("No build found for {}".format(module_spec.to_str()))
 
     archives = session.listArchives(buildID=build['build_id'])
     # The RPM list for the 'modulemd.txt' archive has all the RPMs, recent
