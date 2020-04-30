@@ -314,6 +314,23 @@ class TestGetKojiModuleBuild(object):
 
         get_koji_module_build(session, spec)
 
+    # CLOUDBLD-876
+    def test_with_context_without_build(self):
+        module = 'eog:my-stream:20180821163756:775baa8e'
+        module_koji_nvr = 'eog-my_stream-20180821163756.775baa8e'
+        koji_return = None
+
+        spec = ModuleSpec.from_str(module)
+        session = flexmock()
+        (session
+            .should_receive('getBuild')
+            .with_args(module_koji_nvr)
+            .and_return(koji_return))
+
+        with pytest.raises(Exception) as e:
+            get_koji_module_build(session, spec)
+        assert 'No build found' in str(e.value)
+
     @pytest.mark.parametrize(('koji_return', 'should_raise'), [
         ([{
             'build_id': 1138198,
