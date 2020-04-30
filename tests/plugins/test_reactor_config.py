@@ -7,7 +7,6 @@ of the BSD license. See the LICENSE file for details.
 """
 from __future__ import unicode_literals, absolute_import
 
-from jsonschema import ValidationError
 import io
 import json
 import logging
@@ -236,8 +235,9 @@ class TestReactorConfigPlugin(object):
             - name: bar
               max_concurrent_builds: 1
         """, [
-            "validation error (at top level): "
-            "%r is a required property" % u'version',
+            "validation error: at top level: "
+            "validating 'required' has failed "
+            "(%r is a required property)" % u'version',
         ]),
 
         ("""\
@@ -249,11 +249,17 @@ class TestReactorConfigPlugin(object):
             - name: foo
               max_concurrent_builds: 1
         """, [
-            "validation error (clusters.foo): None is not of type %r" % u'array',
+            "validation error: .clusters.foo: "
+            "validating 'type' has failed "
+            "(None is not of type %r)" % u'array',
 
-            "validation error (clusters.bar): 1 is not of type %r" % u'array',
+            "validation error: .clusters.bar: "
+            "validating 'type' has failed "
+            "(1 is not of type %r)" % u'array',
 
-            re.compile(r"validation error \(clusters\): .*'plat/form'"),
+            "validation error: .clusters: "
+            "validating 'additionalProperties' has failed "
+            "(Additional properties are not allowed ('plat/form' was unexpected))",
         ]),
 
         ("""\
@@ -269,14 +275,17 @@ class TestReactorConfigPlugin(object):
             - name: negative
               max_concurrent_builds: -1
         """, [
-            "validation error (clusters.foo[0].name): "
-            "1 is not of type %r" % u'string',
+            "validation error: .clusters.foo[0].name: "
+            "validating 'type' has failed "
+            "(1 is not of type %r)" % u'string',
 
-            "validation error (clusters.foo[1].max_concurrent_builds): "
-            "'one' is not of type %r" % u'integer',
+            "validation error: .clusters.foo[1].max_concurrent_builds: "
+            "validating 'type' has failed "
+            "('one' is not of type %r)" % u'integer',
 
-            re.compile(r"validation error \(clusters\.foo\[3\]\.max_concurrent_builds\): -1(\.0)?"
-                       r" is less than the minimum of 0"),
+            re.compile(r"validation error: \.clusters\.foo\[3\]\.max_concurrent_builds: "
+                       r"validating 'minimum' has failed "
+                       r"\(-1(\.0)? is less than the minimum of 0\)"),
         ]),
 
         ("""\
@@ -287,8 +296,9 @@ class TestReactorConfigPlugin(object):
               max_concurrent_builds: 1
               enabled: never
         """, [
-            "validation error (clusters.foo[0].enabled): "
-            "'never' is not of type %r" % u'boolean',
+            "validation error: .clusters.foo[0].enabled: "
+            "validating 'type' has failed "
+            "('never' is not of type %r)" % u'boolean',
         ]),
 
         ("""\
@@ -305,14 +315,14 @@ class TestReactorConfigPlugin(object):
               max_concurrent_builds: 4
               extra: false
         """, [
-            "validation error (clusters.foo[0]): "
-            "%r is a required property" % u'name',
+            "validation error: .clusters.foo[0]: validating 'required' has failed "
+            "(%r is a required property)" % u'name',
 
-            "validation error (clusters.foo[1]): "
-            "%r is a required property" % u'max_concurrent_builds',
+            "validation error: .clusters.foo[1]: validating 'required' has failed "
+            "(%r is a required property)" % u'max_concurrent_builds',
 
-            "validation error (clusters.foo[2]): "
-            "Additional properties are not allowed ('extra' was unexpected)",
+            "validation error: .clusters.foo[2]: validating 'additionalProperties' has failed "
+            "(Additional properties are not allowed ('extra' was unexpected))",
         ])
     ])
     def test_bad_cluster_config(self, tmpdir, caplog, reactor_config_map,
@@ -326,7 +336,7 @@ class TestReactorConfigPlugin(object):
         tasker, workflow = self.prepare()
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
 
-        with caplog.at_level(logging.ERROR), pytest.raises(ValidationError):
+        with caplog.at_level(logging.ERROR), pytest.raises(OsbsValidationException):
             plugin.run()
 
         os.environ.pop('REACTOR_CONFIG', None)
@@ -1257,20 +1267,20 @@ class TestReactorConfigPlugin(object):
           cachito:
               api_url: https://cachito.example.com
               auth:
-        """, ValidationError),
+        """, OsbsValidationException),
 
         ("""\
           version: 1
           cachito:
               api_url: https://cachito.example.com
-        """, ValidationError),
+        """, OsbsValidationException),
 
         ("""\
           version: 1
           cachito:
               auth:
                   ssl_certs_dir: /var/run/secrets/atomic-reactor/cachitosecret
-        """, ValidationError),
+        """, OsbsValidationException),
 
         ("""\
           version: 1
@@ -1279,7 +1289,7 @@ class TestReactorConfigPlugin(object):
               auth:
                   ssl_certs_dir: /var/run/secrets/atomic-reactor/cachitosecret
               spam: ham
-        """, ValidationError),
+        """, OsbsValidationException),
 
         ("""\
           version: 1
@@ -1569,7 +1579,7 @@ class TestReactorConfigPlugin(object):
         if valid:
             config_json = read_yaml(config, 'schemas/config.json')
         else:
-            with pytest.raises(ValidationError):
+            with pytest.raises(OsbsValidationException):
                 read_yaml(config, 'schemas/config.json')
             return
 
