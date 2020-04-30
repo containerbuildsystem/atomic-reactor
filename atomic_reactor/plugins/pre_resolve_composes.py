@@ -149,8 +149,14 @@ class ResolveComposesPlugin(PreBuildPlugin):
             self.all_compose_ids = []
 
     def adjust_for_inherit(self):
+        if self.workflow.builder.base_from_scratch:
+            self.log.debug('This is a base image based on scratch. '
+                           'Skipping adjusting composes for inheritance.')
+            return
+
         if not self.plugin_result:
             return
+
         build_info = self.plugin_result[BASE_IMAGE_KOJI_BUILD]
         parent_compose_ids = []
         parent_repourls = []
@@ -219,6 +225,11 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self.adjust_signing_intent_from_parent()
 
     def adjust_signing_intent_from_parent(self):
+        if self.workflow.builder.base_from_scratch:
+            self.log.debug('This is a base image based on scratch. '
+                           'Signing intent will not be adjusted for it.')
+            return
+
         if not self.plugin_result:
             self.log.debug("%s plugin didn't run, signing intent will not be adjusted",
                            PLUGIN_KOJI_PARENT_KEY)
