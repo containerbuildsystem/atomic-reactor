@@ -627,7 +627,7 @@ def test_fetch_maven_artifacts_nvr_schema_error(tmpdir, docker_tasker, contents,
     with pytest.raises(PluginFailedException) as e:
         runner.run()
 
-    assert 'ValidationError' in str(e.value)
+    assert 'OsbsValidationException' in str(e.value)
 
 
 @pytest.mark.parametrize(('contents', 'expected'), (  # noqa
@@ -775,7 +775,7 @@ def test_fetch_maven_artifacts_url_schema_error(tmpdir, docker_tasker, contents,
     with pytest.raises(PluginFailedException) as e:
         runner.run()
 
-    assert 'ValidationError' in str(e.value)
+    assert 'OsbsValidationException' in str(e.value)
 
 
 @pytest.mark.parametrize(('domains', 'raises'), (  # noqa

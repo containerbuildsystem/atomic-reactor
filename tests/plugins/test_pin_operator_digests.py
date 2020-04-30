@@ -12,7 +12,6 @@ import copy
 import io
 import os
 
-import jsonschema
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
 
@@ -34,6 +33,8 @@ from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlug
                                                             WORKSPACE_KEY_OVERRIDE_KWARGS)
 from atomic_reactor.plugins.pre_pin_operator_digest import (PinOperatorDigestsPlugin,
                                                             PullspecReplacer)
+
+from osbs.exceptions import OsbsValidationException
 
 from tests.constants import TEST_IMAGE
 from tests.stubs import StubInsideBuilder, StubSource, StubConfig
@@ -810,7 +811,7 @@ class TestPullspecReplacer(object):
 
         replacer = PullspecReplacer(user_config={}, site_config=site_config)
 
-        with pytest.raises(jsonschema.ValidationError) as exc_info:
+        with pytest.raises(OsbsValidationException) as exc_info:
             replacer.replace_repo(image)
 
         assert exc_msg in str(exc_info.value)

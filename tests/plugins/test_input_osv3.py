@@ -20,6 +20,7 @@ from atomic_reactor.plugins.input_osv3 import (
 )
 from osbs.api import OSBS
 from osbs.constants import USER_PARAMS_KIND_SOURCE_CONTAINER_BUILDS
+from osbs.exceptions import OsbsValidationException
 from tests.constants import REACTOR_CONFIG_MAP
 from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
                                       PLUGIN_DISTGIT_FETCH_KEY,
@@ -36,7 +37,6 @@ from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
                                       PLUGIN_SENDMAIL_KEY)
 import pytest
 from flexmock import flexmock
-from jsonschema import ValidationError
 
 
 def enable_plugins_configuration(plugins_json):
@@ -261,7 +261,7 @@ class TestOSv3InputPlugin(object):
         if valid:
             plugin.run()
         else:
-            with pytest.raises(ValidationError):
+            with pytest.raises(OsbsValidationException):
                 plugin.run()
 
     @pytest.mark.parametrize('plugins_type', ['prebuild_plugins',
@@ -285,7 +285,7 @@ class TestOSv3InputPlugin(object):
         flexmock(os, environ=mock_env)
 
         plugin = OSv3InputPlugin()
-        with pytest.raises(ValidationError):
+        with pytest.raises(OsbsValidationException):
             plugin.run()
 
     @pytest.mark.parametrize(('arrangement_version', 'valid'), [
@@ -409,7 +409,7 @@ class TestOSv3SourceContainerInputPlugin(object):
         if valid:
             plugin.run()
         else:
-            with pytest.raises(ValidationError):
+            with pytest.raises(OsbsValidationException):
                 plugin.run()
 
     @pytest.mark.parametrize(('arrangement_version', 'valid'), [

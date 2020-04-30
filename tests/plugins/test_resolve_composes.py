@@ -741,7 +741,7 @@ class TestResolveComposes(object):
         assert plugin_result['signing_intent'] == expected_intent
 
     def test_invalid_flag(self, workflow, reactor_config_map):
-        expect_error = "is not valid under any of the given schemas"
+        expect_error = "at top level: validating 'anyOf' has failed"
         arches = ['x86_64']
         repo_config = dedent("""\
             compose:

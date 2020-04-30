@@ -4,7 +4,6 @@ import copy
 import os
 
 import pytest
-import jsonschema
 
 from atomic_reactor.constants import REPO_CONTAINER_CONFIG
 from atomic_reactor.source import (
@@ -16,7 +15,7 @@ from atomic_reactor.source import (
     DummySource,
 )
 import atomic_reactor.source
-from jsonschema import ValidationError
+from osbs.exceptions import OsbsValidationException
 
 from tests.constants import DOCKERFILE_GIT, DOCKERFILE_OK_PATH, SOURCE_CONFIG_ERROR_PATH
 from tests.util import requires_internet
@@ -89,7 +88,7 @@ class TestGetSourceInstanceFor(object):
 
     def test_broken_source_config_file(self):
         s = get_source_instance_for({'provider': 'path', 'uri': SOURCE_CONFIG_ERROR_PATH})
-        with pytest.raises(ValidationError):
+        with pytest.raises(OsbsValidationException):
             s.config    # pylint: disable=pointless-statement; is a property
 
 
@@ -467,7 +466,7 @@ class TestSourceConfigSchemaValidation(object):
         """,
     ])
     def test_invalid_source_config_validation_error(self, tmpdir, yml_config):
-        with pytest.raises(jsonschema.ValidationError):
+        with pytest.raises(OsbsValidationException):
             self._create_source_config(tmpdir, yml_config)
 
 
