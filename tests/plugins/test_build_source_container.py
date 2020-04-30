@@ -18,7 +18,6 @@ import tarfile
 import re
 
 from atomic_reactor.constants import PLUGIN_FETCH_SOURCES_KEY
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugin import BuildStepPluginsRunner, PluginFailedException
@@ -27,7 +26,6 @@ from atomic_reactor.plugins.pre_reactor_config import (
     ReactorConfigPlugin,
 )
 from tests.docker_mock import mock_docker
-from tests.constants import TEST_IMAGE, MOCK_SOURCE
 
 
 class MockSource(object):
@@ -58,8 +56,7 @@ class MockInsideBuilder(object):
         pass
 
 
-def mock_workflow(tmpdir, sources_dir='', remote_dir=''):
-    workflow = DockerBuildWorkflow(TEST_IMAGE, source=MOCK_SOURCE)
+def mock_workflow(tmpdir, workflow, sources_dir='', remote_dir=''):
     builder = MockInsideBuilder()
     source = MockSource(tmpdir)
     setattr(builder, 'source', source)
@@ -84,8 +81,9 @@ def mock_workflow(tmpdir, sources_dir='', remote_dir=''):
     ('remote_sources_dir', True, True),
     ('remote_sources_dir', True, False)])
 @pytest.mark.parametrize('export_failed', (True, False))
-def test_running_build(tmpdir, caplog, sources_dir, sources_dir_exists, sources_dir_empty,
-                       remote_dir, remote_dir_exists, remote_dir_empty, export_failed):
+def test_running_build(tmpdir, caplog, workflow, sources_dir, sources_dir_exists,
+                       sources_dir_empty, remote_dir, remote_dir_exists, remote_dir_empty,
+                       export_failed):
     """
     Test if proper result is returned and if plugin works
     """
@@ -101,7 +99,7 @@ def test_running_build(tmpdir, caplog, sources_dir, sources_dir_exists, sources_
         if not remote_dir_empty:
             os.mknod(os.path.join(remote_dir_path, 'remote-sources.tar.gz'))
 
-    workflow = mock_workflow(tmpdir, sources_dir, remote_dir)
+    workflow = mock_workflow(tmpdir, workflow, sources_dir, remote_dir)
 
     mocked_tasker = flexmock(workflow.builder.tasker)
     mocked_tasker.should_receive('wait').and_return(0)
@@ -212,14 +210,14 @@ def test_running_build(tmpdir, caplog, sources_dir, sources_dir_exists, sources_
             assert empty_remote_msg not in caplog.text
 
 
-def test_failed_build(tmpdir, caplog):
+def test_failed_build(tmpdir, caplog, workflow):
     """
     Test if proper error state is returned when build inside build
     container failed
     """
     (flexmock(subprocess).should_receive('check_output')
      .and_raise(subprocess.CalledProcessError(1, 'cmd', output='stub stdout')))
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, workflow)
     mocked_tasker = flexmock(workflow.builder.tasker)
     mocked_tasker.should_receive('wait').and_return(1)
     runner = BuildStepPluginsRunner(

@@ -16,7 +16,6 @@ import os.path
 import responses
 import logging
 
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import (
     PreBuildPluginsRunner, PluginFailedException, BuildCanceledException)
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
@@ -30,7 +29,7 @@ from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY)
 import atomic_reactor.utils.koji as koji_util
-from tests.constants import (MOCK_SOURCE, DOCKERFILE_GIT, DOCKERFILE_SHA1,
+from tests.constants import (DOCKERFILE_GIT, DOCKERFILE_SHA1,
                              MOCK, IMPORTED_IMAGE_ID)
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -181,9 +180,8 @@ def mock_image_build_file(tmpdir, contents=None):
     return file_path
 
 
-def mock_workflow(tmpdir, dockerfile=DEFAULT_DOCKERFILE,
+def mock_workflow(tmpdir, workflow, dockerfile=DEFAULT_DOCKERFILE,
                   scratch=False, for_orchestrator=False):
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
     workflow.user_params['scratch'] = scratch
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', X())
@@ -201,11 +199,11 @@ def mock_workflow(tmpdir, dockerfile=DEFAULT_DOCKERFILE,
     return workflow
 
 
-def create_plugin_instance(tmpdir, kwargs=None, scratch=False, reactor_config_map=False,  # noqa
-                           architectures=None, koji_target=KOJI_TARGET,
-                           dockerfile=DEFAULT_DOCKERFILE):
+def create_plugin_instance(tmpdir, workflow, kwargs=None, scratch=False,  # noqa
+                           reactor_config_map=False, architectures=None,
+                           koji_target=KOJI_TARGET, dockerfile=DEFAULT_DOCKERFILE):
     tasker = flexmock()
-    workflow = mock_workflow(tmpdir, dockerfile=dockerfile, scratch=scratch)
+    workflow = mock_workflow(tmpdir, workflow, dockerfile=dockerfile, scratch=scratch)
 
     if architectures:
         workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(architectures)
@@ -235,11 +233,12 @@ def make_and_store_reactor_config_map(workflow, additional_koji=None):
 
 
 @pytest.mark.parametrize('scratch', [True, False])
-def test_add_filesystem_plugin_generated(tmpdir, docker_tasker, scratch, reactor_config_map):
+def test_add_filesystem_plugin_generated(tmpdir, docker_tasker, workflow,
+                                         scratch, reactor_config_map):
     if MOCK:
         mock_docker()
 
-    workflow = mock_workflow(tmpdir, scratch=scratch)
+    workflow = mock_workflow(tmpdir, workflow, scratch=scratch)
     task_id = FILESYSTEM_TASK_ID
     mock_koji_session(scratch=scratch)
     mock_image_build_file(str(tmpdir))
@@ -273,11 +272,11 @@ def test_add_filesystem_plugin_generated(tmpdir, docker_tasker, scratch, reactor
 
 
 @pytest.mark.parametrize('scratch', [True, False])
-def test_add_filesystem_plugin_legacy(tmpdir, docker_tasker, scratch, reactor_config_map):
+def test_add_filesystem_plugin_legacy(tmpdir, docker_tasker, workflow, scratch, reactor_config_map):
     if MOCK:
         mock_docker()
 
-    workflow = mock_workflow(tmpdir, scratch=scratch)
+    workflow = mock_workflow(tmpdir, workflow, scratch=scratch)
     mock_koji_session(scratch=scratch)
     mock_image_build_file(str(tmpdir))
 
@@ -308,13 +307,13 @@ def test_add_filesystem_plugin_legacy(tmpdir, docker_tasker, scratch, reactor_co
     ('spam/bacon', False),
     ('SpAm/BaCon  \n', False),
 ])
-def test_base_image_type(tmpdir, base_image, type_match, reactor_config_map):
-    plugin = create_plugin_instance(tmpdir, reactor_config_map=reactor_config_map)
+def test_base_image_type(tmpdir, workflow, base_image, type_match, reactor_config_map):
+    plugin = create_plugin_instance(tmpdir, workflow, reactor_config_map=reactor_config_map)
     assert plugin.is_image_build_type(base_image) == type_match
 
 
-def test_image_build_file_parse(tmpdir, reactor_config_map):  # noqa
-    plugin = create_plugin_instance(tmpdir, reactor_config_map=reactor_config_map)
+def test_image_build_file_parse(tmpdir, workflow, reactor_config_map):  # noqa
+    plugin = create_plugin_instance(tmpdir, workflow, reactor_config_map=reactor_config_map)
     file_name = mock_image_build_file(str(tmpdir))
     image_name, config, opts = plugin.parse_image_build_config(file_name)
     assert image_name == 'fedora-23'
@@ -338,8 +337,9 @@ def test_image_build_file_parse(tmpdir, reactor_config_map):  # noqa
     }
 
 
-def test_missing_yum_repourls(tmpdir, reactor_config_map):  # noqa
-    plugin = create_plugin_instance(tmpdir, {'repos': None}, reactor_config_map=reactor_config_map)
+def test_missing_yum_repourls(tmpdir, workflow, reactor_config_map):  # noqa
+    plugin = create_plugin_instance(tmpdir, workflow, {'repos': None},
+                                    reactor_config_map=reactor_config_map)
     image_build_conf = dedent("""\
         [image-build]
         version = 1.0
@@ -361,8 +361,8 @@ def test_missing_yum_repourls(tmpdir, reactor_config_map):  # noqa
     (False, False),
 ])
 @pytest.mark.parametrize('raise_error', [True, False])
-def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_error, caplog,
-                            reactor_config_map, docker_tasker):
+def test_image_task_failure(tmpdir, workflow, build_cancel, error_during_cancel, raise_error,
+                            caplog, reactor_config_map, docker_tasker):
     if MOCK:
         mock_docker()
 
@@ -372,7 +372,7 @@ def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_err
         if raise_error:
             raise RuntimeError(task_result)
         return task_result
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, workflow)
     mock_koji_session(image_task_fail=True,
                       throws_build_cancelled=build_cancel,
                       error_on_build_cancelled=error_during_cancel,
@@ -425,7 +425,8 @@ def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_err
       'http://odcs-compose.com/$arch/compose2.repo']),
 ])
 @responses.activate
-def test_image_build_defaults(tmpdir, task_id, resolve_compose, yum_repos, reactor_config_map):
+def test_image_build_defaults(tmpdir, workflow, task_id, resolve_compose,
+                              yum_repos, reactor_config_map):
     repos = [
         'http://install-tree.com/fedora23.repo',
         'http://repo.com/fedora/os',
@@ -453,7 +454,7 @@ def test_image_build_defaults(tmpdir, task_id, resolve_compose, yum_repos, react
                     [compose2]
                     baseurl = http://odcs-compose.com/$basearch/compose2.repo
                     """))
-    plugin = create_plugin_instance(tmpdir, {'repos': repos, 'from_task_id': task_id},
+    plugin = create_plugin_instance(tmpdir, workflow, {'repos': repos, 'from_task_id': task_id},
                                     reactor_config_map=reactor_config_map)
     if resolve_compose:
         plugin.workflow.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = resolve_compose
@@ -497,7 +498,7 @@ def test_image_build_defaults(tmpdir, task_id, resolve_compose, yum_repos, react
     }
 
 
-def test_image_build_dockerfile_defaults(tmpdir, reactor_config_map):
+def test_image_build_dockerfile_defaults(tmpdir, workflow, reactor_config_map):
     """Test if default name and version are taken from the Dockerfile"""
     image_build_conf = dedent("""\
         [image-build]
@@ -515,7 +516,7 @@ def test_image_build_dockerfile_defaults(tmpdir, reactor_config_map):
         kickstart = fedora-23.ks
         """)
     plugin = create_plugin_instance(
-        tmpdir, reactor_config_map=reactor_config_map,
+        tmpdir, workflow, reactor_config_map=reactor_config_map,
         dockerfile=DOCKERFILE_WITH_LABELS
     )
     file_name = mock_image_build_file(str(tmpdir), contents=image_build_conf)
@@ -536,7 +537,7 @@ def test_image_build_dockerfile_defaults(tmpdir, reactor_config_map):
     (None, 'x86_64'),
 ])
 @responses.activate
-def test_image_build_overwrites(tmpdir, architectures, architecture, reactor_config_map):
+def test_image_build_overwrites(tmpdir, workflow, architectures, architecture, reactor_config_map):
     repos = [
         'http://default-install-tree.com/fedora23',
         'http://default-repo.com/fedora/os.repo',
@@ -551,7 +552,7 @@ def test_image_build_overwrites(tmpdir, architectures, architecture, reactor_con
                     [fedora-os]
                     baseurl = http://default-repo.com/fedora/$basearch/os.repo
                     """))
-    plugin = create_plugin_instance(tmpdir, {
+    plugin = create_plugin_instance(tmpdir, workflow, {
         'repos': repos,
         'architecture': architecture
     }, reactor_config_map=reactor_config_map, architectures=architectures)
@@ -611,7 +612,7 @@ def test_image_build_overwrites(tmpdir, architectures, architecture, reactor_con
 
 
 @responses.activate
-def test_extract_base_url_many_base_urls(tmpdir, reactor_config_map):  # noqa
+def test_extract_base_url_many_base_urls(tmpdir, workflow, reactor_config_map):  # noqa
     repos = [
         'http://default-install-tree.com/fedora23',
         'http://default-repo.com/fedora/os.repo',
@@ -637,7 +638,7 @@ def test_extract_base_url_many_base_urls(tmpdir, reactor_config_map):  # noqa
         "http://default-install-tree.com/$basearch/fedora23",
         "http://default-repo.com/fedora/$basearch/os.repo"
     ]
-    plugin = create_plugin_instance(tmpdir, {
+    plugin = create_plugin_instance(tmpdir, workflow, {
         'repos': repos,
         'architecture': None
     }, reactor_config_map=reactor_config_map, architectures=architectures)
@@ -646,7 +647,7 @@ def test_extract_base_url_many_base_urls(tmpdir, reactor_config_map):  # noqa
 
 
 @responses.activate
-def test_extract_base_url_bad_repo_config(tmpdir, reactor_config_map):  # noqa
+def test_extract_base_url_bad_repo_config(tmpdir, workflow, reactor_config_map):  # noqa
     repos = [
         'http://default-install-tree.com/fedora23',
         'http://default-repo.com/fedora/os.repo',
@@ -656,7 +657,7 @@ def test_extract_base_url_bad_repo_config(tmpdir, reactor_config_map):  # noqa
                   body="This is not right")
     responses.add(responses.GET, 'http://default-repo.com/fedora/os.repo',
                   body="Its not even wrong")
-    plugin = create_plugin_instance(tmpdir, {
+    plugin = create_plugin_instance(tmpdir, workflow, {
         'repos': repos,
         'architecture': None
     }, reactor_config_map=reactor_config_map, architectures=architectures)
@@ -664,8 +665,8 @@ def test_extract_base_url_bad_repo_config(tmpdir, reactor_config_map):  # noqa
         assert plugin.extract_base_url(repo_url) == []
 
 
-def test_build_filesystem_missing_conf(tmpdir, reactor_config_map):  # noqa
-    plugin = create_plugin_instance(tmpdir, reactor_config_map=reactor_config_map)
+def test_build_filesystem_missing_conf(tmpdir, workflow, reactor_config_map):  # noqa
+    plugin = create_plugin_instance(tmpdir, workflow, reactor_config_map=reactor_config_map)
     with pytest.raises(RuntimeError) as exc:
         plugin.build_filesystem('image-build.conf')
     assert 'Image build configuration file not found' in str(exc.value)
@@ -677,10 +678,11 @@ def test_build_filesystem_missing_conf(tmpdir, reactor_config_map):  # noqa
     ('fedora-23-spam-', 'aarch64', '.tar.bz2'),
     ('fedora-23-spam-', None, '.tar.xz'),
 ])
-def test_build_filesystem_from_task_id(tmpdir, prefix, architecture, suffix, reactor_config_map):
+def test_build_filesystem_from_task_id(tmpdir, workflow, prefix, architecture,
+                                       suffix, reactor_config_map):
     task_id = 987654321
     pattern = '{}{}{}'.format(prefix, architecture, suffix)
-    plugin = create_plugin_instance(tmpdir, {
+    plugin = create_plugin_instance(tmpdir, workflow, {
         'from_task_id': task_id,
         'architecture': architecture,
     }, reactor_config_map=reactor_config_map)
@@ -708,12 +710,12 @@ def test_build_filesystem_from_task_id(tmpdir, prefix, architecture, suffix, rea
     ('x86_64', ['x86_64', 'aarch64'], False),
     (None, None, True),
 ])
-def test_image_download(tmpdir, docker_tasker, parents, skip_plugin, architecture,
+def test_image_download(tmpdir, docker_tasker, workflow, parents, skip_plugin, architecture,
                         architectures, download_filesystem, reactor_config_map, caplog):
     if MOCK:
         mock_docker()
 
-    workflow = mock_workflow(tmpdir, for_orchestrator=architectures is not None)
+    workflow = mock_workflow(tmpdir, workflow, for_orchestrator=architectures is not None)
     if not skip_plugin:
         mock_koji_session(download_filesystem=download_filesystem)
     mock_image_build_file(str(tmpdir))
@@ -768,8 +770,8 @@ def test_image_download(tmpdir, docker_tasker, parents, skip_plugin, architectur
 
 @pytest.mark.parametrize(('koji_target'), [None, '', 'guest-fedora-23-docker'])
 @responses.activate
-def test_image_build_overwrites_target(tmpdir, koji_target, reactor_config_map):
-    plugin = create_plugin_instance(tmpdir,
+def test_image_build_overwrites_target(tmpdir, workflow, koji_target, reactor_config_map):
+    plugin = create_plugin_instance(tmpdir, workflow,
                                     reactor_config_map=reactor_config_map,
                                     koji_target=koji_target)
     image_build_conf = dedent("""\
@@ -791,8 +793,8 @@ def test_image_build_overwrites_target(tmpdir, koji_target, reactor_config_map):
     ]
 
 
-def test_no_target_set(tmpdir, reactor_config_map):
-    plugin = create_plugin_instance(tmpdir,
+def test_no_target_set(tmpdir, workflow, reactor_config_map):
+    plugin = create_plugin_instance(tmpdir, workflow,
                                     reactor_config_map=reactor_config_map,
                                     koji_target='')
     image_build_conf = dedent("""\

@@ -18,7 +18,7 @@ from atomic_reactor.util import ImageName
 from atomic_reactor.core import ContainerTasker
 from atomic_reactor.constants import CONTAINER_DOCKERPY_BUILD_METHOD
 from atomic_reactor.inner import DockerBuildWorkflow
-from tests.constants import MOCK_SOURCE
+from tests.constants import TEST_IMAGE, MOCK_SOURCE
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -70,4 +70,4 @@ def inspect_only(request):
 
 @pytest.fixture
 def workflow():
-    return DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+    return DockerBuildWorkflow(TEST_IMAGE, source=MOCK_SOURCE)

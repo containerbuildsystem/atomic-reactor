@@ -15,9 +15,7 @@ import responses
 import tarfile
 
 from atomic_reactor.constants import REMOTE_SOURCE_DIR
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.utils.cachito import CFG_TYPE_B64
-from tests.constants import TEST_IMAGE
 from tests.stubs import StubInsideBuilder
 from atomic_reactor.plugins.pre_download_remote_source import (
     DownloadRemoteSourcePlugin,
@@ -38,13 +36,9 @@ class TestDownloadRemoteSource(object):
         ['unknown', 'shouldNotMatter']
         ))
     def test_download_remote_source(
-        self, tmpdir, docker_tasker, source_url, archive_dir_exists,
+        self, tmpdir, docker_tasker, workflow, source_url, archive_dir_exists,
         has_configuration, configuration_type, configuration_content
     ):
-        workflow = DockerBuildWorkflow(
-            TEST_IMAGE,
-            source={"provider": "git", "uri": "asd"},
-        )
         df_path = os.path.join(str(tmpdir), 'stub_df_path')
         workflow.builder = StubInsideBuilder().for_workflow(workflow).set_df_path(df_path)
         filename = 'source.tar.gz'

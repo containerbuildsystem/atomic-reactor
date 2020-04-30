@@ -23,7 +23,6 @@ from copy import deepcopy
 import atomic_reactor
 import koji
 from atomic_reactor.core import ContainerTasker
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import read_yaml
 import atomic_reactor.utils.cachito
 import atomic_reactor.utils.koji
@@ -53,7 +52,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        CONTAINER_DEFAULT_BUILD_METHOD,
                                                        get_build_image_override,
                                                        NO_FALLBACK)
-from tests.constants import TEST_IMAGE, REACTOR_CONFIG_MAP
+from tests.constants import REACTOR_CONFIG_MAP
 from tests.docker_mock import mock_docker
 from tests.stubs import StubInsideBuilder
 from flexmock import flexmock
@@ -63,13 +62,9 @@ USER_PARAMS = {'git_uri': 'test_uri', 'git_ref': 'test_ref', 'git_breanch': 'tes
 
 
 class TestReactorConfigPlugin(object):
-    def prepare(self):
+    def prepare(self, workflow):
         mock_docker()
         tasker = ContainerTasker()
-        workflow = DockerBuildWorkflow(
-            TEST_IMAGE,
-            source={'provider': 'git', 'uri': 'asd'},
-        )
         workflow.builder = StubInsideBuilder()
         workflow.builder.tasker = tasker
 
@@ -109,8 +104,8 @@ class TestReactorConfigPlugin(object):
          """,
          False),
     ])
-    def test_get_docker_registry(self, config, fallback, valid):
-        _, workflow = self.prepare()
+    def test_get_docker_registry(self, workflow, config, fallback, valid):
+        _, workflow = self.prepare(workflow)
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
         config_json = read_yaml(config, 'schemas/config.json')
@@ -149,8 +144,8 @@ class TestReactorConfigPlugin(object):
                 with pytest.raises(OsbsValidationException):
                     get_docker_registry(workflow, docker_fallback)
 
-    def test_no_config(self):
-        _, workflow = self.prepare()
+    def test_no_config(self, workflow):
+        _, workflow = self.prepare(workflow)
         conf = get_config(workflow)
         assert isinstance(conf, ReactorConfig)
 
@@ -158,25 +153,25 @@ class TestReactorConfigPlugin(object):
         assert conf is same_conf
 
     @pytest.mark.parametrize('basename', ['reactor-config.yaml', None])
-    def test_filename(self, tmpdir, basename):
+    def test_filename(self, workflow, tmpdir, basename):
         filename = os.path.join(str(tmpdir), basename or 'config.yaml')
         with open(filename, 'w'):
             pass
 
-        tasker, workflow = self.prepare()
+        tasker, workflow = self.prepare(workflow)
         plugin = ReactorConfigPlugin(tasker, workflow,
                                      config_path=str(tmpdir),
                                      basename=filename)
         assert plugin.run() is None
 
-    def test_filename_not_found(self):
-        tasker, workflow = self.prepare()
+    def test_filename_not_found(self, workflow):
+        tasker, workflow = self.prepare(workflow)
         os.environ.pop('REACTOR_CONFIG', None)
         plugin = ReactorConfigPlugin(tasker, workflow, config_path='/not-found')
         with pytest.raises(Exception):
             plugin.run()
 
-    def test_no_schema_resource(self, tmpdir, caplog):
+    def test_no_schema_resource(self, workflow, tmpdir, caplog):
         class FakeProvider(object):
             def get_resource_stream(self, pkg, rsc):
                 raise IOError
@@ -191,7 +186,7 @@ class TestReactorConfigPlugin(object):
         with open(filename, 'w'):
             pass
 
-        tasker, workflow = self.prepare()
+        tasker, workflow = self.prepare(workflow)
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
         with caplog.at_level(logging.ERROR), pytest.raises(Exception):
             plugin.run()
@@ -206,7 +201,7 @@ class TestReactorConfigPlugin(object):
         # Invalid schema
         '{"properties": {"any": null}}',
     ])
-    def test_invalid_schema_resource(self, tmpdir, caplog, schema):
+    def test_invalid_schema_resource(self, workflow, tmpdir, caplog, schema):
         class FakeProvider(object):
             def get_resource_stream(self, pkg, rsc):
                 return io.BufferedReader(io.BytesIO(schema))
@@ -221,7 +216,7 @@ class TestReactorConfigPlugin(object):
         with open(filename, 'w'):
             pass
 
-        tasker, workflow = self.prepare()
+        tasker, workflow = self.prepare(workflow)
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
         with caplog.at_level(logging.ERROR), pytest.raises(Exception):
             plugin.run()
@@ -315,7 +310,7 @@ class TestReactorConfigPlugin(object):
             "Additional properties are not allowed ('extra' was unexpected)",
         ])
     ])
-    def test_bad_cluster_config(self, tmpdir, caplog, reactor_config_map,
+    def test_bad_cluster_config(self, workflow, tmpdir, caplog, reactor_config_map,
                                 config, errors):
         if reactor_config_map:
             os.environ['REACTOR_CONFIG'] = dedent(config)
@@ -323,7 +318,7 @@ class TestReactorConfigPlugin(object):
             filename = os.path.join(str(tmpdir), 'config.yaml')
             with open(filename, 'w') as fp:
                 fp.write(dedent(config))
-        tasker, workflow = self.prepare()
+        tasker, workflow = self.prepare(workflow)
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
 
         with caplog.at_level(logging.ERROR), pytest.raises(ValidationError):
@@ -339,11 +334,11 @@ class TestReactorConfigPlugin(object):
                 # String comparison
                 assert error in captured_errs
 
-    def test_bad_version(self, tmpdir):
+    def test_bad_version(self, workflow, tmpdir):
         filename = os.path.join(str(tmpdir), 'config.yaml')
         with open(filename, 'w') as fp:
             fp.write("version: 2")
-        tasker, workflow = self.prepare()
+        tasker, workflow = self.prepare(workflow)
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
 
         with pytest.raises(ValueError):
@@ -382,14 +377,14 @@ class TestReactorConfigPlugin(object):
             ('two', 8),
         ]),
     ])
-    def test_good_cluster_config(self, tmpdir, reactor_config_map, config, clusters):
+    def test_good_cluster_config(self, workflow, tmpdir, reactor_config_map, config, clusters):
         if reactor_config_map and config:
             os.environ['REACTOR_CONFIG'] = dedent(config)
         else:
             filename = os.path.join(str(tmpdir), 'config.yaml')
             with open(filename, 'w') as fp:
                 fp.write(dedent(config))
-        tasker, workflow = self.prepare()
+        tasker, workflow = self.prepare(workflow)
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
         assert plugin.run() is None
         os.environ.pop('REACTOR_CONFIG', None)
@@ -405,8 +400,8 @@ class TestReactorConfigPlugin(object):
         (None, '/the/path', None),
         (None, NO_FALLBACK, KeyError),
     ])
-    def test_cluster_client_config_path(self, tmpdir, reactor_config_map, extra_config, fallback,
-                                        error):
+    def test_cluster_client_config_path(self, workflow, tmpdir, reactor_config_map,
+                                        extra_config, fallback, error):
         config = 'version: 1'
         if extra_config:
             config += '\n' + extra_config
@@ -416,7 +411,7 @@ class TestReactorConfigPlugin(object):
             filename = os.path.join(str(tmpdir), 'config.yaml')
             with open(filename, 'w') as fp:
                 fp.write(config)
-        tasker, workflow = self.prepare()
+        tasker, workflow = self.prepare(workflow)
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
         assert plugin.run() is None
         os.environ.pop('REACTOR_CONFIG', None)
@@ -433,7 +428,7 @@ class TestReactorConfigPlugin(object):
         'beta',
         'unsigned',
     ))
-    def test_odcs_config(self, tmpdir, default):
+    def test_odcs_config(self, workflow, tmpdir, default):
         filename = str(tmpdir.join('config.yaml'))
         with open(filename, 'w') as fp:
             fp.write(dedent("""\
@@ -452,7 +447,7 @@ class TestReactorConfigPlugin(object):
                        ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
                 """.format(default=default)))
 
-        tasker, workflow = self.prepare()
+        tasker, workflow = self.prepare(workflow)
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
         assert plugin.run() is None
 
@@ -491,7 +486,7 @@ class TestReactorConfigPlugin(object):
         with pytest.raises(ValueError):
             assert odcs_config.get_signing_intent_by_keys(['R123', 'R234', 'B457'])
 
-    def test_odcs_config_invalid_default_signing_intent(self, tmpdir):
+    def test_odcs_config_invalid_default_signing_intent(self, workflow, tmpdir):
         filename = str(tmpdir.join('config.yaml'))
         with open(filename, 'w') as fp:
             fp.write(dedent("""\
@@ -510,7 +505,7 @@ class TestReactorConfigPlugin(object):
                        ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
                 """))
 
-        tasker, workflow = self.prepare()
+        tasker, workflow = self.prepare(workflow)
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
         assert plugin.run() is None
 
@@ -521,7 +516,7 @@ class TestReactorConfigPlugin(object):
             unknown signing intent name "spam", valid names: unsigned, beta, release
             """.rstrip())
 
-    def test_odcs_config_deprecated_signing_intent(self, tmpdir, caplog):
+    def test_odcs_config_deprecated_signing_intent(self, workflow, tmpdir, caplog):
         filename = str(tmpdir.join('config.yaml'))
         with open(filename, 'w') as fp:
             fp.write(dedent("""\
@@ -537,7 +532,7 @@ class TestReactorConfigPlugin(object):
                        ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
                 """))
 
-        tasker, workflow = self.prepare()
+        tasker, workflow = self.prepare(workflow)
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
         assert plugin.run() is None
 
@@ -560,8 +555,8 @@ class TestReactorConfigPlugin(object):
         'required_secrets', 'worker_token_secrets', 'clusters', 'hide_files',
         'skip_koji_check_for_base_image', 'deep_manifest_list_inspection'
     ])
-    def test_get_methods(self, fallback, method):
-        _, workflow = self.prepare()
+    def test_get_methods(self, workflow, fallback, method):
+        _, workflow = self.prepare(workflow)
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         if fallback is False:
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = \
@@ -629,8 +624,8 @@ class TestReactorConfigPlugin(object):
          {'x86_64': 'amd64',
           'ppc64le': 'ppc64le'}),
     ])
-    def test_get_platform_to_goarch_mapping(self, fallback, config, expect):
-        _, workflow = self.prepare()
+    def test_get_platform_to_goarch_mapping(self, workflow, fallback, config, expect):
+        _, workflow = self.prepare(workflow)
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
         config_json = read_yaml(config, 'schemas/config.json')
@@ -663,9 +658,9 @@ class TestReactorConfigPlugin(object):
          """,
          CONTAINER_DEFAULT_BUILD_METHOD),
     ])
-    def test_get_default_image_build_method(self, config, expect):
+    def test_get_default_image_build_method(self, workflow, config, expect):
         config_json = read_yaml(config, 'schemas/config.json')
-        _, workflow = self.prepare()
+        _, workflow = self.prepare(workflow)
         workspace = workflow.plugin_workspace.setdefault(ReactorConfigPlugin.key, {})
         workspace[WORKSPACE_CONF_KEY] = ReactorConfig(config_json)
 
@@ -698,9 +693,9 @@ class TestReactorConfigPlugin(object):
          """,
          {}),
     ])
-    def test_get_buildstep_alias(self, config, expect):
+    def test_get_buildstep_alias(self, workflow, config, expect):
         config_json = read_yaml(config, 'schemas/config.json')
-        _, workflow = self.prepare()
+        _, workflow = self.prepare(workflow)
         workspace = workflow.plugin_workspace.setdefault(ReactorConfigPlugin.key, {})
         workspace[WORKSPACE_CONF_KEY] = ReactorConfig(config_json)
 
@@ -733,12 +728,12 @@ class TestReactorConfigPlugin(object):
          """,
          'buildah_bud', None, None, True),
     ])
-    def test_get_buildstep_alias_setting(self, tmpdir, config, source_buildstep,
+    def test_get_buildstep_alias_setting(self, workflow, tmpdir, config, source_buildstep,
                                          expect_source, expect_default, will_raise):
         filename = os.path.join(str(tmpdir), 'config.yaml')
         with open(filename, 'w') as fp:
             fp.write(dedent(config))
-        tasker, workflow = self.prepare()
+        tasker, workflow = self.prepare(workflow)
         workflow.builder.source.config.image_build_method = source_buildstep
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
 
@@ -763,8 +758,8 @@ class TestReactorConfigPlugin(object):
          {'ppc64le': 'registry.example.com/buildroot-ppc64le:latest',
           'arm': 'registry.example.com/buildroot-arm:latest'}),
     ])
-    def test_get_build_image_override(self, fallback, config, expect):
-        _, workflow = self.prepare()
+    def test_get_build_image_override(self, workflow, fallback, config, expect):
+        _, workflow = self.prepare(workflow)
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
         config_json = read_yaml(config, 'schemas/config.json')
@@ -804,9 +799,9 @@ class TestReactorConfigPlugin(object):
          """,
          None, None),
     ])
-    def test_get_flatpak_base_image(self, config, fallback, expect):
+    def test_get_flatpak_base_image(self, workflow, config, fallback, expect):
         config_json = read_yaml(config, 'schemas/config.json')
-        _, workflow = self.prepare()
+        _, workflow = self.prepare(workflow)
 
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {
             WORKSPACE_CONF_KEY: ReactorConfig(config_json)
@@ -849,9 +844,9 @@ class TestReactorConfigPlugin(object):
          """,
          None, None),
     ])
-    def test_get_flatpak_metadata(self, config, fallback, expect):
+    def test_get_flatpak_metadata(self, workflow, config, fallback, expect):
         config_json = read_yaml(config, 'schemas/config.json')
-        _, workflow = self.prepare()
+        _, workflow = self.prepare(workflow)
 
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {
             WORKSPACE_CONF_KEY: ReactorConfig(config_json)
@@ -974,8 +969,8 @@ class TestReactorConfigPlugin(object):
                   ssl_certs_dir: /var/certs
         """, True),
     ])
-    def test_get_koji_session(self, fallback, config, raise_error):
-        _, workflow = self.prepare()
+    def test_get_koji_session(self, workflow, fallback, config, raise_error):
+        _, workflow = self.prepare(workflow)
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
         if raise_error:
@@ -1016,8 +1011,8 @@ class TestReactorConfigPlugin(object):
         'https://koji.example.com/root/',
         None
     ))
-    def test_get_koji_path_info(self, fallback, root_url):
-        _, workflow = self.prepare()
+    def test_get_koji_path_info(self, workflow, fallback, root_url):
+        _, workflow = self.prepare(workflow)
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
         config = {
@@ -1139,8 +1134,8 @@ class TestReactorConfigPlugin(object):
               default_signing_intent: default
         """, True),
     ])
-    def test_get_odcs_session(self, tmpdir, config, raise_error):
-        _, workflow = self.prepare()
+    def test_get_odcs_session(self, workflow, tmpdir, config, raise_error):
+        _, workflow = self.prepare(workflow)
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
         if raise_error:
@@ -1209,8 +1204,8 @@ class TestReactorConfigPlugin(object):
           smtp:
         """, True),
     ])
-    def test_get_smtp_session(self, fallback, config, raise_error):
-        _, workflow = self.prepare()
+    def test_get_smtp_session(self, workflow, fallback, config, raise_error):
+        _, workflow = self.prepare(workflow)
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
         if raise_error:
@@ -1289,8 +1284,8 @@ class TestReactorConfigPlugin(object):
                   ssl_certs_dir: nonexistent
         """, False),
     ])
-    def test_get_cachito_session(self, tmpdir, config, error):
-        _, workflow = self.prepare()
+    def test_get_cachito_session(self, workflow, tmpdir, config, error):
+        _, workflow = self.prepare(workflow)
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
         if error:
@@ -1418,8 +1413,8 @@ class TestReactorConfigPlugin(object):
                   ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
         """, True),
     ])
-    def test_get_openshift_session(self, fallback, build_json_dir, config, raise_error):
-        _, workflow = self.prepare()
+    def test_get_openshift_session(self, workflow, fallback, build_json_dir, config, raise_error):
+        _, workflow = self.prepare(workflow)
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
         if build_json_dir:
@@ -1564,8 +1559,8 @@ class TestReactorConfigPlugin(object):
                   package_mappings_url: mapping.yaml
         """, False),  # package mappings url is not a url
     ])
-    def test_get_operator_manifests(self, config, valid):
-        _, workflow = self.prepare()
+    def test_get_operator_manifests(self, workflow, config, valid):
+        _, workflow = self.prepare(workflow)
         if valid:
             config_json = read_yaml(config, 'schemas/config.json')
         else:
@@ -1580,12 +1575,12 @@ class TestReactorConfigPlugin(object):
         assert isinstance(operator_config, dict)
         assert "allowed_registries" in operator_config
 
-    def test_set_user_params(self, tmpdir):
+    def test_set_user_params(self, tmpdir, workflow):
         filename = os.path.join(str(tmpdir), 'config.yaml')
         with open(filename, 'w'):
             pass
 
-        tasker, workflow = self.prepare()
+        tasker, workflow = self.prepare(workflow)
         plugin = ReactorConfigPlugin(tasker, workflow,
                                      config_path=str(tmpdir),
                                      basename=filename)

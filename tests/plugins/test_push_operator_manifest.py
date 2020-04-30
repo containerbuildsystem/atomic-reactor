@@ -16,7 +16,6 @@ from atomic_reactor.constants import (
     PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY,
     PLUGIN_BUILD_ORCHESTRATE_KEY
 )
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import (
@@ -31,7 +30,6 @@ from atomic_reactor.plugins.pre_reactor_config import (
 from atomic_reactor.plugins.post_push_operator_manifest import PushOperatorManifestsPlugin
 from atomic_reactor.utils.omps import OMPS, OMPSError
 
-from tests.constants import TEST_IMAGE
 from tests.stubs import StubInsideBuilder, StubSource
 from tests.plugins.test_export_operator_manifests import mock_dockerfile
 
@@ -55,11 +53,7 @@ class MockSource(StubSource):
         return os.path.join(self.workdir, 'Dockerfile'), self.workdir
 
 
-def mock_workflow(tmpdir, for_orchestrator=False, scratch=False, isolated=False):
-    workflow = DockerBuildWorkflow(
-        TEST_IMAGE,
-        source={"provider": "git", "uri": "asd"},
-    )
+def mock_workflow(tmpdir, workflow, for_orchestrator=False, scratch=False, isolated=False):
     workflow.user_params['scratch'] = scratch
     workflow.user_params['isolated'] = isolated
     workflow.source = MockSource(str(tmpdir))
@@ -97,7 +91,7 @@ def mock_koji_manifest_download(requests_mock):
     requests_mock.register_uri('GET', url, content=b'zip archive')
 
 
-def mock_env(tmpdir, docker_tasker,
+def mock_env(tmpdir, docker_tasker, workflow,
              has_appregistry_label=True, appregistry_label=True,
              has_bundle_label=False, bundle_label=False,
              scratch=False, isolated=False, rebuild=False,
@@ -107,7 +101,7 @@ def mock_env(tmpdir, docker_tasker,
         has_appregistry_label=has_appregistry_label, appregistry_label=appregistry_label,
         has_bundle_label=has_bundle_label, bundle_label=bundle_label,
     )
-    workflow = mock_workflow(tmpdir, for_orchestrator=orchestrator, scratch=scratch,
+    workflow = mock_workflow(tmpdir, workflow, for_orchestrator=orchestrator, scratch=scratch,
                              isolated=isolated)
     if omps_configured:
         omps_map = {
@@ -153,14 +147,14 @@ class TestPushOperatorManifests(object):
     @pytest.mark.parametrize('orchestrator', [True, False])
     @pytest.mark.parametrize('omps_configured', [True, False])
     def test_skip(
-        self, requests_mock, tmpdir, docker_tasker, caplog,
+        self, requests_mock, tmpdir, docker_tasker, workflow, caplog,
         has_appregistry_label, appregistry_label,
         has_bundle_label, bundle_label, scratch,
         isolated, rebuild, orchestrator, omps_configured
     ):
         """Test if plugin execution is skipped in expected cases"""
         mock_koji_manifest_download(requests_mock)
-        runner = mock_env(tmpdir, docker_tasker,
+        runner = mock_env(tmpdir, docker_tasker, workflow,
                           has_appregistry_label=has_appregistry_label,
                           appregistry_label=appregistry_label,
                           has_bundle_label=has_bundle_label,
@@ -184,7 +178,7 @@ class TestPushOperatorManifests(object):
             assert 'Skipping' not in caplog.text
             assert result[PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY]
 
-    def test_successful_push(self, requests_mock, tmpdir, docker_tasker):
+    def test_successful_push(self, requests_mock, tmpdir, docker_tasker, workflow):
         """Test of plugin output in success run"""
         expected = {
             'endpoint': TEST_OMPS_APPREGISTRY,
@@ -193,14 +187,14 @@ class TestPushOperatorManifests(object):
             'release': TEST_OMPS_VERSION,
         }
         mock_koji_manifest_download(requests_mock)
-        runner = mock_env(tmpdir, docker_tasker)
+        runner = mock_env(tmpdir, docker_tasker, workflow)
         result = runner.run()
         assert result[PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY] == expected
 
-    def test_failed_push(self, requests_mock, tmpdir, docker_tasker):
+    def test_failed_push(self, requests_mock, tmpdir, docker_tasker, workflow):
         """Test of plugin output when OMPS push failed"""
         mock_koji_manifest_download(requests_mock)
-        runner = mock_env(tmpdir, docker_tasker, omps_push_fail=True)
+        runner = mock_env(tmpdir, docker_tasker, workflow, omps_push_fail=True)
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
         assert 'Failed to push operator manifests:' in str(exc.value)

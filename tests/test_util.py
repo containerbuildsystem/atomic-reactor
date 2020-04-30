@@ -33,7 +33,6 @@ from atomic_reactor.build import BuildResult
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       DOCKERIGNORE, RELATIVE_REPOS_PATH)
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import (ImageName, wait_for_command,
                                  LazyGit, figure_out_build_file,
                                  render_yum_repo, process_substitutions,
@@ -64,7 +63,7 @@ from atomic_reactor.util import (ImageName, wait_for_command,
                                  has_operator_bundle_manifest,
                                  )
 from tests.constants import (DOCKERFILE_GIT,
-                             INPUT_IMAGE, MOCK, MOCK_SOURCE,
+                             INPUT_IMAGE, MOCK,
                              REACTOR_CONFIG_MAP)
 import atomic_reactor.util
 from atomic_reactor.constants import INSPECT_CONFIG, PLUGIN_BUILD_ORCHESTRATE_KEY
@@ -896,8 +895,7 @@ def test_get_build_json(environ, expected):
     ({'scratch': False}, False),
     ({}, False),
 ])
-def test_is_scratch_build(user_params, scratch):
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+def test_is_scratch_build(user_params, scratch, workflow):
     workflow.user_params = user_params
     assert is_scratch_build(workflow) == scratch
 
@@ -919,8 +917,7 @@ def test_is_custom_base_build(base_image, is_custom):
     ({'isolated': False}, False),
     ({}, False),
 ])
-def test_is_isolated_build(user_params, isolated):
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+def test_is_isolated_build(user_params, isolated, workflow):
     workflow.user_params = user_params
     assert is_isolated_build(workflow) == isolated
 
@@ -930,8 +927,7 @@ def test_is_isolated_build(user_params, isolated):
     ({'flatpak': False}, False),
     ({}, False),
 ])
-def test_is_flatpak_build(user_params, flatpak):
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+def test_is_flatpak_build(user_params, flatpak, workflow):
     workflow.user_params = user_params
     assert is_flatpak_build(workflow) == flatpak
 
@@ -944,9 +940,8 @@ def test_is_flatpak_build(user_params, flatpak):
       {'name': PLUGIN_BUILD_ORCHESTRATE_KEY, 'args': {'platforms': ['ppce64le', 'arm64']}}],
      ['arm64', 'ppce64le'])
 ])
-def test_get_orchestrator_platforms(inputs, results):
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE,
-                                   buildstep_plugins=inputs)
+def test_get_orchestrator_platforms(inputs, results, workflow):
+    workflow.buildstep_plugins_conf = inputs
     if results:
         assert sorted(get_orchestrator_platforms(workflow)) == sorted(results)
     else:

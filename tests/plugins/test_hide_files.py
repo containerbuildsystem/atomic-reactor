@@ -15,14 +15,13 @@ import pytest
 
 from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.core import DockerTasker
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin, ReactorConfig,
                                                        WORKSPACE_CONF_KEY)
 from atomic_reactor.plugins.pre_hide_files import HideFilesPlugin
 from atomic_reactor.util import df_parser
 
-from tests.constants import SOURCE, MOCK
+from tests.constants import MOCK
 from tests.stubs import StubInsideBuilder
 
 
@@ -32,7 +31,7 @@ if MOCK:
 
 class TestHideFilesPlugin(object):
 
-    def test_missing_config(self, tmpdir):
+    def test_missing_config(self, tmpdir, workflow):
         df_content = dedent("""\
             FROM fedora
             RUN yum install -y python-flask
@@ -41,7 +40,7 @@ class TestHideFilesPlugin(object):
         df = df_parser(str(tmpdir))
         df.content = df_content
 
-        tasker, workflow = self.prepare(df.dockerfile_path)
+        tasker, workflow = self.prepare(workflow, df.dockerfile_path)
 
         runner = PreBuildPluginsRunner(tasker, workflow, [
             {'name': HideFilesPlugin.key, 'args': {}},
@@ -155,7 +154,7 @@ class TestHideFilesPlugin(object):
             "inherited_user"
         ),
     ])
-    def test_hide_files(self, tmpdir, df_content, expected_df, inherited_user):
+    def test_hide_files(self, tmpdir, workflow, df_content, expected_df, inherited_user):
         df = df_parser(str(tmpdir))
         df.content = df_content
         hide_files = {'tmpdir': '/tmp', 'files': ['/etc/yum.repos.d/repo_ignore_1.repo',
@@ -165,8 +164,8 @@ class TestHideFilesPlugin(object):
         ]
 
         tasker, workflow = self.prepare(
-            df.dockerfile_path, hide_files=hide_files, parent_images=parent_images,
-            inherited_user=inherited_user)
+            workflow, df.dockerfile_path, hide_files=hide_files,
+            parent_images=parent_images, inherited_user=inherited_user)
 
         runner = PreBuildPluginsRunner(tasker, workflow, [
             {'name': HideFilesPlugin.key, 'args': {}},
@@ -175,7 +174,7 @@ class TestHideFilesPlugin(object):
 
         assert df.content == expected_df
 
-    def test_hide_files_multi_stage(self, tmpdir):
+    def test_hide_files_multi_stage(self, tmpdir, workflow):
         df_content = dedent("""\
             FROM sha256:123456 as builder
             RUN blah
@@ -200,8 +199,8 @@ class TestHideFilesPlugin(object):
         ]
 
         tasker, workflow = self.prepare(
-            df.dockerfile_path, hide_files=hide_files, parent_images=parent_images,
-            inherited_user="inherited_user")
+            workflow, df.dockerfile_path, hide_files=hide_files,
+            parent_images=parent_images, inherited_user="inherited_user")
 
         runner = PreBuildPluginsRunner(tasker, workflow, [
             {'name': HideFilesPlugin.key, 'args': {}},
@@ -248,11 +247,10 @@ class TestHideFilesPlugin(object):
             """)
         assert df.content == expected_df_content
 
-    def prepare(self, df_path, inherited_user='', hide_files=None, parent_images=None):
+    def prepare(self, workflow, df_path, inherited_user='', hide_files=None, parent_images=None):
         if MOCK:
             mock_docker()
         tasker = DockerTasker()
-        workflow = DockerBuildWorkflow("test-image", source=SOURCE)
         workflow.source = MockSource(df_path)
         workflow.builder = (StubInsideBuilder()
                             .for_workflow(workflow)

@@ -14,14 +14,13 @@ import pytest
 import os.path
 
 from atomic_reactor.build import BuildResult
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_tag_from_config import TagFromConfigPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin, ReactorConfig,
                                                        WORKSPACE_CONF_KEY)
 from atomic_reactor.util import ImageName, df_parser
 from atomic_reactor.constants import INSPECT_CONFIG
-from tests.constants import (MOCK_SOURCE, MOCK, IMPORTED_IMAGE_ID)
+from tests.constants import (MOCK, IMPORTED_IMAGE_ID)
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -59,11 +58,10 @@ def mock_additional_tags_file(tmpdir, tags):
     return file_path
 
 
-def mock_workflow(tmpdir):
+def mock_workflow(tmpdir, workflow):
     if MOCK:
         mock_docker()
 
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', X)
     workflow.builder.source = mock_source
@@ -86,9 +84,9 @@ def mock_workflow(tmpdir):
     (['has_under', 'ends.dot.'], 'bar', ['bar:has_under', 'bar:ends.dot.']),
     (None, 'fedora', []),
 ])
-def test_tag_from_config_plugin_generated(tmpdir, docker_tasker, tags, name,
+def test_tag_from_config_plugin_generated(tmpdir, docker_tasker, workflow, tags, name,
                                           expected):
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, workflow)
     workflow.built_image_inspect = {
         INSPECT_CONFIG: {'Labels': {'Name': name}}
     }
@@ -114,8 +112,8 @@ def test_tag_from_config_plugin_generated(tmpdir, docker_tasker, tags, name,
     ({}, "KeyError: 'Labels'"),
     (None, "RuntimeError: There is no inspect data"),
 ])
-def test_bad_inspect_data(tmpdir, docker_tasker, inspect, error):
-    workflow = mock_workflow(tmpdir)
+def test_bad_inspect_data(tmpdir, docker_tasker, workflow, inspect, error):
+    workflow = mock_workflow(tmpdir, workflow)
     if inspect is not None:
         workflow.built_image_inspect = {
             INSPECT_CONFIG: inspect
@@ -161,11 +159,12 @@ def test_bad_inspect_data(tmpdir, docker_tasker, inspect, error):
      ['name_value:foo', 'name_value:bar', 'name_value:baz',
       'name_value:version_value']),
 ])
-def test_tag_parse(tmpdir, docker_tasker, floating_tags, unique_tags, primary_tags, expected):
+def test_tag_parse(tmpdir, docker_tasker, workflow,
+                   floating_tags, unique_tags, primary_tags, expected):
     df = df_parser(str(tmpdir))
     df.content = DF_CONTENT_LABELS
 
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, workflow)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     workflow.build_result = BuildResult.make_remote_image_result()
 
@@ -216,7 +215,7 @@ def test_tag_parse(tmpdir, docker_tasker, floating_tags, unique_tags, primary_ta
     ('custom/etcd', None, 'custom/etcd'),
     ('custom/etcd', 'org', 'org/custom-etcd'),
 ))
-def test_tags_enclosed(tmpdir, docker_tasker, name, organization, expected):
+def test_tags_enclosed(tmpdir, docker_tasker, workflow, name, organization, expected):
     df = df_parser(str(tmpdir))
     df.content = dedent("""\
         FROM fedora
@@ -225,7 +224,7 @@ def test_tags_enclosed(tmpdir, docker_tasker, name, organization, expected):
         LABEL "release"="99"
     """.format(name))
 
-    workflow = mock_workflow(tmpdir)
+    workflow = mock_workflow(tmpdir, workflow)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     workflow.build_result = BuildResult.make_remote_image_result()
 

@@ -17,7 +17,6 @@ import koji as koji
 import osbs
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.core import DockerTasker
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
@@ -118,8 +117,8 @@ PUSH_ERROR_LOGS = [
                                                           "password": "mypassword"}}}),
 ])
 def test_tag_and_push_plugin(
-        tmpdir, monkeypatch, caplog, image_name, logs, should_raise, has_config, missing_v2,
-        use_secret, reactor_config_map, file_name, dockerconfig_contents):
+        tmpdir, workflow, monkeypatch, caplog, image_name, logs, should_raise, has_config,
+        missing_v2, use_secret, reactor_config_map, file_name, dockerconfig_contents):
 
     if MOCK:
         mock_docker()
@@ -127,10 +126,6 @@ def test_tag_and_push_plugin(
                  login=lambda username, registry, dockercfg_path: {'Status': 'Login Succeeded'})
 
     tasker = DockerTasker(retry_times=0)
-    workflow = DockerBuildWorkflow(
-        TEST_IMAGE,
-        source={"provider": "git", "uri": "asd"},
-    )
     workflow.tag_conf.add_primary_image(image_name)
     workflow.builder = StubInsideBuilder()
     workflow.builder.image_id = INPUT_IMAGE
@@ -355,8 +350,8 @@ def test_tag_and_push_plugin(
     False,
     True,
 ])
-def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, v2s2, use_secret,
-                                 fail_push, caplog, reactor_config_map):
+def test_tag_and_push_plugin_oci(tmpdir, workflow, monkeypatch, source_oci_image_path, v2s2,
+                                 use_secret, fail_push, caplog, reactor_config_map):
     # For now, we don't want to require having a skopeo and an OCI-supporting
     # registry in the test environment
     if MOCK:
@@ -377,10 +372,6 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, v2s
                                            current_platform)
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(
-        TEST_IMAGE,
-        source={"provider": "git", "uri": "asd"},
-    )
     workflow.builder = StubInsideBuilder()
     workflow.builder.image_id = INPUT_IMAGE
     if source_oci_image_path and reactor_config_map:

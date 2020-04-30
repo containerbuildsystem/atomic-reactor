@@ -30,7 +30,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        ReactorConfig)
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
-from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
+from atomic_reactor.inner import TagConf, PushConf
 from atomic_reactor.util import (ImageName, ManifestDigest,
                                  get_manifest_media_version, get_manifest_media_type)
 from atomic_reactor.source import GitSource, PathSource
@@ -51,7 +51,7 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_
                                       KOJI_SUBTYPE_OP_APPREGISTRY,
                                       KOJI_SUBTYPE_OP_BUNDLE,
                                       KOJI_SOURCE_ENGINE)
-from tests.constants import SOURCE, MOCK
+from tests.constants import MOCK
 from tests.flatpak import (MODULEMD_AVAILABLE,
                            setup_flatpak_composes,
                            setup_flatpak_source_info)
@@ -232,7 +232,7 @@ class BuildInfo(object):
         self.build = BuildResponse({'metadata': {'annotations': annotations}})
 
 
-def mock_environment(tmpdir, session=None, name=None,
+def mock_environment(tmpdir, workflow, session=None, name=None,
                      component=None, version=None, release=None,
                      source=None, build_process_failed=False, build_process_canceled=False,
                      is_rebuild=True, docker_registry=True,
@@ -255,7 +255,6 @@ def mock_environment(tmpdir, session=None, name=None,
     tasker = ContainerTasker()
     tasker._tasker = DockerTasker()
     tasker.build_method = build_method
-    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
     workflow.user_params['scratch'] = scratch
     base_image_id = '123456parent-id'
 
@@ -620,7 +619,7 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
 
 
 class TestKojiImport(object):
-    def test_koji_import_get_buildroot(self, tmpdir, os_env):
+    def test_koji_import_get_buildroot(self, tmpdir, workflow, os_env):
         metadatas = {
             'ppc64le': {
                 'buildroots': [
@@ -664,6 +663,7 @@ class TestKojiImport(object):
 
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             build_process_failed=True,
                                             name='ns/name',
@@ -679,9 +679,10 @@ class TestKojiImport(object):
         (False, koji.BUILD_STATES['FAILED']),
     ])
     def test_koji_import_failed_build(self, reserved_build, canceled_build, refund_state,
-                                      tmpdir, os_env, reactor_config_map):
+                                      tmpdir, workflow, os_env, reactor_config_map):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             build_process_failed=True,
                                             build_process_canceled=canceled_build,
@@ -702,8 +703,10 @@ class TestKojiImport(object):
             assert session.refunded_build
             assert session.fail_state is not None and session.fail_state == refund_state
 
-    def test_koji_import_no_build_env(self, tmpdir, monkeypatch, os_env, reactor_config_map):  # noqa
+    def test_koji_import_no_build_env(self, tmpdir, workflow, monkeypatch,
+                                      os_env, reactor_config_map):  # noqa
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='ns/name',
                                             version='1.0',
                                             release='1')
@@ -716,8 +719,10 @@ class TestKojiImport(object):
             runner.run()
         assert "plugin 'koji_import' raised an exception: KeyError" in str(exc.value)
 
-    def test_koji_import_no_build_metadata(self, tmpdir, monkeypatch, os_env, reactor_config_map):  # noqa
+    def test_koji_import_no_build_metadata(self, tmpdir, workflow, monkeypatch,
+                                           os_env, reactor_config_map):  # noqa
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='ns/name',
                                             version='1.0',
                                             release='1')
@@ -728,9 +733,11 @@ class TestKojiImport(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_import_wrong_source_type(self, tmpdir, os_env, reactor_config_map):  # noqa
+    def test_koji_import_wrong_source_type(self, tmpdir, workflow,
+                                           os_env, reactor_config_map):  # noqa
         source = PathSource('path', 'file:///dev/null')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='ns/name',
                                             version='1.0',
                                             release='1',
@@ -745,9 +752,11 @@ class TestKojiImport(object):
         True,
         None
     ])
-    def test_isolated_metadata_json(self, tmpdir, monkeypatch, os_env, isolated, reactor_config_map):  # noqa
+    def test_isolated_metadata_json(self, tmpdir, workflow, monkeypatch,
+                                    os_env, isolated, reactor_config_map):  # noqa
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name='ns/name',
                                             version='1.0',
@@ -781,7 +790,7 @@ class TestKojiImport(object):
         (12345, True),
         ('x', False),
     ])
-    def test_koji_import_log_task_id(self, tmpdir, monkeypatch, os_env,
+    def test_koji_import_log_task_id(self, tmpdir, workflow, monkeypatch, os_env,
                                      caplog, koji_task_id, expect_success,
                                      reactor_config_map):
         session = MockedClientSession('')
@@ -789,6 +798,7 @@ class TestKojiImport(object):
         setattr(session, 'getUser', lambda x: {'name': 'dev1'})
 
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name='ns/name',
                                             version='1.0',
@@ -848,13 +858,14 @@ class TestKojiImport(object):
             'keytab': 'FILE:/var/run/secrets/mysecret',
         },
     ])
-    def test_koji_import_krb_args(self, tmpdir, params, os_env, reactor_config_map):
+    def test_koji_import_krb_args(self, tmpdir, workflow, params, os_env, reactor_config_map):
         session = MockedClientSession('')
         expectation = flexmock(session).should_receive('krb_login').and_return(True)
         name = 'name'
         version = '1.0'
         release = '1'
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name=name,
                                             version=version,
@@ -871,13 +882,14 @@ class TestKojiImport(object):
             expectation.once()
             runner.run()
 
-    def test_koji_import_krb_fail(self, tmpdir, os_env, reactor_config_map):  # noqa
+    def test_koji_import_krb_fail(self, tmpdir, workflow, os_env, reactor_config_map):  # noqa
         session = MockedClientSession('')
         (flexmock(session)
             .should_receive('krb_login')
             .and_raise(RuntimeError)
             .once())
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name='ns/name',
                                             version='1.0',
@@ -886,18 +898,20 @@ class TestKojiImport(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_import_ssl_fail(self, tmpdir, os_env, reactor_config_map):  # noqa
+    def test_koji_import_ssl_fail(self, tmpdir, workflow, os_env, reactor_config_map):  # noqa
         session = MockedClientSession('')
         (flexmock(session)
             .should_receive('ssl_login')
             .and_raise(RuntimeError)
             .once())
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name='ns/name',
                                             version='1.0',
                                             release='1')
-        runner = create_runner(tasker, workflow, ssl_certs=True, reactor_config_map=reactor_config_map)  # noqa
+        runner = create_runner(tasker, workflow, ssl_certs=True,
+                               reactor_config_map=reactor_config_map)  # noqa
         with pytest.raises(PluginFailedException):
             runner.run()
 
@@ -905,8 +919,10 @@ class TestKojiImport(object):
         'get_orchestrator_build_logs',
         'get_pod_for_build',
     ])
-    def test_koji_import_osbs_fail(self, tmpdir, os_env, fail_method, reactor_config_map):
+    def test_koji_import_osbs_fail(self, tmpdir, workflow, os_env,
+                                   fail_method, reactor_config_map):
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='name',
                                             version='1.0',
                                             release='1')
@@ -1136,7 +1152,8 @@ class TestKojiImport(object):
             #    assert 'container_config' not in [x.lower() for x in config.keys()]
             #    assert all(is_string_type(entry) for entry in config)
 
-    def test_koji_import_import_fail(self, tmpdir, os_env, caplog, reactor_config_map):  # noqa
+    def test_koji_import_import_fail(self, tmpdir, workflow, os_env,
+                                     caplog, reactor_config_map):  # noqa
         session = MockedClientSession('')
         (flexmock(session)
             .should_receive('CGImport')
@@ -1146,6 +1163,7 @@ class TestKojiImport(object):
         release = '1'
         target = 'images-docker-candidate'
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name=name,
                                             version=version,
                                             release=release,
@@ -1163,10 +1181,11 @@ class TestKojiImport(object):
         ('x', False, True),
         ('NO-RESULT', False, False),
     ])
-    def test_koji_import_parent_id(self, parent_id, tmpdir, expect_success, os_env, expect_error,
-                                   caplog, reactor_config_map):
+    def test_koji_import_parent_id(self, parent_id, tmpdir, workflow, expect_success,
+                                   os_env, expect_error, caplog, reactor_config_map):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='ns/name',
                                             version='1.0',
                                             release='1',
@@ -1204,12 +1223,12 @@ class TestKojiImport(object):
                 assert BASE_IMAGE_BUILD_ID_KEY not in extra['image']
 
     @pytest.mark.parametrize('base_from_scratch', [True, False])  # noqa: F811
-    def test_produces_metadata_for_parent_images(self, tmpdir, os_env, reactor_config_map,
-                                                 base_from_scratch):
+    def test_produces_metadata_for_parent_images(self, tmpdir, workflow, os_env,
+                                                 reactor_config_map, base_from_scratch):
 
         koji_session = MockedClientSession('')
         tasker, workflow = mock_environment(
-            tmpdir, session=koji_session, name='ns/name', version='1.0', release='1'
+            tmpdir, workflow, session=koji_session, name='ns/name', version='1.0', release='1'
         )
 
         koji_parent_result = {
@@ -1245,10 +1264,11 @@ class TestKojiImport(object):
         (1234, True),
         ('x', False),
     ])
-    def test_koji_import_filesystem_koji_task_id(self, tmpdir, os_env, caplog, task_id,
+    def test_koji_import_filesystem_koji_task_id(self, tmpdir, workflow, os_env, caplog, task_id,
                                                  expect_success, reactor_config_map):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='ns/name',
                                             version='1.0',
                                             release='1',
@@ -1277,10 +1297,11 @@ class TestKojiImport(object):
             assert 'invalid task ID' in caplog.text
             assert 'filesystem_koji_task_id' not in extra
 
-    def test_koji_import_filesystem_koji_task_id_missing(self, tmpdir, os_env, caplog,  # noqa
-                                                         reactor_config_map):
+    def test_koji_import_filesystem_koji_task_id_missing(self, tmpdir, workflow, os_env,
+                                                         caplog, reactor_config_map):  # noqa
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='ns/name',
                                             version='1.0',
                                             release='1',
@@ -1320,9 +1341,9 @@ class TestKojiImport(object):
         (True, 'docker'),
         (False, 'imagebuilder')
     ])
-    def test_koji_import_success(self, tmpdir, blocksize, os_env, has_config, is_autorebuild,
-                                 triggered_task, tag_later, verify_media, expect_id,
-                                 reserved_build, build_method, reactor_config_map):
+    def test_koji_import_success(self, tmpdir, workflow, blocksize, os_env, has_config,
+                                 is_autorebuild, triggered_task, tag_later, verify_media,
+                                 expect_id, reserved_build, build_method, reactor_config_map):
         session = MockedClientSession('')
         # When target is provided koji build will always be tagged,
         # either by koji_import or koji_tag_build.
@@ -1337,6 +1358,7 @@ class TestKojiImport(object):
         release = '1'
 
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name=name,
                                             component=component,
@@ -1488,12 +1510,14 @@ class TestKojiImport(object):
 
         assert workflow.labels['koji-build-id'] == '123'
 
-    def test_koji_import_owner_submitter(self, tmpdir, monkeypatch, reactor_config_map):  # noqa
+    def test_koji_import_owner_submitter(self, tmpdir, workflow,
+                                         monkeypatch, reactor_config_map):  # noqa
         session = MockedClientSession('')
         session.getTaskInfo = lambda x: {'owner': 1234}
         setattr(session, 'getUser', lambda x: {'name': 'dev1'})
 
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name='ns/name',
                                             version='1.0',
@@ -1516,12 +1540,13 @@ class TestKojiImport(object):
         assert metadata['build']['extra']['submitter'] == 'osbs'
         assert metadata['build']['owner'] == 'dev1'
 
-    def test_koji_import_pullspec(self, tmpdir, os_env, reactor_config_map):
+    def test_koji_import_pullspec(self, tmpdir, workflow, os_env, reactor_config_map):
         session = MockedClientSession('')
         name = 'myproject/hello-world'
         version = '1.0'
         release = '1'
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name=name,
                                             version=version,
@@ -1558,7 +1583,8 @@ class TestKojiImport(object):
         assert len(reg) == 1
         assert reg == set(['docker-registry.example.com:8888'])
 
-    def test_koji_import_without_build_info(self, tmpdir, os_env, reactor_config_map):  # noqa
+    def test_koji_import_without_build_info(self, tmpdir, workflow,
+                                            os_env, reactor_config_map):  # noqa
 
         class LegacyCGImport(MockedClientSession):
 
@@ -1571,6 +1597,7 @@ class TestKojiImport(object):
         version = '1.0'
         release = '1'
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name=name,
                                             version=version,
@@ -1586,9 +1613,11 @@ class TestKojiImport(object):
         'skip',
         'pass'
     ])
-    def test_koji_import_add_help(self, tmpdir, os_env, expect_result, reactor_config_map):
+    def test_koji_import_add_help(self, tmpdir, workflow, os_env,
+                                  expect_result, reactor_config_map):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='ns/name',
                                             version='1.0',
                                             release='1',
@@ -1631,9 +1660,10 @@ class TestKojiImport(object):
 
     @pytest.mark.skipif(not MODULEMD_AVAILABLE,
                         reason="libmodulemd not available")
-    def test_koji_import_flatpak(self, tmpdir, os_env, reactor_config_map):
+    def test_koji_import_flatpak(self, tmpdir, workflow, os_env, reactor_config_map):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='ns/name',
                                             version='1.0',
                                             release='1',
@@ -1690,10 +1720,11 @@ class TestKojiImport(object):
           "application/vnd.docker.distribution.manifest.v2+json",
           "application/vnd.docker.distribution.manifest.list.v2+json"]),
     ])
-    def test_koji_import_set_media_types(self, tmpdir, os_env, config, expected,
+    def test_koji_import_set_media_types(self, tmpdir, workflow, os_env, config, expected,
                                          reactor_config_map):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='ns/name',
                                             version='1.0',
                                             release='1',
@@ -1736,9 +1767,11 @@ class TestKojiImport(object):
         ManifestDigest(oci='sha256:abcdef901'),
         ManifestDigest(v2='sha256:abcdef123', v1='sha256:abcdef456'),
     ])
-    def test_koji_import_set_digests_info(self, tmpdir, os_env, digest, reactor_config_map):
+    def test_koji_import_set_digests_info(self, tmpdir, workflow, os_env,
+                                          digest, reactor_config_map):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='ns/name',
                                             version='1.0',
                                             release='1',
@@ -1787,13 +1820,14 @@ class TestKojiImport(object):
         None,
         ManifestDigest(v2_list='sha256:e6593f3e'),
     ])
-    def test_koji_import_set_manifest_list_info(self, caplog, tmpdir, monkeypatch, os_env,
-                                                is_scratch, digest, reactor_config_map):
+    def test_koji_import_set_manifest_list_info(self, caplog, tmpdir, workflow, monkeypatch,
+                                                os_env, is_scratch, digest, reactor_config_map):
         session = MockedClientSession('')
         version = '1.0'
         release = '1'
         unique_tag = "{}-timestamp".format(version)
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='ns/name',
                                             version=version,
                                             release=release,
@@ -1906,10 +1940,11 @@ class TestKojiImport(object):
         (['foo', 'sha256:v1'], ['sha256:v1', 'sha256:v2']),
         (['sha256:v1', 'sha256:v2'], ['sha256:v1', 'sha256:v2']),
     ])
-    def test_koji_import_unavailable_manifest_digests(self, tmpdir, os_env,
+    def test_koji_import_unavailable_manifest_digests(self, tmpdir, workflow, os_env,
                                                       available, expected, reactor_config_map):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='ns/name',
                                             version='1.0',
                                             release='1',
@@ -1959,11 +1994,12 @@ class TestKojiImport(object):
         (True, False, True),
         (False, True, True),
     ))
-    def test_koji_import_primary_images(self, tmpdir, os_env, add_tag_conf_primaries,
+    def test_koji_import_primary_images(self, tmpdir, workflow, os_env, add_tag_conf_primaries,
                                         add_build_result_primaries, success,
                                         reactor_config_map):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name='ns/name',
                                             version='1.0',
@@ -1989,10 +2025,11 @@ class TestKojiImport(object):
         ([{'id': 4}, {'id': 5}, {'id': 6}], "release", False),
         (None, None, None)
     ])
-    def test_odcs_metadata_koji(self, tmpdir, os_env, comp, sign_int, override,
+    def test_odcs_metadata_koji(self, tmpdir, workflow, os_env, comp, sign_int, override,
                                 reactor_config_map):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='ns/name',
                                             version='1.0',
                                             release='1',
@@ -2039,10 +2076,11 @@ class TestKojiImport(object):
         True,
         False,
     ])
-    def test_odcs_metadata_koji_plugin_run(self, tmpdir, os_env, resolve_run,
+    def test_odcs_metadata_koji_plugin_run(self, tmpdir, workflow, os_env, resolve_run,
                                            reactor_config_map):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='ns/name',
                                             version='1.0',
                                             release='1',
@@ -2067,9 +2105,10 @@ class TestKojiImport(object):
         assert 'odcs' not in image
 
     @pytest.mark.parametrize('container_first', [True, False])
-    def test_go_metadata(self, tmpdir, os_env, container_first, reactor_config_map):
+    def test_go_metadata(self, tmpdir, workflow, os_env, container_first, reactor_config_map):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='ns/name',
                                             version='1.0',
                                             release='1',
@@ -2108,9 +2147,11 @@ class TestKojiImport(object):
         ["http://example.com/my.repo", ],
         ["http://example.com/my.repo", "http://example.com/other.repo"],
     ])
-    def test_yum_repourls_metadata(self, tmpdir, os_env, yum_repourl, reactor_config_map):
+    def test_yum_repourls_metadata(self, tmpdir, workflow, os_env,
+                                   yum_repourl, reactor_config_map):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='ns/name',
                                             version='1.0',
                                             release='1',
@@ -2142,12 +2183,13 @@ class TestKojiImport(object):
     @pytest.mark.parametrize('has_bundle_manifests', [True, False])
     @pytest.mark.parametrize('push_operator_manifests', [True, False])
     def test_set_operators_metadata(
-            self, tmpdir, os_env,
+            self, tmpdir, workflow, os_env,
             has_appregistry_manifests, has_bundle_manifests,
             reactor_config_map, push_operator_manifests):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(
             tmpdir,
+            workflow,
             name='ns/name',
             version='1.0',
             release='1',
@@ -2198,10 +2240,11 @@ class TestKojiImport(object):
         ]
 
     @pytest.mark.parametrize('has_remote_source', [True, False])
-    def test_remote_sources(self, tmpdir, os_env, has_remote_source, reactor_config_map):
+    def test_remote_sources(self, tmpdir, workflow, os_env, has_remote_source, reactor_config_map):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(
             tmpdir,
+            workflow,
             name='ns/name',
             version='1.0',
             release='1',
@@ -2244,7 +2287,7 @@ class TestKojiImport(object):
         (False, 'ab12')
     ))
     @pytest.mark.parametrize('reserved_build', (True, False))
-    def test_koji_import_success_source(self, tmpdir, blocksize, os_env, has_config,
+    def test_koji_import_success_source(self, tmpdir, workflow, blocksize, os_env, has_config,
                                         tag_later, verify_media, expect_id,
                                         reserved_build, reactor_config_map):
         session = MockedClientSession('')
@@ -2256,6 +2299,7 @@ class TestKojiImport(object):
         release = '1'
 
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name=name,
                                             component=component,

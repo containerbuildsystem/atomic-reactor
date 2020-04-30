@@ -12,22 +12,20 @@ from __future__ import print_function, unicode_literals, absolute_import
 from textwrap import dedent
 import pytest
 from atomic_reactor.core import DockerTasker
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_buildargs_in_df import (
     AddBuildargsPlugin)
 from atomic_reactor.util import df_parser
-from tests.constants import SOURCE, MOCK
+from tests.constants import MOCK
 from tests.stubs import StubInsideBuilder, StubSource
 if MOCK:
     from tests.docker_mock import mock_docker
 
 
-def prepare(df_path):
+def prepare(df_path, workflow):
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
     workflow.source = StubSource()
     workflow.builder = (StubInsideBuilder()
                         .for_workflow(workflow)
@@ -144,11 +142,11 @@ def prepare(df_path):
         """)
     ),
 ])
-def test_add_buildargs_plugin(tmpdir, caplog, buildargs, df_content, df_expected):
+def test_add_buildargs_plugin(tmpdir, caplog, workflow, buildargs, df_content, df_expected):
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    tasker, workflow = prepare(df.dockerfile_path)
+    tasker, workflow = prepare(df.dockerfile_path, workflow)
     workflow.builder.buildargs = buildargs
 
     runner = PreBuildPluginsRunner(tasker, workflow, [{

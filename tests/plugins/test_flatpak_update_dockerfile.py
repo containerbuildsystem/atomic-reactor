@@ -17,7 +17,6 @@ import os
 import pytest
 import re
 
-from atomic_reactor.inner import DockerBuildWorkflow
 try:
     from atomic_reactor.plugins.pre_flatpak_create_dockerfile import set_flatpak_source_spec
     from atomic_reactor.plugins.pre_flatpak_update_dockerfile import (FlatpakUpdateDockerfilePlugin,
@@ -34,7 +33,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
 from atomic_reactor.source import VcsInfo, SourceConfig
 from atomic_reactor.util import ImageName, df_parser
 
-from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
+from tests.constants import (FLATPAK_GIT, FLATPAK_SHA1)
 from tests.flatpak import MODULEMD_AVAILABLE, build_flatpak_test_configs, setup_flatpak_composes
 
 
@@ -80,10 +79,9 @@ class MockBuilder(object):
         self.df_path = path
 
 
-def mock_workflow(tmpdir, container_yaml, user_params=None):
+def mock_workflow(tmpdir, workflow, container_yaml, user_params=None):
     if user_params is None:
         user_params = USER_PARAMS
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', MockBuilder())
     workflow.builder.source = mock_source
@@ -177,13 +175,13 @@ def mock_odcs_session(workflow, config):
     ('runtime', False, None),
     ('runtime', False, 'branch_mismatch'),
 ])
-def test_flatpak_update_dockerfile(tmpdir, docker_tasker,
+def test_flatpak_update_dockerfile(tmpdir, docker_tasker, workflow,
                                    config_name, worker, breakage):
     config = CONFIGS[config_name]
 
     container_yaml = config['container_yaml']
 
-    workflow = mock_workflow(tmpdir, container_yaml)
+    workflow = mock_workflow(tmpdir, workflow, container_yaml)
 
     assert get_flatpak_compose_info(workflow) is None
     assert get_flatpak_source_info(workflow) is None
@@ -306,8 +304,8 @@ def test_flatpak_update_dockerfile(tmpdir, docker_tasker,
 
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,
                     reason='libmodulemd not available')
-def test_skip_plugin(tmpdir, caplog, docker_tasker):
-    workflow = mock_workflow(tmpdir, "", user_params={})
+def test_skip_plugin(tmpdir, caplog, docker_tasker, workflow):
+    workflow = mock_workflow(tmpdir, workflow, "", user_params={})
 
     runner = PreBuildPluginsRunner(
         docker_tasker,

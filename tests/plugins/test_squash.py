@@ -16,7 +16,7 @@ from flexmock import flexmock
 
 from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME, IMAGE_TYPE_DOCKER_ARCHIVE
 from atomic_reactor.core import DockerTasker
-from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.inner import DockerBuildWorkflow   # TODO: cannot use fixture here
 from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
 from atomic_reactor.plugins import exit_remove_built_image
 from atomic_reactor.plugins.prepub_squash import PrePublishSquashPlugin

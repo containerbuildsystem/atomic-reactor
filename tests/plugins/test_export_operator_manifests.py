@@ -16,14 +16,12 @@ import zipfile
 from atomic_reactor.constants import (
     PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
     PLUGIN_BUILD_ORCHESTRATE_KEY)
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugins.post_export_operator_manifests import ExportOperatorManifestsPlugin
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from docker.errors import NotFound
 from flexmock import flexmock
 from functools import partial
 from platform import machine
-from tests.constants import TEST_IMAGE
 from tests.stubs import StubInsideBuilder, StubSource
 from requests import Response
 
@@ -50,11 +48,7 @@ def mock_dockerfile(
     tmpdir.join('Dockerfile').write(data)
 
 
-def mock_workflow(tmpdir, for_orchestrator=False):
-    workflow = DockerBuildWorkflow(
-        TEST_IMAGE,
-        source={"provider": "git", "uri": "asd"}
-    )
+def mock_workflow(tmpdir, workflow, for_orchestrator=False):
     workflow.source = StubSource()
     builder = StubInsideBuilder().for_workflow(workflow)
     builder.set_df_path(str(tmpdir))
@@ -86,7 +80,7 @@ def generate_archive(tmpdir, empty=False):
     os.unlink(archive_path)
 
 
-def mock_env(tmpdir, docker_tasker,
+def mock_env(tmpdir, docker_tasker, workflow,
              has_appregistry_label=False, appregistry_label=False,
              has_bundle_label=True, bundle_label=True,
              has_archive=True,
@@ -97,7 +91,7 @@ def mock_env(tmpdir, docker_tasker,
         has_appregistry_label=has_appregistry_label, appregistry_label=appregistry_label,
         has_bundle_label=has_bundle_label, bundle_label=bundle_label
     )
-    workflow = mock_workflow(tmpdir, for_orchestrator=orchestrator)
+    workflow = mock_workflow(tmpdir, workflow, for_orchestrator=orchestrator)
     workflow.user_params['scratch'] = scratch
     mock_stream = generate_archive(tmpdir, empty_archive)
     plugin_conf = [{'name': ExportOperatorManifestsPlugin.key}]
@@ -152,13 +146,13 @@ class TestExportOperatorManifests(object):
     @pytest.mark.parametrize('bundle_label', [True, False])
     @pytest.mark.parametrize('orchestrator', [True, False])
     @pytest.mark.parametrize('selected_platform', [True, False])
-    def test_skip(self, docker_tasker, tmpdir, caplog, scratch,
+    def test_skip(self, docker_tasker, workflow, tmpdir, caplog, scratch,
                   has_appregistry_label, appregistry_label,
                   has_bundle_label, bundle_label,
                   orchestrator, selected_platform):
 
         runner = mock_env(
-            tmpdir, docker_tasker,
+            tmpdir, docker_tasker, workflow,
             has_appregistry_label=has_appregistry_label,
             has_bundle_label=has_bundle_label, bundle_label=bundle_label,
             appregistry_label=appregistry_label,
@@ -180,8 +174,8 @@ class TestExportOperatorManifests(object):
         else:
             assert 'Skipping' not in caplog.text
 
-    def test_export_archive(self, docker_tasker, tmpdir):
-        runner = mock_env(tmpdir, docker_tasker)
+    def test_export_archive(self, docker_tasker, workflow, tmpdir):
+        runner = mock_env(tmpdir, docker_tasker, workflow)
         result = runner.run()
         archive = result[PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY]
         assert archive
@@ -194,8 +188,8 @@ class TestExportOperatorManifests(object):
 
     @pytest.mark.parametrize('remove_fails', [True, False])
     @pytest.mark.parametrize('has_archive', [True, False, None])
-    def test_no_archive(self, docker_tasker, tmpdir, caplog, remove_fails, has_archive):
-        runner = mock_env(tmpdir, docker_tasker, has_archive=has_archive,
+    def test_no_archive(self, docker_tasker, workflow, tmpdir, caplog, remove_fails, has_archive):
+        runner = mock_env(tmpdir, docker_tasker, workflow, has_archive=has_archive,
                           remove_fails=remove_fails)
         if has_archive:
             runner.run()
@@ -211,8 +205,8 @@ class TestExportOperatorManifests(object):
                     assert 'Failed to remove container' in caplog.text
 
     @pytest.mark.parametrize('empty_archive', [True, False])
-    def test_emty_manifests_dir(self, docker_tasker, tmpdir, caplog, empty_archive):
-        runner = mock_env(tmpdir, docker_tasker, empty_archive=empty_archive)
+    def test_emty_manifests_dir(self, docker_tasker, workflow, tmpdir, caplog, empty_archive):
+        runner = mock_env(tmpdir, docker_tasker, workflow, empty_archive=empty_archive)
         if empty_archive:
             with pytest.raises(PluginFailedException) as exc:
                 runner.run()

@@ -8,7 +8,6 @@ import pytest
 from atomic_reactor.constants import (EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE,
                                       IMAGE_TYPE_DOCKER_ARCHIVE)
 from atomic_reactor.core import DockerTasker
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.plugins.post_compress import CompressPlugin
 from atomic_reactor.util import ImageName
@@ -42,16 +41,12 @@ class TestCompress(object):
         ('gzip', True, False, 'gz'),
         ('spam', True, True, None),
     ])
-    def test_compress(self, tmpdir, caplog, source_build, method,
+    def test_compress(self, tmpdir, workflow,  caplog, source_build, method,
                       load_exported_image, give_export, extension):
         if MOCK:
             mock_docker()
 
         tasker = DockerTasker()
-        workflow = DockerBuildWorkflow(
-            'test-image',
-            source={'provider': 'git', 'uri': 'asd'}
-        )
         workflow.builder = X()
         exp_img = os.path.join(str(tmpdir), 'img.tar')
 
@@ -100,15 +95,11 @@ class TestCompress(object):
             assert isinstance(metadata['uncompressed_size'], integer_types)
             assert ", ratio: " in caplog.text
 
-    def test_skip_plugin(self, caplog):
+    def test_skip_plugin(self, caplog, workflow):
         if MOCK:
             mock_docker()
 
         tasker = DockerTasker()
-        workflow = DockerBuildWorkflow(
-            'test-image',
-            source={'provider': 'git', 'uri': 'asd'}
-        )
         workflow.builder = X()
         workflow.user_params['scratch'] = True
 

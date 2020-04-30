@@ -21,13 +21,11 @@ import time
 
 from atomic_reactor import constants
 from atomic_reactor import util
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_fetch_sources import FetchSourcesPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY, ReactorConfig)
 import atomic_reactor
-from tests.constants import TEST_IMAGE
 from tests.stubs import StubInsideBuilder
 
 
@@ -92,11 +90,8 @@ def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_
     workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = ReactorConfig(config)
 
 
-def mock_workflow(tmpdir, for_orchestrator=False, config_map=None,
+def mock_workflow(tmpdir, workflow, for_orchestrator=False, config_map=None,
                   default_si=DEFAULT_SIGNING_INTENT):
-    workflow = DockerBuildWorkflow(
-        TEST_IMAGE
-    )
     builder = StubInsideBuilder().for_workflow(workflow)
     builder.set_df_path(str(tmpdir))
     builder.tasker = flexmock()
@@ -109,12 +104,13 @@ def mock_workflow(tmpdir, for_orchestrator=False, config_map=None,
     return workflow
 
 
-def mock_env(tmpdir, docker_tasker, scratch=False, orchestrator=False, koji_build_id=None,
-             koji_build_nvr=None, config_map=None, default_si=DEFAULT_SIGNING_INTENT):
+def mock_env(tmpdir, docker_tasker, workflow, scratch=False, orchestrator=False,
+             koji_build_id=None, koji_build_nvr=None, config_map=None,
+             default_si=DEFAULT_SIGNING_INTENT):
     build_json = {'metadata': {'labels': {'scratch': scratch}}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
-    workflow = mock_workflow(tmpdir, for_orchestrator=orchestrator, config_map=config_map,
-                             default_si=default_si)
+    workflow = mock_workflow(tmpdir, workflow, for_orchestrator=orchestrator,
+                             config_map=config_map, default_si=default_si)
     plugin_conf = [{'name': FetchSourcesPlugin.key}]
     plugin_conf[0]['args'] = {
         'koji_build_id': koji_build_id,
@@ -225,11 +221,11 @@ class TestFetchSources(object):
     @pytest.mark.parametrize('retries', (0, 1, constants.HTTP_MAX_RETRIES + 1))
     @pytest.mark.parametrize('custom_rcm', (None, BASE_CONFIG_MAP))
     @pytest.mark.parametrize('signing_intent', ('unsigned', 'empty', 'one', 'multiple', 'invalid'))
-    def test_fetch_sources(self, requests_mock, docker_tasker, koji_session, tmpdir, signing_intent,
-                           caplog, retries, custom_rcm):
+    def test_fetch_sources(self, requests_mock, docker_tasker, workflow, koji_session,
+                           tmpdir, signing_intent, caplog, retries, custom_rcm):
         mock_koji_manifest_download(requests_mock, retries)
-        runner = mock_env(tmpdir, docker_tasker, koji_build_id=1, config_map=custom_rcm,
-                          default_si=signing_intent)
+        runner = mock_env(tmpdir, docker_tasker, workflow, koji_build_id=1,
+                          config_map=custom_rcm, default_si=signing_intent)
         if signing_intent == 'invalid' and not custom_rcm:
             with pytest.raises(PluginFailedException) as exc:
                 runner.run()
@@ -269,8 +265,8 @@ class TestFetchSources(object):
             assert runner.workflow.labels['sources_for_nvr'] == 'foobar-1-1'
 
     @pytest.mark.parametrize('signing_intent', ('unsigned', 'empty', 'one', 'multiple', 'invalid'))
-    def test_koji_signing_intent(self, requests_mock, docker_tasker, koji_session, tmpdir,
-                                 signing_intent, caplog):
+    def test_koji_signing_intent(self, requests_mock, docker_tasker, workflow, koji_session,
+                                 tmpdir, signing_intent, caplog):
         """Make sure fetch_sources plugin prefers the koji image build signing intent"""
         image_signing_intent = 'unsigned'
         extra_image = {'odcs': {'signing_intent': image_signing_intent}}
@@ -280,7 +276,8 @@ class TestFetchSources(object):
         flexmock(koji_session).should_receive('getBuild').and_return(koji_build)
 
         mock_koji_manifest_download(requests_mock)
-        runner = mock_env(tmpdir, docker_tasker, koji_build_id=1, default_si=signing_intent)
+        runner = mock_env(tmpdir, docker_tasker, workflow, koji_build_id=1,
+                          default_si=signing_intent)
         result = runner.run()
         sources_dir = result[constants.PLUGIN_FETCH_SOURCES_KEY]['image_sources_dir']
         sources_list = os.listdir(sources_dir)
@@ -296,19 +293,20 @@ class TestFetchSources(object):
             assert get_srpm_url('usedKey') not in caplog.text
         assert result[constants.PLUGIN_FETCH_SOURCES_KEY]['signing_intent'] == image_signing_intent
 
-    def test_no_build_info(self, requests_mock, docker_tasker, koji_session, tmpdir):
+    def test_no_build_info(self, requests_mock, docker_tasker, workflow, koji_session, tmpdir):
         mock_koji_manifest_download(requests_mock)
-        runner = mock_env(tmpdir, docker_tasker)
+        runner = mock_env(tmpdir, docker_tasker, workflow)
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
         msg = 'FetchSourcesPlugin expects either koji_build_id or koji_build_nvr to be defined'
         assert msg in str(exc.value)
 
     @pytest.mark.parametrize('build_id, build_nvr', (('1', None), (None, 1), ('1', 1)))
-    def test_build_info_with_wrong_type(self, requests_mock, docker_tasker, koji_session, tmpdir,
-                                        build_id, build_nvr):
+    def test_build_info_with_wrong_type(self, requests_mock, docker_tasker, workflow,
+                                        koji_session, tmpdir, build_id, build_nvr):
         mock_koji_manifest_download(requests_mock)
-        runner = mock_env(tmpdir, docker_tasker, koji_build_id=build_id, koji_build_nvr=build_nvr)
+        runner = mock_env(tmpdir, docker_tasker, workflow,
+                          koji_build_id=build_id, koji_build_nvr=build_nvr)
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
         id_msg = 'koji_build_id must be an int'
@@ -319,35 +317,38 @@ class TestFetchSources(object):
             assert nvr_msg in str(exc.value)
 
     @pytest.mark.parametrize('build_nvr', ('foobar-1-1', u'foobar-1-1'))
-    def test_build_info_with_unicode(self, requests_mock, docker_tasker, koji_session, tmpdir,
-                                     caplog, build_nvr):
+    def test_build_info_with_unicode(self, requests_mock, docker_tasker, workflow,
+                                     koji_session, tmpdir, caplog, build_nvr):
         mock_koji_manifest_download(requests_mock)
-        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr=build_nvr)
+        runner = mock_env(tmpdir, docker_tasker, workflow, koji_build_nvr=build_nvr)
         runner.run()
         nvr_msg = 'koji_build_nvr must be a str'
         assert nvr_msg not in caplog.text
 
-    def test_build_with_nvr(self, requests_mock, docker_tasker, koji_session, tmpdir):
+    def test_build_with_nvr(self, requests_mock, docker_tasker, workflow, koji_session, tmpdir):
         mock_koji_manifest_download(requests_mock)
-        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr='foobar-1-1')
+        runner = mock_env(tmpdir, docker_tasker, workflow, koji_build_nvr='foobar-1-1')
         result = runner.run()
         sources_dir = result[constants.PLUGIN_FETCH_SOURCES_KEY]['image_sources_dir']
         sources_list = os.listdir(sources_dir)
         assert len(sources_list) == 1
         assert os.path.basename(sources_list[0]) == '.'.join([KOJI_BUILD['nvr'], 'src', 'rpm'])
 
-    def test_id_and_nvr(self, requests_mock, docker_tasker, koji_session, tmpdir):
+    def test_id_and_nvr(self, requests_mock, docker_tasker, workflow, koji_session, tmpdir):
         mock_koji_manifest_download(requests_mock)
-        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr='foobar-1-1', koji_build_id=1)
+        runner = mock_env(tmpdir, docker_tasker, workflow,
+                          koji_build_nvr='foobar-1-1', koji_build_id=1)
         result = runner.run()
         sources_dir = result[constants.PLUGIN_FETCH_SOURCES_KEY]['image_sources_dir']
         sources_list = os.listdir(sources_dir)
         assert len(sources_list) == 1
         assert os.path.basename(sources_list[0]) == '.'.join([KOJI_BUILD['nvr'], 'src', 'rpm'])
 
-    def test_id_and_nvr_mismatch(self, requests_mock, docker_tasker, koji_session, tmpdir):
+    def test_id_and_nvr_mismatch(self, requests_mock, docker_tasker, workflow,
+                                 koji_session, tmpdir):
         mock_koji_manifest_download(requests_mock)
-        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr='foobar-1-1', koji_build_id=2)
+        runner = mock_env(tmpdir, docker_tasker, workflow,
+                          koji_build_nvr='foobar-1-1', koji_build_id=2)
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
         msg = 'When specifying both an id and an nvr, they should point to the same image build'
@@ -358,10 +359,11 @@ class TestFetchSources(object):
         (['module', 'operator-manifests'], 'foobar-1-1', False),
         (['image', 'operator-manifests'], 'foobar-source-1-1', True),
     ])
-    def test_invalid_source_build(self, requests_mock, docker_tasker, koji_session, tmpdir,
-                                  build_type, koji_build_nvr, source_build):
+    def test_invalid_source_build(self, requests_mock, docker_tasker, workflow,
+                                  koji_session, tmpdir, build_type, koji_build_nvr, source_build):
         mock_koji_manifest_download(requests_mock)
-        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr=koji_build_nvr, koji_build_id=1)
+        runner = mock_env(tmpdir, docker_tasker, workflow,
+                          koji_build_nvr=koji_build_nvr, koji_build_id=1)
 
         typeinfo_dict = {b_type: {} for b_type in build_type}
         name, version, release = koji_build_nvr.rsplit('-', 2)
@@ -390,8 +392,9 @@ class TestFetchSources(object):
         'baz-2-3.src.rpm',
         'lib-foobar-1-1.src.rpm'
     ])
-    def test_rpm_name_different_from_srpm_name(self, requests_mock, docker_tasker, koji_session,
-                                               tmpdir, caplog, srpm_filename, signing_key):
+    def test_rpm_name_different_from_srpm_name(self, requests_mock, docker_tasker, workflow,
+                                               koji_session, tmpdir, caplog, srpm_filename,
+                                               signing_key):
         (flexmock(koji_session)
             .should_receive('getRPMHeaders')
             .and_return({'SOURCERPM': srpm_filename}))
@@ -406,14 +409,14 @@ class TestFetchSources(object):
         requests_mock.register_uri('GET', srpm_url)
 
         signing_intent = 'one' if signing_key is not None else 'empty'
-        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr='foobar-1-1',
+        runner = mock_env(tmpdir, docker_tasker, workflow, koji_build_nvr='foobar-1-1',
                           default_si=signing_intent)
         runner.run()
 
         assert srpm_url in caplog.text
 
     @pytest.mark.parametrize('black_list', [[], ['foobar'], ['foobar', 'kernel']])
-    def test_blacklist_srpms(self, requests_mock, docker_tasker, koji_session, tmpdir,
+    def test_blacklist_srpms(self, requests_mock, docker_tasker, workflow, koji_session, tmpdir,
                              caplog, black_list):
         black_cm = dedent("""\
             version: 1
@@ -428,7 +431,8 @@ class TestFetchSources(object):
 
         mock_koji_manifest_download(requests_mock)
         koji_build_nvr = 'foobar-1-1'
-        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr=koji_build_nvr, config_map=black_cm)
+        runner = mock_env(tmpdir, docker_tasker, workflow,
+                          koji_build_nvr=koji_build_nvr, config_map=black_cm)
         runner.run()
 
         pkg_name = koji_build_nvr.rsplit('-', 2)[0]
@@ -439,10 +443,11 @@ class TestFetchSources(object):
             assert err_msg not in caplog.text
 
     @pytest.mark.parametrize('use_cache', [True, False, None])
-    def test_lookaside_cache(self, requests_mock, docker_tasker, koji_session, tmpdir, use_cache):
+    def test_lookaside_cache(self, requests_mock, docker_tasker, workflow,
+                             koji_session, tmpdir, use_cache):
         mock_koji_manifest_download(requests_mock)
         koji_build_nvr = 'foobar-1-1'
-        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr=koji_build_nvr)
+        runner = mock_env(tmpdir, docker_tasker, workflow, koji_build_nvr=koji_build_nvr)
 
         if use_cache:
             tmpdir.join('sources').write('#ref file.tar.gz')
@@ -461,7 +466,7 @@ class TestFetchSources(object):
             runner.run()
 
     @pytest.mark.parametrize('reason', ['external', 'other'])
-    def test_missing_srpm_header(self, docker_tasker, koji_session, tmpdir, reason):
+    def test_missing_srpm_header(self, docker_tasker, workflow, koji_session, tmpdir, reason):
         (flexmock(koji_session)
             .should_receive('listArchives')
             .with_args(object, type='image')
@@ -480,7 +485,7 @@ class TestFetchSources(object):
             .should_receive('getRPMHeaders')
             .and_return({}))
 
-        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr='foobar-1-1')
+        runner = mock_env(tmpdir, docker_tasker, workflow, koji_build_nvr='foobar-1-1')
         with pytest.raises(PluginFailedException) as exc_info:
             runner.run()
 
@@ -489,7 +494,7 @@ class TestFetchSources(object):
         else:
             assert 'Missing SOURCERPM header' in str(exc_info.value)
 
-    def test_no_srpms_and_remote_sources(self, docker_tasker, koji_session, tmpdir):
+    def test_no_srpms_and_remote_sources(self, docker_tasker, workflow, koji_session, tmpdir):
         (flexmock(koji_session)
             .should_receive('listArchives')
             .with_args(object, type='image')
@@ -503,7 +508,7 @@ class TestFetchSources(object):
             .with_args(imageID=1)
             .and_return([]))
 
-        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr='foobar-1-1')
+        runner = mock_env(tmpdir, docker_tasker, workflow, koji_build_nvr='foobar-1-1')
         with pytest.raises(PluginFailedException) as exc_info:
             runner.run()
 

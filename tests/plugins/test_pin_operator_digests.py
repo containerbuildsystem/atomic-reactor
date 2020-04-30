@@ -25,7 +25,6 @@ from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                       INSPECT_CONFIG)
 from atomic_reactor.util import ImageName
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        ReactorConfig,
@@ -35,7 +34,6 @@ from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlug
 from atomic_reactor.plugins.pre_pin_operator_digest import (PinOperatorDigestsPlugin,
                                                             PullspecReplacer)
 
-from tests.constants import TEST_IMAGE
 from tests.stubs import StubInsideBuilder, StubSource, StubConfig
 
 
@@ -67,11 +65,7 @@ def make_user_config(operator_config):
     return config
 
 
-def mock_workflow(tmpdir, orchestrator, user_config=None, site_config=None):
-    workflow = DockerBuildWorkflow(
-        TEST_IMAGE,
-        source={'provider': 'git', 'uri': 'asd'}
-    )
+def mock_workflow(tmpdir, workflow, orchestrator, user_config=None, site_config=None):
     workflow.source = StubSource()
     workflow.source.path = str(tmpdir)
     workflow.source.config = make_user_config(user_config)
@@ -89,7 +83,7 @@ def mock_workflow(tmpdir, orchestrator, user_config=None, site_config=None):
     return workflow
 
 
-def mock_env(docker_tasker, tmpdir, orchestrator,
+def mock_env(docker_tasker, workflow, tmpdir, orchestrator,
              user_config=None, site_config=None,
              df_base='scratch', df_operator_label=True,
              replacement_pullspecs=None):
@@ -108,7 +102,7 @@ def mock_env(docker_tasker, tmpdir, orchestrator,
     :return: configured plugin runner
     """
     mock_dockerfile(tmpdir, df_base, df_operator_label)
-    workflow = mock_workflow(tmpdir, orchestrator,
+    workflow = mock_workflow(tmpdir, workflow, orchestrator,
                              user_config=user_config, site_config=site_config)
 
     plugin_conf = [{'name': PinOperatorDigestsPlugin.key,
@@ -261,14 +255,14 @@ class TestPinOperatorDigest(object):
 
     @pytest.mark.parametrize('orchestrator', [True, False])
     def test_run_only_for_operator_bundle_label(self, orchestrator,
-                                                docker_tasker, tmpdir, caplog):
-        runner = mock_env(docker_tasker, tmpdir,
+                                                docker_tasker, workflow, tmpdir, caplog):
+        runner = mock_env(docker_tasker, workflow, tmpdir,
                           orchestrator=orchestrator, df_operator_label=False)
         runner.run()
         assert "Not an operator manifest bundle build, skipping plugin" in caplog.text
 
-    def test_missing_orchestrator_config(self, docker_tasker, tmpdir, caplog):
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=True)
+    def test_missing_orchestrator_config(self, docker_tasker, workflow, tmpdir, caplog):
+        runner = mock_env(docker_tasker, workflow, tmpdir, orchestrator=True)
         runner.run()
 
         msg = "operator_manifests configuration missing in reactor config map, aborting"
@@ -276,13 +270,13 @@ class TestPinOperatorDigest(object):
         assert "Looking for operator CSV files" not in caplog.text
 
     @pytest.mark.parametrize('orchestrator', [True, False])
-    def test_missing_user_config(self, orchestrator, docker_tasker, tmpdir):
+    def test_missing_user_config(self, orchestrator, docker_tasker, workflow, tmpdir):
         # make sure operator run does not fail because of missing site config
         site_config = get_site_config()
         # make sure worker run is not skipped because of missing replacements
         replacement_pullspecs = {'a': 'b'}
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=orchestrator,
+        runner = mock_env(docker_tasker, workflow, tmpdir, orchestrator=orchestrator,
                           site_config=site_config, replacement_pullspecs=replacement_pullspecs)
 
         with pytest.raises(PluginFailedException) as exc_info:
@@ -298,7 +292,7 @@ class TestPinOperatorDigest(object):
         ('foo', {'foo': '../..'}),
     ])
     def test_manifests_dir_not_subdir_of_repo(self, manifests_dir, symlinks,
-                                              orchestrator, docker_tasker, tmpdir):
+                                              orchestrator, docker_tasker, workflow, tmpdir):
         # make sure operator run does not fail because of missing site config
         site_config = get_site_config()
         # make sure worker run is not skipped because of missing replacements
@@ -311,7 +305,7 @@ class TestPinOperatorDigest(object):
 
         user_config = get_user_config(manifests_dir)
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator, site_config=site_config,
+        runner = mock_env(docker_tasker, workflow, tmpdir, orchestrator, site_config=site_config,
                           user_config=user_config, replacement_pullspecs=replacement_pullspecs)
 
         with pytest.raises(PluginFailedException) as exc_info:
@@ -323,13 +317,13 @@ class TestPinOperatorDigest(object):
         [],
         ['csv1.yaml', 'csv2.yaml']
     ])
-    def test_orchestrator_no_pullspecs(self, filepaths, docker_tasker, tmpdir, caplog):
+    def test_orchestrator_no_pullspecs(self, filepaths, docker_tasker, workflow, tmpdir, caplog):
         files = [mock_operator_csv(tmpdir, path, []) for path in filepaths]
 
         user_config = get_user_config(manifests_dir=str(tmpdir))
         site_config = get_site_config()
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=True,
+        runner = mock_env(docker_tasker, workflow, tmpdir, orchestrator=True,
                           user_config=user_config, site_config=site_config)
         runner.run()
 
@@ -345,7 +339,7 @@ class TestPinOperatorDigest(object):
         assert "No pullspecs found" in caplog_text
         assert self._get_worker_arg(runner.workflow) is None
 
-    def test_orchestrator_disallowed_registry(self, docker_tasker, tmpdir):
+    def test_orchestrator_disallowed_registry(self, docker_tasker, workflow, tmpdir):
         # TODO: ImageName parses x/y as namespace/repo and not registry/repo - does it matter?
         pullspecs = ['allowed-registry/ns/foo:1', 'disallowed-registry/ns/bar:2']
         mock_operator_csv(tmpdir, 'csv.yaml', pullspecs)
@@ -353,7 +347,7 @@ class TestPinOperatorDigest(object):
         user_config = get_user_config(manifests_dir=str(tmpdir))
         site_config = get_site_config(allowed_registries=['allowed-registry'])
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=True,
+        runner = mock_env(docker_tasker, workflow, tmpdir, orchestrator=True,
                           user_config=user_config, site_config=site_config)
 
         with pytest.raises(PluginFailedException) as exc_info:
@@ -365,14 +359,15 @@ class TestPinOperatorDigest(object):
         (False, False),
         (True, True)
     ])
-    def test_orchestrator_exclude_csvs(self, docker_tasker, tmpdir, caplog, has_envs, raises):
+    def test_orchestrator_exclude_csvs(self, docker_tasker, workflow, tmpdir, caplog,
+                                       has_envs, raises):
         csv = mock_operator_csv(tmpdir, 'csv.yaml', ['foo'], with_related_images=True,
                                 with_related_image_envs=has_envs)
 
         user_config = get_user_config(str(tmpdir))
         site_config = get_site_config()
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=True,
+        runner = mock_env(docker_tasker, workflow, tmpdir, orchestrator=True,
                           user_config=user_config, site_config=site_config)
 
         if raises:
@@ -387,7 +382,7 @@ class TestPinOperatorDigest(object):
             assert "{} has a relatedImages section, skipping".format(csv) in caplog.text
 
     @responses.activate
-    def test_orchestrator(self, docker_tasker, tmpdir, caplog):
+    def test_orchestrator(self, docker_tasker, workflow, tmpdir, caplog):
         pullspecs = [
             # final-registry: do not replace registry or repos
             'final-registry/ns/foo@sha256:1',  # -> no change
@@ -440,7 +435,7 @@ class TestPinOperatorDigest(object):
         site_config = get_site_config(registry_post_replace=replacement_registries,
                                       repo_replacements=site_replace_repos)
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=True,
+        runner = mock_env(docker_tasker, workflow, tmpdir, orchestrator=True,
                           user_config=user_config, site_config=site_config)
         runner.run()
 
@@ -496,7 +491,7 @@ class TestPinOperatorDigest(object):
     @pytest.mark.parametrize('replace_registry', [True, False])
     @responses.activate
     def test_orchestrator_replacement_opt_out(self, pin_digest, replace_repo, replace_registry,
-                                              docker_tasker, tmpdir, caplog):
+                                              docker_tasker, workflow, tmpdir, caplog):
         original = 'registry/ns/foo:1'
         replaced = ImageName.parse(original)
 
@@ -535,7 +530,7 @@ class TestPinOperatorDigest(object):
                                       enable_registry_replacements=replace_registry)
         site_config = get_site_config(registry_post_replace=registry_post_replace)
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=True,
+        runner = mock_env(docker_tasker, workflow, tmpdir, orchestrator=True,
                           user_config=user_config, site_config=site_config)
         runner.run()
 
@@ -556,7 +551,7 @@ class TestPinOperatorDigest(object):
             assert self._get_worker_arg(runner.workflow) == {original: replaced.to_str()}
 
     @pytest.mark.parametrize('has_envs', [True, False])
-    def test_worker_exclude_csvs(self, docker_tasker, tmpdir, caplog, has_envs):
+    def test_worker_exclude_csvs(self, docker_tasker, workflow, tmpdir, caplog, has_envs):
         # Worker does not care if there is a conflict between relatedImages
         # and RELATED_IMAGE_* env vars, orchestrator should have caught this already
         csv = mock_operator_csv(tmpdir, 'csv.yaml', ['foo'], with_related_images=True,
@@ -565,7 +560,8 @@ class TestPinOperatorDigest(object):
 
         user_config = get_user_config(str(tmpdir))
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=False, user_config=user_config)
+        runner = mock_env(docker_tasker, workflow, tmpdir,
+                          orchestrator=False, user_config=user_config)
         runner.run()
 
         assert "Replacing pullspecs" not in caplog.text
@@ -573,7 +569,7 @@ class TestPinOperatorDigest(object):
         assert csv.read() == original_content
 
     @pytest.mark.parametrize('ocp_44', [True, False])
-    def test_worker(self, ocp_44, docker_tasker, tmpdir, caplog):
+    def test_worker(self, ocp_44, docker_tasker, workflow, tmpdir, caplog):
         pullspecs = [
             'keep-registry/ns/foo',
             'replace-registry/ns/bar:1',
@@ -600,7 +596,7 @@ class TestPinOperatorDigest(object):
 
         user_config = get_user_config(manifests_dir=str(manifests_dir))
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=False,
+        runner = mock_env(docker_tasker, workflow, tmpdir, orchestrator=False,
                           user_config=user_config, replacement_pullspecs=replacement_pullspecs)
         runner.run()
 

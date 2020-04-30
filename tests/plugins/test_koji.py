@@ -15,12 +15,11 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
 from atomic_reactor.core import DockerTasker
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from flexmock import flexmock
 from fnmatch import fnmatch
 import pytest
-from tests.constants import SOURCE, MOCK
+from tests.constants import MOCK
 from tests.stubs import StubInsideBuilder, StubSource
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -89,11 +88,10 @@ class MockedPathInfo(object):
         return "{0}/repos/{1}/{2}".format(self.topdir, name, repo_id)
 
 
-def prepare():
+def prepare(workflow):
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
 
@@ -167,10 +165,10 @@ class TestKoji(object):
 
 
     ])
-    def test_koji_plugin(self, tmpdir, caplog, parent_images, base_from_scratch,
+    def test_koji_plugin(self, tmpdir, workflow, caplog, parent_images, base_from_scratch,
                          target, expect_success, root, koji_ssl_certs,
                          expected_string, expected_file, proxy, reactor_config_map):
-        tasker, workflow = prepare()
+        tasker, workflow = prepare(workflow)
         workflow.builder.base_from_scratch = base_from_scratch
         workflow.builder.parent_images = parent_images
 
@@ -251,8 +249,8 @@ class TestKoji(object):
         (None, [], False),
         (None, [], True),
     ])
-    def test_skip_plugin(self, caplog, target, yum_repos, include_repo):
-        tasker, workflow = prepare()
+    def test_skip_plugin(self, workflow, caplog, target, yum_repos, include_repo):
+        tasker, workflow = prepare(workflow)
         args = {'target': target}
 
         koji_map = {

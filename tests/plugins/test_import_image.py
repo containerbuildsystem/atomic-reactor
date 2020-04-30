@@ -11,7 +11,6 @@ from __future__ import unicode_literals, absolute_import
 import json
 
 from atomic_reactor.core import DockerTasker
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.util import ImageName
 from atomic_reactor.plugins.post_import_image import ImportImagePlugin
@@ -26,7 +25,7 @@ from osbs.api import OSBS
 from osbs.exceptions import OsbsResponseException
 from flexmock import flexmock
 import pytest
-from tests.constants import INPUT_IMAGE, SOURCE, MOCK
+from tests.constants import INPUT_IMAGE, MOCK
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -56,7 +55,7 @@ class ImageStreamResponse(object):
 DEFAULT_TAGS_AMOUNT = 6
 
 
-def prepare(tmpdir, insecure_registry=None, namespace=None,
+def prepare(tmpdir, workflow, insecure_registry=None, namespace=None,
             primary_images_tag_conf=DEFAULT_TAGS_AMOUNT,
             primary_images_annotations=DEFAULT_TAGS_AMOUNT, build_process_failed=False,
             organization=None, reactor_config_map=False, imagestream_name=TEST_IMAGESTREAM):
@@ -66,7 +65,6 @@ def prepare(tmpdir, insecure_registry=None, namespace=None,
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
     setattr(workflow, 'builder', X())
     flexmock(workflow, build_process_failed=build_process_failed)
     setattr(workflow.builder, 'image_id', 'asd123')
@@ -152,12 +150,12 @@ def prepare(tmpdir, insecure_registry=None, namespace=None,
     return runner
 
 
-def test_bad_setup(tmpdir, caplog, monkeypatch, reactor_config_map):  # noqa
+def test_bad_setup(tmpdir, workflow, caplog, monkeypatch, reactor_config_map):  # noqa
     """
     Try all the early-fail paths.
     """
 
-    runner = prepare(tmpdir, primary_images_annotations=0, primary_images_tag_conf=0,
+    runner = prepare(tmpdir, workflow, primary_images_annotations=0, primary_images_tag_conf=0,
                      reactor_config_map=reactor_config_map)
 
     (flexmock(OSBS)
@@ -179,13 +177,13 @@ def test_bad_setup(tmpdir, caplog, monkeypatch, reactor_config_map):  # noqa
 @pytest.mark.parametrize(('insecure_registry'), [None, False, True])
 @pytest.mark.parametrize(('namespace'), [None, 'my_namespace'])
 @pytest.mark.parametrize(('organization'), [None, 'my_organization'])
-def test_create_image(tmpdir, insecure_registry, namespace, organization,
+def test_create_image(tmpdir, workflow, insecure_registry, namespace, organization,
                       monkeypatch, reactor_config_map):
     """
     Test that an ImageStream is created if not found
     """
 
-    runner = prepare(tmpdir, insecure_registry=insecure_registry, namespace=namespace,
+    runner = prepare(tmpdir, workflow, insecure_registry=insecure_registry, namespace=namespace,
                      organization=organization, reactor_config_map=reactor_config_map)
 
     kwargs = {}
@@ -227,13 +225,13 @@ def test_create_image(tmpdir, insecure_registry, namespace, organization,
     (0, DEFAULT_TAGS_AMOUNT, 'annotation_'),
 ))
 @pytest.mark.parametrize(('osbs_error'), [True, False])
-def test_ensure_primary(tmpdir, monkeypatch, osbs_error, tag_conf, annotations, tag_prefix,
-                        reactor_config_map):
+def test_ensure_primary(tmpdir, workflow, monkeypatch, osbs_error, tag_conf, annotations,
+                        tag_prefix, reactor_config_map):
     """
     Test that primary image tags are ensured
     """
 
-    runner = prepare(tmpdir, primary_images_annotations=annotations,
+    runner = prepare(tmpdir, workflow, primary_images_annotations=annotations,
                      primary_images_tag_conf=tag_conf, reactor_config_map=reactor_config_map)
 
     monkeypatch.setenv("BUILD", json.dumps({
@@ -291,13 +289,13 @@ def test_ensure_primary(tmpdir, monkeypatch, osbs_error, tag_conf, annotations, 
     ({}),
     ({'namespace': 'my_namespace'})
 ])
-def test_import_image(tmpdir, import_image_tags, build_process_failed, namespace,
+def test_import_image(tmpdir, workflow, import_image_tags, build_process_failed, namespace,
                       monkeypatch, reactor_config_map):
     """
     Test importing tags for an existing ImageStream
     """
 
-    runner = prepare(tmpdir, namespace=namespace.get('namespace'),
+    runner = prepare(tmpdir, workflow, namespace=namespace.get('namespace'),
                      build_process_failed=build_process_failed,
                      reactor_config_map=reactor_config_map)
 
@@ -363,12 +361,12 @@ def test_import_image(tmpdir, import_image_tags, build_process_failed, namespace
     runner.run()
 
 
-def test_exception_during_create(tmpdir, monkeypatch, reactor_config_map):  # noqa
+def test_exception_during_create(tmpdir, workflow, monkeypatch, reactor_config_map):  # noqa
     """
     The plugin should fail if the ImageStream creation fails.
     """
 
-    runner = prepare(tmpdir, reactor_config_map=reactor_config_map)
+    runner = prepare(tmpdir, workflow, reactor_config_map=reactor_config_map)
     monkeypatch.setenv("BUILD", json.dumps({
         "metadata": {}
     }))
@@ -389,12 +387,12 @@ def test_exception_during_create(tmpdir, monkeypatch, reactor_config_map):  # no
         runner.run()
 
 
-def test_exception_during_import(tmpdir, monkeypatch, reactor_config_map):  # noqa
+def test_exception_during_import(tmpdir, workflow, monkeypatch, reactor_config_map):  # noqa
     """
     The plugin should fail if image import fails.
     """
 
-    runner = prepare(tmpdir, reactor_config_map=reactor_config_map)
+    runner = prepare(tmpdir, workflow, reactor_config_map=reactor_config_map)
     monkeypatch.setenv("BUILD", json.dumps({
         "metadata": {}
     }))
@@ -422,9 +420,10 @@ def test_exception_during_import(tmpdir, monkeypatch, reactor_config_map):  # no
     ('', True),
     (None, True),
 ])
-def test_skip_plugin(tmpdir, caplog, monkeypatch, reactor_config_map,
+def test_skip_plugin(tmpdir, workflow, caplog, monkeypatch, reactor_config_map,
                      imagestream, scratch):  # noqa
-    runner = prepare(tmpdir, reactor_config_map=reactor_config_map, imagestream_name=imagestream)
+    runner = prepare(tmpdir, workflow, reactor_config_map=reactor_config_map,
+                     imagestream_name=imagestream)
     runner.workflow.user_params['scratch'] = scratch
     monkeypatch.setenv("BUILD", json.dumps({
         "metadata": {}

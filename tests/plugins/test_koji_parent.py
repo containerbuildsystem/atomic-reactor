@@ -16,7 +16,6 @@ from atomic_reactor.constants import (
     INSPECT_CONFIG, BASE_IMAGE_KOJI_BUILD, PARENT_IMAGES_KOJI_BUILDS
 )
 from atomic_reactor.build import InsideBuilder
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_koji_parent import KojiParentPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
@@ -25,7 +24,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
 from atomic_reactor.util import ImageName, get_manifest_media_type
 from atomic_reactor.constants import SCRATCH_FROM
 from flexmock import flexmock
-from tests.constants import MOCK, MOCK_SOURCE
+from tests.constants import MOCK
 
 import pytest
 
@@ -97,10 +96,9 @@ class MockInsideBuilder(InsideBuilder):
 
 
 @pytest.fixture()
-def workflow():
+def workflow(workflow):
     if MOCK:
         mock_docker()
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
     workflow.builder = MockInsideBuilder()
     base_inspect = {INSPECT_CONFIG: {'Labels': BASE_IMAGE_LABELS.copy()}}
     flexmock(workflow.builder, base_image_inspect=base_inspect)

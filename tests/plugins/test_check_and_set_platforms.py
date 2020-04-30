@@ -16,14 +16,13 @@ from atomic_reactor.constants import (PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, REPO_C
 import atomic_reactor.plugins.pre_reactor_config as reactor_config
 import atomic_reactor.utils.koji as koji_util
 from atomic_reactor.core import DockerTasker
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.util import ImageName
 from atomic_reactor.source import SourceConfig
 from atomic_reactor import util
 from flexmock import flexmock
 import pytest
-from tests.constants import SOURCE, MOCK
+from tests.constants import MOCK
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -113,12 +112,11 @@ def set_orchestrator_platforms(workflow, orchestrator_platforms):
                                         'args': {'platforms': orchestrator_platforms}}]
 
 
-def prepare(tmpdir, labels=None):
+def prepare(tmpdir, workflow, labels=None):
     if MOCK:
         mock_docker()
     labels = labels or {}
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
     workflow.user_params['scratch'] = labels.get('scratch', False)
     workflow.user_params['isolated'] = labels.get('isolated', False)
     setattr(workflow, 'builder', X())
@@ -149,11 +147,11 @@ def teardown_function(function):
      ['x86_64']),
     ('x86_64 ppc64le', '', '', ['x86_64', 'ppc64le'])
 ])
-def test_check_and_set_platforms(tmpdir, caplog, platforms, platform_exclude, platform_only,
-                                 result):
+def test_check_and_set_platforms(tmpdir, workflow, caplog, platforms, platform_exclude,
+                                 platform_only, result):
     write_container_yaml(tmpdir, platform_exclude, platform_only)
 
-    tasker, workflow = prepare(tmpdir)
+    tasker, workflow = prepare(tmpdir, workflow)
 
     build_json = {'metadata': {'labels': {}}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
@@ -198,11 +196,11 @@ def test_check_and_set_platforms(tmpdir, caplog, platforms, platform_exclude, pl
     ({'scratch': True}, 'x86_64 arm64', ['x86_64', 'arm64'], 'x86_64', ['x86_64']),
     ({'scratch': True}, 'x86_64 arm64 s390x', ['x86_64', 'arm64'], 'x86_64', ['x86_64', 'arm64']),
 ])
-def test_check_isolated_or_scratch(tmpdir, caplog, labels, platforms,
+def test_check_isolated_or_scratch(tmpdir, workflow, caplog, labels, platforms,
                                    orchestrator_platforms, platform_only, result):
     write_container_yaml(tmpdir, platform_only=platform_only)
 
-    tasker, workflow = prepare(tmpdir, labels=labels)
+    tasker, workflow = prepare(tmpdir, workflow, labels=labels)
     if orchestrator_platforms:
         set_orchestrator_platforms(workflow, orchestrator_platforms)
 
@@ -246,10 +244,11 @@ def test_check_isolated_or_scratch(tmpdir, caplog, labels, platforms,
     ('x86_64 ppc64le', '', ['x86_64', 'ppc64le']),
     ('x86_64 ppc64le', 'ppc64le', ['ppc64le']),
 ])
-def test_check_and_set_platforms_no_koji(tmpdir, caplog, platforms, platform_only, result):
+def test_check_and_set_platforms_no_koji(tmpdir, workflow, caplog,
+                                         platforms, platform_only, result):
     write_container_yaml(tmpdir, platform_only=platform_only)
 
-    tasker, workflow = prepare(tmpdir)
+    tasker, workflow = prepare(tmpdir, workflow)
 
     if platforms:
         set_orchestrator_platforms(workflow, platforms.split())
@@ -283,11 +282,11 @@ def test_check_and_set_platforms_no_koji(tmpdir, caplog, platforms, platform_onl
     ('x86_64 ppc64le', '', 'x86_64', ['x86_64']),
     ('x86_64 ppc64le arm64', ['x86_64', 'arm64'], 'x86_64', ['x86_64']),
 ])
-def test_platforms_from_cluster_config(tmpdir, platforms, platform_only,
+def test_platforms_from_cluster_config(tmpdir, workflow, platforms, platform_only,
                                        cluster_platforms, result):
     write_container_yaml(tmpdir, platform_only=platform_only)
 
-    tasker, workflow = prepare(tmpdir)
+    tasker, workflow = prepare(tmpdir, workflow)
 
     if platforms:
         set_orchestrator_platforms(workflow, platforms.split())

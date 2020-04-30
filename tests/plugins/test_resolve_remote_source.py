@@ -18,7 +18,6 @@ import atomic_reactor.utils.koji as koji_util
 from atomic_reactor import util
 from atomic_reactor.utils.cachito import CachitoAPI
 from atomic_reactor.constants import PLUGIN_BUILD_ORCHESTRATE_KEY
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins import pre_reactor_config
 from atomic_reactor.plugins.build_orchestrate_build import (
@@ -28,7 +27,6 @@ from atomic_reactor.plugins.pre_reactor_config import (
 from atomic_reactor.plugins.pre_resolve_remote_source import ResolveRemoteSourcePlugin
 from atomic_reactor.source import SourceConfig
 
-from tests.constants import TEST_IMAGE
 from tests.stubs import StubInsideBuilder, StubSource
 
 
@@ -46,11 +44,7 @@ REMOTE_SOURCE_REF = 'b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a'
 
 
 @pytest.fixture
-def workflow(tmpdir):
-    workflow = DockerBuildWorkflow(
-        TEST_IMAGE,
-        source={"provider": "git", "uri": "asd"}
-    )
+def workflow(tmpdir, workflow):
 
     # Stash the tmpdir in workflow so it can be used later
     workflow._tmpdir = tmpdir

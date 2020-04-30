@@ -15,7 +15,6 @@ import os
 import pytest
 import yaml
 
-from atomic_reactor.inner import DockerBuildWorkflow
 try:
     from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (get_flatpak_source_spec,
                                                                       FlatpakCreateDockerfilePlugin)
@@ -29,7 +28,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
 from atomic_reactor.source import VcsInfo, SourceConfig
 from atomic_reactor.util import ImageName
 
-from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
+from tests.constants import (FLATPAK_GIT, FLATPAK_SHA1)
 from tests.flatpak import MODULEMD_AVAILABLE, build_flatpak_test_configs
 
 
@@ -65,10 +64,9 @@ class MockBuilder(object):
         self.df_path = path
 
 
-def mock_workflow(tmpdir, container_yaml, user_params=None):
+def mock_workflow(tmpdir, workflow, container_yaml, user_params=None):
     if user_params is None:
         user_params = USER_PARAMS
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', MockBuilder())
     workflow.builder.source = mock_source
@@ -97,7 +95,7 @@ CONFIGS = build_flatpak_test_configs()
     ('app', None, 'no_modules'),
     ('app', None, 'multiple_modules'),
 ])
-def test_flatpak_create_dockerfile(tmpdir, docker_tasker,
+def test_flatpak_create_dockerfile(tmpdir, docker_tasker, workflow,
                                    config_name, override_base_image, breakage,
                                    reactor_config_map):
     config = CONFIGS[config_name]
@@ -120,7 +118,7 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker,
         data['compose']['modules'] = modules
     container_yaml = yaml.dump(data)
 
-    workflow = mock_workflow(tmpdir, container_yaml)
+    workflow = mock_workflow(tmpdir, workflow, container_yaml)
 
     source_spec = get_flatpak_source_spec(workflow)
     assert source_spec is None
@@ -168,8 +166,8 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker,
         assert source_spec == config['source_spec']
 
 
-def test_skip_plugin(tmpdir, caplog, docker_tasker, reactor_config_map):
-    workflow = mock_workflow(tmpdir, "", user_params={})
+def test_skip_plugin(tmpdir, caplog, docker_tasker, workflow, reactor_config_map):
+    workflow = mock_workflow(tmpdir, workflow, "", user_params={})
 
     base_image = "registry.fedoraproject.org/fedora:latest"
 

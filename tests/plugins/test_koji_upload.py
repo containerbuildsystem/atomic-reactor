@@ -28,12 +28,12 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        ReactorConfig)
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 
-from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
+from atomic_reactor.inner import TagConf, PushConf
 from atomic_reactor.util import ImageName, ManifestDigest
 from atomic_reactor.utils.rpm import parse_rpm_output
 from atomic_reactor.source import GitSource
 from atomic_reactor.build import BuildResult
-from tests.constants import SOURCE, MOCK
+from tests.constants import MOCK
 from tests.stubs import StubInsideBuilder, StubSource
 
 from flexmock import flexmock
@@ -234,7 +234,7 @@ def is_string_type(obj):
                for strtype in string_types)
 
 
-def mock_environment(tmpdir, session=None, name=None,
+def mock_environment(tmpdir, workflow, session=None, name=None,
                      component=None, version=None, release=None,
                      source=None, build_process_failed=False,
                      blocksize=None, task_states=None,
@@ -247,7 +247,6 @@ def mock_environment(tmpdir, session=None, name=None,
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
     base_image_id = '123456parent-id'
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
@@ -458,10 +457,12 @@ class TestKojiUploadLogger(object):
 
 
 class TestKojiUpload(object):
-    def test_koji_upload_failed_build(self, tmpdir, os_env, reactor_config_map):  # noqa
+    def test_koji_upload_failed_build(self, tmpdir, workflow,
+                                      os_env, reactor_config_map):  # noqa
         session = MockedClientSession('')
         osbs = MockedOSBS()
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             build_process_failed=True,
                                             name='ns/name',
@@ -474,14 +475,16 @@ class TestKojiUpload(object):
         metadata = get_metadata(workflow, osbs)
         assert not metadata
 
-    def test_koji_upload_no_tagconf(self, tmpdir, os_env, reactor_config_map):  # noqa
-        tasker, workflow = mock_environment(tmpdir)
+    def test_koji_upload_no_tagconf(self, tmpdir, workflow, os_env, reactor_config_map):  # noqa
+        tasker, workflow = mock_environment(tmpdir, workflow)
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_upload_no_build_env(self, tmpdir, monkeypatch, os_env, reactor_config_map):  # noqa
+    def test_koji_upload_no_build_env(self, tmpdir, workflow, monkeypatch,
+                                      os_env, reactor_config_map):  # noqa
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='ns/name',
                                             version='1.0',
                                             release='1')
@@ -494,8 +497,10 @@ class TestKojiUpload(object):
             runner.run()
         assert "plugin 'koji_upload' raised an exception: KeyError" in str(exc.value)
 
-    def test_koji_upload_no_build_metadata(self, tmpdir, monkeypatch, os_env, reactor_config_map):  # noqa
+    def test_koji_upload_no_build_metadata(self, tmpdir, workflow, monkeypatch,
+                                           os_env, reactor_config_map):  # noqa
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='ns/name',
                                             version='1.0',
                                             release='1')
@@ -531,13 +536,14 @@ class TestKojiUpload(object):
             'keytab': 'FILE:/var/run/secrets/mysecret',
         },
     ])
-    def test_koji_upload_krb_args(self, tmpdir, params, os_env, reactor_config_map):
+    def test_koji_upload_krb_args(self, tmpdir, workflow, params, os_env, reactor_config_map):
         session = MockedClientSession('')
         expectation = flexmock(session).should_receive('krb_login').and_return(True)
         name = 'name'
         version = '1.0'
         release = '1'
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name=name,
                                             version=version,
@@ -555,13 +561,14 @@ class TestKojiUpload(object):
             expectation.once()
             runner.run()
 
-    def test_koji_upload_krb_fail(self, tmpdir, os_env, reactor_config_map):  # noqa
+    def test_koji_upload_krb_fail(self, tmpdir, workflow, os_env, reactor_config_map):  # noqa
         session = MockedClientSession('')
         (flexmock(session)
             .should_receive('krb_login')
             .and_raise(RuntimeError)
             .once())
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name='ns/name',
                                             version='1.0',
@@ -570,13 +577,14 @@ class TestKojiUpload(object):
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_upload_ssl_fail(self, tmpdir, os_env, reactor_config_map):  # noqa
+    def test_koji_upload_ssl_fail(self, tmpdir, workflow, os_env, reactor_config_map):  # noqa
         session = MockedClientSession('')
         (flexmock(session)
             .should_receive('ssl_login')
             .and_raise(RuntimeError)
             .once())
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name='ns/name',
                                             version='1.0',
@@ -590,8 +598,10 @@ class TestKojiUpload(object):
         'get_build_logs',
         'get_pod_for_build',
     ])
-    def test_koji_upload_osbs_fail(self, tmpdir, os_env, fail_method, reactor_config_map):
+    def test_koji_upload_osbs_fail(self, tmpdir, workflow, os_env,
+                                   fail_method, reactor_config_map):
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='name',
                                             version='1.0',
                                             release='1')
@@ -602,10 +612,12 @@ class TestKojiUpload(object):
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
         runner.run()
 
-    def test_koji_upload_rpm_components(self, tmpdir, os_env, reactor_config_map):  # noqa
+    def test_koji_upload_rpm_components(self, tmpdir, workflow,
+                                        os_env, reactor_config_map):  # noqa
         session = MockedClientSession('')
         osbs = MockedOSBS()
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name='ns/name',
                                             version='1.0',
@@ -865,7 +877,8 @@ class TestKojiUpload(object):
                 assert 'container_config' not in [x.lower() for x in config.keys()]
                 assert all(is_string_type(entry) for entry in config)
 
-    def test_koji_upload_import_fail(self, tmpdir, os_env, caplog, reactor_config_map):  # noqa
+    def test_koji_upload_import_fail(self, tmpdir, workflow, os_env,
+                                     caplog, reactor_config_map):  # noqa
         session = MockedClientSession('')
         (flexmock(OSBS)
             .should_receive('create_config_map')
@@ -875,6 +888,7 @@ class TestKojiUpload(object):
         release = '1'
         target = 'images-docker-candidate'
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name=name,
                                             version=version,
                                             release=release,
@@ -890,12 +904,14 @@ class TestKojiUpload(object):
         None,
         ['3.2'],
     ])
-    def test_koji_upload_image_tags(self, tmpdir, os_env, additional_tags, reactor_config_map):
+    def test_koji_upload_image_tags(self, tmpdir, workflow, os_env,
+                                    additional_tags, reactor_config_map):
         osbs = MockedOSBS()
         session = MockedClientSession('')
         version = '3.2.1'
         release = '4'
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             name='ns/name',
                                             version=version,
                                             release=release,
@@ -935,6 +951,7 @@ class TestKojiUpload(object):
     @pytest.mark.parametrize('has_config', (True, False))
     @pytest.mark.parametrize('base_from_scratch', (True, False))
     def test_koji_upload_success(self, tmpdir,
+                                 workflow,
                                  blocksize,
                                  os_env, has_config,
                                  base_from_scratch, reactor_config_map):
@@ -947,6 +964,7 @@ class TestKojiUpload(object):
         expected_build_name = 'ns/name:1.0-1'
 
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name=name,
                                             component=component,
@@ -1008,13 +1026,14 @@ class TestKojiUpload(object):
         if blocksize is not None:
             assert blocksize == session.blocksize
 
-    def test_koji_upload_pullspec(self, tmpdir, os_env, reactor_config_map):  # noqa
+    def test_koji_upload_pullspec(self, tmpdir, workflow, os_env, reactor_config_map):  # noqa
         osbs = MockedOSBS()
         session = MockedClientSession('')
         name = 'ns/name'
         version = '1.0'
         release = '1'
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name=name,
                                             version=version,
@@ -1062,11 +1081,12 @@ class TestKojiUpload(object):
         (None, set(['x86_64-build.log'])),
         ('foo', set(['foo-build.log'])),
     ])
-    def test_koji_upload_logs(self, tmpdir, monkeypatch, os_env, is_scratch, logs_return_bytes,
-                              platform, expected_logs, reactor_config_map):
+    def test_koji_upload_logs(self, tmpdir, workflow, monkeypatch, os_env, is_scratch,
+                              logs_return_bytes, platform, expected_logs, reactor_config_map):
         MockedOSBS(logs_return_bytes=logs_return_bytes)
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name='name',
                                             version='1.0',
@@ -1104,11 +1124,12 @@ class TestKojiUpload(object):
             assert images[0].endswith(platform + ".tar.xz")
 
     @pytest.mark.parametrize('multiple', [False, True])
-    def test_koji_upload_multiple_digests(self, tmpdir, os_env,
+    def test_koji_upload_multiple_digests(self, tmpdir, workflow, os_env,
                                           multiple, reactor_config_map):
         server = MockedOSBS()
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name='name',
                                             version='1.0',
@@ -1132,11 +1153,12 @@ class TestKojiUpload(object):
         assert len(pullspecs) == 1
 
     @pytest.mark.parametrize('multiple', [False, True])
-    def test_koji_upload_available_references(self, tmpdir, os_env,
+    def test_koji_upload_available_references(self, tmpdir, workflow, os_env,
                                               multiple, reactor_config_map):
         server = MockedOSBS()
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
+                                            workflow,
                                             session=session,
                                             name='name',
                                             version='1.0',
@@ -1160,11 +1182,11 @@ class TestKojiUpload(object):
         assert (len(digests), len(repositories)) == expected
 
     @pytest.mark.parametrize('has_operator_manifests', [False, True])
-    def test_koji_upload_operator_manifests(self, tmpdir, monkeypatch, os_env,
+    def test_koji_upload_operator_manifests(self, tmpdir, workflow, monkeypatch, os_env,
                                             reactor_config_map, has_operator_manifests):
         server = MockedOSBS()
         session = MockedClientSession('')
-        tasker, workflow = mock_environment(tmpdir, session=session,
+        tasker, workflow = mock_environment(tmpdir, workflow, session=session,
                                             name='name', version='1.0', release='1')
         op_manifests_path = os.path.join(str(tmpdir), OPERATOR_MANIFESTS_ARCHIVE)
         with tempfile.NamedTemporaryFile() as stub:

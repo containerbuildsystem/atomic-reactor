@@ -14,14 +14,11 @@ import pytest
 from flexmock import flexmock
 import yaml
 
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugins.pre_add_flatpak_labels import AddFlatpakLabelsPlugin
 
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.source import SourceConfig
 from atomic_reactor.util import ImageName, df_parser
-
-from tests.constants import MOCK_SOURCE
 
 
 DF_CONTENT = """FROM fedora:latest
@@ -47,11 +44,9 @@ class MockBuilder(object):
         self.image_id = "xxx"
 
 
-def mock_workflow(tmpdir, container_yaml, user_params=None):
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+def mock_workflow(tmpdir, workflow, container_yaml, user_params=None):
     if user_params is None:
         user_params = USER_PARAMS
-
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', MockBuilder())
     workflow.builder.source = mock_source
@@ -77,7 +72,7 @@ def mock_workflow(tmpdir, container_yaml, user_params=None):
     ({'a': 'b'}, 'LABEL "a"="b"'),
     ({'a': 'b', 'c': 'd"'}, 'LABEL "a"="b" "c"="d\\""'),
 ]) # noqa - docker_tasker fixture
-def test_add_flatpak_labels(tmpdir, docker_tasker,
+def test_add_flatpak_labels(tmpdir, docker_tasker, workflow,
                             labels, expected):
 
     if labels is not None:
@@ -86,7 +81,7 @@ def test_add_flatpak_labels(tmpdir, docker_tasker,
         data = {}
     container_yaml = yaml.dump(data)
 
-    workflow = mock_workflow(tmpdir, container_yaml)
+    workflow = mock_workflow(tmpdir, workflow, container_yaml)
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -111,8 +106,8 @@ def test_add_flatpak_labels(tmpdir, docker_tasker,
         assert last_line == "CMD sleep 1000"
 
 
-def test_skip_plugin(tmpdir, caplog, docker_tasker):
-    workflow = mock_workflow(tmpdir, '', user_params={})
+def test_skip_plugin(tmpdir, caplog, docker_tasker, workflow):
+    workflow = mock_workflow(tmpdir, workflow, '', user_params={})
 
     runner = PreBuildPluginsRunner(
         docker_tasker,

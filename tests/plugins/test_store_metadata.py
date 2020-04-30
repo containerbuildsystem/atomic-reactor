@@ -22,7 +22,6 @@ from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
                                       PLUGIN_FETCH_SOURCES_KEY)
 from atomic_reactor.build import BuildResult
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
@@ -85,7 +84,7 @@ class XBeforeDockerfile(object):
         raise AttributeError("Dockerfile has not yet been generated")
 
 
-def prepare(docker_registries=None, before_dockerfile=False,  # noqa
+def prepare(workflow, docker_registries=None, before_dockerfile=False,  # noqa
             reactor_config_map=False):
     if docker_registries is None:
         docker_registries = (LOCALHOST_REGISTRY, DOCKER0_REGISTRY,)
@@ -120,11 +119,6 @@ def prepare(docker_registries=None, before_dockerfile=False,  # noqa
 
     flexmock(os)
     os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
-
-    workflow = DockerBuildWorkflow(
-        "test-image",
-        source={"provider": "git", "uri": "asd"},
-    )
 
     if reactor_config_map:
         openshift_map = {
@@ -192,13 +186,13 @@ def prepare(docker_registries=None, before_dockerfile=False,  # noqa
     (["application/vnd.docker.distribution.manifest.v1+json"],
      ["application/vnd.docker.distribution.manifest.v1+json"]),
 ))
-def test_metadata_plugin(tmpdir, br_annotations, expected_br_annotations,
+def test_metadata_plugin(workflow, tmpdir, br_annotations, expected_br_annotations,
                          br_labels, expected_br_labels, koji,
                          help_results, expected_help_results, base_from_scratch,
                          verify_media_results, expected_media_results,
                          reactor_config_map):
     initial_timestamp = datetime.now()
-    workflow = prepare(reactor_config_map=reactor_config_map)
+    workflow = prepare(workflow, reactor_config_map=reactor_config_map)
     if base_from_scratch:
         df_content = """
 FROM fedora
@@ -405,11 +399,11 @@ CMD blabla"""
     (["application/vnd.docker.distribution.manifest.v1+json"],
      ["application/vnd.docker.distribution.manifest.v1+json"]),
 ))
-def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotations,
+def test_metadata_plugin_source(workflow, image_id, br_annotations, expected_br_annotations,
                                 br_labels, expected_br_labels, verify_media_results,
                                 expected_media_results, reactor_config_map):
     initial_timestamp = datetime.now()
-    workflow = prepare(reactor_config_map=reactor_config_map)
+    workflow = prepare(workflow, reactor_config_map=reactor_config_map)
 
     if image_id:
         workflow.koji_source_manifest = {'config': {'digest': image_id}}
@@ -557,8 +551,8 @@ def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotation
     },
     {}
 ))
-def test_koji_filesystem_label(res, reactor_config_map):
-    workflow = prepare(reactor_config_map=reactor_config_map)
+def test_koji_filesystem_label(workflow, res, reactor_config_map):
+    workflow = prepare(workflow, reactor_config_map=reactor_config_map)
     if 'filesystem-koji-task-id' in res:
         workflow.labels['filesystem-koji-task-id'] = res['filesystem-koji-task-id']
     runner = ExitPluginsRunner(
@@ -581,9 +575,9 @@ def test_koji_filesystem_label(res, reactor_config_map):
         assert 'filesystem-koji-task-id' not in labels
 
 
-def test_metadata_plugin_rpmqa_failure(tmpdir, reactor_config_map):  # noqa
+def test_metadata_plugin_rpmqa_failure(workflow, tmpdir, reactor_config_map):  # noqa
     initial_timestamp = datetime.now()
-    workflow = prepare(reactor_config_map=reactor_config_map)
+    workflow = prepare(workflow, reactor_config_map=reactor_config_map)
     df_content = """
 FROM fedora
 RUN yum install -y python-django
@@ -643,8 +637,8 @@ CMD blabla"""
     assert "all_rpm_packages" in plugins_metadata["durations"]
 
 
-def test_exit_before_dockerfile_created(tmpdir, reactor_config_map):  # noqa
-    workflow = prepare(before_dockerfile=True, reactor_config_map=reactor_config_map)
+def test_exit_before_dockerfile_created(workflow, tmpdir, reactor_config_map):  # noqa
+    workflow = prepare(workflow, before_dockerfile=True, reactor_config_map=reactor_config_map)
     workflow.exit_results = {}
     workflow.builder = XBeforeDockerfile()
     workflow.builder.df_dir = str(tmpdir)
@@ -667,8 +661,9 @@ def test_exit_before_dockerfile_created(tmpdir, reactor_config_map):  # noqa
     assert annotations["dockerfile"] == ""
 
 
-def test_store_metadata_fail_update_annotations(tmpdir, caplog, reactor_config_map):  # noqa
-    workflow = prepare(reactor_config_map=reactor_config_map)
+def test_store_metadata_fail_update_annotations(workflow, tmpdir, caplog,
+                                                reactor_config_map):  # noqa
+    workflow = prepare(workflow, reactor_config_map=reactor_config_map)
     workflow.exit_results = {}
     df_content = """
 FROM fedora
@@ -697,8 +692,8 @@ CMD blabla"""
     assert 'annotations:' in caplog.text
 
 
-def test_store_metadata_fail_update_labels(caplog, reactor_config_map):
-    workflow = prepare(reactor_config_map=reactor_config_map)
+def test_store_metadata_fail_update_labels(workflow, caplog, reactor_config_map):
+    workflow = prepare(workflow, reactor_config_map=reactor_config_map)
     workflow.labels = {'some-label': 'some-value'}
 
     runner = ExitPluginsRunner(
@@ -742,8 +737,8 @@ def test_store_metadata_fail_update_labels(caplog, reactor_config_map):
         ['spam:8888', 'bacon:8888']
     ],
 ])
-def test_filter_repositories(tmpdir, docker_registries, prefixes, reactor_config_map):
-    workflow = prepare(docker_registries=docker_registries,
+def test_filter_repositories(workflow, tmpdir, docker_registries, prefixes, reactor_config_map):
+    workflow = prepare(workflow, docker_registries=docker_registries,
                        reactor_config_map=reactor_config_map)
     df_content = """
 FROM fedora
@@ -794,8 +789,8 @@ CMD blabla"""
     {'task_annotations_whitelist': []},
     {'task_annotations_whitelist': ['foo']},
     ))
-def test_set_koji_annotations_whitelist(tmpdir, koji_conf):
-    workflow = prepare()
+def test_set_koji_annotations_whitelist(workflow, tmpdir, koji_conf):
+    workflow = prepare(workflow)
     workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
     if koji_conf is not None:
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
@@ -836,8 +831,8 @@ def test_set_koji_annotations_whitelist(tmpdir, koji_conf):
         assert 'koji_task_annotations_whitelist' not in annotations
 
 
-def test_plugin_annotations():
-    workflow = prepare()
+def test_plugin_annotations(workflow):
+    workflow = prepare(workflow)
     workflow.annotations = {'foo': {'bar': 'baz'}, 'spam': ['eggs']}
 
     runner = ExitPluginsRunner(
@@ -858,8 +853,8 @@ def test_plugin_annotations():
     assert annotations['spam'] == '["eggs"]'
 
 
-def test_plugin_labels():
-    workflow = prepare()
+def test_plugin_labels(workflow):
+    workflow = prepare(workflow)
     workflow.labels = {'foo': 1, 'bar': 'two'}
 
     runner = ExitPluginsRunner(

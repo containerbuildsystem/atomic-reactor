@@ -19,7 +19,6 @@ from atomic_reactor.constants import (
     BASE_IMAGE_KOJI_BUILD
 )
 from atomic_reactor.core import DockerTasker
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.source import SourceConfig
 from atomic_reactor.utils.odcs import ODCSClient
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
@@ -35,7 +34,7 @@ import yaml
 from atomic_reactor.util import ImageName, read_yaml
 from datetime import datetime, timedelta
 from flexmock import flexmock
-from tests.constants import MOCK, MOCK_SOURCE
+from tests.constants import MOCK
 from textwrap import dedent
 
 import logging
@@ -96,7 +95,7 @@ class MockInsideBuilder(object):
 
 
 @pytest.fixture()
-def workflow(tmpdir):
+def workflow(tmpdir, workflow):
     if MOCK:
         mock_docker()
 
@@ -106,11 +105,7 @@ def workflow(tmpdir):
             'platforms': ODCS_COMPOSE_DEFAULT_ARCH_LIST
         },
     }]
-    workflow = DockerBuildWorkflow(
-        'test-image',
-        source=MOCK_SOURCE,
-        buildstep_plugins=buildstep_plugin,
-    )
+    workflow.buildstep_plugins_conf = buildstep_plugin
     workflow.builder = MockInsideBuilder(tmpdir)
     workflow.source = workflow.builder.source
     workflow._tmpdir = tmpdir

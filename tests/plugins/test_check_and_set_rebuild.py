@@ -10,7 +10,6 @@ from __future__ import unicode_literals, absolute_import
 
 import pytest
 from atomic_reactor.core import DockerTasker
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_check_and_set_rebuild import (is_rebuild,
                                                               CheckAndSetRebuildPlugin)
@@ -23,7 +22,7 @@ import json
 from osbs.api import OSBS
 import osbs.conf
 from flexmock import flexmock
-from tests.constants import MOCK, MOCK_SOURCE
+from tests.constants import MOCK
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -54,13 +53,13 @@ class MockSource(object):
 
 
 class TestCheckRebuild(object):
-    def prepare(self, tmpdir, key, value, update_labels_args=None, update_labels_kwargs=None,
+    def prepare(self, tmpdir, workflow, key, value,
+                update_labels_args=None, update_labels_kwargs=None,
                 reactor_config_map=False, base_from_scratch=False, custom_base=False):
         if MOCK:
             mock_docker()
         tasker = DockerTasker()
 
-        workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
         workflow.builder = MockInsideBuilder(tmpdir)
         workflow.builder.base_from_scratch = base_from_scratch
         workflow.builder.custom_base_image = custom_base
@@ -103,18 +102,19 @@ class TestCheckRebuild(object):
         ])
         return workflow, runner
 
-    def test_check_rebuild_no_build_json(self, tmpdir, monkeypatch, reactor_config_map):
-        _, runner = self.prepare(tmpdir, 'is_autorebuild', 'true',
+    def test_check_rebuild_no_build_json(self, tmpdir, workflow, monkeypatch, reactor_config_map):
+        _, runner = self.prepare(tmpdir, workflow, 'is_autorebuild', 'true',
                                  reactor_config_map=reactor_config_map)
         monkeypatch.delenv('BUILD', raising=False)
 
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_check_no_buildconfig(self, tmpdir, monkeypatch, reactor_config_map):
+    def test_check_no_buildconfig(self, tmpdir, workflow, monkeypatch, reactor_config_map):
         key = 'is_autorebuild'
         value = 'true'
-        _, runner = self.prepare(tmpdir, key, value, reactor_config_map=reactor_config_map)
+        _, runner = self.prepare(tmpdir, workflow, key, value,
+                                 reactor_config_map=reactor_config_map)
         monkeypatch.setenv("BUILD", json.dumps({
             "metadata": {
                 "labels": {
@@ -128,7 +128,8 @@ class TestCheckRebuild(object):
             runner.run()
 
     @pytest.mark.parametrize(('namespace'), [None, 'my_namespace'])
-    def test_check_is_not_rebuild(self, tmpdir, namespace, monkeypatch, reactor_config_map):
+    def test_check_is_not_rebuild(self, tmpdir, workflow, namespace,
+                                  monkeypatch, reactor_config_map):
         key = 'is_autorebuild'
         value = 'true'
         buildconfig = "buildconfig1"
@@ -136,7 +137,7 @@ class TestCheckRebuild(object):
         if namespace is not None:
             namespace_dict["namespace"] = namespace
 
-        workflow, runner = self.prepare(tmpdir, key, value,
+        workflow, runner = self.prepare(tmpdir, workflow, key, value,
                                         update_labels_args=(buildconfig,
                                                             {key: value}),
                                         update_labels_kwargs=namespace_dict,
@@ -160,12 +161,13 @@ class TestCheckRebuild(object):
     @pytest.mark.parametrize('custom_base', (True, False))
     @pytest.mark.parametrize('base_from_scratch', (True, False))
     @pytest.mark.parametrize('from_latest', (None, True, False))
-    def test_check_is_rebuild(self, caplog, tmpdir, monkeypatch, reactor_config_map,
+    def test_check_is_rebuild(self, caplog, tmpdir, workflow, monkeypatch, reactor_config_map,
                               base_from_scratch, custom_base, from_latest):
         key = 'is_autorebuild'
         value = 'true'
 
-        workflow, runner = self.prepare(tmpdir, key, value, reactor_config_map=reactor_config_map,
+        workflow, runner = self.prepare(tmpdir, workflow, key, value,
+                                        reactor_config_map=reactor_config_map,
                                         base_from_scratch=base_from_scratch,
                                         custom_base=custom_base)
 
@@ -212,8 +214,8 @@ class TestCheckRebuild(object):
         (True, True),
         (False, True),
     ])
-    def test_skip_build(self, tmpdir, caplog, reactor_config_map, scratch, isolated):
-        workflow, runner = self.prepare(tmpdir, 'is_autorebuild', 'true',
+    def test_skip_build(self, tmpdir, workflow, caplog, reactor_config_map, scratch, isolated):
+        workflow, runner = self.prepare(tmpdir, workflow, 'is_autorebuild', 'true',
                                         reactor_config_map=reactor_config_map)
         workflow.user_params['scratch'] = scratch
         workflow.user_params['isolated'] = isolated

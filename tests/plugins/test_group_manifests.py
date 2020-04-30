@@ -18,13 +18,13 @@ import requests
 from collections import OrderedDict
 from six import binary_type, text_type
 
-from tests.constants import SOURCE, MOCK, DOCKER0_REGISTRY
+from tests.constants import MOCK, DOCKER0_REGISTRY
 from tests.stubs import StubInsideBuilder
 
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
-from atomic_reactor.inner import DockerBuildWorkflow, TagConf
+from atomic_reactor.inner import TagConf
 from atomic_reactor.util import (ImageName, registry_hostname, ManifestDigest, get_floating_images,
                                  get_primary_images)
 from atomic_reactor.plugins.post_group_manifests import GroupManifestsPlugin
@@ -304,12 +304,10 @@ def mock_registries(registries, config, schema_version='v2', foreign_layers=Fals
     }
 
 
-def mock_environment(tmpdir, primary_images=None,
-                     annotations=None):
+def mock_environment(tmpdir, workflow, primary_images=None, annotations=None):
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
     base_image_id = '123456parent-id'
     setattr(workflow, '_base_image_inspect', {'Id': base_image_id})
     setattr(workflow, 'builder', StubInsideBuilder())
@@ -432,7 +430,7 @@ OTHER_V2 = 'registry.example.com:5001'
      None)
 ])
 @responses.activate  # noqa
-def test_group_manifests(tmpdir, schema_version, test_name, group, foreign_layers,
+def test_group_manifests(tmpdir, workflow, schema_version, test_name, group, foreign_layers,
                          registries, workers, expected_exception, reactor_config_map):
     if MOCK:
         mock_docker()
@@ -477,7 +475,7 @@ def test_group_manifests(tmpdir, schema_version, test_name, group, foreign_layer
     mocked_registries, annotations = mock_registries(registry_conf, workers,
                                                      schema_version=schema_version,
                                                      foreign_layers=foreign_layers)
-    tasker, workflow = mock_environment(tmpdir, primary_images=test_images,
+    tasker, workflow = mock_environment(tmpdir, workflow, primary_images=test_images,
                                         annotations=annotations)
 
     if reactor_config_map:

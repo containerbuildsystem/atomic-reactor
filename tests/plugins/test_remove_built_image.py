@@ -12,7 +12,6 @@ import flexmock
 import pytest
 
 from atomic_reactor.core import DockerTasker
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.plugins.exit_remove_built_image import (GarbageCollectionPlugin,
                                                             defer_removal)
@@ -32,15 +31,11 @@ class X(object):
     pass
 
 
-def mock_environment(base_image=None):
+def mock_environment(workflow, base_image=None):
     if MOCK:
         mock_docker()
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(
-        TEST_IMAGE,
-        source={"provider": "git", "uri": "asd"},
-    )
     workflow.postbuild_results[TagAndPushPlugin.key] = True
     workflow.tag_conf.add_primary_image(TEST_IMAGE)
     workflow.push_conf.add_docker_registry(LOCALHOST_REGISTRY, insecure=True)
@@ -62,8 +57,8 @@ class TestGarbageCollectionPlugin(object):
         (True, [], set([IMPORTED_IMAGE_ID, INPUT_IMAGE])),
         (True, ['defer'], set([IMPORTED_IMAGE_ID, INPUT_IMAGE, 'defer'])),
     ])
-    def test_remove_built_image_plugin(self, remove_base, deferred, expected):
-        tasker, workflow = mock_environment()
+    def test_remove_built_image_plugin(self, workflow, remove_base, deferred, expected):
+        tasker, workflow = mock_environment(workflow)
         runner = PostBuildPluginsRunner(
             tasker,
             workflow,

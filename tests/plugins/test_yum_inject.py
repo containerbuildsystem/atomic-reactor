@@ -18,7 +18,6 @@ import pytest
 from atomic_reactor.constants import (YUM_REPOS_DIR, DEFAULT_YUM_REPOFILE_NAME, RELATIVE_REPOS_PATH,
                                       INSPECT_CONFIG)
 from atomic_reactor.core import DockerTasker
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_inject_yum_repo import (
     InjectYumRepoPlugin,
@@ -29,18 +28,17 @@ import os.path
 from collections import namedtuple
 import requests
 from flexmock import flexmock
-from tests.constants import SOURCE, MOCK
+from tests.constants import MOCK
 from tests.util import requires_internet
 from tests.stubs import StubInsideBuilder, StubSource
 if MOCK:
     from tests.docker_mock import mock_docker
 
 
-def prepare(df_path, inherited_user=''):
+def prepare(df_path, workflow, inherited_user=''):
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
     workflow.source = StubSource()
     workflow.builder = (StubInsideBuilder()
                         .for_workflow(workflow)
@@ -59,7 +57,7 @@ def prepare(df_path, inherited_user=''):
 
 
 @requires_internet
-def test_yuminject_plugin(tmpdir):
+def test_yuminject_plugin(tmpdir, workflow):
     df_content = """\
 FROM fedora
 RUN yum install -y python-django
@@ -67,7 +65,7 @@ CMD blabla"""
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    tasker, workflow = prepare(df.dockerfile_path)
+    tasker, workflow = prepare(df.dockerfile_path, workflow)
 
     metalink = 'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'
 
@@ -93,7 +91,7 @@ RUN rm -f '/etc/yum.repos.d/atomic-reactor-injected.repo'
     assert expected_output == df.content
 
 
-def test_yuminject_multiline(tmpdir):
+def test_yuminject_multiline(tmpdir, workflow):
     df_content = """\
 FROM fedora
 RUN yum install -y httpd \
@@ -102,7 +100,7 @@ CMD blabla"""
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    tasker, workflow = prepare(df.dockerfile_path)
+    tasker, workflow = prepare(df.dockerfile_path, workflow)
 
     metalink = r'https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch'  # noqa
 
@@ -199,12 +197,12 @@ DOCKERFILES = {
 }
 
 
-def test_no_repourls(tmpdir):
+def test_no_repourls(tmpdir, workflow):
     for df_content in DOCKERFILES.values():
         df = df_parser(str(tmpdir))
         df.lines = df_content.lines_before_add + df_content.lines_before_remove
 
-        tasker, workflow = prepare(df.dockerfile_path,
+        tasker, workflow = prepare(df.dockerfile_path, workflow,
                                    df_content.inherited_user)
         runner = PreBuildPluginsRunner(tasker, workflow, [{
             'name': InjectYumRepoPlugin.key,
@@ -233,11 +231,11 @@ def remove_lines_match(actual, expected, repos):
     return True
 
 
-def test_single_repourl(tmpdir):
+def test_single_repourl(tmpdir, workflow):
     for df_content in DOCKERFILES.values():
         df = df_parser(str(tmpdir))
         df.lines = df_content.lines_before_add + df_content.lines_before_remove
-        tasker, workflow = prepare(df.dockerfile_path,
+        tasker, workflow = prepare(df.dockerfile_path, workflow,
                                    df_content.inherited_user)
         filename = 'test-ccece.repo'
         unique_filename = 'test-ccece.repo'
@@ -282,11 +280,11 @@ def test_single_repourl(tmpdir):
         assert remove_lines_match(remove, df_content.remove_lines, [filename])
 
 
-def test_multiple_repourls(tmpdir):
+def test_multiple_repourls(tmpdir, workflow):
     for df_content in DOCKERFILES.values():
         df = df_parser(str(tmpdir))
         df.lines = df_content.lines_before_add + df_content.lines_before_remove
-        tasker, workflow = prepare(df.dockerfile_path,
+        tasker, workflow = prepare(df.dockerfile_path, workflow,
                                    df_content.inherited_user)
         filename1 = 'myrepo-457b5.repo'
         filename2 = 'repo-2-7c47d.repo'
@@ -496,7 +494,7 @@ def test_multiple_repourls(tmpdir):
     ),
 ])
 def test_multistage_dockerfiles(name, inherited_user, dockerfile, expect_cleanup_lines,
-                                base_from_scratch, tmpdir, caplog):
+                                base_from_scratch, tmpdir, workflow, caplog):
     # expect repo ADD instructions where indicated in the content, and RUN rm at the end.
     # begin by splitting on "### ADD HERE" so we know where to expect changes.
     segments = re.split(r'^.*ADD HERE.*$\n?', dockerfile, flags=re.M)
@@ -510,7 +508,7 @@ def test_multistage_dockerfiles(name, inherited_user, dockerfile, expect_cleanup
     # now run the plugin to transform the given dockerfile
     df = df_parser(str(tmpdir))
     df.content = ''.join(segments)  # dockerfile without the "### ADD HERE" lines
-    tasker, workflow = prepare(df.dockerfile_path, inherited_user)
+    tasker, workflow = prepare(df.dockerfile_path, workflow, inherited_user)
     workflow.builder.set_base_from_scratch(base_from_scratch)
     repo_file = 'myrepo.repo'
     repo_path = os.path.join(YUM_REPOS_DIR, repo_file)
