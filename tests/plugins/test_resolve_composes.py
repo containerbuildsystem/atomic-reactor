@@ -93,6 +93,7 @@ class MockInsideBuilder(object):
         self.image_id = 'image_id'
         self.image = 'image'
         self.source = MockSource(tmpdir)
+        self.base_from_scratch = False
 
 
 @pytest.fixture()
@@ -1402,3 +1403,19 @@ class TestResolveComposes(object):
                 .get(WORKSPACE_KEY_OVERRIDE_KWARGS, {})
                 .get(arch, {})
                 .get('yum_repourls'))
+
+    def test_skip_adjust_composes_for_inheritance_if_image_is_based_on_scratch(
+            self, workflow, caplog):
+        plugin = ResolveComposesPlugin(workflow.builder.tasker, workflow)
+        workflow.builder.base_from_scratch = True
+        plugin.adjust_for_inherit()
+        assert ('This is a base image based on scratch. '
+                'Skipping adjusting composes for inheritance.' in caplog.text)
+
+    def test_skip_adjust_signing_intent_from_parent_if_image_is_based_on_scratch(
+            self, workflow, caplog):
+        plugin = ResolveComposesPlugin(workflow.builder.tasker, workflow)
+        workflow.builder.base_from_scratch = True
+        plugin.adjust_signing_intent_from_parent()
+        assert ('This is a base image based on scratch. '
+                'Signing intent will not be adjusted for it.' in caplog.text)
