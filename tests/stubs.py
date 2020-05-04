@@ -55,6 +55,7 @@ class StubInsideBuilder(object):
     def __init__(self):
         self.base_image = None
         self.parent_images = {}
+        self.parent_images_digests = {}
         self.df_path = None
         self.df_dir = None
         self.git_dockerfile_path = None
@@ -68,6 +69,7 @@ class StubInsideBuilder(object):
         self.tasker = None
         self.original_df = None
         self.buildargs = {}
+        self.custom_base_image = False
 
         self._inspection_data = None
         self._parent_inspection_data = {}

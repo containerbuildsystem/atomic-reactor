@@ -45,6 +45,7 @@ class TestKojiDelegate(object):
         setattr(workflow, 'plugin_workspace', {})
         setattr(workflow, 'reserved_build_id', None)
         setattr(workflow, 'reserved_token ', None)
+        setattr(workflow, 'cancel_isolated_autorebuild', None)
         setattr(workflow, 'triggered_after_koji_task', None)
         setattr(workflow, 'source', MockSource(tmpdir))
         setattr(workflow, 'prebuild_results', {CheckAndSetRebuildPlugin.key: is_auto})
@@ -161,6 +162,7 @@ class TestKojiDelegate(object):
         elif not task_exists:
             assert "koji-task-id label on build, doesn't exist in koji" in caplog.text
 
+    @pytest.mark.parametrize('cancel_isolated_autorebuild', [True, False])
     @pytest.mark.parametrize('user_params', [
         {'git_ref': 'test_ref',
          'git_uri': 'test_uri',
@@ -185,7 +187,8 @@ class TestKojiDelegate(object):
         (None, True, 30),
         (None, False, 60),
     ])
-    def test_delegate_build(self, tmpdir, caplog, user_params, koji_task_id, original_koji_task_id,
+    def test_delegate_build(self, tmpdir, caplog, cancel_isolated_autorebuild,
+                            user_params, koji_task_id, original_koji_task_id,
                             triggered_task, task_open, task_priority):
         class MockedClientSession(object):
             def __init__(self, hub, opts=None):
@@ -250,10 +253,16 @@ class TestKojiDelegate(object):
                               delegated_priority=task_priority,
                               triggered_after_koji_task=triggered_task)
 
+        plugin.workflow.cancel_isolated_autorebuild = cancel_isolated_autorebuild
         plugin.workflow.user_params = user_params
 
         with pytest.raises(BuildCanceledException):
             plugin.run()
 
-        assert 'Created intermediate task: 987654321' in caplog.text
-        assert 'Build was delegated, will cancel itself' in caplog.text
+        if cancel_isolated_autorebuild:
+            assert "ignoring isolated build for autorebuild, the build will be cancelled" in \
+                   caplog.text
+            assert 'Build was delegated, the build will be cancelled' not in caplog.text
+        else:
+            assert 'Created intermediate task: 987654321' in caplog.text
+            assert 'Build was delegated, the build will be cancelled' in caplog.text

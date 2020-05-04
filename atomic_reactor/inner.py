@@ -419,6 +419,7 @@ class DockerBuildWorkflow(object):
         self.reserved_build_id = None
         self.reserved_token = None
         self.triggered_after_koji_task = None
+        self.cancel_isolated_autorebuild = False
         self.koji_source_nvr = {}
         self.koji_source_source_url = None
         self.koji_source_manifest = None

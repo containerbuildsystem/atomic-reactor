@@ -16,6 +16,7 @@ from atomic_reactor.plugins.pre_reactor_config import (
     get_deep_manifest_list_inspection, get_koji_session, get_source_registry,
     get_skip_koji_check_for_base_image, get_fail_on_digest_mismatch
 )
+from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import (
     base_image_is_custom, get_manifest_list, get_manifest_media_type, is_scratch_build
 )
@@ -83,6 +84,19 @@ class KojiParentPlugin(PreBuildPlugin):
         self._deep_manifest_list_inspection = get_deep_manifest_list_inspection(self.workflow,
                                                                                 fallback=True)
 
+    def ignore_isolated_autorebuilds(self):
+        if not self.workflow.source.config.autorebuild.get('ignore_isolated_builds', False):
+            self.log.debug("ignoring_isolated_builds isn't configured, won't skip autorebuild")
+            return
+
+        base_koji_build = self.wait_for_parent_image_build(self._base_image_nvr)
+
+        is_isolated = base_koji_build['extra']['image'].get('isolated', False)
+
+        if is_isolated:
+            self.log.debug("setting cancel_isolated_autorebuild")
+            self.workflow.cancel_isolated_autorebuild = True
+
     def run(self):
         if is_scratch_build(self.workflow):
             self.log.info('scratch build, skipping plugin')
@@ -93,6 +107,8 @@ class KojiParentPlugin(PreBuildPlugin):
                 self.workflow.builder.base_image,
                 inspect_data=self.workflow.builder.base_image_inspect,
             )
+            if is_rebuild(self.workflow):
+                self.ignore_isolated_autorebuilds()
 
         manifest_mismatches = []
         for img, local_tag in self.workflow.builder.parent_images.items():
