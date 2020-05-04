@@ -499,7 +499,6 @@ class TestKojiParent(object):
                              mismatch_failure=False, user_params=None, is_isolated=None):
         plugin_args = plugin_args or {}
         user_params = user_params or {}
-        plugin_args.setdefault('koji_hub', KOJI_HUB)
         plugin_args.setdefault('poll_interval', 0.01)
         plugin_args.setdefault('poll_timeout', 1)
         workflow.user_params = user_params

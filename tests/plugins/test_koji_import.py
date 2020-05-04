@@ -558,7 +558,6 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
                   blocksize=None, reserve_build=False,
                   upload_plugin_name=KojiImportPlugin.key):
     args = {
-        'kojihub': '',
         'url': '/',
     }
     koji_map = {
@@ -568,15 +567,12 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
     }
 
     if ssl_certs:
-        args['koji_ssl_certs'] = '/'
         koji_map['auth']['ssl_certs_dir'] = '/'
 
     if principal:
-        args['koji_principal'] = principal
         koji_map['auth']['krb_principal'] = principal
 
     if keytab:
-        args['koji_keytab'] = keytab
         koji_map['auth']['krb_keytab_path'] = keytab
 
     if target:
@@ -598,7 +594,6 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
     if target and tag_later:
         plugins_conf.append({'name': KojiTagBuildPlugin.key,
                              'args': {
-                                 'kojihub': '',
                                  'target': target,
                                  'poll_interval': 0.01}})
     workflow.exit_plugins_conf = plugins_conf
@@ -656,7 +651,7 @@ class TestKojiImport(object):
                                             name='ns/name',
                                             version='1.0',
                                             release='1')
-        plugin = KojiImportPlugin(tasker, workflow, '', '/')
+        plugin = KojiImportPlugin(tasker, workflow, url='/')
 
         assert plugin.get_buildroot(metadatas) == results
 

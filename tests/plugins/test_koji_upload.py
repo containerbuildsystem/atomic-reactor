@@ -340,7 +340,6 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
                   platform=None,
                   multiple=None, reactor_config_map=False):
     args = {
-        'kojihub': '',
         'url': '/',
         'build_json_dir': '',
         'koji_upload_dir': KOJI_UPLOAD_DIR,
@@ -356,17 +355,13 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
     }
 
     if ssl_certs:
-        args['koji_ssl_certs_dir'] = '/'
         koji_map['auth']['ssl_certs_dir'] = '/'
 
     if principal:
-        args['koji_principal'] = principal
         koji_map['auth']['krb_principal'] = principal
 
     if keytab:
-        args['koji_keytab'] = keytab
         koji_map['auth']['krb_keytab_path'] = keytab
-
     if blocksize:
         args['blocksize'] = blocksize
 
@@ -382,7 +377,6 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
 
     if reactor_config_map:
         full_conf['koji'] = koji_map
-        del args['kojihub']
         del args['url']
         del args['build_json_dir']
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
@@ -510,26 +504,18 @@ class TestKojiUpload(object):
     @pytest.mark.parametrize('params', [
         {
             'should_raise': False,
-            'principal': None,
-            'keytab': None,
         },
 
         {
             'should_raise': False,
-            'principal': 'principal@EXAMPLE.COM',
-            'keytab': 'FILE:/var/run/secrets/mysecret',
         },
 
         {
             'should_raise': True,
-            'principal': 'principal@EXAMPLE.COM',
-            'keytab': None,
         },
 
         {
             'should_raise': True,
-            'principal': None,
-            'keytab': 'FILE:/var/run/secrets/mysecret',
         },
     ])
     def test_koji_upload_krb_args(self, tmpdir, params, os_env, reactor_config_map):
@@ -544,8 +530,6 @@ class TestKojiUpload(object):
                                             version=version,
                                             release=release)
         runner = create_runner(tasker, workflow,
-                               principal=params['principal'],
-                               keytab=params['keytab'],
                                reactor_config_map=reactor_config_map)
 
         if params['should_raise']:
@@ -582,7 +566,7 @@ class TestKojiUpload(object):
                                             name='ns/name',
                                             version='1.0',
                                             release='1')
-        runner = create_runner(tasker, workflow, ssl_certs=True,
+        runner = create_runner(tasker, workflow,
                                reactor_config_map=reactor_config_map)
         with pytest.raises(PluginFailedException):
             runner.run()

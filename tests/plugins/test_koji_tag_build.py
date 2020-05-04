@@ -115,7 +115,6 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
                   keytab=None, poll_interval=0.01, proxy_user=None,
                   reactor_config_map=False, use_args=True, koji_target='koji-target'):
     args = {
-        'kojihub': '',
         'target': koji_target,
     }
     koji_map = {
@@ -124,22 +123,18 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
     }
 
     if ssl_certs:
-        args['koji_ssl_certs'] = '/'
         koji_map['auth']['ssl_certs_dir'] = '/'
 
     if principal:
-        args['koji_principal'] = principal
         koji_map['auth']['krb_principal'] = principal
 
     if keytab:
-        args['koji_keytab'] = keytab
         koji_map['auth']['krb_keytab_path'] = keytab
 
     if poll_interval is not None:
         args['poll_interval'] = poll_interval
 
     if proxy_user:
-        args['koji_proxy_user'] = proxy_user
         koji_map['auth']['proxyuser'] = proxy_user
 
     if reactor_config_map:
