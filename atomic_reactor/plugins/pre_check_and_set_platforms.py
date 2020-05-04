@@ -19,7 +19,7 @@ from __future__ import absolute_import
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (get_platforms_in_limits, is_scratch_build, is_isolated_build,
                                  get_orchestrator_platforms)
-from atomic_reactor.plugins.pre_reactor_config import get_config, get_koji_session, NO_FALLBACK
+from atomic_reactor.plugins.pre_reactor_config import get_config, get_koji_session
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 
 
@@ -46,7 +46,7 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
         run the plugin
         """
         if self.koji_target:
-            koji_session = get_koji_session(self.workflow, NO_FALLBACK)
+            koji_session = get_koji_session(self.workflow)
             self.log.info("Checking koji target for platforms")
             event_id = koji_session.getLastEvent()['id']
             target_info = koji_session.getBuildTarget(self.koji_target, event=event_id)

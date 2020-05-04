@@ -84,9 +84,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         create_docker_metadata = False
         ''')
 
-    def __init__(self, tasker, workflow, koji_hub=None,
-                 koji_proxyuser=None, koji_ssl_certs_dir=None,
-                 koji_krb_principal=None, koji_krb_keytab=None,
+    def __init__(self, tasker, workflow,
                  from_task_id=None, poll_interval=5,
                  blocksize=DEFAULT_DOWNLOAD_BLOCK_SIZE,
                  repos=None, architectures=None,
@@ -94,11 +92,6 @@ class AddFilesystemPlugin(PreBuildPlugin):
         """
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param koji_hub: str, koji hub (xmlrpc)
-        :param koji_proxyuser: str, proxy user
-        :param koji_ssl_certs_dir: str, path to "cert", "ca", and "serverca"
-        :param koji_krb_principal: str, name of Kerberos principal
-        :param koji_krb_keytab: str, Kerberos keytab
         :param from_task_id: int, use existing Koji image task ID
         :param poll_interval: int, seconds between polling Koji while waiting
                               for task completion
@@ -113,16 +106,6 @@ class AddFilesystemPlugin(PreBuildPlugin):
         """
         # call parent constructor
         super(AddFilesystemPlugin, self).__init__(tasker, workflow)
-
-        self.koji_fallback = {
-            'hub_url': koji_hub,
-            'auth': {
-                'proxyuser': koji_proxyuser,
-                'ssl_certs_dir': koji_ssl_certs_dir,
-                'krb_principal': str(koji_krb_principal),
-                'krb_keytab_path': str(koji_krb_keytab)
-            }
-        }
 
         self.from_task_id = from_task_id
         self.poll_interval = poll_interval
@@ -414,7 +397,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
 
         image_build_conf = self.get_image_build_conf()
 
-        self.session = get_koji_session(self.workflow, self.koji_fallback)
+        self.session = get_koji_session(self.workflow)
 
         task_id, filesystem_regex = self.run_image_task(image_build_conf)
 

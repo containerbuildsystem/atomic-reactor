@@ -20,8 +20,7 @@ from atomic_reactor.plugins.pre_reactor_config import (
     get_koji_path_info,
     get_koji_session,
     get_config,
-    get_source_container,
-    NO_FALLBACK
+    get_source_container
 )
 from atomic_reactor.source import GitSource
 from atomic_reactor.util import get_retrying_requests_session
@@ -65,8 +64,8 @@ class FetchSourcesPlugin(PreBuildPlugin):
         self.koji_build_id = koji_build_id
         self.koji_build_nvr = koji_build_nvr
         self.signing_intent = signing_intent
-        self.session = get_koji_session(self.workflow, NO_FALLBACK)
-        self.pathinfo = get_koji_path_info(self.workflow, NO_FALLBACK)
+        self.session = get_koji_session(self.workflow)
+        self.pathinfo = get_koji_path_info(self.workflow)
 
     def run(self):
         """
@@ -76,7 +75,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
         self.set_koji_image_build_data()
         self.check_lookaside_cache_usage()
         signing_intent = self.get_signing_intent()
-        koji_config = get_koji(self.workflow, {})
+        koji_config = get_koji(self.workflow)
         insecure = koji_config.get('insecure_download', False)
         urls = self.get_srpm_urls(signing_intent['keys'], insecure=insecure)
         urls_remote = self.get_remote_urls()

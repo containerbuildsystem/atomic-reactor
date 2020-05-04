@@ -39,25 +39,15 @@ class InjectParentImage(PreBuildPlugin):
     key = PLUGIN_INJECT_PARENT_IMAGE_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, koji_parent_build=None, koji_hub=None,
-                 koji_ssl_certs_dir=None):
+    def __init__(self, tasker, workflow, koji_parent_build=None):
         """
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param koji_parent_build: str, either Koji build ID or Koji build NVR
-        :param koji_hub: str, koji hub (xmlrpc)
-        :param koji_ssl_certs_dir: str, path to "cert", "ca", and "serverca"
-                                   used when Koji's identity certificate is not trusted
         """
         super(InjectParentImage, self).__init__(tasker, workflow)
 
-        self.koji_fallback = {
-            'hub_url': koji_hub,
-            'auth': {
-                'ssl_certs_dir': koji_ssl_certs_dir,
-            }
-        }
-        self.koji_session = get_koji_session(self.workflow, self.koji_fallback)
+        self.koji_session = get_koji_session(self.workflow)
         try:
             self.koji_parent_build = int(koji_parent_build)
         except (ValueError, TypeError):

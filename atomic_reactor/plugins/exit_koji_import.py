@@ -97,40 +97,22 @@ class KojiImportBase(ExitPlugin):
     key = None
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, kojihub=None, url=None,
-                 verify_ssl=True, use_auth=True,
-                 koji_ssl_certs=None, koji_proxy_user=None,
-                 koji_principal=None, koji_keytab=None,
-                 blocksize=None,
+    def __init__(self, tasker, workflow, url=None, verify_ssl=True,
+                 use_auth=True, blocksize=None,
                  target=None, poll_interval=5):
         """
         constructor
 
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param kojihub: string, koji hub (xmlrpc)
         :param url: string, URL for OSv3 instance
         :param verify_ssl: bool, verify OSv3 SSL certificate?
         :param use_auth: bool, initiate authentication with OSv3?
-        :param koji_ssl_certs: str, path to 'cert', 'ca', 'serverca'
-        :param koji_proxy_user: str, user to log in as (requires hub config)
-        :param koji_principal: str, Kerberos principal (must specify keytab)
-        :param koji_keytab: str, keytab name (must specify principal)
         :param blocksize: int, blocksize to use for uploading files
         :param target: str, koji target
         :param poll_interval: int, seconds between Koji task status requests
         """
         super(KojiImportBase, self).__init__(tasker, workflow)
-
-        self.koji_fallback = {
-            'hub_url': kojihub,
-            'auth': {
-                'proxyuser': koji_proxy_user,
-                'ssl_certs_dir': koji_ssl_certs,
-                'krb_principal': str(koji_principal),
-                'krb_keytab_path': str(koji_keytab)
-            }
-        }
 
         self.openshift_fallback = {
             'url': url,
@@ -145,7 +127,7 @@ class KojiImportBase(ExitPlugin):
         self.osbs = get_openshift_session(self.workflow, self.openshift_fallback)
         self.build_id = None
         self.session = None
-        self.reserve_build = get_koji(self.workflow, self.koji_fallback).get('reserve_build', False)
+        self.reserve_build = get_koji(self.workflow).get('reserve_build', False)
 
     def get_output(self, *args):
         # Must be implemented by subclasses
@@ -448,7 +430,7 @@ class KojiImportBase(ExitPlugin):
         """
 
         # get the session and token information in case we need to refund a failed build
-        self.session = get_koji_session(self.workflow, self.koji_fallback)
+        self.session = get_koji_session(self.workflow)
         build_token = self.workflow.reserved_token
         build_id = self.workflow.reserved_build_id
 
@@ -506,18 +488,12 @@ class KojiImportPlugin(KojiImportBase):
 
     key = PLUGIN_KOJI_IMPORT_PLUGIN_KEY  # type: ignore
 
-    def __init__(self, tasker, workflow,
-                 kojihub=None, url=None,
+    def __init__(self, tasker, workflow, url=None,
                  verify_ssl=True, use_auth=True,
-                 koji_ssl_certs=None, koji_proxy_user=None,
-                 koji_principal=None, koji_keytab=None,
                  blocksize=None,
                  target=None, poll_interval=5):
-        super(KojiImportPlugin, self).__init__(tasker, workflow,
-                                               kojihub, url,
+        super(KojiImportPlugin, self).__init__(tasker, workflow, url,
                                                verify_ssl, use_auth,
-                                               koji_ssl_certs, koji_proxy_user,
-                                               koji_principal, koji_keytab,
                                                blocksize,
                                                target, poll_interval)
 
@@ -662,18 +638,12 @@ class KojiImportSourceContainerPlugin(KojiImportBase):
 
     key = PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY  # type: ignore
 
-    def __init__(self, tasker, workflow,
-                 kojihub=None, url=None,
+    def __init__(self, tasker, workflow, url=None,
                  verify_ssl=True, use_auth=True,
-                 koji_ssl_certs=None, koji_proxy_user=None,
-                 koji_principal=None, koji_keytab=None,
                  blocksize=None,
                  target=None, poll_interval=5):
-        super(KojiImportSourceContainerPlugin, self).__init__(tasker, workflow,
-                                                              kojihub, url,
+        super(KojiImportSourceContainerPlugin, self).__init__(tasker, workflow, url,
                                                               verify_ssl, use_auth,
-                                                              koji_ssl_certs, koji_proxy_user,
-                                                              koji_principal, koji_keytab,
                                                               blocksize,
                                                               target, poll_interval)
 

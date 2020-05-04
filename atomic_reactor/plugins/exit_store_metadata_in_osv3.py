@@ -176,7 +176,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         koji's configuration to be included in the build_annotations.json file,
         which will be attached in the koji task output.
         """
-        koji_config = get_koji(self.workflow, {})
+        koji_config = get_koji(self.workflow)
         whitelist = koji_config.get('task_annotations_whitelist')
         if whitelist:
             annotations['koji_task_annotations_whitelist'] = json.dumps(whitelist)

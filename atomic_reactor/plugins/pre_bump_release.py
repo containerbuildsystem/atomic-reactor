@@ -34,33 +34,22 @@ class BumpReleasePlugin(PreBuildPlugin):
     # The target parameter is no longer used by this plugin. It's
     # left as an optional parameter to allow a graceful transition
     # in osbs-client.
-    def __init__(self, tasker, workflow, hub=None, target=None, koji_ssl_certs_dir=None,
-                 append=False):
+    def __init__(self, tasker, workflow, target=None, append=False):
         """
         constructor
 
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param hub: string, koji hub (xmlrpc)
         :param target: unused - backwards compatibility
-        :param koji_ssl_certs_dir: str, path to "cert", "ca", and "serverca"
-            Note that this plugin requires koji_ssl_certs_dir set if Koji
-            certificate is not trusted by CA bundle.
         :param append: if True, the release will be obtained by appending a
             '.' and a unique integer to the release label in the dockerfile.
         """
         # call parent constructor
         super(BumpReleasePlugin, self).__init__(tasker, workflow)
 
-        self.koji_fallback = {
-            'hub_url': hub,
-            'auth': {
-                'ssl_certs_dir': koji_ssl_certs_dir,
-            }
-        }
         self.append = append
-        self.xmlrpc = get_koji_session(self.workflow, self.koji_fallback)
-        koji_setting = get_koji(self.workflow, self.koji_fallback)
+        self.xmlrpc = get_koji_session(self.workflow)
+        koji_setting = get_koji(self.workflow)
         self.reserve_build = koji_setting.get('reserve_build', False)
 
     def get_patched_release(self, original_release, increment=False):

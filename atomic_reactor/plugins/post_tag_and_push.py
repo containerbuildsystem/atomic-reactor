@@ -20,7 +20,7 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI,
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_reactor_config import (get_registries, get_group_manifests,
-                                                       get_koji_session, NO_FALLBACK,
+                                                       get_koji_session,
                                                        get_registries_organization)
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.util import (get_manifest_digests, get_config_from_registry, Dockercfg,
@@ -113,7 +113,7 @@ class TagAndPushPlugin(PostBuildPlugin):
     def source_get_unique_image(self):
         source_result = self.workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY]
         koji_build_id = source_result['sources_for_koji_build_id']
-        kojisession = get_koji_session(self.workflow, NO_FALLBACK)
+        kojisession = get_koji_session(self.workflow)
 
         timestamp = osbs.utils.utcnow().strftime('%Y%m%d%H%M%S')
         random.seed()

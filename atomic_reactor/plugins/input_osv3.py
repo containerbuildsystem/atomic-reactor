@@ -88,7 +88,7 @@ class OSv3InputPlugin(InputPlugin):
 
     def remove_koji_plugins(self):
         koji_map = self.get_value('koji', {})
-        if not koji_map.get('hub_url'):
+        if not koji_map['hub_url']:
             self.remove_plugin('prebuild_plugins', PLUGIN_KOJI_DELEGATE_KEY,
                                'no koji hub available')
             # bump_release is removed in PluginsConfiguration if no release value
@@ -106,7 +106,7 @@ class OSv3InputPlugin(InputPlugin):
                                'no koji hub available')
             self.remove_plugin('exit_plugins', PLUGIN_KOJI_TAG_BUILD_KEY, 'no koji hub available')
             # root and hub are required, so this check is probably redundant
-            if not koji_map.get('root_url'):
+            if not koji_map['root_url']:
                 self.remove_plugin('prebuild_plugins', PLUGIN_FETCH_MAVEN_KEY,
                                    'no koji root available')
 
@@ -205,7 +205,7 @@ class OSv3SourceContainerInputPlugin(InputPlugin):
         """Fail when koji integration is nto configured as koji is integral
         part of source containers feature"""
         koji_map = self.reactor_env.get('koji', {})
-        if not koji_map.get('hub_url'):
+        if not koji_map['hub_url']:
             raise RuntimeError(
                 "Koji-hub URL is not configured. Source container image "
                 "builds require enabled koji integration"

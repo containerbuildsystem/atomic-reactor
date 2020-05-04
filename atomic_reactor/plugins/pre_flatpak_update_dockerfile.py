@@ -36,8 +36,7 @@ from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (FLATPAK_INCLUD
                                                                   FLATPAK_CLEANUPSCRIPT_FILENAME,
                                                                   get_flatpak_source_spec)
 from atomic_reactor.plugins.pre_reactor_config import (get_koji_session,
-                                                       get_odcs_session,
-                                                       NO_FALLBACK)
+                                                       get_odcs_session)
 
 from atomic_reactor.util import df_parser, is_flatpak_build
 
@@ -126,7 +125,7 @@ class FlatpakUpdateDockerfilePlugin(PreBuildPlugin):
         return composes
 
     def _resolve_modules(self, modules):
-        koji_session = get_koji_session(self.workflow, fallback=NO_FALLBACK)
+        koji_session = get_koji_session(self.workflow)
 
         resolved_modules = {}
         for module_spec in modules:
