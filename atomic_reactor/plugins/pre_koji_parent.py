@@ -14,11 +14,13 @@ from atomic_reactor.constants import (
 )
 from atomic_reactor.plugins.pre_reactor_config import (
     get_deep_manifest_list_inspection, get_koji_session, get_source_registry,
-    get_skip_koji_check_for_base_image, get_fail_on_digest_mismatch
+    get_skip_koji_check_for_base_image, get_fail_on_digest_mismatch,
+    get_platform_to_goarch_mapping
 )
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import (
-    base_image_is_custom, get_manifest_list, get_manifest_media_type, is_scratch_build
+    base_image_is_custom, get_manifest_list, get_manifest_media_type, is_scratch_build,
+    get_platforms
 )
 from copy import copy
 from osbs.utils import Labels
@@ -34,6 +36,7 @@ DEFAULT_POLL_INTERVAL = 10  # 10 seconds
 
 class KojiParentBuildMissing(ValueError):
     """Expected to find a build for the parent image in koji, did not find it within timeout."""
+
 
 class KojiParentPlugin(PreBuildPlugin):
     """Wait for Koji build of parent images to be available
@@ -81,6 +84,7 @@ class KojiParentPlugin(PreBuildPlugin):
         self._parent_builds = {}
         self._poll_start = None
         self._source_registry = get_source_registry(workflow, {})
+        self.platforms = get_platforms(self.workflow)
         self._deep_manifest_list_inspection = get_deep_manifest_list_inspection(self.workflow,
                                                                                 fallback=True)
 
@@ -242,12 +246,31 @@ class KojiParentPlugin(PreBuildPlugin):
             v2_digest = archive['extra']['docker']['digests'][v2_type]
             koji_archives_data[arch] = v2_digest
 
-        if koji_archives_data == manifest_list_data:
-            self.log.info('Deeper manifest list check verified v2 manifest references match')
-            return True
-        self.log.warning('Manifest list refs "%s" do not match koji archive refs "%s"',
-                         manifest_list_data, koji_archives_data)
-        return False
+        platform_to_arch_dict = get_platform_to_goarch_mapping(self.workflow)
+        architectures = [platform_to_arch_dict[platform] for platform in self.platforms]
+
+        missing_arches = [a for a in architectures if a not in koji_archives_data]
+        if missing_arches:
+            self.log.warning('Architectures "%s" are missing in Koji archives "%s"',
+                             missing_arches, koji_archives_data)
+            return False
+
+        # manifest lists can be manually pushed to the registry to make sure a specific tag
+        # (e.g., latest) is available for all platforms.
+        # In such cases these manifest lists may include images from different koji builds.
+        # We only want to check the digests for the images built in the current parent koji build
+        err_msg = 'Manifest list digest %s differs from Koji archive digest %s for platform %s'
+        unmatched_digests = False
+        for arch in architectures:
+            if manifest_list_data[arch] != koji_archives_data[arch]:
+                unmatched_digests = True
+                self.log.warning(err_msg, manifest_list_data[arch], koji_archives_data[arch], arch)
+
+        if unmatched_digests:
+            return False
+
+        self.log.info('Deeper manifest list check verified v2 manifest references match')
+        return True
 
     def detect_parent_image_nvr(self, image_name, inspect_data=None):
         """
