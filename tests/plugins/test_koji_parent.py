@@ -15,10 +15,10 @@ import atomic_reactor
 from atomic_reactor.constants import (
     INSPECT_CONFIG, BASE_IMAGE_KOJI_BUILD, PARENT_IMAGES_KOJI_BUILDS
 )
-from atomic_reactor.build import InsideBuilder
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_koji_parent import KojiParentPlugin
+from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
@@ -26,6 +26,7 @@ from atomic_reactor.util import ImageName, get_manifest_media_type
 from atomic_reactor.constants import SCRATCH_FROM
 from flexmock import flexmock
 from tests.constants import MOCK, MOCK_SOURCE
+from tests.stubs import StubInsideBuilder
 
 import pytest
 
@@ -72,38 +73,27 @@ BASE_IMAGE_LABELS_W_ALIASES = {
 }
 
 
-class MockInsideBuilder(InsideBuilder):
-    def __init__(self):
-        self.tasker = flexmock()
-        self.base_image = ImageName(repo='Fedora', tag='22')
-        self.original_base_image = ImageName(repo='Fedora', tag='22')
-        self.base_from_scratch = False
-        self.custom_base_image = False
-        self.parent_images = {ImageName.parse('base'): ImageName.parse('base:stubDigest')}
-        base_inspect = {INSPECT_CONFIG: {'Labels': BASE_IMAGE_LABELS.copy()}}
-        self._parent_images_inspect = {ImageName.parse('base:stubDigest'): base_inspect}
-        self.parent_images_digests = {'base:latest': {V2_LIST: 'stubDigest'}}
-        self.image_id = 'image_id'
-        self.image = 'image'
-        self._df_path = 'df_path'
-        self.df_dir = 'df_dir'
-
-    @property
-    def source(self):
-        result = flexmock()
-        setattr(result, 'dockerfile_path', '/')
-        setattr(result, 'path', '/tmp')
-        return result
+class MockSource(object):
+    def __init__(self, tmpdir):
+        self.dockerfile_path = str(tmpdir.join('Dockerfile'))
+        self.path = str(tmpdir)
+        self.commit_id = None
+        self.config = None
 
 
 @pytest.fixture()
-def workflow():
+def workflow(tmpdir):
     if MOCK:
         mock_docker()
     workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
-    workflow.builder = MockInsideBuilder()
+    workflow.source = MockSource(tmpdir)
+    workflow.builder = StubInsideBuilder().for_workflow(workflow)
+    workflow.builder.set_image('image')
     base_inspect = {INSPECT_CONFIG: {'Labels': BASE_IMAGE_LABELS.copy()}}
-    flexmock(workflow.builder, base_image_inspect=base_inspect)
+    workflow.builder.set_inspection_data(base_inspect)
+    workflow.builder.set_parent_inspection_data('base:stubDigest', base_inspect)
+    workflow.builder.parent_images = {ImageName.parse('base'): ImageName.parse('base:stubDigest')}
+    workflow.builder.parent_images_digests = {'base:latest': {V2_LIST: 'stubDigest'}}
 
     return workflow
 
@@ -206,13 +196,16 @@ class TestKojiParent(object):
     def test_base_image_missing_labels(self, workflow, koji_session, remove_labels, exp_result,
                                        reactor_config_map, external, caplog):
         base_tag = ImageName.parse('base:stubDigest')
-        workflow.builder.base_image_inspect[INSPECT_CONFIG]['Labels'] =\
-            BASE_IMAGE_LABELS_W_ALIASES.copy()
-        workflow.builder._parent_images_inspect[base_tag][INSPECT_CONFIG]['Labels'] =\
-            BASE_IMAGE_LABELS_W_ALIASES.copy()
+
+        base_inspect = {INSPECT_CONFIG: {'Labels': BASE_IMAGE_LABELS_W_ALIASES.copy()}}
+        parent_inspect = {INSPECT_CONFIG: {'Labels': BASE_IMAGE_LABELS_W_ALIASES.copy()}}
+        workflow.builder.set_inspection_data(base_inspect)
+        workflow.builder.set_parent_inspection_data(base_tag, parent_inspect)
+
         for label in remove_labels:
-            del workflow.builder.base_image_inspect[INSPECT_CONFIG]['Labels'][label]
-            del workflow.builder._parent_images_inspect[base_tag][INSPECT_CONFIG]['Labels'][label]
+            del workflow.builder._inspection_data[INSPECT_CONFIG]['Labels'][label]
+            del workflow.builder._parent_inspection_data[base_tag][INSPECT_CONFIG]['Labels'][label]
+
         if not exp_result:
             if not (external and reactor_config_map):
                 with pytest.raises(PluginFailedException) as exc:
@@ -278,23 +271,24 @@ class TestKojiParent(object):
             name, version, release = koji_builds[img]['nvr'].rsplit('-', 2)
             labels = {'com.redhat.component': name, 'version': version, 'release': release}
             image_inspects[img] = {INSPECT_CONFIG: dict(Labels=labels)}
-            (workflow.builder.tasker
-                .should_receive('inspect_image')
-                .with_args(parent_images[ImageName.parse(img)])
-                .and_return(image_inspects[img]))
+
+            workflow.builder.set_parent_inspection_data(parent_images[ImageName.parse(img)],
+                                                        image_inspects[img])
             (koji_session.should_receive('getBuild')
                 .with_args(koji_builds[img]['nvr'])
                 .and_return(koji_builds[img]))
             koji_expects[ImageName.parse(img)] = build
 
         if special_base == 'scratch':
-            workflow.builder.set_base_image(SCRATCH_FROM)
+            workflow.builder.set_image(ImageName.parse(SCRATCH_FROM))
+            workflow.builder.base_from_scratch = True
         elif special_base == 'custom':
-            workflow.builder.set_base_image('koji/image-build')
+            workflow.builder.set_image(ImageName.parse('koji/image-build'))
+            workflow.builder.custom_base_image = True
             parent_images[ImageName.parse('koji/image-build')] = None
         else:
-            workflow.builder.set_base_image('basetag')
-            workflow.builder.base_image_inspect.update(image_inspects['base'])
+            workflow.builder.set_image(ImageName.parse('basetag'))
+            workflow.builder.set_inspection_data(image_inspects['base'])
         workflow.builder.parent_images = parent_images
 
         expected = {
@@ -389,7 +383,7 @@ class TestKojiParent(object):
         labels = {'com.redhat.component': name, 'version': version, 'release': release}
         image_inspect = {INSPECT_CONFIG: dict(Labels=labels)}
 
-        (workflow.builder
+        (flexmock(workflow.builder)
          .should_receive('parent_image_inspect')
          .and_return(image_inspect))
         if manifest_list:
@@ -459,9 +453,38 @@ class TestKojiParent(object):
 
         assert 'scratch build, skipping plugin' in caplog.text
 
+    @pytest.mark.parametrize('isolated_build', [True, False])
+    @pytest.mark.parametrize('ignore_isolated', [True, False])
+    def test_ignore_isolated_autorebuilds(self, workflow, caplog,
+                                          isolated_build, ignore_isolated):  # noqa
+        setattr(workflow, 'prebuild_results', {CheckAndSetRebuildPlugin.key: True})
+        workflow.source.config = flexmock(autorebuild=dict(ignore_isolated_builds=ignore_isolated))
+
+        koji_extra = {'image': {'index': {'digests': {V2_LIST: 'stubDigest'}},
+                                'isolated': isolated_build}}
+        koji_build = {'nvr': KOJI_BUILD_NVR, 'id': KOJI_BUILD_ID, 'state': KOJI_STATE_COMPLETE,
+                      'extra': koji_extra}
+
+        session = flexmock()
+        (flexmock(session).should_receive('getBuild').with_args(KOJI_BUILD_NVR)
+         .and_return(koji_build))
+        flexmock(session).should_receive('krb_login').and_return(True)
+        flexmock(koji).should_receive('ClientSession').and_return(session)
+
+        self.run_plugin_with_args(workflow, reactor_config_map=True, is_isolated=isolated_build)
+
+        if not ignore_isolated:
+            log_msg = "ignoring_isolated_builds isn't configured, won't skip autorebuild"
+            assert log_msg in caplog.text
+
+        if isolated_build and ignore_isolated:
+            log_msg = "setting cancel_isolated_autorebuild"
+            assert log_msg in caplog.text
+            assert workflow.cancel_isolated_autorebuild
+
     def run_plugin_with_args(self, workflow, plugin_args=None, expect_result=True,  # noqa
                              reactor_config_map=False, external_base=False, deep_inspection=True,
-                             mismatch_failure=False, user_params=None):
+                             mismatch_failure=False, user_params=None, is_isolated=None):
         plugin_args = plugin_args or {}
         user_params = user_params or {}
         plugin_args.setdefault('koji_hub', KOJI_HUB)
@@ -494,10 +517,15 @@ class TestKojiParent(object):
         result = runner.run()
         if user_params:
             return
+        base_img = ImageName.parse('base:latest')
         if expect_result is True:
             expected_result = {BASE_IMAGE_KOJI_BUILD: KOJI_BUILD,
                                PARENT_IMAGES_KOJI_BUILDS: {
-                                   ImageName.parse('base:latest'): KOJI_BUILD}}
+                                   base_img: KOJI_BUILD}}
+            if is_isolated is not None:
+                expected_result[BASE_IMAGE_KOJI_BUILD]['extra']['image']['isolated'] = is_isolated
+                expected_result[PARENT_IMAGES_KOJI_BUILDS][base_img]['extra']['image']['isolated']\
+                    = is_isolated
         elif expect_result is False:
             expected_result = None
         else:  # param provided the expected result
