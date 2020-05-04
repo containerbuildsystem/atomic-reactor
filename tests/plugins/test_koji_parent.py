@@ -13,7 +13,8 @@ import koji
 
 import atomic_reactor
 from atomic_reactor.constants import (
-    INSPECT_CONFIG, BASE_IMAGE_KOJI_BUILD, PARENT_IMAGES_KOJI_BUILDS
+    INSPECT_CONFIG, BASE_IMAGE_KOJI_BUILD, PARENT_IMAGES_KOJI_BUILDS,
+    PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 )
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
@@ -27,6 +28,7 @@ from atomic_reactor.constants import SCRATCH_FROM
 from flexmock import flexmock
 from tests.constants import MOCK, MOCK_SOURCE
 from tests.stubs import StubInsideBuilder
+from copy import deepcopy
 
 import pytest
 
@@ -354,13 +356,17 @@ class TestKojiParent(object):
             [{'digest': 'stubDigest', 'mediaType': 'unexpected', 'platform': {
                 'architecture': 'amd64'}}]},
         {}])
-    def test_deep_digest_inspection(self, workflow, koji_session, reactor_config_map, parent_tag,
+    def test_deep_digest_inspection(self, workflow, koji_session, parent_tag,
                                     caplog, has_registry, manifest_list, feature_flag,
                                     mismatch_failure):  # noqa
+        reactor_config_map = True
         image_str = 'base'
         if has_registry:
             image_str = '/'.join(['example.com', image_str])
         extra = {'image': {'index': {'digests': {V2_LIST: 'stubDigest'}}}}
+
+        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = ['x86_64']
+
         koji_build = dict(nvr='base-image-1.0-99',
                           id=KOJI_BUILD_ID,
                           state=KOJI_STATE_COMPLETE,
@@ -403,6 +409,8 @@ class TestKojiParent(object):
         workflow.builder.parent_images = parent_images
 
         rebuild_str = 'This parent image MUST be rebuilt'
+        manifest_list_check_passed = ('Deeper manifest list check verified v2 manifest '
+                                      'references match')
 
         defective_v2 = (not has_registry
                         or manifest_list.get('manifests', [{}])[0].get('digest') != 'stubDigest'
@@ -436,8 +444,9 @@ class TestKojiParent(object):
                         assert rebuild_str in caplog.text
                     elif manifest_list['manifests'][0]['digest'] == 'stubDigest':
                         assert rebuild_str not in caplog.text
+                        assert manifest_list_check_passed in caplog.text
                     else:
-                        assert 'do not match koji archive refs' in caplog.text
+                        assert 'differs from Koji archive digest' in caplog.text
                         assert rebuild_str in caplog.text
                 else:
                     fetch_error = 'Could not fetch manifest list for {}:latest'.format(image_str)
@@ -506,7 +515,10 @@ class TestKojiParent(object):
                 ReactorConfig({'version': 1, 'koji': koji_map,
                                'deep_manifest_list_inspection': deep_inspection,
                                'fail_on_digest_mismatch': mismatch_failure,
-                               'skip_koji_check_for_base_image': external_base})
+                               'skip_koji_check_for_base_image': external_base,
+                               'platform_descriptors': [{'architecture': 'amd64',
+                                                         'platform': 'x86_64'}]
+                               })
 
         runner = PreBuildPluginsRunner(
             workflow.builder.tasker,
@@ -523,6 +535,7 @@ class TestKojiParent(object):
                                PARENT_IMAGES_KOJI_BUILDS: {
                                    base_img: KOJI_BUILD}}
             if is_isolated is not None:
+                expected_result = deepcopy(expected_result)
                 expected_result[BASE_IMAGE_KOJI_BUILD]['extra']['image']['isolated'] = is_isolated
                 expected_result[PARENT_IMAGES_KOJI_BUILDS][base_img]['extra']['image']['isolated']\
                     = is_isolated
@@ -532,3 +545,108 @@ class TestKojiParent(object):
             expected_result = expect_result
 
         assert result[KojiParentPlugin.key] == expected_result
+
+    @pytest.mark.parametrize(
+        ('manifest_list', 'requested_platforms', 'expected_logs', 'not_expected_logs'),
+        [
+            # Test for requested arch by user which is not in Koji archive
+            (
+                    {'manifests': [
+                        {'digest': 'stubDigest', 'mediaType': V2, 'platform': {
+                            'architecture': 'amd64'}}]},
+                    ['aarch64'],
+                    ['Architectures "%s" are missing in Koji archives' % ['aarch64']],
+                    []
+            ),
+            # Additional platforms might contain v2 digests of different builds
+            # Test if ppc64le and s390x will be ignored
+            (
+                    {'manifests': [
+                        {'digest': 'stubDigest', 'mediaType':
+                            'application/vnd.docker.distribution.manifest.v2+json',
+                         'platform': {'architecture': 'amd64'}},
+                        {'digest': 'stubDigest2', 'mediaType':
+                            'application/vnd.docker.distribution.manifest.v2+json',
+                         'platform': {'architecture': 'ppc64le'}},
+                        {'digest': 'stubDigest3', 'mediaType':
+                            'application/vnd.docker.distribution.manifest.v2+json',
+                         'platform': {'architecture': 's390x'}}]},
+                    ['x86_64'],
+                    ['Deeper manifest list check verified v2 manifest references match'],
+                    ['This parent image MUST be rebuilt']
+            ),
+            # Test if ppc64le and s390x will be ignored and digest check will fail for amd64
+            # because stubDigest is expected
+            (
+                    {'manifests': [
+                        {'digest': 'notExpectedStubDigest', 'mediaType':
+                            'application/vnd.docker.distribution.manifest.v2+json',
+                         'platform': {'architecture': 'amd64'}},
+                        {'digest': 'stubDigest2', 'mediaType':
+                            'application/vnd.docker.distribution.manifest.v2+json',
+                         'platform': {'architecture': 'ppc64le'}},
+                        {'digest': 'stubDigest3', 'mediaType':
+                            'application/vnd.docker.distribution.manifest.v2+json',
+                         'platform': {'architecture': 's390x'}}]},
+                    ['x86_64'],
+                    [('parent image example.com/base:latest differs from the manifest list '
+                      'for its koji reference')],
+                    []
+            )
+        ])
+    def test_deep_digests_with_requested_arches(self, workflow, koji_session, caplog,
+                                                manifest_list, requested_platforms, expected_logs,
+                                                not_expected_logs):  # noqa
+        reactor_config_map = True
+        image_str = 'example.com/base'
+        extra = {'image': {'index': {'digests': {V2_LIST: 'stubDigest'}}}}
+        parent_tag = 'notExpectedDigest'
+        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = requested_platforms
+
+        koji_build = dict(nvr='base-image-1.0-99',
+                          id=KOJI_BUILD_ID,
+                          state=KOJI_STATE_COMPLETE,
+                          extra=extra)
+        (koji_session.should_receive('getBuild')
+         .and_return(koji_build))
+        archives = [{
+            'btype': 'image',
+            'extra': {
+                'docker': {
+                    'config': {
+                        'architecture': 'amd64'
+                    },
+                    'digests': {
+                        V2: 'stubDigest'}}}}]
+        (koji_session.should_receive('listArchives')
+         .and_return(archives))
+
+        name, version, release = koji_build['nvr'].rsplit('-', 2)
+        labels = {'com.redhat.component': name, 'version': version, 'release': release}
+
+        image_inspect = {INSPECT_CONFIG: {'Labels': labels}}
+        flexmock(workflow.builder, parent_image_inspect=image_inspect)
+
+        if manifest_list:
+            response = flexmock(content=json.dumps(manifest_list))
+        else:
+            response = {}
+        flexmock(atomic_reactor.util).should_receive('get_manifest').and_return((response, None))
+
+        expected_result = {BASE_IMAGE_KOJI_BUILD: KOJI_BUILD,
+                           PARENT_IMAGES_KOJI_BUILDS: {
+                               ImageName.parse(image_str): KOJI_BUILD}}
+
+        workflow.builder.parent_images_digests = {image_str + ':latest': {V2_LIST: parent_tag}}
+        parent_images = {
+            ImageName.parse(image_str): ImageName.parse('{}:{}'.format(image_str, parent_tag)),
+        }
+        workflow.builder.parent_images = parent_images
+        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
+                                  expect_result=expected_result, deep_inspection=True)
+
+        for log in expected_logs:
+            assert log in caplog.text
+
+        for log in not_expected_logs:
+            assert log not in caplog.text
