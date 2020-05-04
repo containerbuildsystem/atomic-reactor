@@ -43,12 +43,12 @@ class KojiDelegatePlugin(PreBuildPlugin):
         # call parent constructor
         super(KojiDelegatePlugin, self).__init__(tasker, workflow)
 
-        koji_setting = get_koji(self.workflow, NO_FALLBACK)
+        koji_setting = get_koji(self.workflow)
         self.delegate_enabled = koji_setting.get('delegate_task', True)
         self.task_priority = koji_setting.get('delegated_task_priority', None)
         self.triggered_after_koji_task = triggered_after_koji_task
         self.metadata = get_build_json().get("metadata", {})
-        self.kojisession = get_koji_session(self.workflow, NO_FALLBACK)
+        self.kojisession = get_koji_session(self.workflow)
         self.osbs = None
 
     def cancel_build(self):

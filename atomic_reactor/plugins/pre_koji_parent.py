@@ -57,24 +57,17 @@ class KojiParentPlugin(PreBuildPlugin):
     key = PLUGIN_KOJI_PARENT_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, koji_hub=None, koji_ssl_certs_dir=None,
-                 poll_interval=DEFAULT_POLL_INTERVAL, poll_timeout=DEFAULT_POLL_TIMEOUT):
+    def __init__(self, tasker, workflow, poll_interval=DEFAULT_POLL_INTERVAL,
+                 poll_timeout=DEFAULT_POLL_TIMEOUT):
         """
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param koji_hub: str, koji hub (xmlrpc)
-        :param koji_ssl_certs_dir: str, path to "cert", "ca", and "serverca"
-                                   used when Koji's identity certificate is not trusted
         :param poll_interval: int, seconds between polling for Koji build
         :param poll_timeout: int, max amount of seconds to wait for Koji build
         """
         super(KojiParentPlugin, self).__init__(tasker, workflow)
 
-        self.koji_fallback = {
-            'hub_url': koji_hub,
-            'auth': {'ssl_certs_dir': koji_ssl_certs_dir}
-        }
-        self.koji_session = get_koji_session(self.workflow, self.koji_fallback)
+        self.koji_session = get_koji_session(self.workflow)
 
         self.poll_interval = poll_interval
         self.poll_timeout = poll_timeout

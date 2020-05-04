@@ -35,34 +35,16 @@ class KojiTagBuildPlugin(ExitPlugin):
     key = PLUGIN_KOJI_TAG_BUILD_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, target=None, kojihub=None,
-                 koji_ssl_certs=None, koji_proxy_user=None,
-                 koji_principal=None, koji_keytab=None,
-                 poll_interval=5):
+    def __init__(self, tasker, workflow, target=None, poll_interval=5):
         """
         constructor
 
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param kojihub: string, koji hub (xmlrpc)
         :param target: str, koji target
-        :param koji_ssl_certs: str, path to 'cert', 'ca', 'serverca'
-        :param koji_proxy_user: str, user to log in as (requires hub config)
-        :param koji_principal: str, Kerberos principal (must specify keytab)
-        :param koji_keytab: str, keytab name (must specify principal)
         :param poll_interval: int, seconds between Koji task status requests
         """
         super(KojiTagBuildPlugin, self).__init__(tasker, workflow)
-
-        self.koji_fallback = {
-            'hub_url': kojihub,
-            'auth': {
-                'proxyuser': koji_proxy_user,
-                'ssl_certs_dir': koji_ssl_certs,
-                'krb_principal': str(koji_principal),
-                'krb_keytab_path': str(koji_keytab)
-            }
-        }
 
         self.target = target
         self.poll_interval = poll_interval
@@ -88,7 +70,7 @@ class KojiTagBuildPlugin(ExitPlugin):
             self.log.info('No koji build from %s', KojiImportPlugin.key)
             return
 
-        session = get_koji_session(self.workflow, self.koji_fallback)
+        session = get_koji_session(self.workflow)
         build_tag = tag_koji_build(session, build_id, self.target,
                                    poll_interval=self.poll_interval)
 

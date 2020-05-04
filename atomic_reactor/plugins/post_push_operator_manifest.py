@@ -21,7 +21,6 @@ from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.pre_reactor_config import (
     get_omps_config,
     get_koji_path_info,
-    NO_FALLBACK,
 )
 from atomic_reactor.util import (
     is_isolated_build,
@@ -88,7 +87,7 @@ class PushOperatorManifestsPlugin(PostBuildPlugin):
 
         server_dir = get_koji_upload_dir(self.workflow)
 
-        pathinfo = get_koji_path_info(self.workflow, NO_FALLBACK)
+        pathinfo = get_koji_path_info(self.workflow)
         file_url = "{}/work/{}/{}".format(
             pathinfo.topdir, server_dir, OPERATOR_MANIFESTS_ARCHIVE)
 

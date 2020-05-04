@@ -15,7 +15,7 @@ from atomic_reactor.utils.koji import get_koji_task_owner
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.plugins.pre_reactor_config import (
-    get_cachito, get_cachito_session, get_koji_session, NO_FALLBACK)
+    get_cachito, get_cachito_session, get_koji_session)
 from atomic_reactor.util import get_build_json, is_scratch_build
 
 
@@ -164,7 +164,7 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
             self.log.warning(msg)
             return unknown_user
 
-        koji_session = get_koji_session(self.workflow, NO_FALLBACK)
+        koji_session = get_koji_session(self.workflow)
         return get_koji_task_owner(koji_session, koji_task_id).get('name', unknown_user)
 
     @property

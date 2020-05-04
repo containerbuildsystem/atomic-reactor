@@ -48,8 +48,6 @@ class ResolveComposesPlugin(PreBuildPlugin):
 
     def __init__(self, tasker, workflow,
                  koji_target=None,
-                 koji_hub=None,
-                 koji_ssl_certs_dir=None,
                  signing_intent=None,
                  compose_ids=tuple(),
                  repourls=None,
@@ -59,9 +57,6 @@ class ResolveComposesPlugin(PreBuildPlugin):
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param koji_target: str, contains build tag to be used when requesting compose from "tag"
-        :param koji_hub: str, koji hub (xmlrpc), required if koji_target is used
-        :param koji_ssl_certs_dir: str, path to "cert", and "serverca"
-                                   used when Koji's identity certificate is not trusted
         :param signing_intent: override the signing intent from git repo configuration
         :param compose_ids: use the given compose_ids instead of requesting a new one
         :param repourls: list of str, URLs to the repo files
@@ -77,14 +72,8 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self.compose_ids = compose_ids
 
         self.koji_target = koji_target
-        self.koji_fallback = {
-            'hub_url': koji_hub,
-            'auth': {
-                'ssl_certs_dir': koji_ssl_certs_dir
-            }
-        }
         if koji_target:
-            if not get_koji(self.workflow, self.koji_fallback)['hub_url']:
+            if not get_koji(self.workflow)['hub_url']:
                 raise ValueError('koji_hub is required when koji_target is used')
 
         self.minimum_time_to_expire = minimum_time_to_expire
@@ -412,7 +401,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
     @property
     def koji_session(self):
         if not self._koji_session:
-            self._koji_session = get_koji_session(self.workflow, self.koji_fallback)
+            self._koji_session = get_koji_session(self.workflow)
         return self._koji_session
 
 

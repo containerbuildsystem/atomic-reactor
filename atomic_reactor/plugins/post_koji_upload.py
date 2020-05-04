@@ -71,10 +71,8 @@ class KojiUploadPlugin(PostBuildPlugin):
     key = PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, koji_upload_dir, kojihub=None, url=None,
+    def __init__(self, tasker, workflow, koji_upload_dir, url=None,
                  build_json_dir=None, verify_ssl=True, use_auth=True,
-                 koji_ssl_certs_dir=None, koji_proxy_user=None,
-                 koji_principal=None, koji_keytab=None,
                  blocksize=None,
                  platform='x86_64', report_multiple_digests=False):
         """
@@ -82,32 +80,17 @@ class KojiUploadPlugin(PostBuildPlugin):
 
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param kojihub: string, koji hub (xmlrpc)
         :param url: string, URL for OSv3 instance
         :param build_json_dir: str, path to directory with input json
         :param koji_upload_dir: str, path to use when uploading to hub
         :param verify_ssl: bool, verify OSv3 SSL certificate?
         :param use_auth: bool, initiate authentication with OSv3?
-        :param koji_ssl_certs_dir: str, path to 'cert', 'ca', 'serverca'
-        :param koji_proxy_user: str, user to log in as (requires hub config)
-        :param koji_principal: str, Kerberos principal (must specify keytab)
-        :param koji_keytab: str, keytab name (must specify principal)
         :param blocksize: int, blocksize to use for uploading files
         :param platform: str, platform name for this build
         :param report_multiple_digests: bool, whether to report both schema 1
             and schema 2 digests
         """
         super(KojiUploadPlugin, self).__init__(tasker, workflow)
-
-        self.koji_fallback = {
-            'hub_url': kojihub,
-            'auth': {
-                'proxyuser': koji_proxy_user,
-                'ssl_certs_dir': koji_ssl_certs_dir,
-                'krb_principal': str(koji_principal),
-                'krb_keytab_path': str(koji_keytab)
-            }
-        }
 
         self.openshift_fallback = {
             'url': url,
@@ -239,7 +222,7 @@ class KojiUploadPlugin(PostBuildPlugin):
 
         if not is_scratch_build(self.workflow):
             try:
-                session = get_koji_session(self.workflow, self.koji_fallback)
+                session = get_koji_session(self.workflow)
                 for output in output_files:
                     if output.file:
                         self.upload_file(session, output, self.koji_upload_dir)

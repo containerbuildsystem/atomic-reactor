@@ -23,34 +23,20 @@ class KojiPlugin(PreBuildPlugin):
     key = "koji"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, target=None, hub=None, root=None, proxy=None,
-                 koji_ssl_certs_dir=None):
+    def __init__(self, tasker, workflow, target=None, proxy=None):
         """
         constructor
 
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param target: string, koji target to use as a source
-        :param hub: string, koji hub (xmlrpc)
-        :param root: string, koji root (storage)
-        :param koji_ssl_certs_dir: str, path to "cert", "ca", and "serverca"
-            Note that this plugin requires koji_ssl_certs_dir set if Koji
-            certificate is not trusted by CA bundle.
         """
         # call parent constructor
         super(KojiPlugin, self).__init__(tasker, workflow)
         self.target = target
 
-        self.koji_fallback = {
-            'hub_url': hub,
-            'root_url': root,
-            'auth': {
-                'ssl_certs_dir': koji_ssl_certs_dir
-            }
-        }
-
-        self.xmlrpc = get_koji_session(self.workflow, self.koji_fallback)
-        self.pathinfo = get_koji_path_info(self.workflow, self.koji_fallback)
+        self.xmlrpc = get_koji_session(self.workflow)
+        self.pathinfo = get_koji_path_info(self.workflow)
         self.proxy = get_yum_proxy(self.workflow, proxy)
 
     def run(self):

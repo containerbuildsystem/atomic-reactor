@@ -320,11 +320,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         self.platform_descriptors = get_platform_descriptors(self.workflow, self.plat_des_fallback)
 
     def adjust_config_kwargs(self):
-        koji_fallback = {
-            'hub_url': self.config_kwargs.get('koji_hub'),
-            'root_url': self.config_kwargs.get('koji_root')
-        }
-        koji_map = get_koji(self.workflow, koji_fallback)
+        koji_map = get_koji(self.workflow)
         self.config_kwargs['koji_hub'] = koji_map['hub_url']
         self.config_kwargs['koji_root'] = koji_map['root_url']
 

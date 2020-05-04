@@ -96,12 +96,6 @@ class SendMailPlugin(ExitPlugin):
                  error_addresses=(),
                  additional_addresses=(),
                  email_domain=None,
-                 koji_hub=None,
-                 koji_root=None,
-                 koji_proxyuser=None,
-                 koji_ssl_certs_dir=None,
-                 koji_krb_principal=None,
-                 koji_krb_keytab=None,
                  to_koji_submitter=False,
                  to_koji_pkgowner=False,
                  use_auth=None,
@@ -121,12 +115,6 @@ class SendMailPlugin(ExitPlugin):
         :param additional_addresses: list of str, always send a message to these email addresses
         :param email_domain: str, email domain used when email addresses cannot be fetched via
             kerberos principal
-        :param koji_hub: str, koji hub (xmlrpc)
-        :param koji_root: str, koji root (storage)
-        :param koji_proxyuser: str, proxy user
-        :param koji_ssl_certs_dir: str, path to "cert", "ca", and "serverca"
-        :param koji_krb_principal: str, name of Kerberos principal
-        :param koji_krb_keytab: str, Kerberos keytab
         :param to_koji_submitter: bool, send a message to the koji submitter
         :param to_koji_pkgowner: bool, send messages to koji package owners
         """
@@ -150,17 +138,6 @@ class SendMailPlugin(ExitPlugin):
         self.email_domain = smtp.get('domain')
         self.to_koji_submitter = smtp.get('send_to_submitter', False)
         self.to_koji_pkgowner = smtp.get('send_to_pkg_owner', False)
-
-        self.koji_fallback = {
-            'hub_url': koji_hub,
-            'root_url': koji_root,
-            'auth': {
-                'proxyuser': koji_proxyuser,
-                'ssl_certs_dir': koji_ssl_certs_dir,
-                'krb_principal': str(koji_krb_principal),
-                'krb_keytab_path': str(koji_krb_keytab)
-            }
-        }
 
         self.openshift_fallback = {
             'url': url,
@@ -194,9 +171,9 @@ class SendMailPlugin(ExitPlugin):
             self.log.info("Koji build ID: %s", self.koji_build_id)
 
         self.session = None
-        if get_koji(self.workflow, self.koji_fallback)['hub_url']:
+        if get_koji(self.workflow)['hub_url']:
             try:
-                self.session = get_koji_session(self.workflow, self.koji_fallback)
+                self.session = get_koji_session(self.workflow)
             except Exception:
                 self.log.exception("Failed to connect to koji")
                 self.session = None
@@ -382,7 +359,7 @@ class SendMailPlugin(ExitPlugin):
     def _get_logs_url(self):
         url = None
         try:
-            pathinfo = get_koji_path_info(self.workflow, self.koji_fallback)
+            pathinfo = get_koji_path_info(self.workflow)
             url = '/'.join([pathinfo.work(), pathinfo.taskrelpath(self.koji_task_id)])
         except Exception:
             self.log.exception("Failed to fetch logs from koji")

@@ -75,35 +75,16 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
 
     DOWNLOAD_DIR = 'artifacts'
 
-    def __init__(self, tasker, workflow, koji_hub=None, koji_root=None,
-                 koji_proxyuser=None, koji_ssl_certs_dir=None,
-                 koji_krb_principal=None, koji_krb_keytab=None,
-                 allowed_domains=None):
+    def __init__(self, tasker, workflow, allowed_domains=None):
         """
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param koji_hub: str, koji hub (xmlrpc)
-        :param koji_root: str, koji root (storage)
-        :param koji_proxyuser: str, proxy user
-        :param koji_ssl_certs_dir: str, path to "cert", "ca", and "serverca"
-        :param koji_krb_principal: str, name of Kerberos principal
-        :param koji_krb_keytab: str, Kerberos keytab
         :param allowed_domains: list<str>: list of domains that are
                allowed to be used when fetching artifacts by URL (case insensitive)
         """
         super(FetchMavenArtifactsPlugin, self).__init__(tasker, workflow)
 
-        self.koji_fallback = {
-            'hub_url': koji_hub,
-            'root_url': koji_root,
-            'auth': {
-                'proxyuser': koji_proxyuser,
-                'ssl_certs_dir': koji_ssl_certs_dir,
-                'krb_principal': str(koji_krb_principal),
-                'krb_keytab_path': str(koji_krb_keytab)
-            }
-        }
-        self.path_info = get_koji_path_info(self.workflow, self.koji_fallback)
+        self.path_info = get_koji_path_info(self.workflow)
 
         all_allowed_domains = get_artifacts_allowed_domains(self.workflow, allowed_domains or [])
         self.allowed_domains = set(domain.lower() for domain in all_allowed_domains or [])
@@ -223,7 +204,7 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
                         .format(algo, checksum.hexdigest(), download.checksums[algo]))
 
     def run(self):
-        self.session = get_koji_session(self.workflow, self.koji_fallback)
+        self.session = get_koji_session(self.workflow)
 
         nvr_requests = self.read_nvr_requests()
         url_requests = self.read_url_requests()
