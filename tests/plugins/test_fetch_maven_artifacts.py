@@ -379,7 +379,7 @@ def test_fetch_maven_artifacts(tmpdir, docker_tasker, reactor_config_map):
         workflow,
         [{
             'name': FetchMavenArtifactsPlugin.key,
-            'args': {'koji_hub': KOJI_HUB, 'koji_root': KOJI_ROOT}
+            'args': {}
         }]
     )
 
@@ -436,7 +436,7 @@ def test_fetch_maven_artifacts_nvr_filtering(tmpdir, docker_tasker, nvr_requests
         workflow,
         [{
             'name': FetchMavenArtifactsPlugin.key,
-            'args': {'koji_hub': KOJI_HUB, 'koji_root': KOJI_ROOT}
+            'args': {}
         }]
     )
 
@@ -490,7 +490,7 @@ def test_fetch_maven_artifacts_nvr_no_match(tmpdir, docker_tasker, nvr_requests,
         workflow,
         [{
             'name': FetchMavenArtifactsPlugin.key,
-            'args': {'koji_hub': KOJI_HUB, 'koji_root': KOJI_ROOT}
+            'args': {}
         }]
     )
 
@@ -517,7 +517,7 @@ def test_fetch_maven_artifacts_nvr_bad_checksum(tmpdir, docker_tasker, reactor_c
         workflow,
         [{
             'name': FetchMavenArtifactsPlugin.key,
-            'args': {'koji_hub': KOJI_HUB, 'koji_root': KOJI_ROOT}
+            'args': {}
         }]
     )
 
@@ -543,7 +543,7 @@ def test_fetch_maven_artifacts_nvr_bad_url(tmpdir, docker_tasker, reactor_config
         workflow,
         [{
             'name': FetchMavenArtifactsPlugin.key,
-            'args': {'koji_hub': KOJI_HUB, 'koji_root': KOJI_ROOT}
+            'args': {}
         }]
     )
 
@@ -572,7 +572,7 @@ def test_fetch_maven_artifacts_nvr_bad_nvr(tmpdir, docker_tasker, reactor_config
         workflow,
         [{
             'name': FetchMavenArtifactsPlugin.key,
-            'args': {'koji_hub': KOJI_HUB, 'koji_root': KOJI_ROOT}
+            'args': {}
         }]
     )
 
@@ -620,7 +620,7 @@ def test_fetch_maven_artifacts_nvr_schema_error(tmpdir, docker_tasker, contents,
         workflow,
         [{
             'name': FetchMavenArtifactsPlugin.key,
-            'args': {'koji_hub': KOJI_HUB, 'koji_root': KOJI_ROOT}
+            'args': {}
         }]
     )
 
@@ -652,7 +652,7 @@ def test_fetch_maven_artifacts_url_with_target(tmpdir, docker_tasker, contents, 
         workflow,
         [{
             'name': FetchMavenArtifactsPlugin.key,
-            'args': {'koji_hub': KOJI_HUB, 'koji_root': KOJI_ROOT}
+            'args': {}
         }]
     )
 
@@ -687,7 +687,7 @@ def test_fetch_maven_artifacts_url_bad_checksum(tmpdir, docker_tasker, reactor_c
         workflow,
         [{
             'name': FetchMavenArtifactsPlugin.key,
-            'args': {'koji_hub': KOJI_HUB, 'koji_root': KOJI_ROOT}
+            'args': {}
         }]
     )
 
@@ -713,7 +713,7 @@ def test_fetch_maven_artifacts_url_bad_url(tmpdir, docker_tasker, reactor_config
         workflow,
         [{
             'name': FetchMavenArtifactsPlugin.key,
-            'args': {'koji_hub': KOJI_HUB, 'koji_root': KOJI_ROOT}
+            'args': {}
         }]
     )
 
@@ -768,7 +768,7 @@ def test_fetch_maven_artifacts_url_schema_error(tmpdir, docker_tasker, contents,
         workflow,
         [{
             'name': FetchMavenArtifactsPlugin.key,
-            'args': {'koji_hub': KOJI_HUB, 'koji_root': KOJI_ROOT}
+            'args': {}
         }]
     )
 
@@ -813,8 +813,6 @@ def test_fetch_maven_artifacts_url_allowed_domains(tmpdir, docker_tasker, domain
         [{
             'name': FetchMavenArtifactsPlugin.key,
             'args': {
-                'koji_hub': KOJI_HUB,
-                'koji_root': KOJI_ROOT,
                 'allowed_domains': domains,
             }
         }]
@@ -857,7 +855,7 @@ def test_fetch_maven_artifacts_commented_out_files(tmpdir, docker_tasker, reacto
         workflow,
         [{
             'name': FetchMavenArtifactsPlugin.key,
-            'args': {'koji_hub': KOJI_HUB, 'koji_root': KOJI_ROOT}
+            'args': {}
         }]
     )
 

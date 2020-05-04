@@ -269,7 +269,6 @@ class TestKojiParent(object):
                              koji_parent_build=KOJI_BUILD_ID):
         plugin_args = plugin_args or {}
         plugin_args.setdefault('koji_parent_build', koji_parent_build)
-        plugin_args.setdefault('koji_hub', KOJI_HUB)
 
         if reactor_config_map:
             koji_map = {
@@ -277,7 +276,7 @@ class TestKojiParent(object):
                 'root_url': '',
                 'auth': {}}
             if 'koji_ssl_certs_dir' in plugin_args:
-                koji_map['auth']['ssl_certs_dir'] = plugin_args['koji_ssl_certs_dir']
+                koji_map['auth']['ssl_certs_dir'] = plugin_args.get('koji_ssl_certs_dir')
             workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
             workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
                 ReactorConfig({'version': 1, 'koji': koji_map,

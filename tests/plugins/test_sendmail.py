@@ -294,7 +294,6 @@ class TestSendMailPlugin(object):
             'url': 'https://something.com',
             'smtp_host': 'smtp.bar.com',
             'from_address': 'foo@bar.com',
-            'koji_root': 'https://koji/',
             'additional_addresses': additional_addresses
         }
 
@@ -447,13 +446,7 @@ class TestSendMailPlugin(object):
             'smtp_host': 'smtp.bar.com',
             'from_address': 'foo@bar.com',
             'to_koji_submitter': to_koji_submitter,
-            'to_koji_pkgowner': False,
-            'koji_hub': '/' if koji_integration else None,
-            'koji_root': 'https://koji/',
-            'koji_proxyuser': None,
-            'koji_ssl_certs_dir': '/certs',
-            'koji_krb_principal': None,
-            'koji_krb_keytab': None
+            'to_koji_pkgowner': False
         }
 
         workflow = WF()
@@ -607,12 +600,6 @@ class TestSendMailPlugin(object):
             'from_address': 'foo@bar.com',
             'to_koji_submitter': True,
             'to_koji_pkgowner': False,
-            'koji_hub': '/',
-            'koji_root': 'https://koji/',
-            'koji_proxyuser': None,
-            'koji_ssl_certs_dir': '/certs',
-            'koji_krb_principal': None,
-            'koji_krb_keytab': None
         }
 
         workflow = WF()
@@ -712,11 +699,6 @@ class TestSendMailPlugin(object):
 
         koji_map = None
         if has_koji_config:
-            kwargs['koji_hub'] = '/'
-            kwargs['koji_proxyuser'] = None
-            kwargs['koji_ssl_certs_dir'] = '/certs'
-            kwargs['koji_krb_principal'] = None
-            kwargs['koji_krb_keytab'] = None
             koji_map = {
                 'hub_url': '/',
                 'root_url': '',
@@ -784,12 +766,7 @@ class TestSendMailPlugin(object):
             'from_address': 'foo@bar.com',
             'to_koji_submitter': True,
             'to_koji_pkgowner': True,
-            'email_domain': MOCK_EMAIL_DOMAIN,
-            'koji_hub': '/',
-            'koji_proxyuser': None,
-            'koji_ssl_certs_dir': '/certs',
-            'koji_krb_principal': None,
-            'koji_krb_keytab': None
+            'email_domain': MOCK_EMAIL_DOMAIN
         }
 
         workflow = WF()
@@ -886,12 +863,7 @@ class TestSendMailPlugin(object):
             'smtp_host': 'smtp.bar.com',
             'from_address': 'foo@bar.com',
             'to_koji_submitter': True,
-            'to_koji_pkgowner': True,
-            'koji_hub': '/',
-            'koji_proxyuser': None,
-            'koji_ssl_certs_dir': '/certs',
-            'koji_krb_principal': None,
-            'koji_krb_keytab': None
+            'to_koji_pkgowner': True
         }
         smtp_map = {
             'from_address': 'foo@bar.com',

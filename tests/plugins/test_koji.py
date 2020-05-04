@@ -193,16 +193,6 @@ class TestKoji(object):
                                'koji': koji_map,
                                'yum_proxy': proxy})
 
-        else:
-            args.update({
-                'hub': '',
-                'root': root,
-                'proxy': proxy,
-            })
-
-            if koji_ssl_certs:
-                args['koji_ssl_certs_dir'] = str(tmpdir)
-
         runner = PreBuildPluginsRunner(tasker, workflow, [{
             'name': KojiPlugin.key,
             'args': args,

@@ -17,7 +17,6 @@ from textwrap import dedent
 import re
 import yaml
 import smtplib
-from copy import deepcopy
 
 import atomic_reactor
 import koji
@@ -988,7 +987,6 @@ class TestReactorConfigPlugin(object):
             with pytest.raises(KeyError):
                 get_flatpak_metadata(workflow, **kwargs)
 
-    @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize(('config', 'raise_error'), [
         ("""\
           version: 1
@@ -1094,7 +1092,7 @@ class TestReactorConfigPlugin(object):
                   ssl_certs_dir: /var/certs
         """, True),
     ])
-    def test_get_koji_session(self, fallback, config, raise_error):
+    def test_get_koji_session(self, config, raise_error):
         _, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
@@ -1113,13 +1111,7 @@ class TestReactorConfigPlugin(object):
 
         use_fast_upload = config_json['koji'].get('use_fast_upload', True)
 
-        fallback_map = {}
-        if fallback:
-            fallback_map = {'auth': deepcopy(auth_info), 'hub_url': config_json['koji']['hub_url']}
-            fallback_map['auth']['krb_keytab_path'] = fallback_map['auth'].pop('krb_keytab')
-            fallback_map['use_fast_upload'] = use_fast_upload
-        else:
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = \
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = \
                 ReactorConfig(config_json)
 
         (flexmock(atomic_reactor.utils.koji)
@@ -1128,15 +1120,14 @@ class TestReactorConfigPlugin(object):
             .once()
             .and_return(True))
 
-        get_koji_session(workflow, fallback_map)
+        get_koji_session(workflow)
 
-    @pytest.mark.parametrize('fallback', (True, False))
     @pytest.mark.parametrize('root_url', (
         'https://koji.example.com/root',
         'https://koji.example.com/root/',
         None
     ))
-    def test_get_koji_path_info(self, fallback, root_url):
+    def test_get_koji_path_info(self, root_url):
         _, workflow = self.prepare()
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
@@ -1165,18 +1156,14 @@ class TestReactorConfigPlugin(object):
 
         parsed_config = read_yaml(config_yaml, 'schemas/config.json')
 
-        fallback_map = {}
-        if fallback:
-            fallback_map = deepcopy(config['koji'])
-        else:
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = \
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = \
                 ReactorConfig(parsed_config)
 
         (flexmock(koji.PathInfo)
             .should_receive('__init__')
             .with_args(topdir=expected_root_url)
             .once())
-        get_koji_path_info(workflow, fallback_map)
+        get_koji_path_info(workflow)
 
     @pytest.mark.parametrize(('config', 'raise_error'), [
         ("""\

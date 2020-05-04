@@ -79,8 +79,7 @@ class X(object):
         self.set_base_image = flexmock()
 
 
-def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
-                      koji_krb_principal=None, koji_krb_keytab=None,
+def mock_koji_session(koji_proxyuser=None,
                       scratch=False, image_task_fail=False,
                       throws_build_cancelled=False,
                       error_on_build_cancelled=False,
@@ -217,7 +216,7 @@ def create_plugin_instance(tmpdir, kwargs=None, scratch=False, reactor_config_ma
     if reactor_config_map:
         make_and_store_reactor_config_map(workflow, {'root_url': kwargs.get('url', '')})
 
-    return AddFilesystemPlugin(tasker, workflow, KOJI_HUB, koji_target=koji_target, **kwargs)
+    return AddFilesystemPlugin(tasker, workflow, koji_target=koji_target, **kwargs)
 
 
 def make_and_store_reactor_config_map(workflow, additional_koji=None):
@@ -254,7 +253,6 @@ def test_add_filesystem_plugin_generated(tmpdir, docker_tasker, scratch, reactor
         [{
             'name': PLUGIN_ADD_FILESYSTEM_KEY,
             'args': {
-                'koji_hub': KOJI_HUB,
                 'from_task_id': task_id,
                 'architecture': 'x86_64'
             }
@@ -290,9 +288,7 @@ def test_add_filesystem_plugin_legacy(tmpdir, docker_tasker, scratch, reactor_co
         workflow,
         [{
             'name': PLUGIN_ADD_FILESYSTEM_KEY,
-            'args': {
-                'koji_hub': KOJI_HUB,
-            }
+            'args': {}
         }]
     )
 
@@ -388,7 +384,7 @@ def test_image_task_failure(tmpdir, build_cancel, error_during_cancel, raise_err
         workflow,
         [{
             'name': PLUGIN_ADD_FILESYSTEM_KEY,
-            'args': {'koji_hub': KOJI_HUB, 'architectures': ['x86_64']}
+            'args': {'architectures': ['x86_64']}
         }]
     )
 
@@ -741,7 +737,6 @@ def test_image_download(tmpdir, docker_tasker, parents, skip_plugin, architectur
         [{
             'name': PLUGIN_ADD_FILESYSTEM_KEY,
             'args': {
-                'koji_hub': KOJI_HUB,
                 'architecture': architecture,
             }
         }]

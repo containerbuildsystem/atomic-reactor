@@ -603,7 +603,7 @@ class TestResolveComposes(object):
         # just confirm that render_requests is returning valid data, without the overhead of
         # mocking the compose results
         plugin = ResolveComposesPlugin(workflow.builder.tasker, workflow,
-                                       koji_target=KOJI_TARGET_NAME, koji_hub=KOJI_HUB)
+                                       koji_target=KOJI_TARGET_NAME)
         plugin.read_configs()
         plugin.adjust_compose_config()
         composed_arches = set()
@@ -865,14 +865,9 @@ class TestResolveComposes(object):
     @pytest.mark.parametrize(('plugin_args', 'ssl_login'), (
         ({
             'koji_target': KOJI_TARGET_NAME,
-            'koji_hub': KOJI_BUILD_ID,
-            'koji_ssl_certs_dir': '/path/to/certs',
         }, True),
 
-        ({
-            'koji_target': KOJI_TARGET_NAME,
-            'koji_hub': KOJI_BUILD_ID,
-        }, False),
+        ({}, False),
     ))
     def test_koji_session_creation(self, workflow, plugin_args, ssl_login, reactor_config_map):
         koji_session = workflow._koji_session
@@ -891,7 +886,7 @@ class TestResolveComposes(object):
         self.run_plugin_with_args(workflow, plugin_args, reactor_config_map=reactor_config_map)
 
     def test_koji_hub_requirement(self, workflow):
-        plugin_args = {'koji_target': 'test-target', 'koji_hub': None}
+        plugin_args = {'koji_target': 'test-target'}
         self.run_plugin_with_args(workflow, plugin_args,
                                   expect_error='koji_hub is required when koji_target is used')
 
@@ -1215,7 +1210,6 @@ class TestResolveComposes(object):
 
     def test_invalid_koji_build_target(self, workflow, reactor_config_map):
         plugin_args = {
-            'koji_hub': KOJI_HUB,
             'koji_target': 'spam',
         }
         expect_error = 'No matching build target found'
@@ -1245,7 +1239,6 @@ class TestResolveComposes(object):
         plugin_args = plugin_args or {}
         plugin_args.setdefault('odcs_url', ODCS_URL)
         plugin_args.setdefault('koji_target', KOJI_TARGET_NAME)
-        plugin_args.setdefault('koji_hub', KOJI_HUB)
         reactor_conf =\
             deepcopy(workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY].conf)
 

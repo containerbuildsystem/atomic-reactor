@@ -91,7 +91,6 @@ class TestBumpRelease(object):
         kwargs = {
             'tasker': None,
             'workflow': workflow,
-            'hub': ''
         }
         koji_map = {
             'hub_url': '',
@@ -106,7 +105,6 @@ class TestBumpRelease(object):
         if certs:
             tmpdir.join('cert').write('cert')
             tmpdir.join('serverca').write('serverca')
-            kwargs['koji_ssl_certs_dir'] = str(tmpdir)
             koji_map['auth']['ssl_certs_dir'] = str(tmpdir)
 
         if reactor_config_map:
