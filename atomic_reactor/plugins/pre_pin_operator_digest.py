@@ -65,7 +65,7 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         """
         super(PinOperatorDigestsPlugin, self).__init__(tasker, workflow)
         self.user_config = workflow.source.config.operator_manifests
-        self.site_config = None  # Only relevant (and available) in orchestrator
+        self.site_config = None
         self.replacement_pullspecs = replacement_pullspecs or {}
 
     def run(self):
@@ -84,11 +84,14 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
 
         :return: bool, should plugin run?
         """
-        if has_operator_bundle_manifest(self.workflow):
-            return True
-        else:
+        if not has_operator_bundle_manifest(self.workflow):
             self.log.info("Not an operator manifest bundle build, skipping plugin")
             return False
+        if get_operator_manifests(self.workflow, fallback=None) is None:
+            msg = "operator_manifests configuration missing in reactor config map, aborting"
+            self.log.warning(msg)
+            return False
+        return True
 
     def run_in_orchestrator(self):
         """
@@ -97,12 +100,7 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
 
         Exclude CSVs which already have a relatedImages section.
         """
-        try:
-            self.site_config = get_operator_manifests(self.workflow)
-        except KeyError:
-            msg = "operator_manifests configuration missing in reactor config map, aborting"
-            self.log.warning(msg)
-            return
+        self.site_config = get_operator_manifests(self.workflow)
 
         operator_manifest = self._get_operator_manifest()
         pullspecs = self._get_pullspecs(operator_manifest)

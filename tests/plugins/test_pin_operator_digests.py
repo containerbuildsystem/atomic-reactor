@@ -82,9 +82,9 @@ def mock_workflow(tmpdir, orchestrator, user_config=None, site_config=None):
     if orchestrator:
         workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}]
 
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {
-            WORKSPACE_CONF_KEY: make_reactor_config(site_config or {})
-        }
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {
+        WORKSPACE_CONF_KEY: make_reactor_config(site_config or {})
+    }
 
     return workflow
 
@@ -267,8 +267,9 @@ class TestPinOperatorDigest(object):
         runner.run()
         assert "Not an operator manifest bundle build, skipping plugin" in caplog.text
 
-    def test_missing_orchestrator_config(self, docker_tasker, tmpdir, caplog):
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=True)
+    @pytest.mark.parametrize('orchestrator', [True, False])
+    def test_missing_site_config(self, orchestrator, docker_tasker, tmpdir, caplog):
+        runner = mock_env(docker_tasker, tmpdir, orchestrator=orchestrator)
         runner.run()
 
         msg = "operator_manifests configuration missing in reactor config map, aborting"
@@ -277,13 +278,11 @@ class TestPinOperatorDigest(object):
 
     @pytest.mark.parametrize('orchestrator', [True, False])
     def test_missing_user_config(self, orchestrator, docker_tasker, tmpdir):
-        # make sure operator run does not fail because of missing site config
+        # make sure plugin is not skipped because of missing site config
         site_config = get_site_config()
-        # make sure worker run is not skipped because of missing replacements
-        replacement_pullspecs = {'a': 'b'}
 
         runner = mock_env(docker_tasker, tmpdir, orchestrator=orchestrator,
-                          site_config=site_config, replacement_pullspecs=replacement_pullspecs)
+                          site_config=site_config)
 
         with pytest.raises(PluginFailedException) as exc_info:
             runner.run()
@@ -299,10 +298,8 @@ class TestPinOperatorDigest(object):
     ])
     def test_manifests_dir_not_subdir_of_repo(self, manifests_dir, symlinks,
                                               orchestrator, docker_tasker, tmpdir):
-        # make sure operator run does not fail because of missing site config
+        # make sure plugin is not skipped because of missing site config
         site_config = get_site_config()
-        # make sure worker run is not skipped because of missing replacements
-        replacement_pullspecs = {'a': 'b'}
 
         # make symlinks
         for rel_dest, src in (symlinks or {}).items():
@@ -312,7 +309,7 @@ class TestPinOperatorDigest(object):
         user_config = get_user_config(manifests_dir)
 
         runner = mock_env(docker_tasker, tmpdir, orchestrator, site_config=site_config,
-                          user_config=user_config, replacement_pullspecs=replacement_pullspecs)
+                          user_config=user_config)
 
         with pytest.raises(PluginFailedException) as exc_info:
             runner.run()
@@ -565,7 +562,8 @@ class TestPinOperatorDigest(object):
 
         user_config = get_user_config(str(tmpdir))
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=False, user_config=user_config)
+        runner = mock_env(docker_tasker, tmpdir, orchestrator=False,
+                          site_config=get_site_config(), user_config=user_config)
         runner.run()
 
         assert "Replacing pullspecs" not in caplog.text
@@ -600,7 +598,7 @@ class TestPinOperatorDigest(object):
 
         user_config = get_user_config(manifests_dir=str(manifests_dir))
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=False,
+        runner = mock_env(docker_tasker, tmpdir, orchestrator=False, site_config=get_site_config(),
                           user_config=user_config, replacement_pullspecs=replacement_pullspecs)
         runner.run()
 
