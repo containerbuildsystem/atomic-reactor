@@ -16,10 +16,174 @@ from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
 
 from atomic_reactor.util import ImageName, chain_get
-from atomic_reactor.utils.operator import OperatorCSV, OperatorManifest, NotOperatorCSV
+from atomic_reactor.utils.operator import (
+    OperatorCSV,
+    OperatorManifest,
+    NotOperatorCSV,
+    default_pullspec_heuristic,
+)
 
 
 yaml = YAML()
+
+
+SHA = "5d141ae1081640587636880dbe8489439353df883379158fa8742d5a3be75475"
+
+
+@pytest.mark.parametrize("text, expected", [
+    # Trivial cases
+    ("a.b/c:1", ["a.b/c:1"]),
+    ("a.b/c/d:1", ["a.b/c/d:1"]),
+    # Digests in tag
+    ("a.b/c@sha256:{sha}".format(sha=SHA), ["a.b/c@sha256:{sha}".format(sha=SHA)]),
+    ("a.b/c/d@sha256:{sha}".format(sha=SHA), ["a.b/c/d@sha256:{sha}".format(sha=SHA)]),
+    # Port in registry
+    ("a.b:1/c:1", ["a.b:1/c:1"]),
+    ("a.b:5000/c/d:1", ["a.b:5000/c/d:1"]),
+    # Special characters everywhere
+    ("a-b.c_d/e-f.g_h/i-j.k_l@sha256:{sha}".format(sha=SHA),
+     ["a-b.c_d/e-f.g_h/i-j.k_l@sha256:{sha}".format(sha=SHA)]),
+    ("a-._b/c-._d/e-._f:g-._h", ["a-._b/c-._d/e-._f:g-._h"]),
+    ("1.2-3_4/5.6-7_8/9.0-1_2:3.4-5_6", ["1.2-3_4/5.6-7_8/9.0-1_2:3.4-5_6"]),
+    # Multiple namespaces
+    ("a.b/c/d/e:1", ["a.b/c/d/e:1"]),
+    ("a.b/c/d/e/f/g/h/i:1", ["a.b/c/d/e/f/g/h/i:1"]),
+    # Enclosed in various non-pullspec characters
+    (" a.b/c:1 ", ["a.b/c:1"]),
+    ("\na.b/c:1\n", ["a.b/c:1"]),
+    ("\ta.b/c:1\t", ["a.b/c:1"]),
+    (",a.b/c:1,", ["a.b/c:1"]),
+    (";a.b/c:1;", ["a.b/c:1"]),
+    ("'a.b/c:1'", ["a.b/c:1"]),
+    ('"a.b/c:1"', ["a.b/c:1"]),
+    ("<a.b/c:1>", ["a.b/c:1"]),
+    ("`a.b/c:1`", ["a.b/c:1"]),
+    ("*a.b/c:1*", ["a.b/c:1"]),
+    ("(a.b/c:1)", ["a.b/c:1"]),
+    ("[a.b/c:1]", ["a.b/c:1"]),
+    ("{a.b/c:1}", ["a.b/c:1"]),
+    # Enclosed in various pullspec characters
+    (".a.b/c:1.", ["a.b/c:1"]),
+    ("-a.b/c:1-", ["a.b/c:1"]),
+    ("_a.b/c:1_", ["a.b/c:1"]),
+    ("/a.b/c:1/", ["a.b/c:1"]),
+    ("@a.b/c:1@", ["a.b/c:1"]),
+    (":a.b/c:1:", ["a.b/c:1"]),
+    # Enclosed in multiple pullspec characters
+    ("...a.b/c:1...", ["a.b/c:1"]),
+    # Redundant but important interaction of ^ with tags
+    ("a.b/c:latest:", ["a.b/c:latest"]),
+    ("a.b/c@sha256:{sha}:".format(sha=SHA), ["a.b/c@sha256:{sha}".format(sha=SHA)]),
+    ("a.b/c@sha256:{sha}...".format(sha=SHA), ["a.b/c@sha256:{sha}".format(sha=SHA)]),
+    ("a.b/c:v1.1...", ["a.b/c:v1.1"]),
+
+    # Empty-ish strings
+    ("", []),
+    ("!", []),
+    (".", []),
+    ("!!!", []),
+    ("...", []),
+    # Not enough parts
+    ("a.bc:1", []),
+    # No '.' in registry
+    ("ab/c:1", []),
+    # No tag
+    ("a.b/c", []),
+    ("a.b/c:", []),
+    ("a.b/c:...", []),
+    # Invalid digest
+    ("a.b/c:@123", []),
+    ("a.b/c:@:123", []),
+    ("a.b/c:@sha256", []),
+    ("a.b/c:@sha256:", []),
+    ("a.b/c:@sha256:...", []),
+    ("a.b/c:@sha256:123456", []),   # Must be 64 characters
+    ("a.b/c:@sha256:{not_b16}".format(not_b16=("a" * 63 + "g")), []),
+    # Empty part
+    ("a.b//c:1", []),
+    ("https://a.b/c:1", []),
+    # '@' in registry
+    ("a@b.c/d:1", []),
+    ("a.b@c/d:1", []),
+    # '@' or ':' in namespace
+    ("a.b/c@d/e:1", []),
+    ("a.b/c:d/e:1", []),
+    ("a.b/c/d@e/f:1", []),
+    ("a.b/c/d:e/f:1", []),
+    # Invalid port in registry
+    ("a:b.c/d:1", []),
+    ("a.b:c/d:1", []),
+    ("a.b:/c:1", []),
+    ("a.b:11ff/c:1", []),
+    # Some part does not start/end with an alphanumeric character
+    ("a.b-/c:1", []),
+    ("a.b/-c:1", []),
+    ("a.b/c-:1", []),
+    ("a.b/c:-1", []),
+    ("a.b/-c/d:1", []),
+    ("a.b/c-/d:1", []),
+    ("a.b/c/-d:1", []),
+    ("a.b/c/d-:1", []),
+    ("a.b/c/d:-1", []),
+
+    # Separated by various non-pullspec characters
+    ("a.b/c:1 d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1\td.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1\nd.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1\n\t d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1,d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1;d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1, d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1; d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1 , d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1 ; d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    # Separated by pullspec characters
+    # Note the space on at least one side of the separator, will not work otherwise
+    ("a.b/c:1/ d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1 /d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1- d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1 -d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1: d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1 :d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1. d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1 .d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1_ d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1 _d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1@ d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("a.b/c:1 @d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+
+    # Sentences
+    ("First is a.b/c:1. Second is d.e/f:1.", ["a.b/c:1", "d.e/f:1"]),
+    ("My pullspecs are a.b/c:1 and d.e/f:1.", ["a.b/c:1", "d.e/f:1"]),
+    ("There is/are some pullspec(s) in registry.io: a.b/c:1, d.e/f:1", ["a.b/c:1", "d.e/f:1"]),
+    ("""
+     Find more info on https://my-site.com/here.
+     Some pullspec are <i>a.b/c:1<i> and __d.e/f:1__.
+     There is also g.h/i:latest: that one is cool.
+     And you can email me at name@server.com for info
+     about the last one: j.k/l:v1.1.
+     """, ["a.b/c:1", "d.e/f:1", "g.h/i:latest", "j.k/l:v1.1"]),
+    ("""
+     I might also decide to do some math: 50.0/2 = 25.0.
+     Perhaps even with variables: 0.5x/2 = x/4.
+     And, because I am a psychopath, I will write this: 0.5/2:2 = 1/8,
+     Which will be a false positive.
+     """, ["0.5/2:2"]),
+
+    # JSON/YAML strings
+    ('["a.b/c:1","d.e/f:1", "g.h/i:1"]', ["a.b/c:1", "d.e/f:1", "g.h/i:1"]),
+    ('{"a":"a.b/c:1","b": "d.e/f:1", "c": "g.h/i:1"}', ["a.b/c:1", "d.e/f:1", "g.h/i:1"]),
+    ("[a.b/c:1,d.e/f:1, g.h/i:1]", ["a.b/c:1", "d.e/f:1", "g.h/i:1"]),
+    ("{a: a.b/c:1,b: d.e/f:1, c: g.h/i:1}", ["a.b/c:1", "d.e/f:1", "g.h/i:1"]),
+    ("""
+     a: a.b/c:1
+     b: d.e/f:1
+     c: g.h/i:1
+     """, ["a.b/c:1", "d.e/f:1", "g.h/i:1"]),
+])
+def test_pullspec_heuristic(text, expected):
+    pullspecs = [text[i:j] for i, j in default_pullspec_heuristic(text)]
+    assert pullspecs == expected
 
 
 class PullSpec(object):
