@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import absolute_import, unicode_literals
 
 import os
+import re
 import logging
 from collections import OrderedDict
 
@@ -46,6 +47,116 @@ def is_str(obj):
     would be sufficient, but on python 2, it may not be.
     """
     return isinstance(obj, (bytes, six.text_type))
+
+
+class PullspecRegex(object):
+    """
+    Regular expressions for all things related to pullspecs
+    """
+
+    # Alphanumeric characters
+    _alnum = r"[a-zA-Z0-9]"
+    # Characters that you might find in a registry, namespace, repo or tag
+    _name = r"[a-zA-Z0-9\-._]"
+    # Base16 characters
+    _base16 = r"[a-fA-F0-9]"
+
+    # A basic name is anything that contains only alphanumeric and name
+    # characters and starts and ends with an alphanumeric character
+    _basic_name = r"(?:(?:{alnum}{name}*{alnum})|{alnum})".format(alnum=_alnum, name=_name)
+
+    # A named tag is ':' followed by a basic name
+    _named_tag = r"(?::{basic_name})".format(basic_name=_basic_name)
+    # A digest is "@sha256:" followed by exactly 64 base16 characters
+    _digest = r"(?:@sha256:{base16}{{64}})".format(base16=_base16)
+
+    # A tag is either a named tag or a digest
+    _tag = r"(?:{named_tag}|{digest})".format(named_tag=_named_tag, digest=_digest)
+
+    # Registry is a basic name that contains at least one dot
+    # followed by an optional port number
+    _registry = r"(?:{alnum}{name}*\.{name}*{alnum}(?::\d+)?)".format(alnum=_alnum, name=_name)
+
+    # Namespace is a basic name
+    _namespace = _basic_name
+
+    # Repo is a basic name followed by a tag
+    # NOTE: Tag is REQUIRED, otherwise regex picks up too many false positives,
+    # such as URLs, math and possibly many others.
+    _repo = _basic_name + _tag
+
+    # Pullspec is registry/namespace*/repo
+    _pullspec = r"{registry}/(?:{namespace}/)*{repo}".format(registry=_registry,
+                                                             namespace=_namespace,
+                                                             repo=_repo)
+
+    # Regex for sequence of characters that *could* be a pullspec
+    CANDIDATE = re.compile(r"[a-zA-Z0-9/\-._@:]+")
+
+    # Fully match a single pullspec
+    FULL = re.compile(r"^{pullspec}$".format(pullspec=_pullspec))
+
+    # Find pullspecs in text
+    # NOTE: Using this regex to find pullspecs will not produce equivalent
+    # results to the default_pullspec_heuristic() below. It will also find
+    # pullspecs embedded in larger sequences that are not pullspecs, e.g.:
+    # "https://example.com/foo:bar" -> "example.com/foo:bar"
+    PULLSPEC = re.compile(_pullspec)
+
+
+def default_pullspec_heuristic(text):
+    """
+    Attempts to find all pullspecs in arbitrary structured/unstructured text.
+    Returns a list of (start, end) tuples such that:
+
+        text[start:end] == <n-th pullspec in text> for all (start, end)
+
+    The basic idea:
+
+    - Find continuous sequences of characters that might appear in a pullspec
+      - That being <alphanumeric> + "/-._@:"
+    - For each such sequence:
+      - Strip non-alphanumeric characters from both ends
+      - Match remainder against the pullspec regex
+
+    Put simply, this heuristic should find anything in the form:
+
+        registry/namespace*/repo:tag
+        registry/namespace*/repo@sha256:digest
+
+    Where registry must contain at least one '.' and all parts follow various
+    restrictions on the format (most typical pullspecs should be caught). Any
+    number of namespaces, including 0, is valid.
+
+    NOTE: Pullspecs without a tag (implicitly :latest) will not be caught.
+    This would produce way too many false positives (and 1 false positive
+    is already too many).
+
+    :param text: Arbitrary blob of text in which to find pullspecs
+    :return: List of (start, end) tuples of substring indices
+    """
+    pullspecs = []
+    for i, j in _pullspec_candidates(text):
+        i, j = _adjust_for_arbitrary_text(text, i, j)
+        candidate = text[i:j]
+        if PullspecRegex.FULL.match(candidate):
+            pullspecs.append((i, j))
+            log.debug("Pullspec heuristic: %s looks like a pullspec", candidate)
+    return pullspecs
+
+
+def _pullspec_candidates(text):
+    return (match.span() for match in PullspecRegex.CANDIDATE.finditer(text))
+
+
+def _adjust_for_arbitrary_text(text, i, j):
+    # Strip all non-alphanumeric characters from start and end of pullspec
+    # candidate to account for various structured/unstructured text elements
+    while i < len(text) and not text[i].isalnum():
+        i += 1
+    while j > 0 and not text[j - 1].isalnum():
+        j -= 1
+    return i, j
 
 
 class NotOperatorCSV(Exception):
