@@ -238,19 +238,50 @@ class RelatedImageEnv(NamedPullspec):
 
 
 class Annotation(NamedPullspec):
-    _image_key = NotImplemented
+    """
+    Annotation pullspecs are special, they may be found under any key
+    and there may be more than one pullspec under a single key
+    """
+
+    def __init__(self, data):
+        super(Annotation, self).__init__(data)
+        self._image_key = NotImplemented
+        self._start_i = NotImplemented
+        self._end_i = NotImplemented
+
+    @property
+    def image(self):
+        i, j = self._start_i, self._end_i
+        return self.data[self._image_key][i:j]
+
+    @image.setter
+    def image(self, value):
+        # If there are 2 or more pullspecs in the same annotation text,
+        # they *must* be replaced starting with the last one, otherwise
+        # replacing one pullspec would invalidate the (start, end) indices
+        # of the others. This is up to the code that uses this class.
+        i, j = self._start_i, self._end_i
+        text = self.data[self._image_key]
+        self.data[self._image_key] = text[:i] + value + text[j:]
 
     @property
     def name(self):
-        # Construct name by taking image repo and adding suffix
-        return ImageName.parse(self.image).repo + "-annotation"
+        # Construct name by taking repo and tag from image and adding suffix
+        image = ImageName.parse(self.image)
+        tag = image.tag
+        # If tag is a digest, strip "sha256:" prefix
+        if tag.startswith("sha256:"):
+            tag = tag[len("sha256:"):]
+        return "{}-{}-annotation".format(image.repo, tag)
 
     @property
     def description(self):
         return "{} annotation".format(self._image_key)
 
-    def with_key(self, image_key):
+    def in_key(self, image_key, start=None, end=None):
         self._image_key = image_key
+        self._start_i = start or 0
+        self._end_i = end or len(self.data[image_key])
         return self
 
 
@@ -258,23 +289,32 @@ class OperatorCSV(object):
     """
     A single ClusterServiceVersion file in an operator manifest.
 
-    Can find and replace pullspecs for container images in predefined locations.
+    Can find and replace pullspecs for container images in predefined locations
+    and all annotations (using a heuristic to guess what is a pullspec).
     """
 
-    def __init__(self, path, data):
+    # Annotation keys that are expected to contain pullspecs
+    _known_annotation_keys = ("containerImage",)
+
+    def __init__(self, path, data, pullspec_heuristic=default_pullspec_heuristic):
         """
         Initialize an OperatorCSV
 
         :param path: Path where data was found or where it should be written
         :param data: ClusterServiceVersion yaml data
+        :param pullspec_heuristic: Function that takes a string and returns
+            a list of pullspecs (substrings). If not specified, a default
+            implementation will be used. For more information, see the
+            default_pullspec_heuristic() function in this module.
         """
         if data.get("kind") != OPERATOR_CSV_KIND:
             raise NotOperatorCSV("Not a ClusterServiceVersion")
         self.path = path
         self.data = data
+        self._pullspec_heuristic = pullspec_heuristic
 
     @classmethod
-    def from_file(cls, path):
+    def from_file(cls, path, **kwargs):
         """
         Make an OperatorCSV from a file
 
@@ -283,7 +323,7 @@ class OperatorCSV(object):
         """
         with open(path) as f:
             data = yaml.load(f)
-            return cls(path, data)
+            return cls(path, data, **kwargs)
 
     def dump(self):
         """
@@ -310,14 +350,11 @@ class OperatorCSV(object):
 
         :return: set of ImageName pullspecs
         """
-        named_pullspecs = self._named_pullspecs()
         pullspecs = set()
-
-        for p in named_pullspecs:
+        for p in self._named_pullspecs():
             image = ImageName.parse(p.image)
             log.debug("%s - Found pullspec for %s: %s", self.path, p.description, image)
             pullspecs.add(image)
-
         return pullspecs
 
     def replace_pullspecs(self, replacement_pullspecs):
@@ -326,16 +363,8 @@ class OperatorCSV(object):
 
         :param replacement_pullspecs: mapping of pullspec -> replacement
         """
-        named_pullspecs = self._named_pullspecs()
-
-        for p in named_pullspecs:
-            old = ImageName.parse(p.image)
-            new = replacement_pullspecs.get(old)
-
-            if new is not None and old != new:
-                log.debug("%s - Replaced pullspec for %s: %s -> %s",
-                          self.path, p.description, old, new)
-                p.image = new.to_str()  # `new` is an ImageName
+        for p in self._named_pullspecs():
+            self._replace_named_pullspec(p, replacement_pullspecs)
 
     def replace_pullspecs_everywhere(self, replacement_pullspecs):
         """
@@ -344,7 +373,9 @@ class OperatorCSV(object):
         :param replacement_pullspecs: mapping of pullspec -> replacment
         """
         for k in self.data:
-            self._replace_pullspecs_everywhere(self.data, k, replacement_pullspecs)
+            self._replace_pullspecs_not_in_annotations(self.data, k, replacement_pullspecs)
+        for annotation in self._annotation_pullspecs() + self._guess_annotation_pullspecs():
+            self._replace_named_pullspec(annotation, replacement_pullspecs)
 
     def set_related_images(self):
         """
@@ -388,6 +419,7 @@ class OperatorCSV(object):
         pullspecs.extend(self._container_pullspecs())
         pullspecs.extend(self._init_container_pullspecs())
         pullspecs.extend(self._related_image_env_pullspecs())
+        pullspecs.extend(self._guess_annotation_pullspecs())
         return pullspecs
 
     def _related_image_pullspecs(self):
@@ -410,11 +442,13 @@ class OperatorCSV(object):
         ]
 
     def _annotation_pullspecs(self):
-        annotations_path = ("metadata", "annotations")
-        annotations = chain_get(self.data, annotations_path, default={})
+        # Known sources of pullspecs in annotations
         pullspecs = []
-        if "containerImage" in annotations:
-            pullspecs.append(Annotation(annotations).with_key("containerImage"))
+        annotation_objects = self._find_all_annotations(self.data)
+        for obj in annotation_objects:
+            for key in self._known_annotation_keys:
+                if key in obj:
+                    pullspecs.append(Annotation(obj).in_key(key))
         return pullspecs
 
     def _related_image_env_pullspecs(self):
@@ -439,6 +473,43 @@ class OperatorCSV(object):
             for d in deployments for c in chain_get(d, init_containers_path, default=[])
         ]
 
+    def _guess_annotation_pullspecs(self):
+        # Other sources of pullspecs in annotations
+        maybe_pullspecs = []
+        annotation_objects = self._find_all_annotations(self.data)
+        for obj in annotation_objects:
+            for k, v in obj.items():
+                # Do not look in keys that are known pullspec sources
+                if is_str(v) and k not in self._known_annotation_keys:
+                    for i, j in self._pullspec_heuristic(v):
+                        maybe_pullspecs.append(Annotation(obj).in_key(k, i, j))
+        # Pullspecs are found left-to-right, they *must* be replaced right-to-left
+        maybe_pullspecs.reverse()
+        return maybe_pullspecs
+
+    def _find_all_annotations(self, obj):
+        if is_dict(obj):
+            metadata = obj.get("metadata")
+            if metadata is not None and "annotations" in metadata:
+                yield metadata["annotations"]
+            for k, v in obj.items():
+                # Do not search for metadata.*.metadata.annotations
+                if k != "metadata":
+                    for annotation in self._find_all_annotations(v):
+                        yield annotation
+        elif is_list(obj):
+            for item in obj:
+                for annotation in self._find_all_annotations(item):
+                    yield annotation
+
+    def _replace_named_pullspec(self, pullspec, replacement_pullspecs):
+        old = ImageName.parse(pullspec.image)
+        new = replacement_pullspecs.get(old)
+        if new is not None and old != new:
+            log.debug("%s - Replaced pullspec for %s: %s -> %s",
+                      self.path, pullspec.description, old, new)
+            pullspec.image = new.to_str()  # `new` is an ImageName
+
     def _replace_unnamed_pullspec(self, obj, key, replacement_pullspecs):
         old = ImageName.parse(obj[key])
         new = replacement_pullspecs.get(old)
@@ -446,18 +517,20 @@ class OperatorCSV(object):
             log.debug("%s - Replaced pullspec: %s -> %s", self.path, old, new)
             obj[key] = new.to_str()  # `new` is an ImageName
 
-    def _replace_pullspecs_everywhere(self, obj, k_or_i, replacement_pullspecs):
+    def _replace_pullspecs_not_in_annotations(self, obj, k_or_i, replacements):
         item = obj[k_or_i]
         if is_dict(item):
             for k in item:
-                self._replace_pullspecs_everywhere(item, k, replacement_pullspecs)
+                # Do not descend into metadata.annotations objects
+                if (k_or_i, k) != ("metadata", "annotations"):
+                    self._replace_pullspecs_not_in_annotations(item, k, replacements)
         elif is_list(item):
             for i in range(len(item)):
-                self._replace_pullspecs_everywhere(item, i, replacement_pullspecs)
+                self._replace_pullspecs_not_in_annotations(item, i, replacements)
         elif is_str(item):
             # Doesn't matter if string was not a pullspec, it will simply not match anything
             # in replacement_pullspecs and no replacement will be done
-            self._replace_unnamed_pullspec(obj, k_or_i, replacement_pullspecs)
+            self._replace_unnamed_pullspec(obj, k_or_i, replacements)
 
 
 class OperatorManifest(object):
@@ -476,7 +549,7 @@ class OperatorManifest(object):
         self.files = files
 
     @classmethod
-    def from_directory(cls, path):
+    def from_directory(cls, path, **kwargs):
         """
         Make an OperatorManifest from all the relevant files found in
         a directory (or its subdirectories)
@@ -487,7 +560,7 @@ class OperatorManifest(object):
         if not os.path.isdir(path):
             raise RuntimeError("Path does not exist or is not a directory: {}".format(path))
         yaml_files = cls._get_yaml_files(path)
-        operator_csvs = list(cls._get_csvs(yaml_files))
+        operator_csvs = list(cls._get_csvs(yaml_files, **kwargs))
         return cls(operator_csvs)
 
     @classmethod
@@ -498,9 +571,9 @@ class OperatorManifest(object):
                     yield os.path.join(d, f)
 
     @classmethod
-    def _get_csvs(cls, yaml_files):
+    def _get_csvs(cls, yaml_files, **kwargs):
         for f in yaml_files:
             try:
-                yield OperatorCSV.from_file(f)
+                yield OperatorCSV.from_file(f, **kwargs)
             except NotOperatorCSV:
                 pass
