@@ -52,51 +52,58 @@ class PullSpec(object):
         return ImageName.parse(chain_get(data, self.path))
 
 
-FOO = PullSpec(
-    "foo", "foo:1", "r-foo:2",
+# Names based on location of pullspec:
+#   RI = relatedImages
+#   C = containers
+#   CE = containers env
+#   IC = initContainers
+#   ICE = initContainers env
+#   AN = annotations
+
+RI1 = PullSpec(
+    "ri1", "foo:1", "r-foo:2",
     ["spec", "relatedImages", 0, "image"]
 )
-BAR = PullSpec(
-    "bar", "registry/bar:1", "r-registry/r-bar:2",
+RI2 = PullSpec(
+    "ri2", "registry/bar:1", "r-registry/r-bar:2",
     ["spec", "relatedImages", 1, "image"]
 )
-SPAM = PullSpec(
-    "spam", "registry/namespace/spam:1", "r-registry/r-namespace/r-spam:2",
+C1 = PullSpec(
+    "c1", "registry/namespace/spam:1", "r-registry/r-namespace/r-spam:2",
     ["spec", "install", "spec", "deployments", 0,
      "spec", "template", "spec", "containers", 0, "image"]
 )
-EGGS = PullSpec(
-    "eggs", "eggs:1", "r-eggs:2",
+CE1 = PullSpec(
+    "ce1", "eggs:1", "r-eggs:2",
     ["spec", "install", "spec", "deployments", 0,
      "spec", "template", "spec", "containers", 0, "env", 0, "value"]
 )
-HAM = PullSpec(
-    "ham", "ham:1", "r-ham:2",
+C2 = PullSpec(
+    "c2", "ham:1", "r-ham:2",
     ["spec", "install", "spec", "deployments", 0,
      "spec", "template", "spec", "containers", 1, "image"]
 )
-JAM = PullSpec(
-    "jam", "jam:1", "r-jam:2",
+C3 = PullSpec(
+    "c3", "jam:1", "r-jam:2",
     ["spec", "install", "spec", "deployments", 1,
      "spec", "template", "spec", "containers", 0, "image"]
 )
-BAZ = PullSpec(
-    "baz", "registry/namespace/baz:latest", "r-registry/r-namespace/r-baz:latest",
+AN1 = PullSpec(
+    "an1", "registry/namespace/baz:latest", "r-registry/r-namespace/r-baz:latest",
     ["metadata", "annotations", "containerImage"]
 )
-# I'm running out of throwaway variable names here...
-P1 = PullSpec(
-    "p1", "pullspec:1", "r-pullspec:1",
+IC1 = PullSpec(
+    "ic1", "pullspec:1", "r-pullspec:1",
     ["spec", "install", "spec", "deployments", 1,
      "spec", "template", "spec", "initContainers", 0, "image"]
 )
-P2 = PullSpec(
-    "p2", "pullspec:2", "r-pullspec:2",
+ICE1 = PullSpec(
+    "ice1", "pullspec:2", "r-pullspec:2",
     ["spec", "install", "spec", "deployments", 1,
      "spec", "template", "spec", "initContainers", 0, "env", 0, "value"]
 )
 
-PULLSPECS = {p.name: p for p in [FOO, BAR, SPAM, EGGS, HAM, JAM, BAZ, P1, P2]}
+PULLSPECS = {p.name: p for p in [RI1, RI2, C1, CE1, C2, C3, AN1, IC1, ICE1]}
 
 
 ORIGINAL_CONTENT = """\
@@ -104,13 +111,13 @@ ORIGINAL_CONTENT = """\
 kind: ClusterServiceVersion
 metadata:
   annotations:
-    containerImage: {baz}
+    containerImage: {an1}
 spec:
   relatedImages:
-  - name: foo
-    image: {foo}
-  - name: bar
-    image: {bar}
+  - name: ri1
+    image: {ri1}
+  - name: ri2
+    image: {ri2}
   install:
     spec:
       deployments:
@@ -118,49 +125,49 @@ spec:
           template:
             spec:
               containers:
-              - name: spam
-                image: {spam}
+              - name: c1
+                image: {c1}
                 env:
-                - name: RELATED_IMAGE_EGGS
-                  value: {eggs}
+                - name: RELATED_IMAGE_CE1
+                  value: {ce1}
                 - name: UNRELATED_IMAGE
-                  value: {eggs}
-              - name: ham
-                image: {ham}
+                  value: {ce1}
+              - name: c2
+                image: {c2}
       - spec:
           template:
             spec:
               containers:
-              - name: jam
-                image: {jam}
+              - name: c3
+                image: {c3}
               initContainers:
-              - name: p1
-                image: {p1}
+              - name: ic1
+                image: {ic1}
                 env:
-                - name: RELATED_IMAGE_P2
-                  value: {p2}
+                - name: RELATED_IMAGE_ICE1
+                  value: {ice1}
 random:
   nested:
     dict:
-      a: {foo}
-      b: {bar}
-      c: {spam}
-      d: {eggs}
-      e: {ham}
-      f: {jam}
-      g: {baz}
-      h: {p1}
-      i: {p2}
+      a: {ri1}
+      b: {ri2}
+      c: {c1}
+      d: {ce1}
+      e: {c2}
+      f: {c3}
+      g: {an1}
+      h: {ic1}
+      i: {ice1}
     list:
-    - {foo}
-    - {bar}
-    - {spam}
-    - {eggs}
-    - {ham}
-    - {jam}
-    - {baz}
-    - {p1}
-    - {p2}
+    - {ri1}
+    - {ri2}
+    - {c1}
+    - {ce1}
+    - {c2}
+    - {c3}
+    - {an1}
+    - {ic1}
+    - {ice1}
 """.format(**PULLSPECS)
 
 REPLACED_CONTENT = """\
@@ -168,13 +175,13 @@ REPLACED_CONTENT = """\
 kind: ClusterServiceVersion
 metadata:
   annotations:
-    containerImage: {baz.replace}
+    containerImage: {an1.replace}
 spec:
   relatedImages:
-  - name: foo
-    image: {foo.replace}
-  - name: bar
-    image: {bar.replace}
+  - name: ri1
+    image: {ri1.replace}
+  - name: ri2
+    image: {ri2.replace}
   install:
     spec:
       deployments:
@@ -182,49 +189,49 @@ spec:
           template:
             spec:
               containers:
-              - name: spam
-                image: {spam.replace}
+              - name: c1
+                image: {c1.replace}
                 env:
-                - name: RELATED_IMAGE_EGGS
-                  value: {eggs.replace}
+                - name: RELATED_IMAGE_CE1
+                  value: {ce1.replace}
                 - name: UNRELATED_IMAGE
-                  value: {eggs}
-              - name: ham
-                image: {ham.replace}
+                  value: {ce1}
+              - name: c2
+                image: {c2.replace}
       - spec:
           template:
             spec:
               containers:
-              - name: jam
-                image: {jam.replace}
+              - name: c3
+                image: {c3.replace}
               initContainers:
-              - name: p1
-                image: {p1.replace}
+              - name: ic1
+                image: {ic1.replace}
                 env:
-                - name: RELATED_IMAGE_P2
-                  value: {p2.replace}
+                - name: RELATED_IMAGE_ICE1
+                  value: {ice1.replace}
 random:
   nested:
     dict:
-      a: {foo}
-      b: {bar}
-      c: {spam}
-      d: {eggs}
-      e: {ham}
-      f: {jam}
-      g: {baz}
-      h: {p1}
-      i: {p2}
+      a: {ri1}
+      b: {ri2}
+      c: {c1}
+      d: {ce1}
+      e: {c2}
+      f: {c3}
+      g: {an1}
+      h: {ic1}
+      i: {ice1}
     list:
-    - {foo}
-    - {bar}
-    - {spam}
-    - {eggs}
-    - {ham}
-    - {jam}
-    - {baz}
-    - {p1}
-    - {p2}
+    - {ri1}
+    - {ri2}
+    - {c1}
+    - {ce1}
+    - {c2}
+    - {c3}
+    - {an1}
+    - {ic1}
+    - {ice1}
 """.format(**PULLSPECS)
 
 REPLACED_EVERYWHERE_CONTENT = """\
@@ -232,13 +239,13 @@ REPLACED_EVERYWHERE_CONTENT = """\
 kind: ClusterServiceVersion
 metadata:
   annotations:
-    containerImage: {baz.replace}
+    containerImage: {an1.replace}
 spec:
   relatedImages:
-  - name: foo
-    image: {foo.replace}
-  - name: bar
-    image: {bar.replace}
+  - name: ri1
+    image: {ri1.replace}
+  - name: ri2
+    image: {ri2.replace}
   install:
     spec:
       deployments:
@@ -246,49 +253,49 @@ spec:
           template:
             spec:
               containers:
-              - name: spam
-                image: {spam.replace}
+              - name: c1
+                image: {c1.replace}
                 env:
-                - name: RELATED_IMAGE_EGGS
-                  value: {eggs.replace}
+                - name: RELATED_IMAGE_CE1
+                  value: {ce1.replace}
                 - name: UNRELATED_IMAGE
-                  value: {eggs.replace}
-              - name: ham
-                image: {ham.replace}
+                  value: {ce1.replace}
+              - name: c2
+                image: {c2.replace}
       - spec:
           template:
             spec:
               containers:
-              - name: jam
-                image: {jam.replace}
+              - name: c3
+                image: {c3.replace}
               initContainers:
-              - name: p1
-                image: {p1.replace}
+              - name: ic1
+                image: {ic1.replace}
                 env:
-                - name: RELATED_IMAGE_P2
-                  value: {p2.replace}
+                - name: RELATED_IMAGE_ICE1
+                  value: {ice1.replace}
 random:
   nested:
     dict:
-      a: {foo.replace}
-      b: {bar.replace}
-      c: {spam.replace}
-      d: {eggs.replace}
-      e: {ham.replace}
-      f: {jam.replace}
-      g: {baz.replace}
-      h: {p1.replace}
-      i: {p2.replace}
+      a: {ri1.replace}
+      b: {ri2.replace}
+      c: {c1.replace}
+      d: {ce1.replace}
+      e: {c2.replace}
+      f: {c3.replace}
+      g: {an1.replace}
+      h: {ic1.replace}
+      i: {ice1.replace}
     list:
-    - {foo.replace}
-    - {bar.replace}
-    - {spam.replace}
-    - {eggs.replace}
-    - {ham.replace}
-    - {jam.replace}
-    - {baz.replace}
-    - {p1.replace}
-    - {p2.replace}
+    - {ri1.replace}
+    - {ri2.replace}
+    - {c1.replace}
+    - {ce1.replace}
+    - {c2.replace}
+    - {c3.replace}
+    - {an1.replace}
+    - {ic1.replace}
+    - {ice1.replace}
 """.format(**PULLSPECS)
 
 
@@ -338,15 +345,15 @@ class TestOperatorCSV(object):
         assert pullspecs == self._original_pullspecs
 
         expected_logs = [
-            "original.yaml - Found pullspec for relatedImage foo: {foo}",
-            "original.yaml - Found pullspec for relatedImage bar: {bar}",
-            "original.yaml - Found pullspec for RELATED_IMAGE_EGGS var: {eggs}",
-            "original.yaml - Found pullspec for RELATED_IMAGE_P2 var: {p2}",
-            "original.yaml - Found pullspec for container spam: {spam}",
-            "original.yaml - Found pullspec for container ham: {ham}",
-            "original.yaml - Found pullspec for container jam: {jam}",
-            "original.yaml - Found pullspec for containerImage annotation: {baz}",
-            "original.yaml - Found pullspec for initContainer p1: {p1}",
+            "original.yaml - Found pullspec for relatedImage ri1: {ri1}",
+            "original.yaml - Found pullspec for relatedImage ri2: {ri2}",
+            "original.yaml - Found pullspec for RELATED_IMAGE_CE1 var: {ce1}",
+            "original.yaml - Found pullspec for RELATED_IMAGE_ICE1 var: {ice1}",
+            "original.yaml - Found pullspec for container c1: {c1}",
+            "original.yaml - Found pullspec for container c2: {c2}",
+            "original.yaml - Found pullspec for container c3: {c3}",
+            "original.yaml - Found pullspec for containerImage annotation: {an1}",
+            "original.yaml - Found pullspec for initContainer ic1: {ic1}",
         ]
         for log in expected_logs:
             assert log.format(**PULLSPECS) in caplog.text
@@ -357,15 +364,15 @@ class TestOperatorCSV(object):
         assert csv.data == REPLACED.data
 
         expected_logs = [
-            "{file} - Replaced pullspec for relatedImage foo: {foo} -> {foo.replace}",
-            "{file} - Replaced pullspec for relatedImage bar: {bar} -> {bar.replace}",
-            "{file} - Replaced pullspec for RELATED_IMAGE_EGGS var: {eggs} -> {eggs.replace}",
-            "{file} - Replaced pullspec for RELATED_IMAGE_P2 var: {p2} -> {p2.replace}",
-            "{file} - Replaced pullspec for container spam: {spam} -> {spam.replace}",
-            "{file} - Replaced pullspec for container ham: {ham} -> {ham.replace}",
-            "{file} - Replaced pullspec for container jam: {jam} -> {jam.replace}",
-            "{file} - Replaced pullspec for containerImage annotation: {baz} -> {baz.replace}",
-            "{file} - Replaced pullspec for initContainer p1: {p1} -> {p1.replace}",
+            "{file} - Replaced pullspec for relatedImage ri1: {ri1} -> {ri1.replace}",
+            "{file} - Replaced pullspec for relatedImage ri2: {ri2} -> {ri2.replace}",
+            "{file} - Replaced pullspec for RELATED_IMAGE_CE1 var: {ce1} -> {ce1.replace}",
+            "{file} - Replaced pullspec for RELATED_IMAGE_ICE1 var: {ice1} -> {ice1.replace}",
+            "{file} - Replaced pullspec for container c1: {c1} -> {c1.replace}",
+            "{file} - Replaced pullspec for container c2: {c2} -> {c2.replace}",
+            "{file} - Replaced pullspec for container c3: {c3} -> {c3.replace}",
+            "{file} - Replaced pullspec for containerImage annotation: {an1} -> {an1.replace}",
+            "{file} - Replaced pullspec for initContainer ic1: {ic1} -> {ic1.replace}",
         ]
         for log in expected_logs:
             assert log.format(file="original.yaml", **PULLSPECS) in caplog.text
@@ -376,15 +383,15 @@ class TestOperatorCSV(object):
         assert csv.data == REPLACED_EVERYWHERE.data
 
         expected_logs = {
-            "original.yaml - Replaced pullspec: {foo} -> {foo.replace}": 3,
-            "original.yaml - Replaced pullspec: {bar} -> {bar.replace}": 3,
-            "original.yaml - Replaced pullspec: {eggs} -> {eggs.replace}": 4,
-            "original.yaml - Replaced pullspec: {spam} -> {spam.replace}": 3,
-            "original.yaml - Replaced pullspec: {ham} -> {ham.replace}": 3,
-            "original.yaml - Replaced pullspec: {jam} -> {jam.replace}": 3,
-            "original.yaml - Replaced pullspec: {baz} -> {baz.replace}": 3,
-            "original.yaml - Replaced pullspec: {p1} -> {p1.replace}": 3,
-            "original.yaml - Replaced pullspec: {p2} -> {p2.replace}": 3,
+            "original.yaml - Replaced pullspec: {ri1} -> {ri1.replace}": 3,
+            "original.yaml - Replaced pullspec: {ri2} -> {ri2.replace}": 3,
+            "original.yaml - Replaced pullspec: {ce1} -> {ce1.replace}": 4,
+            "original.yaml - Replaced pullspec: {c1} -> {c1.replace}": 3,
+            "original.yaml - Replaced pullspec: {c2} -> {c2.replace}": 3,
+            "original.yaml - Replaced pullspec: {c3} -> {c3.replace}": 3,
+            "original.yaml - Replaced pullspec: {an1} -> {an1.replace}": 3,
+            "original.yaml - Replaced pullspec: {ic1} -> {ic1.replace}": 3,
+            "original.yaml - Replaced pullspec: {ice1} -> {ice1.replace}": 3,
         }
         for log, count in expected_logs.items():
             assert caplog.text.count(log.format(**PULLSPECS)) == count
@@ -403,22 +410,22 @@ class TestOperatorCSV(object):
     def test_replace_only_some_pullspecs(self, caplog):
         replacement_pullspecs = self._replacement_pullspecs.copy()
 
-        # Foo won't be replaced because replacement is identical
-        replacement_pullspecs[FOO.value] = FOO.value
-        # Bar won't be replaced because no replacement available
-        del replacement_pullspecs[BAR.value]
+        # ri1 won't be replaced because replacement is identical
+        replacement_pullspecs[RI1.value] = RI1.value
+        # ri2 won't be replaced because no replacement available
+        del replacement_pullspecs[RI2.value]
 
         csv = OperatorCSV("original.yaml", ORIGINAL.data)
         csv.replace_pullspecs(replacement_pullspecs)
 
-        assert FOO.find_in_data(csv.data) == FOO.value
-        assert BAR.find_in_data(csv.data) == BAR.value
+        assert RI1.find_in_data(csv.data) == RI1.value
+        assert RI2.find_in_data(csv.data) == RI2.value
 
-        foo_log = "original.yaml - Replaced pullspec for related image foo: {foo}"
-        bar_log = "original.yaml - Replaced pullspec for related image bar: {bar}"
+        ri1_log = "original.yaml - Replaced pullspec for relatedImage ri1: {ri1}"
+        ri2_log = "original.yaml - Replaced pullspec for relatedImage ri2: {ri2}"
 
-        assert foo_log.format(foo=FOO) not in caplog.text
-        assert bar_log.format(bar=BAR) not in caplog.text
+        assert ri1_log.format(ri1=RI1) not in caplog.text
+        assert ri2_log.format(ri2=RI2) not in caplog.text
 
     @pytest.mark.parametrize("rel_images", [True, False])
     @pytest.mark.parametrize("rel_envs, containers", [
@@ -440,28 +447,28 @@ class TestOperatorCSV(object):
         expected = {p.value for p in PULLSPECS.values()}
 
         if not rel_images:
-            expected -= {FOO.value, BAR.value}
+            expected -= {RI1.value, RI2.value}
             del data["spec"]["relatedImages"]
         deployments = chain_get(data, ["spec", "install", "spec", "deployments"])
         if not rel_envs:
-            expected -= {EGGS.value}
+            expected -= {CE1.value}
             for d in deployments:
                 for c in chain_get(d, ["spec", "template", "spec", "containers"]):
                     c.pop("env", None)
         if not containers:
-            expected -= {SPAM.value, HAM.value, JAM.value}
+            expected -= {C1.value, C2.value, C3.value}
             for d in deployments:
                 del d["spec"]["template"]["spec"]["containers"]
         if not annotations:
-            expected -= {BAZ.value}
+            expected -= {AN1.value}
             del data["metadata"]["annotations"]
         if not init_rel_envs:
-            expected -= {P2.value}
+            expected -= {ICE1.value}
             for d in deployments:
                 for c in chain_get(d, ["spec", "template", "spec", "initContainers"], default=[]):
                     c.pop("env", None)
         if not init_containers:
-            expected -= {P1.value}
+            expected -= {IC1.value}
             for d in deployments:
                 d["spec"]["template"]["spec"].pop("initContainers", None)
 
@@ -470,7 +477,7 @@ class TestOperatorCSV(object):
 
     def test_valuefrom_references_not_allowed(self):
         data = ORIGINAL.data
-        env_path = EGGS.path[:-1]
+        env_path = CE1.path[:-1]
         env = chain_get(data, env_path)
         env["valueFrom"] = "somewhere"
 
@@ -495,29 +502,29 @@ class TestOperatorCSV(object):
         expected_related_images = [
             CommentedMap([("name", name), ("image", pullspec.value.to_str())])
             for name, pullspec in [
-                ("foo", FOO),
-                ("bar", BAR),
-                ("baz-annotation", BAZ),
-                ("spam", SPAM),
-                ("ham", HAM),
-                ("jam", JAM),
-                ("p1", P1),
-                ("eggs", EGGS),
-                ("p2", P2),
+                ("ri1", RI1),
+                ("ri2", RI2),
+                ("baz-annotation", AN1),
+                ("c1", C1),
+                ("c2", C2),
+                ("c3", C3),
+                ("ic1", IC1),
+                ("ce1", CE1),
+                ("ice1", ICE1),
             ]
         ]
         assert csv.data["spec"]["relatedImages"] == expected_related_images
 
         expected_logs = [
-            "{path} - Set relatedImage foo (from relatedImage foo): {foo}",
-            "{path} - Set relatedImage bar (from relatedImage bar): {bar}",
-            "{path} - Set relatedImage baz-annotation (from containerImage annotation): {baz}",
-            "{path} - Set relatedImage spam (from container spam): {spam}",
-            "{path} - Set relatedImage ham (from container ham): {ham}",
-            "{path} - Set relatedImage jam (from container jam): {jam}",
-            "{path} - Set relatedImage p1 (from initContainer p1): {p1}",
-            "{path} - Set relatedImage eggs (from RELATED_IMAGE_EGGS var): {eggs}",
-            "{path} - Set relatedImage p2 (from RELATED_IMAGE_P2 var): {p2}",
+            "{path} - Set relatedImage ri1 (from relatedImage ri1): {ri1}",
+            "{path} - Set relatedImage ri2 (from relatedImage ri2): {ri2}",
+            "{path} - Set relatedImage baz-annotation (from containerImage annotation): {an1}",
+            "{path} - Set relatedImage c1 (from container c1): {c1}",
+            "{path} - Set relatedImage c2 (from container c2): {c2}",
+            "{path} - Set relatedImage c3 (from container c3): {c3}",
+            "{path} - Set relatedImage ic1 (from initContainer ic1): {ic1}",
+            "{path} - Set relatedImage ce1 (from RELATED_IMAGE_CE1 var): {ce1}",
+            "{path} - Set relatedImage ice1 (from RELATED_IMAGE_ICE1 var): {ice1}",
         ]
         for log in expected_logs:
             assert log.format(path="original.yaml", **PULLSPECS) in caplog.text
