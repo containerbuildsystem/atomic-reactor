@@ -170,14 +170,21 @@ def test_wait_for_request_timeout(caplog):
 
 
 @responses.activate
-@pytest.mark.parametrize('error_state', ('failed', 'stale'))
-def test_wait_for_unsuccessful_request(error_state, caplog):
+@pytest.mark.parametrize('error_state,error_reason',
+                         [('failed', 'Cloning the Git repository failed'),
+                          ('stale', 'The request has expired')])
+def test_wait_for_unsuccessful_request(error_state, error_reason, caplog):
     states = ['in_progress', 'in_progress', error_state]
     expected_total_responses_calls = len(states)
 
     def handle_wait_for_request(http_request):
         state = states.pop(0)
-        return (200, {}, json.dumps({'id': CACHITO_REQUEST_ID, 'state': state}))
+        return (200, {}, json.dumps({'state_reason': error_reason,
+                                     'repo': CACHITO_REQUEST_REPO,
+                                     'state': state,
+                                     'ref': CACHITO_REQUEST_REF,
+                                     'id': CACHITO_REQUEST_ID
+                                     }))
 
     responses.add_callback(
         responses.GET,
@@ -191,17 +198,60 @@ def test_wait_for_unsuccessful_request(error_state, caplog):
     assert len(responses.calls) == expected_total_responses_calls
 
     failed_response_json = json.dumps(
-        {'id': CACHITO_REQUEST_ID, 'state': error_state},
+        {'state_reason': error_reason,
+         'repo': CACHITO_REQUEST_REPO,
+         'state': error_state,
+         'ref': CACHITO_REQUEST_REF,
+         'id': CACHITO_REQUEST_ID
+         },
         indent=4
     )
     expect_in_logs = dedent(
         """\
-        Request {} is in "{}" state: Unknown
+        Request {} is in "{}" state: {}
         Details: {}
         """
-    ).format(CACHITO_REQUEST_ID, error_state, failed_response_json)
+    ).format(CACHITO_REQUEST_ID, error_state, error_reason, failed_response_json)
     # Since Python 3.7 logger adds additional whitespaces by default -> checking without them
     assert re.sub(r'\s+', " ", expect_in_logs) in re.sub(r'\s+', " ", caplog.text)
+
+
+@responses.activate
+@pytest.mark.parametrize('error_state,error_reason',
+                         [('failed', 'Cloning the Git repository failed'),
+                          ('stale', 'The request has expired')])
+def test_check_CachitoAPIUnsuccessfulRequest_text(error_state, error_reason, caplog):
+    states = ['in_progress', 'in_progress', error_state]
+    expected_total_responses_calls = len(states)
+
+    cachito_request_url = '{}/api/v1/requests/{}'.format(CACHITO_URL, CACHITO_REQUEST_ID)
+
+    def handle_wait_for_request(http_request):
+        state = states.pop(0)
+        return (200, {}, json.dumps({'state_reason': error_reason,
+                                     'repo': CACHITO_REQUEST_REPO,
+                                     'state': state,
+                                     'ref': CACHITO_REQUEST_REF,
+                                     'id': CACHITO_REQUEST_ID
+                                     }))
+
+    responses.add_callback(
+        responses.GET,
+        '{}/api/v1/requests/{}'.format(CACHITO_URL, CACHITO_REQUEST_ID),
+        content_type='application/json',
+        callback=handle_wait_for_request)
+
+    burst_params = {'burst_retry': 0.001, 'burst_length': 0.5}
+    expected_exc_text = dedent('''\
+                               Cachito request is in "{}" state, reason: {}
+                               Request {} ({}) tried to get repo '{}' at reference '{}'.
+                               '''.format(error_state, error_reason, CACHITO_REQUEST_ID,
+                                          cachito_request_url, CACHITO_REQUEST_REPO,
+                                          CACHITO_REQUEST_REF))
+    with pytest.raises(CachitoAPIUnsuccessfulRequest) as excinfo:
+        CachitoAPI(CACHITO_URL).wait_for_request(CACHITO_REQUEST_ID, **burst_params)
+    assert len(responses.calls) == expected_total_responses_calls
+    assert expected_exc_text in str(excinfo.value)
 
 
 def test_wait_for_request_bad_request_type():
