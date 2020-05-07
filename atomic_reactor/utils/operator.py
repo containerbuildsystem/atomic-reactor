@@ -12,6 +12,7 @@ import os
 import logging
 from collections import OrderedDict
 
+import six
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
@@ -23,6 +24,28 @@ log = logging.getLogger(__name__)
 
 
 OPERATOR_CSV_KIND = "ClusterServiceVersion"
+
+
+def is_dict(obj):
+    """
+    Check if object is a dict or the ruamel.yaml equivalent of a dict
+    """
+    return isinstance(obj, (dict, CommentedMap))
+
+
+def is_list(obj):
+    """
+    Check if object is a list or the ruamel.yaml equivalent of a list
+    """
+    return isinstance(obj, (list, CommentedSeq))
+
+
+def is_str(obj):
+    """
+    Check if object is a string or bytes. On python 3, checking for string
+    would be sufficient, but on python 2, it may not be.
+    """
+    return isinstance(obj, (bytes, six.text_type))
 
 
 class NotOperatorCSV(Exception):
@@ -314,13 +337,13 @@ class OperatorCSV(object):
 
     def _replace_pullspecs_everywhere(self, obj, k_or_i, replacement_pullspecs):
         item = obj[k_or_i]
-        if isinstance(item, CommentedMap):
+        if is_dict(item):
             for k in item:
                 self._replace_pullspecs_everywhere(item, k, replacement_pullspecs)
-        elif isinstance(item, CommentedSeq):
+        elif is_list(item):
             for i in range(len(item)):
                 self._replace_pullspecs_everywhere(item, i, replacement_pullspecs)
-        elif isinstance(item, str):
+        elif is_str(item):
             # Doesn't matter if string was not a pullspec, it will simply not match anything
             # in replacement_pullspecs and no replacement will be done
             self._replace_unnamed_pullspec(obj, k_or_i, replacement_pullspecs)
