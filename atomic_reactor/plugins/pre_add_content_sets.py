@@ -55,7 +55,9 @@ class AddContentSetsPlugin(PreBuildPlugin):
         file_path = os.path.join(workdir, REPO_CONTENT_SETS_CONFIG)
         content_sets = {}
 
-        if os.path.exists(file_path):
+        config_data = self.workflow.source.config.compose or {}
+
+        if os.path.exists(file_path) and config_data.get('pulp_repos'):
             content_sets = read_yaml_from_file_path(file_path, 'schemas/content_sets.json') or {}
 
         output_json = {'content_sets': []}

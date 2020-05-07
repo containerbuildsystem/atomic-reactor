@@ -17,6 +17,7 @@ from atomic_reactor.util import ImageName
 class StubConfig(object):
     image_build_method = None
     release_env_var = None
+    compose = None
 
 
 class StubSource(object):

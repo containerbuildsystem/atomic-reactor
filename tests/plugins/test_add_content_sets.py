@@ -62,6 +62,11 @@ def mock_content_sets_config(tmpdir, empty=False):
 
 
 @pytest.mark.parametrize('meta_file_exists', [True, False])
+@pytest.mark.parametrize(('compose, pulp_repos, use_content_sets'), [
+    (True, True, True),
+    (True, False, False),
+    (False, False, False),
+])
 @pytest.mark.parametrize('content_sets', [True, False])
 @pytest.mark.parametrize('platform', ['x86_64', 'ppc64', 's390x'])
 @pytest.mark.parametrize(('df_content, expected_df, base_layers, meta_file'), [
@@ -111,7 +116,8 @@ def mock_content_sets_config(tmpdir, empty=False):
         'metadata_1.json'
     ),
 ])
-def test_add_content_sets(tmpdir, caplog, docker_tasker, platform, meta_file_exists, content_sets,
+def test_add_content_sets(tmpdir, caplog, docker_tasker, platform, compose, pulp_repos,
+                          use_content_sets, meta_file_exists, content_sets,
                           df_content, expected_df, base_layers, meta_file):
     mock_content_sets_config(tmpdir, empty=not content_sets)
     dfp = df_parser(str(tmpdir))
@@ -121,12 +127,17 @@ def test_add_content_sets(tmpdir, caplog, docker_tasker, platform, meta_file_exi
         tmpdir.join(meta_file).write("")
 
     expected_output_json = {'content_sets': []}
-    if content_sets:
+    if content_sets and use_content_sets:
         expected_output_json['content_sets'] = PULP_MAPPING[platform]
 
     workflow = mock_workflow()
     workflow.user_params['platform'] = platform
     workflow.builder.set_df_path(dfp.dockerfile_path)
+
+    if compose:
+        workflow.source.config.compose = {}
+        if pulp_repos:
+            workflow.source.config.compose['pulp_repos'] = True
 
     inspection_data = {INSPECT_ROOTFS: {INSPECT_ROOTFS_LAYERS: list(range(base_layers))}}
     workflow.builder.set_inspection_data(inspection_data)
