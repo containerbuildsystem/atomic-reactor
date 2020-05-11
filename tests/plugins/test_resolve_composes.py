@@ -1317,9 +1317,13 @@ class TestResolveComposes(object):
     @pytest.mark.parametrize('parent_repourls,modules,packages,content_sets,expect_include_repo', [
         (True, True, False, None, None),
         (False, True, False, None, True),
+        (False, True, True, None, None),
+        (True, True, True, None, None),
         (False, False, True, None, None),
         (False, True, False, '{}', True),
+        (True, True, True, '{}', None),
         (False, False, False, 'x86_64: ["spam-rpms"]', None),
+        (True, True, True, 'x86_64: ["spam-rpms"]', None),
     ])
     def test_include_koji_repo(self, workflow, reactor_config_map,
                                parent_repourls, modules, packages, content_sets,
@@ -1345,9 +1349,42 @@ class TestResolveComposes(object):
         if content_sets:
             mock_content_sets_config(workflow._tmpdir, content_sets)
 
-        (flexmock(ODCSClient)
-            .should_receive('start_compose')
-            .and_return(ODCS_COMPOSE))
+        compose_module_id = 80
+        compose_package_id = 90
+        compose_pulp_id = 100
+        custom_module_compose = deepcopy(ODCS_COMPOSE)
+        custom_module_compose['source_type'] = 2  # PungiSourceType.MODULE
+        custom_module_compose['id'] = compose_module_id
+        custom_package_compose = deepcopy(ODCS_COMPOSE)
+        custom_package_compose['source_type'] = 1
+        custom_package_compose['id'] = compose_package_id
+        custom_pulp_compose = deepcopy(ODCS_COMPOSE)
+        custom_pulp_compose['source_type'] = 4
+        custom_pulp_compose['id'] = compose_pulp_id
+
+        start_chain = flexmock(ODCSClient).should_receive('start_compose')
+        if packages:
+            start_chain.and_return(custom_package_compose)
+        if modules:
+            start_chain.and_return(custom_module_compose)
+        if content_sets:
+            start_chain.and_return(custom_pulp_compose)
+
+        if modules:
+            (flexmock(ODCSClient)
+                .should_receive('wait_for_compose')
+                .with_args(compose_module_id)
+                .and_return(custom_module_compose))
+        if packages:
+            (flexmock(ODCSClient)
+                .should_receive('wait_for_compose')
+                .with_args(compose_package_id)
+                .and_return(custom_package_compose))
+        if content_sets:
+            (flexmock(ODCSClient)
+                .should_receive('wait_for_compose')
+                .with_args(compose_pulp_id)
+                .and_return(custom_pulp_compose))
 
         self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
 
