@@ -224,8 +224,6 @@ class ResolveComposesPlugin(PreBuildPlugin):
 
         self.compose_config = ComposeConfig(data, pulp_data, self.odcs_config,
                                             arches=platforms)
-        if self.compose_config.has_complete_repos():
-            self.has_complete_repos = True
 
     def adjust_compose_config(self):
         if self.signing_intent:
@@ -306,6 +304,19 @@ class ResolveComposesPlugin(PreBuildPlugin):
                 compose_info = self.odcs_client.wait_for_compose(compose_id)
 
             self.composes_info.append(compose_info)
+
+            # A module compose is not standalone - it depends on packages from the
+            # virtual platform module - if no extra repourls or other composes are
+            # provided, we'll need packages from the target build tag using the
+            # 'koji' plugin.
+
+            # We assume other types of composes might provide all the packages needed -
+            # though we don't really know that for sure - a compose with packages
+            # listed might list all the packages that are needed, or might also require
+            # packages from some other source.
+
+            if compose_info['source_type'] != 2:  # PungiSourceType.MODULE
+                self.has_complete_repos = True
 
         self.all_compose_ids = [item['id'] for item in self.composes_info]
 
@@ -450,23 +461,6 @@ class ComposeConfig(object):
 
     def has_signing_intent_changed(self):
         return self.signing_intent['name'] != self._original_signing_intent_name
-
-    def has_complete_repos(self):
-        """Check if the result of the compose looks complete by itself"""
-
-        # A module compose is not standalone - it depends on packages from the
-        # virtual platform module - if no extra repourls or composes are provided,
-        # we'll need packages from the target build tag using the 'koji' plugin.
-
-        # A packages compose is indeterminate - we don't know if all the packages
-        # needed were listed, or some extras are needed. (from pulp repos, say)
-        # However, it wouldn't make sense to use a packages compose if we expected
-        # packages to be directly pulled from the target build tag as well,
-        # so we say it's complete, so that the 'koji' plugin is disabled.
-
-        # Assume pulp repos are complete
-
-        return bool(self.pulp) or self.use_packages
 
     def render_requests(self):
         self.validate_for_request()
