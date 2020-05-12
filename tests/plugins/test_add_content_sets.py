@@ -61,66 +61,67 @@ def mock_content_sets_config(tmpdir, empty=False):
     tmpdir.join('content_sets.yml').write(yaml.safe_dump(content_dict))
 
 
-@pytest.mark.parametrize('meta_file_exists', [True, False])
+@pytest.mark.parametrize('manifest_file_exists', [True, False])
 @pytest.mark.parametrize('content_sets', [True, False])
 @pytest.mark.parametrize('platform', ['x86_64', 'ppc64', 's390x'])
-@pytest.mark.parametrize(('df_content, expected_df, base_layers, meta_file'), [
+@pytest.mark.parametrize(('df_content, expected_df, base_layers, manifest_file'), [
     (
         dedent("""\
             FROM base_image
             CMD build /spam/eggs
-            LABEL some=40
+            LABEL name=eggs version=1.0 release=42
         """),
         dedent("""\
             FROM base_image
             CMD build /spam/eggs
-            ADD metadata_2.json /root/buildinfo/metadata_2.json
-            LABEL some=40
+            ADD content_manifest.eggs-1.0-42.json /root/buildinfo/content_manifests/eggs-1.0-42.json
+            LABEL name=eggs version=1.0 release=42
         """),
         2,
-        'metadata_2.json',
+        'content_manifest.eggs-1.0-42.json',
     ),
     (
         dedent("""\
             FROM base_image
             CMD build /spam/eggs
-            LABEL some=40
+            LABEL name=eggs version=1.0 release=42
         """),
         dedent("""\
             FROM base_image
             CMD build /spam/eggs
-            ADD metadata_3.json /root/buildinfo/metadata_3.json
-            LABEL some=40
+            ADD content_manifest.eggs-1.0-42.json /root/buildinfo/content_manifests/eggs-1.0-42.json
+            LABEL name=eggs version=1.0 release=42
         """),
         3,
-        'metadata_3.json'
+        'content_manifest.eggs-1.0-42.json',
     ),
     (
         dedent("""\
             FROM scratch
             CMD build /spam/eggs
-            LABEL some=40
+            LABEL name=eggs version=1.0 release=42
         """),
         dedent("""\
             FROM scratch
             CMD build /spam/eggs
-            ADD metadata_1.json /root/buildinfo/metadata_1.json
-            LABEL some=40
+            ADD content_manifest.eggs-1.0-42.json /root/buildinfo/content_manifests/eggs-1.0-42.json
+            LABEL name=eggs version=1.0 release=42
         """),
         0,
-        'metadata_1.json'
+        'content_manifest.eggs-1.0-42.json',
     ),
 ])
-def test_add_content_sets(tmpdir, caplog, docker_tasker, platform, meta_file_exists, content_sets,
-                          df_content, expected_df, base_layers, meta_file):
+def test_add_content_sets(tmpdir, caplog, docker_tasker, platform, manifest_file_exists,
+                          content_sets, df_content, expected_df, base_layers, manifest_file):
     mock_content_sets_config(tmpdir, empty=not content_sets)
     dfp = df_parser(str(tmpdir))
     dfp.content = df_content
 
-    if meta_file_exists:
-        tmpdir.join(meta_file).write("")
+    if manifest_file_exists:
+        tmpdir.join(manifest_file).write("")
 
-    expected_output_json = {'content_sets': []}
+    layer_index = base_layers if base_layers else 1
+    expected_output_json = {'metadata': {'image_layer_index': layer_index}, 'content_sets': []}
     if content_sets:
         expected_output_json['content_sets'] = PULP_MAPPING[platform]
 
@@ -131,11 +132,11 @@ def test_add_content_sets(tmpdir, caplog, docker_tasker, platform, meta_file_exi
     inspection_data = {INSPECT_ROOTFS: {INSPECT_ROOTFS_LAYERS: list(range(base_layers))}}
     workflow.builder.set_inspection_data(inspection_data)
 
-    if meta_file_exists:
+    if manifest_file_exists:
         with pytest.raises(PluginFailedException):
             run_plugin(workflow, docker_tasker)
 
-        log_msg = 'file {} already exists in repo'.format(os.path.join(str(tmpdir), meta_file))
+        log_msg = 'file {} already exists in repo'.format(os.path.join(str(tmpdir), manifest_file))
         assert log_msg in caplog.text
         return
 
@@ -143,7 +144,7 @@ def test_add_content_sets(tmpdir, caplog, docker_tasker, platform, meta_file_exi
 
     assert dfp.content == expected_df
 
-    output_file = os.path.join(str(tmpdir), meta_file)
+    output_file = os.path.join(str(tmpdir), manifest_file)
     with open(output_file) as f:
         json_data = f.read()
     output_json = json.loads(json_data)
