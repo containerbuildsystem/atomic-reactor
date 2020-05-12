@@ -15,6 +15,7 @@ from atomic_reactor.constants import (PLUGIN_ADD_CONTENT_SETS, REPO_CONTENT_SETS
                                       IMAGE_BUILD_INFO_DIR, INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS)
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (df_parser, read_yaml_from_file_path, base_image_is_scratch)
+from osbs.utils import Labels
 
 
 class AddContentSetsPlugin(PreBuildPlugin):
@@ -25,6 +26,9 @@ class AddContentSetsPlugin(PreBuildPlugin):
     examples:
     in case content_sets were specified
     {
+        "metadata": {
+            "image_layer_index": 2
+        },
         "content_sets" : [
             "rhel-8-for-x86_64-baseos-rpms",
             "rhel-8-for-x86_64-appstream-rpms"],
@@ -32,6 +36,9 @@ class AddContentSetsPlugin(PreBuildPlugin):
 
     in case no content_sets were specified
     {
+        "metadata": {
+            "image_layer_index": 2
+        },
         "content_sets" : []
     }
 
@@ -43,13 +50,13 @@ class AddContentSetsPlugin(PreBuildPlugin):
         """
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param destdir: directory in the image to put metadata_{layer_index}.json
+        :param destdir: image path to carry content_manifests data dir
         """
         super(AddContentSetsPlugin, self).__init__(tasker, workflow)
 
-        self.cs_dir = destdir
+        self.manifest_dir = os.path.join(destdir, 'content_manifests')
 
-    def get_output_json(self):
+    def get_output_json(self, layer_index):
         current_platform = self.workflow.user_params['platform']
         workdir = self.workflow.builder.df_dir
         file_path = os.path.join(workdir, REPO_CONTENT_SETS_CONFIG)
@@ -58,7 +65,13 @@ class AddContentSetsPlugin(PreBuildPlugin):
         if os.path.exists(file_path):
             content_sets = read_yaml_from_file_path(file_path, 'schemas/content_sets.json') or {}
 
-        output_json = {'content_sets': []}
+        output_json = {
+            'metadata': {
+                'image_layer_index': layer_index
+            },
+            'content_sets': []
+        }
+
         if current_platform in content_sets:
             output_json['content_sets'] = content_sets[current_platform]
 
@@ -92,20 +105,26 @@ class AddContentSetsPlugin(PreBuildPlugin):
         """
         run the plugin
         """
-        output_json = self.get_output_json()
-
         dfp = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
+        labels = Labels(dfp.labels)
+        _, image_name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)
+        _, image_version = labels.get_name_and_value(Labels.LABEL_TYPE_VERSION)
+        _, image_release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
 
         layer_index = self.get_layer_index(dfp)
 
-        output_file_name = 'metadata_{}.json'.format(layer_index)
-        output_path = os.path.join(self.cs_dir, output_file_name)
+        output_json = self.get_output_json(layer_index)
 
-        self.write_json_file(output_file_name, output_json)
+        output_file_name = '{}-{}-{}.json'.format(image_name, image_version, image_release)
+        output_path = os.path.join(self.manifest_dir, output_file_name)
+
+        local_file_name = '.'.join(['content_manifest', output_file_name])
+
+        self.write_json_file(local_file_name, output_json)
 
         lines = dfp.lines
 
-        content = 'ADD {0} {1}'.format(output_file_name, output_path)
+        content = 'ADD {0} {1}'.format(local_file_name, output_path)
 
         # put it before last instruction
         lines.insert(-1, content + '\n')
