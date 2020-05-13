@@ -1165,6 +1165,16 @@ def test_read_yaml(tmpdir, source, config):
     assert output == expected
 
 
+@pytest.mark.parametrize('content_type', ['application/octet-stream', 'text/plain'])
+@responses.activate
+def test_read_yaml_from_url_different_content_types(content_type):
+    url = 'https://somewhere.net/config.yaml'
+    responses.add(responses.GET, url, body=REACTOR_CONFIG_MAP, content_type=content_type)
+    output = read_yaml_from_url(url, 'schemas/config.json')
+    expected = yaml.safe_load(REACTOR_CONFIG_MAP)
+    assert output == expected
+
+
 LogEntry = namedtuple('LogEntry', ['platform', 'line'])
 
 
