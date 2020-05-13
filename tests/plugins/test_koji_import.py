@@ -20,7 +20,8 @@ from atomic_reactor.plugins.post_fetch_worker_metadata import FetchWorkerMetadat
 from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
                                                             WORKSPACE_KEY_UPLOAD_DIR,
                                                             WORKSPACE_KEY_BUILD_INFO)
-from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
+from atomic_reactor.plugins.exit_koji_import import (KojiImportPlugin,
+                                                     KojiImportSourceContainerPlugin)
 from atomic_reactor.plugins.exit_koji_tag_build import KojiTagBuildPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
@@ -570,7 +571,8 @@ def os_env(monkeypatch):
 
 def create_runner(tasker, workflow, ssl_certs=False, principal=None,
                   keytab=None, target=None, tag_later=False, reactor_config_map=False,
-                  blocksize=None, reserve_build=False):
+                  blocksize=None, reserve_build=False,
+                  upload_plugin_name=KojiImportPlugin.key):
     args = {
         'kojihub': '',
         'url': '/',
@@ -601,7 +603,7 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
         args['blocksize'] = blocksize
 
     plugins_conf = [
-        {'name': KojiImportPlugin.key, 'args': args},
+        {'name': upload_plugin_name, 'args': args},
     ]
 
     if reactor_config_map:
@@ -2308,7 +2310,8 @@ class TestKojiImport(object):
 
         runner = create_runner(tasker, workflow, target=target, tag_later=tag_later,
                                reactor_config_map=reactor_config_map,
-                               blocksize=blocksize)
+                               blocksize=blocksize,
+                               upload_plugin_name=KojiImportSourceContainerPlugin.key)
         runner.run()
 
         data = session.metadata
@@ -2399,7 +2402,7 @@ class TestKojiImport(object):
             assert len([buildroot for buildroot in buildroots
                         if buildroot['id'] == buildroot_id]) == 1
 
-        build_id = runner.plugins_results[KojiImportPlugin.key]
+        build_id = runner.plugins_results[KojiImportSourceContainerPlugin.key]
         assert build_id == "123"
 
         uploaded_oic_file = 'oci-image-{}.{}.tar.xz'.format(expect_id, os.uname()[4])

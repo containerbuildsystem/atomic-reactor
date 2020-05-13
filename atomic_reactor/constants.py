@@ -83,6 +83,7 @@ IMAGE_TYPE_OCI_TAR = 'oci-tar'
 
 PLUGIN_KOJI_PROMOTE_PLUGIN_KEY = 'koji_promote'
 PLUGIN_KOJI_IMPORT_PLUGIN_KEY = 'koji_import'
+PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY = 'koji_import_source_container'
 PLUGIN_KOJI_UPLOAD_PLUGIN_KEY = 'koji_upload'
 PLUGIN_KOJI_TAG_BUILD_KEY = 'koji_tag_build'
 PLUGIN_ADD_FILESYSTEM_KEY = 'add_filesystem'
