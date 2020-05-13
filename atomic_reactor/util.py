@@ -1278,8 +1278,8 @@ def read_yaml_from_url(url, schema, package='atomic_reactor'):
     resp.raise_for_status()
 
     f = io.StringIO()
-    for chunk in resp.iter_content(chunk_size=DEFAULT_DOWNLOAD_BLOCK_SIZE, decode_unicode=True):
-        f.write(chunk)
+    for chunk in resp.iter_content(chunk_size=DEFAULT_DOWNLOAD_BLOCK_SIZE):
+        f.write(chunk.decode('utf-8'))
 
     f.seek(0)
     return osbs_read_yaml(f.read(), schema, package)
