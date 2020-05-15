@@ -69,13 +69,13 @@ def mock_content_sets_config(tmpdir, empty=False):
         dedent("""\
             FROM base_image
             CMD build /spam/eggs
-            LABEL name=eggs version=1.0 release=42
+            LABEL com.redhat.component=eggs version=1.0 release=42
         """),
         dedent("""\
             FROM base_image
             CMD build /spam/eggs
             ADD content_manifest.eggs-1.0-42.json /root/buildinfo/content_manifests/eggs-1.0-42.json
-            LABEL name=eggs version=1.0 release=42
+            LABEL com.redhat.component=eggs version=1.0 release=42
         """),
         2,
         'content_manifest.eggs-1.0-42.json',
@@ -84,13 +84,13 @@ def mock_content_sets_config(tmpdir, empty=False):
         dedent("""\
             FROM base_image
             CMD build /spam/eggs
-            LABEL name=eggs version=1.0 release=42
+            LABEL com.redhat.component=eggs version=1.0 release=42
         """),
         dedent("""\
             FROM base_image
             CMD build /spam/eggs
             ADD content_manifest.eggs-1.0-42.json /root/buildinfo/content_manifests/eggs-1.0-42.json
-            LABEL name=eggs version=1.0 release=42
+            LABEL com.redhat.component=eggs version=1.0 release=42
         """),
         3,
         'content_manifest.eggs-1.0-42.json',
@@ -99,13 +99,13 @@ def mock_content_sets_config(tmpdir, empty=False):
         dedent("""\
             FROM scratch
             CMD build /spam/eggs
-            LABEL name=eggs version=1.0 release=42
+            LABEL com.redhat.component=eggs version=1.0 release=42
         """),
         dedent("""\
             FROM scratch
             CMD build /spam/eggs
             ADD content_manifest.eggs-1.0-42.json /root/buildinfo/content_manifests/eggs-1.0-42.json
-            LABEL name=eggs version=1.0 release=42
+            LABEL com.redhat.component=eggs version=1.0 release=42
         """),
         0,
         'content_manifest.eggs-1.0-42.json',
