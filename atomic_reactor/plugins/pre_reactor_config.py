@@ -475,16 +475,20 @@ class ReactorConfig(object):
         return self.cluster_configs.get(platform, [])
 
     def get_odcs_config(self):
-        whole_odcs_config = deepcopy(self.conf.get('odcs'))
-        odcs_config = None
+        """
+        Return an odcs config object created from the odcs config configured in
+        reactor config
 
-        if whole_odcs_config:
-            odcs_config_kwargs = {}
-            odcs_config_kwargs['signing_intents'] = whole_odcs_config['signing_intents']
-            odcs_config_kwargs['default_signing_intent'] =\
-                whole_odcs_config['default_signing_intent']
-            odcs_config = ODCSConfig(**odcs_config_kwargs)
-        return odcs_config
+        :return: the object of ODCSConfig. If there is no odcs configured in
+            reactor config, None is returned.
+        :rtype: :class:`ODCSConfig` or None
+        """
+        odcs_config = self.conf.get('odcs')
+        if odcs_config:
+            return ODCSConfig(
+                signing_intents=odcs_config['signing_intents'],
+                default_signing_intent=odcs_config['default_signing_intent']
+            )
 
     def is_default(self):
         return self.conf == self.DEFAULT_CONFIG
