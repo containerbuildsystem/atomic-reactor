@@ -476,9 +476,9 @@ class TestResolveComposes(object):
         repo_config = dedent("""\
             compose:
                 modules:
-                - spam
-                - bacon
-                - eggs
+                - spam:stable
+                - bacon:stable
+                - eggs:stable/profile
             """)
         mock_repo_config(workflow._tmpdir, repo_config)
 
@@ -486,7 +486,7 @@ class TestResolveComposes(object):
             .should_receive('start_compose')
             .with_args(
                 source_type='module',
-                source='spam bacon eggs',
+                source='spam:stable bacon:stable eggs:stable',
                 sigkeys=['R123'],
                 arches=arches)
             .once()
@@ -502,9 +502,9 @@ class TestResolveComposes(object):
         repo_config = dedent("""\
             compose:
                 modules:
-                - spam
-                - bacon
-                - eggs
+                - spam:stable
+                - bacon:stable
+                - eggs:stable
                 modular_koji_tags:
                 - earliest
                 - latest
@@ -515,7 +515,7 @@ class TestResolveComposes(object):
             .should_receive('start_compose')
             .with_args(
                 source_type='module',
-                source='spam bacon eggs',
+                source='spam:stable bacon:stable eggs:stable',
                 sigkeys=['R123'],
                 arches=arches,
                 modular_koji_tags=['earliest', 'latest'])
@@ -535,9 +535,9 @@ class TestResolveComposes(object):
                 compose:
                     packages:
                     modules:
-                    - spam_modules
-                    - bacon_modules
-                    - eggs_modules
+                    - spam:stable
+                    - bacon:stable
+                    - eggs:stable
                 """)
         mock_repo_config(workflow._tmpdir, repo_config)
 
@@ -552,7 +552,7 @@ class TestResolveComposes(object):
         (flexmock(ODCSClient)
             .should_receive('start_compose')
             .with_args(source_type='module',
-                       source='spam_modules bacon_modules eggs_modules',
+                       source='spam:stable bacon:stable eggs:stable',
                        sigkeys=['R123'],
                        arches=['x86_64'])
             .and_return(ODCS_COMPOSE))
