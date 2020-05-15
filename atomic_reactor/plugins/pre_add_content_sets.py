@@ -107,7 +107,7 @@ class AddContentSetsPlugin(PreBuildPlugin):
         """
         dfp = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
         labels = Labels(dfp.labels)
-        _, image_name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)
+        _, image_name = labels.get_name_and_value(Labels.LABEL_TYPE_COMPONENT)
         _, image_version = labels.get_name_and_value(Labels.LABEL_TYPE_VERSION)
         _, image_release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
 
