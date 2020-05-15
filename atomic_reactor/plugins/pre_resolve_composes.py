@@ -12,6 +12,8 @@ from datetime import datetime, timedelta
 import os
 from collections import defaultdict
 
+from osbs.repo_utils import ModuleSpec
+
 from atomic_reactor.constants import (PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
                                       REPO_CONTENT_SETS_CONFIG, BASE_IMAGE_KOJI_BUILD)
 
@@ -485,9 +487,14 @@ class ComposeConfig(object):
         return request
 
     def render_modules_request(self):
+        # In the Flatpak case, the profile is used to determine which packages
+        # are installed into the Flatpak. But ODCS doesn't understand profiles,
+        # and they won't affect the compose in any case.
+        noprofile_modules = [ModuleSpec.from_str(m).to_str(include_profile=False)
+                             for m in self.modules]
         request = {
             'source_type': 'module',
-            'source': ' '.join(self.modules),
+            'source': ' '.join(noprofile_modules),
             'sigkeys': self.signing_intent['keys'],
         }
         if self.arches:
