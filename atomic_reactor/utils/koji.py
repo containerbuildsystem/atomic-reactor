@@ -12,12 +12,11 @@ import copy
 import json
 import logging
 import os
-import random
 import tempfile
 import time
-from string import ascii_letters
 
 import koji
+import koji_cli.lib
 
 from atomic_reactor import __version__ as atomic_reactor_version
 from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE, PROG,
@@ -506,11 +505,7 @@ def generate_koji_upload_dir():
 
     :return: str, path name expected to be unique
     """
-    dir_prefix = 'koji-upload'
-    random_chars = ''.join([random.choice(ascii_letters)
-                            for _ in range(8)])
-    unique_fragment = '%r.%s' % (time.time(), random_chars)
-    return os.path.join(dir_prefix, unique_fragment)
+    return koji_cli.lib.unique_path('koji-upload')
 
 
 def get_output_metadata(path, filename):
