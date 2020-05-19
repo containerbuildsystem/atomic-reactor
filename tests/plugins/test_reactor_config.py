@@ -31,7 +31,8 @@ import osbs.conf
 import osbs.api
 from osbs.utils import RegistryURI
 from osbs.exceptions import OsbsValidationException
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
+from atomic_reactor.plugins.pre_reactor_config import (ODCSConfig,
+                                                       ReactorConfig,
                                                        ReactorConfigPlugin,
                                                        get_config, WORKSPACE_CONF_KEY,
                                                        get_koji_session,
@@ -1601,3 +1602,15 @@ class TestReactorConfigPlugin(object):
                                      basename=filename)
         plugin.run()
         assert plugin.workflow.user_params == USER_PARAMS
+
+
+def test_ensure_odcsconfig_does_not_modify_original_signing_intents():
+    signing_intents = [{'name': 'release', 'keys': ['R123', 'R234']}]
+    odcs_config = ODCSConfig(signing_intents, 'release')
+    assert [{
+        'name': 'release',
+        'keys': ['R123', 'R234'],
+        'restrictiveness': 0
+    }] == odcs_config.signing_intents
+    # Verify original intent is not modified.
+    assert 'restrictiveness' not in signing_intents[0]
