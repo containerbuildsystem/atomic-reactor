@@ -287,6 +287,14 @@ def get_yum_proxy(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'yum_proxy', fallback)
 
 
+def _as_source_registry(registry):
+    return {
+        'uri': RegistryURI(registry['url']),
+        'insecure': registry.get('insecure', False),
+        'dockercfg_path': registry.get('auth', {}).get('cfg_path', None)
+    }
+
+
 def get_source_registry(workflow, fallback=NO_FALLBACK):
     try:
         source_registry = get_config(workflow).conf['source_registry']
@@ -295,14 +303,22 @@ def get_source_registry(workflow, fallback=NO_FALLBACK):
             return fallback
         raise
 
-    regdict = {
-        'uri': RegistryURI(source_registry['url']),
-        'insecure': source_registry.get('insecure', False),
-        'dockercfg_path': None
-    }
-    if source_registry.get('auth'):
-        regdict['dockercfg_path'] = source_registry['auth']['cfg_path']
-    return regdict
+    return _as_source_registry(source_registry)
+
+
+def get_pull_registries(workflow, fallback=NO_FALLBACK):
+    """
+    Get list of pull_registries from config map, list entries follow the same
+    format as the result of get_source_registry()
+    """
+    try:
+        pull_registries = get_config(workflow).conf['pull_registries']
+    except KeyError:
+        if fallback != NO_FALLBACK:
+            return fallback
+        raise
+
+    return [_as_source_registry(reg) for reg in pull_registries]
 
 
 def get_sources_command(workflow, fallback=NO_FALLBACK):
