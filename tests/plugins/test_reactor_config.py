@@ -42,6 +42,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ODCSConfig,
                                                        get_openshift_session,
                                                        get_clusters_client_config_path,
                                                        get_docker_registry,
+                                                       get_pull_registries,
                                                        get_platform_to_goarch_mapping,
                                                        get_goarch_to_platform_mapping,
                                                        get_default_image_build_method,
@@ -148,6 +149,115 @@ class TestReactorConfigPlugin(object):
             else:
                 with pytest.raises(OsbsValidationException):
                     get_docker_registry(workflow, docker_fallback)
+
+    @pytest.mark.parametrize(('config', 'expected'), [
+        ("""\
+            version: 1
+            pull_registries: []
+         """,
+         []),
+        ("""\
+            version: 1
+            pull_registries:
+            - url: registry.io
+         """,
+         [
+             {"uri": RegistryURI("registry.io"),
+              "insecure": False,
+              "dockercfg_path": None},
+         ]),
+        ("""\
+            version: 1
+            pull_registries:
+            - url: https://registry.io
+         """,
+         [
+             {"uri": RegistryURI("https://registry.io"),
+              "insecure": False,
+              "dockercfg_path": None},
+         ]),
+        ("""\
+            version: 1
+            pull_registries:
+            - url: registry.io
+              auth:
+                  cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
+         """,
+         [
+             {"uri": RegistryURI("registry.io"),
+              "insecure": False,
+              "dockercfg_path": "/var/run/secrets/atomic-reactor/v2-registry-dockercfg"},
+         ]),
+        ("""\
+            version: 1
+            pull_registries:
+            - url: registry.io
+              insecure: true
+              auth:
+                  cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
+         """,
+         [
+             {"uri": RegistryURI("registry.io"),
+              "insecure": True,
+              "dockercfg_path": "/var/run/secrets/atomic-reactor/v2-registry-dockercfg"},
+         ]),
+        ("""\
+            version: 1
+            pull_registries:
+            - url: registry.io
+              insecure: true
+              auth:
+                  cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
+            - url: registry.org
+         """,
+         [
+             {"uri": RegistryURI("registry.io"),
+              "insecure": True,
+              "dockercfg_path": "/var/run/secrets/atomic-reactor/v2-registry-dockercfg"},
+             {"uri": RegistryURI("registry.org"),
+              "insecure": False,
+              "dockercfg_path": None},
+         ]),
+    ])
+    def test_get_pull_registries(self, config, expected):
+        _, workflow = self.prepare()
+        reactor_conf = workflow.plugin_workspace.setdefault(ReactorConfigPlugin.key, {})
+
+        config_json = read_yaml(config, 'schemas/config.json')
+        reactor_conf[WORKSPACE_CONF_KEY] = ReactorConfig(config_json)
+
+        pull_registries = get_pull_registries(workflow)
+
+        # RegistryURI does not implement equality, check URI as string
+        for reg in pull_registries + expected:
+            reg['uri'] = reg['uri'].uri
+
+        assert pull_registries == expected
+
+    @pytest.mark.parametrize('config, error', [
+        ("""\
+             version: 1
+             pull_registries: {}
+         """,
+         "is not of type {!r}".format("array")),
+        ("""\
+             version: 1
+             pull_registries:
+             - insecure: false
+         """,
+         "{!r} is a required property".format("url")),
+        ("""\
+             version: 1
+             pull_registries:
+             - url: registry.io
+               auth: {}
+         """,
+         "{!r} is a required property".format("cfg_path")),
+    ])
+    def test_get_pull_registries_schema_validation(self, config, error):
+        with pytest.raises(OsbsValidationException) as exc_info:
+            read_yaml(config, 'schemas/config.json')
+        assert error in str(exc_info.value)
 
     def test_no_config(self):
         _, workflow = self.prepare()

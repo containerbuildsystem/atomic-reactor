@@ -513,18 +513,7 @@
                     "description": "Don't check SSL certificate for url",
                     "type": "boolean"
                 },
-                "auth": {
-                    "description": "Authentication information",
-                    "type": "object",
-                    "properties": {
-                        "cfg_path": {
-                            "description": "Path to directory  containing .dockercfg for registry auth",
-                            "type": "string"
-                        }
-                    },
-                    "additionalProperties": false,
-                    "required": ["cfg_path"]
-                },
+                "auth": {"$ref": "#/definitions/registry_auth"},
                 "expected_media_types": {"$ref": "#/definitions/media_types"}
             },
             "additionalProperties": false,
@@ -573,32 +562,16 @@
         "required": ["tmpdir", "files"]
     },
     "source_registry": {
-        "description": "Container registry to pull parent images",
-        "type": "object",
-        "properties": {
-            "url": {
-                "description": "Registry url",
-                "type": "string"
-            },
-            "insecure": {
-                "description": "Don't check SSL certificate for url",
-                "type": "boolean"
-            },
-            "auth": {
-                "description": "Authentication information",
-                "type": "object",
-                   "properties": {
-                    "cfg_path": {
-                        "description": "Path to directory  containing .dockercfg for registry auth",
-                        "type": "string"
-                    }
-                },
-                "additionalProperties": false,
-                "required": ["cfg_path"]
-            }
-        },
-        "additionalProperties": false,
-        "required": ["url"]
+        "description": "Default container registry to use for pulling images",
+        "$ref": "#/definitions/source_registry"
+    },
+    "pull_registries": {
+        "description": "Other container registries that may be used for pulling images",
+        "type": "array",
+        "items": {
+            "description": "Any container registry other than the default one",
+            "$ref": "#/definitions/source_registry"
+        }
     },
     "sources_command": {
         "description": "Command to retrieve artifacts in lookaside cache",
@@ -760,6 +733,34 @@
                    "application/vnd.oci.image.manifest.v1+json",
                    "application/vnd.oci.image.index.v1+json"]
         }
+    },
+    "registry_auth": {
+        "description": "Registry authentication information",
+        "type": "object",
+        "properties": {
+            "cfg_path": {
+                "description": "Path to directory containing .dockercfg for registry auth",
+                "type": "string"
+            }
+        },
+        "additionalProperties": false,
+        "required": ["cfg_path"]
+    },
+    "source_registry": {
+        "type": "object",
+        "properties": {
+            "url": {
+                "description": "Registry url",
+                "type": "string"
+            },
+            "insecure": {
+                "description": "Don't check SSL certificate for url",
+                "type": "boolean"
+            },
+            "auth": {"$ref": "#/definitions/registry_auth"}
+        },
+        "additionalProperties": false,
+        "required": ["url"]
     }
   },
   "required": ["version"]
