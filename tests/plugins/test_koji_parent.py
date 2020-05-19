@@ -397,7 +397,9 @@ class TestKojiParent(object):
             response = flexmock(content=json.dumps(manifest_list))
         else:
             response = {}
-        flexmock(atomic_reactor.util).should_receive('get_manifest').and_return((response, None))
+        (flexmock(atomic_reactor.util.RegistryClient)
+         .should_receive('get_manifest')
+         .and_return((response, None)))
 
         expected_result = {BASE_IMAGE_KOJI_BUILD: KOJI_BUILD,
                            PARENT_IMAGES_KOJI_BUILDS: {
@@ -632,7 +634,9 @@ class TestKojiParent(object):
             response = flexmock(content=json.dumps(manifest_list))
         else:
             response = {}
-        flexmock(atomic_reactor.util).should_receive('get_manifest').and_return((response, None))
+        (flexmock(atomic_reactor.util.RegistryClient)
+         .should_receive('get_manifest')
+         .and_return((response, None)))
 
         expected_result = {BASE_IMAGE_KOJI_BUILD: KOJI_BUILD,
                            PARENT_IMAGES_KOJI_BUILDS: {

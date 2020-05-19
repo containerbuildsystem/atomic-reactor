@@ -669,6 +669,239 @@ class RegistrySession(object):
         return self._do(self.session.delete, relative_url, **kwargs)
 
 
+class RegistryClient(object):
+    """
+    Registry client, provides methods for looking up image digests and configs
+    in container registries.
+
+    Methods that accept the `image` parameter expect that the registry of the
+    image matches the one of the client instance, but they do not check whether
+    that is true.
+    """
+
+    def __init__(self, registry_session):
+        self._session = registry_session
+
+    def get_manifest(self, image, version):
+        saved_not_found = None
+        media_type = get_manifest_media_type(version)
+        try:
+            response = query_registry(self._session, image, digest=None, version=version)
+        except (HTTPError, RetryError) as ex:
+            if ex.response is None:
+                raise
+            if ex.response.status_code == requests.codes.not_found:
+                saved_not_found = ex
+            # If the registry has a v2 manifest that can't be converted into a v1
+            # manifest, the registry fails with status=400 (BAD_REQUEST), and an error code of
+            # MANIFEST_INVALID. Note that if the registry has v2 manifest and
+            # you ask for an OCI manifest, the registry will try to convert the
+            # v2 manifest into a v1 manifest as the default type, so the same
+            # thing occurs.
+            if version != 'v2' and ex.response.status_code == requests.codes.bad_request:
+                logger.warning('Unable to fetch digest for %s, got error %s',
+                               media_type, ex.response.status_code)
+                return None, saved_not_found
+            # Returned if the manifest could not be retrieved for the given
+            # media type
+            elif (ex.response.status_code == requests.codes.not_found or
+                  ex.response.status_code == requests.codes.not_acceptable):
+                logger.debug("skipping version %s due to status code %s",
+                             version, ex.response.status_code)
+                return None, saved_not_found
+            else:
+                raise
+
+        if not manifest_is_media_type(response, media_type):
+            logger.warning("content does not match expected media type")
+            return None, saved_not_found
+        logger.debug("content matches expected media type")
+        return response, saved_not_found
+
+    def get_manifest_digests(self,
+                             image,
+                             versions=('v1', 'v2', 'v2_list', 'oci', 'oci_index'),
+                             require_digest=True):
+        """Return manifest digest for image.
+
+        :param image: ImageName, the remote image to inspect
+        :param versions: tuple, which manifest schema versions to fetch digest
+        :param require_digest: bool, when True exception is thrown if no digest is
+                                     set in the headers.
+
+        :return: dict, versions mapped to their digest
+        """
+
+        digests = {}
+        # If all of the media types return a 404 NOT_FOUND status, then we rethrow
+        # an exception, if all of the media types fail for some other reason - like
+        # bad headers - then we return a ManifestDigest object with no digests.
+        # This is interesting for the Pulp "retry until the manifest shows up" case.
+        all_not_found = True
+        saved_not_found = None
+        for version in versions:
+            media_type = get_manifest_media_type(version)
+            response, saved_not_found = get_manifest(image, self._session, version)
+
+            if saved_not_found is None:
+                all_not_found = False
+
+            if not response:
+                continue
+            # set it to truthy value so that koji_import would know pulp supports these digests
+            digests[version] = True
+
+            if not response.headers.get('Docker-Content-Digest'):
+                logger.warning('Unable to fetch digest for %s, no Docker-Content-Digest header',
+                               media_type)
+                continue
+
+            digests[version] = response.headers['Docker-Content-Digest']
+            context = '/'.join([x for x in [image.namespace, image.repo] if x])
+            tag = image.tag
+            logger.debug('Image %s:%s has %s manifest digest: %s',
+                         context, tag, version, digests[version])
+
+        if not digests:
+            if all_not_found and len(versions) > 0:
+                raise saved_not_found   # pylint: disable=raising-bad-type
+            if require_digest:
+                raise RuntimeError('No digests found for {}'.format(image))
+
+        return ManifestDigest(**digests)
+
+    def get_manifest_list(self, image):
+        """Return manifest list for image.
+
+        :param image: ImageName, the remote image to inspect
+
+        :return: response, or None, with manifest list
+        """
+        version = 'v2_list'
+        response, _ = get_manifest(image, self._session, version)
+        return response
+
+    def get_all_manifests(self, image, versions=('v1', 'v2', 'v2_list')):
+        """Return manifest digests for image.
+
+        :param image: ImageName, the remote image to inspect
+        :param versions: tuple, for which manifest schema versions to fetch manifests
+
+        :return: dict of successful responses, with versions as keys
+        """
+        digests = {}
+        for version in versions:
+            response, _ = get_manifest(image, self._session, version)
+            if response:
+                digests[version] = response
+
+        return digests
+
+    def get_inspect_for_image(self, image):
+        """Return inspect for image.
+
+        :param image: ImageName, the remote image to inspect
+
+        :return: dict of inspected image
+        """
+        all_man_digests = self.get_all_manifests(image)
+        blob_config = None
+        config_digest = None
+        image_inspect = {}
+
+        # we have manifest list (get digest for 1st platform)
+        if 'v2_list' in all_man_digests:
+            man_list_json = all_man_digests['v2_list'].json()
+            if man_list_json['manifests'][0]['mediaType'] != MEDIA_TYPE_DOCKER_V2_SCHEMA2:
+                raise RuntimeError('Image {image_name}: v2 schema 1 '
+                                   'in manifest list'.format(image_name=image))
+
+            v2_digest = man_list_json['manifests'][0]['digest']
+            blob_config, config_digest = self.get_config_and_id_from_registry(image,
+                                                                              v2_digest,
+                                                                              version='v2')
+        # get config for v2 digest
+        elif 'v2' in all_man_digests:
+            blob_config, config_digest = self.get_config_and_id_from_registry(image,
+                                                                              image.tag,
+                                                                              version='v2')
+        # read config from v1
+        elif 'v1' in all_man_digests:
+            v1_json = all_man_digests['v1'].json()
+            if PY2:
+                blob_config = json.loads(v1_json['history'][0]['v1Compatibility'].decode('utf-8'))
+            else:
+                blob_config = json.loads(v1_json['history'][0]['v1Compatibility'])
+        else:
+            raise RuntimeError("Image {image_name} not found: No v2 schema 1 image, "
+                               "or v2 schema 2 image or list, found".format(image_name=image))
+
+        # dictionary to convert config keys to inspect keys
+        config_2_inspect = {
+            'created': 'Created',
+            'os': 'Os',
+            'container_config': 'ContainerConfig',
+            'architecture': 'Architecture',
+            'docker_version': 'DockerVersion',
+            'config': 'Config',
+        }
+
+        if not blob_config:
+            raise RuntimeError("Image {image_name}: Couldn't get inspect data "
+                               "from digest config".format(image_name=image))
+
+        # set Id, which isn't in config blob
+        # Won't be set for v1,as for that image has to be pulled
+        image_inspect['Id'] = config_digest
+        # only v2 has rootfs, not v1
+        if 'rootfs' in blob_config:
+            image_inspect['RootFS'] = blob_config['rootfs']
+
+        for old_key, new_key in config_2_inspect.items():
+            image_inspect[new_key] = blob_config[old_key]
+
+        return image_inspect
+
+    def get_config_and_id_from_registry(self, image, digest, version='v2'):
+        """Return image config by digest
+
+        :param image: ImageName, the remote image to inspect
+        :param digest: str, digest of the image manifest
+        :param version: str, which manifest schema versions to fetch digest
+
+        :return: dict, versions mapped to their digest
+        """
+        response = query_registry(
+            self._session, image, digest=digest, version=version)
+        response.raise_for_status()
+        manifest_config = response.json()
+        config_digest = manifest_config['config']['digest']
+
+        config_response = query_registry(
+            self._session, image, digest=config_digest, version=version, is_blob=True)
+        config_response.raise_for_status()
+
+        blob_config = config_response.json()
+
+        context = '/'.join([x for x in [image.namespace, image.repo] if x])
+        tag = image.tag
+        logger.debug('Image %s:%s has config:\n%s', context, tag, blob_config)
+
+        return blob_config, config_digest
+
+    def get_config_from_registry(self, image, digest, version='v2'):
+        """Return image config by digest
+
+        :param image: ImageName, the remote image to inspect
+        :param digest: str, digest of the image manifest
+        :param version: str, which manifest schema versions to fetch digest
+
+        :return: dict, versions mapped to their digest
+        """
+        blob_config, _ = self.get_config_and_id_from_registry(image, digest, version=version)
+        return blob_config
+
+
 class ManifestDigest(dict):
     """Wrapper for digests for a docker manifest."""
 
@@ -819,40 +1052,8 @@ def manifest_is_media_type(response, media_type):
 
 
 def get_manifest(image, registry_session, version):
-    saved_not_found = None
-    media_type = get_manifest_media_type(version)
-    try:
-        response = query_registry(registry_session, image, digest=None, version=version)
-    except (HTTPError, RetryError) as ex:
-        if ex.response is None:
-            raise
-        if ex.response.status_code == requests.codes.not_found:
-            saved_not_found = ex
-        # If the registry has a v2 manifest that can't be converted into a v1
-        # manifest, the registry fails with status=400 (BAD_REQUEST), and an error code of
-        # MANIFEST_INVALID. Note that if the registry has v2 manifest and
-        # you ask for an OCI manifest, the registry will try to convert the
-        # v2 manifest into a v1 manifest as the default type, so the same
-        # thing occurs.
-        if version != 'v2' and ex.response.status_code == requests.codes.bad_request:
-            logger.warning('Unable to fetch digest for %s, got error %s',
-                           media_type, ex.response.status_code)
-            return None, saved_not_found
-        # Returned if the manifest could not be retrieved for the given
-        # media type
-        elif (ex.response.status_code == requests.codes.not_found or
-              ex.response.status_code == requests.codes.not_acceptable):
-            logger.debug("skipping version %s due to status code %s",
-                         version, ex.response.status_code)
-            return None, saved_not_found
-        else:
-            raise
-
-    if not manifest_is_media_type(response, media_type):
-        logger.warning("content does not match expected media type")
-        return None, saved_not_found
-    logger.debug("content matches expected media type")
-    return response, saved_not_found
+    registry_client = RegistryClient(registry_session)
+    return registry_client.get_manifest(image, version)
 
 
 def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
@@ -870,46 +1071,11 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
 
     :return: dict, versions mapped to their digest
     """
-
     registry_session = RegistrySession(registry, insecure=insecure, dockercfg_path=dockercfg_path)
-
-    digests = {}
-    # If all of the media types return a 404 NOT_FOUND status, then we rethrow
-    # an exception, if all of the media types fail for some other reason - like
-    # bad headers - then we return a ManifestDigest object with no digests.
-    # This is interesting for the Pulp "retry until the manifest shows up" case.
-    all_not_found = True
-    saved_not_found = None
-    for version in versions:
-        media_type = get_manifest_media_type(version)
-        response, saved_not_found = get_manifest(image, registry_session, version)
-
-        if saved_not_found is None:
-            all_not_found = False
-
-        if not response:
-            continue
-        # set it to truthy value so that koji_import would know pulp supports these digests
-        digests[version] = True
-
-        if not response.headers.get('Docker-Content-Digest'):
-            logger.warning('Unable to fetch digest for %s, no Docker-Content-Digest header',
-                           media_type)
-            continue
-
-        digests[version] = response.headers['Docker-Content-Digest']
-        context = '/'.join([x for x in [image.namespace, image.repo] if x])
-        tag = image.tag
-        logger.debug('Image %s:%s has %s manifest digest: %s',
-                     context, tag, version, digests[version])
-
-    if not digests:
-        if all_not_found and len(versions) > 0:
-            raise saved_not_found   # pylint: disable=raising-bad-type
-        if require_digest:
-            raise RuntimeError('No digests found for {}'.format(image))
-
-    return ManifestDigest(**digests)
+    registry_client = RegistryClient(registry_session)
+    return registry_client.get_manifest_digests(image,
+                                                versions=versions,
+                                                require_digest=require_digest)
 
 
 def get_manifest_list(image, registry, insecure=False, dockercfg_path=None):
@@ -923,10 +1089,9 @@ def get_manifest_list(image, registry, insecure=False, dockercfg_path=None):
 
     :return: response, or None, with manifest list
     """
-    version = 'v2_list'
     registry_session = RegistrySession(registry, insecure=insecure, dockercfg_path=dockercfg_path)
-    response, _ = get_manifest(image, registry_session, version)
-    return response
+    registry_client = RegistryClient(registry_session)
+    return registry_client.get_manifest_list(image)
 
 
 def get_all_manifests(image, registry, insecure=False, dockercfg_path=None,
@@ -942,14 +1107,9 @@ def get_all_manifests(image, registry, insecure=False, dockercfg_path=None,
 
     :return: dict of successful responses, with versions as keys
     """
-    digests = {}
     registry_session = RegistrySession(registry, insecure=insecure, dockercfg_path=dockercfg_path)
-    for version in versions:
-        response, _ = get_manifest(image, registry_session, version)
-        if response:
-            digests[version] = response
-
-    return digests
+    registry_client = RegistryClient(registry_session)
+    return registry_client.get_all_manifests(image, versions=versions)
 
 
 def get_inspect_for_image(image, registry, insecure=False, dockercfg_path=None):
@@ -963,65 +1123,9 @@ def get_inspect_for_image(image, registry, insecure=False, dockercfg_path=None):
 
     :return: dict of inspected image
     """
-    all_man_digests = get_all_manifests(image, registry, insecure=insecure,
-                                        dockercfg_path=dockercfg_path)
-    blob_config = None
-    config_digest = None
-    image_inspect = {}
-
-    # we have manifest list (get digest for 1st platform)
-    if 'v2_list' in all_man_digests:
-        man_list_json = all_man_digests['v2_list'].json()
-        if man_list_json['manifests'][0]['mediaType'] != MEDIA_TYPE_DOCKER_V2_SCHEMA2:
-            raise RuntimeError('Image {image_name}: v2 schema 1 '
-                               'in manifest list'.format(image_name=image))
-
-        v2_digest = man_list_json['manifests'][0]['digest']
-        blob_config, config_digest = get_config_and_id_from_registry(image, registry, v2_digest,
-                                                                     insecure=insecure,
-                                                                     version='v2',
-                                                                     dockercfg_path=dockercfg_path)
-    # get config for v2 digest
-    elif 'v2' in all_man_digests:
-        blob_config, config_digest = get_config_and_id_from_registry(image, registry, image.tag,
-                                                                     insecure=insecure,
-                                                                     version='v2',
-                                                                     dockercfg_path=dockercfg_path)
-    # read config from v1
-    elif 'v1' in all_man_digests:
-        v1_json = all_man_digests['v1'].json()
-        if PY2:
-            blob_config = json.loads(v1_json['history'][0]['v1Compatibility'].decode('utf-8'))
-        else:
-            blob_config = json.loads(v1_json['history'][0]['v1Compatibility'])
-    else:
-        raise RuntimeError("Image {image_name} not found: No v2 schema 1 image, or v2 schema 2 "
-                           "image or list, found".format(image_name=image))
-
-    # dictionary to convert config keys to inspect keys
-    config_2_inspect = {
-        'created': 'Created',
-        'os': 'Os',
-        'container_config': 'ContainerConfig',
-        'architecture': 'Architecture',
-        'docker_version': 'DockerVersion',
-        'config': 'Config',
-    }
-
-    if not blob_config:
-        raise RuntimeError("Image {image_name}: Couldn't get inspect data "
-                           "from digest config".format(image_name=image))
-
-    # set Id, which isn't in config blob, won't be set for v1, as for that image has to be pulled
-    image_inspect['Id'] = config_digest
-    # only v2 has rootfs, not v1
-    if 'rootfs' in blob_config:
-        image_inspect['RootFS'] = blob_config['rootfs']
-
-    for old_key, new_key in config_2_inspect.items():
-        image_inspect[new_key] = blob_config[old_key]
-
-    return image_inspect
+    registry_session = RegistrySession(registry, insecure=insecure, dockercfg_path=dockercfg_path)
+    registry_client = RegistryClient(registry_session)
+    return registry_client.get_inspect_for_image(image)
 
 
 def get_config_and_id_from_registry(image, registry, digest, insecure=False,
@@ -1039,24 +1143,8 @@ def get_config_and_id_from_registry(image, registry, digest, insecure=False,
     :return: dict, versions mapped to their digest
     """
     registry_session = RegistrySession(registry, insecure=insecure, dockercfg_path=dockercfg_path)
-
-    response = query_registry(
-        registry_session, image, digest=digest, version=version)
-    response.raise_for_status()
-    manifest_config = response.json()
-    config_digest = manifest_config['config']['digest']
-
-    config_response = query_registry(
-        registry_session, image, digest=config_digest, version=version, is_blob=True)
-    config_response.raise_for_status()
-
-    blob_config = config_response.json()
-
-    context = '/'.join([x for x in [image.namespace, image.repo] if x])
-    tag = image.tag
-    logger.debug('Image %s:%s has config:\n%s', context, tag, blob_config)
-
-    return blob_config, config_digest
+    registry_client = RegistryClient(registry_session)
+    return registry_client.get_config_and_id_from_registry(image, digest, version=version)
 
 
 def get_config_from_registry(image, registry, digest, insecure=False,
