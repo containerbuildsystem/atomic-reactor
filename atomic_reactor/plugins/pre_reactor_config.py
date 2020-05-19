@@ -506,7 +506,10 @@ class ODCSConfig(object):
 
         self.signing_intents = []
         # Signing intents are listed in reverse restrictive order in configuration.
-        for restrictiveness, intent in enumerate(reversed(signing_intents)):
+        # Since the input signing_intents will be modified by inserting a new
+        # key restrictiveness, this deepcopy ensures the original
+        # signing_intent dict objects are not modified accidentally.
+        for restrictiveness, intent in enumerate(reversed(deepcopy(signing_intents))):
             intent['restrictiveness'] = restrictiveness
             self.signing_intents.append(intent)
 
