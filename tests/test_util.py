@@ -1500,7 +1500,7 @@ def test_get_inspect_for_image(insecure, found_versions, type_in_list, will_rais
             elif version == 'v2_list':
                 return_list[version] = v2_list_response
 
-    (flexmock(atomic_reactor.util)
+    (flexmock(atomic_reactor.util.RegistryClient)
      .should_receive('get_all_manifests')
      .and_return(return_list)
      .once())
@@ -1512,7 +1512,7 @@ def test_get_inspect_for_image(insecure, found_versions, type_in_list, will_rais
 
     else:
         if found_versions and ('v2' in found_versions or 'v2_list' in found_versions):
-            (flexmock(atomic_reactor.util)
+            (flexmock(atomic_reactor.util.RegistryClient)
              .should_receive('get_config_and_id_from_registry')
              .and_return(inspect_data, config_digest)
              .once())
