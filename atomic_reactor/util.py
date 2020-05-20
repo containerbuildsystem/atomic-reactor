@@ -640,6 +640,50 @@ class RegistrySession(object):
 
         self.session = get_retrying_requests_session()
 
+    @classmethod
+    def create_from_config(cls, workflow, registry=None, access=None):
+        """
+        Create a session for the specified registry based on configuration in reactor config map.
+
+        If the registry is configured in pull_registries, use that configuration. Otherwise,
+        use the default source_registry configuration (if present, else an error is thrown).
+
+        :param workflow: DockerBuildWorkflow, contains configuration for registries
+        :param registry: str, registry to create session for (as hostname[:port], no http(s))
+                         If not specified, the default source_registry will be used
+        :param access: List of actions this session is allowed to perform, e.g. ('push', 'pull')
+
+        :return: RegistrySession for the specified registry
+        """
+        # Has to be imported here (cyclic import)
+        from atomic_reactor.plugins.pre_reactor_config import (get_source_registry,
+                                                               get_pull_registries)
+
+        source_registry = get_source_registry(workflow, None)
+        pull_registries = get_pull_registries(workflow, [])
+
+        if registry is None:
+            if source_registry is not None:
+                matched_registry = source_registry
+            else:
+                msg = "No source_registry configured, cannot create default session"
+                raise RuntimeError(msg)
+        else:
+            # Try to match a registry in pull_registries, if no match found, use source_registry
+            matched_registry = next(
+                (reg for reg in pull_registries if reg['uri'].docker_uri == registry),
+                source_registry
+            )
+            if matched_registry is None:
+                msg = ('{}: No match in pull_registries, no source_registry configured'
+                       .format(registry))
+                raise RuntimeError(msg)
+
+        return cls(matched_registry['uri'].uri,
+                   insecure=matched_registry['insecure'],
+                   dockercfg_path=matched_registry['dockercfg_path'],
+                   access=access)
+
     def _do(self, f, relative_url, *args, **kwargs):
         kwargs['auth'] = self.auth
         kwargs['verify'] = not self.insecure
@@ -677,6 +721,10 @@ class RegistryClient(object):
     Methods that accept the `image` parameter expect that the registry of the
     image matches the one of the client instance, but they do not check whether
     that is true.
+
+    To create a client for a specific registry (configured in config map), use
+    >>> session = RegistrySession.create_from_config(...)
+    >>> client = RegistryClient(session)
     """
 
     def __init__(self, registry_session):
@@ -741,7 +789,7 @@ class RegistryClient(object):
         saved_not_found = None
         for version in versions:
             media_type = get_manifest_media_type(version)
-            response, saved_not_found = get_manifest(image, self._session, version)
+            response, saved_not_found = self.get_manifest(image, version)
 
             if saved_not_found is None:
                 all_not_found = False
@@ -778,7 +826,7 @@ class RegistryClient(object):
         :return: response, or None, with manifest list
         """
         version = 'v2_list'
-        response, _ = get_manifest(image, self._session, version)
+        response, _ = self.get_manifest(image, version)
         return response
 
     def get_all_manifests(self, image, versions=('v1', 'v2', 'v2_list')):
@@ -791,7 +839,7 @@ class RegistryClient(object):
         """
         digests = {}
         for version in versions:
-            response, _ = get_manifest(image, self._session, version)
+            response, _ = self.get_manifest(image, version)
             if response:
                 digests[version] = response
 
