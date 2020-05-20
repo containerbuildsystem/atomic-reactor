@@ -29,6 +29,7 @@ from flexmock import flexmock
 from collections import OrderedDict
 import docker
 import yaml
+
 from atomic_reactor.build import BuildResult
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
@@ -70,6 +71,9 @@ import atomic_reactor.util
 from atomic_reactor.constants import INSPECT_CONFIG, PLUGIN_BUILD_ORCHESTRATE_KEY
 from atomic_reactor.source import SourceConfig
 from osbs.utils import ImageName
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
+                                                       ReactorConfig,
+                                                       WORKSPACE_CONF_KEY)
 
 from tests.util import requires_internet
 from tests.stubs import StubInsideBuilder, StubSource
@@ -395,6 +399,173 @@ def test_registry_session(tmpdir, registry, insecure, method, responses_method, 
 
     res = method(session, path)
     assert res.text == 'A-OK'
+
+
+@pytest.mark.parametrize('registry, reactor_config, matched_registry', [
+
+    # Registry is None, have source_registry, should be source_registry
+    (None,
+     {
+         'source_registry': {
+            'url': "default_registry.io",
+            'auth': {
+                'cfg_path': '/not/important'
+            }
+         }
+     },
+     {
+         'uri': "default_registry.io",
+         'insecure': False,
+         'dockercfg_path': '/not/important'
+     }),
+    # Registry is None, have both source_registry and pull_registries, should be source_registry
+    (None,
+     {
+         'source_registry': {
+            'url': "default_registry.io",
+            'auth': {
+                'cfg_path': '/not/important'
+            }
+         },
+         'pull_registries': [
+             {
+                 'url': "some_registry.io",
+                 'insecure': True
+             }
+         ]
+     },
+     {
+         'uri': "default_registry.io",
+         'insecure': False,
+         'dockercfg_path': '/not/important'
+     }),
+    # No pull_registries, have source_registry, should be source_registry
+    ('some_registry.io',
+     {
+         'source_registry': {
+            'url': "default_registry.io",
+            'auth': {
+                'cfg_path': '/not/important'
+            }
+         }
+     },
+     {
+         'uri': "default_registry.io",
+         'insecure': False,
+         'dockercfg_path': '/not/important'
+     }),
+    # No source_registry, matches pull_registries
+    ('some_registry.io',
+     {
+         'pull_registries': [
+             {
+                 'url': "some_registry.io",
+                 'insecure': True
+             }
+         ]
+     },
+     {
+         'uri': "some_registry.io",
+         'insecure': True,
+         'dockercfg_path': None
+     }),
+    # No source_registry, matches pull_registries (the hostname part does, not the full URI)
+    ('some_registry.io',
+     {
+         'pull_registries': [
+             {
+                 'url': "https://some_registry.io",
+                 'insecure': False,
+                 'auth': {
+                     'cfg_path': '/not/important'
+                 }
+             }
+         ]
+     },
+     {
+         'uri': "https://some_registry.io",
+         'insecure': False,
+         'dockercfg_path': '/not/important'
+     }),
+    # Have both source_registry and pull_registries, matches pull_registries
+    ('some_registry.io',
+     {
+         'source_registry': {
+             'url': "default_registry.io",
+             'insecure': False,
+             'auth': {
+                 'cfg_path': '/not/important'
+             }
+         },
+         'pull_registries': [
+             {
+                 'url': "some_registry.io",
+                 'insecure': False,
+                 'auth': {
+                     'cfg_path': '/also/not/important'
+                 }
+             }
+         ]
+     },
+     {
+         'uri': "some_registry.io",
+         'insecure': False,
+         'dockercfg_path': '/also/not/important'
+     }),
+])
+@pytest.mark.parametrize('access', [None, ('pull', 'push')])
+def test_registry_create_from_config(workflow, registry, reactor_config, matched_registry, access):
+    reactor_config['version'] = 1   # required key
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {
+        WORKSPACE_CONF_KEY: ReactorConfig(reactor_config)
+    }
+
+    (flexmock(RegistrySession)
+     .should_receive('__init__')
+     .with_args(matched_registry['uri'],
+                insecure=matched_registry['insecure'],
+                dockercfg_path=matched_registry['dockercfg_path'],
+                access=access))
+
+    RegistrySession.create_from_config(workflow, registry, access)
+
+
+@pytest.mark.parametrize('registry, reactor_config, error', [
+    # Registry not specified, no registries in config
+    (None,
+     {},
+     'No source_registry configured, cannot create default session'),
+    # Registry not specified, only pull_registries in config
+    (None,
+     {
+         'pull_registries': [
+             {'url': "some_registry.io"}
+         ]
+     },
+     'No source_registry configured, cannot create default session'),
+    # Registry specified, no registries in config
+    ('some_registry.io',
+     {},
+     'some_registry.io: No match in pull_registries, no source_registry configured'),
+    # Registry specified, no source_registry, does not match pull_registries
+    ('some_registry.io',
+     {
+         'pull_registries': [
+             {'url': "some_other_registry.io"}
+         ]
+     },
+     'some_registry.io: No match in pull_registries, no source_registry configured'),
+])
+def test_registry_create_from_config_errors(workflow, registry, reactor_config, error):
+    reactor_config['version'] = 1  # required key
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {
+        WORKSPACE_CONF_KEY: ReactorConfig(reactor_config)
+    }
+
+    with pytest.raises(RuntimeError) as exc_info:
+        RegistrySession.create_from_config(workflow, registry)
+
+    assert str(exc_info.value) == error
 
 
 @pytest.mark.parametrize(('version', 'expected'), [
