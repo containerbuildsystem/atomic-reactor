@@ -15,7 +15,7 @@ import pytest
 
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.outer import PrivilegedBuildManager, DockerhostBuildManager
-from atomic_reactor.util import ImageName
+from osbs.utils import ImageName
 from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, DOCKERFILE_SUBDIR_PATH,\
         DOCKERFILE_ERROR_BUILD_PATH, TEST_IMAGE, MOCK
 

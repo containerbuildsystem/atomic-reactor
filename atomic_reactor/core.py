@@ -43,8 +43,8 @@ from atomic_reactor.constants import (CONTAINER_SHARE_PATH, CONTAINER_SHARE_SOUR
                                       CONTAINER_DOCKERPY_BUILD_METHOD)
 
 from atomic_reactor.source import get_source_instance_for
-from atomic_reactor.util import ImageName, figure_out_build_file, Dockercfg
-from osbs.utils import clone_git_repo
+from atomic_reactor.util import figure_out_build_file, Dockercfg
+from osbs.utils import clone_git_repo, ImageName
 
 from urllib3.exceptions import (InsecureRequestWarning, ProtocolError,
                                 ReadTimeoutError)

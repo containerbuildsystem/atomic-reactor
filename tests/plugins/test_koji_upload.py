@@ -29,7 +29,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
-from atomic_reactor.util import ImageName, ManifestDigest
+from atomic_reactor.util import ManifestDigest
 from atomic_reactor.utils.rpm import parse_rpm_output
 from atomic_reactor.source import GitSource
 from atomic_reactor.build import BuildResult
@@ -42,6 +42,7 @@ from tests.docker_mock import mock_docker
 import subprocess
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
+from osbs.utils import ImageName
 from six import string_types
 
 NAMESPACE = 'mynamespace'

@@ -27,7 +27,7 @@ from atomic_reactor.plugin import (BuildPluginsRunner, PreBuildPluginsRunner,
                                    BuildStepPlugin, PreBuildPlugin, ExitPlugin,
                                    PreBuildSleepPlugin, PrePublishPlugin, PostBuildPlugin)
 from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
-from atomic_reactor.util import ImageName
+from osbs.utils import ImageName
 
 from tests.constants import DOCKERFILE_GIT, MOCK
 if MOCK:

@@ -18,7 +18,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        ReactorConfig)
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.util import ImageName
+from osbs.utils import ImageName
 from atomic_reactor.build import BuildResult
 from tests.constants import SOURCE, MOCK
 

@@ -32,7 +32,8 @@ from atomic_reactor.plugins.pre_resolve_composes import (ResolveComposesPlugin,
                                                          ODCS_DATETIME_FORMAT, UNPUBLISHED_REPOS)
 
 import yaml
-from atomic_reactor.util import ImageName, read_yaml
+from atomic_reactor.util import read_yaml
+from osbs.utils import ImageName
 from datetime import datetime, timedelta
 from flexmock import flexmock
 from tests.constants import MOCK, MOCK_SOURCE

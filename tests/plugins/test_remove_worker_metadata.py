@@ -17,7 +17,7 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.constants import PLUGIN_REMOVE_WORKER_METADATA_KEY
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import ExitPluginsRunner
-from atomic_reactor.util import ImageName
+from osbs.utils import ImageName
 from atomic_reactor.build import BuildResult
 from osbs.exceptions import OsbsResponseException
 from atomic_reactor.plugins.build_orchestrate_build import (WorkerBuildInfo, ClusterInfo,

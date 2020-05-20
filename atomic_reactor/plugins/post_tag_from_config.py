@@ -14,8 +14,8 @@ import re
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_registries_organization
 from atomic_reactor.constants import INSPECT_CONFIG, TAG_NAME_REGEX
-from atomic_reactor.util import df_parser, LabelFormatter, ImageName
-from osbs.utils import Labels
+from atomic_reactor.util import df_parser, LabelFormatter
+from osbs.utils import Labels, ImageName
 
 
 class TagFromConfigPlugin(PostBuildPlugin):

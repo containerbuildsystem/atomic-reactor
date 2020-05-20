@@ -25,12 +25,13 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf
-from atomic_reactor.util import (ImageName, registry_hostname, ManifestDigest, get_floating_images,
+from atomic_reactor.util import (registry_hostname, ManifestDigest, get_floating_images,
                                  get_primary_images)
 from atomic_reactor.plugins.post_group_manifests import GroupManifestsPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
+from osbs.utils import ImageName
 
 if MOCK:
     from tests.docker_mock import mock_docker

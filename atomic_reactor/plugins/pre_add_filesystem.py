@@ -33,10 +33,10 @@ from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 from atomic_reactor.utils.koji import TaskWatcher, stream_task_output
 from atomic_reactor.utils.yum import YumRepo
-from atomic_reactor.util import get_platforms, df_parser, base_image_is_custom, ImageName
+from atomic_reactor.util import get_platforms, df_parser, base_image_is_custom
 from atomic_reactor.metadata import label_map
 from atomic_reactor import util
-from osbs.utils import Labels
+from osbs.utils import Labels, ImageName
 
 
 @label_map('filesystem-koji-task-id')

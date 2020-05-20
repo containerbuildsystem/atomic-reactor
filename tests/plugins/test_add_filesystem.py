@@ -23,7 +23,8 @@ from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from atomic_reactor.util import ImageName, df_parser
+from atomic_reactor.util import df_parser
+from osbs.utils import ImageName
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,

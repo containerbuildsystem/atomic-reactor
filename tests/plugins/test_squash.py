@@ -20,7 +20,7 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
 from atomic_reactor.plugins import exit_remove_built_image
 from atomic_reactor.plugins.prepub_squash import PrePublishSquashPlugin
-from atomic_reactor.util import ImageName
+from osbs.utils import ImageName
 from atomic_reactor.build import BuildResult
 from docker_squash.squash import Squash
 from tests.constants import MOCK, MOCK_SOURCE

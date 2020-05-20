@@ -14,10 +14,11 @@ from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from atomic_reactor.util import ImageName, df_parser
+from atomic_reactor.util import df_parser
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.constants import INSPECT_CONFIG, SCRATCH_FROM
 from atomic_reactor import start_time as atomic_reactor_start_time
+from osbs.utils import ImageName
 import datetime
 import re
 import json

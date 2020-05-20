@@ -35,15 +35,14 @@ from atomic_reactor.plugins.pre_reactor_config import (get_config,
                                                        get_build_image_override,
                                                        get_goarch_to_platform_mapping)
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
-from atomic_reactor.util import (df_parser, get_build_json, get_manifest_list, get_platforms,
-                                 ImageName)
+from atomic_reactor.util import (df_parser, get_build_json, get_manifest_list, get_platforms)
 from atomic_reactor.utils.koji import generate_koji_upload_dir
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY)
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from osbs.conf import Configuration
 from osbs.constants import BUILD_FINISHED_STATES
-from osbs.utils import Labels, RegistryURI
+from osbs.utils import Labels, RegistryURI, ImageName
 
 
 ClusterInfo = namedtuple('ClusterInfo', ('cluster', 'platform', 'osbs', 'load'))

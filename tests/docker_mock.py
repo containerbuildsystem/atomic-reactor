@@ -14,7 +14,7 @@ from flexmock import flexmock
 import requests
 
 from atomic_reactor.constants import DOCKER_SOCKET_PATH
-from atomic_reactor.util import ImageName
+from osbs.utils import ImageName
 from tests.constants import COMMAND, IMPORTED_IMAGE_ID
 
 

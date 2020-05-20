@@ -12,9 +12,10 @@ to the more specific names given by the builder.
 from __future__ import absolute_import
 
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import ImageName, df_parser, base_image_is_scratch, base_image_is_custom
+from atomic_reactor.util import df_parser, base_image_is_scratch, base_image_is_custom
 from atomic_reactor.plugins.pre_reactor_config import get_registries_organization
 from atomic_reactor.constants import SCRATCH_FROM
+from osbs.utils import ImageName
 
 
 class BaseImageMismatch(RuntimeError):

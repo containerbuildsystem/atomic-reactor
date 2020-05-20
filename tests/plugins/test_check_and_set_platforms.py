@@ -18,7 +18,7 @@ import atomic_reactor.utils.koji as koji_util
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
-from atomic_reactor.util import ImageName
+from osbs.utils import ImageName
 from atomic_reactor.source import SourceConfig
 from atomic_reactor import util
 from flexmock import flexmock

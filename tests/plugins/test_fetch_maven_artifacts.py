@@ -21,7 +21,7 @@ from atomic_reactor.plugins.pre_fetch_maven_artifacts import FetchMavenArtifacts
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from atomic_reactor.util import ImageName
+from osbs.utils import ImageName
 from tests.constants import MOCK_SOURCE, MOCK
 from textwrap import dedent
 

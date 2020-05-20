@@ -16,9 +16,10 @@ from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import (get_openshift_session,
                                                        get_koji_session)
 from atomic_reactor.constants import PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
-from atomic_reactor.util import (get_build_json, ImageName, is_scratch_build)
+from atomic_reactor.util import (get_build_json, is_scratch_build)
 from atomic_reactor.utils.koji import get_buildroot, get_output, get_output_metadata
 from osbs.exceptions import OsbsException
+from osbs.utils import ImageName
 
 # An output file and its metadata
 Output = namedtuple('Output', ['file', 'metadata'])

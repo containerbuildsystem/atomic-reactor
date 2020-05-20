@@ -29,9 +29,9 @@ from atomic_reactor.plugins.pre_reactor_config import (get_smtp_session, get_koj
                                                        get_smtp, get_koji, get_openshift,
                                                        get_openshift_session, get_koji_path_info)
 from atomic_reactor.utils.koji import get_koji_task_owner
-from atomic_reactor.util import get_build_json, OSBSLogs, ImageName, df_parser
+from atomic_reactor.util import get_build_json, OSBSLogs, df_parser
 from atomic_reactor.constants import PLUGIN_SENDMAIL_KEY
-from osbs.utils import Labels
+from osbs.utils import Labels, ImageName
 
 
 # an email address consisting of local name, an @ sign, and a domain name

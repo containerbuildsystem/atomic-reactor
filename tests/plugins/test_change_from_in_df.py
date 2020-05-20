@@ -19,7 +19,8 @@ from atomic_reactor.plugins.pre_change_from_in_df import (
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from atomic_reactor.util import ImageName, df_parser
+from atomic_reactor.util import df_parser
+from osbs.utils import ImageName
 from tests.constants import SOURCE
 from tests.stubs import StubInsideBuilder, StubSource
 from textwrap import dedent

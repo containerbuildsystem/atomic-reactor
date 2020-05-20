@@ -10,7 +10,8 @@ from __future__ import print_function, unicode_literals, absolute_import
 
 
 from atomic_reactor.core import DockerTasker, retry, RetryGeneratorException, ContainerTasker
-from atomic_reactor.util import ImageName, clone_git_repo, CommandResult
+from atomic_reactor.util import clone_git_repo, CommandResult
+from osbs.utils import ImageName
 from tests.constants import LOCALHOST_REGISTRY, INPUT_IMAGE, DOCKERFILE_GIT, MOCK, COMMAND
 from urllib3.exceptions import ProtocolError, ReadTimeoutError
 from tests.util import requires_internet

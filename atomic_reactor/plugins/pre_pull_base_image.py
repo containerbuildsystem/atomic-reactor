@@ -20,7 +20,7 @@ import docker
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (get_build_json, get_manifest_list,
-                                 get_config_from_registry, ImageName,
+                                 get_config_from_registry,
                                  get_platforms, base_image_is_custom,
                                  get_checksums, get_manifest_media_type,
                                  get_all_manifests)
@@ -30,7 +30,7 @@ from atomic_reactor.plugins.pre_reactor_config import (get_source_registry,
                                                        get_registries_organization)
 from io import BytesIO
 from requests.exceptions import HTTPError, RetryError, Timeout
-from osbs.utils import RegistryURI
+from osbs.utils import RegistryURI, ImageName
 
 
 class PullBaseImagePlugin(PreBuildPlugin):
