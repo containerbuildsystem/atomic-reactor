@@ -18,9 +18,10 @@ import logging
 import docker.errors
 import atomic_reactor.util
 from atomic_reactor.core import ContainerTasker, LastLogger
-from atomic_reactor.util import (ImageName, print_version_of_tools, df_parser,
+from atomic_reactor.util import (print_version_of_tools, df_parser,
                                  base_image_is_scratch, base_image_is_custom)
 from atomic_reactor.constants import DOCKERFILE_FILENAME
+from osbs.utils import ImageName
 
 logger = logging.getLogger(__name__)
 

@@ -17,7 +17,8 @@ import six
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
-from atomic_reactor.util import ImageName, chain_get
+from atomic_reactor.util import chain_get
+from osbs.utils import ImageName
 
 
 yaml = YAML()

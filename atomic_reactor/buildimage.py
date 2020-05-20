@@ -24,7 +24,8 @@ import uuid
 import six
 
 from atomic_reactor.core import DockerTasker
-from atomic_reactor.util import LazyGit, wait_for_command, ImageName
+from atomic_reactor.util import LazyGit, wait_for_command
+from osbs.utils import ImageName
 
 
 logger = logging.getLogger(__name__)

@@ -17,9 +17,9 @@ from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from atomic_reactor import util
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
+from osbs.utils import ImageName
 from smtplib import SMTPException
 
 MS, MF = SendMailPlugin.MANUAL_SUCCESS, SendMailPlugin.MANUAL_FAIL
@@ -265,7 +265,7 @@ class TestSendMailPlugin(object):
             unique_images = []
 
         class WF(object):
-            image = util.ImageName.parse('foo/bar:baz')
+            image = ImageName.parse('foo/bar:baz')
             openshift_build_selflink = '/builds/blablabla'
             build_process_failed = False
             autorebuild_canceled = False
@@ -393,7 +393,7 @@ class TestSendMailPlugin(object):
         VcsInfo = namedtuple('VcsInfo', ['vcs_type', 'vcs_url', 'vcs_ref'])
 
         class WF(object):
-            image = util.ImageName.parse('foo/bar:baz')
+            image = ImageName.parse('foo/bar:baz')
             openshift_build_selflink = '/builds/blablabla'
             build_process_failed = False
             autorebuild_canceled = auto_cancel
@@ -569,7 +569,7 @@ class TestSendMailPlugin(object):
             unique_images = []
 
         class WF(object):
-            image = util.ImageName.parse('foo/bar:baz')
+            image = ImageName.parse('foo/bar:baz')
             openshift_build_selflink = '/builds/blablabla'
             build_process_failed = True
             autorebuild_canceled = False
@@ -666,7 +666,7 @@ class TestSendMailPlugin(object):
             unique_images = []
 
         class WF(object):
-            image = util.ImageName.parse('foo/bar:baz')
+            image = ImageName.parse('foo/bar:baz')
             openshift_build_selflink = '/builds/blablabla'
             build_process_failed = False
             tag_conf = TagConf()
@@ -757,7 +757,7 @@ class TestSendMailPlugin(object):
             unique_images = []
 
         class WF(object):
-            image = util.ImageName.parse('foo/bar:baz')
+            image = ImageName.parse('foo/bar:baz')
             openshift_build_selflink = '/builds/blablabla'
             build_process_failed = False
             tag_conf = TagConf()
@@ -846,7 +846,7 @@ class TestSendMailPlugin(object):
             koji_task_id = MOCK_KOJI_TASK_ID
 
         class WF(object):
-            image = util.ImageName.parse('foo/bar:baz')
+            image = ImageName.parse('foo/bar:baz')
             openshift_build_selflink = '/builds/blablabla'
             build_process_failed = False
             tag_conf = TagConf()
@@ -974,7 +974,7 @@ class TestSendMailPlugin(object):
             autorebuild_canceled = False
             build_canceled = False
             prebuild_results = {CheckAndSetRebuildPlugin.key: True}
-            image = util.ImageName.parse('repo/name')
+            image = ImageName.parse('repo/name')
             build_process_failed = True
             tag_conf = TagConf()
             exit_results = {}
@@ -1020,7 +1020,7 @@ class TestSendMailPlugin(object):
             autorebuild_canceled = False
             build_canceled = False
             prebuild_results = {CheckAndSetRebuildPlugin.key: True}
-            image = util.ImageName.parse('repo/name')
+            image = ImageName.parse('repo/name')
             build_process_failed = True
             tag_conf = TagConf()
             exit_results = {}
@@ -1082,7 +1082,7 @@ class TestSendMailPlugin(object):
             autorebuild_canceled = False
             build_canceled = False
             prebuild_results = {CheckAndSetRebuildPlugin.key: True}
-            image = util.ImageName.parse('repo/name')
+            image = ImageName.parse('repo/name')
             build_process_failed = True
             tag_conf = TagConf()
             exit_results = {}
@@ -1127,7 +1127,7 @@ class TestSendMailPlugin(object):
             autorebuild_canceled = False
             build_canceled = False
             prebuild_results = {CheckAndSetRebuildPlugin.key: True}
-            image = util.ImageName.parse('repo/name')
+            image = ImageName.parse('repo/name')
             build_process_failed = True
             tag_conf = TagConf()
             exit_results = {}
@@ -1167,7 +1167,7 @@ class TestSendMailPlugin(object):
             autorebuild_canceled = False
             build_canceled = False
             prebuild_results = {CheckAndSetRebuildPlugin.key: True}
-            image = util.ImageName.parse('repo/name')
+            image = ImageName.parse('repo/name')
             build_process_failed = True
             exit_results = {}
             plugin_workspace = {}

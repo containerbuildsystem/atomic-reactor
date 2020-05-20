@@ -56,7 +56,7 @@ from importlib import import_module
 from requests.utils import guess_json_utf
 
 from osbs.exceptions import OsbsException
-from osbs.utils import clone_git_repo, reset_git_repo, Labels
+from osbs.utils import clone_git_repo, reset_git_repo, Labels, ImageName
 from osbs.utils.yaml import read_yaml as osbs_read_yaml
 
 from tempfile import NamedTemporaryFile
@@ -86,104 +86,6 @@ except ImportError:
 Output = namedtuple('Output', ['file', 'metadata'])
 
 logger = logging.getLogger(__name__)
-
-
-class ImageName(object):
-    def __init__(self, registry=None, namespace=None, repo=None, tag=None):
-        self.registry = registry
-        self.namespace = namespace
-        self.repo = repo
-        self.tag = tag or 'latest'
-
-    @classmethod
-    def parse(cls, image_name):
-        result = cls()
-
-        if isinstance(image_name, cls):
-            logger.debug("Attempting to parse ImageName %s as an ImageName", image_name)
-            return image_name
-
-        # registry.org/namespace/repo:tag
-        s = image_name.split('/', 2)
-
-        if len(s) == 2:
-            if '.' in s[0] or ':' in s[0]:
-                result.registry = s[0]
-            else:
-                result.namespace = s[0]
-        elif len(s) == 3:
-            result.registry = s[0]
-            result.namespace = s[1]
-        result.repo = s[-1]
-
-        for sep in '@:':
-            try:
-                result.repo, result.tag = result.repo.rsplit(sep, 1)
-            except ValueError:
-                continue
-            break
-
-        return result
-
-    def to_str(self, registry=True, tag=True, explicit_tag=False,
-               explicit_namespace=False):
-        if self.repo is None:
-            raise RuntimeError('No image repository specified')
-
-        result = self.get_repo(explicit_namespace)
-
-        if tag and self.tag and ':' in self.tag:
-            result = '{0}@{1}'.format(result, self.tag)
-        elif tag and self.tag:
-            result = '{0}:{1}'.format(result, self.tag)
-        elif tag and explicit_tag:
-            result = '{0}:{1}'.format(result, 'latest')
-
-        if registry and self.registry:
-            result = '{0}/{1}'.format(self.registry, result)
-
-        return result
-
-    def get_repo(self, explicit_namespace=False):
-        result = self.repo
-        if self.namespace:
-            result = '{0}/{1}'.format(self.namespace, result)
-        elif explicit_namespace:
-            result = '{0}/{1}'.format('library', result)
-        return result
-
-    def enclose(self, organization):
-        if self.namespace == organization:
-            return
-
-        repo_parts = [self.repo]
-        if self.namespace:
-            repo_parts.insert(0, self.namespace)
-
-        self.namespace = organization
-        self.repo = '-'.join(repo_parts)
-
-    def __str__(self):
-        return self.to_str(registry=True, tag=True)
-
-    def __repr__(self):
-        return "ImageName(image=%r)" % self.to_str()
-
-    def __eq__(self, other):
-        return type(self) == type(other) and self.__dict__ == other.__dict__
-
-    def __ne__(self, other):
-        return not self == other
-
-    def __hash__(self):
-        return hash(self.to_str())
-
-    def copy(self):
-        return ImageName(
-            registry=self.registry,
-            namespace=self.namespace,
-            repo=self.repo,
-            tag=self.tag)
 
 
 def figure_out_build_file(absolute_path, local_path=None):

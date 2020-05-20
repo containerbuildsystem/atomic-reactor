@@ -10,7 +10,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals, absolute_import
 
 from os.path import dirname
-from atomic_reactor.util import ImageName
+from osbs.utils import ImageName
 
 
 # Stubs for commonly-mocked classes

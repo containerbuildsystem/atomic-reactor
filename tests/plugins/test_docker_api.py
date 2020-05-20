@@ -15,8 +15,9 @@ from dockerfile_parse import DockerfileParser
 
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.build import InsideBuilder, BuildResult
-from atomic_reactor.util import ImageName, CommandResult
+from atomic_reactor.util import CommandResult
 from atomic_reactor.constants import INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS
+from osbs.utils import ImageName
 
 from tests.docker_mock import mock_docker
 from flexmock import flexmock

@@ -19,7 +19,8 @@ from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_tag_from_config import TagFromConfigPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin, ReactorConfig,
                                                        WORKSPACE_CONF_KEY)
-from atomic_reactor.util import ImageName, df_parser
+from atomic_reactor.util import df_parser
+from osbs.utils import ImageName
 from atomic_reactor.constants import INSPECT_CONFIG
 from tests.constants import (MOCK_SOURCE, MOCK, IMPORTED_IMAGE_ID)
 if MOCK:

@@ -7,12 +7,11 @@ of the BSD license. See the LICENSE file for details.
 """
 from __future__ import print_function, unicode_literals, absolute_import
 
-from atomic_reactor.build import ImageName
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_reactor_config import (get_koji_session,
                                                        get_registries_organization)
-from osbs.utils import graceful_chain_get
+from osbs.utils import graceful_chain_get, ImageName
 from atomic_reactor.constants import PLUGIN_INJECT_PARENT_IMAGE_KEY
 
 

@@ -9,10 +9,10 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals, absolute_import
 
 from osbs.exceptions import OsbsResponseException
-from osbs.utils import retry_on_conflict
+from osbs.utils import retry_on_conflict, ImageName
 
 from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
-from atomic_reactor.util import get_floating_images, ImageName, is_scratch_build
+from atomic_reactor.util import get_floating_images, is_scratch_build
 from atomic_reactor.plugins.pre_reactor_config import (get_openshift_session, get_source_registry,
                                                        get_registries_organization)
 

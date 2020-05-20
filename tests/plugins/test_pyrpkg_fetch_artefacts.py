@@ -14,7 +14,7 @@ import os
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins import pre_pyrpkg_fetch_artefacts
 from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
-from atomic_reactor.util import ImageName
+from osbs.utils import ImageName
 from flexmock import flexmock
 from tests.constants import INPUT_IMAGE
 

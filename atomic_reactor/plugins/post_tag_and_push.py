@@ -24,7 +24,8 @@ from atomic_reactor.plugins.pre_reactor_config import (get_registries, get_group
                                                        get_registries_organization)
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.util import (get_manifest_digests, get_config_from_registry, Dockercfg,
-                                 ImageName, get_all_manifests)
+                                 get_all_manifests)
+from osbs.utils import ImageName
 import osbs.utils
 from osbs.constants import RAND_DIGITS
 

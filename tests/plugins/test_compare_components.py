@@ -25,7 +25,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
 from atomic_reactor.plugins.post_compare_components import (
     filter_components_by_name
 )
-from atomic_reactor.util import ImageName
+from osbs.utils import ImageName
 
 from tests.constants import MOCK_SOURCE, TEST_IMAGE, INPUT_IMAGE, FILES
 from tests.docker_mock import mock_docker

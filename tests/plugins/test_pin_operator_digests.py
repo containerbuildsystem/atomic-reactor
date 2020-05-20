@@ -23,7 +23,6 @@ import atomic_reactor.util
 from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                       INSPECT_CONFIG)
-from atomic_reactor.util import ImageName
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
@@ -35,6 +34,7 @@ from atomic_reactor.plugins.pre_pin_operator_digest import (PinOperatorDigestsPl
                                                             PullspecReplacer)
 
 from osbs.exceptions import OsbsValidationException
+from osbs.utils import ImageName
 
 from tests.constants import TEST_IMAGE
 from tests.stubs import StubInsideBuilder, StubSource, StubConfig

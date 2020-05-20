@@ -19,7 +19,8 @@ from atomic_reactor.constants import BUILD_JSON
 from atomic_reactor.build import BuilderStateMachine
 from atomic_reactor.core import DockerTasker, BuildContainerFactory
 from atomic_reactor.inner import BuildResults
-from atomic_reactor.util import wait_for_command, ImageName
+from atomic_reactor.util import wait_for_command
+from osbs.utils import ImageName
 
 
 logger = logging.getLogger(__name__)

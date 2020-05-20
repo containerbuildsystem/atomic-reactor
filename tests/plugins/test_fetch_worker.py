@@ -18,7 +18,7 @@ from atomic_reactor.constants import PLUGIN_FETCH_WORKER_METADATA_KEY
 from atomic_reactor.build import BuildResult
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner
-from atomic_reactor.util import ImageName
+from osbs.utils import ImageName
 
 from atomic_reactor.plugins.build_orchestrate_build import (WorkerBuildInfo, ClusterInfo,
                                                             OrchestrateBuildPlugin)

@@ -31,7 +31,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
-from atomic_reactor.util import (ImageName, ManifestDigest,
+from atomic_reactor.util import (ManifestDigest,
                                  get_manifest_media_version, get_manifest_media_type)
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.build import BuildResult
@@ -63,6 +63,7 @@ from tests.docker_mock import mock_docker
 import subprocess
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
+from osbs.utils import ImageName
 from six import string_types, text_type
 
 LogEntry = namedtuple('LogEntry', ['platform', 'line'])

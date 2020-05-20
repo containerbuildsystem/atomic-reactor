@@ -25,7 +25,7 @@ from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from atomic_reactor.util import ImageName
+from osbs.utils import ImageName
 
 from tests.constants import TEST_IMAGE
 from tests.flatpak import (MODULEMD_AVAILABLE,

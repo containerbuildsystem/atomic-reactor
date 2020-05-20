@@ -18,6 +18,7 @@ from flexmock import flexmock
 from osbs.api import OSBS
 import osbs.conf
 from osbs.exceptions import OsbsResponseException
+from osbs.utils import ImageName
 from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
                                       PLUGIN_FETCH_SOURCES_KEY)
@@ -30,7 +31,7 @@ from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOS
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from atomic_reactor.util import ImageName, LazyGit, ManifestDigest, df_parser
+from atomic_reactor.util import LazyGit, ManifestDigest, df_parser
 import pytest
 from tests.constants import (LOCALHOST_REGISTRY, DOCKER0_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME,
                              INPUT_IMAGE)

@@ -22,8 +22,9 @@ from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildP
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from atomic_reactor.util import ImageName, get_manifest_media_type
+from atomic_reactor.util import get_manifest_media_type
 from atomic_reactor.constants import SCRATCH_FROM
+from osbs.utils import ImageName
 from flexmock import flexmock
 from tests.constants import MOCK, MOCK_SOURCE
 from tests.stubs import StubInsideBuilder

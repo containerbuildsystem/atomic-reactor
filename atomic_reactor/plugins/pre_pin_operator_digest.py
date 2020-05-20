@@ -11,7 +11,7 @@ from __future__ import absolute_import, unicode_literals
 import logging
 import os.path
 
-from osbs.utils import Labels
+from osbs.utils import Labels, ImageName
 
 from atomic_reactor import util
 from atomic_reactor.plugin import PreBuildPlugin
@@ -22,8 +22,7 @@ from atomic_reactor.constants import (
 )
 from atomic_reactor.util import (has_operator_bundle_manifest,
                                  get_manifest_digests,
-                                 read_yaml_from_url,
-                                 ImageName)
+                                 read_yaml_from_url)
 from atomic_reactor.plugins.pre_reactor_config import get_operator_manifests
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.utils.operator import OperatorManifest

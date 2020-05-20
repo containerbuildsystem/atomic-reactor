@@ -14,7 +14,7 @@ import requests.exceptions
 from tests.constants import LOCALHOST_REGISTRY_HTTP, DOCKER0_REGISTRY_HTTP, MOCK
 from tests.util import uuid_value
 
-from atomic_reactor.util import ImageName
+from osbs.utils import ImageName
 from atomic_reactor.core import ContainerTasker
 from atomic_reactor.constants import CONTAINER_DOCKERPY_BUILD_METHOD
 from atomic_reactor.inner import DockerBuildWorkflow

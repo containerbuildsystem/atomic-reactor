@@ -18,10 +18,10 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
 from atomic_reactor.plugins import build_orchestrate_build
-from atomic_reactor.util import ImageName
 import json
 from osbs.api import OSBS
 import osbs.conf
+from osbs.utils import ImageName
 from flexmock import flexmock
 from tests.constants import MOCK, MOCK_SOURCE
 if MOCK:

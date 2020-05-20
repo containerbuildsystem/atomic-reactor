@@ -22,13 +22,14 @@ from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       SCRATCH_FROM)
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.util import (ImageName, CommandResult, base_image_is_scratch,
+from atomic_reactor.util import (CommandResult, base_image_is_scratch,
                                  base_image_is_custom, get_checksums)
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
+from osbs.utils import ImageName
 from io import BytesIO
 from requests.exceptions import HTTPError, RetryError, Timeout
 from tests.constants import MOCK, MOCK_SOURCE, LOCALHOST_REGISTRY

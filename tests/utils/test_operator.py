@@ -15,13 +15,14 @@ import pytest
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
-from atomic_reactor.util import ImageName, chain_get
+from atomic_reactor.util import chain_get
 from atomic_reactor.utils.operator import (
     OperatorCSV,
     OperatorManifest,
     NotOperatorCSV,
     default_pullspec_heuristic,
 )
+from osbs.utils import ImageName
 
 
 yaml = YAML()

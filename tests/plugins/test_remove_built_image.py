@@ -17,7 +17,7 @@ from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.plugins.exit_remove_built_image import (GarbageCollectionPlugin,
                                                             defer_removal)
 from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
-from atomic_reactor.util import ImageName
+from osbs.utils import ImageName
 from tests.constants import (LOCALHOST_REGISTRY,
                              TEST_IMAGE,
                              IMPORTED_IMAGE_ID,

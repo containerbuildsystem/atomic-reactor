@@ -32,7 +32,8 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        ReactorConfig,
                                                        WORKSPACE_CONF_KEY)
 from atomic_reactor.source import VcsInfo, SourceConfig
-from atomic_reactor.util import ImageName, df_parser
+from atomic_reactor.util import df_parser
+from osbs.utils import ImageName
 
 from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
 from tests.flatpak import MODULEMD_AVAILABLE, build_flatpak_test_configs, setup_flatpak_composes

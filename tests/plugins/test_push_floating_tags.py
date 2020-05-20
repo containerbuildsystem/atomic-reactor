@@ -22,7 +22,8 @@ from tests.stubs import StubInsideBuilder
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import ExitPluginsRunner
-from atomic_reactor.util import ImageName, registry_hostname, ManifestDigest
+from atomic_reactor.util import registry_hostname, ManifestDigest
+from osbs.utils import ImageName
 from atomic_reactor.plugins.exit_push_floating_tags import PushFloatingTagsPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin, WORKSPACE_CONF_KEY,
                                                        ReactorConfig)

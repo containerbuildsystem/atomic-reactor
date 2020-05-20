@@ -19,7 +19,8 @@ from atomic_reactor.plugins.pre_add_flatpak_labels import AddFlatpakLabelsPlugin
 
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.source import SourceConfig
-from atomic_reactor.util import ImageName, df_parser
+from atomic_reactor.util import df_parser
+from osbs.utils import ImageName
 
 from tests.constants import MOCK_SOURCE
 

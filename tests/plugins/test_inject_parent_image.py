@@ -17,7 +17,7 @@ from atomic_reactor.plugins.exit_remove_built_image import GarbageCollectionPlug
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from atomic_reactor.util import ImageName
+from osbs.utils import ImageName
 from flexmock import flexmock
 from tests.constants import MOCK
 from osbs.utils import graceful_chain_del

@@ -21,7 +21,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY)
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
-from atomic_reactor.util import ImageName, df_parser
+from atomic_reactor.util import df_parser
 import atomic_reactor.util
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
@@ -32,6 +32,7 @@ from osbs.conf import Configuration
 from osbs.build.build_response import BuildResponse
 from osbs.exceptions import OsbsException
 from osbs.core import Openshift
+from osbs.utils import ImageName
 from tests.constants import MOCK_SOURCE, TEST_IMAGE, INPUT_IMAGE, SOURCE
 from tests.docker_mock import mock_docker
 from textwrap import dedent

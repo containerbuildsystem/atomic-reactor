@@ -39,9 +39,10 @@ from atomic_reactor.constants import (
     INSPECT_ROOTFS_LAYERS,
     PLUGIN_BUILD_ORCHESTRATE_KEY
 )
-from atomic_reactor.util import ImageName, exception_message
+from atomic_reactor.util import exception_message
 from atomic_reactor.build import BuildResult
 from atomic_reactor import get_logging_encoding
+from osbs.utils import ImageName
 
 
 logger = logging.getLogger(__name__)

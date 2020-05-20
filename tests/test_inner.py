@@ -18,13 +18,13 @@ from textwrap import dedent
 from dockerfile_parse import DockerfileParser
 
 from atomic_reactor.build import InsideBuilder, BuildResult
-from atomic_reactor.util import ImageName
 from atomic_reactor.plugin import (PreBuildPlugin, PrePublishPlugin, PostBuildPlugin, ExitPlugin,
                                    AutoRebuildCanceledException, PluginFailedException,
                                    BuildStepPlugin, InappropriateBuildStepError)
 import atomic_reactor.plugin
 from atomic_reactor.plugins.build_docker_api import DockerApiPlugin
 import atomic_reactor.inner
+from osbs.utils import ImageName
 from flexmock import flexmock
 import pytest
 from tests.constants import MOCK_SOURCE, SOURCE

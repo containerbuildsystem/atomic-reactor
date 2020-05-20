@@ -13,7 +13,7 @@ import atomic_reactor.util
 import docker.errors
 from atomic_reactor.build import InsideBuilder, BuildResult
 from atomic_reactor.source import get_source_instance_for
-from atomic_reactor.util import ImageName, df_parser
+from atomic_reactor.util import df_parser
 from tests.constants import (
     LOCALHOST_REGISTRY, MOCK, SOURCE,
     DOCKERFILE_OK_PATH, DOCKERFILE_MULTISTAGE_PATH,
@@ -21,6 +21,7 @@ from tests.constants import (
     DOCKERFILE_MULTISTAGE_CUSTOM_BAD_PATH
 )
 from atomic_reactor.constants import CONTAINER_DOCKERPY_BUILD_METHOD
+from osbs.utils import ImageName
 from tests.util import requires_internet
 from flexmock import flexmock
 from textwrap import dedent
