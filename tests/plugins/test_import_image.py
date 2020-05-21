@@ -167,7 +167,7 @@ def test_bad_setup(tmpdir, caplog, monkeypatch, reactor_config_map):  # noqa
      .should_receive('create_image_stream')
      .never())
     (flexmock(OSBS)
-     .should_receive('import_image')
+     .should_receive('import_image_tags')
      .never())
 
     # No build JSON
@@ -210,7 +210,7 @@ def test_create_image(tmpdir, insecure_registry, namespace, organization,
     (flexmock(OSBS)
      .should_receive('create_image_stream')
      .once()
-     .with_args(TEST_IMAGESTREAM, enclose_repo.to_str(registry=True, tag=False), **kwargs)
+     .with_args(TEST_IMAGESTREAM)
      .and_return(ImageStreamResponse()))
     (flexmock(OSBS)
      .should_receive('import_image_tags')
@@ -256,25 +256,10 @@ def test_ensure_primary(tmpdir, monkeypatch, osbs_error, tag_conf, annotations, 
      .with_args(TEST_IMAGESTREAM)
      .and_return(ImageStreamResponse()))
 
-    # By using a combination of ordered and once, we verify that
-    # ensure_image_stream_tag is not called with version-release tag
-    for x in range(DEFAULT_TAGS_AMOUNT):
-        expectation = (
-            flexmock(OSBS)
-            .should_receive('ensure_image_stream_tag')
-            .with_args(dict, tag_prefix + str(x))
-            .once()
-            .ordered()
-        )
-        if osbs_error:
-            expectation.and_raise(OsbsResponseException('None', 500))
+    repository = '{}/{}'.format(TEST_REGISTRY, TEST_REPO)
     (flexmock(OSBS)
      .should_receive('import_image_tags')
-     .once()
-     .and_raise(AttributeError))
-    (flexmock(OSBS)
-     .should_receive('import_image')
-     .with_args(TEST_IMAGESTREAM, tags=tags)
+     .with_args(TEST_IMAGESTREAM, tags, repository, insecure=None)
      .times(0 if osbs_error else 1)
      .and_return(True))
 
@@ -285,13 +270,12 @@ def test_ensure_primary(tmpdir, monkeypatch, osbs_error, tag_conf, annotations, 
         runner.run()
 
 
-@pytest.mark.parametrize('import_image_tags', [True, False])  # noqa
 @pytest.mark.parametrize('build_process_failed', [True, False])
 @pytest.mark.parametrize(('namespace'), [
     ({}),
     ({'namespace': 'my_namespace'})
 ])
-def test_import_image(tmpdir, import_image_tags, build_process_failed, namespace,
+def test_import_image(tmpdir, build_process_failed, namespace,
                       monkeypatch, reactor_config_map):
     """
     Test importing tags for an existing ImageStream
@@ -317,12 +301,6 @@ def test_import_image(tmpdir, import_image_tags, build_process_failed, namespace
         (flexmock(ImportImagePlugin)
          .should_receive('get_or_create_imagestream')
          .never())
-        (flexmock(ImportImagePlugin)
-         .should_receive('process_tags')
-         .never())
-        (flexmock(OSBS)
-         .should_receive('import_image')
-         .never())
         (flexmock(OSBS)
          .should_receive('import_image_tags')
          .never())
@@ -336,29 +314,12 @@ def test_import_image(tmpdir, import_image_tags, build_process_failed, namespace
          .should_receive('create_image_stream')
          .never())
 
-        repository = '{0}/{1}'.format(TEST_REGISTRY, TEST_REPO)
-        if import_image_tags:
-            (flexmock(OSBS)
-             .should_receive('import_image_tags')
-             .once()
-             .with_args(TEST_IMAGESTREAM, tags, repository, insecure=None)
-             .and_return(True))
-        else:
-            (flexmock(OSBS)
-             .should_receive('import_image_tags')
-             .once()
-             .with_args(TEST_IMAGESTREAM, tags, repository, insecure=None)
-             .and_raise(AttributeError)
-             .ordered())
-            (flexmock(OSBS)
-             .should_receive('ensure_image_stream_tag')
-             .times(DEFAULT_TAGS_AMOUNT))
-            (flexmock(OSBS)
-             .should_receive('import_image')
-             .once()
-             .with_args(TEST_IMAGESTREAM, tags=tags)
-             .and_return(True)
-             .ordered())
+        repository = '{}/{}'.format(TEST_REGISTRY, TEST_REPO)
+        (flexmock(OSBS)
+         .should_receive('import_image_tags')
+         .once()
+         .with_args(TEST_IMAGESTREAM, tags, repository, insecure=None)
+         .and_return(True))
 
     runner.run()
 
@@ -379,10 +340,10 @@ def test_exception_during_create(tmpdir, monkeypatch, reactor_config_map):  # no
     (flexmock(OSBS)
      .should_receive('create_image_stream')
      .once()
-     .with_args(TEST_IMAGESTREAM, TEST_REPO_WITH_REGISTRY)
+     .with_args(TEST_IMAGESTREAM)
      .and_raise(RuntimeError))
     (flexmock(OSBS)
-     .should_receive('import_image')
+     .should_receive('import_image_tags')
      .never())
 
     with pytest.raises(PluginFailedException):
@@ -405,10 +366,10 @@ def test_exception_during_import(tmpdir, monkeypatch, reactor_config_map):  # no
     (flexmock(OSBS)
      .should_receive('create_image_stream')
      .once()
-     .with_args(TEST_IMAGESTREAM, TEST_REPO_WITH_REGISTRY)
+     .with_args(TEST_IMAGESTREAM)
      .and_raise(RuntimeError))
     (flexmock(OSBS)
-     .should_receive('import_image')
+     .should_receive('import_image_tags')
      .never())
 
     with pytest.raises(PluginFailedException):

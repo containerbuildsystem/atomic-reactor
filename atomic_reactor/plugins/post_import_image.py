@@ -91,44 +91,18 @@ class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
         self.osbs = get_openshift_session(self.workflow, self.openshift_fallback)
         self.get_or_create_imagestream()
 
-        try:
-            self.osbs.import_image_tags(self.imagestream_name, self.get_trackable_tags(),
-                                        self.docker_image_repo, insecure=self.insecure_registry)
-        except AttributeError:
-            self.log.info('Falling back to calling import_image instead of import_image_tags')
-            self.process_tags()
-            self.osbs.import_image(self.imagestream_name, tags=self.get_trackable_tags())
+        self.osbs.import_image_tags(self.imagestream_name, self.get_trackable_tags(),
+                                    self.docker_image_repo, insecure=self.insecure_registry)
 
     @retry_on_conflict
     def get_or_create_imagestream(self):
         try:
             self.imagestream = self.osbs.get_image_stream(self.imagestream_name)
         except OsbsResponseException:
-            kwargs = {}
-            if self.insecure_registry is not None:
-                kwargs['insecure_registry'] = self.insecure_registry
-
             self.log.info('Creating ImageStream %s for %s', self.imagestream_name,
                           self.docker_image_repo)
 
-            self.imagestream = self.osbs.create_image_stream(self.imagestream_name,
-                                                             self.docker_image_repo,
-                                                             **kwargs)
-
-    def process_tags(self):
-        self.log.info('Importing new tags for %s', self.imagestream_name)
-        failures = False
-
-        for tag in self.get_trackable_tags():
-            try:
-                self.osbs.ensure_image_stream_tag(self.imagestream.json(), tag)
-                self.log.info('Imported ImageStreamTag: (%s)', tag)
-            except OsbsResponseException:
-                failures = True
-                self.log.info('Could not import ImageStreamTag: (%s)', tag)
-
-        if failures:
-            raise RuntimeError('Failed to import ImageStreamTag(s). Check logs')
+            self.imagestream = self.osbs.create_image_stream(self.imagestream_name)
 
     def get_trackable_tags(self):
         tags = []
