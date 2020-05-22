@@ -64,7 +64,6 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         """
         super(PinOperatorDigestsPlugin, self).__init__(tasker, workflow)
         self.user_config = workflow.source.config.operator_manifests
-        self.site_config = None
         self.replacement_pullspecs = replacement_pullspecs or {}
 
     def run(self):
@@ -99,8 +98,6 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
 
         Exclude CSVs which already have a relatedImages section.
         """
-        self.site_config = get_operator_manifests(self.workflow)
-
         operator_manifest = self._get_operator_manifest()
         pullspecs = self._get_pullspecs(operator_manifest)
 
@@ -195,7 +192,7 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
             self.log.warning("All replacement features disabled, skipping")
             return {}
 
-        replacer = PullspecReplacer(user_config=self.user_config, site_config=self.site_config)
+        replacer = PullspecReplacer(user_config=self.user_config, workflow=self.workflow)
 
         for p in pullspecs:
             if not replacer.registry_is_allowed(p):
@@ -260,15 +257,17 @@ class PullspecReplacer(object):
     Helper that takes care of replacing parts of image pullspecs
     """
 
-    def __init__(self, user_config, site_config):
+    def __init__(self, user_config, workflow):
         """
         Initialize a PullspecReplacer
 
         :param user_config: container.yaml operator_manifest configuration
-        :param site_config: reactor-config-map operator_manifests configuration
+        :param workflow: DockerBuildWorkflow, contains reactor config map
         """
         log_name = "atomic_reactor.plugins.{}".format(PinOperatorDigestsPlugin.key)
         self.log = logging.getLogger(log_name)
+
+        site_config = get_operator_manifests(workflow)
 
         self.allowed_registries = site_config["allowed_registries"]
         if self.allowed_registries is not None:

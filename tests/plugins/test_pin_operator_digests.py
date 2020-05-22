@@ -618,6 +618,9 @@ class TestPinOperatorDigest(object):
 
 
 class TestPullspecReplacer(object):
+    def mock_workflow(self, site_config):
+        return mock_workflow("/some/tmpdir", orchestrator=False, site_config=site_config)
+
     @pytest.mark.parametrize('allowed_registries, image, allowed', [
         (None, 'registry/ns/foo', True),
         (['registry'], 'registry/ns/foo', True),
@@ -626,7 +629,7 @@ class TestPullspecReplacer(object):
     ])
     def test_registry_is_allowed(self, allowed_registries, image, allowed):
         site_config = get_site_config(allowed_registries=allowed_registries)
-        replacer = PullspecReplacer(user_config={}, site_config=site_config)
+        replacer = PullspecReplacer(user_config={}, workflow=self.mock_workflow(site_config))
         image = ImageName.parse(image)
         assert replacer.registry_is_allowed(image) == allowed
 
@@ -641,7 +644,7 @@ class TestPullspecReplacer(object):
             mock_digest_query(image, digest)
 
         site_config = get_site_config()
-        replacer = PullspecReplacer(user_config={}, site_config=site_config)
+        replacer = PullspecReplacer(user_config={}, workflow=self.mock_workflow(site_config))
         replaced = replacer.pin_digest(image)
 
         assert replaced.registry == image.registry
@@ -663,7 +666,7 @@ class TestPullspecReplacer(object):
         replaced = ImageName.parse(replaced)
 
         site_config = get_site_config(registry_post_replace=replacement_registries)
-        replacer = PullspecReplacer(user_config={}, site_config=site_config)
+        replacer = PullspecReplacer(user_config={}, workflow=self.mock_workflow(site_config))
 
         assert replacer.replace_registry(image) == replaced
 
@@ -724,7 +727,8 @@ class TestPullspecReplacer(object):
         user_config = get_user_config(manifests_dir=str(tmpdir),
                                       repo_replacements=user_replacements)
 
-        replacer = PullspecReplacer(user_config=user_config, site_config=site_config)
+        replacer = PullspecReplacer(user_config=user_config,
+                                    workflow=self.mock_workflow(site_config))
 
         assert replacer.replace_repo(image) == replaced
 
@@ -785,7 +789,8 @@ class TestPullspecReplacer(object):
         user_config = get_user_config(manifests_dir=str(tmpdir),
                                       repo_replacements=user_replacements)
 
-        replacer = PullspecReplacer(user_config=user_config, site_config=site_config)
+        replacer = PullspecReplacer(user_config=user_config,
+                                    workflow=self.mock_workflow(site_config))
 
         with pytest.raises(RuntimeError) as exc_info:
             replacer.replace_repo(image)
@@ -809,7 +814,7 @@ class TestPullspecReplacer(object):
 
         site_config = get_site_config(repo_replacements=site_replacements)
 
-        replacer = PullspecReplacer(user_config={}, site_config=site_config)
+        replacer = PullspecReplacer(user_config={}, workflow=self.mock_workflow(site_config))
 
         with pytest.raises(OsbsValidationException) as exc_info:
             replacer.replace_repo(image)
