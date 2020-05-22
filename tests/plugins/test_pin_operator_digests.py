@@ -46,6 +46,13 @@ PKG_LABEL = 'com.redhat.component'
 yaml = YAML()
 
 
+# When defining mock configuration for source_registry/pull_registries,
+# do not use auth unless you also want to mock a dockercfg file
+SOURCE_REGISTRY = {
+    'url': 'https://registry.private.example.com',
+}
+
+
 def mock_dockerfile(tmpdir, base='scratch', operator_bundle_label=True):
     dockerfile = (
         'FROM {base}\n'
@@ -56,7 +63,10 @@ def mock_dockerfile(tmpdir, base='scratch', operator_bundle_label=True):
 
 
 def make_reactor_config(operators_config):
-    config = {'version': 1}
+    config = {
+        'version': 1,
+        'source_registry': SOURCE_REGISTRY
+    }
     if operators_config:
         config['operator_manifests'] = operators_config
     return ReactorConfig(config)
@@ -191,9 +201,10 @@ def mock_package_mapping_files(repo_replacements):
     return repo_replacements
 
 
-def mock_digest_query(pullspec, digest):
+def mock_digest_query(pullspec, digest, registry_conf=None):
+    registry_conf = registry_conf or SOURCE_REGISTRY
     i = ImageName.parse(pullspec)
-    url = 'https://{}/v2/{}/{}/manifests/{}'.format(i.registry, i.namespace, i.repo, i.tag)
+    url = '{}/v2/{}/{}/manifests/{}'.format(registry_conf['url'], i.namespace, i.repo, i.tag)
     headers = {
         'Content-Type': MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
         'Docker-Content-Digest': digest
@@ -208,9 +219,9 @@ def mock_inspect_query(pullspec, labels, times=1):
             'Labels': labels
         }
     }
-    (flexmock(atomic_reactor.util)
+    (flexmock(atomic_reactor.util.RegistryClient)
         .should_receive('get_inspect_for_image')
-        .with_args(image, image.registry)
+        .with_args(image)
         .and_return(inspect)
         .times(times))
 

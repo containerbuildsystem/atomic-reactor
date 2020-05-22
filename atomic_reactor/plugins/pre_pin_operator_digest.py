@@ -13,15 +13,15 @@ import os.path
 
 from osbs.utils import Labels, ImageName
 
-from atomic_reactor import util
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import (
     PLUGIN_PIN_OPERATOR_DIGESTS_KEY,
     INSPECT_CONFIG,
     REPO_CONTAINER_CONFIG,
 )
-from atomic_reactor.util import (has_operator_bundle_manifest,
-                                 get_manifest_digests,
+from atomic_reactor.util import (RegistrySession,
+                                 RegistryClient,
+                                 has_operator_bundle_manifest,
                                  read_yaml_from_url)
 from atomic_reactor.plugins.pre_reactor_config import get_operator_manifests
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
@@ -267,6 +267,7 @@ class PullspecReplacer(object):
         log_name = "atomic_reactor.plugins.{}".format(PinOperatorDigestsPlugin.key)
         self.log = logging.getLogger(log_name)
 
+        self.workflow = workflow
         site_config = get_operator_manifests(workflow)
 
         self.allowed_registries = site_config["allowed_registries"]
@@ -294,6 +295,9 @@ class PullspecReplacer(object):
         # Loaded when needed, see _get_final_mapping
         self.final_package_mappings = {}
 
+        # RegistryClient instances cached by registry name
+        self.registry_clients = {}
+
     def registry_is_allowed(self, image):
         """
         Is image registry allowed in OSBS config?
@@ -314,7 +318,8 @@ class PullspecReplacer(object):
             self.log.debug("%s looks like a digest, skipping query", image.tag)
             return image
         self.log.debug("Querying %s for manifest list digest", image.registry)
-        digests = get_manifest_digests(image, image.registry, versions=("v2_list",))
+        registry_client = self._get_registry_client(image.registry)
+        digests = registry_client.get_manifest_digests(image, versions=("v2_list",))
         return self._replace(image, tag=digests["v2_list"])
 
     def replace_registry(self, image):
@@ -383,8 +388,8 @@ class PullspecReplacer(object):
         Get package for image by querying registry and looking at labels.
         """
         self.log.debug("Querying %s for image labels", image.registry)
-        # Do not import get_inspect_for_image directly, needs to be mocked in tests
-        inspect = util.get_inspect_for_image(image, image.registry)
+        registry_client = self._get_registry_client(image.registry)
+        inspect = registry_client.get_inspect_for_image(image)
         labels = Labels(inspect[INSPECT_CONFIG].get("Labels", {}))
 
         try:
@@ -425,6 +430,17 @@ class PullspecReplacer(object):
             mapping[package] = site_mapping[package]
 
         return mapping
+
+    def _get_registry_client(self, registry):
+        """
+        Get registry client for specified registry, cached by registry name
+        """
+        client = self.registry_clients.get(registry)
+        if client is None:
+            session = RegistrySession.create_from_config(self.workflow, registry=registry)
+            client = RegistryClient(session)
+            self.registry_clients[registry] = client
+        return client
 
     def _replace(self, image, registry=_KEEP, namespace=_KEEP, repo=_KEEP, tag=_KEEP):
         """
