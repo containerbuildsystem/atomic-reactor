@@ -34,7 +34,7 @@ function setup_osbs() {
   # Optionally specify repo and branch for osbs-client to test changes
   # which depend on osbs-client patches not yet available in upstream master
   OSBS_CLIENT_REPO=${OSBS_CLIENT_REPO:-https://github.com/containerbuildsystem/osbs-client}
-  OSBS_CLIENT_BRANCH=${OSBS_CLIENT_BRANCH:-master}
+  OSBS_CLIENT_BRANCH=${OSBS_CLIENT_BRANCH:-release_0.66}
 
   # Pull fedora images from registry.fedoraproject.org
   if [[ $OS == "fedora" ]]; then
