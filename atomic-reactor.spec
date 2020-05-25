@@ -24,7 +24,7 @@
 %global ar_subpackages_obsolete 1.6.50
 
 Name:           %{project}
-Version:        1.6.51.1
+Version:        1.6.51.2
 Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
@@ -222,6 +222,9 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 
 
 %changelog
+* Mon May 25 2020 Martin Bašti <mbasti@redhat.com> 1.6.51.2-1
+- new upstream release: 1.6.51.2
+
 * Wed May 13 2020 Robert Cerven <rcerven@redhat.com> 1.6.51.1-1
 - new upstream release: 1.6.51.1
 
