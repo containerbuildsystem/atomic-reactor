@@ -20,10 +20,12 @@ from atomic_reactor.util import get_build_json
 
 class KojiDelegatePlugin(PreBuildPlugin):
     """
-    When autorebuild is enabled, delegate feature is enabled and
-    triggered_after_koji_task is not provided,
-    will submit new koji task for autorebuild, and cancel current build.
-    In all other cases plugin won't do anything
+    Delegate the build to a new koji task
+
+    When the autorebuild and koji_delegate features are enabled, and a
+    triggered_after_koji_task param is not provided, this plugin will submit a
+    new koji task for the autorebuild. The current build will be cancelled.  In
+    all other cases, this plugin won't do anything.
     """
 
     key = PLUGIN_KOJI_DELEGATE_KEY
@@ -35,8 +37,8 @@ class KojiDelegatePlugin(PreBuildPlugin):
 
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param triggered_after_koji_task: int, original koji task for autorebuild,
-            provided only when this plugin creates new koji task for autorebuild
+        :param triggered_after_koji_task: int, original koji task for the autorebuild,
+            provided only when this plugin creates a new koji task for the autorebuild
         """
         # call parent constructor
         super(KojiDelegatePlugin, self).__init__(tasker, workflow)
@@ -51,7 +53,7 @@ class KojiDelegatePlugin(PreBuildPlugin):
 
     def cancel_build(self):
         """
-        cancel current build
+        cancel the current build
         """
         build_name = self.metadata.get("name")
         if build_name:
@@ -59,7 +61,7 @@ class KojiDelegatePlugin(PreBuildPlugin):
 
     def delegate_task(self):
         """
-        create new koji task for autorebuild
+        create a new koji task to perform the autorebuild
         """
         git_uri = self.workflow.user_params.get('git_uri')
         git_ref = self.workflow.user_params.get('git_ref')
@@ -103,14 +105,6 @@ class KojiDelegatePlugin(PreBuildPlugin):
         else:
             self.log.warning("koji-task-id label doesn't exist on build")
 
-        # we don't want to plugin continue when:
-        # delegate_task isn't enabled
-        # build isn't autorebuild
-        # triggered_after_koji_task was provided, but task is running,
-        # reason for this is, when we once enable delegating, after first autorebuild
-        # buildConfig will already have triggered_after_koji_task in user_params
-        # so when koji-task-id for build is running task, that means it is that new
-        # already delegated task
         if not self.delegate_enabled:
             self.log.info("delegate_task not enabled, skipping plugin")
             return
@@ -118,25 +112,25 @@ class KojiDelegatePlugin(PreBuildPlugin):
             self.log.info("not autorebuild, skipping plugin")
             return
         elif (self.triggered_after_koji_task and task_running):
+            # The buildConfig will already have triggered_after_koji_task in user_params
+            # after the first autorebuild performed with the delegating feature enabled.
+            # If koji-task-id for the build is a running task,
+            # it means it is a new, already delegated task
             self.log.info("koji task already delegated, skipping plugin")
             return
 
         self.osbs = get_openshift_session(self.workflow, NO_FALLBACK)
 
-        # will be set by koji_parent
-        if self.workflow.cancel_isolated_autorebuild:
+        if self.workflow.cancel_isolated_autorebuild:  # this is set by the koji_parent plugin
             self.log.info("ignoring isolated build for autorebuild, the build will be cancelled")
             self.cancel_build()
             raise BuildCanceledException("Build was canceled")
 
         self.delegate_task()
 
-        # we will remove all exit plugins, as we don't want any of them running,
-        # mainly sendmail
+        # Do not run exit plugins. Especially sendmail
         self.workflow.exit_plugins_conf = []
-        # we will cancel build and raise exception,
-        # without canceling build build would end up as failed build, and we don't want
-        # to have this build as failed but cancelled so it doesn't inerfere with real failed builds
+        # We cancel the build so it does not inerfere with real failed builds
         self.cancel_build()
         self.log.info('Build was delegated, the build will be cancelled')
         raise BuildCanceledException("Build was canceled")
