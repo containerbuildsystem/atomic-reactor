@@ -12,12 +12,10 @@ from functools import partial
 from flexmock import flexmock
 import pytest
 
-from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_check_user_settings import CheckUserSettingsPlugin
 
-from tests.constants import TEST_IMAGE
-from tests.stubs import StubInsideBuilder, StubSource
+from tests.mock_env import MockEnv
 
 
 def mock_dockerfile(tmpdir, labels, from_scratch=False):
@@ -51,32 +49,17 @@ def mock_dockerfile_multistage(tmpdir, labels, from_scratch=False):
     )
 
 
-def mock_workflow(tmpdir):
-    workflow = DockerBuildWorkflow(
-        TEST_IMAGE,
-        source={"provider": "git", "uri": "asd"}
-    )
-    workflow.source = StubSource()
-    builder = StubInsideBuilder().for_workflow(workflow)
-    builder.set_df_path(str(tmpdir))
-    builder.tasker = flexmock()
-    builder.base_from_scratch = True
-    workflow.builder = flexmock(builder)
-
-    return workflow
-
-
 def mock_env(tmpdir, docker_tasker, labels=(), flatpak=False, dockerfile_f=mock_dockerfile):
     if not flatpak:
         # flatpak build has no Dockefile
         dockerfile_f(tmpdir, labels)
-    workflow = mock_workflow(tmpdir)
-    plugin_conf = [{'name': CheckUserSettingsPlugin.key,
-                    'args': {'flatpak': flatpak}}]
 
-    runner = PreBuildPluginsRunner(docker_tasker, workflow, plugin_conf)
+    env = MockEnv().for_plugin('prebuild', CheckUserSettingsPlugin.key, {'flatpak': flatpak})
 
-    return runner
+    env.workflow.builder.set_df_path(str(tmpdir))
+    env.workflow.builder.base_from_scratch = True
+
+    return env.create_runner(docker_tasker)
 
 
 class TestDockerfileChecks(object):
