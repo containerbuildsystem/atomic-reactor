@@ -13,18 +13,14 @@ import os
 import pytest
 import tarfile
 import zipfile
-from atomic_reactor.constants import (
-    PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
-    PLUGIN_BUILD_ORCHESTRATE_KEY)
-from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.constants import PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY
 from atomic_reactor.plugins.post_export_operator_manifests import ExportOperatorManifestsPlugin
-from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import PluginFailedException
 from docker.errors import NotFound
 from flexmock import flexmock
 from functools import partial
 from platform import machine
-from tests.constants import TEST_IMAGE
-from tests.stubs import StubInsideBuilder, StubSource
+from tests.mock_env import MockEnv
 from requests import Response
 
 
@@ -48,23 +44,6 @@ def mock_dockerfile(
             str(bundle_label).lower())
     data = '\n'.join([base, operator_appregistry_label, operator_bundle_label, cmd])
     tmpdir.join('Dockerfile').write(data)
-
-
-def mock_workflow(tmpdir, for_orchestrator=False):
-    workflow = DockerBuildWorkflow(
-        TEST_IMAGE,
-        source={"provider": "git", "uri": "asd"}
-    )
-    workflow.source = StubSource()
-    builder = StubInsideBuilder().for_workflow(workflow)
-    builder.set_df_path(str(tmpdir))
-    builder.tasker = flexmock()
-    workflow.builder = flexmock(builder)
-
-    if for_orchestrator:
-        workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}]
-
-    return workflow
 
 
 def generate_archive(tmpdir, empty=False):
@@ -97,18 +76,23 @@ def mock_env(tmpdir, docker_tasker,
         has_appregistry_label=has_appregistry_label, appregistry_label=appregistry_label,
         has_bundle_label=has_bundle_label, bundle_label=bundle_label
     )
-    workflow = mock_workflow(tmpdir, for_orchestrator=orchestrator)
-    workflow.user_params['scratch'] = scratch
+
+    env = (MockEnv()
+           .for_plugin('postbuild', ExportOperatorManifestsPlugin.key)
+           .set_scratch(scratch))
+    if orchestrator:
+        env.make_orchestrator()
+
+    env.workflow.builder.set_df_path(str(tmpdir))
+
     mock_stream = generate_archive(tmpdir, empty_archive)
-    plugin_conf = [{'name': ExportOperatorManifestsPlugin.key}]
     if selected_platform:
-        plugin_conf[0]['args'] = {'operator_manifests_extract_platform': machine(),
-                                  'platform': machine()}
-    runner = PostBuildPluginsRunner(docker_tasker, workflow, plugin_conf)
+        env.set_plugin_args({'operator_manifests_extract_platform': machine(),
+                             'platform': machine()})
 
     (flexmock(docker_tasker.tasker.d.wrapped)
      .should_receive('create_container')
-     .with_args(workflow.image, command=["/bin/bash"])
+     .with_args(env.workflow.image, command=["/bin/bash"])
      .and_return({'Id': CONTAINER_ID}))
 
     if remove_fails:
@@ -141,7 +125,7 @@ def mock_env(tmpdir, docker_tasker,
          .with_args(CONTAINER_ID, '/manifests')
          .and_raise(Exception('error')))
 
-    return runner
+    return env.create_runner(docker_tasker)
 
 
 class TestExportOperatorManifests(object):
