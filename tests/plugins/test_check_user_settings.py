@@ -9,7 +9,6 @@ from __future__ import absolute_import
 
 from functools import partial
 
-from flexmock import flexmock
 import pytest
 
 from atomic_reactor.plugin import PluginFailedException

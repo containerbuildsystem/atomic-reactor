@@ -12,28 +12,19 @@ import os
 import flexmock
 import pytest
 
-from atomic_reactor.constants import (
-    PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY,
-    PLUGIN_BUILD_ORCHESTRATE_KEY
-)
-from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
+from atomic_reactor.constants import PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY
+from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import (
     OrchestrateBuildPlugin,
     WORKSPACE_KEY_UPLOAD_DIR,
 )
-from atomic_reactor.plugins.pre_reactor_config import (
-    ReactorConfigPlugin,
-    WORKSPACE_CONF_KEY,
-    ReactorConfig,
-)
 from atomic_reactor.plugins.post_push_operator_manifest import PushOperatorManifestsPlugin
 from atomic_reactor.utils.omps import OMPS, OMPSError
 
-from tests.constants import TEST_IMAGE
-from tests.stubs import StubInsideBuilder, StubSource
+from tests.stubs import StubSource
 from tests.plugins.test_export_operator_manifests import mock_dockerfile
+from tests.mock_env import MockEnv
 
 
 KOJIROOT_TEST_URL = 'http://koji.localhost/kojiroot'
@@ -53,25 +44,6 @@ class MockSource(StubSource):
 
     def get_build_file_path(self):
         return os.path.join(self.workdir, 'Dockerfile'), self.workdir
-
-
-def mock_workflow(tmpdir, for_orchestrator=False, scratch=False, isolated=False):
-    workflow = DockerBuildWorkflow(
-        TEST_IMAGE,
-        source={"provider": "git", "uri": "asd"},
-    )
-    workflow.user_params['scratch'] = scratch
-    workflow.user_params['isolated'] = isolated
-    workflow.source = MockSource(str(tmpdir))
-    builder = StubInsideBuilder().for_workflow(workflow)
-    builder.set_df_path(str(tmpdir))
-    builder.tasker = flexmock()
-    workflow.builder = flexmock(builder)
-
-    if for_orchestrator:
-        workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}]
-
-    return workflow
 
 
 def mock_omps(push_fail=False):
@@ -107,8 +79,17 @@ def mock_env(tmpdir, docker_tasker,
         has_appregistry_label=has_appregistry_label, appregistry_label=appregistry_label,
         has_bundle_label=has_bundle_label, bundle_label=bundle_label,
     )
-    workflow = mock_workflow(tmpdir, for_orchestrator=orchestrator, scratch=scratch,
-                             isolated=isolated)
+
+    env = (MockEnv()
+           .for_plugin('postbuild', PushOperatorManifestsPlugin.key)
+           .set_scratch(scratch)
+           .set_isolated(isolated))
+    if orchestrator:
+        env.make_orchestrator()
+
+    env.workflow.source = MockSource(str(tmpdir))
+    env.workflow.builder.set_df_path(str(tmpdir))
+
     if omps_configured:
         omps_map = {
             'omps_url': 'https://localhost',
@@ -124,21 +105,14 @@ def mock_env(tmpdir, docker_tasker,
     mock_omps(push_fail=omps_push_fail)
 
     if rebuild:
-        workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = True
+        env.set_plugin_result('prebuild', CheckAndSetRebuildPlugin.key, True)
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-        ReactorConfig({'version': 1, 'omps': omps_map, 'koji': koji_map})
-    workflow.plugin_workspace[OrchestrateBuildPlugin.key] = {
+    env.set_reactor_config({'version': 1, 'omps': omps_map, 'koji': koji_map})
+    env.workflow.plugin_workspace[OrchestrateBuildPlugin.key] = {
         WORKSPACE_KEY_UPLOAD_DIR: KOJI_UPLOAD_TEST_WORKDIR
     }
-    plugin_conf = [{'name': PushOperatorManifestsPlugin.key}]
 
-    workflow.postbuild_plugins_conf = plugin_conf
-
-    runner = PostBuildPluginsRunner(docker_tasker, workflow, plugin_conf)
-
-    return runner
+    return env.create_runner(docker_tasker)
 
 
 class TestPushOperatorManifests(object):
