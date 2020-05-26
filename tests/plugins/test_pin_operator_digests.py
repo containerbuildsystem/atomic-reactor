@@ -20,13 +20,8 @@ import responses
 from flexmock import flexmock
 
 import atomic_reactor.util
-from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
-                                      INSPECT_CONFIG)
-from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       ReactorConfig,
-                                                       WORKSPACE_CONF_KEY)
+from atomic_reactor.constants import INSPECT_CONFIG
+from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
                                                             WORKSPACE_KEY_OVERRIDE_KWARGS)
 from atomic_reactor.plugins.pre_pin_operator_digest import (PinOperatorDigestsPlugin,
@@ -35,8 +30,8 @@ from atomic_reactor.plugins.pre_pin_operator_digest import (PinOperatorDigestsPl
 from osbs.exceptions import OsbsValidationException
 from osbs.utils import ImageName
 
-from tests.constants import TEST_IMAGE
-from tests.stubs import StubInsideBuilder, StubSource, StubConfig
+from tests.stubs import StubConfig
+from tests.mock_env import MockEnv
 
 
 PKG_LABEL = 'com.redhat.component'
@@ -68,35 +63,13 @@ def make_reactor_config(operators_config):
     }
     if operators_config:
         config['operator_manifests'] = operators_config
-    return ReactorConfig(config)
+    return config
 
 
 def make_user_config(operator_config):
     config = StubConfig()
     setattr(config, 'operator_manifests', operator_config)
     return config
-
-
-def mock_workflow(tmpdir, orchestrator, user_config=None, site_config=None):
-    workflow = DockerBuildWorkflow(
-        TEST_IMAGE,
-        source={'provider': 'git', 'uri': 'asd'}
-    )
-    workflow.source = StubSource()
-    workflow.source.path = str(tmpdir)
-    workflow.source.config = make_user_config(user_config)
-    workflow.builder = (
-        StubInsideBuilder().for_workflow(workflow).set_df_path(str(tmpdir))
-    )
-
-    if orchestrator:
-        workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}]
-
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {
-        WORKSPACE_CONF_KEY: make_reactor_config(site_config or {})
-    }
-
-    return workflow
 
 
 def mock_env(docker_tasker, tmpdir, orchestrator,
@@ -117,15 +90,22 @@ def mock_env(docker_tasker, tmpdir, orchestrator,
 
     :return: configured plugin runner
     """
+    env = (MockEnv()
+           .for_plugin('prebuild',
+                       PinOperatorDigestsPlugin.key,
+                       {'replacement_pullspecs': replacement_pullspecs})
+           .set_reactor_config(make_reactor_config(site_config)))
+
+    if orchestrator:
+        env.make_orchestrator()
+
+    env.workflow.source.path = str(tmpdir)
+    env.workflow.source.config = make_user_config(user_config)
+    env.workflow.builder.set_df_path(str(tmpdir))
+
     mock_dockerfile(tmpdir, df_base, df_operator_label)
-    workflow = mock_workflow(tmpdir, orchestrator,
-                             user_config=user_config, site_config=site_config)
 
-    plugin_conf = [{'name': PinOperatorDigestsPlugin.key,
-                    'args': {'replacement_pullspecs': replacement_pullspecs}}]
-    runner = PreBuildPluginsRunner(docker_tasker, workflow, plugin_conf)
-
-    return runner
+    return env.create_runner(docker_tasker)
 
 
 def mock_operator_csv(tmpdir, filename, pullspecs, for_ocp_44=False,
@@ -634,7 +614,7 @@ class TestPinOperatorDigest(object):
 
 class TestPullspecReplacer(object):
     def mock_workflow(self, site_config):
-        return mock_workflow("/some/tmpdir", orchestrator=False, site_config=site_config)
+        return MockEnv().set_reactor_config(make_reactor_config(site_config)).workflow
 
     @pytest.mark.parametrize('allowed_registries, image, allowed', [
         (None, 'registry/ns/foo', True),
