@@ -24,7 +24,6 @@ from osbs.exceptions import OsbsValidationException
 from tests.constants import REACTOR_CONFIG_MAP
 from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
                                       PLUGIN_DISTGIT_FETCH_KEY,
-                                      PLUGIN_DOCKERFILE_CONTENT_KEY,
                                       PLUGIN_FETCH_MAVEN_KEY,
                                       PLUGIN_INJECT_PARENT_IMAGE_KEY,
                                       PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
@@ -54,51 +53,37 @@ def enable_plugins_configuration(plugins_json):
 class TestOSv3InputPlugin(object):
     """Tests for OSv3InputPlugin"""
 
-    def test_doesnt_fail_if_no_plugins(self):
+    def test_does_fail_if_no_plugins(self):
         mock_env = {
             'BUILD': '{}',
             'SOURCE_URI': 'https://github.com/foo/bar.git',
             'SOURCE_REF': 'master',
             'OUTPUT_IMAGE': 'asdf:fdsa',
             'OUTPUT_REGISTRY': 'localhost:5000',
-            'ATOMIC_REACTOR_PLUGINS': '{}',
         }
         flexmock(os, environ=mock_env)
 
         plugin = OSv3InputPlugin()
-        assert plugin.run()['openshift_build_selflink'] is None
+        with pytest.raises(RuntimeError) as exc:
+            plugin.run()
+        assert 'No plugin configuration found!' in str(exc.value)
 
     @pytest.mark.parametrize('build, expected', [
         ('{"metadata": {"selfLink": "/foo/bar"}}', '/foo/bar'),
         ('{"metadata": {}}', None),
         ('{}', None),
     ])
-    def test_sets_selflink(self, build, expected):
-        mock_env = {
-            'BUILD': build,
-            'SOURCE_URI': 'https://github.com/foo/bar.git',
-            'SOURCE_REF': 'master',
-            'OUTPUT_IMAGE': 'asdf:fdsa',
-            'OUTPUT_REGISTRY': 'localhost:5000',
-            'ATOMIC_REACTOR_PLUGINS': '{}',
-        }
-        flexmock(os, environ=mock_env)
-
-        plugin = OSv3InputPlugin()
-        assert plugin.run()['openshift_build_selflink'] == expected
-
     @pytest.mark.parametrize(('plugins_variable', 'valid'), [
-        ('ATOMIC_REACTOR_PLUGINS', True),
         ('USER_PARAMS', True),
         ('DOCK_PLUGINS', False),
     ])
-    def test_plugins_variable(self, plugins_variable, valid):
+    def test_plugins_variable_and_selflink(self, build, expected, plugins_variable, valid):
         plugins_json = {
             'postbuild_plugins': [],
         }
 
         mock_env = {
-            'BUILD': '{}',
+            'BUILD': build,
             'SOURCE_URI': 'https://github.com/foo/bar.git',
             'SOURCE_REF': 'master',
             'OUTPUT_IMAGE': 'asdf:fdsa',
@@ -124,44 +109,10 @@ class TestOSv3InputPlugin(object):
         plugin = OSv3InputPlugin()
         if valid:
             assert plugin.run()['postbuild_plugins'] is not None
+            assert plugin.run()['openshift_build_selflink'] == expected
         else:
             with pytest.raises(RuntimeError):
                 plugin.run()
-
-    def test_remove_dockerfile_content(self):
-        plugins_json = {
-            'prebuild_plugins': [
-                {
-                    'name': 'before',
-                },
-                {
-                    'name': PLUGIN_DOCKERFILE_CONTENT_KEY,
-                },
-                {
-                    'name': 'after',
-                },
-            ]
-        }
-
-        mock_env = {
-            'BUILD': '{}',
-            'SOURCE_URI': 'https://github.com/foo/bar.git',
-            'SOURCE_REF': 'master',
-            'OUTPUT_IMAGE': 'asdf:fdsa',
-            'OUTPUT_REGISTRY': 'localhost:5000',
-            'ATOMIC_REACTOR_PLUGINS': json.dumps(plugins_json),
-        }
-        flexmock(os, environ=mock_env)
-
-        plugin = OSv3InputPlugin()
-        assert plugin.run()['prebuild_plugins'] == [
-            {
-                'name': 'before',
-            },
-            {
-                'name': 'after',
-            },
-        ]
 
     def test_remove_everything(self):
         plugins_json = {
@@ -176,7 +127,6 @@ class TestOSv3InputPlugin(object):
                 {'name': PLUGIN_KOJI_DELEGATE_KEY, },
                 {'name': PLUGIN_FETCH_MAVEN_KEY, },
                 {'name': PLUGIN_DISTGIT_FETCH_KEY, },
-                {'name': PLUGIN_DOCKERFILE_CONTENT_KEY, },
                 {'name': PLUGIN_INJECT_PARENT_IMAGE_KEY, },
                 {'name': PLUGIN_KOJI_PARENT_KEY, },
                 {'name': PLUGIN_RESOLVE_COMPOSES_KEY, },
@@ -264,30 +214,6 @@ class TestOSv3InputPlugin(object):
             with pytest.raises(OsbsValidationException):
                 plugin.run()
 
-    @pytest.mark.parametrize('plugins_type', ['prebuild_plugins',
-                                              'buildstep_plugins',
-                                              'postbuild_plugins',
-                                              'prepublish_plugins',
-                                              'exit_plugins'
-                                              ])
-    def test_fails_on_invalid_plugin_request(self, plugins_type):
-        # no name plugin request
-        plugins_json = {plugins_type: [{'args': {}}, {'name': 'foobar'}]},
-
-        mock_env = {
-            'BUILD': '{}',
-            'SOURCE_URI': 'https://github.com/foo/bar.git',
-            'SOURCE_REF': 'master',
-            'OUTPUT_IMAGE': 'asdf:fdsa',
-            'OUTPUT_REGISTRY': 'localhost:5000',
-            'ATOMIC_REACTOR_PLUGINS': json.dumps(plugins_json),
-        }
-        flexmock(os, environ=mock_env)
-
-        plugin = OSv3InputPlugin()
-        with pytest.raises(OsbsValidationException):
-            plugin.run()
-
     @pytest.mark.parametrize(('arrangement_version', 'valid'), [
         (1, False),
         (2, False),
@@ -348,20 +274,6 @@ class TestOSv3SourceContainerInputPlugin(object):
             'user': 'user',
         }
 
-    def test_doesnt_fail_if_no_plugins(self):
-        mock_env = {
-            'BUILD': '{}',
-            'OUTPUT_IMAGE': 'asdf:fdsa',
-            'OUTPUT_REGISTRY': 'localhost:5000',
-            'ATOMIC_REACTOR_PLUGINS': '{}',
-            'REACTOR_CONFIG': REACTOR_CONFIG_MAP,
-            'USER_PARAMS': json.dumps(self.user_params),
-        }
-        flexmock(os, environ=mock_env)
-
-        plugin = OSv3SourceContainerInputPlugin()
-        assert plugin.run()['openshift_build_selflink'] is None
-
     @pytest.mark.parametrize('build, expected', [
         ('{"metadata": {"selfLink": "/foo/bar"}}', '/foo/bar'),
         ('{"metadata": {}}', None),
@@ -372,7 +284,6 @@ class TestOSv3SourceContainerInputPlugin(object):
             'BUILD': build,
             'OUTPUT_IMAGE': 'asdf:fdsa',
             'OUTPUT_REGISTRY': 'localhost:5000',
-            'ATOMIC_REACTOR_PLUGINS': '{}',
             'REACTOR_CONFIG': REACTOR_CONFIG_MAP,
             'USER_PARAMS': json.dumps(self.user_params),
         }

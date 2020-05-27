@@ -19,7 +19,6 @@ from atomic_reactor.plugin import InputPlugin
 from atomic_reactor.util import get_build_json, read_yaml
 from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY,
                                       PLUGIN_DISTGIT_FETCH_KEY,
-                                      PLUGIN_DOCKERFILE_CONTENT_KEY,
                                       PLUGIN_FETCH_MAVEN_KEY,
                                       PLUGIN_INJECT_PARENT_IMAGE_KEY,
                                       PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
@@ -117,9 +116,6 @@ class OSv3InputPlugin(InputPlugin):
         enough information.
         """
 
-        # Compatibility code for dockerfile_content plugin
-        self.remove_plugin('prebuild_plugins', PLUGIN_DOCKERFILE_CONTENT_KEY,
-                           'dockerfile_content is deprecated, please remove from config')
         if not self.reactor_env:
             return
         self.remove_koji_plugins()
@@ -143,9 +139,6 @@ class OSv3InputPlugin(InputPlugin):
         image = os.environ['OUTPUT_IMAGE']
         self.target_registry = os.environ.get('OUTPUT_REGISTRY', None)
 
-        git_commit_depth = None
-        git_branch = None
-        arrangement_version = None
         try:
             user_params = os.environ['USER_PARAMS']
             user_data = validate_user_data(user_params, 'schemas/user_params.json')
@@ -157,10 +150,7 @@ class OSv3InputPlugin(InputPlugin):
             reactor_config_map = os.environ['REACTOR_CONFIG']
             self.reactor_env = read_yaml(reactor_config_map, 'schemas/config.json')
         except KeyError:
-            try:
-                self.plugins_json = os.environ['ATOMIC_REACTOR_PLUGINS']
-            except KeyError:
-                raise RuntimeError("No plugin configuration found!")
+            raise RuntimeError("No plugin configuration found!")
 
         if arrangement_version and arrangement_version <= 5:
             raise ValueError('arrangement_version <= 5 is no longer supported')
