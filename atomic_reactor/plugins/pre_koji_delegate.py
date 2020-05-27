@@ -121,6 +121,9 @@ class KojiDelegatePlugin(PreBuildPlugin):
 
         self.osbs = get_openshift_session(self.workflow, NO_FALLBACK)
 
+        # Do not run exit plugins. Especially sendmail
+        self.workflow.exit_plugins_conf = []
+
         if self.workflow.cancel_isolated_autorebuild:  # this is set by the koji_parent plugin
             self.log.info("ignoring isolated build for autorebuild, the build will be cancelled")
             self.cancel_build()
@@ -128,8 +131,6 @@ class KojiDelegatePlugin(PreBuildPlugin):
 
         self.delegate_task()
 
-        # Do not run exit plugins. Especially sendmail
-        self.workflow.exit_plugins_conf = []
         # We cancel the build so it does not inerfere with real failed builds
         self.cancel_build()
         self.log.info('Build was delegated, the build will be cancelled')
