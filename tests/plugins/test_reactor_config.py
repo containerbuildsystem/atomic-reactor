@@ -1190,6 +1190,7 @@ class TestReactorConfigPlugin(object):
               - name: release
                 keys: [R123]
               default_signing_intent: default
+              timeout: 3600
         """, False),
 
         ("""\
@@ -1270,7 +1271,10 @@ class TestReactorConfigPlugin(object):
             return
         config_json = read_yaml(config, 'schemas/config.json')
 
-        auth_info = {'insecure': config_json['odcs'].get('insecure', False)}
+        auth_info = {
+            'insecure': config_json['odcs'].get('insecure', False),
+            'timeout': config_json['odcs'].get('timeout', None),
+        }
         if 'openidc_dir' in config_json['odcs']['auth']:
             config_json['odcs']['auth']['openidc_dir'] = str(tmpdir)
             filename = str(tmpdir.join('token'))

@@ -202,3 +202,19 @@ def assert_request_token(request, session):
     if ODCSClient.OIDC_TOKEN_HEADER in session.headers:
         expected_token = session.headers[ODCSClient.OIDC_TOKEN_HEADER]
     assert request.headers.get(ODCSClient.OIDC_TOKEN_HEADER) == expected_token
+
+
+@responses.activate
+def test_wait_for_compose_timeout():
+    compose_url = '{}composes/{}'.format(ODCS_URL, COMPOSE_ID)
+
+    responses.add(responses.GET, compose_url, body=compose_json(0, 'generating'))
+    (flexmock(time)
+        .should_receive('time')
+        .and_return(2000, 1000)  # end time, start time
+        .one_by_one())
+
+    odcs_client = ODCSClient(ODCS_URL, timeout=20)
+    expected_error = 'Retrieving {} timed out after {} seconds'.format(compose_url, 20)
+    with pytest.raises(RuntimeError, match=expected_error):
+        odcs_client.wait_for_compose(COMPOSE_ID)

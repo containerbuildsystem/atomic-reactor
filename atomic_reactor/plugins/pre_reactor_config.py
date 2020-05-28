@@ -104,7 +104,10 @@ def get_odcs_session(workflow):
     config = get_odcs(workflow)
     from atomic_reactor.utils.odcs import ODCSClient
 
-    client_kwargs = {'insecure': config.get('insecure', False)}
+    client_kwargs = {
+        'insecure': config.get('insecure', False),
+        'timeout': config.get('timeout', None),
+    }
 
     openidc_dir = config['auth'].get('openidc_dir')
     if openidc_dir:

@@ -798,26 +798,26 @@ class TestResolveComposes(object):
                                   reactor_config_map=reactor_config_map)
 
     @pytest.mark.parametrize(('plugin_args', 'expected_kwargs'), (
-        ({
-            'odcs_insecure': True,
-        }, {'insecure': True}),
-
-        ({
-            'odcs_insecure': False,
-        }, {'insecure': False}),
-
-        ({
-            'odcs_openidc_secret_path': True,
-        }, {'token': 'the-token', 'insecure': False}),
-
-        ({
-            'odcs_ssl_secret_path': True,
-        }, {'cert': '<tbd-cert-path>', 'insecure': False}),
-
-        ({
-            'odcs_ssl_secret_path': 'non-existent-path',
-        }, {'insecure': False}),
-
+        (
+            {'odcs_insecure': True},
+            {'insecure': True, 'timeout': None}
+        ),
+        (
+            {'odcs_insecure': False},
+            {'insecure': False, 'timeout': None}
+        ),
+        (
+            {'odcs_openidc_secret_path': True},
+            {'token': 'the-token', 'insecure': False, 'timeout': None}
+        ),
+        (
+            {'odcs_ssl_secret_path': True},
+            {'cert': '<tbd-cert-path>', 'insecure': False, 'timeout': None}
+        ),
+        (
+            {'odcs_ssl_secret_path': 'non-existent-path'},
+            {'insecure': False, 'timeout': None}
+        ),
     ))
     def test_odcs_session_creation(self, tmpdir, workflow, reactor_config_map,
                                    plugin_args, expected_kwargs):
