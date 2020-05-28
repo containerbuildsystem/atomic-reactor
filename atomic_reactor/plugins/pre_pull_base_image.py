@@ -19,33 +19,30 @@ from __future__ import unicode_literals, absolute_import
 import docker
 
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import (get_build_json, get_manifest_list,
-                                 get_config_from_registry,
-                                 get_platforms, base_image_is_custom,
+from atomic_reactor.util import (get_build_json, get_platforms, base_image_is_custom,
                                  get_checksums, get_manifest_media_type,
-                                 get_all_manifests)
+                                 RegistrySession, RegistryClient)
 from atomic_reactor.core import RetryGeneratorException
 from atomic_reactor.plugins.pre_reactor_config import (get_source_registry,
                                                        get_platform_to_goarch_mapping,
-                                                       get_registries_organization)
+                                                       get_registries_organization,
+                                                       get_pull_registries)
 from io import BytesIO
 from requests.exceptions import HTTPError, RetryError, Timeout
-from osbs.utils import RegistryURI, ImageName
+from osbs.utils import ImageName
 
 
 class PullBaseImagePlugin(PreBuildPlugin):
     key = "pull_base_image"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, parent_registry=None, parent_registry_insecure=False,
-                 check_platforms=False, inspect_only=False, parent_images_digests=None):
+    def __init__(self, tasker, workflow, check_platforms=False, inspect_only=False,
+                 parent_images_digests=None):
         """
         constructor
 
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param parent_registry: registry to enforce pulling from
-        :param parent_registry_insecure: allow connecting to the registry over plain http
         :param check_platforms: validate parent images provide all platforms expected for the build
         :param inspect_only: bool, if set to True, base images will not be pulled
         :param parent_images_digests: dict, parent images manifest digests
@@ -55,23 +52,26 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
         self.check_platforms = check_platforms
         self.inspect_only = inspect_only
-        source_registry = get_source_registry(self.workflow, {
-            'uri': RegistryURI(parent_registry) if parent_registry else None,
-            'insecure': parent_registry_insecure})
 
-        if source_registry.get('uri'):
-            self.parent_registry = source_registry['uri'].docker_uri
-            self.parent_registry_insecure = source_registry['insecure']
-            self.parent_registry_dockercfg_path = source_registry.get('dockercfg_path', None)
-        else:
-            self.parent_registry = None
-            self.parent_registry_insecure = False
-            self.parent_registry_dockercfg_path = None
+        pull_registries = get_pull_registries(workflow, [])
+        self.source_registry_docker_uri = get_source_registry(self.workflow)['uri'].docker_uri
+
+        self.allowed_registries = [reg['uri'].docker_uri for reg in pull_registries]
+        self.allowed_registries.append(self.source_registry_docker_uri)
+
         if parent_images_digests:
             metadata = self.workflow.builder.parent_images_digests
             metadata.update(parent_images_digests)
 
         self.manifest_list_cache = {}
+        # RegistryClient instances cached by registry name
+        self.registry_clients = {}
+
+    def _should_enclose(self, image):
+        if image.registry and image.registry != self.source_registry_docker_uri:
+            return False
+        else:
+            return True
 
     def run(self):
         """
@@ -98,8 +98,9 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
             image = self._ensure_image_registry(image)
 
-            if organization:
+            if organization and self._should_enclose(image):
                 image.enclose(organization)
+            if organization and self._should_enclose(parent):
                 parent.enclose(organization)
 
             if self.check_platforms:
@@ -123,19 +124,20 @@ class PullBaseImagePlugin(PreBuildPlugin):
             self.workflow.builder.parent_images[parent] = image
 
             if is_base_image:
-                if organization:
+                if organization and self._should_enclose(self.workflow.builder.original_base_image):
                     # we want to be sure we have original_base_image enclosed as well
                     self.workflow.builder.original_base_image.enclose(organization)
-                self.workflow.builder.set_base_image(
-                    str(image), insecure=self.parent_registry_insecure,
-                    dockercfg_path=self.parent_registry_dockercfg_path
-                )
+                self.workflow.builder.set_base_image(str(image))
 
         if digest_fetching_exceptions:
             raise RuntimeError('Error when extracting parent images manifest digests: {}'
                                .format(digest_fetching_exceptions))
         self.workflow.builder.parents_pulled = not self.inspect_only
-        self.workflow.builder.base_image_insecure = self.parent_registry_insecure
+
+        # generate configuration in builder for inspecting images
+        self.workflow.builder.pull_registries = \
+            {reg: {'insecure': reg_cli.insecure, 'dockercfg_path': reg_cli.dockercfg_path}
+             for reg, reg_cli in self.registry_clients.items()}
 
     def _get_image_with_digest(self, image):
         image_str = image.to_str()
@@ -159,14 +161,12 @@ class PullBaseImagePlugin(PreBuildPlugin):
         """Store media type and digest for manifest list or v2 schema 2 manifest digest"""
         image_str = image.to_str()
         manifest_list = self._get_manifest_list(image)
+        reg_client = self._get_registry_client(image.registry)
         if manifest_list:
             digest_dict = get_checksums(BytesIO(manifest_list.content), ['sha256'])
             media_type = get_manifest_media_type('v2_list')
         else:
-            digests_dict = get_all_manifests(image, image.registry,
-                                             self.parent_registry_insecure,
-                                             self.parent_registry_dockercfg_path,
-                                             versions=('v2',))
+            digests_dict = reg_client.get_all_manifests(image, versions=('v2',))
             media_type = get_manifest_media_type('v2')
             try:
                 manifest_digest_response = digests_dict['v2']
@@ -206,49 +206,36 @@ class PullBaseImagePlugin(PreBuildPlugin):
     def _ensure_image_registry(self, image):
         """If plugin configured with a parent registry, ensure the image uses it"""
         image_with_registry = image.copy()
-        if self.parent_registry:
-            # if registry specified in Dockerfile image, ensure it's the one allowed by config
-            if image.registry and image.registry != self.parent_registry:
+
+        # if registry specified in Dockerfile image, ensure it's the one allowed by config
+        if image.registry:
+            if image.registry not in self.allowed_registries:
                 error = (
-                    "Registry specified in dockerfile image doesn't match configured one. "
-                    "Dockerfile: '%s'; expected registry: '%s'"
-                    % (image, self.parent_registry))
+                    "Registry specified in dockerfile image doesn't match allowed registries. "
+                    "Dockerfile: '%s'; allowed registries: '%s'"
+                    % (image, self.allowed_registries))
                 self.log.error("%s", error)
                 raise RuntimeError(error)
-
-            image_with_registry.registry = self.parent_registry
+        else:
+            image_with_registry.registry = self.source_registry_docker_uri
 
         return image_with_registry
 
     def _pull_and_tag_image(self, image, build_json, nonce):
         """Docker pull the image and tag it uniquely for use by this build"""
         image = image.copy()
-        first_library_exc = None
+        reg_client = self._get_registry_client(image.registry)
         for _ in range(20):
             # retry until pull and tag is successful or definitively fails.
             # should never require 20 retries but there's a race condition at work.
             # just in case something goes wildly wrong, limit to 20 so it terminates.
             try:
-                self.tasker.pull_image(image, insecure=self.parent_registry_insecure,
-                                       dockercfg_path=self.parent_registry_dockercfg_path)
+                self.tasker.pull_image(image, insecure=reg_client.insecure,
+                                       dockercfg_path=reg_client.dockercfg_path)
                 self.workflow.pulled_base_images.add(image.to_str())
-            except RetryGeneratorException as exc:
-                # getting here means the pull itself failed. we may want to retry if the
-                # image being pulled lacks a namespace, like e.g. "rhel7". we cannot count
-                # on the registry mapping this into the docker standard "library/rhel7" so
-                # need to retry with that.
-                if first_library_exc is not None:
-                    # we already tried and failed; report the first failure.
-                    raise first_library_exc  # pylint: disable=raising-bad-type
-                if image.namespace:
-                    # already namespaced, do not retry with "library/", just fail.
-                    raise
-
-                self.log.info("'%s' not found", image.to_str())
-                image.namespace = 'library'
-                self.log.info("trying '%s'", image.to_str())
-                first_library_exc = exc  # report first failure if retry also fails
-                continue
+            except RetryGeneratorException:
+                self.log.error('failed to pull image: %s', image)
+                raise
 
             # Attempt to tag it using a unique ID. We might have to retry
             # if another build with the same parent image is finishing up
@@ -280,18 +267,15 @@ class PullBaseImagePlugin(PreBuildPlugin):
         if image in self.manifest_list_cache:
             return self.manifest_list_cache[image]
 
-        manifest_list = get_manifest_list(image, image.registry,
-                                          insecure=self.parent_registry_insecure,
-                                          dockercfg_path=self.parent_registry_dockercfg_path)
+        reg_client = self._get_registry_client(image.registry)
+
+        manifest_list = reg_client.get_manifest_list(image)
         if '@sha256:' in str(image) and not manifest_list:
             # we want to adjust the tag only for manifest list fetching
             image = image.copy()
 
             try:
-                config_blob = get_config_from_registry(
-                    image, image.registry, image.tag, insecure=self.parent_registry_insecure,
-                    dockercfg_path=self.parent_registry_dockercfg_path
-                )
+                config_blob = reg_client.get_config_from_registry(image, image.tag)
             except (HTTPError, RetryError, Timeout) as ex:
                 self.log.warning('Unable to fetch config for %s, got error %s',
                                  image, ex.response.status_code)
@@ -302,9 +286,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
             docker_tag = "%s-%s" % (version, release)
             image.tag = docker_tag
 
-            manifest_list = get_manifest_list(image, image.registry,
-                                              insecure=self.parent_registry_insecure,
-                                              dockercfg_path=self.parent_registry_dockercfg_path)
+            manifest_list = reg_client.get_manifest_list(image)
         self.manifest_list_cache[image] = manifest_list
         return self.manifest_list_cache[image]
 
@@ -314,11 +296,6 @@ class PullBaseImagePlugin(PreBuildPlugin):
         if not expected_platforms:
             self.log.info('Skipping validation of available platforms '
                           'because expected platforms are unknown')
-            return
-
-        if not image.registry:
-            self.log.info('Cannot validate available platforms for base image '
-                          'because base image registry is not defined')
             return
 
         try:
@@ -356,3 +333,14 @@ class PullBaseImagePlugin(PreBuildPlugin):
                                .format(image, arches_str))
 
         self.log.info('Base image is a manifest list for all required platforms')
+
+    def _get_registry_client(self, registry):
+        """
+        Get registry client for specified registry, cached by registry name
+        """
+        client = self.registry_clients.get(registry)
+        if client is None:
+            session = RegistrySession.create_from_config(self.workflow, registry=registry)
+            client = RegistryClient(session)
+            self.registry_clients[registry] = client
+        return client

@@ -381,6 +381,8 @@ def test_registry_session(tmpdir, registry, insecure, method, responses_method, 
             registry_hostname(registry): config_content
         }))
     session = RegistrySession(registry, insecure=insecure, dockercfg_path=temp_dir)
+    assert session.insecure == insecure
+    assert session.dockercfg_path == temp_dir
 
     path = '/v2/test/image/manifests/latest'
     if registry.startswith('http'):

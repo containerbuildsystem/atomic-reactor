@@ -97,8 +97,9 @@ def test_inspect_built_image(tmpdir, source_params):
 
 @requires_internet
 @with_all_sources
+@pytest.mark.parametrize('insecure', [True, False])
 @pytest.mark.parametrize('parents_pulled', [True, False])
-def test_parent_image_inspect(parents_pulled, tmpdir, source_params):
+def test_parent_image_inspect(insecure, parents_pulled, tmpdir, source_params):
     provided_image = "test-build:test_tag"
     if MOCK:
         mock_docker(provided_image_repotags=provided_image)
@@ -109,12 +110,19 @@ def test_parent_image_inspect(parents_pulled, tmpdir, source_params):
     b.tasker.build_method = default_build_method
     b.parents_pulled = parents_pulled
 
+    provided_imagename = ImageName.parse(provided_image)
+    registry_name = "registry.example.com"
+    provided_imagename.registry = registry_name
+    b.pull_registries = {registry_name: {'insecure': insecure, 'dockercfg_path': str(tmpdir)}}
+
+
     if not parents_pulled:
         (flexmock(atomic_reactor.util)
          .should_receive('get_inspect_for_image')
+         .with_args(provided_imagename, provided_imagename.registry, insecure, str(tmpdir))
          .and_return({'Id': 123}))
 
-    built_inspect = b.parent_image_inspect(provided_image)
+    built_inspect = b.parent_image_inspect(provided_imagename)
 
     assert built_inspect is not None
     assert built_inspect["Id"] is not None
@@ -123,9 +131,9 @@ def test_parent_image_inspect(parents_pulled, tmpdir, source_params):
 @requires_internet
 @with_all_sources
 @pytest.mark.parametrize('parents_pulled', [True, False])
+@pytest.mark.parametrize('insecure', [True, False])
 @pytest.mark.parametrize('base_exist', [True, False])
-def test_base_image_inspect(tmpdir, source_params, parents_pulled,
-                            base_exist):
+def test_base_image_inspect(tmpdir, source_params, parents_pulled, insecure, base_exist):
     if MOCK:
         mock_docker()
 
@@ -136,6 +144,9 @@ def test_base_image_inspect(tmpdir, source_params, parents_pulled,
     b.parents_pulled = parents_pulled
     if b.base_from_scratch:
         base_exist = True
+    registry_name = "registry.example.com"
+    b.base_image.registry = registry_name
+    b.pull_registries = {registry_name: {'insecure': insecure, 'dockercfg_path': str(tmpdir)}}
 
     if base_exist:
         if b.base_from_scratch:
@@ -145,6 +156,7 @@ def test_base_image_inspect(tmpdir, source_params, parents_pulled,
             if not parents_pulled:
                 (flexmock(atomic_reactor.util)
                  .should_receive('get_inspect_for_image')
+                 .with_args(b.base_image, b.base_image.registry, insecure, str(tmpdir))
                  .and_return({'Id': 123}))
 
             built_inspect = b.base_image_inspect
