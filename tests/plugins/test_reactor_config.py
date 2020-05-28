@@ -1721,6 +1721,40 @@ class TestReactorConfigPlugin(object):
         plugin.run()
         assert plugin.workflow.user_params == USER_PARAMS
 
+    @pytest.mark.parametrize('config, valid', [
+        ("""\
+          version: 1
+          build_env_vars: []
+        """, True),
+        ("""\
+          version: 1
+          build_env_vars:
+          - name: HTTP_PROXY
+            value: example.proxy.net
+          - name: NO_PROXY
+            value: localhost
+        """, True),
+        ("""\
+          version: 1
+          build_env_vars:
+          - name: FOO
+            value: 1
+        """, False),  # values must be strings
+        ("""\
+          version: 1
+          build_env_vars:
+          - name: FOO
+        """, False),  # values must be defined
+    ])
+    def test_validate_build_env_vars(self, config, valid):
+        # Only test schema validation, atomic-reactor has no additional support
+        # for build_env_vars (osbs-client does, however)
+        if valid:
+            read_yaml(config, 'schemas/config.json')
+        else:
+            with pytest.raises(OsbsValidationException):
+                read_yaml(config, 'schemas/config.json')
+
 
 def test_ensure_odcsconfig_does_not_modify_original_signing_intents():
     signing_intents = [{'name': 'release', 'keys': ['R123', 'R234']}]
