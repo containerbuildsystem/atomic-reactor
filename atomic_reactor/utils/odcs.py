@@ -25,11 +25,12 @@ class ODCSClient(object):
     OIDC_TOKEN_HEADER = 'Authorization'
     OIDC_TOKEN_TYPE = 'Bearer'
 
-    def __init__(self, url, insecure=False, token=None, cert=None):
+    def __init__(self, url, insecure=False, token=None, cert=None, timeout=None):
         if url.endswith('/'):
             self.url = url
         else:
             self.url = url + '/'
+        self.timeout = timeout or 3600
         self._setup_session(insecure=insecure, token=token, cert=cert)
 
     def _setup_session(self, insecure, token, cert):
@@ -136,8 +137,7 @@ class ODCSClient(object):
     def wait_for_compose(self, compose_id,
                          burst_retry=1,
                          burst_length=30,
-                         slow_retry=10,
-                         timeout=3600):
+                         slow_retry=10):
         """Wait for compose request to finalize
 
         :param compose_id: int, compose ID to wait for
@@ -146,7 +146,6 @@ class ODCSClient(object):
         :param burst_length: int, seconds to switch to slower retry period
         :param slow_retry: int, seconds to wait between retries after exceeding
                            the burst length
-        :param timeout: int, when to give up waiting for compose request
 
         :return: dict, updated status of compose.
         :raise RuntimeError: if state_name becomes 'failed'
@@ -175,9 +174,9 @@ class ODCSClient(object):
                 return response_json
 
             elapsed = time.time() - start_time
-            if elapsed > timeout:
+            if elapsed > self.timeout:
                 raise RuntimeError("Retrieving %s timed out after %s seconds" %
-                                   (url, timeout))
+                                   (url, self.timeout))
             else:
                 logger.debug("Retrying request compose_id=%s, elapsed_time=%s",
                              compose_id, elapsed)

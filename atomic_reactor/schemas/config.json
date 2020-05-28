@@ -251,6 +251,10 @@
             "default_signing_intent": {
                 "description": "Default signing intent",
                 "type": "string"
+            },
+            "timeout": {
+                "description": "How long in seconds to wait for requested compose to complete. Defaults to 3600",
+                "type": "integer"
             }
         },
         "additionalProperties": false,
