@@ -42,9 +42,10 @@ class CachitoAPIRequestTimeout(CachitoAPIError):
 
 class CachitoAPI(object):
 
-    def __init__(self, api_url, insecure=False, cert=None):
+    def __init__(self, api_url, insecure=False, cert=None, timeout=None):
         self.api_url = api_url
         self.session = self._make_session(insecure=insecure, cert=cert)
+        self.timeout = timeout or 3600
 
     def _make_session(self, insecure, cert):
         # method_whitelist=False allows retrying non-idempotent methods like POST
@@ -97,7 +98,7 @@ class CachitoAPI(object):
         return response_json
 
     def wait_for_request(
-            self, request, burst_retry=1, burst_length=30, slow_retry=10, timeout=3600):
+            self, request, burst_retry=1, burst_length=30, slow_retry=10):
         """Wait for a Cachito request to complete
 
         :param request: int or dict, either the Cachito request ID or a dict with 'id' key
@@ -106,7 +107,6 @@ class CachitoAPI(object):
         :param burst_length: int, seconds to switch to slower retry period
         :param slow_retry: int, seconds to wait between retries after exceeding
                            the burst length
-        :param timeout: int, when to give up waiting for compose request
 
         :return: dict, latest representation of the Cachito request
         :raise CachitoAPIUnsuccessfulRequest: if the request completes unsuccessfully
@@ -145,13 +145,13 @@ class CachitoAPI(object):
             # All other states are expected to be transient and are not checked.
 
             elapsed = time.time() - start_time
-            if elapsed > timeout:
+            if elapsed > self.timeout:
                 logger.error(dedent("""\
                     Request %s not completed after %s seconds
                     Details: %s
-                    """), url, timeout, json.dumps(response_json, indent=4))
+                    """), url, self.timeout, json.dumps(response_json, indent=4))
                 raise CachitoAPIRequestTimeout(
-                    'Request %s not completed after %s seconds' % (url, timeout))
+                    'Request %s not completed after %s seconds' % (url, self.timeout))
             else:
                 if elapsed > burst_length:
                     time.sleep(slow_retry)
