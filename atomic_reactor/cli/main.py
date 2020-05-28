@@ -75,8 +75,7 @@ def construct_kwargs(**kwargs):
     ret['source'] = {'provider_params': {}}
 
     # extend this when adding more args that should be passed to build_* functions
-    recognized_kwargs = ['image', 'parent_registry', 'parent_registry_insecure',
-                         'target_registries', 'target_registries_insecure',
+    recognized_kwargs = ['image', 'target_registries', 'target_registries_insecure',
                          'dont_pull_base_image']
 
     def is_recognized_kwarg(x):

@@ -13,7 +13,8 @@ from __future__ import absolute_import
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser, base_image_is_scratch, base_image_is_custom
-from atomic_reactor.plugins.pre_reactor_config import get_registries_organization
+from atomic_reactor.plugins.pre_reactor_config import (get_registries_organization,
+                                                       get_source_registry)
 from atomic_reactor.constants import SCRATCH_FROM
 from osbs.utils import ImageName
 
@@ -46,6 +47,7 @@ class ChangeFromPlugin(PreBuildPlugin):
         """
         # call parent constructor
         super(ChangeFromPlugin, self).__init__(tasker, workflow)
+        self.source_registry_docker_uri = get_source_registry(self.workflow)['uri'].docker_uri
 
     def _sanity_check(self, df_base, builder_base, builder):
         if builder_base != builder.parent_images[df_base]:
@@ -56,6 +58,12 @@ class ChangeFromPlugin(PreBuildPlugin):
                 .format(builder.parent_images[df_base], df_base, builder_base)
             )
 
+    def _should_enclose(self, image):
+        if image.registry and image.registry != self.source_registry_docker_uri:
+            return False
+        else:
+            return True
+
     def run(self):
         builder = self.workflow.builder
         dfp = df_parser(builder.df_path)
@@ -64,7 +72,9 @@ class ChangeFromPlugin(PreBuildPlugin):
         organization = get_registries_organization(self.workflow)
         df_base = ImageName.parse(dfp.baseimage)
         if organization and not base_image_is_custom(dfp.baseimage):
-            df_base.enclose(organization)
+            if self._should_enclose(df_base):
+                df_base.enclose(organization)
+
         build_base = builder.base_image
 
         if not self.workflow.builder.base_from_scratch:
@@ -86,7 +96,8 @@ class ChangeFromPlugin(PreBuildPlugin):
                 continue
             parent = ImageName.parse(df_img)
             if organization and not base_image_is_custom(df_img):
-                parent.enclose(organization)
+                if self._should_enclose(parent):
+                    parent.enclose(organization)
             enclosed_parent_images.append(parent)
 
         missing = [df_img for df_img in enclosed_parent_images

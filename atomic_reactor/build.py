@@ -156,8 +156,9 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         # arguments for build
         self.source = source
         self.base_image = None
-        self.base_image_insecure = None
-        self.base_image_dockercfg_path = None
+        # configuration of source_registy and pull_registries with insecure and
+        # dockercfg_path, by registry key
+        self.pull_registries = {}
         self.original_base_image = None
         self._base_image_inspect = None
         self.parents_pulled = False
@@ -269,7 +270,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
             parent_images[key] = val
         self.parent_images = parent_images
 
-    def set_base_image(self, base_image, parents_pulled=True, insecure=False, dockercfg_path=None):
+    def set_base_image(self, base_image, parents_pulled=True):
         self.base_from_scratch = base_image_is_scratch(base_image)
         if not self.custom_base_image:
             self.custom_base_image = base_image_is_custom(base_image)
@@ -280,8 +281,6 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         if not self.base_from_scratch:
             self.parent_images[self.original_base_image] = self.base_image
         self.parents_pulled = parents_pulled
-        self.base_image_insecure = insecure
-        self.base_image_dockercfg_path = dockercfg_path
         logger.info("set base image to '%s' with original base '%s'", self.base_image,
                     self.original_base_image)
 
@@ -306,11 +305,13 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
                     # as this property should behave like a dict
                     raise KeyError("Unprocessed base image Dockerfile cannot be inspected")
             else:
+                insecure = self.pull_registries[self.base_image.registry]['insecure']
+                dockercfg_path = self.pull_registries[self.base_image.registry]['dockercfg_path']
                 self._base_image_inspect =\
                     atomic_reactor.util.get_inspect_for_image(self.base_image,
                                                               self.base_image.registry,
-                                                              self.base_image_insecure,
-                                                              self.base_image_dockercfg_path)
+                                                              insecure,
+                                                              dockercfg_path)
 
             base_image_str = str(self.base_image)
             if base_image_str not in self._parent_images_inspect:
@@ -329,11 +330,13 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
             if self.parents_pulled:
                 self._parent_images_inspect[image_name] = self.tasker.inspect_image(image)
             else:
+                insecure = self.pull_registries[image_name.registry]['insecure']
+                dockercfg_path = self.pull_registries[image_name.registry]['dockercfg_path']
                 self._parent_images_inspect[image_name] =\
                     atomic_reactor.util.get_inspect_for_image(image_name,
                                                               image_name.registry,
-                                                              self.base_image_insecure,
-                                                              self.base_image_dockercfg_path)
+                                                              insecure,
+                                                              dockercfg_path)
 
         return self._parent_images_inspect[image_name]
 

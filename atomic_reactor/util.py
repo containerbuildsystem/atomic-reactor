@@ -615,6 +615,7 @@ class RegistrySession(object):
         self.registry = registry
         self._resolved = None
         self.insecure = insecure
+        self.dockercfg_path = dockercfg_path
 
         username = None
         password = None
@@ -731,6 +732,14 @@ class RegistryClient(object):
 
     def __init__(self, registry_session):
         self._session = registry_session
+
+    @property
+    def insecure(self):
+        return self._session.insecure
+
+    @property
+    def dockercfg_path(self):
+        return self._session.dockercfg_path
 
     def get_manifest(self, image, version):
         saved_not_found = None

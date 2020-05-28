@@ -22,8 +22,7 @@ from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       SCRATCH_FROM)
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.util import (CommandResult, base_image_is_scratch,
-                                 base_image_is_custom, get_checksums)
+from atomic_reactor.util import (base_image_is_scratch, base_image_is_custom, get_checksums)
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
@@ -32,7 +31,9 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
 from osbs.utils import ImageName
 from io import BytesIO
 from requests.exceptions import HTTPError, RetryError, Timeout
-from tests.constants import MOCK, MOCK_SOURCE, LOCALHOST_REGISTRY
+from tests.constants import (MOCK, MOCK_SOURCE, LOCALHOST_REGISTRY,
+                             IMAGE_RAISE_RETRYGENERATOREXCEPTION)
+
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -107,7 +108,7 @@ def teardown_function(function):
     (BASE_IMAGE_W_REGISTRY, True, 0)
 ])
 def test_pull_base_image_special(add_another_parent, special_image, change_base, skip_parent,
-                                 reactor_config_map, monkeypatch):
+                                 monkeypatch):
     monkeypatch.setenv("BUILD", json.dumps({
         'metadata': {
             'name': UNIQUE_ID,
@@ -141,22 +142,19 @@ def test_pull_base_image_special(add_another_parent, special_image, change_base,
     for image in expected:
         assert not tasker.image_exists(image)
 
-    if reactor_config_map:
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1,
-                           'source_registry': {'url': LOCALHOST_REGISTRY,
-                                               'insecure': True},
-                           'registries_organization': None})
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+        ReactorConfig({'version': 1,
+                       'source_registry': {'url': LOCALHOST_REGISTRY,
+                                           'insecure': True},
+                       'registries_organization': None})
 
     runner = PreBuildPluginsRunner(
         tasker,
         workflow,
         [{
             'name': PullBaseImagePlugin.key,
-            'args': {'parent_registry': LOCALHOST_REGISTRY,
-                     'parent_registry_insecure': True,
-                     }
+            'args': {}
         }]
     )
 
@@ -219,21 +217,12 @@ def test_pull_base_image_special(add_another_parent, special_image, change_base,
      [],
      # not expected:
      [BASE_IMAGE_W_REGISTRY]),
-
-    # For this test, ensure 'library-only' is only available through
-    # the 'library' namespace. docker_mock takes care of this when
-    # mocking.
-    (LOCALHOST_REGISTRY, "library-only:latest",
-     # expected:
-     [LOCALHOST_REGISTRY + "/library/library-only:latest"],
-     # not expected:
-     ["library-only:latest",
-      LOCALHOST_REGISTRY + "/library-only:latest"]),
 ])
 def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected,
-                                reactor_config_map, inspect_only, workflow_callback=None,
+                                inspect_only, workflow_callback=None,
                                 check_platforms=False, parent_images=None, organization=None,
-                                parent_images_digests=None, expected_digests=None):
+                                parent_images_digests=None, expected_digests=None,
+                                pull_registries=None):
     if MOCK:
         mock_docker(remember_images=True)
 
@@ -259,13 +248,15 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
     for image in all_images:
         assert not tasker.image_exists(image)
 
-    if reactor_config_map:
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1,
-                           'source_registry': {'url': parent_registry,
-                                               'insecure': True},
-                           'registries_organization': organization})
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+    reactor_config = {'version': 1,
+                      'source_registry': {'url': parent_registry,
+                                          'insecure': True},
+                      'registries_organization': organization}
+    if pull_registries:
+        reactor_config['pull_registries'] = pull_registries
+    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+        ReactorConfig(reactor_config)
 
     if workflow_callback:
         workflow = workflow_callback(workflow)
@@ -275,16 +266,14 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
         workflow,
         [{
             'name': PullBaseImagePlugin.key,
-            'args': {'parent_registry': parent_registry,
-                     'parent_registry_insecure': True,
-                     'check_platforms': check_platforms,
+            'args': {'check_platforms': check_platforms,
                      'inspect_only': inspect_only,
                      'parent_images_digests': parent_images_digests,
                      }
         }]
     )
 
-    if parent_registry is None and reactor_config_map:
+    if parent_registry is None:
         with pytest.raises(PluginFailedException):
             runner.run()
         return
@@ -313,84 +302,122 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
     assert len(set(workflow.builder.parent_images.values())) == len(workflow.builder.parent_images)
     if check_platforms and expected_digests:
         assert expected_digests == workflow.builder.parent_images_digests
+    return workflow
 
 
-@pytest.mark.parametrize('organization', [None, 'my_organization'])  # noqa
-def test_pull_parent_images(organization, reactor_config_map, inspect_only):
+@pytest.mark.parametrize('builder_registry', [  # noqa
+    None,
+    'pull_registry1.example.com',
+    'pull_registry2.example.com'])
+@pytest.mark.parametrize('organization', [None, 'my_organization'])
+def test_pull_parent_images(builder_registry, organization, inspect_only):
     builder_image = 'builder:image'
+    if builder_registry:
+        builder_image = "{}/{}".format(builder_registry, builder_image)
     parent_images = {BASE_IMAGE_NAME.copy(): None, ImageName.parse(builder_image): None}
+    source_registry = 'registy_example.com'
+    pull_url_1 = 'pull_registry1.example.com'
+    pull_url_2 = 'pull_registry2.example.com'
+    pull_insecure_1 = True
+    pull_insecure_2 = False
+    pull_registries = [{'url': pull_url_1,
+                        'insecure': pull_insecure_1},
+                       {'url': pull_url_2,
+                        'insecure': pull_insecure_2}]
+    exp_pull_reg = {source_registry: {'insecure': True, 'dockercfg_path': None}}
+    if builder_registry:
+        if builder_registry == pull_url_1:
+            exp_pull_reg[builder_registry] = {'insecure': pull_insecure_1, 'dockercfg_path': None}
+        if builder_registry == pull_url_2:
+            exp_pull_reg[builder_registry] = {'insecure': pull_insecure_2, 'dockercfg_path': None}
 
-    enclosed_base_image = BASE_IMAGE_W_REGISTRY
-    enclosed_builder_image = LOCALHOST_REGISTRY + '/' + builder_image
-    if organization and reactor_config_map:
+    enclosed_base_image = "{}/{}".format(source_registry, BASE_IMAGE_NAME.copy().to_str())
+    enclosed_builder_image = builder_image
+    if not builder_registry:
+        enclosed_builder_image = "{}/{}".format(source_registry, builder_image)
+
+    if organization:
         base_image_name = ImageName.parse(enclosed_base_image)
         base_image_name.enclose(organization)
         enclosed_base_image = base_image_name.to_str()
         builder_image_name = ImageName.parse(enclosed_builder_image)
-        builder_image_name.enclose(organization)
+        if not builder_registry:
+            builder_image_name.enclose(organization)
         enclosed_builder_image = builder_image_name.to_str()
 
-    test_pull_base_image_plugin(
-        LOCALHOST_REGISTRY, BASE_IMAGE,
+    manifest_list = {
+        'manifests': [
+            {'platform': {'architecture': 'amd64'}, 'digest': 'sha256:123456'},
+            {'platform': {'architecture': 'ppc64le'}, 'digest': 'sha256:654321'},
+        ]
+    }
+    (flexmock(atomic_reactor.util.RegistryClient)
+     .should_receive('get_manifest_list')
+     .and_return(flexmock(json=lambda: manifest_list,
+                          content=json.dumps(manifest_list).encode('utf-8'))))
+
+    workflow = test_pull_base_image_plugin(
+        source_registry, BASE_IMAGE,
         [   # expected to pull
             enclosed_base_image,
             enclosed_builder_image,
         ],
         [],  # should not be pulled
-        reactor_config_map=reactor_config_map,
         inspect_only=inspect_only,
+        check_platforms=inspect_only,
         parent_images=parent_images,
-        organization=organization)
+        organization=organization,
+        pull_registries=pull_registries)
+
+    assert workflow.builder.pull_registries == exp_pull_reg
 
 
-def test_pull_base_wrong_registry(reactor_config_map, inspect_only):  # noqa
+def test_pull_base_wrong_registry(inspect_only):  # noqa
+    source_registry = 'different.registry:5000'
+    base_image_str = 'some.registry:8888/base:image'
     with pytest.raises(PluginFailedException) as exc:
         test_pull_base_image_plugin(
-            'different.registry:5000', "some.registry:8888/base:image", [], [],
-            reactor_config_map=reactor_config_map,
+            source_registry, base_image_str, [], [],
             inspect_only=inspect_only
         )
-    assert "expected registry: 'different.registry:5000'" in str(exc.value)
+
+    log_msg1 = "Registry specified in dockerfile image doesn't match allowed registries."
+    assert log_msg1 in str(exc.value)
+    assert "Dockerfile: '{}'".format(base_image_str) in str(exc.value)
+    log_msg2 = "allowed registries: '%s'" % [source_registry]
+    assert log_msg2 in str(exc.value)
 
 
-def test_pull_parent_wrong_registry(reactor_config_map, inspect_only):  # noqa: F811
+def test_pull_parent_wrong_registry(inspect_only):  # noqa: F811
+    base_image_str = "base:image"
     parent_images = {
-        ImageName.parse("base:image"): None,
+        ImageName.parse(base_image_str): None,
         ImageName.parse("some.registry:8888/builder:image"): None}
+    source_registry = 'different.registry:5000'
     with pytest.raises(PluginFailedException) as exc:
         test_pull_base_image_plugin(
-            'different.registry:5000', "base:image", [], [],
-            reactor_config_map=reactor_config_map,
+            source_registry, base_image_str, [], [],
             inspect_only=inspect_only,
             parent_images=parent_images
         )
+
+    log_msg1 = "Registry specified in dockerfile image doesn't match allowed registries."
+    assert log_msg1 in str(exc.value)
     assert "Dockerfile: 'some.registry:8888/builder:image'" in str(exc.value)
-    assert "expected registry: 'different.registry:5000'" in str(exc.value)
-    assert "base:image" not in str(exc.value)
+    assert base_image_str not in str(exc.value)
+    log_msg2 = "allowed registries: '%s'" % [source_registry]
+    assert log_msg2 in str(exc.value)
 
 
-# test previous issue https://github.com/containerbuildsystem/atomic-reactor/issues/1008
-def test_pull_base_library(reactor_config_map, caplog):  # noqa
-    with pytest.raises(PluginFailedException) as exc:
-        test_pull_base_image_plugin(
-            LOCALHOST_REGISTRY, "spam/library-only:latest", [], [],
-            reactor_config_map, False
-        )
-    assert "not found" in str(exc.value)
-    assert "RetryGeneratorException" in str(exc.value)
-    assert "trying" not in caplog.text  # don't retry with "library/library-only:latest"
-
-
-def test_pull_base_base_parse(reactor_config_map, inspect_only):  # noqa
+def test_pull_base_base_parse(inspect_only):  # noqa
     flexmock(ImageName).should_receive('parse').and_raise(AttributeError)
     with pytest.raises(AttributeError):
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE, [BASE_IMAGE_W_REGISTRY],
                                     [BASE_IMAGE_W_LIB_REG],
-                                    reactor_config_map=reactor_config_map,
                                     inspect_only=inspect_only)
 
 
-def test_pull_base_change_override(monkeypatch, reactor_config_map, inspect_only):  # noqa
+def test_pull_base_change_override(monkeypatch, inspect_only):  # noqa
     monkeypatch.setenv("BUILD", json.dumps({
         'metadata': {
             'name': UNIQUE_ID,
@@ -407,11 +434,10 @@ def test_pull_base_change_override(monkeypatch, reactor_config_map, inspect_only
     }))
     test_pull_base_image_plugin(LOCALHOST_REGISTRY, 'invalid-image',
                                 [BASE_IMAGE_W_REGISTRY], [BASE_IMAGE_W_LIB_REG],
-                                reactor_config_map=reactor_config_map,
                                 inspect_only=inspect_only)
 
 
-def test_pull_base_autorebuild(monkeypatch, reactor_config_map, inspect_only):  # noqa
+def test_pull_base_autorebuild(monkeypatch, inspect_only):  # noqa
     mock_manifest_list = json.dumps({}).encode('utf-8')
     new_base_image = ImageName.parse(BASE_IMAGE)
     new_base_image.tag = 'newtag'
@@ -434,13 +460,12 @@ def test_pull_base_autorebuild(monkeypatch, reactor_config_map, inspect_only):  
     }))
 
     new_base_image.registry = LOCALHOST_REGISTRY
-    (flexmock(atomic_reactor.util)
+    (flexmock(atomic_reactor.util.RegistryClient)
      .should_receive('get_manifest_list')
      .and_return(flexmock(content=mock_manifest_list)))
 
     test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
                                 [new_base_image.to_str()], [BASE_IMAGE_W_REGISTRY],
-                                reactor_config_map=reactor_config_map,
                                 inspect_only=inspect_only, check_platforms=True,
                                 expected_digests=expected_digests)
 
@@ -450,7 +475,7 @@ def test_pull_base_autorebuild(monkeypatch, reactor_config_map, inspect_only):  
     (docker.errors.NotFound, 25, False),
     (RuntimeError, 1, False),
 ])
-def test_retry_pull_base_image(workflow, exc, failures, should_succeed, reactor_config_map):
+def test_retry_pull_base_image(workflow, exc, failures, should_succeed):
     if MOCK:
         mock_docker(remember_images=True)
 
@@ -467,20 +492,18 @@ def test_retry_pull_base_image(workflow, exc, failures, should_succeed, reactor_
 
     expectation.and_return('foo')
 
-    if reactor_config_map:
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1,
-                           'source_registry': {'url': 'registry.example.com',
-                                               'insecure': True}})
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+        ReactorConfig({'version': 1,
+                       'source_registry': {'url': 'registry.example.com',
+                                           'insecure': True}})
 
     runner = PreBuildPluginsRunner(
         tasker,
         workflow,
         [{
             'name': PullBaseImagePlugin.key,
-            'args': {'parent_registry': 'registry.example.com',
-                     'parent_registry_insecure': True},
+            'args': {},
         }],
     )
 
@@ -491,58 +514,39 @@ def test_retry_pull_base_image(workflow, exc, failures, should_succeed, reactor_
             runner.run()
 
 
-@pytest.mark.parametrize('library', [True, False])
-def test_try_with_library_pull_base_image(workflow, library, reactor_config_map):
+def test_pull_raises_retry_error(workflow, caplog):
     if MOCK:
         mock_docker(remember_images=True)
 
-    tasker = DockerTasker(retry_times=0)
+    tasker = DockerTasker(retry_times=1)
     workflow.builder = MockBuilder()
+    image_name = ImageName.parse(IMAGE_RAISE_RETRYGENERATOREXCEPTION)
+    base_image_str = "{}:{}".format(image_name.repo, 'some')
+    source_registry = image_name.registry
+    workflow.builder.base_image = ImageName.parse(base_image_str)
+    workflow.builder.parent_images = {ImageName.parse(base_image_str): None}
 
-    if library:
-        base_image = 'library/parent-image'
-    else:
-        base_image = 'parent-image'
-    workflow.builder.base_image = ImageName.parse(base_image)
-    workflow.builder.parent_images = {ImageName.parse(base_image): None}
-
-    cr = CommandResult()
-    cr._error = "cmd_error"
-    cr._error_detail = {"message": "error_detail"}
-
-    if library:
-        call_wait = 1
-    else:
-        call_wait = 2
-
-    (flexmock(atomic_reactor.util)
-        .should_receive('wait_for_command')
-        .times(call_wait)
-        .and_return(cr))
-
-    error_message = 'registry.example.com/' + base_image
-
-    if reactor_config_map:
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1,
-                           'source_registry': {'url': 'registry.example.com',
-                                               'insecure': True}})
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+        ReactorConfig({'version': 1,
+                       'source_registry': {'url': source_registry,
+                                           'insecure': True}})
 
     runner = PreBuildPluginsRunner(
         tasker,
         workflow,
         [{
             'name': PullBaseImagePlugin.key,
-            'args': {'parent_registry': 'registry.example.com',
-                     'parent_registry_insecure': True},
+            'args': {},
         }],
     )
 
-    with pytest.raises(PluginFailedException) as exc:
+    with pytest.raises(Exception):
         runner.run()
 
-    assert error_message in exc.value.args[0]
+    exp_img = ImageName.parse(base_image_str)
+    exp_img.registry = source_registry
+    assert 'failed to pull image: {}'.format(exp_img.to_str()) in caplog.text
 
 
 class TestValidateBaseImage(object):
@@ -551,26 +555,29 @@ class TestValidateBaseImage(object):
         sys.modules.pop('pre_pull_base_image', None)
 
     def test_manifest_list_verified(self, caplog):
+
+        def workflow_callback(workflow):
+            self.prepare(workflow, mock_get_manifest_list=True)
+            return workflow
+
         log_message = 'manifest list for all required platforms'
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
-                                    [], [], reactor_config_map=True,
-                                    inspect_only=False,
-                                    workflow_callback=self.prepare,
+                                    [], [], inspect_only=False,
+                                    workflow_callback=workflow_callback,
                                     check_platforms=True)
         assert log_message in caplog.text
 
     def test_expected_platforms_unknown(self, caplog):
 
         def workflow_callback(workflow):
-            self.prepare(workflow)
+            self.prepare(workflow, mock_get_manifest_list=True)
             del workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
             del workflow.buildstep_plugins_conf[0]
             return workflow
 
         log_message = 'expected platforms are unknown'
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
-                                    [], [], reactor_config_map=True,
-                                    inspect_only=False,
+                                    [], [], inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
         assert log_message in caplog.text
@@ -583,15 +590,24 @@ class TestValidateBaseImage(object):
             content = b'stubContent'
 
         def workflow_callback(workflow):
-            workflow = self.prepare(workflow)
+            if has_manifest_list:
+                workflow = self.prepare(workflow, mock_get_manifest_list=True)
+            else:
+                workflow = self.prepare(workflow, mock_get_manifest_list=False)
             workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = {'x86_64'}
             if not has_manifest_list:
                 resp = {'v2': StubResponse()} if has_v2s2_manifest else {}
-                flexmock(atomic_reactor.util).should_receive('get_manifest_list').and_return(None)
-                flexmock(atomic_reactor.util).should_receive('get_all_manifests').and_return(resp)
+                (flexmock(atomic_reactor.util.RegistryClient)
+                 .should_receive('get_manifest_list')
+                 .and_return(None))
+                (flexmock(atomic_reactor.util.RegistryClient)
+                 .should_receive('get_all_manifests')
+                 .and_return(resp))
                 if has_v2s2_manifest:
                     dgst = {'sha256sum': 'stubDigest'}
-                    flexmock(atomic_reactor.util).should_receive('get_checksums').and_return(dgst)
+                    (flexmock(atomic_reactor.util)
+                     .should_receive('get_checksums')
+                     .and_return(dgst))
 
             return workflow
 
@@ -600,8 +616,7 @@ class TestValidateBaseImage(object):
             v2s2_msg = 'base image has no manifest list'
             log_message = list_msg if has_manifest_list else v2s2_msg
             test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
-                                        [], [], reactor_config_map=True,
-                                        inspect_only=False,
+                                        [], [], inspect_only=False,
                                         workflow_callback=workflow_callback,
                                         check_platforms=True)
             assert log_message in caplog.text
@@ -609,53 +624,36 @@ class TestValidateBaseImage(object):
             no_manifest_msg = 'Unable to fetch manifest list or v2 schema 2 digest'
             with pytest.raises(PluginFailedException) as exc:
                 test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
-                                            [], [], reactor_config_map=True,
-                                            inspect_only=False,
+                                            [], [], inspect_only=False,
                                             workflow_callback=workflow_callback,
                                             check_platforms=True)
             assert no_manifest_msg in str(exc.value)
 
-    def test_registry_undefined(self, caplog):
-        def workflow_callback(workflow):
-            workflow = self.prepare(workflow)
-            reactor_config = workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY]
-            del reactor_config.conf['source_registry']
-            return workflow
-
-        log_message = 'base image registry is not defined'
-        test_pull_base_image_plugin('', BASE_IMAGE,
-                                    [], [], reactor_config_map=True,
-                                    inspect_only=False,
-                                    workflow_callback=workflow_callback,
-                                    check_platforms=True)
-        assert log_message in caplog.text
-
     def test_platform_descriptors_undefined(self, caplog):
         def workflow_callback(workflow):
-            workflow = self.prepare(workflow)
+            workflow = self.prepare(workflow, mock_get_manifest_list=True)
             reactor_config = workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY]
             del reactor_config.conf['platform_descriptors']
             return workflow
 
         log_message = 'platform descriptors are not defined'
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
-                                    [], [], reactor_config_map=True,
-                                    inspect_only=False,
+                                    [], [], inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
         assert log_message in caplog.text
 
-    def test_manifest_list_with_no_response(self, caplog):
+    def test_manifest_list_with_no_response(self):
         def workflow_callback(workflow):
-            workflow = self.prepare(workflow)
-            (flexmock(atomic_reactor.util)
+            workflow = self.prepare(workflow, mock_get_manifest_list=False)
+            (flexmock(atomic_reactor.util.RegistryClient)
              .should_receive('get_manifest_list')
              .and_return(None))
             return workflow
 
         with pytest.raises(PluginFailedException) as exc_info:
             test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
-                                        [], [], reactor_config_map=True,
+                                        [], [],
                                         inspect_only=False,
                                         workflow_callback=workflow_callback,
                                         check_platforms=True)
@@ -669,22 +667,21 @@ class TestValidateBaseImage(object):
     ])
     def test_manifest_list_missing_arches(self, existing_arches, missing_arches_str):
         def workflow_callback(workflow):
-            workflow = self.prepare(workflow)
+            workflow = self.prepare(workflow, mock_get_manifest_list=False)
             manifest_list = {
                 'manifests': [
                     {'platform': {'architecture': arch}, 'digest': 'sha256:123456'}
                     for arch in existing_arches
                 ]
             }
-            (flexmock(atomic_reactor.util)
+            (flexmock(atomic_reactor.util.RegistryClient)
              .should_receive('get_manifest_list')
              .and_return(flexmock(json=lambda: manifest_list)))
             return workflow
 
         with pytest.raises(PluginFailedException) as exc_info:
             test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
-                                        [], [], reactor_config_map=True,
-                                        inspect_only=False,
+                                        [], [], inspect_only=False,
                                         workflow_callback=workflow_callback,
                                         check_platforms=True)
 
@@ -698,14 +695,14 @@ class TestValidateBaseImage(object):
         RetryError,
         Timeout,
     ))
-    def test_manifest_config_raises(self, caplog, exception):
+    def test_manifest_config_raises(self, exception):
         class MockResponse(object):
             content = ''
             status_code = 408
 
         def workflow_callback(workflow):
-            workflow = self.prepare(workflow)
-            (flexmock(atomic_reactor.util)
+            workflow = self.prepare(workflow, mock_get_manifest_list=False)
+            (flexmock(atomic_reactor.util.RegistryClient)
              .should_receive('get_config_from_registry')
              .and_raise(exception('', response=MockResponse()))
              .once())
@@ -713,18 +710,16 @@ class TestValidateBaseImage(object):
             manifest_tag = 'registry.example.com' + '/' + BASE_IMAGE_W_SHA
             base_image_result = ImageName.parse(manifest_tag)
             manifest_image = base_image_result.copy()
-            (flexmock(atomic_reactor.util)
+            (flexmock(atomic_reactor.util.RegistryClient)
              .should_receive('get_manifest_list')
-             .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True,
-                        dockercfg_path=None)
+             .with_args(manifest_image)
              .and_return(None)
              .once())
             return workflow
 
         with pytest.raises(PluginFailedException) as exc_info:
             test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE_W_SHA,
-                                        [], [], reactor_config_map=True,
-                                        inspect_only=False,
+                                        [], [], inspect_only=False,
                                         workflow_callback=workflow_callback,
                                         check_platforms=True)
         assert 'Unable to fetch config for base image' in str(exc_info.value)
@@ -735,14 +730,14 @@ class TestValidateBaseImage(object):
     ))
     def test_manifest_config_passes(self, sha_is_manifest_list):
         def workflow_callback(workflow):
-            workflow = self.prepare(workflow)
+            workflow = self.prepare(workflow, mock_get_manifest_list=False)
             release = 'rel1'
             version = 'ver1'
             config_blob = {'config': {'Labels': {'release': release, 'version': version}}}
-            (flexmock(atomic_reactor.util)
+            (flexmock(atomic_reactor.util.RegistryClient)
              .should_receive('get_config_from_registry')
              .and_return(config_blob)
-             .times(0 if sha_is_manifest_list else 1))
+             .times(0 if sha_is_manifest_list else 2))
 
             manifest_list = {
                 'manifests': [
@@ -753,43 +748,37 @@ class TestValidateBaseImage(object):
 
             manifest_tag = 'registry.example.com' + '/' + BASE_IMAGE_W_SHA
             base_image_result = ImageName.parse(manifest_tag)
-            manifest_image = base_image_result.copy()
+            manifest_image_original = base_image_result.copy()
 
             if sha_is_manifest_list:
-                (flexmock(atomic_reactor.util)
+                (flexmock(atomic_reactor.util.RegistryClient)
                  .should_receive('get_manifest_list')
-                 .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True,
-                            dockercfg_path=None)
+                 .with_args(manifest_image_original)
                  .and_return(flexmock(json=lambda: manifest_list,
                                       content=json.dumps(manifest_list).encode('utf-8')))
                  .once())
             else:
-                (flexmock(atomic_reactor.util)
+                (flexmock(atomic_reactor.util.RegistryClient)
                  .should_receive('get_manifest_list')
-                 .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True,
-                            dockercfg_path=None)
+                 .with_args(manifest_image_original)
                  .and_return(None)
-                 .once()
-                 .ordered())
-
+                 .times(2))
                 docker_tag = "%s-%s" % (version, release)
                 manifest_tag = 'registry.example.com' + '/' +\
                                BASE_IMAGE_W_SHA[:BASE_IMAGE_W_SHA.find('@sha256')] +\
                                ':' + docker_tag
                 base_image_result = ImageName.parse(manifest_tag)
-                manifest_image = base_image_result.copy()
-                (flexmock(atomic_reactor.util)
+                manifest_image_new = base_image_result.copy()
+                (flexmock(atomic_reactor.util.RegistryClient)
                  .should_receive('get_manifest_list')
-                 .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True,
-                            dockercfg_path=None)
-                 .and_return(flexmock(json=lambda: manifest_list))
-                 .once()
-                 .ordered())
+                 .with_args(manifest_image_new)
+                 .and_return(flexmock(json=lambda: manifest_list,
+                                      content=json.dumps(manifest_list).encode('utf-8')))
+                 .times(2))
             return workflow
 
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE_W_SHA,
-                                    [], [], reactor_config_map=True,
-                                    inspect_only=False,
+                                    [], [], inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
 
@@ -803,12 +792,12 @@ class TestValidateBaseImage(object):
                                              ['sha256'])['sha256sum']
 
         def workflow_callback(workflow):
-            workflow = self.prepare(workflow)
+            workflow = self.prepare(workflow, mock_get_manifest_list=False)
             workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = {'ppc64le'}
             release = 'rel1'
             version = 'ver1'
             config_blob = {'config': {'Labels': {'release': release, 'version': version}}}
-            (flexmock(atomic_reactor.util)
+            (flexmock(atomic_reactor.util.RegistryClient)
              .should_receive('get_config_from_registry')
              .and_return(config_blob)
              .times(0))
@@ -817,18 +806,16 @@ class TestValidateBaseImage(object):
             base_image_result = ImageName.parse(manifest_tag)
             manifest_image = base_image_result.copy()
 
-            (flexmock(atomic_reactor.util)
+            (flexmock(atomic_reactor.util.RegistryClient)
              .should_receive('get_manifest_list')
-             .with_args(image=manifest_image, registry=manifest_image.registry, insecure=True,
-                        dockercfg_path=None)
+             .with_args(manifest_image)
              .and_return(flexmock(json=lambda: manifest_list,
                                   content=json.dumps(manifest_list).encode('utf-8')))
              .once())
             return workflow
 
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE_W_SHA,
-                                    [], [], reactor_config_map=True,
-                                    inspect_only=False,
+                                    [], [], inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
         new_image = "'registry.example.com/busybox@sha256:{}'".format(manifest_list_digest)
@@ -864,14 +851,14 @@ class TestValidateBaseImage(object):
             }
 
         def workflow_callback(workflow):
-            workflow = self.prepare(workflow)
+            workflow = self.prepare(workflow, mock_get_manifest_list=not fail)
             if fail:
                 # fail to provide x86_64 platform specific digest
                 manifest_list = {
                     'manifests': []
                 }
 
-                (flexmock(atomic_reactor.util)
+                (flexmock(atomic_reactor.util.RegistryClient)
                  .should_receive('get_manifest_list')
                  .and_return(flexmock(json=lambda: manifest_list,
                                       content=json.dumps(manifest_list).encode('utf-8')))
@@ -888,16 +875,14 @@ class TestValidateBaseImage(object):
         if fail:
             with pytest.raises(PluginFailedException) as exc:
                 test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
-                                            [], [], reactor_config_map=True,
-                                            inspect_only=False,
+                                            [], [], inspect_only=False,
                                             workflow_callback=workflow_callback,
                                             check_platforms=True,  # orchestrator
                                             )
             assert 'not available for arches' in str(exc.value)
         else:
             test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
-                                        [], [], reactor_config_map=True,
-                                        inspect_only=False,
+                                        [], [], inspect_only=False,
                                         workflow_callback=workflow_callback,
                                         check_platforms=True,  # orchestrator
                                         )
@@ -917,7 +902,7 @@ class TestValidateBaseImage(object):
         reg_image_no_tag = 'registry.example.com/{}'.format(BASE_IMAGE_NAME.to_str(tag=False))
 
         def workflow_callback(workflow):
-            workflow = self.prepare(workflow)
+            workflow = self.prepare(workflow, mock_get_manifest_list=False)
             return workflow
 
         if fail == 'no_expected_type':
@@ -936,8 +921,7 @@ class TestValidateBaseImage(object):
             }
 
         test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
-                                    [], [], reactor_config_map=True,
-                                    inspect_only=False,
+                                    [], [], inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=False,  # worker
                                     parent_images_digests=parent_images_digests)
@@ -952,7 +936,7 @@ class TestValidateBaseImage(object):
                                 BASE_IMAGE, reg_image_no_tag))
         assert replacing_msg in caplog.text
 
-    def prepare(self, workflow):
+    def prepare(self, workflow, mock_get_manifest_list=False):
         # Setup expected platforms
         workflow.buildstep_plugins_conf[0]['args']['platforms'] = ['x86_64', 'ppc64le']
         workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = {'x86_64', 'ppc64le'}
@@ -965,16 +949,17 @@ class TestValidateBaseImage(object):
                 'platform_descriptors': [{'platform': 'x86_64', 'architecture': 'amd64'}],
             })
 
-        # Setup multi-arch manifest list
-        manifest_list = {
-            'manifests': [
-                {'platform': {'architecture': 'amd64'}, 'digest': 'sha256:123456'},
-                {'platform': {'architecture': 'ppc64le'}, 'digest': 'sha256:654321'},
-            ]
-        }
-        (flexmock(atomic_reactor.util)
-         .should_receive('get_manifest_list')
-         .and_return(flexmock(json=lambda: manifest_list,
-                              content=json.dumps(manifest_list).encode('utf-8'))))
+        if mock_get_manifest_list:
+            # Setup multi-arch manifest list
+            manifest_list = {
+                'manifests': [
+                    {'platform': {'architecture': 'amd64'}, 'digest': 'sha256:123456'},
+                    {'platform': {'architecture': 'ppc64le'}, 'digest': 'sha256:654321'},
+                ]
+            }
+            (flexmock(atomic_reactor.util.RegistryClient)
+             .should_receive('get_manifest_list')
+             .and_return(flexmock(json=lambda: manifest_list,
+                                  content=json.dumps(manifest_list).encode('utf-8'))))
 
         return workflow

@@ -14,8 +14,9 @@ from flexmock import flexmock
 import requests
 
 from atomic_reactor.constants import DOCKER_SOCKET_PATH
+from atomic_reactor.core import RetryGeneratorException
 from osbs.utils import ImageName
-from tests.constants import COMMAND, IMPORTED_IMAGE_ID
+from tests.constants import COMMAND, IMPORTED_IMAGE_ID, IMAGE_RAISE_RETRYGENERATOREXCEPTION
 
 
 BASE_URL = 'unix://var/run/docker.sock'
@@ -214,6 +215,9 @@ def _docker_exception(code=404, content='not found', exc_class=docker.errors.API
 
 def _mock_pull(repo, tag='latest', **kwargs):
     im = ImageName.parse(repo)
+    if repo == IMAGE_RAISE_RETRYGENERATOREXCEPTION:
+        raise RetryGeneratorException('max retries exceeded', 'error')
+
     if im.repo == 'library-only' and im.namespace != 'library':
         return iter(mock_pull_logs_failed)
 

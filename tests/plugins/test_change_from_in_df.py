@@ -13,9 +13,7 @@ from flexmock import flexmock
 
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
-from atomic_reactor.plugins.pre_change_from_in_df import (
-    NoIdInspection, BaseImageMismatch, ParentImageUnresolved, ChangeFromPlugin, ParentImageMissing
-)
+from atomic_reactor.plugins.pre_change_from_in_df import ChangeFromPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
@@ -24,6 +22,9 @@ from osbs.utils import ImageName
 from tests.constants import SOURCE
 from tests.stubs import StubInsideBuilder, StubSource
 from textwrap import dedent
+
+
+SOURCE_REGISTRY = 'source_registry.com'
 
 
 def mock_workflow():
@@ -46,12 +47,12 @@ def mock_workflow():
     return workflow
 
 
-def run_plugin(workflow, reactor_config_map, docker_tasker, allow_failure=False, organization=None):
-    if reactor_config_map:
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1,
-                           'registries_organization': organization})
+def run_plugin(workflow, docker_tasker, allow_failure=False, organization=None):
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+        ReactorConfig({'version': 1,
+                       'registries_organization': organization,
+                       'source_registry': {'url': SOURCE_REGISTRY}})
 
     result = PreBuildPluginsRunner(
        docker_tasker, workflow,
@@ -67,21 +68,25 @@ def run_plugin(workflow, reactor_config_map, docker_tasker, allow_failure=False,
     return result[ChangeFromPlugin.key]
 
 
+@pytest.mark.parametrize(('base_image', 'enclose'), [
+    ("base:image", True),
+    (SOURCE_REGISTRY + "/base:image", True),
+    ("different_registry.com/base:image", False),
+])
 @pytest.mark.parametrize('organization', [None, 'my_organization'])
-def test_update_base_image(organization, tmpdir, reactor_config_map, docker_tasker):
+def test_update_base_image(tmpdir, docker_tasker, base_image, enclose, organization):
     df_content = dedent("""\
         FROM {}
         LABEL horses=coconuts
         CMD whoah
     """)
     dfp = df_parser(str(tmpdir))
-    image_str = "base:image"
-    dfp.content = df_content.format(image_str)
+    dfp.content = df_content.format(base_image)
     base_str = "base@sha256:1234"
     base_image_name = ImageName.parse("base@sha256:1234")
 
-    enclosed_parent = ImageName.parse(image_str)
-    if organization and reactor_config_map:
+    enclosed_parent = ImageName.parse(base_image)
+    if organization and enclose:
         enclosed_parent.enclose(organization)
 
     workflow = mock_workflow()
@@ -91,7 +96,7 @@ def test_update_base_image(organization, tmpdir, reactor_config_map, docker_task
     workflow.builder.set_parent_inspection_data(base_str, dict(Id=base_str))
     workflow.builder.tasker.inspect_image = lambda *_: dict(Id=base_str)
 
-    run_plugin(workflow, reactor_config_map, docker_tasker, organization=organization)
+    run_plugin(workflow, docker_tasker, organization=organization)
     expected_df = df_content.format(base_str)
     assert dfp.content == expected_df
 
@@ -110,8 +115,8 @@ def test_update_base_image_inspect_broken(tmpdir, caplog, docker_tasker):
     workflow.builder.base_image = image_name
     workflow.builder.set_parent_inspection_data(image_str, dict(no_id="here"))
 
-    with pytest.raises(NoIdInspection):
-        ChangeFromPlugin(docker_tasker, workflow).run()
+    run_plugin(workflow, docker_tasker, allow_failure=True)
+    assert "raised an exception: NoIdInspection" in caplog.text
     assert dfp.content == df_content  # nothing changed
     assert "missing in inspection" in caplog.text
 
@@ -245,7 +250,7 @@ def test_update_base_image_inspect_broken(tmpdir, caplog, docker_tasker):
     ),
 ])
 def test_update_parent_images(organization, df_content, expected_df_content, base_from_scratch,
-                              tmpdir, reactor_config_map, docker_tasker):
+                              tmpdir, docker_tasker):
     """test the happy path for updating multiple parents"""
     dfp = df_parser(str(tmpdir))
     dfp.content = df_content
@@ -258,7 +263,7 @@ def test_update_parent_images(organization, df_content, expected_df_content, bas
     build1 = ImageName.parse('build-name:1')
     build2 = ImageName.parse('build-name:2')
     build3 = ImageName.parse('build-name:3')
-    if organization and reactor_config_map:
+    if organization:
         first.enclose(organization)
         second.enclose(organization)
         monty.enclose(organization)
@@ -284,14 +289,14 @@ def test_update_parent_images(organization, df_content, expected_df_content, bas
         workflow.builder.set_parent_inspection_data(image_name, dict(Id=image_id))
 
     original_base = workflow.builder.base_image
-    run_plugin(workflow, reactor_config_map, docker_tasker, organization=organization)
+    run_plugin(workflow, docker_tasker, organization=organization)
     assert dfp.content == expected_df_content
     assert workflow.builder.original_df == df_content
     if base_from_scratch:
         assert original_base == workflow.builder.base_image
 
 
-def test_parent_images_unresolved(tmpdir, docker_tasker):
+def test_parent_images_unresolved(tmpdir, docker_tasker, caplog):
     """test when parent_images hasn't been filled in with unique tags."""
     dfp = df_parser(str(tmpdir))
     dfp.content = "FROM spam"
@@ -305,11 +310,11 @@ def test_parent_images_unresolved(tmpdir, docker_tasker):
        ImageName.parse('extra:image'): None
     }
 
-    with pytest.raises(ParentImageUnresolved):
-        ChangeFromPlugin(docker_tasker, workflow).run()
+    run_plugin(workflow, docker_tasker, allow_failure=True)
+    assert "raised an exception: ParentImageUnresolved" in caplog.text
 
 
-def test_parent_images_missing(tmpdir, docker_tasker):
+def test_parent_images_missing(tmpdir, docker_tasker, caplog):
     """test when parent_images has been mangled and lacks parents compared to dockerfile."""
     dfp = df_parser(str(tmpdir))
     dfp.content = dedent("""\
@@ -323,11 +328,11 @@ def test_parent_images_missing(tmpdir, docker_tasker):
     workflow.builder.parent_images = {ImageName.parse("monty"): ImageName.parse("build-name:3")}
     workflow.builder.base_image = ImageName.parse("build-name:3")
 
-    with pytest.raises(ParentImageMissing):
-        ChangeFromPlugin(docker_tasker, workflow).run()
+    run_plugin(workflow, docker_tasker, allow_failure=True)
+    assert "raised an exception: ParentImageMissing" in caplog.text
 
 
-def test_parent_images_mismatch_base_image(tmpdir, docker_tasker):
+def test_parent_images_mismatch_base_image(tmpdir, docker_tasker, caplog):
     """test when base_image has been updated differently from parent_images."""
     dfp = df_parser(str(tmpdir))
     dfp.content = "FROM base:image"
@@ -338,5 +343,5 @@ def test_parent_images_mismatch_base_image(tmpdir, docker_tasker):
        ImageName.parse("base:image"): ImageName.parse("different-parent-tag")
     }
 
-    with pytest.raises(BaseImageMismatch):
-        ChangeFromPlugin(docker_tasker, workflow).run()
+    run_plugin(workflow, docker_tasker, allow_failure=True)
+    assert "raised an exception: BaseImageMismatch" in caplog.text
