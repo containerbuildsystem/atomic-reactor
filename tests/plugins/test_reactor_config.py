@@ -1362,6 +1362,7 @@ class TestReactorConfigPlugin(object):
               api_url: https://cachito.example.com
               auth:
                   ssl_certs_dir: /var/run/secrets/atomic-reactor/cachitosecret
+              timeout: 1000
         """, False),
 
         ("""\
@@ -1420,7 +1421,10 @@ class TestReactorConfigPlugin(object):
             return
         config_json = read_yaml(config, 'schemas/config.json')
 
-        auth_info = {'insecure': config_json['cachito'].get('insecure', False)}
+        auth_info = {
+            'insecure': config_json['cachito'].get('insecure', False),
+            'timeout': config_json['cachito'].get('timeout', False),
+        }
 
         ssl_dir_raise = False
         if 'ssl_certs_dir' in config_json['cachito']['auth']:

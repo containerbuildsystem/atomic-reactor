@@ -12,11 +12,13 @@ from atomic_reactor.utils.cachito import (
     CachitoAPI, CachitoAPIInvalidRequest, CachitoAPIRequestTimeout, CachitoAPIUnsuccessfulRequest)
 
 from requests.exceptions import HTTPError
+import flexmock
 import pytest
 import responses
 import json
 import os.path
 import re
+import time
 from textwrap import dedent
 
 
@@ -153,15 +155,17 @@ def test_wait_for_request_timeout(caplog):
         body=json.dumps(response_data),
     )
 
+    flexmock(time).should_receive('time').and_return(2000, 1000).one_by_one()
+
     # Hit the timeout during bursting to make the test faster
-    burst_params = {'burst_retry': 0.001, 'burst_length': 0.02, 'timeout': 0.01}
+    burst_params = {'burst_retry': 0.001, 'burst_length': 0.02}
     with pytest.raises(CachitoAPIRequestTimeout):
-        CachitoAPI(CACHITO_URL).wait_for_request(CACHITO_REQUEST_ID, **burst_params)
+        CachitoAPI(CACHITO_URL, timeout=60).wait_for_request(CACHITO_REQUEST_ID, **burst_params)
 
     in_progress_response_json = json.dumps(response_data, indent=4)
     expect_in_logs = dedent(
         """\
-        Request {} not completed after 0.01 seconds
+        Request {} not completed after 60 seconds
         Details: {}
         """
     ).format(request_url, in_progress_response_json)
