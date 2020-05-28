@@ -706,6 +706,25 @@
         },
         "required": ["allowed_registries"],
         "additionalProperties": false
+    },
+    "build_env_vars": {
+      "description": "Variables to propagate to build environment",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "description": "Name of environment variable",
+            "type": "string"
+          },
+          "value": {
+            "description": "Value of environment variable",
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": ["name", "value"]
+      }
     }
   },
   "definitions": {
