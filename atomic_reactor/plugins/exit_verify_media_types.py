@@ -51,7 +51,7 @@ class VerifyMediaTypesPlugin(ExitPlugin):
             media_types = set()
 
             if expect_list_only:
-                expected_media_types = set([MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST])
+                expected_media_types = {MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST}
 
             media_in_registry[registry_name] = {'expected': expected_media_types}
 

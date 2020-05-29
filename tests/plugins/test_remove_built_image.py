@@ -57,10 +57,10 @@ def mock_environment(base_image=None):
 
 class TestGarbageCollectionPlugin(object):
     @pytest.mark.parametrize(('remove_base', 'deferred', 'expected'), [
-        (False, [], set([INPUT_IMAGE])),
-        (False, ['defer'], set([INPUT_IMAGE, 'defer'])),
-        (True, [], set([IMPORTED_IMAGE_ID, INPUT_IMAGE])),
-        (True, ['defer'], set([IMPORTED_IMAGE_ID, INPUT_IMAGE, 'defer'])),
+        (False, [], {INPUT_IMAGE}),
+        (False, ['defer'], {INPUT_IMAGE, 'defer'}),
+        (True, [], {IMPORTED_IMAGE_ID, INPUT_IMAGE}),
+        (True, ['defer'], {IMPORTED_IMAGE_ID, INPUT_IMAGE, 'defer'}),
     ])
     def test_remove_built_image_plugin(self, remove_base, deferred, expected):
         tasker, workflow = mock_environment()

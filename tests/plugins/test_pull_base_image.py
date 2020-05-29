@@ -134,9 +134,10 @@ def test_pull_base_image_special(add_another_parent, special_image, change_base,
         builder.parent_images[BASE_IMAGE_NAME_W_SHA] = None
     parent_images = builder.parent_images
 
-    expected = set([])
-    for nonce in range(len(parent_images) - skip_parent):
-        expected.add("{}:{}".format(UNIQUE_ID, nonce))
+    expected = {
+        "{}:{}".format(UNIQUE_ID, nonce)
+        for nonce in range(len(parent_images) - skip_parent)
+    }
     for image in expected:
         assert not tasker.image_exists(image)
 
@@ -583,7 +584,7 @@ class TestValidateBaseImage(object):
 
         def workflow_callback(workflow):
             workflow = self.prepare(workflow)
-            workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(['x86_64'])
+            workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = {'x86_64'}
             if not has_manifest_list:
                 resp = {'v2': StubResponse()} if has_v2s2_manifest else {}
                 flexmock(atomic_reactor.util).should_receive('get_manifest_list').and_return(None)
@@ -803,7 +804,7 @@ class TestValidateBaseImage(object):
 
         def workflow_callback(workflow):
             workflow = self.prepare(workflow)
-            workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(['ppc64le'])
+            workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = {'ppc64le'}
             release = 'rel1'
             version = 'ver1'
             config_blob = {'config': {'Labels': {'release': release, 'version': version}}}
@@ -879,7 +880,7 @@ class TestValidateBaseImage(object):
                 # platform validation will fail if manifest is missing
                 # setting only one platform to skip platform validation and test negative case
                 workflow.buildstep_plugins_conf[0]['args']['platforms'] = ['x86_64']
-                workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(['x86_64'])
+                workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = {'x86_64'}
 
             test_vals['workflow'] = workflow
             return workflow
@@ -954,7 +955,7 @@ class TestValidateBaseImage(object):
     def prepare(self, workflow):
         # Setup expected platforms
         workflow.buildstep_plugins_conf[0]['args']['platforms'] = ['x86_64', 'ppc64le']
-        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(['x86_64', 'ppc64le'])
+        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = {'x86_64', 'ppc64le'}
 
         # Setup platform descriptors
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\

@@ -80,8 +80,14 @@ class SendMailPlugin(ExitPlugin):
     AUTO_CANCELED = 'auto_canceled'
     DEFAULT_SUBMITTER = 'Unknown'
 
-    allowed_states = set([MANUAL_SUCCESS, MANUAL_FAIL, MANUAL_CANCELED,
-                          AUTO_SUCCESS, AUTO_FAIL, AUTO_CANCELED])
+    allowed_states = {
+        MANUAL_SUCCESS,
+        MANUAL_FAIL,
+        MANUAL_CANCELED,
+        AUTO_SUCCESS,
+        AUTO_FAIL,
+        AUTO_CANCELED
+    }
 
     def __init__(self, tasker, workflow,
                  smtp_host=None, from_address=None,
