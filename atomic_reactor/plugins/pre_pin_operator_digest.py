@@ -319,8 +319,8 @@ class PullspecReplacer(object):
             return image
         self.log.debug("Querying %s for manifest list digest", image.registry)
         registry_client = self._get_registry_client(image.registry)
-        digests = registry_client.get_manifest_digests(image, versions=("v2_list",))
-        return self._replace(image, tag=digests["v2_list"])
+        digest = registry_client.get_manifest_list_digest(image)
+        return self._replace(image, tag=digest)
 
     def replace_registry(self, image):
         """

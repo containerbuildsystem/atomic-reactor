@@ -33,6 +33,7 @@ import yaml
 from atomic_reactor.build import BuildResult
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
+                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                       DOCKERIGNORE, RELATIVE_REPOS_PATH)
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import (wait_for_command,
@@ -1782,3 +1783,41 @@ def test_has_operator_manifest(tmpdir, workflow, labels, f_true, f_false):
 
     for func in f_false:
         assert not func(workflow), 'Label false positively detected'
+
+
+class TestRegistryClient(object):
+    """Tests for RegistryClient class"""
+
+    @responses.activate
+    def test_get_manifest_list_digest(self):
+        registry_url = 'https://reg.test'
+
+        def mock_digest_query(image):
+            i = image
+            url = '{}/v2/{}/{}/manifests/{}'.format(registry_url, i.namespace, i.repo, i.tag)
+            headers = {
+                'Content-Type': MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
+            }
+            manifest_list_json = (
+                '{"schemaVersion": 2, "mediaType": "application/vnd.docker.distribution.manifest.'
+                'list.v2+json", "manifests": [{"mediaType": "application/vnd.docker.distribution.'
+                'manifest.v2+json", "size": 429, "digest": "sha256:e9aacf364fd8b2912c6fa94d55f723d'
+                '3b9d03c0b4748798ad35792f6629b5cd3", "platform": {"architecture": "amd64", "os": "'
+                'linux"}}, {"mediaType": "application/vnd.docker.distribution.manifest.v2+json", "'
+                'size": 429, "digest": "sha256:e445f6ec6343730b5062284442643376d861ceb8965e3c67647'
+                '65bba70251a88", "platform": {"architecture": "arm64", "os": "linux"}}, {"mediaTyp'
+                'e": "application/vnd.docker.distribution.manifest.v2+json", "size": 429, "digest"'
+                ': "sha256:9de6c900589f6ff2f4273a0e15825bcee91fbc291e1ad532b2e1796bd1519393", "pla'
+                'tform": {"architecture": "ppc64le", "os": "linux"}}, {"mediaType": "application/v'
+                'nd.docker.distribution.manifest.v2+json", "size": 429, "digest": "sha256:27bc6ef6'
+                '3b9f8d24632f9b74985f254ac3d45b28ed315bcd7babf4f512db1187", "platform": {"architec'
+                'ture": "s390x", "os": "linux"}}]}'
+            )
+            responses.add(responses.GET, url, headers=headers, body=manifest_list_json)
+
+        session = RegistrySession(registry_url)
+        client = atomic_reactor.util.RegistryClient(session)
+        image = ImageName.parse("namespace/fedora:32")
+        mock_digest_query(image)
+        expected = "sha256:d84ad27a3055f11cf2d34e611b8d14aada444e1e71866ea6a076b773aeac3c93"
+        assert client.get_manifest_list_digest(image) == expected
