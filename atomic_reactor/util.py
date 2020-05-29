@@ -829,6 +829,18 @@ class RegistryClient(object):
         response, _ = self.get_manifest(image, version)
         return response
 
+    def get_manifest_list_digest(self, image):
+        """Return manifest list digest for image
+
+        :param image:
+        :return:
+        """
+        response = self.get_manifest_list(image)
+        if response is None:
+            raise RuntimeError('Unable to fetch v2.manifest_list for {}'.format(image.to_str()))
+        digest_dict = get_checksums(io.BytesIO(response.content), ['sha256'])
+        return 'sha256:{}'.format(digest_dict['sha256sum'])
+
     def get_all_manifests(self, image, versions=('v1', 'v2', 'v2_list')):
         """Return manifest digests for image.
 

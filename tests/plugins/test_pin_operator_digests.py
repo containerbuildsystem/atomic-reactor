@@ -21,7 +21,6 @@ from flexmock import flexmock
 
 import atomic_reactor.util
 from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
-                                      MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                       INSPECT_CONFIG)
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
@@ -201,15 +200,19 @@ def mock_package_mapping_files(repo_replacements):
     return repo_replacements
 
 
-def mock_digest_query(pullspec, digest, registry_conf=None):
-    registry_conf = registry_conf or SOURCE_REGISTRY
-    i = ImageName.parse(pullspec)
-    url = '{}/v2/{}/{}/manifests/{}'.format(registry_conf['url'], i.namespace, i.repo, i.tag)
-    headers = {
-        'Content-Type': MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
-        'Docker-Content-Digest': digest
+def mock_digest_query(image_digest_map):
+
+    updated_map = {
+        ImageName.parse(pullspec).to_str(): digest
+        for pullspec, digest in image_digest_map.items()
     }
-    responses.add(responses.GET, url, headers=headers)
+
+    def mocked_get_manifest_list_digest(image):
+        return updated_map[image.to_str()]
+
+    (flexmock(atomic_reactor.util.RegistryClient)
+        .should_receive('get_manifest_list_digest')
+        .replace_with(mocked_get_manifest_list_digest))
 
 
 def mock_inspect_query(pullspec, labels, times=1):
@@ -429,10 +432,12 @@ class TestPinOperatorDigest(object):
             }
         }
 
-        mock_digest_query('final-registry/ns/foo:1', 'sha256:1')
-        mock_digest_query('weird-registry/ns/bar:1', 'sha256:2')
-        mock_digest_query('private-registry/ns/baz:1', 'sha256:3')
-        mock_digest_query('old-registry/ns/spam:1', 'sha256:4')
+        mock_digest_query({
+            'final-registry/ns/foo:1': 'sha256:1',
+            'weird-registry/ns/bar:1': 'sha256:2',
+            'private-registry/ns/baz:1': 'sha256:3',
+            'old-registry/ns/spam:1': 'sha256:4',
+        })
         # there should be no queries for the pullspecs which already contain a digest
 
         # images should be inspected after their digests are pinned
@@ -503,7 +508,6 @@ class TestPinOperatorDigest(object):
     @pytest.mark.parametrize('pin_digest', [True, False])
     @pytest.mark.parametrize('replace_repo', [True, False])
     @pytest.mark.parametrize('replace_registry', [True, False])
-    @responses.activate
     def test_orchestrator_replacement_opt_out(self, pin_digest, replace_repo, replace_registry,
                                               docker_tasker, tmpdir, caplog):
         original = 'registry/ns/foo:1'
@@ -513,7 +517,7 @@ class TestPinOperatorDigest(object):
 
         if pin_digest:
             replaced.tag = 'sha256:123456'
-            mock_digest_query(original, 'sha256:123456')
+            mock_digest_query({original: 'sha256:123456'})
 
         if replace_repo:
             replaced.namespace = 'new-ns'
@@ -644,16 +648,15 @@ class TestPullspecReplacer(object):
         image = ImageName.parse(image)
         assert replacer.registry_is_allowed(image) == allowed
 
-    @pytest.mark.parametrize('image, should_query, digest', [
+    @pytest.mark.parametrize('pullspec, should_query, digest', [
         ('registry/ns/foo', True, 'sha256:123456'),
         ('registry/ns/bar@sha256:654321', False, 'sha256:654321'),
     ])
-    @responses.activate
-    def test_pin_digest(self, image, should_query, digest, caplog):
-        image = ImageName.parse(image)
+    def test_pin_digest(self, pullspec, should_query, digest, caplog):
         if should_query:
-            mock_digest_query(image, digest)
+            mock_digest_query({pullspec: digest})
 
+        image = ImageName.parse(pullspec)
         site_config = get_site_config()
         replacer = PullspecReplacer(user_config={}, workflow=self.mock_workflow(site_config))
         replaced = replacer.pin_digest(image)
