@@ -758,7 +758,7 @@ def test_orchestrate_build_choose_clusters(tmpdir, clusters_x86_64,
     assert not build_result.is_failed()
 
     annotations = build_result.annotations
-    assert set(annotations['worker-builds'].keys()) == set(['x86_64', 'ppc64le'])
+    assert set(annotations['worker-builds'].keys()) == {'x86_64', 'ppc64le'}
     for plat, plat_annotations in annotations['worker-builds'].items():
         assert plat_annotations['build']['cluster-url'] == 'https://chosen_{}.com/'.format(plat)
 
@@ -818,7 +818,7 @@ def test_orchestrate_build_failed_create(tmpdir):
      .replace_with(mock_create_worker_build))
 
     fail_reason = 'build not started'
-    annotation_keys = set(['x86_64'])
+    annotation_keys = {'x86_64'}
 
     mock_reactor_config(tmpdir)
 

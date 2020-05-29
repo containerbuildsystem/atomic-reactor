@@ -300,6 +300,6 @@ class TestKojiParent(object):
             self.assert_images_to_remove(workflow)
 
     def assert_images_to_remove(self, workflow):
-        expected = set([str(workflow.builder.base_image)])
+        expected = {str(workflow.builder.base_image)}
         actual = workflow.plugin_workspace[GarbageCollectionPlugin.key]['images_to_remove']
         assert actual == expected

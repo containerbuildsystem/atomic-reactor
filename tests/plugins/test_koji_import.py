@@ -926,7 +926,7 @@ class TestKojiImport(object):
         assert len(components) > 0
         for component_rpm in components:
             assert isinstance(component_rpm, dict)
-            assert set(component_rpm.keys()) == set([
+            assert set(component_rpm.keys()) == {
                 'type',
                 'name',
                 'version',
@@ -935,7 +935,7 @@ class TestKojiImport(object):
                 'arch',
                 'sigmd5',
                 'signature',
-            ])
+            }
 
             assert component_rpm['type'] == 'rpm'
             assert component_rpm['name']
@@ -952,7 +952,7 @@ class TestKojiImport(object):
     def validate_buildroot(self, buildroot, source=False):
         assert isinstance(buildroot, dict)
 
-        assert set(buildroot.keys()) == set([
+        assert set(buildroot.keys()) == {
             'id',
             'host',
             'content_generator',
@@ -960,14 +960,11 @@ class TestKojiImport(object):
             'tools',
             'components',
             'extra',
-        ])
+        }
 
         host = buildroot['host']
         assert isinstance(host, dict)
-        assert set(host.keys()) == set([
-            'os',
-            'arch',
-        ])
+        assert set(host.keys()) == {'os', 'arch'}
 
         assert host['os']
         assert is_string_type(host['os'])
@@ -977,10 +974,7 @@ class TestKojiImport(object):
 
         content_generator = buildroot['content_generator']
         assert isinstance(content_generator, dict)
-        assert set(content_generator.keys()) == set([
-            'name',
-            'version',
-        ])
+        assert set(content_generator.keys()) == {'name', 'version'}
 
         assert content_generator['name']
         assert is_string_type(content_generator['name'])
@@ -989,10 +983,7 @@ class TestKojiImport(object):
 
         container = buildroot['container']
         assert isinstance(container, dict)
-        assert set(container.keys()) == set([
-            'type',
-            'arch',
-        ])
+        assert set(container.keys()) == {'type', 'arch'}
 
         assert container['type'] == 'docker'
         assert container['arch']
@@ -1002,10 +993,7 @@ class TestKojiImport(object):
         assert len(buildroot['tools']) > 0
         for tool in buildroot['tools']:
             assert isinstance(tool, dict)
-            assert set(tool.keys()) == set([
-                'name',
-                'version',
-            ])
+            assert set(tool.keys()) == {'name', 'version'}
 
             assert tool['name']
             assert is_string_type(tool['name'])
@@ -1019,18 +1007,12 @@ class TestKojiImport(object):
 
         extra = buildroot['extra']
         assert isinstance(extra, dict)
-        assert set(extra.keys()) == set([
-            'osbs',
-        ])
+        assert set(extra.keys()) == {'osbs'}
 
         assert 'osbs' in extra
         osbs = extra['osbs']
         assert isinstance(osbs, dict)
-        assert set(osbs.keys()) == set([
-            'build_id',
-            'builder_image_id',
-            'koji',
-        ])
+        assert set(osbs.keys()) == {'build_id', 'builder_image_id', 'koji'}
 
         assert is_string_type(osbs['build_id'])
         assert is_string_type(osbs['builder_image_id'])
@@ -1054,7 +1036,7 @@ class TestKojiImport(object):
         assert is_string_type(output['checksum_type'])
         assert 'type' in output
         if output['type'] == 'log':
-            assert set(output.keys()) == set([
+            assert set(output.keys()) == {
                 'buildroot_id',
                 'filename',
                 'filesize',
@@ -1062,10 +1044,10 @@ class TestKojiImport(object):
                 'checksum',
                 'checksum_type',
                 'type',
-            ])
+            }
             assert output['arch'] == 'noarch'
         else:
-            assert set(output.keys()) == set([
+            assert set(output.keys()) == {
                 'buildroot_id',
                 'filename',
                 'filesize',
@@ -1075,7 +1057,7 @@ class TestKojiImport(object):
                 'type',
                 'components',
                 'extra',
-            ])
+            }
             assert output['type'] == 'docker-image'
             assert is_string_type(output['arch'])
             assert output['arch'] != 'noarch'
@@ -1087,16 +1069,11 @@ class TestKojiImport(object):
 
             extra = output['extra']
             assert isinstance(extra, dict)
-            assert set(extra.keys()) == set([
-                'image',
-                'docker',
-            ])
+            assert set(extra.keys()) == {'image', 'docker'}
 
             image = extra['image']
             assert isinstance(image, dict)
-            assert set(image.keys()) == set([
-                'arch',
-            ])
+            assert set(image.keys()) == {'arch'}
 
             assert image['arch'] == output['arch']  # what else?
 
@@ -1104,22 +1081,22 @@ class TestKojiImport(object):
             docker = extra['docker']
             assert isinstance(docker, dict)
             if source:
-                expected_keys_set = set([
+                expected_keys_set = {
                     'tags',
                     'digests',
                     'layer_sizes',
                     'repositories',
                     'id',
-                ])
+                }
             else:
-                expected_keys_set = set([
+                expected_keys_set = {
                     'parent_id',
                     'id',
                     'repositories',
                     'tags',
                     'floating_tags',
                     'unique_tags',
-                ])
+                }
             if has_config:
                 expected_keys_set.add('config')
 
@@ -1381,12 +1358,12 @@ class TestKojiImport(object):
 
         data = session.metadata
 
-        assert set(data.keys()) == set([
+        assert set(data.keys()) == {
             'metadata_version',
             'build',
             'buildroots',
             'output',
-        ])
+        }
 
         assert data['metadata_version'] in ['0', 0]
 
@@ -1400,7 +1377,7 @@ class TestKojiImport(object):
         output_files = data['output']
         assert isinstance(output_files, list)
 
-        expected_keys = set([
+        expected_keys = {
             'name',
             'version',
             'release',
@@ -1409,7 +1386,7 @@ class TestKojiImport(object):
             'end_time',
             'extra',          # optional but always supplied
             'owner',
-        ])
+        }
 
         if reserved_build:
             expected_keys.add('build_id')
@@ -1477,10 +1454,7 @@ class TestKojiImport(object):
         build_id = runner.plugins_results[KojiImportPlugin.key]
         assert build_id == "123"
 
-        assert set(session.uploaded_files.keys()) == set([
-            'orchestrator.log',
-            'x86_64.log',
-        ])
+        assert set(session.uploaded_files.keys()) == {'orchestrator.log', 'x86_64.log'}
         orchestrator_log = session.uploaded_files['orchestrator.log']
         assert orchestrator_log == b'orchestrator\n'
         x86_64_log = session.uploaded_files['x86_64.log']
@@ -1559,7 +1533,7 @@ class TestKojiImport(object):
         reg = set(ImageName.parse(repo).registry
                   for repo in docker_output['extra']['docker']['repositories'])
         assert len(reg) == 1
-        assert reg == set(['docker-registry.example.com:8888'])
+        assert reg == {'docker-registry.example.com:8888'}
 
     def test_koji_import_without_build_info(self, tmpdir, os_env, reactor_config_map):  # noqa
 
@@ -2316,12 +2290,12 @@ class TestKojiImport(object):
 
         data = session.metadata
 
-        assert set(data.keys()) == set([
+        assert set(data.keys()) == {
             'metadata_version',
             'build',
             'buildroots',
             'output',
-        ])
+        }
 
         assert data['metadata_version'] in ['0', 0]
 
@@ -2335,7 +2309,7 @@ class TestKojiImport(object):
         output_files = data['output']
         assert isinstance(output_files, list)
 
-        expected_keys = set([
+        expected_keys = {
             'name',
             'version',
             'release',
@@ -2344,7 +2318,7 @@ class TestKojiImport(object):
             'end_time',
             'extra',          # optional but always supplied
             'owner',
-        ])
+        }
 
         if reserved_build:
             expected_keys.add('build_id')
@@ -2406,10 +2380,10 @@ class TestKojiImport(object):
         assert build_id == "123"
 
         uploaded_oic_file = 'oci-image-{}.{}.tar.xz'.format(expect_id, os.uname()[4])
-        assert set(session.uploaded_files.keys()) == set([
+        assert set(session.uploaded_files.keys()) == {
             'orchestrator.log',
             uploaded_oic_file,
-        ])
+        }
         orchestrator_log = session.uploaded_files['orchestrator.log']
         assert orchestrator_log == b'orchestrator\n'
 

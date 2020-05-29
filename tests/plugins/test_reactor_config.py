@@ -517,8 +517,7 @@ class TestReactorConfigPlugin(object):
 
         conf = get_config(workflow)
         enabled = conf.get_enabled_clusters_for_platform('platform')
-        assert set([(x.name, x.max_concurrent_builds)
-                    for x in enabled]) == set(clusters)
+        assert {(x.name, x.max_concurrent_builds) for x in enabled} == set(clusters)
 
     @pytest.mark.parametrize(('extra_config', 'fallback', 'error'), [
         ('clusters_client_config_dir: /the/path', None, None),

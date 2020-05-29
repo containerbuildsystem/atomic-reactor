@@ -72,7 +72,7 @@ def test_build_results_decoder():
         data[attr] = attr
 
     results = json.loads(json.dumps(data), cls=BuildResultsJSONDecoder)
-    for attr in set(BUILD_RESULTS_ATTRS) - set(['build_logs']):
+    for attr in set(BUILD_RESULTS_ATTRS) - {'build_logs'}:
         assert getattr(results, attr) == getattr(expected_results, attr)
 
 

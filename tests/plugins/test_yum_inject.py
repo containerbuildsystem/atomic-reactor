@@ -225,8 +225,9 @@ def remove_lines_match(actual, expected, repos):
             if not aline.startswith("RUN rm -f "):
                 assert aline == eline
 
-            assert set(aline.rstrip()[10:].split(' ')) == \
-                set(["'/etc/yum.repos.d/%s'" % repo for repo in repos])
+            assert set(aline.rstrip()[10:].split(' ')) == {
+                "'/etc/yum.repos.d/%s'" % repo for repo in repos
+            }
         else:
             assert aline == eline
 

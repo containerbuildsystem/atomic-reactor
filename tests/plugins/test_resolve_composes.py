@@ -606,7 +606,7 @@ class TestResolveComposes(object):
                                        koji_target=KOJI_TARGET_NAME, koji_hub=KOJI_HUB)
         plugin.read_configs()
         plugin.adjust_compose_config()
-        composed_arches = set([])
+        composed_arches = set()
         composes = plugin.compose_config.render_requests()
         for compose_config in composes:
             composed_arches.update(compose_config['arches'])
@@ -1286,8 +1286,9 @@ class TestResolveComposes(object):
                 assert yum_repourls is None
             else:
                 assert ODCS_COMPOSE['result_repofile'] in yum_repourls
-            assert set(results.keys()) == set(['signing_intent', 'signing_intent_overridden',
-                                               'composes'])
+            assert set(results.keys()) == {
+                'signing_intent', 'signing_intent_overridden', 'composes'
+            }
         else:
             assert self.get_override_yum_repourls(workflow) is None
             assert results is None

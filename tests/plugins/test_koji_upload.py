@@ -626,7 +626,7 @@ class TestKojiUpload(object):
         assert len(components) > 0
         for component_rpm in components:
             assert isinstance(component_rpm, dict)
-            assert set(component_rpm.keys()) == set([
+            assert set(component_rpm.keys()) == {
                 'type',
                 'name',
                 'version',
@@ -635,7 +635,7 @@ class TestKojiUpload(object):
                 'arch',
                 'sigmd5',
                 'signature',
-            ])
+            }
 
             assert component_rpm['type'] == 'rpm'
             assert component_rpm['name']
@@ -652,7 +652,7 @@ class TestKojiUpload(object):
     def validate_buildroot(self, buildroot):
         assert isinstance(buildroot, dict)
 
-        assert set(buildroot.keys()) == set([
+        assert set(buildroot.keys()) == {
             'id',
             'host',
             'content_generator',
@@ -660,14 +660,11 @@ class TestKojiUpload(object):
             'tools',
             'components',
             'extra',
-        ])
+        }
 
         host = buildroot['host']
         assert isinstance(host, dict)
-        assert set(host.keys()) == set([
-            'os',
-            'arch',
-        ])
+        assert set(host.keys()) == {'os', 'arch'}
 
         assert host['os']
         assert is_string_type(host['os'])
@@ -677,10 +674,7 @@ class TestKojiUpload(object):
 
         content_generator = buildroot['content_generator']
         assert isinstance(content_generator, dict)
-        assert set(content_generator.keys()) == set([
-            'name',
-            'version',
-        ])
+        assert set(content_generator.keys()) == {'name', 'version'}
 
         assert content_generator['name']
         assert is_string_type(content_generator['name'])
@@ -689,10 +683,7 @@ class TestKojiUpload(object):
 
         container = buildroot['container']
         assert isinstance(container, dict)
-        assert set(container.keys()) == set([
-            'type',
-            'arch',
-        ])
+        assert set(container.keys()) == {'type', 'arch'}
 
         assert container['type'] == 'docker'
         assert container['arch']
@@ -702,10 +693,7 @@ class TestKojiUpload(object):
         assert len(buildroot['tools']) > 0
         for tool in buildroot['tools']:
             assert isinstance(tool, dict)
-            assert set(tool.keys()) == set([
-                'name',
-                'version',
-            ])
+            assert set(tool.keys()) == {'name', 'version'}
 
             assert tool['name']
             assert is_string_type(tool['name'])
@@ -716,28 +704,19 @@ class TestKojiUpload(object):
 
         extra = buildroot['extra']
         assert isinstance(extra, dict)
-        assert set(extra.keys()) == set([
-            'osbs',
-        ])
+        assert set(extra.keys()) == {'osbs'}
 
         assert 'osbs' in extra
         osbs = extra['osbs']
         assert isinstance(osbs, dict)
-        assert set(osbs.keys()) == set([
-            'build_id',
-            'builder_image_id',
-            'koji',
-        ])
+        assert set(osbs.keys()) == {'build_id', 'builder_image_id', 'koji'}
 
         assert is_string_type(osbs['build_id'])
         assert is_string_type(osbs['builder_image_id'])
 
         koji = osbs['koji']
         assert isinstance(koji, dict)
-        assert set(koji.keys()) == set([
-            'build_name',
-            'builder_image_id',
-        ])
+        assert set(koji.keys()) == {'build_name', 'builder_image_id'}
         assert is_string_type(koji['build_name'])
         builder_image_id = koji['builder_image_id']
         assert isinstance(builder_image_id, dict)
@@ -765,7 +744,7 @@ class TestKojiUpload(object):
         assert is_string_type(output['checksum_type'])
         assert 'type' in output
         if output['type'] == 'log':
-            assert set(output.keys()) == set([
+            assert set(output.keys()) == {
                 'buildroot_id',
                 'filename',
                 'filesize',
@@ -773,10 +752,10 @@ class TestKojiUpload(object):
                 'checksum',
                 'checksum_type',
                 'type',
-            ])
+            }
             assert output['arch'] == LOCAL_ARCH
         else:
-            assert set(output.keys()) == set([
+            assert set(output.keys()) == {
                 'buildroot_id',
                 'filename',
                 'filesize',
@@ -786,7 +765,7 @@ class TestKojiUpload(object):
                 'type',
                 'components',
                 'extra',
-            ])
+            }
             assert output['type'] == 'docker-image'
             assert is_string_type(output['arch'])
             assert output['arch'] != 'noarch'
@@ -795,29 +774,24 @@ class TestKojiUpload(object):
 
             extra = output['extra']
             assert isinstance(extra, dict)
-            assert set(extra.keys()) == set([
-                'image',
-                'docker',
-            ])
+            assert set(extra.keys()) == {'image', 'docker'}
 
             image = extra['image']
             assert isinstance(image, dict)
-            assert set(image.keys()) == set([
-                'arch',
-            ])
+            assert set(image.keys()) == {'arch'}
 
             assert image['arch'] == output['arch']  # what else?
 
             assert 'docker' in extra
             docker = extra['docker']
             assert isinstance(docker, dict)
-            expected_keys_set = set([
+            expected_keys_set = {
                 'parent_id',
                 'id',
                 'repositories',
                 'layer_sizes',
                 'tags',
-            ])
+            }
             if base_from_scratch:
                 expected_keys_set.remove('parent_id')
                 assert 'parent_id' not in docker
@@ -920,10 +894,12 @@ class TestKojiUpload(object):
         assert 'tags' in docker
         tags = docker['tags']
         assert isinstance(tags, list)
-        expected_tags = set([version,
-                             "{}-{}".format(version, release),
-                             'latest',
-                             "{}-timestamp".format(version)])
+        expected_tags = {
+            version,
+            "{}-{}".format(version, release),
+            'latest',
+            "{}-timestamp".format(version)
+        }
         if additional_tags:
             expected_tags.update(additional_tags)
 
@@ -965,11 +941,7 @@ class TestKojiUpload(object):
 
         data = get_metadata(workflow, osbs)
 
-        assert set(data.keys()) == set([
-            'metadata_version',
-            'buildroots',
-            'output',
-        ])
+        assert set(data.keys()) == {'metadata_version', 'buildroots', 'output'}
 
         assert data['metadata_version'] in ['0', 0]
 
@@ -1060,8 +1032,8 @@ class TestKojiUpload(object):
         False,
     ])
     @pytest.mark.parametrize('platform,expected_logs', [
-        (None, set(['x86_64-build.log'])),
-        ('foo', set(['foo-build.log'])),
+        (None, {'x86_64-build.log'}),
+        ('foo', {'foo-build.log'}),
     ])
     def test_koji_upload_logs(self, tmpdir, monkeypatch, os_env, is_scratch, logs_return_bytes,
                               platform, expected_logs, reactor_config_map):
@@ -1088,7 +1060,7 @@ class TestKojiUpload(object):
                         if f.endswith('.log'))
 
         if is_scratch:
-            expected_logs = set([])
+            expected_logs = set()
         assert log_files == expected_logs
 
         images = [f for f in session.uploaded_files

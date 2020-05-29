@@ -474,7 +474,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
                     possible_cluster_info[cluster] = cluster_info
                 except OsbsException:
                     ctx.try_again_later(self.find_cluster_retry_delay)
-            candidates -= set([c for c in candidates if retry_contexts[c.name].failed])
+            candidates -= {c for c in candidates if retry_contexts[c.name].failed}
 
         ret = sorted(possible_cluster_info.values(), key=lambda c: c.cluster.priority)
         ret = sorted(ret, key=lambda c: c.load)
@@ -542,9 +542,11 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     def _make_labels(self):
         labels = {}
         koji_build_id = None
-        ids = set([build_info.build.get_koji_build_id()
-                   for build_info in self.worker_builds
-                   if build_info.build])
+        ids = {
+            build_info.build.get_koji_build_id()
+            for build_info in self.worker_builds
+            if build_info.build
+        }
         self.log.debug('all koji-build-ids: %s', ids)
         if ids:
             koji_build_id = ids.pop()
@@ -827,7 +829,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         # orchestrator platform is same as platform on which we want to built on,
         # so we can use the same image
-        if manifest_list_platforms == set([orchestrator_platform]):
+        if manifest_list_platforms == {orchestrator_platform}:
             self.build_image_digests[orchestrator_platform] = current_buildimage
             return
 
