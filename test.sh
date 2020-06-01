@@ -45,7 +45,6 @@ function setup_osbs() {
   ENVS='-e PIP_PREFIX=/usr'
   RUN="$ENGINE exec -ti ${ENVS} $CONTAINER_NAME"
   PYTHON="python$PYTHON_VERSION"
-  PIP="pip$PYTHON_VERSION"
   if [[ $OS == "fedora" ]]; then
     PIP_PKG="python$PYTHON_VERSION-pip"
     PIP="pip$PYTHON_VERSION"
@@ -63,6 +62,8 @@ function setup_osbs() {
     BUILDDEP="yum-builddep"
     PYTHON="python"
   fi
+
+  PIP_INST=("$PIP" install --index-url "${PYPI_INDEX:-https://pypi.org/simple}")
 
   if [[ $OS == "centos" ]]; then
     # Don't let builddep enable *-source repos since they give 404 errors
@@ -99,12 +100,12 @@ function setup_osbs() {
 
   if [[ $OS == centos && $OS_VERSION == 7 ]]; then
     # Get a less ancient version of pip to avoid installing py3-only packages
-    $RUN $PIP install "pip>=9.0.0,<10.0.0"
+    $RUN "${PIP_INST[@]}" "pip>=9.0.0,<10.0.0"
     # ...but ancient enough to allow uninstalling packages installed by distutils
 
     # Older versions of setuptools don't understand the environment
     # markers used by docker-squash's requirements
-    $RUN $PIP install -U setuptools
+    $RUN "${PIP_INST[@]}" -U setuptools
   fi
 
   # Install other dependencies for tests
@@ -117,26 +118,26 @@ function setup_osbs() {
   $RUN $BUILDDEP --define "with_python3 ${WITH_PY3}" -y /tmp/osbs-client/osbs-client.spec
   # Run pip install with '--no-deps' to avoid compilation
   # This would also ensure all the deps are specified in the spec
-  $RUN $PIP install --upgrade --no-deps --force-reinstall \
+  $RUN "${PIP_INST[@]}" --upgrade --no-deps --force-reinstall \
       "git+${OSBS_CLIENT_REPO}@${OSBS_CLIENT_BRANCH}"
 
-  $RUN $PIP install --upgrade --no-deps --force-reinstall git+https://github.com/DBuildService/dockerfile-parse
+  $RUN "${PIP_INST[@]}" --upgrade --no-deps --force-reinstall git+https://github.com/DBuildService/dockerfile-parse
   if [[ $PYTHON_VERSION == 2* ]]; then
-    $RUN $PIP install git+https://github.com/release-engineering/dockpulp
-    $RUN $PIP install -r requirements-py2.txt
+    $RUN "${PIP_INST[@]}" git+https://github.com/release-engineering/dockpulp
+    $RUN "${PIP_INST[@]}" -r requirements-py2.txt
   fi
 
   # install with RPM_PY_SYS=true to avoid error caused by installing on system python
-  $RUN sh -c "RPM_PY_SYS=true $PIP install rpm-py-installer"
+  $RUN sh -c "RPM_PY_SYS=true ${PIP_INST[*]} rpm-py-installer"
 
-  $RUN $PIP install docker-squash
+  $RUN "${PIP_INST[@]}" docker-squash
   $RUN $PYTHON setup.py install
 
   # Install packages for tests
-  $RUN $PIP install -r tests/requirements.txt
+  $RUN "${PIP_INST[@]}" -r tests/requirements.txt
 
   # CentOS needs to have setuptools updates to make pytest-cov work
-  if [[ $OS != "fedora" ]]; then $RUN $PIP install -U setuptools; fi
+  if [[ $OS != "fedora" ]]; then $RUN "${PIP_INST[@]}" -U setuptools; fi
 }
 
 case ${ACTION} in
@@ -154,7 +155,7 @@ case ${ACTION} in
   ;;
 "bandit")
   setup_osbs
-  $RUN $PIP install bandit
+  $RUN "${PIP_INST[@]}" bandit
   TEST_CMD="bandit-baseline -r atomic_reactor -ll -ii"
   ;;
 "markdownlint")
