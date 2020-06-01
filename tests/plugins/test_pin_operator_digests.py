@@ -42,8 +42,9 @@ yaml = YAML()
 
 # When defining mock configuration for source_registry/pull_registries,
 # do not use auth unless you also want to mock a dockercfg file
+SOURCE_REGISTRY_URI = 'registry.private.example.com'
 SOURCE_REGISTRY = {
-    'url': 'https://registry.private.example.com',
+    'url': 'https://{}'.format(SOURCE_REGISTRY_URI),
 }
 
 
@@ -75,7 +76,7 @@ def make_user_config(operator_config):
 def mock_env(docker_tasker, tmpdir, orchestrator,
              user_config=None, site_config=None,
              df_base='scratch', df_operator_label=True,
-             replacement_pullspecs=None):
+             replacement_pullspecs=None, add_to_config=None):
     """
     Mock environment for test
 
@@ -90,11 +91,14 @@ def mock_env(docker_tasker, tmpdir, orchestrator,
 
     :return: configured plugin runner
     """
+    reactor_config = make_reactor_config(site_config)
+    if add_to_config:
+        reactor_config.update(add_to_config)
     env = (MockEnv()
            .for_plugin('prebuild',
                        PinOperatorDigestsPlugin.key,
                        {'replacement_pullspecs': replacement_pullspecs})
-           .set_reactor_config(make_reactor_config(site_config)))
+           .set_reactor_config(reactor_config))
 
     if orchestrator:
         env.make_orchestrator()
@@ -381,9 +385,10 @@ class TestPinOperatorDigest(object):
     @responses.activate
     def test_orchestrator(self, docker_tasker, tmpdir, caplog):
         pullspecs = [
-            # final-registry: do not replace registry or repos
-            'final-registry/ns/foo@sha256:1',  # -> no change
-            'final-registry/ns/foo:1',  # -> final-registry/ns/foo@sha256:1
+            # registry.private.example.com: do not replace registry or repos
+            'registry.private.example.com/ns/foo@sha256:1',  # -> no change
+            'registry.private.example.com/ns/foo:1',
+            # -> registry.private.example.com/ns/foo@sha256:1
 
             # weird-registry: keep registry but replace repos
             'weird-registry/ns/bar@sha256:2',  # -> weird-registry/new-bar@sha256:2
@@ -413,7 +418,7 @@ class TestPinOperatorDigest(object):
         }
 
         mock_digest_query({
-            'final-registry/ns/foo:1': 'sha256:1',
+            'registry.private.example.com/ns/foo:1': 'sha256:1',
             'weird-registry/ns/bar:1': 'sha256:2',
             'private-registry/ns/baz:1': 'sha256:3',
             'old-registry/ns/spam:1': 'sha256:4',
@@ -434,8 +439,16 @@ class TestPinOperatorDigest(object):
         site_config = get_site_config(registry_post_replace=replacement_registries,
                                       repo_replacements=site_replace_repos)
 
+        pull_registries = {'pull_registries': [
+            {'url': 'https://old-registry'},
+            {'url': 'https://private-registry'},
+            {'url': 'https://weird-registry'},
+        ]}
+
         runner = mock_env(docker_tasker, tmpdir, orchestrator=True,
-                          user_config=user_config, site_config=site_config)
+                          user_config=user_config, site_config=site_config,
+                          add_to_config=pull_registries)
+
         runner.run()
 
         post_content = f.read()
@@ -446,12 +459,12 @@ class TestPinOperatorDigest(object):
         # pullspecs are logged in alphabetical order, if tag is missing, :latest is added
         pullspecs_log = (
             'Found pullspecs:\n'
-            'final-registry/ns/foo:1\n'
-            'final-registry/ns/foo@sha256:1\n'
             'old-registry/ns/spam:1\n'
             'old-registry/ns/spam@sha256:4\n'
             'private-registry/ns/baz:1\n'
             'private-registry/ns/baz@sha256:3\n'
+            'registry.private.example.com/ns/foo:1\n'
+            'registry.private.example.com/ns/foo@sha256:1\n'
             'weird-registry/ns/bar:1\n'
             'weird-registry/ns/bar@sha256:2'
         )
@@ -462,20 +475,21 @@ class TestPinOperatorDigest(object):
         # replacements are logged in alphabetical order (ordered by the original pullspec)
         replacements_log = (
             'To be replaced:\n'
-            'final-registry/ns/foo:1 -> final-registry/ns/foo@sha256:1\n'
-            'final-registry/ns/foo@sha256:1 - no change\n'
             'old-registry/ns/spam:1 -> new-registry/new-ns/new-spam@sha256:4\n'
             'old-registry/ns/spam@sha256:4 -> new-registry/new-ns/new-spam@sha256:4\n'
             'private-registry/ns/baz:1 -> public-registry/ns/baz@sha256:3\n'
             'private-registry/ns/baz@sha256:3 -> public-registry/ns/baz@sha256:3\n'
+            'registry.private.example.com/ns/foo:1 -> '
+            'registry.private.example.com/ns/foo@sha256:1\n'
+            'registry.private.example.com/ns/foo@sha256:1 - no change\n'
             'weird-registry/ns/bar:1 -> weird-registry/new-bar@sha256:2\n'
             'weird-registry/ns/bar@sha256:2 -> weird-registry/new-bar@sha256:2'
         )
         assert replacements_log in caplog_text
 
         replacement_pullspecs = {
-            'final-registry/ns/foo:1': 'final-registry/ns/foo@sha256:1',
-            # final-registry/ns/foo@sha256:1 - no change
+            'registry.private.example.com/ns/foo:1': 'registry.private.example.com/ns/foo@sha256:1',
+            # registry.private.example.com/ns/foo@sha256:1 - no change
             'weird-registry/ns/bar@sha256:2': 'weird-registry/new-bar@sha256:2',
             'weird-registry/ns/bar:1': 'weird-registry/new-bar@sha256:2',
             'private-registry/ns/baz@sha256:3': 'public-registry/ns/baz@sha256:3',
@@ -490,7 +504,7 @@ class TestPinOperatorDigest(object):
     @pytest.mark.parametrize('replace_registry', [True, False])
     def test_orchestrator_replacement_opt_out(self, pin_digest, replace_repo, replace_registry,
                                               docker_tasker, tmpdir, caplog):
-        original = 'registry/ns/foo:1'
+        original = '{}/ns/foo:1'.format(SOURCE_REGISTRY_URI)
         replaced = ImageName.parse(original)
 
         mock_operator_csv(tmpdir, 'csv.yaml', [original])
@@ -503,7 +517,7 @@ class TestPinOperatorDigest(object):
             replaced.namespace = 'new-ns'
             replaced.repo = 'new-foo'
             user_replace_repos = {
-                'registry': {
+                SOURCE_REGISTRY_URI: {
                     'foo-package': 'new-ns/new-foo'
                 }
             }
@@ -517,7 +531,7 @@ class TestPinOperatorDigest(object):
 
         if replace_registry:
             replaced.registry = 'new-registry'
-            registry_post_replace = {'registry': 'new-registry'}
+            registry_post_replace = {SOURCE_REGISTRY_URI: 'new-registry'}
         else:
             registry_post_replace = None
 
@@ -629,8 +643,8 @@ class TestPullspecReplacer(object):
         assert replacer.registry_is_allowed(image) == allowed
 
     @pytest.mark.parametrize('pullspec, should_query, digest', [
-        ('registry/ns/foo', True, 'sha256:123456'),
-        ('registry/ns/bar@sha256:654321', False, 'sha256:654321'),
+        ('{}/ns/foo'.format(SOURCE_REGISTRY_URI), True, 'sha256:123456'),
+        ('{}/ns/bar@sha256:654321'.format(SOURCE_REGISTRY_URI), False, 'sha256:654321'),
     ])
     def test_pin_digest(self, pullspec, should_query, digest, caplog):
         if should_query:
@@ -670,39 +684,39 @@ class TestPullspecReplacer(object):
 
     @pytest.mark.parametrize('image,site_replacements,user_replacements,replaced,should_query', [
         # can replace repo if only 1 option in site config
-        ('a/x/foo:1',
-         {'a': {'foo-package': ['y/bar']}},
+        ('{}/x/foo:1'.format(SOURCE_REGISTRY_URI),
+         {SOURCE_REGISTRY_URI: {'foo-package': ['y/bar']}},
          None,
-         'a/y/bar:1',
+         '{}/y/bar:1'.format(SOURCE_REGISTRY_URI),
          True),
         # user can define replacement if package not in site config
-        ('a/x/foo:1',
+        ('{}/x/foo:1'.format(SOURCE_REGISTRY_URI),
          None,
-         {'a': {'foo-package': 'y/bar'}},
-         'a/y/bar:1',
+         {SOURCE_REGISTRY_URI: {'foo-package': 'y/bar'}},
+         '{}/y/bar:1'.format(SOURCE_REGISTRY_URI),
          True),
         # user can choose one of the options in site config
-        ('a/x/foo:1',
-         {'a': {'foo-package': ['y/bar', 'y/baz']}},
-         {'a': {'foo-package': 'y/baz'}},
-         'a/y/baz:1',
+        ('{}/x/foo:1'.format(SOURCE_REGISTRY_URI),
+         {SOURCE_REGISTRY_URI: {'foo-package': ['y/bar', 'y/baz']}},
+         {SOURCE_REGISTRY_URI: {'foo-package': 'y/baz'}},
+         '{}/y/baz:1'.format(SOURCE_REGISTRY_URI),
          True),
         # replacement can be just repo
-        ('a/x/foo:1',
-         {'a': {'foo-package': ['bar']}},
+        ('{}/x/foo:1'.format(SOURCE_REGISTRY_URI),
+         {SOURCE_REGISTRY_URI: {'foo-package': ['bar']}},
          None,
-         ImageName(registry='a', repo='bar', tag='1'),
+         ImageName(registry=SOURCE_REGISTRY_URI, repo='bar', tag='1'),
          True),
         # no config, no replacement
-        ('a/x/foo:1',
+        ('{}/x/foo:1'.format(SOURCE_REGISTRY_URI),
          None,
          None,
-         'a/x/foo:1',
+         '{}/x/foo:1'.format(SOURCE_REGISTRY_URI),
          False),
         # missing registry, no replacement
         ('foo:1',
-         {'a': {'foo-package': ['y/bar']}},
-         {'a': {'foo-package': 'y/bar'}},
+         {SOURCE_REGISTRY_URI: {'foo-package': ['y/bar']}},
+         {SOURCE_REGISTRY_URI: {'foo-package': 'y/bar'}},
          'foo:1',
          False),
     ])
@@ -738,38 +752,38 @@ class TestPullspecReplacer(object):
 
     @pytest.mark.parametrize('image,site_replacements,user_replacements,inspect_labels,exc_msg', [
         # replacements configured in site config, repo missing
-        ('a/x/foo:1',
-         {'a': {}},
+        ('{}/x/foo:1'.format(SOURCE_REGISTRY_URI),
+         {SOURCE_REGISTRY_URI: {}},
          None,
          {PKG_LABEL: 'foo-package'},
-         'Replacement not configured for package foo-package (from a/x/foo:1). '
-         'Please specify replacement in container.yaml'),
+         'Replacement not configured for package foo-package (from {}/x/foo:1). '
+         'Please specify replacement in container.yaml'.format(SOURCE_REGISTRY_URI)),
         # replacements configured in user config, repo missing
-        ('a/x/foo:1',
+        ('{}/x/foo:1'.format(SOURCE_REGISTRY_URI),
          None,
-         {'a': {}},
+         {SOURCE_REGISTRY_URI: {}},
          {PKG_LABEL: 'foo-package'},
-         'Replacement not configured for package foo-package (from a/x/foo:1). '
-         'Please specify replacement in container.yaml'),
+         'Replacement not configured for package foo-package (from {}/x/foo:1). '
+         'Please specify replacement in container.yaml'.format(SOURCE_REGISTRY_URI)),
         # multiple options for replacement in site config
-        ('a/x/foo:1',
-         {'a': {'foo-package': ['bar', 'baz']}},
+        ('{}/x/foo:1'.format(SOURCE_REGISTRY_URI),
+         {SOURCE_REGISTRY_URI: {'foo-package': ['bar', 'baz']}},
          None,
          {PKG_LABEL: 'foo-package'},
-         'Multiple replacements for package foo-package (from a/x/foo:1): bar, baz. '
-         'Please specify replacement in container.yaml'),
+         'Multiple replacements for package foo-package (from {}/x/foo:1): bar, baz. '
+         'Please specify replacement in container.yaml'.format(SOURCE_REGISTRY_URI)),
         # user tried to override with an invalid replacement
-        ('a/x/foo:1',
-         {'a': {'foo-package': ['bar', 'baz']}},
-         {'a': {'foo-package': 'spam'}},
+        ('{}/x/foo:1'.format(SOURCE_REGISTRY_URI),
+         {SOURCE_REGISTRY_URI: {'foo-package': ['bar', 'baz']}},
+         {SOURCE_REGISTRY_URI: {'foo-package': 'spam'}},
          {PKG_LABEL: 'foo-package'},
          'Invalid replacement for package foo-package: spam (choices: bar, baz)'),
         # replacements configured, image has no component label
-        ('a/x/foo:1',
-         {'a': {}},
+        ('{}/x/foo:1'.format(SOURCE_REGISTRY_URI),
+         {SOURCE_REGISTRY_URI: {}},
          None,
          {},
-         'Image has no component label: a/x/foo:1'),
+         'Image has no component label: {}/x/foo:1'.format(SOURCE_REGISTRY_URI)),
     ])
     @responses.activate
     def test_replace_repo_failure(self, image, site_replacements, user_replacements,
