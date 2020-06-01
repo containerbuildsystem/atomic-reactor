@@ -440,21 +440,6 @@ def test_registry_session(tmpdir, registry, insecure, method, responses_method, 
          'insecure': False,
          'dockercfg_path': '/not/important'
      }),
-    # No pull_registries, have source_registry, should be source_registry
-    ('some_registry.io',
-     {
-         'source_registry': {
-            'url': "default_registry.io",
-            'auth': {
-                'cfg_path': '/not/important'
-            }
-         }
-     },
-     {
-         'uri': "default_registry.io",
-         'insecure': False,
-         'dockercfg_path': '/not/important'
-     }),
     # No source_registry, matches pull_registries
     ('some_registry.io',
      {
@@ -547,7 +532,7 @@ def test_registry_create_from_config(workflow, registry, reactor_config, matched
     # Registry specified, no registries in config
     ('some_registry.io',
      {},
-     'some_registry.io: No match in pull_registries, no source_registry configured'),
+     'some_registry.io: No match in pull_registries or source_registry'),
     # Registry specified, no source_registry, does not match pull_registries
     ('some_registry.io',
      {
@@ -555,7 +540,13 @@ def test_registry_create_from_config(workflow, registry, reactor_config, matched
              {'url': "some_other_registry.io"}
          ]
      },
-     'some_registry.io: No match in pull_registries, no source_registry configured'),
+     'some_registry.io: No match in pull_registries or source_registry'),
+    # Registry specified, no pull_registries, does not match source_registry
+    ('some_registry.io',
+     {
+         'source_registry': {'url': "some_other_registry.io"}
+     },
+     'some_registry.io: No match in pull_registries or source_registry'),
 ])
 def test_registry_create_from_config_errors(workflow, registry, reactor_config, error):
     reactor_config['version'] = 1  # required key

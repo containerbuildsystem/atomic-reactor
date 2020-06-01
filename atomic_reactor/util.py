@@ -645,8 +645,8 @@ class RegistrySession(object):
         """
         Create a session for the specified registry based on configuration in reactor config map.
 
-        If the registry is configured in pull_registries, use that configuration. Otherwise,
-        use the default source_registry configuration (if present, else an error is thrown).
+        If the registry is configured in source_registry or pull_registries,
+        use that configuration. Otherwise an error is thrown.
 
         :param workflow: DockerBuildWorkflow, contains configuration for registries
         :param registry: str, registry to create session for (as hostname[:port], no http(s))
@@ -662,6 +662,9 @@ class RegistrySession(object):
         source_registry = get_source_registry(workflow, None)
         pull_registries = get_pull_registries(workflow, [])
 
+        if source_registry:
+            pull_registries.append(source_registry)
+
         if registry is None:
             if source_registry is not None:
                 matched_registry = source_registry
@@ -669,13 +672,12 @@ class RegistrySession(object):
                 msg = "No source_registry configured, cannot create default session"
                 raise RuntimeError(msg)
         else:
-            # Try to match a registry in pull_registries, if no match found, use source_registry
-            matched_registry = next(
-                (reg for reg in pull_registries if reg['uri'].docker_uri == registry),
-                source_registry
-            )
+            # Try to match a registry in pull_registries and source_registry
+            match_registry = [reg for reg in pull_registries if reg['uri'].docker_uri == registry]
+            matched_registry = match_registry[0] if match_registry else None
+
             if matched_registry is None:
-                msg = ('{}: No match in pull_registries, no source_registry configured'
+                msg = ('{}: No match in pull_registries or source_registry'
                        .format(registry))
                 raise RuntimeError(msg)
 
