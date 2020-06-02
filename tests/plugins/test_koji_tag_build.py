@@ -21,6 +21,7 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from osbs.utils import ImageName
 from atomic_reactor.build import BuildResult
 from tests.constants import SOURCE, MOCK
+from tests.util import add_koji_map_in_workflow
 
 from flexmock import flexmock
 import pytest
@@ -113,34 +114,22 @@ def mock_environment(tmpdir, session=None, build_process_failed=False,
 
 def create_runner(tasker, workflow, ssl_certs=False, principal=None,
                   keytab=None, poll_interval=0.01, proxy_user=None,
-                  reactor_config_map=False, use_args=True, koji_target='koji-target'):
+                  use_args=True, koji_target='koji-target'):
     args = {
         'target': koji_target,
     }
-    koji_map = {
-        'hub_url': '',
-        'auth': {}
-    }
-
-    if ssl_certs:
-        koji_map['auth']['ssl_certs_dir'] = '/'
-
-    if principal:
-        koji_map['auth']['krb_principal'] = principal
-
-    if keytab:
-        koji_map['auth']['krb_keytab_path'] = keytab
 
     if poll_interval is not None:
         args['poll_interval'] = poll_interval
 
-    if proxy_user:
-        koji_map['auth']['proxyuser'] = proxy_user
-
-    if reactor_config_map:
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1, 'koji': koji_map})
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+        ReactorConfig({'version': 1})
+    add_koji_map_in_workflow(workflow, hub_url='',
+                             ssl_certs_dir='/' if ssl_certs else None,
+                             krb_keytab=keytab,
+                             krb_principal=principal,
+                             proxyuser=proxy_user)
 
     plugin_conf = {
         'name': KojiTagBuildPlugin.key
@@ -156,11 +145,11 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
 
 
 class TestKojiPromote(object):
-    def test_koji_tag_build_failed_build_process(self, tmpdir, reactor_config_map):  # noqa
+    def test_koji_tag_build_failed_build_process(self, tmpdir):  # noqa
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir, build_process_failed=True,
                                             session=session)
-        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
+        runner = create_runner(tasker, workflow)
         result = runner.run()
         assert result[KojiTagBuildPlugin.key] is None
 
@@ -189,15 +178,14 @@ class TestKojiPromote(object):
             'keytab': 'FILE:/var/run/secrets/mysecret',
         },
     ])
-    def test_koji_tag_build_krb_args(self, tmpdir, params, reactor_config_map):
+    def test_koji_tag_build_krb_args(self, tmpdir, params):
         session = MockedClientSession('')
         expectation = flexmock(session).should_receive('krb_login').and_return(True)
         tasker, workflow = mock_environment(tmpdir, koji_build_id='98765',
                                             session=session)
         runner = create_runner(tasker, workflow,
                                principal=params['principal'],
-                               keytab=params['keytab'],
-                               reactor_config_map=reactor_config_map)
+                               keytab=params['keytab'])
 
         if params['should_raise']:
             expectation.never()
@@ -207,7 +195,7 @@ class TestKojiPromote(object):
             expectation.once()
             runner.run()
 
-    def test_koji_tag_build_krb_fail(self, tmpdir, reactor_config_map):  # noqa
+    def test_koji_tag_build_krb_fail(self, tmpdir):  # noqa
         session = MockedClientSession('')
         (flexmock(session)
             .should_receive('krb_login')
@@ -215,11 +203,11 @@ class TestKojiPromote(object):
             .once())
         tasker, workflow = mock_environment(tmpdir, koji_build_id='98765',
                                             session=session)
-        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
+        runner = create_runner(tasker, workflow)
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_tag_build_ssl_fail(self, tmpdir, reactor_config_map):  # noqa
+    def test_koji_tag_build_ssl_fail(self, tmpdir):  # noqa
         session = MockedClientSession('')
         (flexmock(session)
             .should_receive('ssl_login')
@@ -227,8 +215,7 @@ class TestKojiPromote(object):
             .once())
         tasker, workflow = mock_environment(tmpdir, koji_build_id='98765',
                                             session=session)
-        runner = create_runner(tasker, workflow, ssl_certs=True,
-                               reactor_config_map=reactor_config_map)
+        runner = create_runner(tasker, workflow, ssl_certs=True)
         with pytest.raises(PluginFailedException):
             runner.run()
 
@@ -237,30 +224,29 @@ class TestKojiPromote(object):
         ['CANCELED'],
         [None],
     ])
-    def test_koji_tag_build_tag_fail(self, tmpdir, task_states, reactor_config_map):
+    def test_koji_tag_build_tag_fail(self, tmpdir, task_states):
         session = MockedClientSession('', task_states=task_states)
         tasker, workflow = mock_environment(tmpdir, koji_build_id='98765',
                                             session=session)
-        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
+        runner = create_runner(tasker, workflow)
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_tag_build_bad_id(self, tmpdir, reactor_config_map):
+    def test_koji_tag_build_bad_id(self, tmpdir):
         tasker, workflow = mock_environment(tmpdir, koji_build_id=None)
-        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
+        runner = create_runner(tasker, workflow)
         result = runner.run()
         assert not result[KojiTagBuildPlugin.key]
 
-    def test_koji_tag_build_success(self, tmpdir, reactor_config_map):  # noqa
+    def test_koji_tag_build_success(self, tmpdir):  # noqa
         tasker, workflow = mock_environment(tmpdir, koji_build_id='98765')
-        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)
+        runner = create_runner(tasker, workflow)
         result = runner.run()
         assert result[KojiTagBuildPlugin.key] == 'images-candidate'
 
-    def test_koji_tag_build_success_no_args(self, tmpdir, reactor_config_map):  # noqa
+    def test_koji_tag_build_success_no_args(self, tmpdir):  # noqa
         tasker, workflow = mock_environment(tmpdir, koji_build_id='98765')
-        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map,
-                               use_args=False)
+        runner = create_runner(tasker, workflow, use_args=False)
         result = runner.run()
         assert result[KojiTagBuildPlugin.key] == 'images-candidate'
 
@@ -271,10 +257,9 @@ class TestKojiPromote(object):
         (False, None),
         (False, ''),
     ])
-    def test_skip_plugin(self, tmpdir, caplog, reactor_config_map, scratch, target):  # noqa
+    def test_skip_plugin(self, tmpdir, caplog, scratch, target):  # noqa
         tasker, workflow = mock_environment(tmpdir, koji_build_id='98765', scratch=scratch)
-        runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map,
-                               use_args=False, koji_target=target)
+        runner = create_runner(tasker, workflow, use_args=False, koji_target=target)
         runner.run()
 
         if scratch:

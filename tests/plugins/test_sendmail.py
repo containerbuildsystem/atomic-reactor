@@ -17,6 +17,7 @@ from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
+from tests.util import add_koji_map_in_workflow
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from osbs.utils import ImageName
@@ -172,20 +173,22 @@ def test_valid_address(address, valid):
 
 
 class TestSendMailPlugin(object):
-    def test_fails_with_unknown_states(self, reactor_config_map):  # noqa
+    def test_fails_with_unknown_states(self):  # noqa
         class WF(object):
             exit_results = {}
             plugin_workspace = {}
 
         workflow = WF()
-        if reactor_config_map:
-            smtp_map = {
-                'from_address': 'foo@bar.com',
-                'host': 'smtp.spam.com',
-            }
-            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig({'version': 1, 'smtp': smtp_map})
+
+        smtp_map = {
+            'from_address': 'foo@bar.com',
+            'host': 'smtp.spam.com',
+        }
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1, 'smtp': smtp_map})
+        add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
+                                 ssl_certs_dir='/certs')
 
         p = SendMailPlugin(None, workflow,
                            smtp_host='smtp.bar.com', from_address='foo@bar.com',
@@ -218,8 +221,7 @@ class TestSendMailPlugin(object):
         # also make sure that a random combination of more plugins works ok
         (True, False, False, False, [AF, MS], True)
     ])
-    def test_should_send(self, rebuild, success, auto_canceled, manual_canceled, send_on, expected,
-                         reactor_config_map):
+    def test_should_send(self, rebuild, success, auto_canceled, manual_canceled, send_on, expected):
         class WF(object):
             exit_results = {
                 KojiImportPlugin.key: MOCK_KOJI_BUILD_ID
@@ -233,14 +235,16 @@ class TestSendMailPlugin(object):
         }
 
         workflow = WF()
-        if reactor_config_map:
-            smtp_map = {
-                'from_address': 'foo@bar.com',
-                'host': 'smtp.spam.com',
-            }
-            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig({'version': 1, 'smtp': smtp_map})
+
+        smtp_map = {
+            'from_address': 'foo@bar.com',
+            'host': 'smtp.spam.com',
+        }
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1, 'smtp': smtp_map})
+        add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
+                                 ssl_certs_dir='/certs')
 
         p = SendMailPlugin(None, workflow, **kwargs)
         assert p._should_send(rebuild, success, auto_canceled, manual_canceled) == expected
@@ -259,8 +263,7 @@ class TestSendMailPlugin(object):
         (['not/me@example.com', '', 'me@example.com', 'us@example.com'],
          ['me@example.com', 'us@example.com']),
     ])
-    def test_get_receiver_list(self, monkeypatch, additional_addresses, expected_receivers,
-                               reactor_config_map):
+    def test_get_receiver_list(self, monkeypatch, additional_addresses, expected_receivers):
         class TagConf(object):
             unique_images = []
 
@@ -299,29 +302,19 @@ class TestSendMailPlugin(object):
 
         workflow = WF()
 
-        if reactor_config_map:
-            openshift_map = {'url': 'https://something.com'}
-            koji_map = {
-                'hub_url': None,
-                'root_url': 'https://koji/',
-                'auth': {
-                    'ssl_certs_dir': '/certs',
-                    'proxyuser': None,
-                    'krb_principal': None,
-                    'krb_keytab_path': None
-                }
-            }
-            smtp_map = {
-                'from_address': 'foo@bar.com',
-                'host': 'smtp.bar.com',
-                'send_to_submitter': False,
-                'send_to_pkg_owner': False,
-                'additional_addresses': additional_addresses
-            }
-            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig({'version': 1, 'smtp': smtp_map, 'koji': koji_map,
-                               'openshift': openshift_map})
+        openshift_map = {'url': 'https://something.com'}
+        smtp_map = {
+            'from_address': 'foo@bar.com',
+            'host': 'smtp.bar.com',
+            'send_to_submitter': False,
+            'send_to_pkg_owner': False,
+            'additional_addresses': additional_addresses
+        }
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1, 'smtp': smtp_map, 'openshift': openshift_map})
+        add_koji_map_in_workflow(workflow, hub_url=None, root_url='https://koji/',
+                                 ssl_certs_dir='/certs')
 
         p = SendMailPlugin(None, workflow, **kwargs)
         if expected_receivers is not None:
@@ -369,9 +362,8 @@ class TestSendMailPlugin(object):
     ])
     def test_render_mail(self, monkeypatch, tmpdir, autorebuild, auto_cancel,
                          manual_cancel, to_koji_submitter, has_koji_logs,
-                         koji_integration, success, reactor_config_map,
-                         has_store_metadata_results, annotations, has_repositories,
-                         expect_error):
+                         koji_integration, success, has_store_metadata_results,
+                         annotations, has_repositories, expect_error):
         log_url_cases = {
             # (koji_integration,autorebuild,success)
             (False, False, False): False,
@@ -459,28 +451,20 @@ class TestSendMailPlugin(object):
             else:
                 mock_store_metadata_results(workflow, {})
 
-        if reactor_config_map:
-            openshift_map = {'url': 'https://something.com'}
-            koji_map = {
-                'hub_url': '/' if koji_integration else None,
-                'root_url': 'https://koji/',
-                'auth': {
-                    'ssl_certs_dir': '/certs',
-                    'proxyuser': None,
-                    'krb_principal': None,
-                    'krb_keytab_path': None
-                }
-            }
-            smtp_map = {
-                'from_address': 'foo@bar.com',
-                'host': 'smtp.bar.com',
-                'send_to_submitter': to_koji_submitter,
-                'send_to_pkg_owner': False,
-            }
-            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig({'version': 1, 'smtp': smtp_map, 'koji': koji_map,
-                               'openshift': openshift_map})
+        openshift_map = {'url': 'https://something.com'}
+        smtp_map = {
+            'from_address': 'foo@bar.com',
+            'host': 'smtp.bar.com',
+            'send_to_submitter': to_koji_submitter,
+            'send_to_pkg_owner': False,
+        }
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1, 'smtp': smtp_map, 'openshift': openshift_map})
+        add_koji_map_in_workflow(workflow,
+                                 hub_url='/' if koji_integration else None,
+                                 root_url='https://koji/',
+                                 ssl_certs_dir='/certs')
 
         p = SendMailPlugin(None, workflow, **kwargs)
 
@@ -555,7 +539,7 @@ class TestSendMailPlugin(object):
         TypeError,
         OsbsException, 'unable to get build logs from OSBS',
     ])
-    def test_failed_logs(self, tmpdir, monkeypatch, error_type, reactor_config_map):  # noqa
+    def test_failed_logs(self, tmpdir, monkeypatch, error_type):  # noqa
         # just test a random combination of the method inputs and hope it's ok for other
         #   combinations
         class TagConf(object):
@@ -605,50 +589,41 @@ class TestSendMailPlugin(object):
         workflow = WF()
         mock_store_metadata_results(workflow)
 
-        if reactor_config_map:
-            smtp_map = {
-                'from_address': 'foo@bar.com',
-                'host': 'smtp.bar.com',
-                'send_to_submitter': True,
-                'send_to_pkg_owner': False,
-            }
-            koji_map = {
-                'hub_url': '/',
-                'root_url': 'https://koji/',
-                'auth': {'ssl_certs_dir': '/certs'}
-            }
-            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig({'version': 1,
-                               'openshift': {'url': 'https://something.com'},
-                               'smtp': smtp_map,
-                               'koji': koji_map})
+        smtp_map = {
+            'from_address': 'foo@bar.com',
+            'host': 'smtp.bar.com',
+            'send_to_submitter': True,
+            'send_to_pkg_owner': False,
+        }
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1,
+                           'openshift': {'url': 'https://something.com'},
+                           'smtp': smtp_map})
+        add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
+                                 ssl_certs_dir='/certs')
 
         p = SendMailPlugin(None, workflow, **kwargs)
         _, _, fail_logs = p._render_mail(True, False, False, False)
         assert not fail_logs
 
-    @pytest.mark.parametrize(('has_koji_config', 'has_addit_address', 'to_koji_submitter',
+    @pytest.mark.parametrize(('has_addit_address', 'to_koji_submitter',
                               'has_original_task', 'to_koji_pkgowner', 'expected_receivers'), [  # noqa
-            (True, True, True, True, True,
+            (True, True, True, True,
                 [MOCK_ADDITIONAL_EMAIL, MOCK_KOJI_OWNER_EMAIL, MOCK_KOJI_ORIGINAL_SUBMITTER_EMAIL]),
-            (True, True, True, False, True,
+            (True, True, False, True,
                 [MOCK_ADDITIONAL_EMAIL, MOCK_KOJI_OWNER_EMAIL, MOCK_KOJI_SUBMITTER_EMAIL]),
-            (True, False, True, True, True, [MOCK_KOJI_OWNER_EMAIL,
+            (False, True, True, True, [MOCK_KOJI_OWNER_EMAIL,
                                              MOCK_KOJI_ORIGINAL_SUBMITTER_EMAIL]),
-            (True, False, True, False, True, [MOCK_KOJI_OWNER_EMAIL, MOCK_KOJI_SUBMITTER_EMAIL]),
-            (True, False, True, True, False, [MOCK_KOJI_ORIGINAL_SUBMITTER_EMAIL]),
-            (True, False, True, False, False, [MOCK_KOJI_SUBMITTER_EMAIL]),
-            (True, False, False, False, True, [MOCK_KOJI_OWNER_EMAIL]),
-            (True, True, False, False, False, [MOCK_ADDITIONAL_EMAIL]),
-            (True, False, False, False, False, []),
-            (False, False, False, False, False, []),
-            (False, True, False, False, True, [MOCK_ADDITIONAL_EMAIL]),
-            (False, True, True, False, False, [MOCK_ADDITIONAL_EMAIL]),
+            (False, True, False, True, [MOCK_KOJI_OWNER_EMAIL, MOCK_KOJI_SUBMITTER_EMAIL]),
+            (False, True, True, False, [MOCK_KOJI_ORIGINAL_SUBMITTER_EMAIL]),
+            (False, True, False, False, [MOCK_KOJI_SUBMITTER_EMAIL]),
+            (False, False, False, True, [MOCK_KOJI_OWNER_EMAIL]),
+            (True, False, False, False, [MOCK_ADDITIONAL_EMAIL]),
+            (False, False, False, False, []),
         ])
-    def test_recepients_from_koji(self, monkeypatch, has_addit_address, has_koji_config,
-                                  to_koji_submitter, has_original_task, to_koji_pkgowner,
-                                  expected_receivers, reactor_config_map):
+    def test_recepients_from_koji(self, monkeypatch, has_addit_address, to_koji_submitter,
+                                  has_original_task, to_koji_pkgowner, expected_receivers):
         class TagConf(object):
             unique_images = []
 
@@ -697,29 +672,19 @@ class TestSendMailPlugin(object):
             kwargs['additional_addresses'] = [MOCK_ADDITIONAL_EMAIL]
             smtp_map['additional_addresses'] = [MOCK_ADDITIONAL_EMAIL]
 
-        koji_map = None
-        if has_koji_config:
-            koji_map = {
-                'hub_url': '/',
-                'root_url': '',
-                'auth': {
-                    'ssl_certs_dir': '/certs',
-                }
-            }
-
         workflow = WF()
-        if reactor_config_map:
-            openshift_map = {'url': 'https://something.com'}
-            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-            full_config = {
-                'version': 1,
-                'smtp': smtp_map,
-                'openshift': openshift_map,
-            }
-            if koji_map:
-                full_config['koji'] = koji_map
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig(full_config)
+
+        openshift_map = {'url': 'https://something.com'}
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        full_config = {
+            'version': 1,
+            'smtp': smtp_map,
+            'openshift': openshift_map,
+        }
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig(full_config)
+        add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
+                                 ssl_certs_dir='/certs')
 
         p = SendMailPlugin(None, workflow, **kwargs)
 
@@ -733,8 +698,7 @@ class TestSendMailPlugin(object):
     @pytest.mark.parametrize('has_kerberos, expected_receivers', [
         (True, [MOCK_KOJI_OWNER_EMAIL, MOCK_KOJI_SUBMITTER_EMAIL]),
         (False, [MOCK_KOJI_OWNER_GENERATED, MOCK_KOJI_SUBMITTER_GENERATED])])
-    def test_generated_email(self, monkeypatch, has_kerberos, expected_receivers,
-                             reactor_config_map):
+    def test_generated_email(self, monkeypatch, has_kerberos, expected_receivers):
         class TagConf(object):
             unique_images = []
 
@@ -770,26 +734,20 @@ class TestSendMailPlugin(object):
         }
 
         workflow = WF()
-        if reactor_config_map:
-            openshift_map = {'url': 'https://something.com'}
-            koji_map = {
-                'hub_url': '/',
-                'root_url': '',
-                'auth': {
-                    'ssl_certs_dir': '/certs',
-                }
-            }
-            smtp_map = {
-                'from_address': 'foo@bar.com',
-                'host': 'smtp.bar.com',
-                'send_to_submitter': True,
-                'send_to_pkg_owner': True,
-                'domain': MOCK_EMAIL_DOMAIN,
-            }
-            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig({'version': 1, 'smtp': smtp_map, 'koji': koji_map,
-                               'openshift': openshift_map})
+
+        openshift_map = {'url': 'https://something.com'}
+        smtp_map = {
+            'from_address': 'foo@bar.com',
+            'host': 'smtp.bar.com',
+            'send_to_submitter': True,
+            'send_to_pkg_owner': True,
+            'domain': MOCK_EMAIL_DOMAIN,
+        }
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1, 'smtp': smtp_map, 'openshift': openshift_map})
+        add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
+                                 ssl_certs_dir='/certs')
 
         p = SendMailPlugin(None, workflow, **kwargs)
         receivers = p._get_receivers_list()
@@ -807,8 +765,7 @@ class TestSendMailPlugin(object):
         ('owner', [MOCK_KOJI_SUBMITTER_EMAIL]),
         ('empty_owner', [MOCK_KOJI_SUBMITTER_EMAIL]),
         ('empty_email_domain', [])])
-    def test_koji_recepients_exception(self, monkeypatch, exception_location, expected_receivers,
-                                       reactor_config_map):
+    def test_koji_recepients_exception(self, monkeypatch, exception_location, expected_receivers):
         class TagConf(object):
             unique_images = []
 
@@ -876,19 +833,13 @@ class TestSendMailPlugin(object):
             smtp_map['domain'] = MOCK_EMAIL_DOMAIN
 
         workflow = WF()
-        if reactor_config_map:
-            openshift_map = {'url': 'https://something.com'}
-            koji_map = {
-                'hub_url': '/',
-                'root_url': '',
-                'auth': {
-                    'ssl_certs_dir': '/certs',
-                }
-            }
-            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig({'version': 1, 'smtp': smtp_map, 'koji': koji_map,
-                               'openshift': openshift_map})
+
+        openshift_map = {'url': 'https://something.com'}
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1, 'smtp': smtp_map, 'openshift': openshift_map})
+        add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
+                                 ssl_certs_dir='/certs')
 
         p = SendMailPlugin(None, workflow, **kwargs)
         if not expected_receivers:
@@ -899,20 +850,23 @@ class TestSendMailPlugin(object):
             assert sorted(receivers) == sorted(expected_receivers)
 
     @pytest.mark.parametrize('throws_exception', [False, True])
-    def test_send_mail(self, throws_exception, reactor_config_map):
+    def test_send_mail(self, throws_exception):
         class WF(object):
             exit_results = {}
             plugin_workspace = {}
 
         workflow = WF()
-        if reactor_config_map:
-            smtp_map = {
-                'from_address': 'foo@bar.com',
-                'host': 'smtp.bar.com',
-            }
-            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig({'version': 1, 'smtp': smtp_map})
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+
+        smtp_map = {
+            'from_address': 'foo@bar.com',
+            'host': 'smtp.bar.com',
+        }
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1, 'smtp': smtp_map})
+        add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
+                                 ssl_certs_dir='/certs')
 
         p = SendMailPlugin(None, workflow, from_address='foo@bar.com', smtp_host='smtp.spam.com')
 
@@ -938,7 +892,7 @@ class TestSendMailPlugin(object):
         else:
             p._send_mail(['spam@spam.com'], 'subject', 'body')
 
-    def test_run_ok(self, tmpdir, reactor_config_map):  # noqa
+    def test_run_ok(self, tmpdir):  # noqa
         class TagConf(object):
             unique_images = []
 
@@ -962,14 +916,15 @@ class TestSendMailPlugin(object):
         workflow = WF()
         mock_store_metadata_results(workflow)
 
-        if reactor_config_map:
-            smtp_map = {
-                'from_address': 'foo@bar.com',
-                'host': 'smtp.bar.com',
-            }
-            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig({'version': 1, 'smtp': smtp_map})
+        smtp_map = {
+            'from_address': 'foo@bar.com',
+            'host': 'smtp.bar.com',
+        }
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1, 'smtp': smtp_map})
+        add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
+                                 ssl_certs_dir='/certs')
 
         p = SendMailPlugin(None, workflow,
                            from_address='foo@bar.com', smtp_host='smtp.spam.com',
@@ -984,7 +939,7 @@ class TestSendMailPlugin(object):
 
         p.run()
 
-    def test_run_ok_and_send(self, monkeypatch, reactor_config_map):  # noqa
+    def test_run_ok_and_send(self, monkeypatch):  # noqa
         class TagConf(object):
             unique_images = []
 
@@ -1016,14 +971,16 @@ class TestSendMailPlugin(object):
         }))
 
         workflow = WF()
-        if reactor_config_map:
-            smtp_map = {
-                'from_address': 'foo@bar.com',
-                'host': 'smtp.spam.com',
-            }
-            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig({'version': 1, 'smtp': smtp_map})
+
+        smtp_map = {
+            'from_address': 'foo@bar.com',
+            'host': 'smtp.spam.com',
+        }
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1, 'smtp': smtp_map})
+        add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
+                                 ssl_certs_dir='/certs')
 
         receivers = ['foo@bar.com', 'x@y.com']
         fake_logs = [LogEntry(None, 'orchestrator'),
@@ -1046,7 +1003,7 @@ class TestSendMailPlugin(object):
         flexmock(smtplib).should_receive('SMTP').and_return(smtp_inst)
         p.run()
 
-    def test_run_fails_to_obtain_receivers(self, reactor_config_map):  # noqa
+    def test_run_fails_to_obtain_receivers(self):  # noqa
         class TagConf(object):
             unique_images = []
 
@@ -1065,15 +1022,16 @@ class TestSendMailPlugin(object):
         workflow = WF()
         mock_store_metadata_results(workflow)
 
-        if reactor_config_map:
-            smtp_map = {
-                'from_address': 'foo@bar.com',
-                'host': 'smtp.bar.com',
-                'error_addresses': ['error@address.com'],
-            }
-            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig({'version': 1, 'smtp': smtp_map})
+        smtp_map = {
+            'from_address': 'foo@bar.com',
+            'host': 'smtp.bar.com',
+            'error_addresses': ['error@address.com'],
+        }
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1, 'smtp': smtp_map})
+        add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
+                                 ssl_certs_dir='/certs')
 
         p = SendMailPlugin(None, workflow,
                            from_address='foo@bar.com', smtp_host='smtp.spam.com',
@@ -1091,7 +1049,7 @@ class TestSendMailPlugin(object):
 
         p.run()
 
-    def test_run_invalid_receivers(self, caplog, reactor_config_map):  # noqa
+    def test_run_invalid_receivers(self, caplog):  # noqa
         class TagConf(object):
             unique_images = []
 
@@ -1110,15 +1068,16 @@ class TestSendMailPlugin(object):
         workflow = WF()
         mock_store_metadata_results(workflow)
 
-        if reactor_config_map:
-            smtp_map = {
-                'from_address': 'foo@bar.com',
-                'host': 'smtp.bar.com',
-                'error_addresses': ['error@address.com'],
-            }
-            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig({'version': 1, 'smtp': smtp_map})
+        smtp_map = {
+            'from_address': 'foo@bar.com',
+            'host': 'smtp.bar.com',
+            'error_addresses': ['error@address.com'],
+        }
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1, 'smtp': smtp_map})
+        add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
+                                 ssl_certs_dir='/certs')
 
         p = SendMailPlugin(None, workflow,
                            from_address='foo@bar.com', smtp_host='smtp.spam.com',
@@ -1134,7 +1093,7 @@ class TestSendMailPlugin(object):
         p.run()
         assert 'no valid addresses in requested addresses. Doing nothing' in caplog.text
 
-    def test_run_does_nothing_if_conditions_not_met(self, reactor_config_map):  # noqa
+    def test_run_does_nothing_if_conditions_not_met(self):  # noqa
         class WF(object):
             autorebuild_canceled = False
             build_canceled = False
@@ -1145,14 +1104,16 @@ class TestSendMailPlugin(object):
             plugin_workspace = {}
 
         workflow = WF()
-        if reactor_config_map:
-            smtp_map = {
-                'from_address': 'foo@bar.com',
-                'host': 'smtp.spam.com',
-            }
-            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig({'version': 1, 'smtp': smtp_map})
+
+        smtp_map = {
+            'from_address': 'foo@bar.com',
+            'host': 'smtp.spam.com',
+        }
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1, 'smtp': smtp_map})
+        add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
+                                 ssl_certs_dir='/certs')
 
         p = SendMailPlugin(None, workflow,
                            from_address='foo@bar.com', smtp_host='smtp.spam.com',

@@ -21,6 +21,7 @@ from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildP
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
+from tests.util import add_koji_map_in_workflow
 from osbs.api import OSBS
 
 
@@ -61,24 +62,20 @@ class TestKojiDelegate(object):
         }
         if triggered_after_koji_task:
             kwargs['triggered_after_koji_task'] = triggered_after_koji_task
-        koji_map = {
-            'hub_url': '',
-            'root_url': '',
-            'auth': {},
-            'reserve_build': False,
-            'delegate_task': delegate_task,
-        }
+
         openshift_map = {
             'url': '',
             'insecure': False,
             'auth': {'enable': True}
         }
-        if delegated_priority:
-            koji_map['delegated_task_priority'] = delegated_priority
 
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1, 'koji': koji_map, 'openshift': openshift_map})
+            ReactorConfig({'version': 1, 'openshift': openshift_map})
+        add_koji_map_in_workflow(workflow, hub_url='', root_url='',
+                                 reserve_build=False,
+                                 delegate_task=delegate_task,
+                                 delegated_priority=delegated_priority)
 
         plugin = KojiDelegatePlugin(**kwargs)
         return plugin

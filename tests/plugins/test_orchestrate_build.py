@@ -35,6 +35,7 @@ from osbs.core import Openshift
 from osbs.utils import ImageName
 from tests.constants import MOCK_SOURCE, TEST_IMAGE, INPUT_IMAGE, SOURCE
 from tests.docker_mock import mock_docker
+from tests.util import add_koji_map_in_workflow
 from textwrap import dedent
 from copy import deepcopy
 
@@ -165,7 +166,17 @@ def mock_reactor_config(tmpdir, clusters=None, empty=False, add_config=None):
     if not clusters and not empty:
         clusters = deepcopy(DEFAULT_CLUSTERS)
 
-    conf_json = {'version': 1, 'clusters': clusters}
+    koji_map = {
+        'hub_url': '/',
+        'root_url': '',
+        'auth': {}
+    }
+
+    conf_json = {
+        'version': 1,
+        'clusters': clusters,
+        'koji': koji_map
+    }
     if add_config:
         conf_json.update(add_config)
     conf = ReactorConfig(conf_json)
@@ -282,8 +293,7 @@ def teardown_function(function):
     True,
     False
 ])
-def test_orchestrate_build(tmpdir, caplog, config_kwargs,
-                           worker_build_image, logs_return_bytes, reactor_config_map):
+def test_orchestrate_build(tmpdir, caplog, config_kwargs, worker_build_image, logs_return_bytes):
     workflow = mock_workflow(tmpdir, platforms=['x86_64'])
     mock_osbs(logs_return_bytes=logs_return_bytes)
     plugin_args = {
@@ -300,6 +310,8 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
         'conf_section': str('worker_x86_64'),
         'conf_file': str(tmpdir) + '/osbs.conf',
         'sources_command': None,
+        'koji_hub': '/',
+        'koji_root': ''
     }
     if config_kwargs:
         expected_kwargs['sources_command'] = config_kwargs.get('sources_command')
@@ -308,83 +320,57 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
 
     clusters = deepcopy(DEFAULT_CLUSTERS)
 
-    if reactor_config_map:
-        reactor_dict = {'version': 1, 'arrangement_version': 6}
-        if config_kwargs and 'sources_command' in config_kwargs:
-            reactor_dict['sources_command'] = 'fedpkg source'
+    reactor_dict = {'version': 1, 'arrangement_version': 6}
+    if config_kwargs and 'sources_command' in config_kwargs:
+        reactor_dict['sources_command'] = 'fedpkg source'
 
-        expected_kwargs['source_registry_uri'] = None
-        reactor_dict['koji'] = {
-            'hub_url': '/',
-            'root_url': ''}
-        expected_kwargs['koji_hub'] = reactor_dict['koji']['hub_url']
-        expected_kwargs['koji_root'] = reactor_dict['koji']['root_url']
-        reactor_dict['odcs'] = {'api_url': 'odcs_url'}
-        expected_kwargs['odcs_insecure'] = False
-        expected_kwargs['odcs_url'] = reactor_dict['odcs']['api_url']
-        reactor_dict['prefer_schema1_digest'] = False
-        expected_kwargs['prefer_schema1_digest'] = reactor_dict['prefer_schema1_digest']
-        reactor_dict['smtp'] = {
-            'from_address': 'from',
-            'host': 'smtp host'}
-        expected_kwargs['smtp_host'] = reactor_dict['smtp']['host']
-        expected_kwargs['smtp_from'] = reactor_dict['smtp']['from_address']
-        expected_kwargs['smtp_email_domain'] = None
-        expected_kwargs['smtp_additional_addresses'] = ""
-        expected_kwargs['smtp_error_addresses'] = ""
-        expected_kwargs['smtp_to_submitter'] = False
-        expected_kwargs['smtp_to_pkgowner'] = False
-        reactor_dict['artifacts_allowed_domains'] = ('domain1', 'domain2')
-        expected_kwargs['artifacts_allowed_domains'] =\
-            ','.join(reactor_dict['artifacts_allowed_domains'])
-        reactor_dict['yum_proxy'] = 'yum proxy'
-        expected_kwargs['yum_proxy'] = reactor_dict['yum_proxy']
-        reactor_dict['content_versions'] = ['v2']
-        expected_kwargs['registry_api_versions'] = 'v2'
+    expected_kwargs['source_registry_uri'] = None
+    reactor_dict['odcs'] = {'api_url': 'odcs_url'}
+    expected_kwargs['odcs_insecure'] = False
+    expected_kwargs['odcs_url'] = reactor_dict['odcs']['api_url']
+    reactor_dict['prefer_schema1_digest'] = False
+    expected_kwargs['prefer_schema1_digest'] = reactor_dict['prefer_schema1_digest']
+    reactor_dict['smtp'] = {
+        'from_address': 'from',
+        'host': 'smtp host'}
+    expected_kwargs['smtp_host'] = reactor_dict['smtp']['host']
+    expected_kwargs['smtp_from'] = reactor_dict['smtp']['from_address']
+    expected_kwargs['smtp_email_domain'] = None
+    expected_kwargs['smtp_additional_addresses'] = ""
+    expected_kwargs['smtp_error_addresses'] = ""
+    expected_kwargs['smtp_to_submitter'] = False
+    expected_kwargs['smtp_to_pkgowner'] = False
+    reactor_dict['artifacts_allowed_domains'] = ('domain1', 'domain2')
+    expected_kwargs['artifacts_allowed_domains'] =\
+        ','.join(reactor_dict['artifacts_allowed_domains'])
+    reactor_dict['yum_proxy'] = 'yum proxy'
+    expected_kwargs['yum_proxy'] = reactor_dict['yum_proxy']
+    reactor_dict['content_versions'] = ['v2']
+    expected_kwargs['registry_api_versions'] = 'v2'
 
-        # Move client config from plugin args to reactor config
-        reactor_dict['clusters_client_config_dir'] = plugin_args.pop('osbs_client_config')
+    # Move client config from plugin args to reactor config
+    reactor_dict['clusters_client_config_dir'] = plugin_args.pop('osbs_client_config')
 
-        if config_kwargs and 'equal_labels' in config_kwargs:
-            expected_kwargs['equal_labels'] = config_kwargs['equal_labels']
+    if config_kwargs and 'equal_labels' in config_kwargs:
+        expected_kwargs['equal_labels'] = config_kwargs['equal_labels']
 
-            label_groups = [x.strip() for x in config_kwargs['equal_labels'].split(',')]
+        label_groups = [x.strip() for x in config_kwargs['equal_labels'].split(',')]
 
-            equal_labels = []
-            for label_group in label_groups:
-                equal_labels.append([label.strip() for label in label_group.split(':')])
+        equal_labels = []
+        for label_group in label_groups:
+            equal_labels.append([label.strip() for label in label_group.split(':')])
 
-            reactor_dict['image_equal_labels'] = equal_labels
+        reactor_dict['image_equal_labels'] = equal_labels
 
-        reactor_dict['clusters'] = clusters
-        reactor_dict['platform_descriptors'] = [{'platform': 'x86_64',
-                                                 'architecture': 'amd64'}]
+    reactor_dict['clusters'] = clusters
+    reactor_dict['platform_descriptors'] = [{'platform': 'x86_64',
+                                             'architecture': 'amd64'}]
 
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig(reactor_dict)
-    else:
-        reactor_dict = {'version': 1, 'clusters': clusters}
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig(reactor_dict)
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+        ReactorConfig(reactor_dict)
 
-        expected_kwargs['smtp_host'] = None
-        expected_kwargs['koji_hub'] = None
-        expected_kwargs['smtp_email_domain'] = None
-        expected_kwargs['smtp_from'] = None
-        expected_kwargs['registry_api_versions'] = ''
-        expected_kwargs['source_registry_uri'] = None
-        expected_kwargs['yum_proxy'] = None
-        expected_kwargs['odcs_url'] = None
-        expected_kwargs['odcs_insecure'] = False
-        expected_kwargs['smtp_additional_addresses'] = ''
-        expected_kwargs['koji_root'] = None
-        expected_kwargs['smtp_error_addresses'] = ''
-        expected_kwargs['smtp_to_submitter'] = None
-        expected_kwargs['artifacts_allowed_domains'] = ''
-        expected_kwargs['smtp_to_pkgowner'] = None
-        expected_kwargs['prefer_schema1_digest'] = None
+    add_koji_map_in_workflow(workflow, hub_url='/', root_url='')
 
     with open(os.path.join(str(tmpdir), 'osbs.conf'), 'w') as f:
         for plat_clusters in clusters.values():
@@ -483,6 +469,7 @@ def test_orchestrate_build_annotations_and_labels(tmpdir, metadata_fragment):
         .replace_with(mock_wait_for_build_to_finish))
 
     mock_reactor_config(tmpdir)
+
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
         workflow,
@@ -746,14 +733,11 @@ def test_orchestrate_build_choose_clusters(tmpdir, clusters_x86_64,
 
 # This test tests code paths that can no longer be hit in actual operation since
 # we exclude platforms with no clusters in check_and_set_platforms.
-def test_orchestrate_build_unknown_platform(tmpdir, reactor_config_map):  # noqa
+def test_orchestrate_build_unknown_platform(tmpdir):  # noqa
     workflow = mock_workflow(tmpdir, platforms=['x86_64', 'spam'])
     mock_osbs()
     mock_manifest_list()
-    if reactor_config_map:
-        mock_reactor_config(tmpdir)
-    else:
-        mock_reactor_config(tmpdir, clusters={}, empty=True)
+    mock_reactor_config(tmpdir)
 
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
@@ -774,15 +758,8 @@ def test_orchestrate_build_unknown_platform(tmpdir, reactor_config_map):  # noqa
 
     with pytest.raises(PluginFailedException) as exc:
         runner.run()
-    if reactor_config_map:
-        assert "No clusters found for platform spam!" in str(exc.value)
-    else:
-        count = 0
-        if "No clusters found for platform x86_64!" in str(exc.value):
-            count += 1
-        if "No clusters found for platform spam!" in str(exc.value):
-            count += 1
-        assert count > 0
+
+    assert "No clusters found for platform spam!" in str(exc.value)
 
 
 def test_orchestrate_build_failed_create(tmpdir):
@@ -1606,6 +1583,8 @@ def test_set_build_image_with_override(tmpdir, platforms, override):
     workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
     workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
         ReactorConfig(reactor_config)
+
+    add_koji_map_in_workflow(workflow, hub_url='/', root_url='')
 
     plugin_args = {
         'platforms': platforms,

@@ -22,6 +22,7 @@ from fnmatch import fnmatch
 import pytest
 from tests.constants import SOURCE, MOCK
 from tests.stubs import StubInsideBuilder, StubSource
+from tests.util import add_koji_map_in_workflow
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -169,7 +170,7 @@ class TestKoji(object):
     ])
     def test_koji_plugin(self, tmpdir, caplog, parent_images, base_from_scratch,
                          target, expect_success, root, koji_ssl_certs,
-                         expected_string, expected_file, proxy, reactor_config_map):
+                         expected_string, expected_file, proxy):
         tasker, workflow = prepare()
         workflow.builder.base_from_scratch = base_from_scratch
         workflow.builder.parent_images = parent_images
@@ -180,18 +181,11 @@ class TestKoji(object):
             tmpdir.join('cert').write('cert')
             tmpdir.join('serverca').write('serverca')
 
-        if reactor_config_map:
-            koji_map = {
-                'hub_url': '',
-                'root_url': root,
-                'auth': {}}
-            if koji_ssl_certs:
-                koji_map['auth']['ssl_certs_dir'] = str(tmpdir)
-            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig({'version': 1,
-                               'koji': koji_map,
-                               'yum_proxy': proxy})
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1, 'yum_proxy': proxy})
+        add_koji_map_in_workflow(workflow, hub_url='', root_url=root,
+                                 ssl_certs_dir=str(tmpdir) if koji_ssl_certs else None)
 
         runner = PreBuildPluginsRunner(tasker, workflow, [{
             'name': KojiPlugin.key,
@@ -245,14 +239,10 @@ class TestKoji(object):
         tasker, workflow = prepare()
         args = {'target': target}
 
-        koji_map = {
-            'hub_url': '',
-            'root_url': 'http://example.com',
-            'auth': {}}
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1,
-                           'koji': koji_map})
+            ReactorConfig({'version': 1})
+        add_koji_map_in_workflow(workflow, hub_url='', root_url='http://example.com')
 
         workflow.user_params['include_koji_repo'] = include_repo
         workflow.user_params['yum_repourls'] = yum_repos
