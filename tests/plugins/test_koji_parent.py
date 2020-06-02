@@ -29,6 +29,7 @@ from osbs.utils import ImageName
 from flexmock import flexmock
 from tests.constants import MOCK, MOCK_SOURCE
 from tests.stubs import StubInsideBuilder
+from tests.util import add_koji_map_in_workflow
 from copy import deepcopy
 
 import pytest
@@ -112,21 +113,21 @@ def koji_session():
 
 class TestKojiParent(object):
 
-    def test_koji_build_found(self, workflow, koji_session, reactor_config_map):  # noqa
-        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
+    def test_koji_build_found(self, workflow, koji_session):  # noqa
+        self.run_plugin_with_args(workflow)
 
     @pytest.mark.skip(reason="Raising for manifests_mismatches is disabled")
-    def test_koji_build_no_extra(self, workflow, koji_session, reactor_config_map):  # noqa
+    def test_koji_build_no_extra(self, workflow, koji_session):  # noqa
         koji_no_extra = {'nvr': KOJI_BUILD_NVR, 'id': KOJI_BUILD_ID, 'state': KOJI_STATE_COMPLETE}
         (flexmock(koji_session)
             .should_receive('getBuild')
             .with_args(KOJI_BUILD_NVR)
             .and_return(koji_no_extra))
         with pytest.raises(PluginFailedException) as exc_info:
-            self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
+            self.run_plugin_with_args(workflow)
         assert 'does not have manifest digest data' in str(exc_info.value)
 
-    def test_koji_build_retry(self, workflow, koji_session, reactor_config_map):  # noqa
+    def test_koji_build_retry(self, workflow, koji_session):  # noqa
         (flexmock(koji_session)
             .should_receive('getBuild')
             .with_args(KOJI_BUILD_NVR)
@@ -137,9 +138,9 @@ class TestKojiParent(object):
             .and_return(KOJI_BUILD)
             .times(5))
 
-        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
+        self.run_plugin_with_args(workflow)
 
-    def test_koji_ssl_certs_used(self, tmpdir, workflow, koji_session, reactor_config_map):  # noqa
+    def test_koji_ssl_certs_used(self, tmpdir, workflow, koji_session):  # noqa
         serverca = tmpdir.join('serverca')
         serverca.write('spam')
         expected_ssl_login_args = {
@@ -153,34 +154,33 @@ class TestKojiParent(object):
             .and_return(True)
             .once())
         plugin_args = {'koji_ssl_certs_dir': str(tmpdir)}
-        self.run_plugin_with_args(workflow, plugin_args, reactor_config_map=reactor_config_map)
+        self.run_plugin_with_args(workflow, plugin_args)
 
-    def test_koji_build_not_found(self, workflow, koji_session, reactor_config_map):  # noqa
+    def test_koji_build_not_found(self, workflow, koji_session):  # noqa
         (flexmock(koji_session)
             .should_receive('getBuild')
             .with_args(KOJI_BUILD_NVR)
             .and_return(None))
 
         with pytest.raises(PluginFailedException) as exc_info:
-            self.run_plugin_with_args(workflow, {'poll_timeout': 0.01},
-                                      reactor_config_map=reactor_config_map)
+            self.run_plugin_with_args(workflow, {'poll_timeout': 0.01})
         assert 'KojiParentBuildMissing' in str(exc_info.value)
 
-    def test_koji_build_deleted(self, workflow, koji_session, reactor_config_map):  # noqa
+    def test_koji_build_deleted(self, workflow, koji_session):  # noqa
         (flexmock(koji_session)
             .should_receive('getBuild')
             .with_args(KOJI_BUILD_NVR)
             .and_return(DELETED_KOJI_BUILD))
 
         with pytest.raises(PluginFailedException) as exc_info:
-            self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
+            self.run_plugin_with_args(workflow)
         assert 'KojiParentBuildMissing' in str(exc_info.value)
         assert 'state is not COMPLETE' in str(exc_info.value)
 
-    def test_base_image_not_inspected(self, workflow, koji_session, reactor_config_map):  # noqa
+    def test_base_image_not_inspected(self, workflow, koji_session):  # noqa
         del workflow.builder.base_image_inspect[INSPECT_CONFIG]
         with pytest.raises(PluginFailedException) as exc_info:
-            self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
+            self.run_plugin_with_args(workflow)
         assert 'KeyError' in str(exc_info.value)
         assert 'Config' in str(exc_info.value)
 
@@ -196,8 +196,8 @@ class TestKojiParent(object):
         (['Release'], True),
         (['release', 'Release'], False),
     ])
-    def test_base_image_missing_labels(self, workflow, koji_session, remove_labels, exp_result,
-                                       reactor_config_map, external, caplog):
+    def test_base_image_missing_labels(self, workflow, koji_session, remove_labels,
+                                       exp_result, external, caplog):
         base_tag = ImageName.parse('base:stubDigest')
 
         base_inspect = {INSPECT_CONFIG: {'Labels': BASE_IMAGE_LABELS_W_ALIASES.copy()}}
@@ -210,21 +210,18 @@ class TestKojiParent(object):
             del workflow.builder._parent_inspection_data[base_tag][INSPECT_CONFIG]['Labels'][label]
 
         if not exp_result:
-            if not (external and reactor_config_map):
+            if not external:
                 with pytest.raises(PluginFailedException) as exc:
                     self.run_plugin_with_args(workflow, expect_result=exp_result,
-                                              reactor_config_map=reactor_config_map,
                                               external_base=external)
                 assert 'Was this image built in OSBS?' in str(exc.value)
             else:
                 result = {PARENT_IMAGES_KOJI_BUILDS: {ImageName.parse('base'): None}}
                 self.run_plugin_with_args(workflow, expect_result=result,
-                                          reactor_config_map=reactor_config_map,
                                           external_base=external)
                 assert 'Was this image built in OSBS?' in caplog.text
         else:
-            self.run_plugin_with_args(workflow, expect_result=exp_result,
-                                      reactor_config_map=reactor_config_map)
+            self.run_plugin_with_args(workflow, expect_result=exp_result)
 
     @pytest.mark.parametrize('media_version', ['v2_list', 'v2'])
     @pytest.mark.parametrize('koji_mtype', [True, False])
@@ -235,7 +232,7 @@ class TestKojiParent(object):
                              ['miss', 'miss', 'miss'],
                              ['stubDigest', 'stubDigest', 'stubDigest']])
     @pytest.mark.parametrize('special_base', [False, 'scratch', 'custom'])  # noqa: F811
-    def test_multiple_parent_images(self, workflow, koji_session, reactor_config_map, koji_mtype,
+    def test_multiple_parent_images(self, workflow, koji_session, koji_mtype,
                                     special_base, parent_tags, media_version, caplog):
         parent_images = {
             ImageName.parse('somebuilder'): ImageName.parse('somebuilder:{}'
@@ -301,22 +298,15 @@ class TestKojiParent(object):
         if special_base:
             del expected[BASE_IMAGE_KOJI_BUILD]
 
-        if not reactor_config_map and ('miss' in parent_tags or not koji_mtype):
-            with pytest.raises(PluginFailedException) as exc_info:
-                self.run_plugin_with_args(
-                    workflow, expect_result=expected, reactor_config_map=reactor_config_map
-                )
-            assert 'This parent image MUST be rebuilt' in str(exc_info.value)
-            return
 
         if not koji_mtype:
             self.run_plugin_with_args(
-                workflow, expect_result=expected, reactor_config_map=reactor_config_map
+                workflow, expect_result=expected
             )
             assert 'does not have manifest digest data for the expected media type' in caplog.text
         elif 'miss' in parent_tags or not koji_mtype:
             self.run_plugin_with_args(
-                workflow, expect_result=expected, reactor_config_map=reactor_config_map
+                workflow, expect_result=expected
             )
             errors = []
             error_msg = ('Manifest digest (miss) for parent image {}:latest does not match value '
@@ -333,13 +323,13 @@ class TestKojiParent(object):
 
         else:
             self.run_plugin_with_args(
-                workflow, expect_result=expected, reactor_config_map=reactor_config_map
+                workflow, expect_result=expected
             )
 
-    def test_unexpected_digest_data(self, workflow, koji_session, reactor_config_map):  # noqa
+    def test_unexpected_digest_data(self, workflow, koji_session):  # noqa
         workflow.builder.parent_images_digests = {'base:latest': {'unexpected_type': 'stubDigest'}}
         with pytest.raises(PluginFailedException) as exc_info:
-            self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map)
+            self.run_plugin_with_args(workflow)
         assert 'Unexpected parent image digest data' in str(exc_info.value)
 
     @pytest.mark.parametrize('feature_flag', [True, False])
@@ -360,7 +350,6 @@ class TestKojiParent(object):
     def test_deep_digest_inspection(self, workflow, koji_session, parent_tag,
                                     caplog, has_registry, manifest_list, feature_flag,
                                     mismatch_failure):  # noqa
-        reactor_config_map = True
         image_str = 'base'
         if has_registry:
             image_str = '/'.join(['example.com', image_str])
@@ -419,24 +408,22 @@ class TestKojiParent(object):
                         or manifest_list.get('manifests', [{}])[0].get('digest') != 'stubDigest'
                         or manifest_list['manifests'][0]['mediaType'] != V2)
 
-        if ((mismatch_failure or not reactor_config_map)
-            and parent_tag != 'stubDigest'
-            and ((not feature_flag and reactor_config_map)
-                 or defective_v2)):
+        if (mismatch_failure and parent_tag != 'stubDigest' and
+           (not feature_flag or defective_v2)):
             with pytest.raises(PluginFailedException) as exc_info:
-                self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
+                self.run_plugin_with_args(workflow,
                                           expect_result=expected_result,
                                           deep_inspection=feature_flag,
                                           mismatch_failure=mismatch_failure)
             assert rebuild_str in str(exc_info.value)
         else:
-            self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
-                                      expect_result=expected_result, deep_inspection=feature_flag)
+            self.run_plugin_with_args(workflow, expect_result=expected_result,
+                                      deep_inspection=feature_flag)
 
         if parent_tag == 'stubDigest':
             assert rebuild_str not in caplog.text
         else:
-            if not feature_flag and reactor_config_map:
+            if not feature_flag:
                 assert 'Checking manifest list contents' not in caplog.text
                 assert rebuild_str in caplog.text
             else:
@@ -456,11 +443,9 @@ class TestKojiParent(object):
                     assert fetch_error in caplog.text
                     assert rebuild_str in caplog.text
 
-    def test_skip_build(self, workflow, caplog, koji_session,
-                                  reactor_config_map):  # noqa
+    def test_skip_build(self, workflow, caplog, koji_session):
         user_params = {'scratch': True}
         self.run_plugin_with_args(workflow, {'poll_timeout': 0.01},
-                                  reactor_config_map=reactor_config_map,
                                   user_params=user_params)
 
         assert 'scratch build, skipping plugin' in caplog.text
@@ -483,7 +468,7 @@ class TestKojiParent(object):
         flexmock(session).should_receive('krb_login').and_return(True)
         flexmock(koji).should_receive('ClientSession').and_return(session)
 
-        self.run_plugin_with_args(workflow, reactor_config_map=True, is_isolated=isolated_build)
+        self.run_plugin_with_args(workflow, is_isolated=isolated_build)
 
         if not ignore_isolated:
             log_msg = "ignoring_isolated_builds isn't configured, won't skip autorebuild"
@@ -495,32 +480,25 @@ class TestKojiParent(object):
             assert workflow.cancel_isolated_autorebuild
 
     def run_plugin_with_args(self, workflow, plugin_args=None, expect_result=True,  # noqa
-                             reactor_config_map=False, external_base=False, deep_inspection=True,
-                             mismatch_failure=False, user_params=None, is_isolated=None):
+                             external_base=False, deep_inspection=True, mismatch_failure=False,
+                             user_params=None, is_isolated=None):
         plugin_args = plugin_args or {}
         user_params = user_params or {}
         plugin_args.setdefault('poll_interval', 0.01)
         plugin_args.setdefault('poll_timeout', 1)
         workflow.user_params = user_params
 
-        if reactor_config_map:
-
-            koji_map = {
-                'hub_url': KOJI_HUB,
-                'root_url': '',
-                'auth': {}
-            }
-            if 'koji_ssl_certs_dir' in plugin_args:
-                koji_map['auth']['ssl_certs_dir'] = plugin_args['koji_ssl_certs_dir']
-            workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-            workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-                ReactorConfig({'version': 1, 'koji': koji_map,
-                               'deep_manifest_list_inspection': deep_inspection,
-                               'fail_on_digest_mismatch': mismatch_failure,
-                               'skip_koji_check_for_base_image': external_base,
-                               'platform_descriptors': [{'architecture': 'amd64',
-                                                         'platform': 'x86_64'}]
-                               })
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1,
+                           'deep_manifest_list_inspection': deep_inspection,
+                           'fail_on_digest_mismatch': mismatch_failure,
+                           'skip_koji_check_for_base_image': external_base,
+                           'platform_descriptors': [{'architecture': 'amd64',
+                                                     'platform': 'x86_64'}]
+                           })
+        add_koji_map_in_workflow(workflow, hub_url=KOJI_HUB, root_url='',
+                                 ssl_certs_dir=plugin_args.get('koji_ssl_certs_dir'))
 
         runner = PreBuildPluginsRunner(
             workflow.builder.tasker,
@@ -599,7 +577,6 @@ class TestKojiParent(object):
     def test_deep_digests_with_requested_arches(self, workflow, koji_session, caplog,
                                                 manifest_list, requested_platforms, expected_logs,
                                                 not_expected_logs):  # noqa
-        reactor_config_map = True
         image_str = 'example.com/base'
         extra = {'image': {'index': {'digests': {V2_LIST: 'stubDigest'}}}}
         parent_tag = 'notExpectedDigest'
@@ -646,8 +623,7 @@ class TestKojiParent(object):
             ImageName.parse(image_str): ImageName.parse('{}:{}'.format(image_str, parent_tag)),
         }
         workflow.builder.parent_images = parent_images
-        self.run_plugin_with_args(workflow, reactor_config_map=reactor_config_map,
-                                  expect_result=expected_result, deep_inspection=True)
+        self.run_plugin_with_args(workflow, expect_result=expected_result, deep_inspection=True)
 
         for log in expected_logs:
             assert log in caplog.text

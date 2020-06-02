@@ -28,6 +28,7 @@ from atomic_reactor.util import ManifestDigest, get_exported_image_metadata
 from tests.constants import (LOCALHOST_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME, INPUT_IMAGE, MOCK,
                              DOCKER0_REGISTRY)
 from tests.stubs import StubInsideBuilder
+from tests.util import add_koji_map_in_workflow
 
 import json
 import os.path
@@ -119,7 +120,7 @@ PUSH_ERROR_LOGS = [
 ])
 def test_tag_and_push_plugin(
         tmpdir, monkeypatch, caplog, image_name, logs, should_raise, has_config, missing_v2,
-        use_secret, reactor_config_map, file_name, dockerconfig_contents):
+        use_secret, file_name, dockerconfig_contents):
 
     if MOCK:
         mock_docker()
@@ -281,14 +282,14 @@ def test_tag_and_push_plugin(
         .should_receive('sleep')
         .and_return(None))
 
-    if reactor_config_map:
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1, 'registries': [{
-                'url': LOCALHOST_REGISTRY,
-                'insecure': True,
-                'auth': {'cfg_path': secret_path}}],
-                           'group_manifests': missing_v2})
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+        ReactorConfig({'version': 1, 'registries': [{
+            'url': LOCALHOST_REGISTRY,
+            'insecure': True,
+            'auth': {'cfg_path': secret_path}}],
+                        'group_manifests': missing_v2})
+    add_koji_map_in_workflow(workflow, hub_url='', root_url='')
 
     runner = PostBuildPluginsRunner(
         tasker,
@@ -320,10 +321,7 @@ def test_tag_and_push_plugin(
             # running actual docker against v2 registry
             if missing_v2:
                 expected_digest = ManifestDigest(v1=DIGEST_V1, v2=None, oci=None)
-                if reactor_config_map:
-                    assert "Retrying push because V2 schema 2" in caplog.text
-                else:
-                    assert "Retrying push because V2 schema 2" not in caplog.text
+                assert "Retrying push because V2 schema 2" in caplog.text
             else:
                 expected_digest = ManifestDigest(v1=DIGEST_V1, v2=DIGEST_V2, oci=None)
                 assert workflow.push_conf.docker_registries[0].digests[image_name].v2 == \
@@ -355,7 +353,7 @@ def test_tag_and_push_plugin(
     True,
 ])
 def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, v2s2, use_secret,
-                                 fail_push, caplog, reactor_config_map):
+                                 fail_push, caplog):
     # For now, we don't want to require having a skopeo and an OCI-supporting
     # registry in the test environment
     if MOCK:
@@ -382,7 +380,7 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, v2s
     )
     workflow.builder = StubInsideBuilder()
     workflow.builder.image_id = INPUT_IMAGE
-    if source_oci_image_path and reactor_config_map:
+    if source_oci_image_path:
         workflow.build_result._oci_image_path = sources_dir_path
         workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] =\
             {'sources_for_koji_build_id': sources_koji_id}
@@ -419,7 +417,7 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, v2s
             secret_path = temp_dir
 
     CONFIG_DIGEST = 'sha256:b79482f7dcab2a326c1e8c7025a4336d900e99f50db8b35a659fda67b5ebb3c2'
-    if source_oci_image_path and reactor_config_map:
+    if source_oci_image_path:
         MEDIA_TYPE = 'application/vnd.docker.distribution.manifest.v2+json'
     else:
         MEDIA_TYPE = 'application/vnd.oci.image.manifest.v1+json'
@@ -508,8 +506,7 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, v2s
         if use_secret:
             assert '--authfile=' + os.path.join(secret_path, '.dockercfg') in args
         assert '--dest-tls-verify=false' in args
-        if source_oci_image_path and reactor_config_map:
-
+        if source_oci_image_path:
             assert args[-2] == 'oci:' + sources_dir_path
             output_image = 'docker://{}/{}:{}'.format(LOCALHOST_REGISTRY, sources_koji_repo,
                                                       sources_tagname)
@@ -560,7 +557,7 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, v2s
     def custom_get(method, url, headers, **kwargs):
         if url == manifest_latest_url or url == manifest_source_tag_url:
             if headers['Accept'] == MEDIA_TYPE:
-                if source_oci_image_path and not v2s2 and reactor_config_map:
+                if source_oci_image_path and not v2s2:
                     return manifest_unacceptable_response
                 else:
                     return manifest_response
@@ -579,14 +576,13 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, v2s
         .should_receive('request')
         .replace_with(custom_get))
 
-    if reactor_config_map:
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1,
-                           'registries': [{'url': LOCALHOST_REGISTRY,
-                                           'insecure': True,
-                                           'auth': {'cfg_path': secret_path}}],
-                           'koji': {'hub_url': '', 'root_url': '', 'auth': {}}})
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+        ReactorConfig({'version': 1,
+                       'registries': [{'url': LOCALHOST_REGISTRY,
+                                       'insecure': True,
+                                       'auth': {'cfg_path': secret_path}}]})
+    add_koji_map_in_workflow(workflow, hub_url='', root_url='')
 
     runner = PostBuildPluginsRunner(
         tasker,
@@ -605,7 +601,7 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, v2s
         }]
     )
 
-    if fail_push or (source_oci_image_path and not v2s2 and reactor_config_map):
+    if fail_push or (source_oci_image_path and not v2s2):
         with pytest.raises(PluginFailedException):
             runner.run()
 
@@ -620,7 +616,7 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, v2s
 
         push_conf_digests = workflow.push_conf.docker_registries[0].digests
 
-        if source_oci_image_path and reactor_config_map:
+        if source_oci_image_path:
             source_image_name = '{}:{}'.format(sources_koji_repo, sources_tagname)
             assert push_conf_digests[source_image_name].v1 is None
             assert push_conf_digests[source_image_name].v2 == DIGEST_OCI

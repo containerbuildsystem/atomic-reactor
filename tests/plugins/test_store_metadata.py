@@ -35,7 +35,7 @@ from atomic_reactor.util import LazyGit, ManifestDigest, df_parser
 import pytest
 from tests.constants import (LOCALHOST_REGISTRY, DOCKER0_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME,
                              INPUT_IMAGE)
-from tests.util import is_string_type
+from tests.util import add_koji_map_in_workflow, is_string_type
 
 DIGEST1 = "sha256:1da9b9e1c6bf6ab40f1627d76e2ad58e9b2be14351ef4ff1ed3eb4a156138189"
 DIGEST2 = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
@@ -86,8 +86,7 @@ class XBeforeDockerfile(object):
         raise AttributeError("Dockerfile has not yet been generated")
 
 
-def prepare(docker_registries=None, before_dockerfile=False,  # noqa
-            reactor_config_map=False):
+def prepare(docker_registries=None, before_dockerfile=False):
     if docker_registries is None:
         docker_registries = (LOCALHOST_REGISTRY, DOCKER0_REGISTRY,)
 
@@ -127,15 +126,15 @@ def prepare(docker_registries=None, before_dockerfile=False,  # noqa
         source={"provider": "git", "uri": "asd"},
     )
 
-    if reactor_config_map:
-        openshift_map = {
-            'url': 'http://example.com/',
-            'insecure': False,
-            'auth': {'enable': True},
-        }
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1, 'openshift': openshift_map})
+    openshift_map = {
+        'url': 'http://example.com/',
+        'insecure': False,
+        'auth': {'enable': True},
+    }
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+        ReactorConfig({'version': 1, 'openshift': openshift_map})
+    add_koji_map_in_workflow(workflow, hub_url='/', root_url='')
 
     workflow.tag_conf.add_floating_image(TEST_IMAGE)
     workflow.tag_conf.add_primary_image("namespace/image:version-release")
@@ -196,10 +195,9 @@ def prepare(docker_registries=None, before_dockerfile=False,  # noqa
 def test_metadata_plugin(tmpdir, br_annotations, expected_br_annotations,
                          br_labels, expected_br_labels, koji,
                          help_results, expected_help_results, base_from_scratch,
-                         verify_media_results, expected_media_results,
-                         reactor_config_map):
+                         verify_media_results, expected_media_results):
     initial_timestamp = datetime.now()
-    workflow = prepare(reactor_config_map=reactor_config_map)
+    workflow = prepare()
     if base_from_scratch:
         df_content = """
 FROM fedora
@@ -408,9 +406,9 @@ CMD blabla"""
 ))
 def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotations,
                                 br_labels, expected_br_labels, verify_media_results,
-                                expected_media_results, reactor_config_map):
+                                expected_media_results):
     initial_timestamp = datetime.now()
-    workflow = prepare(reactor_config_map=reactor_config_map)
+    workflow = prepare()
 
     if image_id:
         workflow.koji_source_manifest = {'config': {'digest': image_id}}
@@ -558,8 +556,8 @@ def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotation
     },
     {}
 ))
-def test_koji_filesystem_label(res, reactor_config_map):
-    workflow = prepare(reactor_config_map=reactor_config_map)
+def test_koji_filesystem_label(res):
+    workflow = prepare()
     if 'filesystem-koji-task-id' in res:
         workflow.labels['filesystem-koji-task-id'] = res['filesystem-koji-task-id']
     runner = ExitPluginsRunner(
@@ -582,9 +580,9 @@ def test_koji_filesystem_label(res, reactor_config_map):
         assert 'filesystem-koji-task-id' not in labels
 
 
-def test_metadata_plugin_rpmqa_failure(tmpdir, reactor_config_map):  # noqa
+def test_metadata_plugin_rpmqa_failure(tmpdir):  # noqa
     initial_timestamp = datetime.now()
-    workflow = prepare(reactor_config_map=reactor_config_map)
+    workflow = prepare()
     df_content = """
 FROM fedora
 RUN yum install -y python-django
@@ -644,8 +642,8 @@ CMD blabla"""
     assert "all_rpm_packages" in plugins_metadata["durations"]
 
 
-def test_exit_before_dockerfile_created(tmpdir, reactor_config_map):  # noqa
-    workflow = prepare(before_dockerfile=True, reactor_config_map=reactor_config_map)
+def test_exit_before_dockerfile_created(tmpdir):  # noqa
+    workflow = prepare(before_dockerfile=True)
     workflow.exit_results = {}
     workflow.builder = XBeforeDockerfile()
     workflow.builder.df_dir = str(tmpdir)
@@ -668,8 +666,8 @@ def test_exit_before_dockerfile_created(tmpdir, reactor_config_map):  # noqa
     assert annotations["dockerfile"] == ""
 
 
-def test_store_metadata_fail_update_annotations(tmpdir, caplog, reactor_config_map):  # noqa
-    workflow = prepare(reactor_config_map=reactor_config_map)
+def test_store_metadata_fail_update_annotations(tmpdir, caplog):  # noqa
+    workflow = prepare()
     workflow.exit_results = {}
     df_content = """
 FROM fedora
@@ -698,8 +696,8 @@ CMD blabla"""
     assert 'annotations:' in caplog.text
 
 
-def test_store_metadata_fail_update_labels(caplog, reactor_config_map):
-    workflow = prepare(reactor_config_map=reactor_config_map)
+def test_store_metadata_fail_update_labels(caplog):
+    workflow = prepare()
     workflow.labels = {'some-label': 'some-value'}
 
     runner = ExitPluginsRunner(
@@ -743,9 +741,8 @@ def test_store_metadata_fail_update_labels(caplog, reactor_config_map):
         ['spam:8888', 'bacon:8888']
     ],
 ])
-def test_filter_repositories(tmpdir, docker_registries, prefixes, reactor_config_map):
-    workflow = prepare(docker_registries=docker_registries,
-                       reactor_config_map=reactor_config_map)
+def test_filter_repositories(tmpdir, docker_registries, prefixes):
+    workflow = prepare(docker_registries=docker_registries)
     df_content = """
 FROM fedora
 RUN yum install -y python-django
@@ -790,7 +787,6 @@ CMD blabla"""
 
 
 @pytest.mark.parametrize('koji_conf', (
-    None,
     {},
     {'task_annotations_whitelist': []},
     {'task_annotations_whitelist': ['foo']},

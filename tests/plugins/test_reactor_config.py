@@ -435,14 +435,8 @@ class TestReactorConfigPlugin(object):
             "(Additional properties are not allowed ('extra' was unexpected))",
         ])
     ])
-    def test_bad_cluster_config(self, tmpdir, caplog, reactor_config_map,
-                                config, errors):
-        if reactor_config_map:
-            os.environ['REACTOR_CONFIG'] = dedent(config)
-        else:
-            filename = os.path.join(str(tmpdir), 'config.yaml')
-            with open(filename, 'w') as fp:
-                fp.write(dedent(config))
+    def test_bad_cluster_config(self, tmpdir, caplog, config, errors):
+        os.environ['REACTOR_CONFIG'] = dedent(config)
         tasker, workflow = self.prepare()
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
 
@@ -502,8 +496,8 @@ class TestReactorConfigPlugin(object):
             ('two', 8),
         ]),
     ])
-    def test_good_cluster_config(self, tmpdir, reactor_config_map, config, clusters):
-        if reactor_config_map and config:
+    def test_good_cluster_config(self, tmpdir, config, clusters):
+        if config:
             os.environ['REACTOR_CONFIG'] = dedent(config)
         else:
             filename = os.path.join(str(tmpdir), 'config.yaml')
@@ -524,12 +518,17 @@ class TestReactorConfigPlugin(object):
         (None, '/the/path', None),
         (None, NO_FALLBACK, KeyError),
     ])
-    def test_cluster_client_config_path(self, tmpdir, reactor_config_map, extra_config, fallback,
-                                        error):
-        config = 'version: 1'
+    def test_cluster_client_config_path(self, tmpdir, extra_config, fallback, error):
+        config = dedent("""\
+            version: 1
+            koji:
+                hub_url: /
+                root_url: ''
+                auth: {}
+        """)
         if extra_config:
             config += '\n' + extra_config
-        if reactor_config_map and config:
+        if config:
             os.environ['REACTOR_CONFIG'] = config
         else:
             filename = os.path.join(str(tmpdir), 'config.yaml')
@@ -671,7 +670,7 @@ class TestReactorConfigPlugin(object):
 
     @pytest.mark.parametrize('fallback', (True, False, None))
     @pytest.mark.parametrize('method', [
-        'koji', 'odcs', 'smtp', 'arrangement_version',
+        'odcs', 'smtp', 'arrangement_version',
         'artifacts_allowed_domains', 'yum_repo_allowed_domains', 'image_labels',
         'image_label_info_url_format', 'image_equal_labels', 'fail_on_digest_mismatch',
         'openshift', 'group_manifests', 'platform_descriptors', 'prefer_schema1_digest',
