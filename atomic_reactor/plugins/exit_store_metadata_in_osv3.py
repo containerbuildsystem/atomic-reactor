@@ -15,7 +15,6 @@ from osbs.exceptions import OsbsResponseException
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session, get_koji
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
-                                      PLUGIN_GROUP_MANIFESTS_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
                                       PLUGIN_RESOLVE_REMOTE_SOURCE,
                                       SCRATCH_FROM)
@@ -295,13 +294,6 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         self.apply_plugin_annotations(annotations)
         self.apply_build_result_annotations(annotations)
         self.set_koji_task_annotations_whitelist(annotations)
-
-        # For arrangement version 4 onwards (where group_manifests
-        # runs in the orchestrator build), restore the repositories
-        # metadata which orchestrate_build adjusted.
-        if not self.source_build:
-            if PLUGIN_GROUP_MANIFESTS_KEY in self.workflow.postbuild_results:
-                annotations['repositories'] = json.dumps(self.get_repositories())
 
         try:
             osbs.update_annotations_on_build(build_id, annotations)

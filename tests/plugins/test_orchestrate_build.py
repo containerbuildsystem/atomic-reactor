@@ -467,10 +467,6 @@ def test_orchestrate_build_annotations_and_labels(tmpdir, metadata_fragment):
 
     def mock_wait_for_build_to_finish(build_name):
         annotations = {
-            'repositories': json.dumps({
-                'unique': ['{}-unique'.format(build_name)],
-                'primary': ['{}-primary'.format(build_name)],
-            }),
             'digests': json.dumps([
                 {
                     'digest': 'sha256:{}-digest'.format(build_name),
@@ -542,16 +538,6 @@ def test_orchestrate_build_annotations_and_labels(tmpdir, metadata_fragment):
                 ],
                 'plugins-metadata': {}
             },
-        },
-        'repositories': {
-            'unique': [
-                'worker-build-ppc64le-unique',
-                'worker-build-x86_64-unique',
-            ],
-            'primary': [
-                'worker-build-ppc64le-primary',
-                'worker-build-x86_64-primary',
-            ],
         },
     }
     if metadata_fragment:
