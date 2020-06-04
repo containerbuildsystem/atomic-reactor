@@ -11,17 +11,13 @@ from __future__ import unicode_literals, absolute_import
 from osbs.exceptions import OsbsResponseException
 from osbs.utils import retry_on_conflict, ImageName
 
-from atomic_reactor.plugin import PostBuildPlugin, ExitPlugin
+from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import get_floating_images, is_scratch_build
 from atomic_reactor.plugins.pre_reactor_config import (get_openshift_session, get_source_registry,
                                                        get_registries_organization)
 
 
-# Note: We use multiple inheritance here only to make it explicit that
-# this plugin needs to act as both an exit plugin (since arrangement
-# version 6) and as a post-build plugin (arrangement version < 6). In
-# fact, ExitPlugin is a subclass of PostBuildPlugin.
-class ImportImagePlugin(ExitPlugin, PostBuildPlugin):
+class ImportImagePlugin(ExitPlugin):
     """
     Import image tags from external docker registry into Origin,
     creating an ImageStream if one does not already exist.

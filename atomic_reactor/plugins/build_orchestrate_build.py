@@ -522,23 +522,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         return build_kwargs
 
-    def _apply_repositories(self, annotations):
-        unique = set()
-        primary = set()
-
-        for build_info in self.worker_builds:
-            if not build_info.build:
-                continue
-            repositories = build_info.build.get_repositories() or {}
-            unique.update(repositories.get('unique', []))
-            primary.update(repositories.get('primary', []))
-
-        if unique or primary:
-            annotations['repositories'] = {
-                'unique': sorted(list(unique)),
-                'primary': sorted(list(primary)),
-            }
-
     def _make_labels(self):
         labels = {}
         koji_build_id = None
@@ -878,8 +861,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             build_info.platform: build_info.get_annotations()
             for build_info in self.worker_builds if build_info.build
         }}
-
-        self._apply_repositories(annotations)
 
         labels = self._make_labels()
 
