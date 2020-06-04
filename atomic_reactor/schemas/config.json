@@ -533,7 +533,7 @@
         "type": "string"
     },
     "skip_koji_check_for_base_image": {
-        "description": "Allow base image without related koji build (insecure)",
+        "description": "Allow base image without a related koji build (insecure) when there are no NVR labels set on the base image. If the NVR labels are set on the base image, the check is performed regardless",
         "type": "boolean"
     },
     "deep_manifest_list_inspection": {
