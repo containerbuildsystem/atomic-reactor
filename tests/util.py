@@ -34,7 +34,7 @@ def is_string_type(obj):
 
 def has_connection():
     try:
-        requests.get("https://github.com/")
+        requests.head("http://github.com/")
         return True
     except requests.ConnectionError:
         return False
