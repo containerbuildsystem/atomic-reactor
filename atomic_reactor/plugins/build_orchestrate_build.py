@@ -522,23 +522,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         return build_kwargs
 
-    def _make_labels(self):
-        labels = {}
-        koji_build_id = None
-        ids = {
-            build_info.build.get_koji_build_id()
-            for build_info in self.worker_builds
-            if build_info.build
-        }
-        self.log.debug('all koji-build-ids: %s', ids)
-        if ids:
-            koji_build_id = ids.pop()
-
-        if koji_build_id:
-            labels['koji-build-id'] = koji_build_id
-
-        return labels
-
     def get_fs_task_id(self):
         task_id = None
 
@@ -862,8 +845,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             for build_info in self.worker_builds if build_info.build
         }}
 
-        labels = self._make_labels()
-
         fail_reasons = {
             build_info.platform: build_info.get_fail_reason()
             for build_info in self.worker_builds
@@ -877,6 +858,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         if fail_reasons:
             return BuildResult(fail_reason=json.dumps(fail_reasons),
-                               annotations=annotations, labels=labels)
+                               annotations=annotations)
 
-        return BuildResult.make_remote_image_result(annotations, labels=labels)
+        return BuildResult.make_remote_image_result(annotations)

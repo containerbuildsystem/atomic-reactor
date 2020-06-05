@@ -435,8 +435,6 @@ def test_orchestrate_build(tmpdir, caplog, config_kwargs,
         }
     })
 
-    assert (build_result.labels == {})
-
     build_info = get_worker_build_info(workflow, 'x86_64')
     assert build_info.osbs
 
@@ -478,9 +476,8 @@ def test_orchestrate_build_annotations_and_labels(tmpdir, metadata_fragment):
         }
         if metadata_fragment:
             annotations.update(md)
+        return make_build_response(build_name, 'Complete', annotations)
 
-        labels = {'koji-build-id': 'koji-build-id'}
-        return make_build_response(build_name, 'Complete', annotations, labels)
     (flexmock(OSBS)
         .should_receive('wait_for_build_to_finish')
         .replace_with(mock_wait_for_build_to_finish))
@@ -545,8 +542,6 @@ def test_orchestrate_build_annotations_and_labels(tmpdir, metadata_fragment):
         expected['worker-builds']['ppc64le'].update(md)
 
     assert (build_result.annotations == expected)
-
-    assert (build_result.labels == {'koji-build-id': 'koji-build-id'})
 
     build_info = get_worker_build_info(workflow, 'x86_64')
     assert build_info.osbs
