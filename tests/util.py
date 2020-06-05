@@ -32,13 +32,23 @@ def is_string_type(obj):
                for strtype in string_types)
 
 
-def has_connection():
-    try:
-        requests.get("https://github.com/")
-        return True
-    except requests.ConnectionError:
-        return False
+class InternetConnectionChecker(object):
+    """Indicate whether there is a usable Internet connection"""
+
+    def __init__(self):
+        self._has_conn = None
+
+    def __bool__(self):
+        if self._has_conn is None:
+            try:
+                requests.get("https://github.com/")
+                self._has_conn = True
+            except requests.ConnectionError:
+                self._has_conn = False
+        return self._has_conn
+
+has_connection = InternetConnectionChecker()
 
 
 # In case we run tests in an environment without internet connection.
-requires_internet = pytest.mark.skipif(not has_connection(), reason="requires internet connection")
+requires_internet = pytest.mark.skipif(not has_connection, reason="requires internet connection")
