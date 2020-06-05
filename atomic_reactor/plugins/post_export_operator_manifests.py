@@ -125,7 +125,7 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
                 for f in files:
                     filedir = os.path.relpath(root, manifests_path)
                     filepath = os.path.join(filedir, f)
-                    archive.write(os.path.join(root, f), filepath)
+                    archive.write(os.path.join(root, f), filepath, zipfile.ZIP_DEFLATED)
             manifest_files = archive.namelist()
             if not manifest_files:
                 self.log.error('Empty operator manifests directory')
