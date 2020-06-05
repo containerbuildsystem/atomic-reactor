@@ -41,7 +41,7 @@ class InternetConnectionChecker(object):
     def __bool__(self):
         if self._has_conn is None:
             try:
-                requests.get("https://github.com/")
+                requests.get("http://github.com/", allow_redirects=False, timeout=5)
                 self._has_conn = True
             except requests.ConnectionError:
                 self._has_conn = False
