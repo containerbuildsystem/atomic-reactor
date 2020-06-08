@@ -205,7 +205,8 @@ def assert_request_token(request, session):
 
 
 @responses.activate
-def test_wait_for_compose_timeout():
+@pytest.mark.parametrize('timeout', (0, 20))
+def test_wait_for_compose_timeout(timeout):
     compose_url = '{}composes/{}'.format(ODCS_URL, COMPOSE_ID)
 
     responses.add(responses.GET, compose_url, body=compose_json(0, 'generating'))
@@ -214,7 +215,7 @@ def test_wait_for_compose_timeout():
         .and_return(2000, 1000)  # end time, start time
         .one_by_one())
 
-    odcs_client = ODCSClient(ODCS_URL, timeout=20)
-    expected_error = 'Retrieving {} timed out after {} seconds'.format(compose_url, 20)
+    odcs_client = ODCSClient(ODCS_URL, timeout=timeout)
+    expected_error = 'Retrieving {} timed out after {} seconds'.format(compose_url, timeout)
     with pytest.raises(RuntimeError, match=expected_error):
         odcs_client.wait_for_compose(COMPOSE_ID)

@@ -143,7 +143,8 @@ def test_wait_for_request(burst_params, cachito_request, caplog):
 
 
 @responses.activate
-def test_wait_for_request_timeout(caplog):
+@pytest.mark.parametrize('timeout', (0, 60))
+def test_wait_for_request_timeout(timeout, caplog):
     request_url = '{}/api/v1/requests/{}'.format(CACHITO_URL, CACHITO_REQUEST_ID)
     response_data = {'id': CACHITO_REQUEST_ID, 'state': 'in_progress'}
 
@@ -160,15 +161,16 @@ def test_wait_for_request_timeout(caplog):
     # Hit the timeout during bursting to make the test faster
     burst_params = {'burst_retry': 0.001, 'burst_length': 0.02}
     with pytest.raises(CachitoAPIRequestTimeout):
-        CachitoAPI(CACHITO_URL, timeout=60).wait_for_request(CACHITO_REQUEST_ID, **burst_params)
+        api = CachitoAPI(CACHITO_URL, timeout=timeout)
+        api.wait_for_request(CACHITO_REQUEST_ID, **burst_params)
 
     in_progress_response_json = json.dumps(response_data, indent=4)
     expect_in_logs = dedent(
         """\
-        Request {} not completed after 60 seconds
+        Request {} not completed after {} seconds
         Details: {}
         """
-    ).format(request_url, in_progress_response_json)
+    ).format(request_url, timeout, in_progress_response_json)
     # Since Python 3.7 logger adds additional whitespaces by default -> checking without them
     assert re.sub(r'\s+', " ", expect_in_logs) in re.sub(r'\s+', " ", caplog.text)
 
