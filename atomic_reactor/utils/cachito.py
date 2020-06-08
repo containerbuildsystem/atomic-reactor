@@ -45,7 +45,7 @@ class CachitoAPI(object):
     def __init__(self, api_url, insecure=False, cert=None, timeout=None):
         self.api_url = api_url
         self.session = self._make_session(insecure=insecure, cert=cert)
-        self.timeout = timeout or 3600
+        self.timeout = 3600 if timeout is None else timeout
 
     def _make_session(self, insecure, cert):
         # method_whitelist=False allows retrying non-idempotent methods like POST

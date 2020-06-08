@@ -30,7 +30,7 @@ class ODCSClient(object):
             self.url = url
         else:
             self.url = url + '/'
-        self.timeout = timeout or 3600
+        self.timeout = 3600 if timeout is None else timeout
         self._setup_session(insecure=insecure, token=token, cert=cert)
 
     def _setup_session(self, insecure, token, cert):
