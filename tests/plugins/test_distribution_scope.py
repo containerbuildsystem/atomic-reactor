@@ -11,6 +11,7 @@ from __future__ import absolute_import
 from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.plugins.pre_distribution_scope import (DistributionScopePlugin,
                                                            DisallowedDistributionScope)
+from atomic_reactor.util import DockerfileImages
 from flexmock import flexmock
 import logging
 import os
@@ -36,7 +37,11 @@ class TestDistributionScope(object):
                     'Labels': parent_labels,
                 }
             })
-        setattr(workflow.builder, 'base_from_scratch', base_from_scratch)
+
+        dockerfile_images = DockerfileImages([])
+        if base_from_scratch:
+            dockerfile_images = DockerfileImages(['scratch'])
+        setattr(workflow.builder, 'dockerfile_images', dockerfile_images)
 
         plugin = DistributionScopePlugin(None, workflow)
         plugin.log = logging.getLogger('plugin')

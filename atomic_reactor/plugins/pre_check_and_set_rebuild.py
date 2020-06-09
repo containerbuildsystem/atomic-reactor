@@ -83,10 +83,12 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
             self.log.info('isolated build, skipping plugin')
             return
 
-        if self.workflow.builder.base_from_scratch:
+        if (self.workflow.builder.dockerfile_images is not None and
+                self.workflow.builder.dockerfile_images.base_from_scratch):
             self.log.info("Skipping check and set rebuild: unsupported for FROM-scratch images")
             return False
-        if self.workflow.builder.custom_base_image:
+        if (self.workflow.builder.dockerfile_images is not None and
+                self.workflow.builder.dockerfile_images.custom_base_image):
             self.log.info("Skipping check and set rebuild: unsupported for custom base images")
             return False
 

@@ -73,7 +73,7 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         self.tag = tag or str(self.workflow.builder.image)
         self.from_layer = from_layer
         if from_base and from_layer is None:
-            if not self.workflow.builder.base_from_scratch:
+            if not self.workflow.builder.dockerfile_images.base_from_scratch:
                 try:
                     base_image_id = self.workflow.builder.base_image_inspect['Id']
                 except KeyError:

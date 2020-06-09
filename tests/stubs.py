@@ -11,6 +11,7 @@ from __future__ import unicode_literals, absolute_import
 
 from os.path import dirname
 from osbs.utils import ImageName
+from atomic_reactor.util import DockerfileImages
 
 
 # Stubs for commonly-mocked classes
@@ -53,8 +54,7 @@ class StubInsideBuilder(object):
     """
 
     def __init__(self):
-        self.base_image = None
-        self.parent_images = {}
+        self.dockerfile_images = None
         self.parent_images_digests = {}
         self.df_path = None
         self.df_dir = None
@@ -64,22 +64,15 @@ class StubInsideBuilder(object):
         self.image_id = None
         self.source = StubSource()
         self.source.config = StubConfig()
-        self.base_from_scratch = False
-        self.parents_ordered = []
         self.tasker = None
         self.original_df = None
         self.buildargs = {}
-        self.custom_base_image = False
 
         self._inspection_data = None
         self._parent_inspection_data = {}
 
     def for_workflow(self, workflow):
         return self.set_source(workflow.source).set_image(workflow.image)
-
-    def set_base_from_scratch(self, base_from_scratch):
-        self.base_from_scratch = base_from_scratch
-        return self
 
     def set_df_path(self, df_path):
         self.df_path = df_path
@@ -103,6 +96,10 @@ class StubInsideBuilder(object):
         self.source = source
         return self
 
+    def set_dockerfile_images(self, parent_images):
+        self.dockerfile_images = DockerfileImages(parent_images)
+        return self
+
     # Mocked methods
     @property
     def base_image_inspect(self):
@@ -111,7 +108,3 @@ class StubInsideBuilder(object):
     def parent_image_inspect(self, image):
         image_name = ImageName.parse(image)
         return self._parent_inspection_data[image_name]
-
-    def set_base_image(self, image):
-        # likely run as side effect; ignore. tests that want stateful results must mock.
-        pass

@@ -19,7 +19,7 @@ import docker.errors
 import atomic_reactor.util
 from atomic_reactor.core import ContainerTasker, LastLogger
 from atomic_reactor.util import (print_version_of_tools, df_parser,
-                                 base_image_is_scratch, base_image_is_custom)
+                                 base_image_is_custom, DockerfileImages)
 from atomic_reactor.constants import DOCKERFILE_FILENAME
 from osbs.utils import ImageName
 
@@ -155,27 +155,17 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
 
         # arguments for build
         self.source = source
-        self.base_image = None
         # configuration of source_registy and pull_registries with insecure and
         # dockercfg_path, by registry key
         self.pull_registries = {}
-        self.original_base_image = None
+        self.dockerfile_images = None
         self._base_image_inspect = None
         self.parents_pulled = False
-        self.parent_images = {}  # dockerfile ImageName => locally available ImageName
         self._parent_images_inspect = {}  # locally available image => inspect
-        self.parents_ordered = []
         self.parent_images_digests = {}
         self.image_id = None
         self.built_image_info = None
         self.image = ImageName.parse(image)
-        self.base_from_scratch = False
-        # last parent in Dockerfile is custom base image,
-        # used for plugins custom base image handling
-        self.custom_base_image = False
-        # any parent in Dockerfile is custom base image,
-        # used for plugins custom base image handling
-        self.custom_parent_image = False
 
         # get info about base image from dockerfile
         build_file_path, build_file_dir = self.source.get_build_file_path()
@@ -201,34 +191,19 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
     def set_df_path(self, path):
         self._df_path = path
         dfp = df_parser(path)
-        base = dfp.baseimage
-        if base is None:
+        if dfp.baseimage is None:
             raise RuntimeError("no base image specified in Dockerfile")
-        self.set_base_image(base)
-        logger.debug("base image specified in dockerfile = '%s'", self.base_image)
-        self.parent_images.clear()
+
+        self.dockerfile_images = DockerfileImages(dfp.parent_images)
+        logger.debug("base image specified in dockerfile = '%s'", dfp.baseimage)
+        logger.debug("parent images specified in dockerfile = '%s'", dfp.parent_images)
+
         custom_base_images = set()
         for image in dfp.parent_images:
             image_name = ImageName.parse(image)
-            if base_image_is_scratch(image_name.get_repo()):
-                image_name.tag = None
-                self.parents_ordered.append(image_name.to_str())
-                continue
             image_str = image_name.to_str()
             if base_image_is_custom(image_str):
                 custom_base_images.add(image_str)
-                self.custom_parent_image = True
-            self.parents_ordered.append(image_str)
-
-            # we are setting values None, because we know parent but we don't
-            # have local copy yet
-            # if image is base image we want to keep image instance in key,
-            # so it is same as original_base_image instance
-            if self.original_base_image.to_str() == image_str:
-                self.parent_images[self.original_base_image] = None
-                continue
-
-            self.parent_images[image_name] = None
 
         if len(custom_base_images) > 1:
             raise NotImplementedError("multiple different custom base images"
@@ -259,31 +234,6 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
                       COPY --from=source <src> <dest>
                     """).format(stmt['content'], stage))
 
-    def recreate_parent_images(self):
-        # recreate parent_images to update hashes
-        # when ImageName key is added to parent_images
-        # the hash for key is calculated
-        # but later when we are enclosing that ImageName key
-        # it won't automatically rehash
-        parent_images = {}
-        for key, val in self.parent_images.items():
-            parent_images[key] = val
-        self.parent_images = parent_images
-
-    def set_base_image(self, base_image, parents_pulled=True):
-        self.base_from_scratch = base_image_is_scratch(base_image)
-        if not self.custom_base_image:
-            self.custom_base_image = base_image_is_custom(base_image)
-        self.base_image = ImageName.parse(base_image)
-        self.original_base_image = self.original_base_image or self.base_image
-        self.recreate_parent_images()
-
-        if not self.base_from_scratch:
-            self.parent_images[self.original_base_image] = self.base_image
-        self.parents_pulled = parents_pulled
-        logger.info("set base image to '%s' with original base '%s'", self.base_image,
-                    self.original_base_image)
-
     # inspect base image lazily just before it's needed - pre plugins may change the base image
     @property
     def base_image_inspect(self):
@@ -293,27 +243,27 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         :return: dict
         """
         if self._base_image_inspect is None:
+            base_image = self.dockerfile_images.base_image
 
-            if self.base_from_scratch:
+            if self.dockerfile_images.base_from_scratch:
                 self._base_image_inspect = {}
-            elif self.parents_pulled or self.custom_base_image:
+            elif self.parents_pulled or self.dockerfile_images.custom_base_image:
                 try:
-                    self._base_image_inspect = self.tasker.inspect_image(self.base_image)
+                    self._base_image_inspect = \
+                        self.tasker.inspect_image(base_image)
 
                 except docker.errors.NotFound:
                     # If the base image cannot be found throw KeyError -
                     # as this property should behave like a dict
                     raise KeyError("Unprocessed base image Dockerfile cannot be inspected")
             else:
-                insecure = self.pull_registries[self.base_image.registry]['insecure']
-                dockercfg_path = self.pull_registries[self.base_image.registry]['dockercfg_path']
+                insecure = self.pull_registries[base_image.registry]['insecure']
+                dockercfg_path = self.pull_registries[base_image.registry]['dockercfg_path']
                 self._base_image_inspect =\
-                    atomic_reactor.util.get_inspect_for_image(self.base_image,
-                                                              self.base_image.registry,
-                                                              insecure,
-                                                              dockercfg_path)
+                    atomic_reactor.util.get_inspect_for_image(base_image, base_image.registry,
+                                                              insecure, dockercfg_path)
 
-            base_image_str = str(self.base_image)
+            base_image_str = str(base_image)
             if base_image_str not in self._parent_images_inspect:
                 self._parent_images_inspect[base_image_str] = self._base_image_inspect
 
@@ -358,21 +308,21 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
 
         :return dict
         """
-        if self.base_from_scratch:
+        if self.dockerfile_images.base_from_scratch:
             return
-        logger.info("getting information about base image '%s'", self.base_image)
-        image_info = self.tasker.get_image_info_by_image_name(self.base_image)
+        base_image = self.dockerfile_images.base_image
+        logger.info("getting information about base image '%s'", base_image)
+        image_info = self.tasker.get_image_info_by_image_name(base_image)
         items_count = len(image_info)
         if items_count == 1:
             return image_info[0]
         elif items_count <= 0:
-            logger.error("image '%s' not found", self.base_image)
-            raise RuntimeError("image '%s' not found" % self.base_image)
+            logger.error("image '%s' not found", base_image)
+            raise RuntimeError("image '%s' not found" % base_image)
         else:
-            logger.error("multiple (%d) images found for image '%s'", items_count,
-                         self.base_image)
+            logger.error("multiple (%d) images found for image '%s'", items_count, base_image)
             raise RuntimeError("multiple (%d) images found for image '%s'" % (items_count,
-                                                                              self.base_image))
+                                                                              base_image))
 
     def get_built_image_info(self):
         """
@@ -395,7 +345,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
 
     def parent_images_to_str(self):
         results = {}
-        for base_image_name, parent_image_name in self.parent_images.items():
+        for base_image_name, parent_image_name in self.dockerfile_images.items():
             base_str = str(base_image_name)
             parent_str = str(parent_image_name)
             if base_image_name and parent_image_name:

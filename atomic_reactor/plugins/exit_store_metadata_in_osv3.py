@@ -216,29 +216,33 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             except AttributeError:
                 commit_id = ""
 
-            if hasattr(self.workflow.builder, "original_base_image"):
-                base_image = self.workflow.builder.original_base_image
-            else:
-                base_image = self.workflow.builder.base_image
-            if base_image is not None and not self.workflow.builder.base_from_scratch:
-                base_image_name = base_image.to_str()
-                try:
-                    base_image_id = self.workflow.builder.base_image_inspect['Id']
-                except KeyError:
-                    base_image_id = ""
-            else:
+            # for early flatpak failure before it creates Dockerfile and creates dockerfile_images
+            if self.workflow.builder.dockerfile_images is None:
                 base_image_name = ""
                 base_image_id = ""
+                parent_images_strings = {}
+            else:
+                base_image = self.workflow.builder.dockerfile_images.original_base_image
+                if (base_image is not None and
+                        not self.workflow.builder.dockerfile_images.base_from_scratch):
+                    base_image_name = base_image
+                    try:
+                        base_image_id = self.workflow.builder.base_image_inspect['Id']
+                    except KeyError:
+                        base_image_id = ""
+                else:
+                    base_image_name = ""
+                    base_image_id = ""
+
+                parent_images_strings = self.workflow.builder.parent_images_to_str()
+                if self.workflow.builder.dockerfile_images.base_from_scratch:
+                    parent_images_strings[SCRATCH_FROM] = SCRATCH_FROM
 
             try:
                 with open(self.workflow.builder.df_path) as f:
                     dockerfile_contents = f.read()
             except AttributeError:
                 dockerfile_contents = ""
-
-            parent_images_strings = self.workflow.builder.parent_images_to_str()
-            if self.workflow.builder.base_from_scratch:
-                parent_images_strings[SCRATCH_FROM] = SCRATCH_FROM
 
         annotations = {
             'repositories': json.dumps(self.get_repositories()),

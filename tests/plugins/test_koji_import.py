@@ -263,7 +263,7 @@ def mock_environment(tmpdir, session=None, name=None,
         workflow.all_yum_repourls = yum_repourls
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
     workflow.builder.image_id = '123456imageid'
-    workflow.builder.base_image = ImageName(repo='Fedora', tag='22')
+    workflow.builder.set_dockerfile_images(['Fedora:22'])
     workflow.builder.set_inspection_data({'ParentId': base_image_id})
     workflow.builder.tasker = tasker
     setattr(workflow, 'tag_conf', TagConf())
@@ -1162,9 +1162,11 @@ class TestKojiImport(object):
             },
         }
         workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = koji_parent_result
-        workflow.builder.base_from_scratch = base_from_scratch
-        parents_ordered = ['base:latest', 'scratch', 'some:1.0']
-        workflow.builder.parents_ordered = parents_ordered
+
+        dockerfile_images = ['base:latest', 'scratch', 'some:1.0']
+        if base_from_scratch:
+            dockerfile_images.append('scratch')
+        workflow.builder.set_dockerfile_images(dockerfile_images)
 
         runner = create_runner(tasker, workflow)
         runner.run()
@@ -1182,7 +1184,7 @@ class TestKojiImport(object):
             assert image_metadata[key] == 16
         key = PARENT_IMAGES_KEY
         assert key in image_metadata
-        assert image_metadata[key] == parents_ordered
+        assert image_metadata[key] == dockerfile_images
 
     @pytest.mark.parametrize(('task_id', 'expect_success'), [
         (1234, True),

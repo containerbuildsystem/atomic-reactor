@@ -13,7 +13,7 @@ import atomic_reactor.util
 import docker.errors
 from atomic_reactor.build import InsideBuilder, BuildResult
 from atomic_reactor.source import get_source_instance_for
-from atomic_reactor.util import df_parser
+from atomic_reactor.util import df_parser, DockerfileImages
 from tests.constants import (
     LOCALHOST_REGISTRY, MOCK, SOURCE,
     DOCKERFILE_OK_PATH, DOCKERFILE_MULTISTAGE_PATH,
@@ -58,24 +58,6 @@ def test_different_custom_base_images(tmpdir):
         InsideBuilder(s, '')
     message = "multiple different custom base images aren't allowed in Dockerfile"
     assert message in str(exc.value)
-
-
-@requires_internet
-@with_all_sources
-@pytest.mark.parametrize('parents_pulled', [True, False])
-def test_parent_images(parents_pulled, tmpdir, source_params):
-    if MOCK:
-        mock_docker()
-    s = get_source_instance_for(source_params)
-    b = InsideBuilder(s, '')
-
-    orig_base = b.base_image
-    if not b.base_from_scratch:
-        assert orig_base in b.parent_images
-        assert b.parent_images[orig_base] is None
-        b.set_base_image("spam:eggs", parents_pulled=parents_pulled)
-        assert b.parent_images[orig_base] == ImageName.parse("spam:eggs")
-        assert b.parents_pulled == parents_pulled
 
 
 @requires_internet
@@ -142,21 +124,33 @@ def test_base_image_inspect(tmpdir, source_params, parents_pulled, insecure, bas
     b = InsideBuilder(s, '')
     b.tasker.build_method = default_build_method
     b.parents_pulled = parents_pulled
-    if b.base_from_scratch:
+    if b.dockerfile_images.base_from_scratch:
         base_exist = True
     registry_name = "registry.example.com"
-    b.base_image.registry = registry_name
+
+    original_parents = b.dockerfile_images.original_parents
+    new_parents = []
+    for parent in original_parents:
+        if parent == 'scratch':
+            new_parents.append(parent)
+        else:
+            mod_parent = ImageName.parse(parent)
+            mod_parent.registry = registry_name
+            new_parents.append(mod_parent.to_str())
+
+    b.dockerfile_images = DockerfileImages(new_parents)
     b.pull_registries = {registry_name: {'insecure': insecure, 'dockercfg_path': str(tmpdir)}}
 
     if base_exist:
-        if b.base_from_scratch:
+        if b.dockerfile_images.base_from_scratch:
             built_inspect = b.base_image_inspect
             assert built_inspect == {}
         else:
             if not parents_pulled:
                 (flexmock(atomic_reactor.util)
                  .should_receive('get_inspect_for_image')
-                 .with_args(b.base_image, b.base_image.registry, insecure, str(tmpdir))
+                 .with_args(b.dockerfile_images.base_image, b.dockerfile_images.base_image.registry,
+                            insecure, str(tmpdir))
                  .and_return({'Id': 123}))
 
             built_inspect = b.base_image_inspect
@@ -164,7 +158,7 @@ def test_base_image_inspect(tmpdir, source_params, parents_pulled, insecure, bas
             assert built_inspect is not None
             assert built_inspect["Id"] is not None
     else:
-        if parents_pulled or b.custom_base_image:
+        if parents_pulled or b.dockerfile_images.custom_base_image:
             response = flexmock(content="not found", status_code=404)
             (flexmock(docker.APIClient)
              .should_receive('inspect_image')
@@ -201,15 +195,15 @@ def test_get_base_image_info(tmpdir, source_params, image, will_raise):
     s = get_source_instance_for(source_params)
     b = InsideBuilder(s, image)
     b.tasker.build_method = default_build_method
-    if b.base_from_scratch:
+    if b.dockerfile_images.base_from_scratch:
         will_raise = False
 
     if will_raise:
         with pytest.raises(Exception):
-            built_inspect = b.get_base_image_info()
+            b.get_base_image_info()
     else:
         built_inspect = b.get_base_image_info()
-        if b.base_from_scratch:
+        if b.dockerfile_images.base_from_scratch:
             assert built_inspect is None
         else:
             assert built_inspect is not None
@@ -363,10 +357,10 @@ def test_parent_images_to_str(tmpdir, caplog):
 
     source = {'provider': 'path', 'uri': 'file://' + DOCKERFILE_OK_PATH, 'tmpdir': str(tmpdir)}
     b = InsideBuilder(get_source_instance_for(source), 'built-img')
-    b.set_base_image("spam")
-    b.parent_images["bacon"] = None
+    b.dockerfile_images = DockerfileImages(['fedora:latest', 'bacon'])
+    b.dockerfile_images['fedora:latest'] = "spam"
     expected_results = {
         "fedora:latest": "spam:latest"
     }
     assert b.parent_images_to_str() == expected_results
-    assert "None in: base bacon has parent None" in caplog.text
+    assert "None in: base bacon:latest has parent None" in caplog.text

@@ -89,9 +89,13 @@ Data which is placed here includes
   integration is enabled
 - `build.extra.image.parent_build_id` (int): Koji build id of the parent image,
   if found
-- `build.extra.image.parent_image_builds` (map of maps): With each parent image
-  given in the Dockerfile as a key, its value being a map representing the Koji
+- `build.extra.image.parent_image_builds` (map of maps): Keys are parent images
+  given in the Dockerfile, which are regular images and
+  not 'scratch' or custom image ('koji/image-build), and includes registry,
+  organization and tag, its value being a map representing the Koji
   build (if found) for that image, with keys `id` (int) and `nvr` (str).
+- `build.extra.image.parent_images` (str list): All parent images given in the
+  Dockerfile, in the same order, and unmodified.
 - `build.extra.image.index` (map): Information about the manifest list
 - `build.extra.image.flatpak` (boolean): `true` if this image is a Flatpak
 - `build.extra.image.modules` (boolean, currently Flatpak-only): The [modules][]

@@ -13,11 +13,12 @@ import pytest
 
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_check_user_settings import CheckUserSettingsPlugin
+from atomic_reactor.util import df_parser
 
 from tests.mock_env import MockEnv
 
 
-def mock_dockerfile(tmpdir, labels, from_scratch=False):
+def mock_dockerfile(tmpdir, labels, from_scratch=True):
     base = 'FROM scratch' if from_scratch else 'FROM fedora:30'
     cmd = 'CMD /bin/cowsay moo'
     extra_labels = [
@@ -55,8 +56,10 @@ def mock_env(tmpdir, docker_tasker, labels=(), flatpak=False, dockerfile_f=mock_
 
     env = MockEnv().for_plugin('prebuild', CheckUserSettingsPlugin.key, {'flatpak': flatpak})
 
+    dfp = df_parser(str(tmpdir))
     env.workflow.builder.set_df_path(str(tmpdir))
-    env.workflow.builder.base_from_scratch = True
+    if not flatpak:
+        env.workflow.builder.set_dockerfile_images(dfp.parent_images)
 
     return env.create_runner(docker_tasker)
 
@@ -79,6 +82,7 @@ class TestDockerfileChecks(object):
     def test_mutual_exclusivity_of_labels(self, tmpdir, docker_tasker, labels, expected_fail):
         """Appregistry and operator.bundle labels are mutually exclusive"""
         runner = mock_env(tmpdir, docker_tasker, labels=labels)
+
         if expected_fail:
             with pytest.raises(PluginFailedException) as e:
                 runner.run()
@@ -109,10 +113,6 @@ class TestDockerfileChecks(object):
         runner = mock_env(
             tmpdir, docker_tasker,
             dockerfile_f=dockerfile_f, labels=labels
-        )
-        runner.workflow.builder.base_from_scratch = from_scratch
-        runner.workflow.builder.parents_ordered = (
-            ['scratch', 'scratch'] if multistage else ['scratch']
         )
 
         if expected_fail:

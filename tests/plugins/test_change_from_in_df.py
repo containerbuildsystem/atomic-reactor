@@ -12,7 +12,7 @@ import pytest
 from flexmock import flexmock
 
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PreBuildPluginsRunner
+from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_change_from_in_df import ChangeFromPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
@@ -22,9 +22,6 @@ from osbs.utils import ImageName
 from tests.constants import SOURCE
 from tests.stubs import StubInsideBuilder, StubSource
 from textwrap import dedent
-
-
-SOURCE_REGISTRY = 'source_registry.com'
 
 
 def mock_workflow():
@@ -38,21 +35,19 @@ def mock_workflow():
     workflow.source = StubSource()
     builder = StubInsideBuilder().for_workflow(workflow)
     builder.set_df_path('/mock-path')
-    base_image_name = ImageName.parse("mock:tag")
-    builder.parent_images[ImageName.parse("mock:base")] = base_image_name
-    builder.base_image = base_image_name
+    builder.set_dockerfile_images(['mock:base'])
+    builder.dockerfile_images['mock:base'] = ImageName.parse("mock:tag")
+
     builder.tasker = flexmock()
     workflow.builder = flexmock(builder)
 
     return workflow
 
 
-def run_plugin(workflow, docker_tasker, allow_failure=False, organization=None):
+def run_plugin(workflow, docker_tasker):
     workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
     workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-        ReactorConfig({'version': 1,
-                       'registries_organization': organization,
-                       'source_registry': {'url': SOURCE_REGISTRY}})
+        ReactorConfig({'version': 1})
 
     result = PreBuildPluginsRunner(
        docker_tasker, workflow,
@@ -62,19 +57,14 @@ def run_plugin(workflow, docker_tasker, allow_failure=False, organization=None):
        }]
     ).run()
 
-    if not allow_failure:  # exceptions are captured in plugin result
-        assert result[ChangeFromPlugin.key] is None, "Plugin threw exception, check logs"
-
     return result[ChangeFromPlugin.key]
 
 
-@pytest.mark.parametrize(('base_image', 'enclose'), [
-    ("base:image", True),
-    (SOURCE_REGISTRY + "/base:image", True),
-    ("different_registry.com/base:image", False),
+@pytest.mark.parametrize('base_image', [
+    "base:image",
+    "different_registry.com/base:image",
 ])
-@pytest.mark.parametrize('organization', [None, 'my_organization'])
-def test_update_base_image(tmpdir, docker_tasker, base_image, enclose, organization):
+def test_update_base_image(tmpdir, docker_tasker, base_image):
     df_content = dedent("""\
         FROM {}
         LABEL horses=coconuts
@@ -83,20 +73,16 @@ def test_update_base_image(tmpdir, docker_tasker, base_image, enclose, organizat
     dfp = df_parser(str(tmpdir))
     dfp.content = df_content.format(base_image)
     base_str = "base@sha256:1234"
-    base_image_name = ImageName.parse("base@sha256:1234")
-
-    enclosed_parent = ImageName.parse(base_image)
-    if organization and enclose:
-        enclosed_parent.enclose(organization)
+    local_tag = ImageName.parse("base@sha256:1234")
 
     workflow = mock_workflow()
     workflow.builder.set_df_path(dfp.dockerfile_path)
-    workflow.builder.parent_images = {enclosed_parent: base_image_name}
-    workflow.builder.base_image = base_image_name
+    workflow.builder.set_dockerfile_images(dfp.parent_images)
+    workflow.builder.dockerfile_images[base_image] = local_tag
     workflow.builder.set_parent_inspection_data(base_str, dict(Id=base_str))
     workflow.builder.tasker.inspect_image = lambda *_: dict(Id=base_str)
 
-    run_plugin(workflow, docker_tasker, organization=organization)
+    run_plugin(workflow, docker_tasker)
     expected_df = df_content.format(base_str)
     assert dfp.content == expected_df
 
@@ -107,22 +93,21 @@ def test_update_base_image_inspect_broken(tmpdir, caplog, docker_tasker):
     dfp = df_parser(str(tmpdir))
     dfp.content = df_content
     image_str = "base@sha256:1234"
-    image_name = ImageName.parse(image_str)
-
+    local_tag = ImageName.parse(image_str)
     workflow = mock_workflow()
     workflow.builder.set_df_path(dfp.dockerfile_path)
-    workflow.builder.parent_images = {ImageName.parse("base:image"): image_name}
-    workflow.builder.base_image = image_name
+    workflow.builder.set_dockerfile_images(dfp.parent_images)
+    workflow.builder.dockerfile_images['base:image'] = local_tag
     workflow.builder.set_parent_inspection_data(image_str, dict(no_id="here"))
 
-    run_plugin(workflow, docker_tasker, allow_failure=True)
-    assert "raised an exception: NoIdInspection" in caplog.text
+    with pytest.raises(PluginFailedException) as exc:
+        run_plugin(workflow, docker_tasker)
+    assert "raised an exception: NoIdInspection" in str(exc.value)
     assert dfp.content == df_content  # nothing changed
     assert "missing in inspection" in caplog.text
 
 
-@pytest.mark.parametrize('organization', [None, 'my_organization'])  # noqa
-@pytest.mark.parametrize(('df_content, expected_df_content, base_from_scratch'), [
+@pytest.mark.parametrize(('df_content, expected_df_content'), [
     (
         dedent("""\
             FROM first:parent AS builder1
@@ -142,7 +127,6 @@ def test_update_base_image_inspect_broken(tmpdir, caplog, docker_tasker):
             COPY --from=builder1 /spam/eggs /bin/eggs
             COPY --from=builder2 /vikings /bin/vikings
         """),
-        False,
     ),
     (
         dedent("""\
@@ -167,7 +151,6 @@ def test_update_base_image_inspect_broken(tmpdir, caplog, docker_tasker):
             FROM id:3
             CMD build /custom
         """),
-        False,
     ),
     (
         dedent("""\
@@ -192,7 +175,6 @@ def test_update_base_image_inspect_broken(tmpdir, caplog, docker_tasker):
             COPY --from=builder1 /spam/eggs /bin/eggs
             COPY --from=builder2 /vikings /bin/vikings
         """),
-        False,
     ),
     (
         dedent("""\
@@ -217,7 +199,6 @@ def test_update_base_image_inspect_broken(tmpdir, caplog, docker_tasker):
             COPY --from=builder1 /spam/eggs /bin/eggs
             COPY --from=builder2 /vikings /bin/vikings
         """),
-        False,
     ),
     (
         dedent("""\
@@ -246,11 +227,10 @@ def test_update_base_image_inspect_broken(tmpdir, caplog, docker_tasker):
             FROM scratch
             CMD build /from_scratch2
         """),
-        True,
     ),
 ])
-def test_update_parent_images(organization, df_content, expected_df_content, base_from_scratch,
-                              tmpdir, docker_tasker):
+def test_update_parent_images(df_content, expected_df_content, tmpdir,
+                              docker_tasker):
     """test the happy path for updating multiple parents"""
     dfp = df_parser(str(tmpdir))
     dfp.content = df_content
@@ -263,10 +243,6 @@ def test_update_parent_images(organization, df_content, expected_df_content, bas
     build1 = ImageName.parse('build-name:1')
     build2 = ImageName.parse('build-name:2')
     build3 = ImageName.parse('build-name:3')
-    if organization:
-        first.enclose(organization)
-        second.enclose(organization)
-        monty.enclose(organization)
     pimgs = {
         first: build1,
         second: build2,
@@ -281,40 +257,45 @@ def test_update_parent_images(organization, df_content, expected_df_content, bas
 
     workflow = mock_workflow()
     workflow.builder.set_df_path(dfp.dockerfile_path)
-    workflow.builder.set_base_from_scratch(base_from_scratch)
-    workflow.builder.base_image = ImageName.parse('build-name:3')
-    workflow.builder.parent_images = pimgs
+    workflow.builder.set_dockerfile_images(dfp.parent_images)
+
+    for parent in dfp.parent_images:
+        if parent == 'scratch':
+            continue
+        parent_in = ImageName.parse(parent)
+        workflow.builder.dockerfile_images[parent] = pimgs[parent_in]
+
     workflow.builder.tasker.inspect_image = lambda img: dict(Id=img_ids[img])
     for image_name, image_id in img_ids.items():
         workflow.builder.set_parent_inspection_data(image_name, dict(Id=image_id))
 
-    original_base = workflow.builder.base_image
-    run_plugin(workflow, docker_tasker, organization=organization)
+    original_base = workflow.builder.dockerfile_images.base_image
+    run_plugin(workflow, docker_tasker)
     assert dfp.content == expected_df_content
     assert workflow.builder.original_df == df_content
-    if base_from_scratch:
-        assert original_base == workflow.builder.base_image
+    if workflow.builder.dockerfile_images.base_from_scratch:
+        assert original_base == workflow.builder.dockerfile_images.base_image
 
 
-def test_parent_images_unresolved(tmpdir, docker_tasker, caplog):
+def test_parent_images_unresolved(tmpdir, docker_tasker):
     """test when parent_images hasn't been filled in with unique tags."""
     dfp = df_parser(str(tmpdir))
-    dfp.content = "FROM spam"
+    dfp.content = dedent("""\
+        FROM extra_image
+        FROM base_image
+    """)
 
     workflow = mock_workflow()
     workflow.builder.set_df_path(dfp.dockerfile_path)
-    workflow.builder.base_image = ImageName.parse('eggs')
-    # we want to fail because some img besides base was not resolved
-    workflow.builder.parent_images = {
-       ImageName.parse('spam'): ImageName.parse('eggs'),
-       ImageName.parse('extra:image'): None
-    }
+    workflow.builder.set_dockerfile_images(['extra_image', 'base_image'])
+    workflow.builder.dockerfile_images['base_image'] = 'base_local'
 
-    run_plugin(workflow, docker_tasker, allow_failure=True)
-    assert "raised an exception: ParentImageUnresolved" in caplog.text
+    with pytest.raises(PluginFailedException) as exc:
+        run_plugin(workflow, docker_tasker)
+    assert "raised an exception: ParentImageUnresolved" in str(exc.value)
 
 
-def test_parent_images_missing(tmpdir, docker_tasker, caplog):
+def test_parent_images_missing(tmpdir, docker_tasker):
     """test when parent_images has been mangled and lacks parents compared to dockerfile."""
     dfp = df_parser(str(tmpdir))
     dfp.content = dedent("""\
@@ -325,23 +306,23 @@ def test_parent_images_missing(tmpdir, docker_tasker, caplog):
 
     workflow = mock_workflow()
     workflow.builder.set_df_path(dfp.dockerfile_path)
-    workflow.builder.parent_images = {ImageName.parse("monty"): ImageName.parse("build-name:3")}
-    workflow.builder.base_image = ImageName.parse("build-name:3")
+    workflow.builder.set_dockerfile_images(['monty'])
+    workflow.builder.dockerfile_images['monty'] = 'monty_local'
 
-    run_plugin(workflow, docker_tasker, allow_failure=True)
-    assert "raised an exception: ParentImageMissing" in caplog.text
+    with pytest.raises(PluginFailedException) as exc:
+        run_plugin(workflow, docker_tasker)
+    assert "raised an exception: ParentImageMissing" in str(exc.value)
 
 
-def test_parent_images_mismatch_base_image(tmpdir, docker_tasker, caplog):
+def test_parent_images_mismatch_base_image(tmpdir, docker_tasker):
     """test when base_image has been updated differently from parent_images."""
     dfp = df_parser(str(tmpdir))
     dfp.content = "FROM base:image"
     workflow = mock_workflow()
     workflow.builder.set_df_path(dfp.dockerfile_path)
-    workflow.builder.base_image = ImageName.parse("base:image")
-    workflow.builder.parent_images = {
-       ImageName.parse("base:image"): ImageName.parse("different-parent-tag")
-    }
+    workflow.builder.set_dockerfile_images(['base:image', 'parent_different:latest'])
 
-    run_plugin(workflow, docker_tasker, allow_failure=True)
-    assert "raised an exception: BaseImageMismatch" in caplog.text
+    with pytest.raises(PluginFailedException) as exc:
+        run_plugin(workflow, docker_tasker)
+
+    assert "raised an exception: BaseImageMismatch" in str(exc.value)

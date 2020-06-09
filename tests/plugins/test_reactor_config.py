@@ -28,7 +28,7 @@ import atomic_reactor.utils.koji
 import atomic_reactor.utils.odcs
 import osbs.conf
 import osbs.api
-from osbs.utils import RegistryURI
+from osbs.utils import RegistryURI, ImageName
 from osbs.exceptions import OsbsValidationException
 from atomic_reactor.plugins.pre_reactor_config import (ODCSConfig,
                                                        ReactorConfig,
@@ -2088,6 +2088,54 @@ class TestReactorConfigPlugin(object):
         else:
             with pytest.raises(OsbsValidationException):
                 read_yaml(config, 'schemas/config.json')
+
+    @pytest.mark.parametrize(('dockerfile_images', 'organization'), [
+        (True, None),
+        (True, 'organization'),
+        (False, None),
+        (False, 'organization'),
+    ])
+    def test_set_source_registry(self, tmpdir, dockerfile_images, organization):
+        config = """\
+version: 1
+koji:
+  hub_url: /
+  root_url: ''
+  auth: {}
+source_registry:
+  url: source_registry.com"""
+
+        if organization:
+            config += "\nregistries_organization: " + organization
+
+        filename = os.path.join(str(tmpdir), 'config.yaml')
+        with open(filename, 'w') as fp:
+            fp.write(dedent(config))
+        tasker, workflow = self.prepare()
+
+        if dockerfile_images:
+            parent_images = ['parent:latest', 'base:latest']
+            if organization:
+                expect_images = [ImageName.parse('source_registry.com/organization/base:latest'),
+                                 ImageName.parse('source_registry.com/organization/parent:latest')]
+            else:
+                expect_images = [ImageName.parse('source_registry.com/base:latest'),
+                                 ImageName.parse('source_registry.com/parent:latest')]
+        else:
+            parent_images = []
+
+        if parent_images:
+            workflow.builder.set_dockerfile_images(parent_images)
+
+        plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
+
+        assert plugin.run() is None
+
+        if dockerfile_images:
+            assert len(workflow.builder.dockerfile_images) == 2
+            assert workflow.builder.dockerfile_images.keys() == expect_images
+        else:
+            assert workflow.builder.dockerfile_images is None
 
 
 def test_ensure_odcsconfig_does_not_modify_original_signing_intents():

@@ -63,7 +63,7 @@ from atomic_reactor.util import (wait_for_command,
                                  dump_stacktraces, setup_introspection_signal_handler,
                                  allow_repo_dir_in_dockerignore,
                                  has_operator_appregistry_manifest,
-                                 has_operator_bundle_manifest,
+                                 has_operator_bundle_manifest, DockerfileImages,
                                  )
 from tests.constants import (DOCKERFILE_GIT,
                              INPUT_IMAGE, MOCK, MOCK_SOURCE,
@@ -1798,3 +1798,146 @@ class TestRegistryClient(object):
         mock_digest_query(image)
         expected = "sha256:d84ad27a3055f11cf2d34e611b8d14aada444e1e71866ea6a076b773aeac3c93"
         assert client.get_manifest_list_digest(image) == expected
+
+
+@pytest.mark.parametrize(('source_registry', 'organization'), [
+    (None, None),
+    ('source_registry.com', None),
+    ('source_registry.com', 'organization'),
+])
+@pytest.mark.parametrize(('dockerfile_images', 'base_from_scratch', 'custom_base_image',
+                          'custom_parent_image', 'bool_val', 'length'), [
+    ([],
+     False, False, False, False, 0),
+    (['scratch'],
+     True, False, False, False, 0),
+    (['koji/image-build'],
+     False, True, True, True, 1),
+    (['parent_image:latest', 'koji/image-build'],
+     False, True, True, True, 2),
+    (['koji/image-build', 'base_image:latest'],
+     False, False, True, True, 2),
+    (['parent_image:latest', 'scratch'],
+     True, False, False, True, 1),
+    (['scratch', 'base_image:latest'],
+     False, False, False, True, 1),
+    (['parent_image:latest', 'base_image:latest'],
+     False, False, False, True, 2),
+    (['different_registry.com/parent_image:latest', 'base_image:latest'],
+     False, False, False, True, 2),
+    (['parent_image:latest', 'different_registry.com/base_image:latest'],
+     False, False, False, True, 2),
+    (['different_registry.com/parent_image:latest', 'different_registry.com/base_image:latest'],
+     False, False, False, True, 2),
+])
+def test_dockerfile_images(source_registry, organization, dockerfile_images, base_from_scratch,
+                           custom_base_image, custom_parent_image, bool_val, length):
+    df_image = DockerfileImages(dockerfile_images)
+
+    # bool value of dockerfile_images
+    if df_image:
+        assert bool_val is True
+    else:
+        assert bool_val is False
+
+    # check that all images exist
+    for img in dockerfile_images:
+        if img != 'scratch':
+            df_image[img]  # pylint: disable=pointless-statement
+
+    assert df_image.original_parents == dockerfile_images
+    assert df_image.original_base_image == (dockerfile_images[-1] if dockerfile_images else None)
+    assert df_image.base_from_scratch == base_from_scratch
+    assert df_image.custom_base_image == custom_base_image
+    assert df_image.custom_parent_image == custom_parent_image
+    assert len(df_image) == length
+
+    expect_keys = [ImageName.parse(img) for img in reversed(dockerfile_images) if img != 'scratch']
+    assert expect_keys == df_image.keys()
+
+    base_image_key = None
+    if dockerfile_images:
+        if dockerfile_images[-1] == 'scratch':
+            base_image_key = 'scratch'
+        else:
+            base_image_key = ImageName.parse(dockerfile_images[-1])
+
+    if not dockerfile_images:
+        with pytest.raises(KeyError):
+            df_image.base_image_key  # pylint: disable=pointless-statement
+            df_image.base_image  # pylint: disable=pointless-statement
+    else:
+        assert df_image.base_image_key == base_image_key
+        assert df_image.base_image == base_image_key
+
+    if source_registry:
+        # set source registry and org and do checks again
+        df_image.set_source_registry(source_registry, organization)
+
+        assert df_image.source_registry == source_registry
+        assert df_image.organization == organization
+
+        for img in dockerfile_images:
+            if img != 'scratch':
+                df_image[img]  # pylint: disable=pointless-statement
+
+        assert df_image.original_parents == dockerfile_images
+        assert (df_image.original_base_image ==
+                (dockerfile_images[-1] if dockerfile_images else None))
+
+        if (base_image_key and base_image_key != 'scratch' and
+                not base_image_is_custom(base_image_key.to_str())):
+            if not base_image_key.registry:
+                base_image_key.registry = source_registry
+                if organization:
+                    base_image_key.enclose(organization)
+            elif base_image_key.registry == source_registry and organization:
+                base_image_key.enclose(organization)
+
+        if not dockerfile_images:
+            with pytest.raises(KeyError):
+                df_image.base_image_key  # pylint: disable=pointless-statement
+                df_image.base_image  # pylint: disable=pointless-statement
+        else:
+            assert df_image.base_image_key == base_image_key
+            assert df_image.base_image == base_image_key
+
+        expect_keys_enclosed = []
+        for img in expect_keys:
+            if base_image_is_custom(img.to_str()):
+                expect_keys_enclosed.append(img)
+                continue
+
+            if not img.registry:
+                img.registry = source_registry
+                if organization:
+                    img.enclose(organization)
+            elif img.registry == source_registry and organization:
+                img.enclose(organization)
+
+            expect_keys_enclosed.append(img)
+
+        assert expect_keys_enclosed == df_image.keys()
+
+        with pytest.raises(RuntimeError):
+            df_image.set_source_registry('different_source_registry.com', organization)
+
+    if dockerfile_images:
+        # set local tag for all images
+        for img in dockerfile_images:
+            if img == 'scratch':
+                continue
+
+            df_image[img] = 'local:tag'
+        local_tag = ImageName.parse('local:tag')
+
+        # check that all images have local tag set
+        for img, img_tag in df_image.items():
+            assert img_tag == local_tag  # pylint: disable=pointless-statement
+
+        if not df_image.base_from_scratch:
+            assert df_image.base_image == local_tag
+
+    # setting non-existing image
+    with pytest.raises(KeyError):
+        df_image['non-existing'] = 'test'

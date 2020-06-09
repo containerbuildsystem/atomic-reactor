@@ -79,8 +79,6 @@ def mock_workflow(tmpdir):
     setattr(workflow.builder, 'df_path', 'df_path')
     setattr(workflow.builder, 'image', flexmock())
     setattr(workflow.builder.image, 'to_str', lambda: 'image')
-    setattr(workflow.builder, 'base_image', flexmock())
-    setattr(workflow.builder.base_image, 'to_str', lambda: 'base-image')
 
     return workflow
 

@@ -53,7 +53,7 @@ from importlib import import_module
 from requests.utils import guess_json_utf
 
 from osbs.exceptions import OsbsException
-from osbs.utils import clone_git_repo, reset_git_repo, Labels
+from osbs.utils import clone_git_repo, reset_git_repo, Labels, ImageName
 from osbs.utils.yaml import read_yaml as osbs_read_yaml
 
 from tempfile import NamedTemporaryFile
@@ -1425,10 +1425,10 @@ def get_parent_image_koji_data(workflow):
     image_metadata[PARENT_IMAGE_BUILDS_KEY] = parents
 
     # ordered list of parent images
-    image_metadata[PARENT_IMAGES_KEY] = workflow.builder.parents_ordered
+    image_metadata[PARENT_IMAGES_KEY] = workflow.builder.dockerfile_images.original_parents
 
     # don't add parent image id key for scratch
-    if workflow.builder.base_from_scratch:
+    if workflow.builder.dockerfile_images.base_from_scratch:
         return image_metadata
 
     base_info = koji_parent.get(BASE_IMAGE_KOJI_BUILD) or {}
@@ -1631,3 +1631,227 @@ def chain_get(d, path, default=None):
         except (IndexError, KeyError):
             return default
     return obj
+
+
+class DockerfileImages(object):
+    """
+    _pullable_parents and _local_parents form together dictionary for parent_images
+    they are in reversed order than in Dockerfile (parent image from the last stage first)
+    _pullable_parents are keys
+    _local_parents are values
+    _pullable_parents have unique values and scratch isn't included
+
+    once class is instantiated, only things which should be changing are:
+    source and organization with set_source_registry method
+    and local tags in _local_parents via setter with valid key
+    """
+    def __init__(self, dfp_parents):
+        self._original_parents = deepcopy(dfp_parents) if dfp_parents else []
+        self._custom_parent_image = False
+        self._custom_base_image = False
+        self._base_from_scratch = False
+        self._source_registry = None
+        self._organization = None
+        self._pullable_parents = []
+        self._local_parents = []
+        self._create_pullable()
+        self._source_and_org_set = False
+
+    @property
+    def original_parents(self):
+        """
+        provides unmodified parent_images from Dockerfile
+        :return: list
+        """
+        return self._original_parents
+
+    @property
+    def original_base_image(self):
+        """
+        provides unmodified base image from Dockerfile
+        :return: str or None
+        """
+        return self._original_parents[-1] if self._original_parents else None
+
+    @property
+    def base_image(self):
+        """
+        provides local tag if it is known,
+        or pullable base image with registry and enclosed (if registry is source registry),
+        or scratch or custom base image
+        :return: str for scratch or ImageName
+        """
+        if self.base_from_scratch:
+            return SCRATCH_FROM
+
+        if self._local_parents and self._local_parents[0]:
+            return deepcopy(self._local_parents[0])
+        else:
+            return self.base_image_key
+
+    @property
+    def base_image_key(self):
+        """
+        provides pullable base image with registry and enclosed (if registry is source registry),
+        or scratch or custom base image
+        :return: str for scratch or ImageName
+        """
+        if self.base_from_scratch:
+            return SCRATCH_FROM
+
+        if self._pullable_parents and self._pullable_parents[0]:
+            return deepcopy(self._pullable_parents[0])
+        else:
+            raise KeyError('base_image')
+
+    @property
+    def base_from_scratch(self):
+        """
+        base image is FROM scratch
+        :return: boolean
+        """
+        return self._base_from_scratch
+
+    @property
+    def custom_base_image(self):
+        """
+        base image is custom (FROM koji/image-build)
+        :return: boolean
+        """
+        return self._custom_base_image
+
+    @property
+    def custom_parent_image(self):
+        """
+        any parent image is custom (FROM koji/image-build)
+        :return: boolean
+        """
+        return self._custom_parent_image
+
+    @property
+    def source_registry(self):
+        return self._source_registry
+
+    @property
+    def organization(self):
+        return self._organization
+
+    def __len__(self):
+        return len(self._pullable_parents)
+
+    def __setitem__(self, key, item):
+        """
+        for key can be used: string or ImageName
+        image without registry and organization
+        (it will be enclosed and registry added automatically)
+        image with registry and without organization
+        (it will be enclosed automatically)
+        image with registry and organization
+        :return: new instance of ImageName
+        """
+        if not isinstance(key, ImageName):
+            key = ImageName.parse(key)
+
+        if not base_image_is_custom(key.to_str()):
+            if not key.registry:
+                key.registry = self._source_registry
+
+            if self._should_enclose(key):
+                key.enclose(self._organization)
+
+        try:
+            kindex = self._pullable_parents.index(key)
+        except ValueError:
+            raise KeyError(key)
+
+        self._local_parents[kindex] = ImageName.parse(item)
+        logger.info("set parent image '%s' to '%s'", key.to_str(), item)
+
+    def __getitem__(self, key):
+        """
+        for key can be used: string or ImageName
+        image without registry and organization
+        (it will be enclosed and registry added automatically)
+        image with registry and without organization
+        (it will be enclosed automatically)
+        image with registry and organization
+        :return: new instance of ImageName
+        """
+        if not isinstance(key, ImageName):
+            key = ImageName.parse(key)
+
+        if not base_image_is_custom(key.to_str()):
+            if not key.registry:
+                key.registry = self._source_registry
+
+            if self._should_enclose(key):
+                key.enclose(self._organization)
+
+        try:
+            kindex = self._pullable_parents.index(key)
+        except ValueError:
+            raise KeyError(key)
+        return deepcopy(self._local_parents[kindex])
+
+    def __iter__(self):
+        return iter(self.keys())
+
+    def keys(self):
+        return deepcopy(self._pullable_parents)
+
+    def values(self):
+        return deepcopy(self._local_parents)
+
+    def items(self):
+        return zip(self.keys(), self.values())   # pylint: disable=zip-builtin-not-iterating
+
+    def _create_pullable(self):
+        for index, image in enumerate(reversed(self._original_parents)):
+            image_name = ImageName.parse(image)
+            if base_image_is_scratch(image_name.get_repo()):
+                if index == 0:
+                    self._base_from_scratch = True
+                continue
+            if base_image_is_custom(image_name.to_str()):
+                self._custom_parent_image = True
+                if index == 0:
+                    self._custom_base_image = True
+
+            if image_name not in self._pullable_parents:
+                self._pullable_parents.append(image_name)
+                self._local_parents.append(None)
+
+    def set_source_registry(self, source_registry, organization=None):
+        """
+        set source registry and organization
+        has to be done before using with expectation of having
+        already source registry and organization,
+        set in  reactor_config, and in flatpak_create_dockerfile
+        """
+        if (self._source_and_org_set and
+                (self._source_registry != source_registry or self._organization != organization)):
+            raise RuntimeError("set_source_registry isn't supposed to be called multiple "
+                               "times with different paramaters")
+
+        self._source_registry = source_registry
+        self._organization = organization
+        self._enclose_pullable()
+        self._source_and_org_set = True
+
+    def _should_enclose(self, image):
+        if image.registry and image.registry != self._source_registry:
+            return False
+        if self._organization:
+            return True
+        return False
+
+    def _enclose_pullable(self):
+        for image in self._pullable_parents:
+            if base_image_is_custom(image.to_str()):
+                continue
+
+            if not image.registry:
+                image.registry = self._source_registry
+
+            if self._should_enclose(image):
+                image.enclose(self._organization)
