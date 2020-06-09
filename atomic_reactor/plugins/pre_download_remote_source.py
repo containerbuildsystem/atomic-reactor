@@ -18,6 +18,7 @@ from atomic_reactor.constants import REMOTE_SOURCE_DIR
 from atomic_reactor.download import download_url
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_cachito
+from atomic_reactor.util import get_retrying_requests_session
 from atomic_reactor.utils.cachito import CFG_TYPE_B64
 
 
@@ -35,13 +36,34 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
         :param remote_source_url: URL to download source archive from
         :param remote_source_build_args: dict of container build args
                                          to be used when building the image
-        :param remote_source_configs: list with configuration files data to be
+        :param remote_source_configs: URL to fetch a list with configuration files data to be
                                       injected in the exploded remote sources dir
         """
         super(DownloadRemoteSourcePlugin, self).__init__(tasker, workflow)
         self.url = remote_source_url
         self.buildargs = remote_source_build_args or {}
-        self.config_files = remote_source_configs or []
+        self.remote_source_conf_url = remote_source_configs
+
+    def get_remote_source_config(self, url, insecure=False):
+        """Get the configuration files associated with the remote sources
+
+        :param url: str, URL to cachito remote source configurations
+        :param insecure: bool, whether to verify SSL certificates
+
+        :return: list<dict>, configuration data for the given request.
+                 entries include path, type, and content
+        """
+        if not url:
+            return []
+
+        self.log.info('Checking for additional configurations at %s', url)
+        session = get_retrying_requests_session()
+        session.verify = insecure
+
+        response = session.get(url)
+        response_json = response.json()
+        response.raise_for_status()
+        return response_json
 
     def run(self):
         """
@@ -67,8 +89,11 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
         with tarfile.open(archive) as tf:
             tf.extractall(dest_dir)
 
+        # Get the remote source configurations
+        config_files = self.get_remote_source_config(self.remote_source_conf_url, verify_cert) or []
+
         # Inject cachito provided configuration files
-        for config in self.config_files:
+        for config in config_files:
             config_path = os.path.join(dest_dir, config['path'])
             if config['type'] == CFG_TYPE_B64:
                 data = base64.b64decode(config['content'])

@@ -11,6 +11,7 @@ from __future__ import absolute_import
 from io import BytesIO
 from textwrap import dedent
 import base64
+import json
 import os
 import responses
 import tarfile
@@ -54,7 +55,7 @@ class TestDownloadRemoteSource(object):
     @pytest.mark.parametrize('archive_dir_exists', [True, False])
     @pytest.mark.parametrize('has_configuration', [True, False])
     @pytest.mark.parametrize('configuration_type, configuration_content', (
-        [CFG_TYPE_B64, base64.b64encode(CFG_CONTENT)],
+        [CFG_TYPE_B64, base64.b64encode(CFG_CONTENT).decode('utf-8')],
         ['unknown', 'shouldNotMatter']
         ))
     def test_download_remote_source(
@@ -86,6 +87,7 @@ class TestDownloadRemoteSource(object):
         if source_url:
             responses.add(responses.GET, url, body=content.getvalue())
 
+        config_url = 'https://example.com/dir/configurations'
         config_data = []
         config_path = 'abc.conf'
         if has_configuration:
@@ -97,11 +99,19 @@ class TestDownloadRemoteSource(object):
                 }
             ]
 
+        responses.add(
+                responses.GET,
+                config_url,
+                content_type='application/json',
+                status=200,
+                body=json.dumps(config_data)
+                )
+
         buildargs = {'spam': 'maps'}
         plugin = DownloadRemoteSourcePlugin(docker_tasker, workflow,
                                             remote_source_url=url,
                                             remote_source_build_args=buildargs,
-                                            remote_source_configs=config_data)
+                                            remote_source_configs=config_url)
         if archive_dir_exists and source_url:
             dest_dir = os.path.join(workflow.builder.df_dir, plugin.REMOTE_SOURCE)
             os.makedirs(dest_dir)
