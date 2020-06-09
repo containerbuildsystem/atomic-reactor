@@ -9,13 +9,17 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import absolute_import
 
 from io import BytesIO
+from textwrap import dedent
 import base64
 import os
 import responses
 import tarfile
 
+from atomic_reactor import util
 from atomic_reactor.constants import REMOTE_SOURCE_DIR
 from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.plugins.pre_reactor_config import (
+    ReactorConfigPlugin, WORKSPACE_CONF_KEY, ReactorConfig)
 from atomic_reactor.utils.cachito import CFG_TYPE_B64
 from tests.constants import TEST_IMAGE
 from tests.stubs import StubInsideBuilder
@@ -28,9 +32,25 @@ import pytest
 CFG_CONTENT = b'configContent'
 
 
+def mock_reactor_config(workflow, insecure=False):
+    data = dedent("""\
+        version: 1
+        cachito:
+           api_url: 'example.com'
+           insecure: {}
+           auth:
+               ssl_certs_dir: /some/dir
+        """.format(insecure))
+
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+    config = util.read_yaml(data, 'schemas/config.json')
+    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = ReactorConfig(config)
+
+
 class TestDownloadRemoteSource(object):
     @responses.activate
     @pytest.mark.parametrize('source_url', [True, False])
+    @pytest.mark.parametrize('insecure', [True, False])
     @pytest.mark.parametrize('archive_dir_exists', [True, False])
     @pytest.mark.parametrize('has_configuration', [True, False])
     @pytest.mark.parametrize('configuration_type, configuration_content', (
@@ -39,7 +59,7 @@ class TestDownloadRemoteSource(object):
         ))
     def test_download_remote_source(
         self, tmpdir, docker_tasker, source_url, archive_dir_exists,
-        has_configuration, configuration_type, configuration_content
+        has_configuration, configuration_type, configuration_content, insecure
     ):
         workflow = DockerBuildWorkflow(
             TEST_IMAGE,
@@ -47,6 +67,7 @@ class TestDownloadRemoteSource(object):
         )
         df_path = os.path.join(str(tmpdir), 'stub_df_path')
         workflow.builder = StubInsideBuilder().for_workflow(workflow).set_df_path(df_path)
+        mock_reactor_config(workflow, insecure=insecure)
         filename = 'source.tar.gz'
         url = None
         if source_url:
