@@ -92,7 +92,7 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
 
         remote_source_json = self.source_request_to_json(source_request)
         remote_source_url = self.cachito_session.assemble_download_url(source_request)
-        remote_source_conf_url = self.cachito_session.assemble_request_config_url(source_request)
+        remote_source_conf_url = remote_source_json.get('configuration_files')
         self.set_worker_params(source_request, remote_source_url, remote_source_conf_url)
 
         dest_dir = self.workflow.source.workdir
@@ -122,7 +122,8 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
     def source_request_to_json(self, source_request):
         """Create a relevant representation of the source request"""
         required = ('ref', 'repo')
-        optional = ('dependencies', 'flags', 'packages', 'pkg_managers', 'environment_variables')
+        optional = ('dependencies', 'flags', 'packages', 'pkg_managers', 'environment_variables',
+                    'configuration_files')
 
         data = {}
         try:

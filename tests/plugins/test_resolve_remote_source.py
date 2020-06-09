@@ -147,6 +147,7 @@ def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None,
                     'version': 'v2.0.3'
                 }
             ],
+            'configuration_files': CACHITO_REQUEST_CONFIG_URL,
             'extra_cruft': 'ignored',
         }
 
@@ -173,11 +174,6 @@ def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None,
         .should_receive('assemble_download_url')
         .with_args(source_request)
         .and_return(CACHITO_REQUEST_DOWNLOAD_URL))
-
-    (flexmock(CachitoAPI)
-        .should_receive('assemble_request_config_url')
-        .with_args(source_request)
-        .and_return(CACHITO_REQUEST_CONFIG_URL))
 
 
 def mock_koji(user=KOJI_TASK_OWNER):
@@ -355,6 +351,7 @@ def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=No
                     'version': 'v2.0.3'
                 }
             ],
+            'configuration_files': CACHITO_REQUEST_CONFIG_URL
         }
         assert results['remote_source_path'] == expected_dowload_path(workflow)
 
