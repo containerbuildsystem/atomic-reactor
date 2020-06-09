@@ -17,6 +17,7 @@ import tarfile
 from atomic_reactor.constants import REMOTE_SOURCE_DIR
 from atomic_reactor.download import download_url
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.plugins.pre_reactor_config import get_cachito
 from atomic_reactor.utils.cachito import CFG_TYPE_B64
 
 
@@ -51,7 +52,9 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
             return
 
         # Download the source code archive
-        archive = download_url(self.url, self.workflow.source.workdir)
+        cachito_config = get_cachito(self.workflow)
+        verify_cert = cachito_config.get('insecure', False)
+        archive = download_url(self.url, self.workflow.source.workdir, insecure=verify_cert)
 
         # Unpack the source code archive into a dedicated dir in container build workdir
         dest_dir = os.path.join(self.workflow.builder.df_dir, self.REMOTE_SOURCE)
