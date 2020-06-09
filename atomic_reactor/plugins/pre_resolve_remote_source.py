@@ -92,8 +92,8 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
 
         remote_source_json = self.source_request_to_json(source_request)
         remote_source_url = self.cachito_session.assemble_download_url(source_request)
-        remote_source_configs = self.cachito_session.get_request_config(source_request)
-        self.set_worker_params(source_request, remote_source_url, remote_source_configs)
+        remote_source_conf_url = self.cachito_session.assemble_request_config_url(source_request)
+        self.set_worker_params(source_request, remote_source_url, remote_source_conf_url)
 
         dest_dir = self.workflow.source.workdir
         dest_path = self.cachito_session.download_sources(source_request, dest_dir=dest_dir)
@@ -107,7 +107,7 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
             'remote_source_path': dest_path,
         }
 
-    def set_worker_params(self, source_request, remote_source_url, remote_source_configs):
+    def set_worker_params(self, source_request, remote_source_url, remote_source_conf_url):
         build_args = {
             # Turn the environment variables into absolute paths that
             # represent where the remote sources are copied to during
@@ -117,7 +117,7 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
         }
         override_build_kwarg(self.workflow, 'remote_source_url', remote_source_url)
         override_build_kwarg(self.workflow, 'remote_source_build_args', build_args)
-        override_build_kwarg(self.workflow, 'remote_source_configs', remote_source_configs)
+        override_build_kwarg(self.workflow, 'remote_source_configs', remote_source_conf_url)
 
     def source_request_to_json(self, source_request):
         """Create a relevant representation of the source request"""
