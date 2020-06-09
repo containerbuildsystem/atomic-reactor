@@ -296,13 +296,3 @@ def test_download_sources_bad_request_type(tmpdir):
 def test_assemble_download_url(tmpdir, cachito_request):
     url = CachitoAPI(CACHITO_URL).assemble_download_url(cachito_request)
     assert url == CACHITO_REQUEST_DOWNLOAD_URL
-
-
-@pytest.mark.parametrize('cachito_request', (
-    CACHITO_REQUEST_ID,
-    {'id': CACHITO_REQUEST_ID},
-))
-def test_assemble_request_config_url(tmpdir, cachito_request):
-    expected = '{}/api/v1/requests/{}/configuration-files'.format(CACHITO_URL, CACHITO_REQUEST_ID)
-    url = CachitoAPI(CACHITO_URL).assemble_request_config_url(cachito_request)
-    assert url == expected

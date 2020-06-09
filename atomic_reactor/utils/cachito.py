@@ -184,18 +184,6 @@ class CachitoAPI(object):
         request_id = self._get_request_id(request)
         return '{}/api/v1/requests/{}/download'.format(self.api_url, request_id)
 
-    def assemble_request_config_url(self, request):
-        """Return the URL to download the configuration files associated with a request
-
-        :param request: int or dict, either the Cachito request ID or a dict with 'id' key
-
-        :return: str, the URL to download the configuration files
-        """
-        request_id = self._get_request_id(request)
-        logger.debug('Retrieving configuration files for request %ds', request_id)
-        url = '{}/api/v1/requests/{}/configuration-files'.format(self.api_url, request_id)
-        return url
-
     def _get_request_id(self, request):
         if isinstance(request, int):
             return request
