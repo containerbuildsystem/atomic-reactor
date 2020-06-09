@@ -75,11 +75,11 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         # Find out the USER inherited from the base image
         inspect = self.workflow.builder.base_image_inspect
         inherited_user = ''
-        if not self.workflow.builder.base_from_scratch:
+        if not self.workflow.builder.dockerfile_images.base_from_scratch:
             inherited_user = inspect.get(INSPECT_CONFIG).get('User', '')
         df = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
         yum_repos = list(self.workflow.files)
         add_yum_repos_to_dockerfile(yum_repos, df, inherited_user,
-                                    self.workflow.builder.base_from_scratch)
+                                    self.workflow.builder.dockerfile_images.base_from_scratch)
         for repo in yum_repos:
             self.log.info("injected yum repo: %s", repo)

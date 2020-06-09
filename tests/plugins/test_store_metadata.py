@@ -18,7 +18,6 @@ from flexmock import flexmock
 from osbs.api import OSBS
 import osbs.conf
 from osbs.exceptions import OsbsResponseException
-from osbs.utils import ImageName
 from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
                                       PLUGIN_FETCH_SOURCES_KEY)
@@ -31,7 +30,7 @@ from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOS
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from atomic_reactor.util import LazyGit, ManifestDigest, df_parser
+from atomic_reactor.util import LazyGit, ManifestDigest, df_parser, DockerfileImages
 import pytest
 from tests.constants import (LOCALHOST_REGISTRY, DOCKER0_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME,
                              INPUT_IMAGE)
@@ -51,20 +50,17 @@ class X(object):
     source = Y()
     source.dockerfile_path = None
     source.path = None
-    base_image = ImageName(repo="qwe", tag="asd")
-    parent_images = {
-       base_image: ImageName.parse("sha256:spamneggs"),
-       ImageName.parse("sha256:spamneggs"): None,
-    }
-    original_base_image = base_image.copy()
-    base_from_scratch = False
-    # image = ImageName.parse("test-image:unique_tag_123")
+    dockerfile_images = DockerfileImages(['qwe:asd'])
+    dockerfile_images['qwe:asd'] = "sha256:spamneggs"
 
     def parent_images_to_str(self):
-        results = {
-            "qwe:asd": "sha256:spamneggs"
-        }
-        return results
+        result = {}
+        for key, val in self.dockerfile_images.items():
+            if val:
+                result[key.to_str()] = val.to_str()
+            else:
+                result[key.to_str()] = 'sha256:bacon'
+        return result
 
 
 class XBeforeDockerfile(object):
@@ -73,9 +69,7 @@ class XBeforeDockerfile(object):
         self.source = Y()
         self.source.dockerfile_path = None
         self.source.path = None
-        self.base_image = None
-        self.parent_images = {}
-        self.base_from_scratch = False
+        self.dockerfile_images = None
         self.df_dir = None
 
     def parent_images_to_str(self):
@@ -214,6 +208,7 @@ CMD blabla"""
 
     df = df_parser(str(tmpdir))
     df.content = df_content
+    workflow.builder.dockerfile_images = DockerfileImages(df.parent_images)
     workflow.builder.df_path = df.dockerfile_path
     workflow.builder.df_dir = str(tmpdir)
 
@@ -286,9 +281,11 @@ CMD blabla"""
         assert annotations["base-image-id"] == ""
         assert '"scratch": "scratch"' in annotations['parent_images']
     else:
-        assert annotations["base-image-name"] == workflow.builder.original_base_image.to_str()
+        assert annotations["base-image-name"] ==\
+               workflow.builder.dockerfile_images.original_base_image
         assert annotations["base-image-id"] != ""
-    assert workflow.builder.original_base_image.to_str() in annotations['parent_images']
+        assert (workflow.builder.dockerfile_images.base_image.to_str() in
+                annotations['parent_images'])
     assert "image-id" in annotations
     assert is_string_type(annotations['image-id'])
     assert "filesystem" in annotations
@@ -645,7 +642,6 @@ CMD blabla"""
 def test_exit_before_dockerfile_created(tmpdir):  # noqa
     workflow = prepare(before_dockerfile=True)
     workflow.exit_results = {}
-    workflow.builder = XBeforeDockerfile()
     workflow.builder.df_dir = str(tmpdir)
 
     runner = ExitPluginsRunner(

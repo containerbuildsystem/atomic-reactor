@@ -41,6 +41,7 @@ def prepare(scratch=False):
         "test-image", source={"provider": "git", "uri": DOCKERFILE_GIT})
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
+    workflow.builder.set_dockerfile_images([])
     workflow.user_params['scratch'] = scratch
     (flexmock(requests.Response, content=repocontent)
         .should_receive('raise_for_status')
@@ -92,8 +93,13 @@ def test_single_repourl(inject_proxy):
 def test_multiple_repourls(caplog, base_from_scratch, parent_images, inject_proxy, repos,
                            filenames):
     tasker, workflow = prepare()
-    workflow.builder.base_from_scratch = base_from_scratch
-    workflow.builder.parent_images = parent_images
+
+    dockerfile_images = []
+    if parent_images:
+        dockerfile_images.append('parent_image:latest')
+    if base_from_scratch:
+        dockerfile_images.append('scratch')
+    workflow.builder.set_dockerfile_images(dockerfile_images)
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': AddYumRepoByUrlPlugin.key,
         'args': {'repourls': repos, 'inject_proxy': inject_proxy}}])

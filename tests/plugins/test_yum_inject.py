@@ -44,6 +44,7 @@ def prepare(df_path, inherited_user=''):
     workflow.source = StubSource()
     workflow.builder = (StubInsideBuilder()
                         .for_workflow(workflow)
+                        .set_dockerfile_images([])
                         .set_df_path(df_path)
                         .set_inspection_data({
                             INSPECT_CONFIG: {
@@ -333,8 +334,7 @@ def test_multiple_repourls(tmpdir):
                                   [filename1, filename2])
 
 
-@pytest.mark.parametrize(('name, inherited_user, dockerfile, expect_cleanup_lines,'
-                          'base_from_scratch'), [
+@pytest.mark.parametrize(('name, inherited_user, dockerfile, expect_cleanup_lines'), [
     (
         'single_stage',
         '',
@@ -344,7 +344,6 @@ def test_multiple_repourls(tmpdir):
             RUN yum -y update
         """),
         ["RUN rm ...\n"],
-        False,
     ),
     (
         'multiple_stages',
@@ -359,7 +358,6 @@ def test_multiple_repourls(tmpdir):
             COPY --from=0 /some/stuff /bin/stuff
         """),
         ["RUN rm ...\n"],
-        False,
     ),
     (
         'multistage_with_user_confusion',
@@ -387,7 +385,6 @@ def test_multiple_repourls(tmpdir):
             RUN rm ...
             USER johncleese
         """).splitlines(True),
-        False,
     ),
     (
         'multistage_with_scratch',
@@ -418,7 +415,6 @@ def test_multiple_repourls(tmpdir):
         dedent("""\
             RUN rm ...
         """).splitlines(True),
-        False,
     ),
     (
         'multistage_with_scratch_with_user',
@@ -451,7 +447,6 @@ def test_multiple_repourls(tmpdir):
             RUN rm ...
             USER inher_user
         """).splitlines(True),
-        False,
     ),
     (
         'multistage_with_scratch_last',
@@ -483,7 +478,6 @@ def test_multiple_repourls(tmpdir):
             RUN yum install python
         """),
         [],
-        True,
     ),
     (
         'single_scratch',
@@ -493,11 +487,10 @@ def test_multiple_repourls(tmpdir):
             RUN yum -y update
         """),
         [],
-        True,
     ),
 ])
 def test_multistage_dockerfiles(name, inherited_user, dockerfile, expect_cleanup_lines,
-                                base_from_scratch, tmpdir, caplog):
+                                tmpdir, caplog):
     # expect repo ADD instructions where indicated in the content, and RUN rm at the end.
     # begin by splitting on "### ADD HERE" so we know where to expect changes.
     segments = re.split(r'^.*ADD HERE.*$\n?', dockerfile, flags=re.M)
@@ -512,7 +505,7 @@ def test_multistage_dockerfiles(name, inherited_user, dockerfile, expect_cleanup
     df = df_parser(str(tmpdir))
     df.content = ''.join(segments)  # dockerfile without the "### ADD HERE" lines
     tasker, workflow = prepare(df.dockerfile_path, inherited_user)
-    workflow.builder.set_base_from_scratch(base_from_scratch)
+    workflow.builder.set_dockerfile_images(df.parent_images)
     repo_file = 'myrepo.repo'
     repo_path = os.path.join(YUM_REPOS_DIR, repo_file)
     workflow.files[repo_path] = repocontent

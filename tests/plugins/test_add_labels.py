@@ -14,11 +14,10 @@ from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from atomic_reactor.util import df_parser
+from atomic_reactor.util import df_parser, DockerfileImages
 from atomic_reactor.source import VcsInfo
-from atomic_reactor.constants import INSPECT_CONFIG, SCRATCH_FROM
+from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor import start_time as atomic_reactor_start_time
-from osbs.utils import ImageName
 import datetime
 import re
 import json
@@ -44,11 +43,10 @@ class MockSource(object):
 
 
 class X(object):
-    def __init__(self, release_env=None):
+    def __init__(self, release_env=None, parent_images=()):
         self.image_id = "xxx"
         self.source = MockSource(release_env)
-        self.base_image = ImageName(repo="qwe", tag="asd")
-        self.base_from_scratch = False
+        self.dockerfile_images = DockerfileImages(parent_images)
 
 
 DF_CONTENT = """\
@@ -195,7 +193,7 @@ def test_add_labels_plugin(tmpdir, docker_tasker, workflow,
     if MOCK:
         mock_docker()
 
-    setattr(workflow, 'builder', X())
+    setattr(workflow, 'builder', X(parent_images=df.parent_images))
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', labels_conf_base)
     flexmock(workflow, source=MockSource())
@@ -248,7 +246,7 @@ def test_add_labels_arrangement6(tmpdir, docker_tasker, workflow, release, use_r
     if MOCK:
         mock_docker()
 
-    setattr(workflow, 'builder', X())
+    setattr(workflow, 'builder', X(parent_images=df.parent_images))
     setattr(workflow.builder, 'base_image_inspect', LABELS_CONF_BASE)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     flexmock(workflow, source=MockSource())
@@ -307,7 +305,7 @@ def test_add_labels_plugin_generated(tmpdir, docker_tasker, workflow,
     if MOCK:
         mock_docker()
 
-    setattr(workflow, 'builder', X())
+    setattr(workflow, 'builder', X(parent_images=df.parent_images))
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', LABELS_CONF_BASE)
     flexmock(workflow, source=MockSource())
@@ -419,7 +417,7 @@ def test_add_labels_aliases(tmpdir, docker_tasker, workflow, caplog,
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    setattr(workflow, 'builder', X())
+    setattr(workflow, 'builder', X(parent_images=df.parent_images))
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', base_labels)
     flexmock(workflow, source=MockSource())
@@ -498,7 +496,7 @@ def test_add_labels_equal_aliases(tmpdir, docker_tasker, workflow, caplog,
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    setattr(workflow, 'builder', X())
+    setattr(workflow, 'builder', X(parent_images=df.parent_images))
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', base_labels)
     flexmock(workflow, source=MockSource())
@@ -579,7 +577,7 @@ def test_add_labels_equal_aliases2(tmpdir, docker_tasker, workflow, caplog, base
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    setattr(workflow, 'builder', X())
+    setattr(workflow, 'builder', X(parent_images=df.parent_images))
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', base_labels)
     flexmock(workflow, source=MockSource())
@@ -664,7 +662,7 @@ def test_dont_overwrite_if_in_dockerfile(tmpdir, docker_tasker, workflow,
     if MOCK:
         mock_docker()
 
-    setattr(workflow, 'builder', X())
+    setattr(workflow, 'builder', X(parent_images=df.parent_images))
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', labels_conf_base)
     flexmock(workflow, source=MockSource())
@@ -718,7 +716,7 @@ def test_url_label(tmpdir, docker_tasker, workflow, url_format, info_url, reacto
     df = df_parser(str(tmpdir))
     df.content = DF_CONTENT_LABELS
 
-    setattr(workflow, 'builder', X())
+    setattr(workflow, 'builder', X(parent_images=df.parent_images))
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', base_labels)
     flexmock(workflow, source=MockSource())
@@ -779,7 +777,7 @@ def test_add_labels_plugin_explicit(tmpdir, docker_tasker, workflow,
     if MOCK:
         mock_docker()
 
-    setattr(workflow, 'builder', X())
+    setattr(workflow, 'builder', X(parent_images=df.parent_images))
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', labels_base)
     flexmock(workflow, source=MockSource())
@@ -819,13 +817,11 @@ def test_add_labels_base_image(tmpdir, docker_tasker, workflow,
     if MOCK:
         mock_docker()
 
-    setattr(workflow, 'builder', X())
+    setattr(workflow, 'builder', X(parent_images=df.parent_images))
     setattr(workflow.builder, 'tasker', docker_tasker)
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', {})
     flexmock(workflow, source=MockSource())
-    if parent == SCRATCH_FROM:
-        workflow.builder.base_from_scratch = True
 
     # When a 'release' label is provided by parameter and used to
     # configure the plugin, it should be set in the Dockerfile even
@@ -902,7 +898,7 @@ def test_release_label(tmpdir, docker_tasker, workflow, caplog,
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    setattr(workflow, 'builder', X(release_env))
+    setattr(workflow, 'builder', X(release_env, parent_images=df.parent_images))
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', base_labels)
     flexmock(workflow, source=MockSource(release_env))

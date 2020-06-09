@@ -63,10 +63,10 @@ class InjectParentImage(PreBuildPlugin):
             self.log.info('no koji parent build, skipping plugin')
             return
 
-        if self.workflow.builder.base_from_scratch:
+        if self.workflow.builder.dockerfile_images.base_from_scratch:
             self.log.info("from scratch can't inject parent image")
             return
-        if self.workflow.builder.custom_base_image:
+        if self.workflow.builder.dockerfile_images.custom_base_image:
             self.log.info("custom base image builds can't inject parent image")
             return
 
@@ -126,12 +126,12 @@ class InjectParentImage(PreBuildPlugin):
             new_parent_image.registry = source_registry_docker_uri
 
         if organization:
-            self.workflow.builder.base_image.enclose(organization)
-            self.workflow.builder.original_base_image.enclose(organization)
             new_parent_image.enclose(organization)
 
         self._new_parent_image = new_parent_image.to_str()
 
     def set_new_parent_image(self):
-        self.workflow.builder.set_base_image(self._new_parent_image)
+        base_image_key = self.workflow.builder.dockerfile_images.base_image_key
+        self.workflow.builder.dockerfile_images[base_image_key] = self._new_parent_image
+
         defer_removal(self.workflow, self._new_parent_image)

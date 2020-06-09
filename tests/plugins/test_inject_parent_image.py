@@ -17,7 +17,7 @@ from atomic_reactor.plugins.exit_remove_built_image import GarbageCollectionPlug
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
-from osbs.utils import ImageName
+from atomic_reactor.util import DockerfileImages
 from flexmock import flexmock
 from tests.constants import MOCK
 from tests.util import add_koji_map_in_workflow
@@ -59,10 +59,7 @@ USE_DEFAULT_KOJI_BUILD_INFO = object()
 class MockInsideBuilder(object):
     def __init__(self):
         self.tasker = DockerTasker()
-        self.base_image = ImageName(repo='fedora', tag='26')
-        self.original_base_image = ImageName(repo='fedora', tag='26')
-        self.base_from_scratch = False
-        self.custom_base_image = False
+        self.dockerfile_images = DockerfileImages(['source_registry.com/fedora:26'])
         self.image_id = 'image_id'
         self.image = 'image'
         self.df_path = 'df_path'
@@ -74,9 +71,6 @@ class MockInsideBuilder(object):
         setattr(result, 'dockerfile_path', '/')
         setattr(result, 'path', '/tmp')
         return result
-
-    def set_base_image(self, base_image):
-        self.base_image = ImageName.parse(base_image)
 
 
 @pytest.fixture()
@@ -116,24 +110,28 @@ class TestKojiParent(object):
     @pytest.mark.parametrize('custom_base_image', [True, False])
     def test_parent_image_injected(self, caplog, workflow, base_from_scratch, custom_base_image):
         koji_session()
-        previous_parent_image = workflow.builder.base_image
-        workflow.builder.base_from_scratch = base_from_scratch
-        workflow.builder.custom_base_image = custom_base_image
-        self.run_plugin_with_args(workflow,
-                                  base_from_scratch=base_from_scratch,
+
+        if base_from_scratch:
+            workflow.builder.dockerfile_images = DockerfileImages(['scratch'])
+        elif custom_base_image:
+            workflow.builder.dockerfile_images = DockerfileImages(['koji/image-build'])
+
+        previous_parent_image = workflow.builder.dockerfile_images.base_image
+
+        self.run_plugin_with_args(workflow, base_from_scratch=base_from_scratch,
                                   custom_base_image=custom_base_image)
         if base_from_scratch:
-            assert str(previous_parent_image) == str(workflow.builder.base_image)
+            assert str(previous_parent_image) == str(workflow.builder.dockerfile_images.base_image)
 
             log_msg = "from scratch can't inject parent image"
             assert log_msg in caplog.text
         elif custom_base_image:
-            assert str(previous_parent_image) == str(workflow.builder.base_image)
+            assert str(previous_parent_image) == str(workflow.builder.dockerfile_images.base_image)
 
             log_msg = "custom base image builds can't inject parent image"
             assert log_msg in caplog.text
         else:
-            assert str(previous_parent_image) != str(workflow.builder.base_image)
+            assert str(previous_parent_image) != str(workflow.builder.dockerfile_images.base_image)
 
     @pytest.mark.parametrize('koji_build', (KOJI_BUILD_ID, KOJI_BUILD_NVR, str(KOJI_BUILD_ID)))
     def test_koji_build_identifier(self, workflow, koji_build):
@@ -145,6 +143,7 @@ class TestKojiParent(object):
         unknown_build = KOJI_BUILD_ID + 1
         with pytest.raises(PluginFailedException) as exc_info:
             self.run_plugin_with_args(workflow, plugin_args={'koji_parent_build': unknown_build})
+
         assert '{}, not found'.format(unknown_build) in str(exc_info.value)
 
     @pytest.mark.parametrize('registry_in_koji', ('source_registry.com', 'pull_registry.com'))
@@ -168,9 +167,9 @@ class TestKojiParent(object):
 
         repo_template = 'source_registry.com/fedora{}'
         koji_session(archives=archives, koji_build_info=koji_build_info)
-        workflow.builder.base_image = ImageName.parse('spam.com/fedora:some_tag')
+        workflow.builder.dockerfile_images = DockerfileImages(['spam.com/fedora:some_tag'])
         self.run_plugin_with_args(workflow)
-        assert str(workflow.builder.base_image) == repo_template.format(selected)
+        assert str(workflow.builder.dockerfile_images.base_image) == repo_template.format(selected)
 
     @pytest.mark.parametrize('organization', [None, 'my_organization'])  # noqa
     @pytest.mark.parametrize('archive_registry', ['spam.com', 'old_registry.com'])
@@ -190,14 +189,14 @@ class TestKojiParent(object):
         repo_template = 'source_registry.com/fedora{}'
 
         koji_session(archives=archives)
-        workflow.builder.base_image = ImageName.parse('spam.com/fedora:some_tag')
+        workflow.builder.dockerfile_images = DockerfileImages(['spam.com/fedora:some_tag'])
         self.run_plugin_with_args(workflow, organization=organization)
         if organization:
             selected_repo = enclosed_repo_template.format(organization, selected)
         else:
             selected_repo = repo_template.format(selected)
 
-        assert str(workflow.builder.base_image) == selected_repo
+        assert str(workflow.builder.dockerfile_images.base_image) == selected_repo
 
     def test_koji_ssl_certs_used(self, tmpdir, workflow):  # noqa
         session = koji_session()
@@ -273,6 +272,6 @@ class TestKojiParent(object):
             self.assert_images_to_remove(workflow)
 
     def assert_images_to_remove(self, workflow):
-        expected = {str(workflow.builder.base_image)}
+        expected = {str(workflow.builder.dockerfile_images.base_image)}
         actual = workflow.plugin_workspace[GarbageCollectionPlugin.key]['images_to_remove']
         assert actual == expected

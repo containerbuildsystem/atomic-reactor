@@ -22,7 +22,7 @@ from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       SCRATCH_FROM)
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.util import (base_image_is_scratch, base_image_is_custom, get_checksums)
+from atomic_reactor.util import get_checksums, DockerfileImages
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
@@ -43,6 +43,8 @@ BASE_IMAGE = "busybox:latest"
 BASE_IMAGE_W_LIBRARY = "library/" + BASE_IMAGE
 BASE_IMAGE_W_REGISTRY = LOCALHOST_REGISTRY + "/" + BASE_IMAGE
 BASE_IMAGE_W_LIB_REG = LOCALHOST_REGISTRY + "/" + BASE_IMAGE_W_LIBRARY
+BASE_IMAGE_W_REGISTRY_SHA = LOCALHOST_REGISTRY + "/" +\
+                            "busybox@sha256:19b0fc5d9581e28baf8d3e40a39bc"
 BASE_IMAGE_W_SHA = "busybox@sha256:19b0fc5d9581e28baf8d3e40a39bc"
 BASE_IMAGE_NAME = ImageName.parse(BASE_IMAGE)
 BASE_IMAGE_NAME_W_LIBRARY = ImageName.parse(BASE_IMAGE_W_LIBRARY)
@@ -51,6 +53,7 @@ BASE_IMAGE_NAME_W_LIB_REG = ImageName.parse(BASE_IMAGE_W_LIB_REG)
 BASE_IMAGE_NAME_W_SHA = ImageName.parse(BASE_IMAGE_W_SHA)
 UNIQUE_ID = 'build-name-123'
 UNIQUE_ID_NAME = ImageName.parse(UNIQUE_ID)
+SOURCE_REGISTRY = 'registry.example.com'
 
 
 class MockSource(object):
@@ -61,31 +64,10 @@ class MockSource(object):
 class MockBuilder(object):
     image_id = "xxx"
     source = MockSource()
-    base_image = None
-    original_base_image = None
-    parent_images = {UNIQUE_ID_NAME: None}
-    custom_base_image = False
-    base_from_scratch = False
 
     def __init__(self):
         self.parent_images_digests = {}
-
-    def set_base_image(self, base_image, parents_pulled=True, insecure=False, dockercfg_path=None):
-        self.base_from_scratch = base_image_is_scratch(base_image)
-        if not self.custom_base_image:
-            self.custom_base_image = base_image_is_custom(base_image)
-        self.base_image = ImageName.parse(base_image)
-        self.original_base_image = self.original_base_image or self.base_image
-        self.recreate_parent_images()
-        if not self.base_from_scratch:
-            self.parent_images[self.original_base_image] = self.base_image
-
-    def recreate_parent_images(self):
-        # recreate parent_images to update hashes
-        parent_images = {}
-        for key, val in self.parent_images.items():
-            parent_images[key] = val
-        self.parent_images = parent_images
+        self.dockerfile_images = DockerfileImages([])
 
 
 @pytest.fixture(autouse=True)
@@ -102,13 +84,12 @@ def teardown_function(function):
 
 
 @pytest.mark.parametrize('add_another_parent', [True, False])
-@pytest.mark.parametrize(('special_image', 'change_base', 'skip_parent'), [
-    ('koji/image-build', False, 1),
-    (SCRATCH_FROM, False, 0),
-    (BASE_IMAGE_W_REGISTRY, True, 0)
+@pytest.mark.parametrize(('special_image', 'change_base'), [
+    ('koji/image-build', False),
+    (SCRATCH_FROM, False),
+    (BASE_IMAGE_W_REGISTRY, True)
 ])
-def test_pull_base_image_special(add_another_parent, special_image, change_base, skip_parent,
-                                 monkeypatch):
+def test_pull_base_image_special(add_another_parent, special_image, change_base, monkeypatch):
     monkeypatch.setenv("BUILD", json.dumps({
         'metadata': {
             'name': UNIQUE_ID,
@@ -129,16 +110,23 @@ def test_pull_base_image_special(add_another_parent, special_image, change_base,
         buildstep_plugins=buildstep_plugin,
     )
     builder = workflow.builder = MockBuilder()
-    builder.parent_images = {}
-    builder.set_base_image(special_image)
+    dockerfile_images = [special_image]
     if add_another_parent:
-        builder.parent_images[BASE_IMAGE_NAME_W_SHA] = None
-    parent_images = builder.parent_images
+        dockerfile_images.insert(0, BASE_IMAGE_W_REGISTRY_SHA)
+    builder.dockerfile_images = DockerfileImages(dockerfile_images)
 
-    expected = {
-        "{}:{}".format(UNIQUE_ID, nonce)
-        for nonce in range(len(parent_images) - skip_parent)
-    }
+    expected = []
+    if special_image == SCRATCH_FROM:
+        if add_another_parent:
+            expected.append("{}:{}".format(UNIQUE_ID, 0))
+    elif special_image == 'koji/image-build':
+        if add_another_parent:
+            expected.append("{}:{}".format(UNIQUE_ID, 1))
+    else:
+        expected.append("{}:{}".format(UNIQUE_ID, 0))
+        if add_another_parent:
+            expected.append("{}:{}".format(UNIQUE_ID, 1))
+
     for image in expected:
         assert not tasker.image_exists(image)
 
@@ -159,10 +147,14 @@ def test_pull_base_image_special(add_another_parent, special_image, change_base,
     )
 
     runner.run()
+    dockerfile_images = workflow.builder.dockerfile_images
     if change_base:
-        assert workflow.builder.base_image.to_str().startswith(UNIQUE_ID)
+        assert dockerfile_images.base_image.to_str().startswith(UNIQUE_ID)
     else:
-        assert workflow.builder.base_image.to_str().startswith(special_image)
+        if dockerfile_images.base_from_scratch:
+            assert dockerfile_images.base_image == special_image
+        else:
+            assert dockerfile_images.base_image.to_str().startswith(special_image)
     for image in expected:
         assert tasker.image_exists(image)
         assert image in workflow.pulled_base_images
@@ -170,9 +162,11 @@ def test_pull_base_image_special(add_another_parent, special_image, change_base,
     for image in workflow.pulled_base_images:
         assert tasker.image_exists(image)
 
-    for df, tagged in workflow.builder.parent_images.items():
+    for df, tagged in dockerfile_images.items():
+        if df.to_str().startswith('koji/image-build'):
+            continue
         assert tagged is not None, "Did not tag parent image " + str(df)
-    assert len(set(workflow.builder.parent_images.values())) == len(workflow.builder.parent_images)
+    assert len(set(dockerfile_images.values())) == len(dockerfile_images)
 
 
 @pytest.mark.parametrize(('parent_registry',
@@ -231,19 +225,29 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
         'name': PLUGIN_BUILD_ORCHESTRATE_KEY,
         'args': {'platforms': ['x86_64']},
     }]
-    parent_images = parent_images or {ImageName.parse(df_base): None}
     workflow = DockerBuildWorkflow(
         'test-image',
         source=MOCK_SOURCE,
         buildstep_plugins=buildstep_plugin,
     )
     builder = workflow.builder = MockBuilder()
-    builder.base_image = builder.original_base_image = ImageName.parse(df_base)
-    builder.parent_images = parent_images
+
+    if parent_images:
+        dockerfile_images = parent_images
+    else:
+        add_base = ImageName.parse(df_base)
+        if add_base.registry is None:
+            add_base.registry = parent_registry
+        dockerfile_images = [add_base.to_str()]
+    builder.dockerfile_images = DockerfileImages(dockerfile_images)
 
     expected = set(expected)
-    for nonce in range(len(parent_images)):
-        expected.add("{}:{}".format(UNIQUE_ID, nonce))
+    if parent_images:
+        for nonce in range(len(parent_images)):
+            expected.add("{}:{}".format(UNIQUE_ID, nonce))
+    else:
+        expected.add("{}:{}".format(UNIQUE_ID, 0))
+
     all_images = set(expected).union(not_expected)
     for image in all_images:
         assert not tasker.image_exists(image)
@@ -279,8 +283,8 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
         return
 
     runner.run()
-    if not inspect_only:
-        assert workflow.builder.base_image.to_str().startswith(UNIQUE_ID + ":")
+    if not inspect_only and not workflow.builder.dockerfile_images.base_from_scratch:
+        assert workflow.builder.dockerfile_images.base_image.to_str().startswith(UNIQUE_ID + ":")
 
     for image in expected:
         if inspect_only:
@@ -296,10 +300,11 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
     for image in workflow.pulled_base_images:
         assert tasker.image_exists(image)
 
-    for df, tagged in workflow.builder.parent_images.items():
+    dockerfile_images = workflow.builder.dockerfile_images
+    for df, tagged in dockerfile_images.items():
         assert tagged is not None, "Did not tag parent image " + str(df)
     # tags should all be unique
-    assert len(set(workflow.builder.parent_images.values())) == len(workflow.builder.parent_images)
+    assert len(set(dockerfile_images.values())) == len(dockerfile_images)
     if check_platforms and expected_digests:
         assert expected_digests == workflow.builder.parent_images_digests
     return workflow
@@ -312,9 +317,6 @@ def test_pull_base_image_plugin(parent_registry, df_base, expected, not_expected
 @pytest.mark.parametrize('organization', [None, 'my_organization'])
 def test_pull_parent_images(builder_registry, organization, inspect_only):
     builder_image = 'builder:image'
-    if builder_registry:
-        builder_image = "{}/{}".format(builder_registry, builder_image)
-    parent_images = {BASE_IMAGE_NAME.copy(): None, ImageName.parse(builder_image): None}
     source_registry = 'registy_example.com'
     pull_url_1 = 'pull_registry1.example.com'
     pull_url_2 = 'pull_registry2.example.com'
@@ -325,25 +327,19 @@ def test_pull_parent_images(builder_registry, organization, inspect_only):
                        {'url': pull_url_2,
                         'insecure': pull_insecure_2}]
     exp_pull_reg = {source_registry: {'insecure': True, 'dockercfg_path': None}}
+
+    if builder_registry:
+        builder_image = "{}/{}".format(builder_registry, builder_image)
+    else:
+        builder_image = "{}/{}".format(source_registry, builder_image)
+    base_image_name = "{}/{}".format(source_registry, BASE_IMAGE_NAME.copy().to_str())
+
     if builder_registry:
         if builder_registry == pull_url_1:
             exp_pull_reg[builder_registry] = {'insecure': pull_insecure_1, 'dockercfg_path': None}
         if builder_registry == pull_url_2:
             exp_pull_reg[builder_registry] = {'insecure': pull_insecure_2, 'dockercfg_path': None}
-
-    enclosed_base_image = "{}/{}".format(source_registry, BASE_IMAGE_NAME.copy().to_str())
-    enclosed_builder_image = builder_image
-    if not builder_registry:
-        enclosed_builder_image = "{}/{}".format(source_registry, builder_image)
-
-    if organization:
-        base_image_name = ImageName.parse(enclosed_base_image)
-        base_image_name.enclose(organization)
-        enclosed_base_image = base_image_name.to_str()
-        builder_image_name = ImageName.parse(enclosed_builder_image)
-        if not builder_registry:
-            builder_image_name.enclose(organization)
-        enclosed_builder_image = builder_image_name.to_str()
+    parent_images = [builder_image, base_image_name]
 
     manifest_list = {
         'manifests': [
@@ -357,10 +353,10 @@ def test_pull_parent_images(builder_registry, organization, inspect_only):
                           content=json.dumps(manifest_list).encode('utf-8'))))
 
     workflow = test_pull_base_image_plugin(
-        source_registry, BASE_IMAGE,
+        source_registry, base_image_name,
         [   # expected to pull
-            enclosed_base_image,
-            enclosed_builder_image,
+            base_image_name,
+            builder_image,
         ],
         [],  # should not be pulled
         inspect_only=inspect_only,
@@ -389,11 +385,9 @@ def test_pull_base_wrong_registry(inspect_only):  # noqa
 
 
 def test_pull_parent_wrong_registry(inspect_only):  # noqa: F811
-    base_image_str = "base:image"
-    parent_images = {
-        ImageName.parse(base_image_str): None,
-        ImageName.parse("some.registry:8888/builder:image"): None}
     source_registry = 'different.registry:5000'
+    base_image_str = source_registry + "/base:image"
+    parent_images = ["some.registry:8888/builder:image", base_image_str]
     with pytest.raises(PluginFailedException) as exc:
         test_pull_base_image_plugin(
             source_registry, base_image_str, [], [],
@@ -407,6 +401,23 @@ def test_pull_parent_wrong_registry(inspect_only):  # noqa: F811
     assert base_image_str not in str(exc.value)
     log_msg2 = "allowed registries: '%s'" % [source_registry]
     assert log_msg2 in str(exc.value)
+
+
+def test_image_without_registry(inspect_only):  # noqa
+    source_registry = 'source.registry:5000'
+    base_image_str = 'builder:image'
+    parent_images = [base_image_str]
+    with pytest.raises(PluginFailedException) as exc:
+        test_pull_base_image_plugin(
+            source_registry, base_image_str, [], [],
+            inspect_only=inspect_only,
+            parent_images=parent_images
+        )
+
+    exc_msg = "raised an exception: RuntimeError: Shouldn't happen, images should have already " \
+              "registry set in dockerfile_images"
+
+    assert exc_msg in str(exc.value)
 
 
 def test_pull_base_base_parse(inspect_only):  # noqa
@@ -426,7 +437,7 @@ def test_pull_base_change_override(monkeypatch, inspect_only):  # noqa
             'triggeredBy': [
                 {
                     'imageChangeBuild': {
-                        'imageID': BASE_IMAGE
+                        'imageID': '/'.join([LOCALHOST_REGISTRY, BASE_IMAGE])
                     }
                 },
             ]
@@ -441,6 +452,7 @@ def test_pull_base_autorebuild(monkeypatch, inspect_only):  # noqa
     mock_manifest_list = json.dumps({}).encode('utf-8')
     new_base_image = ImageName.parse(BASE_IMAGE)
     new_base_image.tag = 'newtag'
+    new_base_image.registry = LOCALHOST_REGISTRY
     dgst = 'sha256:{}'.format(get_checksums(BytesIO(mock_manifest_list), ['sha256'])['sha256sum'])
     expected_digests = {BASE_IMAGE_W_REGISTRY: {MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST: dgst}}
 
@@ -459,7 +471,6 @@ def test_pull_base_autorebuild(monkeypatch, inspect_only):  # noqa
         },
     }))
 
-    new_base_image.registry = LOCALHOST_REGISTRY
     (flexmock(atomic_reactor.util.RegistryClient)
      .should_receive('get_manifest_list')
      .and_return(flexmock(content=mock_manifest_list)))
@@ -481,7 +492,9 @@ def test_retry_pull_base_image(workflow, exc, failures, should_succeed):
 
     tasker = DockerTasker()
     workflow.builder = MockBuilder()
-    workflow.builder.base_image = ImageName.parse('parent-image')
+    source_registry = 'registry.example.com'
+    base_image = '/'.join([source_registry, 'parent-image'])
+    workflow.builder.dockerfile_images = DockerfileImages([base_image])
 
     class MockResponse(object):
         content = ''
@@ -495,7 +508,7 @@ def test_retry_pull_base_image(workflow, exc, failures, should_succeed):
     workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
     workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
         ReactorConfig({'version': 1,
-                       'source_registry': {'url': 'registry.example.com',
+                       'source_registry': {'url': source_registry,
                                            'insecure': True}})
 
     runner = PreBuildPluginsRunner(
@@ -521,11 +534,9 @@ def test_pull_raises_retry_error(workflow, caplog):
     tasker = DockerTasker(retry_times=1)
     workflow.builder = MockBuilder()
     image_name = ImageName.parse(IMAGE_RAISE_RETRYGENERATOREXCEPTION)
-    base_image_str = "{}:{}".format(image_name.repo, 'some')
+    base_image_str = "{}/{}:{}".format(SOURCE_REGISTRY, image_name.repo, 'some')
     source_registry = image_name.registry
-    workflow.builder.base_image = ImageName.parse(base_image_str)
-    workflow.builder.parent_images = {ImageName.parse(base_image_str): None}
-
+    workflow.builder.dockerfile_images = DockerfileImages([base_image_str])
     workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
     workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
         ReactorConfig({'version': 1,
@@ -561,7 +572,7 @@ class TestValidateBaseImage(object):
             return workflow
 
         log_message = 'manifest list for all required platforms'
-        test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+        test_pull_base_image_plugin(SOURCE_REGISTRY, BASE_IMAGE,
                                     [], [], inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
@@ -576,7 +587,7 @@ class TestValidateBaseImage(object):
             return workflow
 
         log_message = 'expected platforms are unknown'
-        test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+        test_pull_base_image_plugin(SOURCE_REGISTRY, BASE_IMAGE,
                                     [], [], inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
@@ -615,7 +626,7 @@ class TestValidateBaseImage(object):
             list_msg = 'Base image is a manifest list for all required platforms'
             v2s2_msg = 'base image has no manifest list'
             log_message = list_msg if has_manifest_list else v2s2_msg
-            test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+            test_pull_base_image_plugin(SOURCE_REGISTRY, BASE_IMAGE,
                                         [], [], inspect_only=False,
                                         workflow_callback=workflow_callback,
                                         check_platforms=True)
@@ -623,7 +634,7 @@ class TestValidateBaseImage(object):
         else:
             no_manifest_msg = 'Unable to fetch manifest list or v2 schema 2 digest'
             with pytest.raises(PluginFailedException) as exc:
-                test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+                test_pull_base_image_plugin(SOURCE_REGISTRY, BASE_IMAGE,
                                             [], [], inspect_only=False,
                                             workflow_callback=workflow_callback,
                                             check_platforms=True)
@@ -637,7 +648,7 @@ class TestValidateBaseImage(object):
             return workflow
 
         log_message = 'platform descriptors are not defined'
-        test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+        test_pull_base_image_plugin(SOURCE_REGISTRY, BASE_IMAGE,
                                     [], [], inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
@@ -652,7 +663,7 @@ class TestValidateBaseImage(object):
             return workflow
 
         with pytest.raises(PluginFailedException) as exc_info:
-            test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+            test_pull_base_image_plugin(SOURCE_REGISTRY, BASE_IMAGE,
                                         [], [],
                                         inspect_only=False,
                                         workflow_callback=workflow_callback,
@@ -680,7 +691,7 @@ class TestValidateBaseImage(object):
             return workflow
 
         with pytest.raises(PluginFailedException) as exc_info:
-            test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+            test_pull_base_image_plugin(SOURCE_REGISTRY, BASE_IMAGE,
                                         [], [], inspect_only=False,
                                         workflow_callback=workflow_callback,
                                         check_platforms=True)
@@ -707,7 +718,7 @@ class TestValidateBaseImage(object):
              .and_raise(exception('', response=MockResponse()))
              .once())
 
-            manifest_tag = 'registry.example.com' + '/' + BASE_IMAGE_W_SHA
+            manifest_tag = SOURCE_REGISTRY + '/' + BASE_IMAGE_W_SHA
             base_image_result = ImageName.parse(manifest_tag)
             manifest_image = base_image_result.copy()
             (flexmock(atomic_reactor.util.RegistryClient)
@@ -718,7 +729,7 @@ class TestValidateBaseImage(object):
             return workflow
 
         with pytest.raises(PluginFailedException) as exc_info:
-            test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE_W_SHA,
+            test_pull_base_image_plugin(SOURCE_REGISTRY, BASE_IMAGE_W_SHA,
                                         [], [], inspect_only=False,
                                         workflow_callback=workflow_callback,
                                         check_platforms=True)
@@ -746,7 +757,7 @@ class TestValidateBaseImage(object):
                 ]
             }
 
-            manifest_tag = 'registry.example.com' + '/' + BASE_IMAGE_W_SHA
+            manifest_tag = SOURCE_REGISTRY + '/' + BASE_IMAGE_W_SHA
             base_image_result = ImageName.parse(manifest_tag)
             manifest_image_original = base_image_result.copy()
 
@@ -763,10 +774,11 @@ class TestValidateBaseImage(object):
                  .with_args(manifest_image_original)
                  .and_return(None)
                  .times(2))
-                docker_tag = "%s-%s" % (version, release)
-                manifest_tag = 'registry.example.com' + '/' +\
-                               BASE_IMAGE_W_SHA[:BASE_IMAGE_W_SHA.find('@sha256')] +\
-                               ':' + docker_tag
+                docker_tag = '{}-{}'.format(version, release)
+                manifest_tag = '{}/{}:{}'.\
+                    format(SOURCE_REGISTRY,
+                           BASE_IMAGE_W_SHA[:BASE_IMAGE_W_SHA.find('@sha256')],
+                           docker_tag)
                 base_image_result = ImageName.parse(manifest_tag)
                 manifest_image_new = base_image_result.copy()
                 (flexmock(atomic_reactor.util.RegistryClient)
@@ -777,7 +789,7 @@ class TestValidateBaseImage(object):
                  .times(2))
             return workflow
 
-        test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE_W_SHA,
+        test_pull_base_image_plugin(SOURCE_REGISTRY, BASE_IMAGE_W_SHA,
                                     [], [], inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
@@ -802,7 +814,7 @@ class TestValidateBaseImage(object):
              .and_return(config_blob)
              .times(0))
 
-            manifest_tag = 'registry.example.com' + '/' + BASE_IMAGE_W_SHA
+            manifest_tag = SOURCE_REGISTRY + '/' + BASE_IMAGE_W_SHA
             base_image_result = ImageName.parse(manifest_tag)
             manifest_image = base_image_result.copy()
 
@@ -814,11 +826,11 @@ class TestValidateBaseImage(object):
              .once())
             return workflow
 
-        test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE_W_SHA,
+        test_pull_base_image_plugin(SOURCE_REGISTRY, BASE_IMAGE_W_SHA,
                                     [], [], inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
-        new_image = "'registry.example.com/busybox@sha256:{}'".format(manifest_list_digest)
+        new_image = "'{}/busybox@sha256:{}'".format(SOURCE_REGISTRY, manifest_list_digest)
         pulling_msg = "pulling image " + new_image + " from registry"
         tagging_msg = "tagging image " + new_image + " as '" + UNIQUE_ID
         assert pulling_msg in caplog.text
@@ -828,7 +840,7 @@ class TestValidateBaseImage(object):
     def test_parent_images_digests_orchestrator(self, caplog, fail):
         """Testing processing of parent_images_digests at an orchestrator"""
 
-        reg_image_no_tag = 'registry.example.com/{}'.format(BASE_IMAGE_NAME.to_str(tag=False))
+        reg_image_no_tag = '{}/{}'.format(SOURCE_REGISTRY, BASE_IMAGE_NAME.to_str(tag=False))
 
         test_vals = {
             'workflow': None,
@@ -845,7 +857,7 @@ class TestValidateBaseImage(object):
                                                  ['sha256'])['sha256sum']
             digest = 'sha256:{}'.format(manifest_list_digest)
             test_vals['expected_digest'] = {
-                'registry.example.com/{}'.format(BASE_IMAGE): {
+                '{}/{}'.format(SOURCE_REGISTRY, BASE_IMAGE): {
                     MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST: digest
                 }
             }
@@ -874,22 +886,22 @@ class TestValidateBaseImage(object):
 
         if fail:
             with pytest.raises(PluginFailedException) as exc:
-                test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+                test_pull_base_image_plugin(SOURCE_REGISTRY, BASE_IMAGE,
                                             [], [], inspect_only=False,
                                             workflow_callback=workflow_callback,
                                             check_platforms=True,  # orchestrator
                                             )
             assert 'not available for arches' in str(exc.value)
         else:
-            test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+            test_pull_base_image_plugin(SOURCE_REGISTRY, BASE_IMAGE,
                                         [], [], inspect_only=False,
                                         workflow_callback=workflow_callback,
                                         check_platforms=True,  # orchestrator
                                         )
 
-            # replacing_msg = ("Replacing image 'registry.example.com/{}'".format(BASE_IMAGE))
-            replacing_msg = ("Replacing image 'registry.example.com/{}' with '{}@sha256:{}'"
-                             .format(BASE_IMAGE, reg_image_no_tag, manifest_list_digest))
+            replacing_msg = ("Replacing image '{}/{}' with '{}@sha256:{}'"
+                             .format(SOURCE_REGISTRY, BASE_IMAGE, reg_image_no_tag,
+                                     manifest_list_digest))
             assert replacing_msg in caplog.text
 
             # check if worker.builder has set correct values
@@ -899,7 +911,7 @@ class TestValidateBaseImage(object):
     @pytest.mark.parametrize('fail', ('no_expected_type', 'no_digests', False))
     def test_parent_images_digests_worker(self, caplog, fail):
         """Testing processing of parent_images_digests at a worker"""
-        reg_image_no_tag = 'registry.example.com/{}'.format(BASE_IMAGE_NAME.to_str(tag=False))
+        reg_image_no_tag = '{}/{}'.format(SOURCE_REGISTRY, BASE_IMAGE_NAME.to_str(tag=False))
 
         def workflow_callback(workflow):
             workflow = self.prepare(workflow, mock_get_manifest_list=False)
@@ -907,7 +919,7 @@ class TestValidateBaseImage(object):
 
         if fail == 'no_expected_type':
             parent_images_digests = {
-                'registry.example.com/{}'.format(BASE_IMAGE): {
+                '{}/{}'.format(SOURCE_REGISTRY, BASE_IMAGE): {
                     'unexpected_type': 'sha256:123456'
                 }
             }
@@ -915,12 +927,12 @@ class TestValidateBaseImage(object):
             parent_images_digests = None
         else:
             parent_images_digests = {
-                'registry.example.com/{}'.format(BASE_IMAGE): {
+                '{}/{}'.format(SOURCE_REGISTRY, BASE_IMAGE): {
                     MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST: 'sha256:123456'
                 }
             }
 
-        test_pull_base_image_plugin(LOCALHOST_REGISTRY, BASE_IMAGE,
+        test_pull_base_image_plugin(SOURCE_REGISTRY, BASE_IMAGE,
                                     [], [], inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=False,  # worker
@@ -945,7 +957,7 @@ class TestValidateBaseImage(object):
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
             ReactorConfig({
                 'version': 1,
-                'source_registry': {'url': 'registry.example.com', 'insecure': True},
+                'source_registry': {'url': SOURCE_REGISTRY, 'insecure': True},
                 'platform_descriptors': [{'platform': 'x86_64', 'architecture': 'amd64'}],
             })
 

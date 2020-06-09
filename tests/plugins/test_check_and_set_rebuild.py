@@ -18,10 +18,10 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
 from atomic_reactor.plugins import build_orchestrate_build
+from atomic_reactor.util import DockerfileImages
 import json
 from osbs.api import OSBS
 import osbs.conf
-from osbs.utils import ImageName
 from flexmock import flexmock
 from tests.constants import MOCK, MOCK_SOURCE
 if MOCK:
@@ -29,11 +29,9 @@ if MOCK:
 
 
 class MockInsideBuilder(object):
-    def __init__(self, tmpdir):
+    def __init__(self, tmpdir, parent_images=('Fedora:22',)):
         self.tasker = DockerTasker()
-        self.base_image = ImageName(repo='Fedora', tag='22')
-        self.base_from_scratch = False
-        self.custom_base_image = False
+        self.dockerfile_images = DockerfileImages(parent_images)
         self.image_id = 'image_id'
         self.image = 'image'
         self.source = MockSource(tmpdir)
@@ -61,9 +59,17 @@ class TestCheckRebuild(object):
         tasker = DockerTasker()
 
         workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
-        workflow.builder = MockInsideBuilder(tmpdir)
-        workflow.builder.base_from_scratch = base_from_scratch
-        workflow.builder.custom_base_image = custom_base
+        parent_images = None
+        if base_from_scratch:
+            parent_images = ['scratch']
+        if custom_base:
+            parent_images = ['koji/image-build']
+
+        if parent_images:
+            workflow.builder = MockInsideBuilder(tmpdir, parent_images=parent_images)
+        else:
+            workflow.builder = MockInsideBuilder(tmpdir)
+
         workflow.source = workflow.builder.source
         setattr(workflow.builder, 'base_image_inspect', {})
 
@@ -157,8 +163,11 @@ class TestCheckRebuild(object):
         assert workflow.prebuild_results[CheckAndSetRebuildPlugin.key] is False
         assert not is_rebuild(workflow)
 
-    @pytest.mark.parametrize('custom_base', (True, False))
-    @pytest.mark.parametrize('base_from_scratch', (True, False))
+    @pytest.mark.parametrize(('custom_base', 'base_from_scratch'), [
+        (True, False),
+        (False, True),
+        (False, False),
+    ])
     @pytest.mark.parametrize('from_latest', (None, True, False))
     def test_check_is_rebuild(self, caplog, tmpdir, monkeypatch, reactor_config_map,
                               base_from_scratch, custom_base, from_latest):

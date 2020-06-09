@@ -38,7 +38,7 @@ class PostBuildRPMqaPlugin(PostBuildPlugin):
         if self.workflow.image_components is not None:
             return None
 
-        if self.workflow.builder.base_from_scratch:
+        if self.workflow.builder.dockerfile_images.base_from_scratch:
             self.log.info("from scratch can't run rpmqa")
             return None
 

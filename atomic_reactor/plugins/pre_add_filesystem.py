@@ -348,12 +348,9 @@ class AddFilesystemPlugin(PreBuildPlugin):
         new_parent_image = self.import_base_image(filesystem)
         new_imagename = ImageName.parse(new_parent_image)
 
-        if self.workflow.builder.custom_base_image:
-            self.workflow.builder.set_base_image(new_imagename)
-
-        for parent in self.workflow.builder.parent_images.keys():
+        for parent in self.workflow.builder.dockerfile_images:
             if base_image_is_custom(parent.to_str()):
-                self.workflow.builder.parent_images[parent] = new_imagename
+                self.workflow.builder.dockerfile_images[parent] = new_imagename
                 break
 
         defer_removal(self.workflow, new_parent_image)
@@ -362,18 +359,11 @@ class AddFilesystemPlugin(PreBuildPlugin):
 
     def get_image_build_conf(self):
         image_build_conf = None
-        base_image = self.workflow.builder.base_image
 
-        if self.workflow.builder.custom_base_image:
-            image_build_conf = base_image.tag
-        # when custom base image isn't last parent, get tag (configuration file)
-        # from latest specified custom base image
-        else:
-            for parent in reversed(self.workflow.builder.parents_ordered):
-                if base_image_is_custom(parent):
-                    parent_image = ImageName.parse(parent)
-                    image_build_conf = parent_image.tag
-                    break
+        for parent in self.workflow.builder.dockerfile_images:
+            if base_image_is_custom(parent.to_str()):
+                image_build_conf = parent.tag
+                break
 
         if not image_build_conf or image_build_conf == 'latest':
             image_build_conf = 'image-build.conf'
@@ -389,7 +379,8 @@ class AddFilesystemPlugin(PreBuildPlugin):
             self.repos.append(compose_info['result_repofile'])
 
     def run(self):
-        if not self.workflow.builder.custom_parent_image:
+        if (self.workflow.builder.dockerfile_images is None or
+                not self.workflow.builder.dockerfile_images.custom_parent_image):
             self.log.info('Nothing to do for non-custom base images')
             return
 

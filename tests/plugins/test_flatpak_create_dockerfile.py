@@ -27,6 +27,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
 from atomic_reactor.source import VcsInfo, SourceConfig
+from atomic_reactor.util import DockerfileImages
 from osbs.utils import ImageName
 
 from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
@@ -57,12 +58,14 @@ class MockBuilder(object):
         self.image_id = "xxx"
         self.base_image = ImageName.parse("org.gnome.eog")
         self.df_path = None
+        self.dockerfile_images = None
 
     def set_base_image(self, base_image):
         pass
 
     def set_df_path(self, path):
         self.df_path = path
+        self.dockerfile_images = DockerfileImages([])
 
 
 def mock_workflow(tmpdir, container_yaml, user_params=None):
@@ -98,8 +101,7 @@ CONFIGS = build_flatpak_test_configs()
     ('app', None, 'multiple_modules'),
 ])
 def test_flatpak_create_dockerfile(tmpdir, docker_tasker,
-                                   config_name, override_base_image, breakage,
-                                   reactor_config_map):
+                                   config_name, override_base_image, breakage):
     config = CONFIGS[config_name]
 
     modules = None
@@ -131,11 +133,11 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker,
         'base_image': base_image,
     }
 
-    if reactor_config_map:
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {
-            WORKSPACE_CONF_KEY: ReactorConfig({'version': 1,
-                                               'flatpak': {'base_image': base_image}})
-        }
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {
+        WORKSPACE_CONF_KEY: ReactorConfig({'version': 1,
+                                           'flatpak': {'base_image': base_image},
+                                           'source_registry': {'url': 'source_registry'}})
+    }
 
     runner = PreBuildPluginsRunner(
         docker_tasker,

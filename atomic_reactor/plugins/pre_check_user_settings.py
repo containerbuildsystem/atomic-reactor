@@ -76,8 +76,8 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
             return
 
         if (
-            not self.workflow.builder.base_from_scratch or
-            len(self.workflow.builder.parents_ordered) > 1
+            not self.workflow.builder.dockerfile_images.base_from_scratch or
+            len(self.workflow.builder.dockerfile_images.original_parents) > 1
         ):
             raise ValueError(msg)
 

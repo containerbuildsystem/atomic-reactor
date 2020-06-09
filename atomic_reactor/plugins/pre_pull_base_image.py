@@ -25,7 +25,6 @@ from atomic_reactor.util import (get_build_json, get_platforms, base_image_is_cu
 from atomic_reactor.core import RetryGeneratorException
 from atomic_reactor.plugins.pre_reactor_config import (get_source_registry,
                                                        get_platform_to_goarch_mapping,
-                                                       get_registries_organization,
                                                        get_pull_registries)
 from io import BytesIO
 from requests.exceptions import HTTPError, RetryError, Timeout
@@ -67,12 +66,6 @@ class PullBaseImagePlugin(PreBuildPlugin):
         # RegistryClient instances cached by registry name
         self.registry_clients = {}
 
-    def _should_enclose(self, image):
-        if image.registry and image.registry != self.source_registry_docker_uri:
-            return False
-        else:
-            return True
-
     def run(self):
         """
         Pull parent images and retag them uniquely for this build.
@@ -80,28 +73,19 @@ class PullBaseImagePlugin(PreBuildPlugin):
         self.manifest_list_cache.clear()
 
         build_json = get_build_json()
-        organization = get_registries_organization(self.workflow)
         digest_fetching_exceptions = []
-        for nonce, parent in enumerate(sorted(self.workflow.builder.parent_images.keys(),
-                                              key=str)):
+        for nonce, parent in enumerate(self.workflow.builder.dockerfile_images.keys()):
             if base_image_is_custom(parent.to_str()):
                 continue
 
             image = parent
-            is_base_image = False
             use_original_tag = False
-            # original_base_image is an ImageName, so compare parent as an ImageName also
-            if image == self.workflow.builder.original_base_image:
-                is_base_image = True
+            # base_image_key is an ImageName, so compare parent as an ImageName also
+            if image == self.workflow.builder.dockerfile_images.base_image_key:
                 use_original_tag = True
                 image = self._resolve_base_image(build_json)
 
-            image = self._ensure_image_registry(image)
-
-            if organization and self._should_enclose(image):
-                image.enclose(organization)
-            if organization and self._should_enclose(parent):
-                parent.enclose(organization)
+            self._ensure_image_registry(image)
 
             if self.check_platforms:
                 # run only at orchestrator
@@ -120,14 +104,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
             if not self.inspect_only:
                 image = self._pull_and_tag_image(image, build_json, str(nonce))
-            self.workflow.builder.recreate_parent_images()
-            self.workflow.builder.parent_images[parent] = image
-
-            if is_base_image:
-                if organization and self._should_enclose(self.workflow.builder.original_base_image):
-                    # we want to be sure we have original_base_image enclosed as well
-                    self.workflow.builder.original_base_image.enclose(organization)
-                self.workflow.builder.set_base_image(str(image))
+            self.workflow.builder.dockerfile_images[parent] = image
 
         if digest_fetching_exceptions:
             raise RuntimeError('Error when extracting parent images manifest digests: {}'
@@ -182,7 +159,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
             # image tag may have been replaced with a ref for autorebuild; use original tag
             # to simplify fetching parent_images_digests data in other plugins
             image = image.copy()
-            image.tag = self.workflow.builder.original_base_image.tag
+            image.tag = self.workflow.builder.dockerfile_images.base_image_key.tag
             image_str = image.to_str()
 
         self.workflow.builder.parent_images_digests[image_str] = parent_digests
@@ -194,7 +171,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
             image_id = spec['triggeredBy'][0]['imageChangeBuild']['imageID']
         except (TypeError, KeyError, IndexError):
             # build not marked for auto-rebuilds; use regular base image
-            base_image = self.workflow.builder.base_image
+            base_image = self.workflow.builder.dockerfile_images.base_image
             self.log.info("using %s as base image.", base_image)
         else:
             # build has auto-rebuilds enabled
@@ -205,8 +182,6 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
     def _ensure_image_registry(self, image):
         """If plugin configured with a parent registry, ensure the image uses it"""
-        image_with_registry = image.copy()
-
         # if registry specified in Dockerfile image, ensure it's the one allowed by config
         if image.registry:
             if image.registry not in self.allowed_registries:
@@ -217,9 +192,8 @@ class PullBaseImagePlugin(PreBuildPlugin):
                 self.log.error("%s", error)
                 raise RuntimeError(error)
         else:
-            image_with_registry.registry = self.source_registry_docker_uri
-
-        return image_with_registry
+            raise RuntimeError("Shouldn't happen, images should have already "
+                               "registry set in dockerfile_images")
 
     def _pull_and_tag_image(self, image, build_json, nonce):
         """Docker pull the image and tag it uniquely for use by this build"""

@@ -52,7 +52,8 @@ class KojiPlugin(PreBuildPlugin):
             self.log.info('no target provided, skipping plugin')
             return
 
-        if self.workflow.builder.base_from_scratch and not self.workflow.builder.parent_images:
+        if (self.workflow.builder.dockerfile_images.base_from_scratch and
+                not self.workflow.builder.dockerfile_images):
             self.log.info("from scratch single stage can't add repos from koji target")
             return
 

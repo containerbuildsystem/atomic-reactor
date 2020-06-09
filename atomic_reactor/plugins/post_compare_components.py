@@ -97,7 +97,7 @@ class CompareComponentsPlugin(PostBuildPlugin):
             self.log.info('scratch build, skipping plugin')
             return
 
-        if self.workflow.builder.base_from_scratch:
+        if self.workflow.builder.dockerfile_images.base_from_scratch:
             self.log.info("Skipping comparing components: unsupported for FROM-scratch images")
             return
 

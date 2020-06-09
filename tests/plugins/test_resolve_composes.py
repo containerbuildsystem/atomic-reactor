@@ -33,8 +33,7 @@ from atomic_reactor.plugins.pre_resolve_composes import (ResolveComposesPlugin,
                                                          ODCS_DATETIME_FORMAT, UNPUBLISHED_REPOS)
 
 import yaml
-from atomic_reactor.util import read_yaml
-from osbs.utils import ImageName
+from atomic_reactor.util import read_yaml, DockerfileImages
 from datetime import datetime, timedelta
 from flexmock import flexmock
 from tests.constants import MOCK, MOCK_SOURCE
@@ -92,11 +91,10 @@ DEFAULT_SIGNING_INTENT = 'release'
 class MockInsideBuilder(object):
     def __init__(self, tmpdir):
         self.tasker = DockerTasker()
-        self.base_image = ImageName(repo='Fedora', tag='22')
+        self.dockerfile_images = DockerfileImages(['Fedora:22'])
         self.image_id = 'image_id'
         self.image = 'image'
         self.source = MockSource(tmpdir)
-        self.base_from_scratch = False
 
 
 @pytest.fixture()
@@ -1457,7 +1455,7 @@ class TestResolveComposes(object):
     def test_skip_adjust_composes_for_inheritance_if_image_is_based_on_scratch(
             self, workflow, caplog):
         plugin = ResolveComposesPlugin(workflow.builder.tasker, workflow)
-        workflow.builder.base_from_scratch = True
+        workflow.builder.dockerfile_images = DockerfileImages(['scratch'])
         plugin.adjust_for_inherit()
         assert ('This is a base image based on scratch. '
                 'Skipping adjusting composes for inheritance.' in caplog.text)
@@ -1465,7 +1463,7 @@ class TestResolveComposes(object):
     def test_skip_adjust_signing_intent_from_parent_if_image_is_based_on_scratch(
             self, workflow, caplog):
         plugin = ResolveComposesPlugin(workflow.builder.tasker, workflow)
-        workflow.builder.base_from_scratch = True
+        workflow.builder.dockerfile_images = DockerfileImages(['scratch'])
         plugin.adjust_signing_intent_from_parent()
         assert ('This is a base image based on scratch. '
                 'Signing intent will not be adjusted for it.' in caplog.text)

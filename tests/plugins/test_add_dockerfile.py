@@ -121,6 +121,7 @@ CMD blabla"""
 
     prepare(workflow, df.dockerfile_path)
     workflow.builder.set_inspection_data({INSPECT_CONFIG: {"Labels": {}}})
+    workflow.builder.set_dockerfile_images(df.parent_images)
 
     runner = PreBuildPluginsRunner(
         docker_tasker,

@@ -172,8 +172,12 @@ class TestKoji(object):
                          target, expect_success, root, koji_ssl_certs,
                          expected_string, expected_file, proxy):
         tasker, workflow = prepare()
-        workflow.builder.base_from_scratch = base_from_scratch
-        workflow.builder.parent_images = parent_images
+        dockerfile_images = []
+        if parent_images:
+            dockerfile_images.append('parent_image:latest')
+        if base_from_scratch:
+            dockerfile_images.append('scratch')
+        workflow.builder.set_dockerfile_images(dockerfile_images)
 
         args = {'target': target}
 

@@ -141,7 +141,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
             self.all_compose_ids = []
 
     def adjust_for_inherit(self):
-        if self.workflow.builder.base_from_scratch:
+        if self.workflow.builder.dockerfile_images.base_from_scratch:
             self.log.debug('This is a base image based on scratch. '
                            'Skipping adjusting composes for inheritance.')
             return
@@ -218,7 +218,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self.adjust_signing_intent_from_parent()
 
     def adjust_signing_intent_from_parent(self):
-        if self.workflow.builder.base_from_scratch:
+        if self.workflow.builder.dockerfile_images.base_from_scratch:
             self.log.debug('This is a base image based on scratch. '
                            'Signing intent will not be adjusted for it.')
             return

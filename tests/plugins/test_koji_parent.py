@@ -92,11 +92,12 @@ def workflow(tmpdir):
     workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
     workflow.source = MockSource(tmpdir)
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
+    workflow.builder.set_dockerfile_images(['base:latest'])
+    workflow.builder.dockerfile_images['base:latest'] = ImageName.parse('base:stubDigest')
     workflow.builder.set_image('image')
     base_inspect = {INSPECT_CONFIG: {'Labels': BASE_IMAGE_LABELS.copy()}}
     workflow.builder.set_inspection_data(base_inspect)
     workflow.builder.set_parent_inspection_data('base:stubDigest', base_inspect)
-    workflow.builder.parent_images = {ImageName.parse('base'): ImageName.parse('base:stubDigest')}
     workflow.builder.parent_images_digests = {'base:latest': {V2_LIST: 'stubDigest'}}
 
     return workflow
@@ -279,17 +280,23 @@ class TestKojiParent(object):
                 .and_return(koji_builds[img]))
             koji_expects[ImageName.parse(img)] = build
 
+        dockerfile_images = []
+        for parent in parent_images:
+            dockerfile_images.append(parent.to_str())
+
         if special_base == 'scratch':
             workflow.builder.set_image(ImageName.parse(SCRATCH_FROM))
-            workflow.builder.base_from_scratch = True
+            dockerfile_images.append('scratch')
         elif special_base == 'custom':
             workflow.builder.set_image(ImageName.parse('koji/image-build'))
-            workflow.builder.custom_base_image = True
-            parent_images[ImageName.parse('koji/image-build')] = None
+            dockerfile_images.append('koji/image-build')
         else:
             workflow.builder.set_image(ImageName.parse('basetag'))
             workflow.builder.set_inspection_data(image_inspects['base'])
-        workflow.builder.parent_images = parent_images
+
+        workflow.builder.set_dockerfile_images(dockerfile_images)
+        for parent, local in parent_images.items():
+            workflow.builder.dockerfile_images[parent] = local
 
         expected = {
             BASE_IMAGE_KOJI_BUILD: koji_builds['base'],
@@ -399,10 +406,9 @@ class TestKojiParent(object):
                                ImageName.parse(image_str): KOJI_BUILD}}
 
         workflow.builder.parent_images_digests = {image_str+':latest': {V2_LIST: parent_tag}}
-        parent_images = {
-            ImageName.parse(image_str): ImageName.parse('{}:{}'.format(image_str, parent_tag)),
-        }
-        workflow.builder.parent_images = parent_images
+        workflow.builder.set_dockerfile_images([image_str])
+        workflow.builder.dockerfile_images[image_str] = ImageName.parse('{}:{}'.format(image_str,
+                                                                                       parent_tag))
 
         rebuild_str = 'This parent image MUST be rebuilt'
         manifest_list_check_passed = ('Deeper manifest list check verified v2 manifest '
@@ -595,7 +601,7 @@ class TestKojiParent(object):
                                                 manifest_list, requested_platforms, expected_logs,
                                                 not_expected_logs):  # noqa
         registry = 'example.com'
-        image_str = '{}/base'.format(registry)
+        image_str = '{}/base:latest'.format(registry)
         extra = {'image': {'index': {'digests': {V2_LIST: 'stubDigest'}}}}
         parent_tag = 'notExpectedDigest'
         workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = requested_platforms
@@ -636,11 +642,11 @@ class TestKojiParent(object):
                            PARENT_IMAGES_KOJI_BUILDS: {
                                ImageName.parse(image_str): KOJI_BUILD}}
 
-        workflow.builder.parent_images_digests = {image_str + ':latest': {V2_LIST: parent_tag}}
-        parent_images = {
-            ImageName.parse(image_str): ImageName.parse('{}:{}'.format(image_str, parent_tag)),
-        }
-        workflow.builder.parent_images = parent_images
+        workflow.builder.parent_images_digests = {image_str: {V2_LIST: parent_tag}}
+        workflow.builder.set_dockerfile_images([image_str])
+        image_for_key = ImageName.parse(image_str)
+        image_for_key.tag = parent_tag
+        workflow.builder.dockerfile_images[image_str] = image_for_key.to_str()
         self.run_plugin_with_args(workflow, expect_result=expected_result, deep_inspection=True,
                                   pull_registries=[{'url': registry}])
 

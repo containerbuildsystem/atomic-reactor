@@ -25,7 +25,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
 from atomic_reactor.plugins.post_compare_components import (
     filter_components_by_name
 )
-from osbs.utils import ImageName
+from atomic_reactor.util import DockerfileImages
 
 from tests.constants import MOCK_SOURCE, TEST_IMAGE, INPUT_IMAGE, FILES
 from tests.docker_mock import mock_docker
@@ -49,8 +49,7 @@ class MockInsideBuilder(object):
     def __init__(self):
         mock_docker()
         self.tasker = DockerTasker()
-        self.base_image = ImageName(repo='fedora', tag='25')
-        self.base_from_scratch = False
+        self.dockerfile_images = DockerfileImages(['fedora:25'])
         self.image_id = 'image_id'
         self.image = INPUT_IMAGE
         self.df_path = 'df_path'
@@ -140,7 +139,8 @@ def test_compare_components_plugin(tmpdir, caplog, base_from_scratch, mismatch, 
         }
 
     workflow.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
-    workflow.builder.base_from_scratch = base_from_scratch
+    if base_from_scratch:
+        workflow.builder.dockerfile_images = DockerfileImages(['scratch'])
 
     runner = PostBuildPluginsRunner(
         None,

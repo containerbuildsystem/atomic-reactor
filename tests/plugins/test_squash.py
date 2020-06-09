@@ -20,7 +20,7 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
 from atomic_reactor.plugins import exit_remove_built_image
 from atomic_reactor.plugins.prepub_squash import PrePublishSquashPlugin
-from osbs.utils import ImageName
+from atomic_reactor.util import DockerfileImages
 from atomic_reactor.build import BuildResult
 from docker_squash.squash import Squash
 from tests.constants import MOCK, MOCK_SOURCE
@@ -44,8 +44,7 @@ SET_DEFAULT_LAYER_ID = object()
 class MockInsideBuilder(object):
     def __init__(self):
         self.tasker = DockerTasker(retry_times=0)
-        self.base_image = ImageName(repo='Fedora', tag='22')
-        self.base_from_scratch = False
+        self.dockerfile_images = DockerfileImages(['Fedora:22'])
         self.image_id = 'image_id'
         self.image = 'image'
         self.df_path = 'df_path'
@@ -60,7 +59,7 @@ class MockInsideBuilder(object):
 
     @property
     def base_image_inspect(self):
-        return self.tasker.inspect_image(self.base_image)
+        return self.tasker.inspect_image(self.dockerfile_images.base_image)
 
 
 class TestSquashPlugin(object):
@@ -86,7 +85,8 @@ class TestSquashPlugin(object):
     @pytest.mark.parametrize('base_from_scratch', (True, False))
     def test_default_parameters(self, base_from_scratch):
         self.should_squash_with_kwargs(base_from_scratch=base_from_scratch)
-        self.workflow.builder.base_from_scratch = base_from_scratch
+        if base_from_scratch:
+            self.workflow.builder.dockerfile_images = DockerfileImages(['scratch'])
         self.run_plugin_with_args({})
 
     @pytest.mark.parametrize(('plugin_tag', 'squash_tag'), (

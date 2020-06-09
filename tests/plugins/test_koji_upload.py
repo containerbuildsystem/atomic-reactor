@@ -253,6 +253,7 @@ def mock_environment(tmpdir, session=None, name=None,
     base_image_id = '123456parent-id'
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
+    workflow.builder.set_dockerfile_images(['Fedora:22'])
     workflow.builder.image_id = '123456imageid'
     workflow.builder.set_inspection_data({'Id': base_image_id})
     workflow.user_params['scratch'] = scratch
@@ -898,7 +899,8 @@ class TestKojiUpload(object):
                                             blocksize=blocksize,
                                             has_config=has_config,
                                             )
-        workflow.builder.base_from_scratch = base_from_scratch
+        if base_from_scratch:
+            workflow.builder.set_dockerfile_images(['scratch'])
         target = 'images-docker-candidate'
         runner = create_runner(tasker, workflow, blocksize=blocksize, target=target,
                                platform=LOCAL_ARCH)

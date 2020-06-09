@@ -69,7 +69,6 @@ from atomic_reactor.plugins.pre_reactor_config import (get_image_equal_labels,
 from osbs.utils import Labels
 import json
 import datetime
-import re
 
 
 class AddLabelsPlugin(PreBuildPlugin):
@@ -276,8 +275,8 @@ class AddLabelsPlugin(PreBuildPlugin):
 
         lines = dockerfile.lines
 
-        if (re.match('^koji/image-build(:.*)?$', dockerfile.baseimage) or
-                self.workflow.builder.base_from_scratch):
+        if (self.workflow.builder.dockerfile_images.custom_base_image or
+                self.workflow.builder.dockerfile_images.base_from_scratch):
             base_image_labels = {}
         else:
             try:

@@ -24,7 +24,6 @@ from atomic_reactor.plugin import (PreBuildPlugin, PrePublishPlugin, PostBuildPl
 import atomic_reactor.plugin
 from atomic_reactor.plugins.build_docker_api import DockerApiPlugin
 import atomic_reactor.inner
-from osbs.utils import ImageName
 from flexmock import flexmock
 import pytest
 from tests.constants import MOCK_SOURCE, SOURCE
@@ -99,10 +98,9 @@ class MockInsideBuilder(object):
     def __init__(self, failed=False, is_base_image=False):
         if is_base_image:
             self.tasker = MockDockerTaskerBaseImage()
-            self.base_image = ImageName(namespace='koji', repo='image-build')
         else:
             self.tasker = MockDockerTasker()
-            self.base_image = ImageName(repo='Fedora', tag='22')
+        self.dockerfile_images = None
         self.image_id = 'asd'
         self.image = 'image'
         self.failed = failed

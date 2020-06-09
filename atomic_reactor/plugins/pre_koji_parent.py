@@ -100,16 +100,17 @@ class KojiParentPlugin(PreBuildPlugin):
             self.log.info('scratch build, skipping plugin')
             return
 
-        if not (self.workflow.builder.base_from_scratch or self.workflow.builder.custom_base_image):
+        if not (self.workflow.builder.dockerfile_images.base_from_scratch or
+                self.workflow.builder.dockerfile_images.custom_base_image):
             self._base_image_nvr = self.detect_parent_image_nvr(
-                self.workflow.builder.base_image,
+                self.workflow.builder.dockerfile_images.base_image,
                 inspect_data=self.workflow.builder.base_image_inspect,
             )
             if is_rebuild(self.workflow):
                 self.ignore_isolated_autorebuilds()
 
         manifest_mismatches = []
-        for img, local_tag in self.workflow.builder.parent_images.items():
+        for img, local_tag in self.workflow.builder.dockerfile_images.items():
             if base_image_is_custom(img.to_str()):
                 continue
 

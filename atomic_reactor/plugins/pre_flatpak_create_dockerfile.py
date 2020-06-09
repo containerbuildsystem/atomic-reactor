@@ -20,7 +20,8 @@ from osbs.repo_utils import ModuleSpec
 
 from atomic_reactor.constants import DOCKERFILE_FILENAME, RELATIVE_REPOS_PATH, YUM_REPOS_DIR
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import get_flatpak_base_image
+from atomic_reactor.plugins.pre_reactor_config import (get_flatpak_base_image, get_source_registry,
+                                                       get_registries_organization)
 from atomic_reactor.utils.rpm import rpm_qf_args
 from atomic_reactor.util import is_flatpak_build
 
@@ -154,3 +155,9 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
                                                 yum_repos_dir=YUM_REPOS_DIR))
 
         self.workflow.builder.set_df_path(df_path)
+
+        # set source registry and organization
+        source_registry_docker_uri = get_source_registry(self.workflow)['uri'].docker_uri
+        organization = get_registries_organization(self.workflow)
+        self.workflow.builder.dockerfile_images.set_source_registry(source_registry_docker_uri,
+                                                                    organization)
