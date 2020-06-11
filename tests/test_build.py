@@ -46,6 +46,7 @@ with_all_sources = pytest.mark.parametrize('source_params', [
 
 default_build_method = CONTAINER_DOCKERPY_BUILD_METHOD
 
+
 @requires_internet
 def test_different_custom_base_images(tmpdir):
     if MOCK:
@@ -114,7 +115,6 @@ def test_parent_image_inspect(insecure, parents_pulled, tmpdir, source_params):
     registry_name = "registry.example.com"
     provided_imagename.registry = registry_name
     b.pull_registries = {registry_name: {'insecure': insecure, 'dockercfg_path': str(tmpdir)}}
-
 
     if not parents_pulled:
         (flexmock(atomic_reactor.util)

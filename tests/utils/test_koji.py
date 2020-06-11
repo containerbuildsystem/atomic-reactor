@@ -13,8 +13,8 @@ import atomic_reactor.utils.koji as koji_util
 
 from osbs.repo_utils import ModuleSpec
 from atomic_reactor.utils.koji import (koji_login, create_koji_session,
-                                      TaskWatcher, tag_koji_build,
-                                      get_koji_module_build, KojiUploadLogger)
+                                       TaskWatcher, tag_koji_build,
+                                       get_koji_module_build, KojiUploadLogger)
 from atomic_reactor.plugin import BuildCanceledException
 from atomic_reactor.constants import (KOJI_MAX_RETRIES, KOJI_RETRY_INTERVAL,
                                       KOJI_OFFLINE_RETRY_INTERVAL)

@@ -119,7 +119,7 @@ def mock_env(tmpdir, docker_tasker, scratch=False, orchestrator=False, koji_buil
     plugin_conf[0]['args'] = {
         'koji_build_id': koji_build_id,
         'koji_build_nvr': koji_build_nvr
-        }
+    }
 
     flexmock(atomic_reactor.source.GitSource, get=str(tmpdir))
     runner = PreBuildPluginsRunner(docker_tasker, workflow, plugin_conf)
@@ -220,6 +220,7 @@ def mock_koji_manifest_download(requests_mock, retries=0):
         return f
     requests_mock.register_uri('GET', get_remote_url(KOJI_BUILD), body=body_remote_callback)
     requests_mock.register_uri('GET', get_remote_url(KOJI_PARENT_BUILD), body=body_remote_callback)
+
 
 class TestFetchSources(object):
     @pytest.mark.parametrize('retries', (0, 1, constants.HTTP_MAX_RETRIES + 1))

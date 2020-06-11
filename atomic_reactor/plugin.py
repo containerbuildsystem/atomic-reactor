@@ -279,7 +279,7 @@ class PluginsRunner(object):
                         self.plugins_results[plugin.plugin_class.key] = plugin_response
                         break
 
-            except AutoRebuildCanceledException as ex:
+            except AutoRebuildCanceledException:
                 # if auto rebuild is canceled, then just reraise
                 # NOTE: We need to catch and reraise explicitly, so that the below except clause
                 #   doesn't catch this and make PluginFailedException out of it in the end
@@ -375,7 +375,7 @@ class BuildPluginsRunner(PluginsRunner):
         translation_dict = {
             'BUILT_IMAGE_ID': self.workflow.builder.image_id,
             'BUILD_DOCKERFILE_PATH': self.workflow.builder.source.dockerfile_path,
-            'BUILD_SOURCE_PATH':  self.workflow.builder.source.path,
+            'BUILD_SOURCE_PATH': self.workflow.builder.source.path,
         }
 
         if self.workflow.builder.base_image:

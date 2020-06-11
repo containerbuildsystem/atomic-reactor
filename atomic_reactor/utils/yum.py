@@ -60,7 +60,7 @@ class YumRepo(object):
         if not basename.endswith(REPO_SUFFIX):
             basename += REPO_SUFFIX
         if self.add_hash:
-            suffix = '-' + md5(self.repourl.encode('utf-8')).hexdigest()[:5] # nosec
+            suffix = '-' + md5(self.repourl.encode('utf-8')).hexdigest()[:5]  # nosec
         else:
             suffix = ''
         final_name = suffix.join(os.path.splitext(basename))

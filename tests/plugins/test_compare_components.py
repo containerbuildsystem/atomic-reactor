@@ -161,7 +161,6 @@ def test_compare_components_plugin(tmpdir, caplog, base_from_scratch, mismatch, 
             assert log_msg in caplog.text
 
 
-
 def test_no_components(tmpdir):
     workflow = mock_workflow(tmpdir)
     worker_metadatas = mock_metadatas()
