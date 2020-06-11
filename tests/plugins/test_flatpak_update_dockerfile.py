@@ -52,6 +52,7 @@ CONFIGS = build_flatpak_test_configs()
 
 USER_PARAMS = {'flatpak': True}
 
+
 class MockSource(object):
     def __init__(self, tmpdir):
         tmpdir = str(tmpdir)
@@ -244,8 +245,8 @@ def test_flatpak_update_dockerfile(tmpdir, docker_tasker,
                                     },
                                 ],
                                 'default_signing_intent': 'unsigned'},
-                       'koji':  {'auth': {},
-                                 'hub_url': 'https://koji.example.com/hub'}})
+                       'koji': {'auth': {},
+                                'hub_url': 'https://koji.example.com/hub'}})
 
     runner = PreBuildPluginsRunner(
         docker_tasker,

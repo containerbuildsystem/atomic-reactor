@@ -1284,7 +1284,7 @@ class TestReactorConfigPlugin(object):
         use_fast_upload = config_json['koji'].get('use_fast_upload', True)
 
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = \
-                ReactorConfig(config_json)
+            ReactorConfig(config_json)
 
         (flexmock(atomic_reactor.utils.koji)
             .should_receive('create_koji_session')
@@ -1329,7 +1329,7 @@ class TestReactorConfigPlugin(object):
         parsed_config = read_yaml(config_yaml, 'schemas/config.json')
 
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = \
-                ReactorConfig(parsed_config)
+            ReactorConfig(parsed_config)
 
         (flexmock(koji.PathInfo)
             .should_receive('__init__')

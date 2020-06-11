@@ -457,6 +457,7 @@ def test_docker2():
 
     DockerTasker()
 
+
 def my_func(*args, **kwargs):
     my_args = ('some', 'new')
     my_kwargs = {'one': 'first', 'two': 'second'}
@@ -475,7 +476,7 @@ def test_retry_method(retry_times):
     (flexmock(sys.modules[__name__])
         .should_call('my_func')
         .with_args(*my_args, **my_kwargs)
-        .times(retry_times+1))
+        .times(retry_times + 1))
     (flexmock(time)
         .should_receive('sleep')
         .and_return(None))

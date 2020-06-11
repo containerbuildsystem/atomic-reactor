@@ -63,7 +63,6 @@ class TagAndPushPlugin(PostBuildPlugin):
         self.group = get_group_manifests(self.workflow, False)
         self.koji_target = koji_target
 
-
     def need_skopeo_push(self):
         if len(self.workflow.exported_image_sequence) > 0:
             last_image = self.workflow.exported_image_sequence[-1]

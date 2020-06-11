@@ -52,7 +52,8 @@ class ManPageFormatter(argparse.HelpFormatter):
                  ext_sections=None,
                  ):
 
-        super(ManPageFormatter, self).__init__(prog, width=width, max_help_position=max_help_position)
+        super(ManPageFormatter, self).__init__(prog, width=width,
+                                               max_help_position=max_help_position)
 
         self._prog = prog
         self._section = section
@@ -197,6 +198,7 @@ class ManPageFormatter(argparse.HelpFormatter):
                     parts.append('%s %s' % (self._bold(option_string), args_string))
 
             return ', '.join(parts)
+
 
 mg = ManPageGenerator()
 mg.run()

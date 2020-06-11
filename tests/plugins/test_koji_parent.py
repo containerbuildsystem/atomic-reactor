@@ -298,7 +298,6 @@ class TestKojiParent(object):
         if special_base:
             del expected[BASE_IMAGE_KOJI_BUILD]
 
-
         if not koji_mtype:
             self.run_plugin_with_args(
                 workflow, expect_result=expected
