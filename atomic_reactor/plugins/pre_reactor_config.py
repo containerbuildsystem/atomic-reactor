@@ -146,7 +146,7 @@ def get_cachito_session(workflow):
 
     api_kwargs = {
         'insecure': config.get('insecure', False),
-        'timeout': config.get('timeout', False),
+        'timeout': config.get('timeout'),
     }
 
     ssl_certs_dir = config['auth'].get('ssl_certs_dir')

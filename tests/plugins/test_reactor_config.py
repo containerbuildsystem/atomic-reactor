@@ -1426,7 +1426,7 @@ class TestReactorConfigPlugin(object):
 
         auth_info = {
             'insecure': config_json['cachito'].get('insecure', False),
-            'timeout': config_json['cachito'].get('timeout', False),
+            'timeout': config_json['cachito'].get('timeout'),
         }
 
         ssl_dir_raise = False
