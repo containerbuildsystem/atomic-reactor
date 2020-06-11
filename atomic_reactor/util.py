@@ -56,7 +56,7 @@ from importlib import import_module
 from requests.utils import guess_json_utf
 
 from osbs.exceptions import OsbsException
-from osbs.utils import clone_git_repo, reset_git_repo, Labels, ImageName
+from osbs.utils import clone_git_repo, reset_git_repo, Labels
 from osbs.utils.yaml import read_yaml as osbs_read_yaml
 
 from tempfile import NamedTemporaryFile
@@ -1441,33 +1441,15 @@ def get_retrying_requests_session(client_statuses=HTTP_CLIENT_STATUS_RETRY,
 
 
 def get_primary_images(workflow):
-    primary_images = workflow.tag_conf.primary_images
-    if not primary_images:
-        primary_images = [
-            ImageName.parse(primary) for primary in
-            workflow.build_result.annotations['repositories']['primary']]
-
-    return primary_images
+    return workflow.tag_conf.primary_images
 
 
 def get_floating_images(workflow):
-    floating_images = workflow.tag_conf.floating_images
-    if not floating_images:
-        floating_results = workflow.build_result.annotations['repositories'].get('floating', [])
-        if floating_results:
-            floating_images = [ImageName.parse(floating) for floating in floating_results]
-
-    return floating_images
+    return workflow.tag_conf.floating_images
 
 
 def get_unique_images(workflow):
-    unique_images = workflow.tag_conf.unique_images
-    if not unique_images:
-        unique_results = workflow.build_result.annotations['repositories'].get('unique', [])
-        if unique_results:
-            unique_images = [ImageName.parse(unique) for unique in unique_results]
-
-    return unique_images
+    return workflow.tag_conf.unique_images
 
 
 def get_parent_image_koji_data(workflow):
