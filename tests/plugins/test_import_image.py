@@ -58,7 +58,7 @@ DEFAULT_TAGS_AMOUNT = 6
 
 def prepare(tmpdir, insecure_registry=None, namespace=None,
             primary_images_tag_conf=DEFAULT_TAGS_AMOUNT,
-            primary_images_annotations=DEFAULT_TAGS_AMOUNT, build_process_failed=False,
+            build_process_failed=False,
             organization=None, reactor_config_map=False, imagestream_name=TEST_IMAGESTREAM):
     """
     Boiler-plate test set-up
@@ -79,16 +79,7 @@ def prepare(tmpdir, insecure_registry=None, namespace=None,
     df.write('LABEL name={}'.format(TEST_NAME_LABEL))
     setattr(workflow.builder, 'df_path', str(df))
 
-    annotations = {'repositories': {'primary': [], 'floating': []}}
-    if primary_images_annotations:
-        floating_images = [
-            '{}:annotation_{}'.format(TEST_REPO_WITH_REGISTRY, x)
-            for x in range(primary_images_annotations)
-        ]
-        primary_image = '{}:version-release'.format(TEST_REPO_WITH_REGISTRY)
-        annotations = {'repositories': {'primary': primary_image, 'floating': floating_images}}
-
-    build_result = BuildResult(annotations=annotations, image_id='foo')
+    build_result = BuildResult(image_id='foo')
     setattr(workflow, 'build_result', build_result)
 
     if primary_images_tag_conf:
@@ -157,7 +148,7 @@ def test_bad_setup(tmpdir, caplog, monkeypatch, reactor_config_map):  # noqa
     Try all the early-fail paths.
     """
 
-    runner = prepare(tmpdir, primary_images_annotations=0, primary_images_tag_conf=0,
+    runner = prepare(tmpdir, primary_images_tag_conf=0,
                      reactor_config_map=reactor_config_map)
 
     (flexmock(OSBS)
@@ -219,22 +210,14 @@ def test_create_image(tmpdir, insecure_registry, namespace, organization,
     runner.run()
 
 
-@pytest.mark.parametrize(('tag_conf', 'annotations', 'tag_prefix'), (
-    (DEFAULT_TAGS_AMOUNT, 0, 'tag_conf_'),
-    (DEFAULT_TAGS_AMOUNT, DEFAULT_TAGS_AMOUNT, 'tag_conf_'),
-    # Legacy behavior where tag_conf is not populated. Instead, plugin
-    # retrieves info from 'repositories' build_result annotation
-    (0, DEFAULT_TAGS_AMOUNT, 'annotation_'),
-))
 @pytest.mark.parametrize(('osbs_error'), [True, False])
-def test_ensure_primary(tmpdir, monkeypatch, osbs_error, tag_conf, annotations, tag_prefix,
-                        reactor_config_map):
+def test_ensure_primary(tmpdir, monkeypatch, osbs_error, reactor_config_map):
     """
     Test that primary image tags are ensured
     """
 
-    runner = prepare(tmpdir, primary_images_annotations=annotations,
-                     primary_images_tag_conf=tag_conf, reactor_config_map=reactor_config_map)
+    runner = prepare(tmpdir, primary_images_tag_conf=DEFAULT_TAGS_AMOUNT,
+                     reactor_config_map=reactor_config_map)
 
     monkeypatch.setenv("BUILD", json.dumps({
         "metadata": {}

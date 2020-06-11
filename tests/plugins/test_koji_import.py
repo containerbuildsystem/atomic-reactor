@@ -241,8 +241,7 @@ def mock_environment(tmpdir, session=None, name=None,
                      blocksize=None,
                      task_states=None, additional_tags=None,
                      has_config=None, add_tag_conf_primaries=True,
-                     add_build_result_primaries=False, container_first=False,
-                     yum_repourls=None,
+                     container_first=False, yum_repourls=None,
                      has_op_appregistry_manifests=False,
                      has_op_bundle_manifests=False,
                      push_operator_manifests_enabled=False, source_build=False,
@@ -289,8 +288,7 @@ def mock_environment(tmpdir, session=None, name=None,
                                  '  modules:\n'
                                  '    - module: example.com/packagename\n')
     if name and version:
-        workflow.tag_conf.add_unique_image('user/test-image:{v}-timestamp'
-                                           .format(v=version))
+        workflow.tag_conf.add_unique_image('{}:{}-timestamp'.format(name, version))
     if name and version and release and add_tag_conf_primaries:
         workflow.tag_conf.add_primary_image("{0}:{1}-{2}".format(name,
                                                                  version,
@@ -361,22 +359,8 @@ def mock_environment(tmpdir, session=None, name=None,
                 'metadata_fragment': 'configmap/build-1-ppc64le-md',
                 'metadata_fragment_key': 'metadata.json',
             }
-        },
-        'repositories': {
-            'unique': ['brew-docker:8888/myproject/hello-world:0.0.1-9'],
-            'primary': [],
-            'floating': [],
         }
     }
-
-    if name and version and release and add_build_result_primaries:
-        annotations['repositories']['floating'] = [
-             'brew-docker:8888/{0}:{1}'.format(name, version),
-             'brew-docker:8888/{0}:latest'.format(name),
-        ]
-        annotations['repositories']['primary'] = [
-             'brew-docker:8888/{0}:{1}-{2}'.format(name, version, release),
-        ]
 
     if build_process_failed:
         workflow.build_result = BuildResult(logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
@@ -1769,9 +1753,10 @@ class TestKojiImport(object):
         session = MockedClientSession('')
         version = '1.0'
         release = '1'
+        name = 'ns/name'
         unique_tag = "{}-timestamp".format(version)
         tasker, workflow = mock_environment(tmpdir,
-                                            name='ns/name',
+                                            name=name,
                                             version=version,
                                             release=release,
                                             session=session,
@@ -1802,7 +1787,8 @@ class TestKojiImport(object):
             metadata_file = 'metadata.json'
             assert metadata_file in session.uploaded_files
             data = json.loads(session.uploaded_files[metadata_file])
-            meta_rec = {x.arch: x.message for x in caplog.records if x.arch == medata_tag}
+            meta_rec = {x.arch: x.message for x in caplog.records if hasattr(x, 'arch')
+                        and x.arch == medata_tag}
             assert medata_tag in meta_rec
             upload_dir = \
                 workflow.plugin_workspace[OrchestrateBuildPlugin.key][WORKSPACE_KEY_UPLOAD_DIR]
@@ -1838,9 +1824,9 @@ class TestKojiImport(object):
 
         if digest:
             assert 'index' in image.keys()
-            pullspec = "docker.example.com/myproject/hello-world@{0}".format(digest.v2_list)
+            pullspec = "docker.example.com/{}@{}".format(name, digest.v2_list)
             expected_results['pull'] = [pullspec]
-            pullspec = "docker.example.com/myproject/hello-world:{0}".format(version_release)
+            pullspec = "docker.example.com/{}:{}".format(name, version_release)
             expected_results['pull'].append(pullspec)
             expected_results['digests'] = {
                 'application/vnd.docker.distribution.manifest.list.v2+json': digest.v2_list}
@@ -1931,13 +1917,11 @@ class TestKojiImport(object):
         else:
             raise RuntimeError("no docker-image output found")
 
-    @pytest.mark.parametrize(('add_tag_conf_primaries', 'add_build_result_primaries', 'success'), (
-        (False, False, False),
-        (True, False, True),
-        (False, True, True),
+    @pytest.mark.parametrize(('add_tag_conf_primaries', 'success'), (
+        (False, False),
+        (True, True),
     ))
-    def test_koji_import_primary_images(self, tmpdir, os_env, add_tag_conf_primaries,
-                                        add_build_result_primaries, success,
+    def test_koji_import_primary_images(self, tmpdir, os_env, add_tag_conf_primaries, success,
                                         reactor_config_map):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(tmpdir,
@@ -1945,8 +1929,7 @@ class TestKojiImport(object):
                                             name='ns/name',
                                             version='1.0',
                                             release='1',
-                                            add_tag_conf_primaries=add_tag_conf_primaries,
-                                            add_build_result_primaries=add_build_result_primaries,
+                                            add_tag_conf_primaries=add_tag_conf_primaries
                                             )
 
         runner = create_runner(tasker, workflow, reactor_config_map=reactor_config_map)

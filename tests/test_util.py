@@ -1128,23 +1128,15 @@ def test_label_to_string(key, value, expected):
     assert expected == label_to_string(key, value)
 
 
-@pytest.mark.parametrize(('tag_conf', 'tag_annotation', 'expected_primary',
+@pytest.mark.parametrize(('tag_conf', 'expected_primary',
                           'expected_floating', 'expected_unique'), (
-    (['spam', 'bacon'], [], [], ['spam', 'bacon'], []),
-    ([], ['spam', 'bacon'], [], ['spam', 'bacon'], []),
-
-    (['spam-bacon'], [], ['spam-bacon'], [], []),
-    ([], ['spam-bacon'], ['spam-bacon'], [], []),
-
-    (['spam_unique'], [], [], [], ['spam_unique']),
-    ([], ['spam_unique'], [], [], ['spam_unique']),
-
-    (['spam', 'bacon-toast', 'bacon_unique'], [], ['bacon-toast'], ['spam'], ['bacon_unique']),
-    ([], ['spam', 'bacon-toast', 'bacon_unique'], ['bacon-toast'], ['spam'], ['bacon_unique']),
-
-    (['spam', 'bacon'], ['ignored', 'scorned'], [], ['spam', 'bacon'], []),
+    (['spam', 'bacon'], [], ['spam', 'bacon'], []),
+    (['spam-bacon'], ['spam-bacon'], [], []),
+    ([], [], [], []),
+    (['spam_unique'], [], [], ['spam_unique']),
+    (['spam', 'bacon-toast', 'bacon_unique'], ['bacon-toast'], ['spam'], ['bacon_unique']),
 ))
-def test_get_primary_and_floating_images(workflow, tag_conf, tag_annotation, expected_primary,
+def test_get_primary_and_floating_images(workflow, tag_conf, expected_primary,
                                          expected_floating, expected_unique):
     template_image = ImageName.parse('registry.example.com/fedora')
 
@@ -1158,19 +1150,7 @@ def test_get_primary_and_floating_images(workflow, tag_conf, tag_annotation, exp
         else:
             workflow.tag_conf.add_floating_image(str(image_name))
 
-    annotations = {'repositories': {'primary': [], 'floating': [], 'unique': []}}
-    for tag in tag_annotation:
-        image_name = ImageName.parse(str(template_image))
-        image_name.tag = tag
-
-        if '-' in tag:
-            annotations['repositories']['primary'].append(str(image_name))
-        elif 'unique' in tag:
-            annotations['repositories']['unique'].append(str(image_name))
-        else:
-            annotations['repositories']['floating'].append(str(image_name))
-
-    build_result = BuildResult(annotations=annotations, image_id='foo')
+    build_result = BuildResult(image_id='foo')
     workflow.build_result = build_result
 
     actual_primary = get_primary_images(workflow)

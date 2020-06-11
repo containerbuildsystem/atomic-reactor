@@ -250,8 +250,8 @@ class KojiImportBase(ExitPlugin):
             index['tags'] = tags
             index['floating_tags'] = floating_tags
             index['unique_tags'] = unique_tags
-            repositories = self.workflow.build_result.annotations['repositories']['unique']
-            repo = ImageName.parse(repositories[0]).to_str(registry=False, tag=False)
+            build_image = get_unique_images(self.workflow)[0]
+            repo = ImageName.parse(build_image).to_str(registry=False, tag=False)
             # group_manifests added the registry, so this should be valid
             registries = self.workflow.push_conf.all_registries
 
