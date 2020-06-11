@@ -363,8 +363,9 @@
                 "additionalProperties": false
             },
             "timeout": {
-                "description": "How long in seconds to wait for a Cachito request completes. Defaults to 3600",
-                "type": "integer"
+                "description": "How long in seconds to wait for a Cachito request completes",
+                "type": "integer",
+                "default": 3600
             }
         },
         "additionalProperties": false,
