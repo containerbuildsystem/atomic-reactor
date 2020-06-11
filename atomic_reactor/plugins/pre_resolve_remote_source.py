@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals, absolute_import
 
 import os.path
+import re
 
 from atomic_reactor.constants import PLUGIN_RESOLVE_REMOTE_SOURCE, REMOTE_SOURCE_DIR
 from atomic_reactor.utils.koji import get_koji_task_owner
@@ -108,13 +109,23 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
         }
 
     def set_worker_params(self, source_request, remote_source_url, remote_source_conf_url):
-        build_args = {
-            # Turn the environment variables into absolute paths that
-            # represent where the remote sources are copied to during
-            # the build process.
-            env_var: os.path.join(REMOTE_SOURCE_DIR, value)
-            for env_var, value in source_request.get('environment_variables', {}).items()
-        }
+        build_args = {}
+        # This matches values such as 'deps/gomod' but not 'true'
+        rel_path_regex = re.compile(r'^[^/]+/[^/]+(?:/[^/]+)*$')
+        for env_var, value in source_request.get('environment_variables', {}).items():
+            # Turn the environment variables that are relative paths into absolute paths that
+            # represent where the remote sources are copied to during the build process.
+            if re.match(rel_path_regex, value):
+                abs_path = os.path.join(REMOTE_SOURCE_DIR, value)
+                self.log.debug(
+                    'Setting the Cachito environment variable "%s" to the absolute path "%s"',
+                    env_var,
+                    abs_path,
+                )
+                build_args[env_var] = abs_path
+            else:
+                build_args[env_var] = value
+
         override_build_kwarg(self.workflow, 'remote_source_url', remote_source_url)
         override_build_kwarg(self.workflow, 'remote_source_build_args', build_args)
         override_build_kwarg(self.workflow, 'remote_source_configs', remote_source_conf_url)

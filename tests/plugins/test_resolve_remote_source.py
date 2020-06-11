@@ -128,6 +128,7 @@ def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None,
             'repo': REMOTE_SOURCE_REPO,
             'ref': REMOTE_SOURCE_REF,
             'environment_variables': {
+                'GO111MODULE': 'on',
                 'GOPATH': 'deps/gomod',
                 'GOCACHE': 'deps/gomod',
             },
@@ -332,6 +333,7 @@ def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=No
             'repo': REMOTE_SOURCE_REPO,
             'ref': REMOTE_SOURCE_REF,
             'environment_variables': {
+                'GO111MODULE': 'on',
                 'GOPATH': 'deps/gomod',
                 'GOCACHE': 'deps/gomod',
             },
@@ -362,6 +364,7 @@ def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=No
         assert worker_params['remote_source_url'] == CACHITO_REQUEST_DOWNLOAD_URL
         assert worker_params['remote_source_configs'] == CACHITO_REQUEST_CONFIG_URL
         assert worker_params['remote_source_build_args'] == {
+            'GO111MODULE': 'on',
             'GOPATH': '/remote-source/deps/gomod',
             'GOCACHE': '/remote-source/deps/gomod',
         }
