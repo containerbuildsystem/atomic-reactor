@@ -42,7 +42,11 @@ CACHITO_REQUEST_DOWNLOAD_URL = '{}/api/v1/{}/download'.format(CACHITO_URL, CACHI
 CACHITO_REQUEST_CONFIG_URL = '{}/api/v1/requests/{}/configuration-files'.format(
     CACHITO_URL,
     CACHITO_REQUEST_ID
-    )
+)
+CACHITO_ICM_URL = '{}/api/v1/requests/{}/content-manifest'.format(
+    CACHITO_URL,
+    CACHITO_REQUEST_ID
+)
 
 REMOTE_SOURCE_REPO = 'https://git.example.com/team/repo.git'
 REMOTE_SOURCE_REF = 'b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a'
@@ -163,13 +167,14 @@ def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None,
             ref=REMOTE_SOURCE_REF,
             user=user,
             dependency_replacements=dependency_replacements,
-        )
+         )
         .and_return({'id': CACHITO_REQUEST_ID}))
 
     (flexmock(CachitoAPI)
         .should_receive('wait_for_request')
         .with_args({'id': CACHITO_REQUEST_ID})
         .and_return(source_request))
+
     (flexmock(CachitoAPI)
         .should_receive('download_sources')
         .with_args(source_request, dest_dir=str(workflow._tmpdir))
@@ -384,5 +389,6 @@ def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=No
             'GOPATH': '/remote-source/deps/gomod',
             'GOCACHE': '/remote-source/deps/gomod',
         }
+        assert worker_params['remote_source_icm_url'] == CACHITO_ICM_URL
 
     return results
