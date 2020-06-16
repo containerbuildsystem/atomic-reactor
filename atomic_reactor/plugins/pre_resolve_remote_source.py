@@ -94,7 +94,9 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
         remote_source_json = self.source_request_to_json(source_request)
         remote_source_url = self.cachito_session.assemble_download_url(source_request)
         remote_source_conf_url = remote_source_json.get('configuration_files')
-        self.set_worker_params(source_request, remote_source_url, remote_source_conf_url)
+        remote_source_icm_url = remote_source_json.get('content_manifest')
+        self.set_worker_params(source_request, remote_source_url, remote_source_conf_url,
+                               remote_source_icm_url)
 
         dest_dir = self.workflow.source.workdir
         dest_path = self.cachito_session.download_sources(source_request, dest_dir=dest_dir)
@@ -108,7 +110,8 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
             'remote_source_path': dest_path,
         }
 
-    def set_worker_params(self, source_request, remote_source_url, remote_source_conf_url):
+    def set_worker_params(self, source_request, remote_source_url, remote_source_conf_url,
+                          remote_source_icm_url):
         build_args = {}
         # This matches values such as 'deps/gomod' but not 'true'
         rel_path_regex = re.compile(r'^[^/]+/[^/]+(?:/[^/]+)*$')
@@ -129,12 +132,13 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
         override_build_kwarg(self.workflow, 'remote_source_url', remote_source_url)
         override_build_kwarg(self.workflow, 'remote_source_build_args', build_args)
         override_build_kwarg(self.workflow, 'remote_source_configs', remote_source_conf_url)
+        override_build_kwarg(self.workflow, 'remote_source_icm_url', remote_source_icm_url)
 
     def source_request_to_json(self, source_request):
         """Create a relevant representation of the source request"""
         required = ('ref', 'repo')
         optional = ('dependencies', 'flags', 'packages', 'pkg_managers', 'environment_variables',
-                    'configuration_files')
+                    'configuration_files', 'content_manifest')
 
         data = {}
         try:
