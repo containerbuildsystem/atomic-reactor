@@ -42,10 +42,72 @@ CACHITO_REQUEST_DOWNLOAD_URL = '{}/api/v1/{}/download'.format(CACHITO_URL, CACHI
 CACHITO_REQUEST_CONFIG_URL = '{}/api/v1/requests/{}/configuration-files'.format(
     CACHITO_URL,
     CACHITO_REQUEST_ID
-    )
+)
+CACHITO_ICM_URL = '{}/api/v1/requests/{}/content-manifest'.format(
+    CACHITO_URL,
+    CACHITO_REQUEST_ID
+)
 
 REMOTE_SOURCE_REPO = 'https://git.example.com/team/repo.git'
 REMOTE_SOURCE_REF = 'b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a'
+
+CACHITO_SOURCE_REQUEST = {
+    'id': CACHITO_REQUEST_ID,
+    'repo': REMOTE_SOURCE_REPO,
+    'ref': REMOTE_SOURCE_REF,
+    'environment_variables': {
+        'GO111MODULE': 'on',
+        'GOPATH': 'deps/gomod',
+        'GOCACHE': 'deps/gomod',
+    },
+    'flags': ['enable-confeti', 'enable-party-popper'],
+    'pkg_managers': ['gomod'],
+    'dependencies': [
+        {
+            'name': 'github.com/op/go-logging',
+            'type': 'gomod',
+            'version': 'v0.1.1',
+        }
+    ],
+    'packages': [
+        {
+            'name': 'github.com/spam/bacon/v2',
+            'type': 'gomod',
+            'version': 'v2.0.3'
+        }
+    ],
+    'configuration_files': CACHITO_REQUEST_CONFIG_URL,
+    'content_manifest': CACHITO_ICM_URL,
+    'extra_cruft': 'ignored',
+}
+
+REMOTE_SOURCE_JSON = {
+    'repo': REMOTE_SOURCE_REPO,
+    'ref': REMOTE_SOURCE_REF,
+    'environment_variables': {
+        'GO111MODULE': 'on',
+        'GOPATH': 'deps/gomod',
+        'GOCACHE': 'deps/gomod',
+    },
+    'flags': ['enable-confeti', 'enable-party-popper'],
+    'pkg_managers': ['gomod'],
+    'dependencies': [
+        {
+            'name': 'github.com/op/go-logging',
+            'type': 'gomod',
+            'version': 'v0.1.1',
+        }
+    ],
+    'packages': [
+        {
+            'name': 'github.com/spam/bacon/v2',
+            'type': 'gomod',
+            'version': 'v2.0.3'
+        }
+    ],
+    'configuration_files': CACHITO_REQUEST_CONFIG_URL,
+    'content_manifest': CACHITO_ICM_URL,
+}
 
 
 @pytest.fixture
@@ -127,35 +189,7 @@ def mock_repo_config(workflow, data=None):
 def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None,
                      dependency_replacements=None):
     if source_request is None:
-        source_request = {
-            'id': CACHITO_REQUEST_ID,
-            'repo': REMOTE_SOURCE_REPO,
-            'ref': REMOTE_SOURCE_REF,
-            'environment_variables': {
-                'GO111MODULE': 'on',
-                'GOPATH': 'deps/gomod',
-                'GOCACHE': 'deps/gomod',
-            },
-            'flags': ['enable-confeti', 'enable-party-popper'],
-            'pkg_managers': ['gomod'],
-            'dependencies': [
-                {
-                    'name': 'github.com/op/go-logging',
-                    'type': 'gomod',
-                    'version': 'v0.1.1',
-                }
-            ],
-            'packages': [
-                {
-                    'name': 'github.com/spam/bacon/v2',
-                    'type': 'gomod',
-                    'version': 'v2.0.3'
-                }
-            ],
-            'configuration_files': CACHITO_REQUEST_CONFIG_URL,
-            'extra_cruft': 'ignored',
-        }
-
+        source_request = CACHITO_SOURCE_REQUEST
     (flexmock(CachitoAPI)
         .should_receive('request_sources')
         .with_args(
@@ -163,13 +197,14 @@ def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None,
             ref=REMOTE_SOURCE_REF,
             user=user,
             dependency_replacements=dependency_replacements,
-        )
+         )
         .and_return({'id': CACHITO_REQUEST_ID}))
 
     (flexmock(CachitoAPI)
         .should_receive('wait_for_request')
         .with_args({'id': CACHITO_REQUEST_ID})
         .and_return(source_request))
+
     (flexmock(CachitoAPI)
         .should_receive('download_sources')
         .with_args(source_request, dest_dir=str(workflow._tmpdir))
@@ -345,32 +380,7 @@ def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=No
 
     if expect_result:
         assert results['annotations']['remote_source_url']
-        assert results['remote_source_json'] == {
-            'repo': REMOTE_SOURCE_REPO,
-            'ref': REMOTE_SOURCE_REF,
-            'environment_variables': {
-                'GO111MODULE': 'on',
-                'GOPATH': 'deps/gomod',
-                'GOCACHE': 'deps/gomod',
-            },
-            'flags': ['enable-confeti', 'enable-party-popper'],
-            'pkg_managers': ['gomod'],
-            'dependencies': [
-                {
-                    'name': 'github.com/op/go-logging',
-                    'type': 'gomod',
-                    'version': 'v0.1.1',
-                }
-            ],
-            'packages': [
-                {
-                    'name': 'github.com/spam/bacon/v2',
-                    'type': 'gomod',
-                    'version': 'v2.0.3'
-                }
-            ],
-            'configuration_files': CACHITO_REQUEST_CONFIG_URL
-        }
+        assert results['remote_source_json'] == REMOTE_SOURCE_JSON
         assert results['remote_source_path'] == expected_dowload_path(workflow)
 
         # A result means the plugin was enabled and executed successfully.
@@ -384,5 +394,6 @@ def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=No
             'GOPATH': '/remote-source/deps/gomod',
             'GOCACHE': '/remote-source/deps/gomod',
         }
+        assert worker_params['remote_source_icm_url'] == CACHITO_ICM_URL
 
     return results
