@@ -1275,11 +1275,16 @@ def test_buildstep_alias(buildstep_alias, buildstep_plugin):
     prepublish_plugins = []
     exit_plugins = []
 
-    os.environ['REACTOR_CONFIG'] = "version: 1"
+    os.environ['REACTOR_CONFIG'] = dedent("""\
+        version: 1
+        koji:
+          hub_url: /
+          root_url: ''
+          auth: {}
+        """)
     os.environ['USER_PARAMS'] = "{}"
     if buildstep_alias:
-        os.environ['REACTOR_CONFIG'] = dedent("""\
-        version: 1
+        os.environ['REACTOR_CONFIG'] += dedent("""\
         buildstep_alias:
           docker_api: imagebuilder
         """)

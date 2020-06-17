@@ -791,5 +791,5 @@
         "required": ["url"]
     }
   },
-  "required": ["version"]
+  "required": ["version", "koji"]
 }

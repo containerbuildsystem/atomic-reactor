@@ -1186,6 +1186,10 @@ def test_get_primary_and_floating_images(workflow, tag_conf, expected_primary,
 @pytest.mark.parametrize('config', [
     ("""\
       version: 1
+      koji:
+        hub_url: /
+        root_url: ''
+        auth: {}
       clusters:
         ignored:
         - name: foo

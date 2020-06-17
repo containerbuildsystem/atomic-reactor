@@ -89,6 +89,10 @@ def mock_reactor_config(workflow, data=None):
                api_url: {}
                auth:
                    ssl_certs_dir: {}
+            koji:
+                hub_url: /
+                root_url: ''
+                auth: {{}}
             """.format(CACHITO_URL, workflow._tmpdir))
 
     workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
@@ -241,6 +245,10 @@ def test_no_koji_user(workflow, build_json, caplog):
            api_url: {}
            auth:
                ssl_certs_dir: {}
+        koji:
+            hub_url: /
+            root_url: ''
+            auth: {{}}
         """.format(CACHITO_URL, workflow._tmpdir))
     mock_reactor_config(workflow, reactor_config)
     mock_build_json(build_json=build_json)
@@ -267,6 +275,10 @@ def test_invalid_remote_source_structure(workflow, pop_key):
 def test_ignore_when_missing_cachito_config(workflow):
     reactor_config = dedent("""\
         version: 1
+        koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
         """)
     mock_reactor_config(workflow, reactor_config)
     result = run_plugin_with_args(workflow, expect_result=False)
@@ -281,6 +293,10 @@ def test_invalid_cert_reference(workflow):
            api_url: {}
            auth:
                ssl_certs_dir: {}
+        koji:
+            hub_url: /
+            root_url: ''
+            auth: {{}}
         """.format(CACHITO_URL, bad_certs_dir))
     mock_reactor_config(workflow, reactor_config)
     run_plugin_with_args(workflow, expect_error="Cachito ssl_certs_dir doesn't exist")

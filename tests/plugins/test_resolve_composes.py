@@ -160,6 +160,10 @@ def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_
                api_url: {}
                auth:
                    ssl_certs_dir: {}
+            koji:
+                hub_url: /
+                root_url: ''
+                auth: {{}}
             """.format(default_si, ODCS_URL, tmpdir))
 
     workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
@@ -1122,6 +1126,10 @@ class TestResolveComposes(object):
                api_url: {}
                auth:
                    ssl_certs_dir: {}
+            koji:
+                hub_url: /
+                root_url: ''
+                auth: {{}}
             """.format(sigkeys.replace(' ', ','), depkeys.replace(' ', ','), ODCS_URL, tmpdir))
         mock_reactor_config(workflow, tmpdir, data=data)
 
