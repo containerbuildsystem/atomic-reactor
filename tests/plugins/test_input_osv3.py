@@ -148,6 +148,10 @@ class TestOSv3InputPlugin(object):
         }
         minimal_config = dedent("""\
             version: 1
+            koji:
+                hub_url: ''
+                root_url: ''
+                auth: {}
         """)
 
         mock_env = {
@@ -172,7 +176,14 @@ class TestOSv3InputPlugin(object):
 
     @pytest.mark.parametrize(('override', 'valid'), [
         ('invalid_override', False),
-        ({'version': 1}, True),
+        ({
+            'version': 1,
+            'koji': {
+                'hub_url': '',
+                'root_url': '',
+                'auth': {}
+            }
+         }, True),
         (None, True),
     ])
     @pytest.mark.parametrize('buildtype', [
@@ -294,7 +305,14 @@ class TestOSv3SourceContainerInputPlugin(object):
 
     @pytest.mark.parametrize(('override', 'valid'), [
         ('invalid_override', False),
-        ({'version': 1}, True),
+        ({
+            'version': 1,
+            'koji': {
+                'hub_url': '',
+                'root_url': '',
+                'auth': {}
+            }
+         }, True),
         (None, True),
     ])
     def test_validate_reactor_config_override(self, override, valid):
@@ -404,7 +422,8 @@ class TestOSv3SourceContainerInputPlugin(object):
         flexmock(os, environ=mock_env)
 
         plugin = OSv3SourceContainerInputPlugin()
-        with pytest.raises(RuntimeError) as exc_info:
+        with pytest.raises(OsbsValidationException) as exc_info:
             plugin.run()
 
-        assert 'require enabled koji integration' in str(exc_info.value)
+        assert ("validating 'required' has failed "
+                "(%r is a required property)" % u'koji') in str(exc_info.value)

@@ -83,6 +83,10 @@ class TestReactorConfigPlugin(object):
     @pytest.mark.parametrize(('config', 'valid'), [
         ("""\
             version: 1
+            koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
             registries:
             - url: https://container-registry.example.com/v2
               auth:
@@ -91,6 +95,10 @@ class TestReactorConfigPlugin(object):
          True),
         ("""\
             version: 1
+            koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
             registries:
             - url: https://container-registry.example.com/v2
               auth:
@@ -102,6 +110,10 @@ class TestReactorConfigPlugin(object):
          True),
         ("""\
             version: 1
+            koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
             registries:
             - url: https://old-container-registry.example.com/v1
               auth:
@@ -152,11 +164,19 @@ class TestReactorConfigPlugin(object):
     @pytest.mark.parametrize(('config', 'expected'), [
         ("""\
             version: 1
+            koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
             pull_registries: []
          """,
          []),
         ("""\
             version: 1
+            koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
             pull_registries:
             - url: registry.io
          """,
@@ -167,6 +187,10 @@ class TestReactorConfigPlugin(object):
          ]),
         ("""\
             version: 1
+            koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
             pull_registries:
             - url: https://registry.io
          """,
@@ -177,6 +201,10 @@ class TestReactorConfigPlugin(object):
          ]),
         ("""\
             version: 1
+            koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
             pull_registries:
             - url: registry.io
               auth:
@@ -189,6 +217,10 @@ class TestReactorConfigPlugin(object):
          ]),
         ("""\
             version: 1
+            koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
             pull_registries:
             - url: registry.io
               insecure: true
@@ -202,6 +234,10 @@ class TestReactorConfigPlugin(object):
          ]),
         ("""\
             version: 1
+            koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
             pull_registries:
             - url: registry.io
               insecure: true
@@ -236,17 +272,29 @@ class TestReactorConfigPlugin(object):
     @pytest.mark.parametrize('config, error', [
         ("""\
              version: 1
+             koji:
+                hub_url: /
+                root_url: ''
+                auth: {}
              pull_registries: {}
          """,
          "is not of type {!r}".format("array")),
         ("""\
              version: 1
+             koji:
+                hub_url: /
+                root_url: ''
+                auth: {}
              pull_registries:
              - insecure: false
          """,
          "{!r} is a required property".format("url")),
         ("""\
              version: 1
+             koji:
+                hub_url: /
+                root_url: ''
+                auth: {}
              pull_registries:
              - url: registry.io
                auth: {}
@@ -456,7 +504,13 @@ class TestReactorConfigPlugin(object):
     def test_bad_version(self, tmpdir):
         filename = os.path.join(str(tmpdir), 'config.yaml')
         with open(filename, 'w') as fp:
-            fp.write("version: 2")
+            fp.write(dedent("""\
+                version: 2
+                koji:
+                  hub_url: /
+                  root_url: ''
+                  auth: {}
+            """))
         tasker, workflow = self.prepare()
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
 
@@ -467,17 +521,32 @@ class TestReactorConfigPlugin(object):
         # Empty config
         ("", []),
 
-        # Built-in default config
-        (yaml.dump(ReactorConfig.DEFAULT_CONFIG), []),
+        # Default config
+        (yaml.safe_dump({
+            'version': 1,
+            'koji': {
+                'hub_url': '/',
+                'root_url': '',
+                'auth': {}
+            }
+         }), []),
 
         # Unknown key
         ("""\
           version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
           special: foo
         """, []),
 
         ("""\
           version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
           clusters:
             ignored:
             - name: foo
@@ -556,6 +625,10 @@ class TestReactorConfigPlugin(object):
         with open(filename, 'w') as fp:
             fp.write(dedent("""\
                 version: 1
+                koji:
+                   hub_url: /
+                   root_url: ''
+                   auth: {{}}
                 odcs:
                    signing_intents:
                    - name: release
@@ -614,6 +687,10 @@ class TestReactorConfigPlugin(object):
         with open(filename, 'w') as fp:
             fp.write(dedent("""\
                 version: 1
+                koji:
+                   hub_url: /
+                   root_url: ''
+                   auth: {}
                 odcs:
                    signing_intents:
                    - name: release
@@ -644,6 +721,10 @@ class TestReactorConfigPlugin(object):
         with open(filename, 'w') as fp:
             fp.write(dedent("""\
                 version: 1
+                koji:
+                   hub_url: /
+                   root_url: ''
+                   auth: {}
                 odcs:
                    signing_intents:
                    - name: release
@@ -740,6 +821,10 @@ class TestReactorConfigPlugin(object):
     @pytest.mark.parametrize(('config', 'expect'), [
         ("""\
           version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
           platform_descriptors:
             - platform: x86_64
               architecture: amd64
@@ -768,16 +853,28 @@ class TestReactorConfigPlugin(object):
     @pytest.mark.parametrize(('config', 'expect'), [
         ("""\
           version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
           default_image_build_method: buildah_bud
          """,
          "buildah_bud"),
         ("""\
           version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
           default_image_build_method: imagebuilder
          """,
          "imagebuilder"),
         ("""\
           version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
          """,
          CONTAINER_DEFAULT_BUILD_METHOD),
     ])
@@ -793,18 +890,30 @@ class TestReactorConfigPlugin(object):
     @pytest.mark.parametrize(('config', 'expect'), [
         ("""\
           version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
           buildstep_alias:
             docker_api: imagebuilder
          """,
          {'docker_api': 'imagebuilder'}),
         ("""\
           version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
           buildstep_alias:
             another: docker_api
          """,
          {'another': 'docker_api'}),
         ("""\
           version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
           buildstep_alias:
             docker_api: imagebuilder
             another: imagebuilder
@@ -813,6 +922,10 @@ class TestReactorConfigPlugin(object):
           'another': 'imagebuilder'}),
         ("""\
           version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
          """,
          {}),
     ])
@@ -829,6 +942,10 @@ class TestReactorConfigPlugin(object):
                               'will_raise'), [
         ("""\
           version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
           default_image_build_method: docker_api
           buildstep_alias:
             docker_api: imagebuilder
@@ -836,17 +953,29 @@ class TestReactorConfigPlugin(object):
          None, None, 'imagebuilder', False),
         ("""\
           version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
           buildstep_alias:
             docker_api: imagebuilder
          """,
          'docker_api', 'imagebuilder', 'imagebuilder', False),
         ("""\
           version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
           default_image_build_method: buildah_bud
          """,
          None, None, None, True),
         ("""\
           version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
           default_image_build_method: docker_api
          """,
          'buildah_bud', None, None, True),
@@ -874,6 +1003,10 @@ class TestReactorConfigPlugin(object):
     @pytest.mark.parametrize(('config', 'expect'), [
         ("""\
           version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
           build_image_override:
             ppc64le: registry.example.com/buildroot-ppc64le:latest
             arm: registry.example.com/buildroot-arm:latest
@@ -899,25 +1032,45 @@ class TestReactorConfigPlugin(object):
     @pytest.mark.parametrize(('config', 'fallback', 'expect'), [
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           flatpak:
               base_image: fedora:latest
          """,
          "x", "fedora:latest"),
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           flatpak: {}
          """,
          "x", "x"),
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
          """,
          "x", "x"),
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
          """,
          None, None),
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           flatpak: {}
          """,
          None, None),
@@ -944,25 +1097,45 @@ class TestReactorConfigPlugin(object):
     @pytest.mark.parametrize(('config', 'fallback', 'expect'), [
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           flatpak:
               metadata: labels
          """,
          "annotations", "labels"),
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           flatpak: {}
          """,
          "annotations", "annotations"),
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
          """,
          "annotations", "annotations"),
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
          """,
          None, None),
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           flatpak: {}
          """,
          None, None),
@@ -1167,6 +1340,10 @@ class TestReactorConfigPlugin(object):
     @pytest.mark.parametrize(('config', 'raise_error'), [
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           odcs:
               api_url: https://odcs.example.com/api/1
               auth:
@@ -1180,6 +1357,10 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           odcs:
               api_url: https://odcs.example.com/api/1
               auth:
@@ -1192,6 +1373,10 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           odcs:
               api_url: https://odcs.example.com/api/1
               auth:
@@ -1204,6 +1389,10 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           odcs:
               api_url: https://odcs.example.com/api/1
               auth:
@@ -1217,6 +1406,10 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           odcs:
               api_url: https://odcs.example.com/api/1
               auth:
@@ -1228,6 +1421,10 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           odcs:
               api_url: https://odcs.example.com/api/1
               auth:
@@ -1237,6 +1434,10 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           odcs:
               auth:
                   openidc_dir: /var/run/open_idc
@@ -1297,6 +1498,10 @@ class TestReactorConfigPlugin(object):
     @pytest.mark.parametrize(('config', 'raise_error'), [
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           smtp:
               host: smtp.example.com
               from_address: osbs@example.com
@@ -1304,18 +1509,30 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           smtp:
               from_address: osbs@example.com
         """, True),
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           smtp:
               host: smtp.example.com
         """, True),
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           smtp:
         """, True),
     ])
@@ -1347,6 +1564,10 @@ class TestReactorConfigPlugin(object):
     @pytest.mark.parametrize(('config', 'error'), [
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           cachito:
               api_url: https://cachito.example.com
               auth:
@@ -1356,6 +1577,10 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           cachito:
               api_url: https://cachito.example.com
               insecure: true
@@ -1365,6 +1590,10 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           cachito:
               api_url: https://cachito.example.com
               auth:
@@ -1372,12 +1601,20 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           cachito:
               api_url: https://cachito.example.com
         """, OsbsValidationException),
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           cachito:
               auth:
                   ssl_certs_dir: /var/run/secrets/atomic-reactor/cachitosecret
@@ -1385,6 +1622,10 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           cachito:
               api_url: https://cachito.example.com
               auth:
@@ -1394,6 +1635,10 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           cachito:
               api_url: https://cachito.example.com
               auth:
@@ -1448,6 +1693,10 @@ class TestReactorConfigPlugin(object):
     @pytest.mark.parametrize(('config', 'raise_error'), [
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           openshift:
               url: https://openshift.example.com
               auth:
@@ -1456,12 +1705,20 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           openshift:
               url: https://openshift.example.com
         """, False),
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           openshift:
               url: https://openshift.example.com
               auth:
@@ -1471,6 +1728,10 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           openshift:
               url: https://openshift.example.com
               auth:
@@ -1481,6 +1742,10 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           openshift:
               url: https://openshift.example.com
               auth:
@@ -1489,6 +1754,10 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           openshift:
               url: https://openshift.example.com
               auth:
@@ -1497,6 +1766,10 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           openshift:
               url: https://openshift.example.com
               auth:
@@ -1505,6 +1778,10 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           openshift:
               auth:
                   ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
@@ -1512,6 +1789,10 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           openshift:
               auth:
                   krb_principal: principal
@@ -1520,6 +1801,10 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           openshift:
               url: https://openshift.example.com
               auth:
@@ -1527,6 +1812,10 @@ class TestReactorConfigPlugin(object):
 
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           openshift:
               auth:
                   ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
@@ -1606,11 +1895,19 @@ class TestReactorConfigPlugin(object):
     @pytest.mark.parametrize('config, valid', [
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           operator_manifests:
               allowed_registries: null
         """, True),  # minimal valid example, allows all registries
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           operator_manifests:
               allowed_registries:
                 - foo
@@ -1624,25 +1921,45 @@ class TestReactorConfigPlugin(object):
         """, True),  # all known properties
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           operator_manifests: null
         """, False),  # has to be a dict
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           operator_manifests: {}
         """, False),  # allowed_registries is required
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           operator_manifests:
               allowed_registries: []
         """, False),  # if not null, allowed_registries must not be empty
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           operator_manifests:
               allowed_registries: null
               something_else: null
         """, False),  # additional properties not allowed
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           operator_manifests:
               allowed_registries: null
               registry_post_replace:
@@ -1650,6 +1967,10 @@ class TestReactorConfigPlugin(object):
         """, False),  # missing replacement registry
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           operator_manifests:
               allowed_registries: null
               registry_post_replace:
@@ -1657,6 +1978,10 @@ class TestReactorConfigPlugin(object):
         """, False),  # missing original registry
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           operator_manifests:
               allowed_registries: null
               repo_replacements:
@@ -1664,6 +1989,10 @@ class TestReactorConfigPlugin(object):
         """, False),  # missing package mappings url
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           operator_manifests:
               allowed_registries: null
               repo_replacements:
@@ -1671,6 +2000,10 @@ class TestReactorConfigPlugin(object):
         """, False),  # missing registry
         ("""\
           version: 1
+          koji:
+              hub_url: /
+              root_url: ''
+              auth: {}
           operator_manifests:
               allowed_registries: null,
               repo_replacements:
@@ -1709,10 +2042,18 @@ class TestReactorConfigPlugin(object):
     @pytest.mark.parametrize('config, valid', [
         ("""\
           version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
           build_env_vars: []
         """, True),
         ("""\
           version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
           build_env_vars:
           - name: HTTP_PROXY
             value: example.proxy.net
@@ -1721,12 +2062,20 @@ class TestReactorConfigPlugin(object):
         """, True),
         ("""\
           version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
           build_env_vars:
           - name: FOO
             value: 1
         """, False),  # values must be strings
         ("""\
           version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
           build_env_vars:
           - name: FOO
         """, False),  # values must be defined

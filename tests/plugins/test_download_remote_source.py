@@ -36,6 +36,10 @@ CFG_CONTENT = b'configContent'
 def mock_reactor_config(workflow, insecure=False):
     data = dedent("""\
         version: 1
+        koji:
+            hub_url: /
+            root_url: ''
+            auth: {{}}
         cachito:
            api_url: 'example.com'
            insecure: {}
