@@ -259,11 +259,10 @@ def test_tag_and_push_plugin(
                     return manifest_unknown_response
                 else:
                     return manifest_response_v2
+            elif headers['Accept'] == 'application/vnd.docker.distribution.manifest.list.v2+json':
+                return manifest_response_v2_list
             else:
                 return manifest_response_v1
-
-            if headers['Accept'] == 'application/vnd.docker.distribution.manifest.list.v2+json':
-                return manifest_response_v2_list
 
         if url == manifest_url:
             if missing_v2:
