@@ -21,7 +21,8 @@ from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_reactor_config import (get_registries, get_group_manifests,
                                                        get_koji_session,
-                                                       get_registries_organization)
+                                                       get_registries_organization,
+                                                       get_image_size_limit)
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.util import (get_manifest_digests, get_config_from_registry, Dockercfg,
                                  get_all_manifests)
@@ -31,6 +32,10 @@ from osbs.constants import RAND_DIGITS
 
 
 __all__ = ('TagAndPushPlugin', )
+
+
+class ExceedsImageSizeError(RuntimeError):
+    """Error of exceeding image size"""
 
 
 class TagAndPushPlugin(PostBuildPlugin):
@@ -149,9 +154,12 @@ class TagAndPushPlugin(PostBuildPlugin):
                 self.workflow.tag_conf.add_unique_image(source_unique_image)
             else:
                 self.workflow.tag_conf.add_unique_image(self.workflow.image)
+
         config_manifest_digest = None
         config_manifest_type = None
         config_registry_image = None
+        image_size_limit = get_image_size_limit(self.workflow)
+
         for registry, registry_conf in self.registries.items():
             insecure = registry_conf.get('insecure', False)
             push_conf_registry = \
@@ -163,6 +171,17 @@ class TagAndPushPlugin(PostBuildPlugin):
             for image in self.workflow.tag_conf.images:
                 if image.registry:
                     raise RuntimeError("Image name must not contain registry: %r" % image.registry)
+
+                if not source_oci_image_path:
+                    image_size = sum(item['size'] for item in self.workflow.layer_sizes)
+                    config_image_size = image_size_limit['binary_image']
+                    # Only handle the case when size is set > 0 in config
+                    if config_image_size and image_size > config_image_size:
+                        raise ExceedsImageSizeError(
+                            'The size {} of image {} exceeds the limitation {} '
+                            'configured in reactor config.'
+                            .format(image_size, image, image_size_limit)
+                        )
 
                 registry_image = image.copy()
                 registry_image.registry = registry

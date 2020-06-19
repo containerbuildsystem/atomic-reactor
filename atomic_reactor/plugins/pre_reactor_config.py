@@ -439,6 +439,13 @@ def get_operator_manifests(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'operator_manifests', fallback)
 
 
+def get_image_size_limit(workflow):
+    config = get_value(workflow, 'image_size_limit', {})
+    return {
+        'binary_image': config.get('binary_image', 0),
+    }
+
+
 class ClusterConfig(object):
     """
     Configuration relating to a particular cluster

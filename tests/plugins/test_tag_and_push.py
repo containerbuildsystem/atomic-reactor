@@ -15,11 +15,12 @@ import random
 import pytest
 import koji as koji
 import osbs
+import atomic_reactor.plugins.post_tag_and_push
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
+from atomic_reactor.plugins.post_tag_and_push import ExceedsImageSizeError, TagAndPushPlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
@@ -627,3 +628,52 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, v2s
             assert push_conf_digests[TEST_IMAGE_NAME].oci == DIGEST_OCI
 
         assert workflow.push_conf.docker_registries[0].config is config_json
+
+
+@pytest.mark.parametrize('image_size_limit', [
+    None,                       # omit the config from reactor config map
+    {'binary_image': 0},       # checking image size should be skipped
+    {'binary_image': 2500}     # maximum image size that should make the code raise an error
+])
+def test_exceed_binary_image_size(image_size_limit, workflow):
+    config = {
+        'version': 1,
+        'registries': [
+            {'url': LOCALHOST_REGISTRY}
+        ],
+    }
+    if image_size_limit is not None:
+        config['image_size_limit'] = image_size_limit
+
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {
+        WORKSPACE_CONF_KEY: ReactorConfig(config)
+    }
+    workflow.builder = StubInsideBuilder()
+    workflow.builder.image_id = INPUT_IMAGE
+    # fake layer sizes of the test image
+    workflow.layer_sizes = [
+        {'diff_id': '12345', 'size': 1000},
+        {'diff_id': '23456', 'size': 2000},
+        {'diff_id': '34567', 'size': 3000},
+    ]
+
+    mock_docker()
+
+    plugin = TagAndPushPlugin(DockerTasker(), workflow)
+
+    if image_size_limit is None or image_size_limit['binary_image'] == 0:
+        # The plugin should skip the check on image size
+
+        (flexmock(atomic_reactor.plugins.post_tag_and_push)
+         .should_receive('get_manifest_digests')
+         .and_return(ManifestDigest({
+             'v2': 'application/vnd.docker.distribution.manifest.list.v2+json',
+         })))
+
+        (flexmock(atomic_reactor.plugins.post_tag_and_push)
+         .should_receive('get_config_from_registry'))
+
+        assert workflow.image == plugin.run()[0].repo
+    else:
+        with pytest.raises(ExceedsImageSizeError):
+            plugin.run()
