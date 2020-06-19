@@ -734,6 +734,18 @@
         "additionalProperties": false,
         "required": ["name", "value"]
       }
+    },
+    "image_size_limit": {
+      "description": "Define maximum uncompressed image size in bytes for binary image checked before push",
+      "type": "object",
+      "properties": {
+        "binary_image": {
+          "description": "Maximum size of binary images. Set to 0 or omit to skip the check",
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
     }
   },
   "definitions": {
