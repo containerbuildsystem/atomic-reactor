@@ -14,6 +14,8 @@ from six.moves.urllib.parse import urlparse
 import requests
 import re
 
+from atomic_reactor.utils.retries import get_retrying_requests_session
+
 
 class HTTPBearerAuth(AuthBase):
     """Performs Bearer authentication for the given Request object.
@@ -53,6 +55,7 @@ class HTTPBearerAuth(AuthBase):
         self.access = access or ('pull',)
 
         self._token_cache = {}
+        self._retry_session = get_retrying_requests_session()   # Used when querying for token
 
     def __call__(self, response):
         repo = self._get_repo_from_url(response.url)
@@ -112,8 +115,8 @@ class HTTPBearerAuth(AuthBase):
         elif self.username and self.password:
             realm_auth = HTTPBasicAuth(self.username, self.password)
 
-        realm_response = requests.get(realm, params=bearer_info, verify=self.verify,
-                                      auth=realm_auth)
+        realm_response = self._retry_session.get(realm, params=bearer_info, verify=self.verify,
+                                                 auth=realm_auth)
         realm_response.raise_for_status()
         return realm_response.json()['token']
 

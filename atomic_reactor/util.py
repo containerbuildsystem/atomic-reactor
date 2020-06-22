@@ -17,8 +17,6 @@ import re
 import sys
 import requests
 from requests.exceptions import SSLError, HTTPError, RetryError
-from requests.adapters import HTTPAdapter
-from urllib3.util import Retry
 import shutil
 import tempfile
 import logging
@@ -34,11 +32,10 @@ from base64 import b64decode
 from six.moves.urllib.parse import urlparse
 from six import PY2
 
+import atomic_reactor.utils.retries
 from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG, TOOLS_USED,
                                       INSPECT_CONFIG,
                                       IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,
-                                      HTTP_MAX_RETRIES, HTTP_BACKOFF_FACTOR,
-                                      HTTP_CLIENT_STATUS_RETRY, HTTP_REQUEST_TIMEOUT,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST, MEDIA_TYPE_OCI_V1,
                                       MEDIA_TYPE_OCI_V1_INDEX,
@@ -86,6 +83,10 @@ except ImportError:
 Output = namedtuple('Output', ['file', 'metadata'])
 
 logger = logging.getLogger(__name__)
+
+
+# Should be a member of 'util' module for backwards compatibility
+get_retrying_requests_session = atomic_reactor.utils.retries.get_retrying_requests_session
 
 
 def figure_out_build_file(absolute_path, local_path=None):
@@ -1396,48 +1397,6 @@ def label_to_string(key, value):
     LABEL "key"="value" "key2"="value2"
     """
     return '"%s"="%s"' % (_label_escape(key), _label_escape(value))
-
-
-class SessionWithTimeout(requests.Session):
-    """
-    requests Session with added timeout
-    """
-    def __init__(self, *args, **kwargs):
-        super(SessionWithTimeout, self).__init__(*args, **kwargs)
-
-    def request(self, *args, **kwargs):
-        kwargs.setdefault('timeout', HTTP_REQUEST_TIMEOUT)
-        return super(SessionWithTimeout, self).request(*args, **kwargs)
-
-
-# This is a hook to mock during tests to temporarily disable retries
-def _http_retries_disabled():
-    return False
-
-
-def get_retrying_requests_session(client_statuses=HTTP_CLIENT_STATUS_RETRY,
-                                  times=HTTP_MAX_RETRIES, delay=HTTP_BACKOFF_FACTOR,
-                                  method_whitelist=None, raise_on_status=True):
-    if _http_retries_disabled():
-        times = 0
-
-    retry = Retry(
-        total=int(times),
-        backoff_factor=delay,
-        status_forcelist=client_statuses,
-        method_whitelist=method_whitelist
-    )
-
-    # raise_on_status was added later to Retry, adding compatibility to work
-    # with newer versions and ignoring this option with older ones
-    if hasattr(retry, 'raise_on_status'):
-        retry.raise_on_status = raise_on_status
-
-    session = SessionWithTimeout()
-    session.mount('http://', HTTPAdapter(max_retries=retry))
-    session.mount('https://', HTTPAdapter(max_retries=retry))
-
-    return session
 
 
 def get_primary_images(workflow):
