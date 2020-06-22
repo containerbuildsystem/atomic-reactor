@@ -9,10 +9,10 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import unicode_literals, absolute_import
 
 from flexmock import flexmock
-from atomic_reactor import util
+import atomic_reactor.utils.retries
 
 
 def mock_get_retry_session():
-    (flexmock(util)
+    (flexmock(atomic_reactor.utils.retries)
         .should_receive('_http_retries_disabled')
         .and_return(True))
