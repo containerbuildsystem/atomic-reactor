@@ -56,7 +56,8 @@ class ResolveComposesPlugin(PreBuildPlugin):
         """
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param koji_target: str, contains build tag to be used when requesting compose from "tag"
+        :param koji_target: str, koji target contains build tag to be used
+                            when requesting compose from "tag"
         :param signing_intent: override the signing intent from git repo configuration
         :param compose_ids: use the given compose_ids instead of requesting a new one
         :param repourls: list of str, URLs to the repo files
@@ -202,16 +203,17 @@ class ResolveComposesPlugin(PreBuildPlugin):
         if platforms:
             platforms = sorted(platforms)  # sorted to keep predictable for tests
 
-        self.compose_config = ComposeConfig(data, pulp_data, self.odcs_config,
+        koji_tag = None
+        if self.koji_target:
+            target_info = self.koji_session.getBuildTarget(self.koji_target, strict=True)
+            koji_tag = target_info['build_tag_name']
+
+        self.compose_config = ComposeConfig(data, pulp_data, self.odcs_config, koji_tag=koji_tag,
                                             arches=platforms)
 
     def adjust_compose_config(self):
         if self.signing_intent:
             self.compose_config.set_signing_intent(self.signing_intent)
-
-        if self.koji_target:
-            target_info = self.koji_session.getBuildTarget(self.koji_target, strict=True)
-            self.compose_config.koji_tag = target_info['build_tag_name']
 
         self.adjust_signing_intent_from_parent()
 
@@ -416,7 +418,13 @@ class ComposeConfig(object):
         self.arches = arches or []
         self.multilib_arches = []
         self.multilib_method = None
-        self.modular_tags = data.get('modular_koji_tags', [])
+        self.modular_tags = data.get('modular_koji_tags')
+        self.koji_tag = koji_tag
+
+        if self.modular_tags is True:
+            if not self.koji_tag:
+                raise ValueError('koji_tag is required when modular_koji_tags is True')
+            self.modular_tags = [self.koji_tag]
 
         if data.get('pulp_repos'):
             for arch in pulp_data or {}:
@@ -434,7 +442,6 @@ class ComposeConfig(object):
         if self.multilib_arches:
             self.multilib_method = data.get('multilib_method')
 
-        self.koji_tag = koji_tag
         self.odcs_config = odcs_config
 
         signing_intent_name = data.get('signing_intent', self.odcs_config.default_signing_intent)
@@ -455,6 +462,8 @@ class ComposeConfig(object):
             requests.append(self.render_packages_request())
         if self.modules:
             requests.append(self.render_modules_request())
+        if self.modular_tags:
+            requests.append(self.render_modular_tags_request())
 
         for arch in self.pulp:
             requests.append(self.render_pulp_request(arch))
@@ -467,6 +476,20 @@ class ComposeConfig(object):
             'source': self.koji_tag,
             'packages': self.packages,
             'sigkeys': self.signing_intent['keys'],
+        }
+        if self.arches:
+            request['arches'] = self.arches
+        if self.multilib_arches:
+            request['multilib_arches'] = self.multilib_arches
+            request['multilib_method'] = self.multilib_method
+        return request
+
+    def render_modular_tags_request(self):
+        request = {
+            'source_type': 'tag',
+            'source': self.koji_tag,
+            'sigkeys': self.signing_intent['keys'],
+            'modular_koji_tags': self.modular_tags
         }
         if self.arches:
             request['arches'] = self.arches
@@ -488,8 +511,6 @@ class ComposeConfig(object):
         }
         if self.arches:
             request['arches'] = self.arches
-        if self.modular_tags:
-            request['modular_koji_tags'] = self.modular_tags
         return request
 
     def render_pulp_request(self, arch):
@@ -507,8 +528,9 @@ class ComposeConfig(object):
 
     def validate_for_request(self):
         """Verify enough information is available for requesting compose."""
-        if not self.use_packages and not self.modules and not self.pulp:
-            raise ValueError("Nothing to compose (no packages, modules, or enabled pulp repos)")
+        if not self.use_packages and not self.modules and not self.pulp and not self.modular_tags:
+            raise ValueError("Nothing to compose (no packages, modules, modular_tags "
+                             "or enabled pulp repos)")
 
         if self.packages and not self.koji_tag:
             raise ValueError('koji_tag is required when packages are used')

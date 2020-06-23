@@ -478,13 +478,67 @@ class TestResolveComposes(object):
         workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = arches
         self.run_plugin_with_args(workflow)
 
+    @pytest.mark.parametrize('multilib', (True, False))
+    @pytest.mark.parametrize('is_true', (True, False))
     @pytest.mark.parametrize('arches', (
         ['ppc64le', 'x86_64'],
         ['x86_64'],
     ))
-    def test_request_compose_for_modular_tags(self, workflow, arches):
+    def test_request_compose_for_modular_tags(self, workflow, multilib, is_true, arches):
+        repo_config = {'compose': {'modular_koji_tags': ['earliest', 'latest']}}
+        if is_true:
+            repo_config['compose']['modular_koji_tags'] = True
+        if multilib:
+            repo_config['compose']['multilib_arches'] = arches
+            repo_config['compose']['multilib_method'] = ["all"]
+
+        mock_repo_config(workflow._tmpdir, yaml.safe_dump(repo_config))
+
+        use_kwargs = {'source_type': 'tag',
+                      'source': 'test-tag',
+                      'sigkeys': ['R123'],
+                      'arches': arches}
+
+        if is_true:
+            use_kwargs['modular_koji_tags'] = ['test-tag']
+        else:
+            use_kwargs['modular_koji_tags'] = ['earliest', 'latest']
+
+        if multilib:
+            use_kwargs['multilib_arches'] = arches
+            use_kwargs['multilib_method'] = ["all"]
+
+        (flexmock(ODCSClient)
+            .should_receive('start_compose')
+            .with_args(**use_kwargs)
+            .once()
+            .and_return(ODCS_COMPOSE))
+
+        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = arches
+        self.run_plugin_with_args(workflow)
+
+    def test_request_compose_for_modular_tags_auto_without_tag(self, workflow):
         repo_config = dedent("""\
             compose:
+                modular_koji_tags: true
+            """)
+        mock_repo_config(workflow._tmpdir, repo_config)
+
+        (flexmock(ODCSClient)
+            .should_receive('start_compose')
+            .never())
+        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = 'x86_64'
+
+        with pytest.raises(PluginFailedException) as exc:
+            self.run_plugin_with_args(workflow, with_target=False)
+        assert "koji_tag is required when modular_koji_tags is True" in str(exc.value)
+
+    def test_request_compose_packages_modules_modular_tags(self, workflow):
+        repo_config = dedent("""\
+            compose:
+                packages:
+                - pkg_spam
+                - pkg_bacon
                 modules:
                 - spam:stable
                 - bacon:stable
@@ -497,15 +551,28 @@ class TestResolveComposes(object):
 
         (flexmock(ODCSClient)
             .should_receive('start_compose')
-            .with_args(
-                source_type='module',
-                source='spam:stable bacon:stable eggs:stable',
-                sigkeys=['R123'],
-                arches=arches,
-                modular_koji_tags=['earliest', 'latest'])
-            .once()
+            .with_args(source_type='tag',
+                       source='test-tag',
+                       sigkeys=['R123'],
+                       packages=['pkg_spam', 'pkg_bacon'],
+                       arches=['x86_64'])
             .and_return(ODCS_COMPOSE))
-        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = arches
+        (flexmock(ODCSClient)
+            .should_receive('start_compose')
+            .with_args(source_type='tag',
+                       source='test-tag',
+                       sigkeys=['R123'],
+                       modular_koji_tags=['earliest', 'latest'],
+                       arches=['x86_64'])
+            .and_return(ODCS_COMPOSE))
+        (flexmock(ODCSClient)
+            .should_receive('start_compose')
+            .with_args(source_type='module',
+                       source='spam:stable bacon:stable eggs:stable',
+                       sigkeys=['R123'],
+                       arches=['x86_64'])
+            .and_return(ODCS_COMPOSE))
+
         self.run_plugin_with_args(workflow)
 
     @pytest.mark.parametrize(('with_modules'), (True, False))
@@ -1220,10 +1287,11 @@ class TestResolveComposes(object):
     def run_plugin_with_args(self, workflow, plugin_args=None,
                              expect_error=None,
                              platforms=None, is_pulp=None,
-                             check_for_default_id=True):
+                             check_for_default_id=True, with_target=True):
         plugin_args = plugin_args or {}
         plugin_args.setdefault('odcs_url', ODCS_URL)
-        plugin_args.setdefault('koji_target', KOJI_TARGET_NAME)
+        if with_target:
+            plugin_args.setdefault('koji_target', KOJI_TARGET_NAME)
         plugin_args.setdefault('koji_hub', KOJI_HUB)
 
         reactor_conf =\
