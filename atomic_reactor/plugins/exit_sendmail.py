@@ -355,13 +355,21 @@ class SendMailPlugin(ExitPlugin):
 
     def _get_logs_url(self):
         url = None
-        try:
-            pathinfo = get_koji_path_info(self.workflow)
-            url = '/'.join([pathinfo.work(), pathinfo.taskrelpath(self.koji_task_id)])
-        except Exception:
-            self.log.exception("Failed to fetch logs from koji")
-            if self.url and self.workflow.openshift_build_selflink:
-                url = urljoin(self.url, self.workflow.openshift_build_selflink + '/log')
+        if self.koji_task_id:
+            # build via koji tasks
+            try:
+                pathinfo = get_koji_path_info(self.workflow)
+                url = '/'.join([pathinfo.work(), pathinfo.taskrelpath(self.koji_task_id)])
+            except Exception:
+                self.log.exception("Failed to fetch logs from koji")
+        else:
+            self.log.info("Logs URL: no koji task")
+
+        # openshift build log URL, if possible (direct osbs-client builds)
+        if not url and self.url and self.workflow.openshift_build_selflink:
+            self.log.info("Logs URL: using openshift log path")
+            url = urljoin(self.url, self.workflow.openshift_build_selflink + '/log')
+
         return url
 
     def _get_receivers_list(self):
