@@ -67,6 +67,7 @@ function setup_osbs() {
   # Install dependencies
   PKG_COMMON_EXTRA="git gcc krb5-devel python-devel popt-devel"
   PKG_EXTRA="$PKG_EXTRA $PKG_COMMON_EXTRA"
+  # shellcheck disable=SC2086
   $RUN $PKG $ENABLE_REPO install -y $PKG_EXTRA
   [[ ${PYTHON_VERSION} == '3' ]] && WITH_PY3=1 || WITH_PY3=0
   $RUN $BUILDDEP --define "with_python3 ${WITH_PY3}" -y atomic-reactor.spec
@@ -159,6 +160,7 @@ case ${ACTION} in
 esac
 
 # Run tests
+# shellcheck disable=SC2086
 $RUN ${TEST_CMD} "$@"
 
 echo "To run tests again:"
