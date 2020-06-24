@@ -203,6 +203,10 @@ class TestSendMailPlugin(object):
         (False, True, False, True, [MS], True),
         (False, True, False, False, [MF, AS, AF, AC], False),
         (False, True, False, True, [MF, AS, AF, AC], False),
+        (None, False, False, False, [MF], True),  # may be non-bool
+        (False, None, False, False, [MF], True),  # may be non-bool
+        (False, False, None, False, [MF], True),  # may be non-bool
+        (False, False, False, None, [MF], True),  # may be non-bool
         (False, False, False, False, [MF], True),
         (False, False, False, True, [MF], True),
         (False, False, False, False, [MS, AS, AF, AC], False),
