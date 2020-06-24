@@ -417,25 +417,24 @@ class SendMailPlugin(ExitPlugin):
         self.log.info('checking conditions for sending notification ...')
         if self._should_send(rebuild, success, auto_canceled, manual_canceled):
             self.log.info('notification about build result will be sent')
+            subject, body, full_logs = self._render_mail(rebuild, success,
+                                                         auto_canceled, manual_canceled)
             try:
                 self.log.debug('getting list of receivers for this component ...')
                 receivers = self._get_receivers_list()
             except RuntimeError as e:
                 self.log.error('couldn\'t get list of receivers, sending error message ...')
                 # Render the body although the receivers cannot be fetched for error message
-                _, expected_body, _ = self._render_mail(
-                    rebuild, success, auto_canceled, manual_canceled)
                 body = '\n'.join([
                     'Failed to get contact for %s, error: %s' % (str(self.workflow.image), str(e)),
                     'Since your address is in "error_addresses", this email was sent to you to '
                     'take action on this.',
                     'Wanted to send following mail:',
                     '',
-                    expected_body
+                    body
                 ])
                 receivers = self.error_addresses
-            subject, body, full_logs = self._render_mail(rebuild, success,
-                                                         auto_canceled, manual_canceled)
+
             self._send_mail(receivers, subject, body, full_logs)
         else:
             self.log.info('conditions for sending notification not met, doing nothing')
