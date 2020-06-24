@@ -146,14 +146,18 @@ class SendMailPlugin(ExitPlugin):
         }
         self.url = get_openshift(self.workflow, self.openshift_fallback)['url']
 
+        self.koji_task_id = None
         try:
             metadata = get_build_json().get("metadata", {})
-            self.koji_task_id = int(metadata['labels']['koji-task-id'])
+            koji_task_id = metadata['labels'].get('koji-task-id')
         except Exception:
-            self.log.exception("Failed to fetch koji task ID")
-            self.koji_task_id = None
+            self.log.info("Failed to fetch koji task ID")
         else:
-            self.log.info("Koji task ID: %s", self.koji_task_id)
+            if koji_task_id:
+                self.koji_task_id = int(koji_task_id)
+                self.log.info("Koji task ID: %s", self.koji_task_id)
+            else:
+                self.log.info("No koji task")
 
         try:
             metadata = get_build_json().get("metadata", {})
