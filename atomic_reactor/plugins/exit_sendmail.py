@@ -191,8 +191,6 @@ class SendMailPlugin(ExitPlugin):
         """Return True if any state in `self.send_on` meets given conditions, thus meaning
         that a notification mail should be sent.
         """
-        should_send = False
-
         should_send_mapping = {
             self.MANUAL_SUCCESS: not rebuild and success,
             self.MANUAL_FAIL: not rebuild and not success,
@@ -202,8 +200,7 @@ class SendMailPlugin(ExitPlugin):
             self.AUTO_CANCELED: rebuild and auto_canceled
         }
 
-        for state in self.send_on:
-            should_send |= should_send_mapping[state]
+        should_send = any(should_send_mapping[state] for state in self.send_on)
         return should_send
 
     def _get_image_name_and_repos(self):
