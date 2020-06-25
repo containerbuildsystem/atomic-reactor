@@ -651,12 +651,20 @@
             "description": "Do not report any media types other than these",
             "allOf": [{"$ref": "#/definitions/media_types"}]
           },
-          "blacklist_srpms": {
-              "description": "Don't include specified srpms to source container image, specify SRPM name",
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
+          "denylist_srpms": {
+              "description": "Don't include srpms specified in denylist json with key",
+              "type": "object",
+              "properties": {
+                  "denylist_url": {
+                    "description": "Url with denylist json file",
+                    "type": "string"
+                  },
+                  "denylist_key": {
+                    "description": "Key in denylist json file, with denylist sources as list (with SRPM names)",
+                    "type": "string"
+                  }
+              },
+              "required": ["denylist_url", "denylist_key"]
           }
         },
         "additionalProperties": false

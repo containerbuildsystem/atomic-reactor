@@ -10,6 +10,7 @@ from __future__ import absolute_import
 
 import io
 import os
+import yaml
 from textwrap import dedent
 from copy import deepcopy
 
@@ -413,31 +414,72 @@ class TestFetchSources(object):
 
         assert srpm_url in caplog.text
 
-    @pytest.mark.parametrize('black_list', [[], ['foobar'], ['foobar', 'kernel']])
-    def test_blacklist_srpms(self, requests_mock, docker_tasker, koji_session, tmpdir,
-                             caplog, black_list):
-        black_cm = dedent("""\
-            version: 1
-            koji:
-               hub_url: {}
-               root_url: {}
-               auth:
-                   ssl_certs_dir: not_needed_here
-            source_container:
-               blacklist_srpms: {}
-            """.format(KOJI_HUB, KOJI_ROOT, black_list))
+    @pytest.mark.parametrize(('deny_list', 'denylist_json', 'exc_str'), [
+        (None, None, None),
+        ({'denylist_url': 'http://denylist_url', 'denylist_key': 'denylist_exists'},
+         None,
+         'Not Found: http://denylist_url'),
+        ({'denylist_url': 'http://denylist_url', 'denylist_key': 'denylist_exists'},
+         {'denylist_exists': 'is string'},
+         'Denylist value in key: denylist_exists is not list: '),
+        ({'denylist_url': 'http://denylist_url', 'denylist_key': 'denylist_exists'},
+         {'denylist_exists': ['some', 1, 2, None]},
+         'Values in denylist has to be all strings'),
+        ({'denylist_url': 'http://denylist_url', 'denylist_key': 'denylist_exists'},
+         {'denylist_exists': []},
+         None),
+        ({'denylist_url': 'http://denylist_url', 'denylist_key': 'denylist_exists'},
+         {'denylist_exists': ['foobar']},
+         None),
+        ({'denylist_url': 'http://denylist_url', 'denylist_key': 'denylist_exists'},
+         {'denylist_exists': ['kernel']},
+         None),
+        ({'denylist_url': 'http://denylist_url', 'denylist_key': 'denylist_exists'},
+         {'denylist_exists': ['foobar', 'kernel']},
+         None),
+        ({'denylist_url': 'http://denylist_url', 'denylist_key': 'denylist_wrong'},
+         {'denylist_exists': 'does not matter'},
+         'Denylist key: denylist_wrong missing in denylist json from : http://denylist_url')
+    ])
+    def test_denylist_srpms(self, requests_mock, docker_tasker, koji_session, tmpdir,
+                            caplog, deny_list, denylist_json, exc_str):
+        rcm_json = yaml.safe_load(BASE_CONFIG_MAP)
+        rcm_json['source_container'] = {}
+
+        if deny_list:
+            rcm_json['source_container'] = {'denylist_srpms': deepcopy(deny_list)}
+
+        if deny_list and not denylist_json:
+            requests_mock.register_uri('GET', deny_list['denylist_url'],
+                                       reason='Not Found: {}'.format(deny_list['denylist_url']),
+                                       status_code=404)
+
+        elif deny_list and denylist_json:
+            requests_mock.register_uri('GET', deny_list['denylist_url'],
+                                       json=denylist_json, status_code=200)
 
         mock_koji_manifest_download(requests_mock)
         koji_build_nvr = 'foobar-1-1'
-        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr=koji_build_nvr, config_map=black_cm)
-        runner.run()
+        runner = mock_env(tmpdir, docker_tasker, koji_build_nvr=koji_build_nvr,
+                          config_map=yaml.safe_dump(rcm_json))
+        if exc_str:
+            with pytest.raises(PluginFailedException) as exc:
+                runner.run()
+            assert exc_str in str(exc.value)
+        else:
+            runner.run()
 
         pkg_name = koji_build_nvr.rsplit('-', 2)[0]
-        err_msg = 'skipping blacklisted srpm %s' % koji_build_nvr
-        if pkg_name in black_list:
+        err_msg = 'skipping denylisted srpm %s' % koji_build_nvr
+        if deny_list and exc_str is None and pkg_name in denylist_json['denylist_exists']:
             assert err_msg in caplog.text
         else:
             assert err_msg not in caplog.text
+
+        if deny_list is None:
+            assert 'denylist_srpms is not defined in reactor_config_map' in caplog.text
+        elif denylist_json and exc_str is None:
+            assert 'denylisted srpms: ' in caplog.text
 
     @pytest.mark.parametrize('use_cache', [True, False, None])
     def test_lookaside_cache(self, requests_mock, docker_tasker, koji_session, tmpdir, use_cache):
