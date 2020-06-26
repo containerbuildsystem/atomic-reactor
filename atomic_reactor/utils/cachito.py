@@ -80,7 +80,7 @@ class CachitoAPI(object):
             'dependency_replacements': dependency_replacements,
         }
         # Remove None values
-        payload = {k: v for k, v in payload.items() if v}
+        payload = {k: v for k, v in payload.items() if v is not None}
 
         url = '{}/api/v1/requests'.format(self.api_url)
         logger.debug('Making request %s with payload:\n%s', url, json.dumps(payload, indent=4))

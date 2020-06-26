@@ -35,6 +35,8 @@ CACHITO_REQUEST_REPO = 'https://github.com/release-engineering/retrodep.git'
     {},
     {'flags': ['spam', 'bacon']},
     {'pkg_managers': ['gomod']},
+    {'pkg_managers': []},
+    {'pkg_managers': None},
     {'user': 'ham'},
     {'dependency_replacements': [{
         'name': 'eample.com/repo/project',
@@ -51,8 +53,12 @@ def test_request_sources(additional_params, caplog):
 
         assert body_json['repo'] == CACHITO_REQUEST_REPO
         assert body_json['ref'] == CACHITO_REQUEST_REF
+
         for key, value in additional_params.items():
-            assert body_json[key] == value
+            if value is not None:
+                assert body_json[key] == value
+            else:
+                assert key not in body_json
 
         return (201, {}, json.dumps(response_data))
 
