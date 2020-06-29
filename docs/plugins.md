@@ -183,6 +183,10 @@ containing the Dockerfile.
   - Status: Enabled
   - creates metadata_{current_layer_index}.json with content sets, and ADDs
     it to the built image
+- **add_image_content_manifest**
+  - Status: Enabled
+  - creates metadata_{current_layer_index}.json with Cachito ICM, content_sets,
+    and other metadata, and ADDs it to the built image
 - **add_dockerfile**
   - Status: Enabled
   - The Dockerfile used to build the image has a line added to ADD itself into
