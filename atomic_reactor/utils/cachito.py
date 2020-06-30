@@ -56,7 +56,7 @@ class CachitoAPI(object):
         return session
 
     def request_sources(self, repo, ref, flags=None, pkg_managers=None, user=None,
-                        dependency_replacements=None):
+                        dependency_replacements=None, packages=None):
         """Start a new Cachito request
 
         :param repo: str, the URL to the SCM repository
@@ -67,6 +67,8 @@ class CachitoAPI(object):
         :param user: str, user the request is created on behalf of. This is reserved for privileged
                      users that can act as cachito representatives
         :param dependency_replacements: list<dict>, dependencies to be replaced by cachito
+        :param packages: dict, the packages configuration that allows to specify things such
+                         as subdirectories where packages reside in the source repository
 
         :return: dict, representation of the created Cachito request
         :raise CachitoAPIInvalidRequest: if Cachito determines the request is invalid
@@ -78,6 +80,7 @@ class CachitoAPI(object):
             'pkg_managers': pkg_managers,
             'user': user,
             'dependency_replacements': dependency_replacements,
+            'packages': packages,
         }
         # Remove None values
         payload = {k: v for k, v in payload.items() if v is not None}
