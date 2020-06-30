@@ -44,6 +44,8 @@ CACHITO_REQUEST_REPO = 'https://github.com/release-engineering/retrodep.git'
         'version': '1.1.1',
         }]
      },
+    {'packages': {'npm': [{'path': 'client'}]}},
+    {'packages': None},
 ))
 def test_request_sources(additional_params, caplog):
     response_data = {'id': CACHITO_REQUEST_ID}

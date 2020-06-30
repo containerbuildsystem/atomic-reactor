@@ -284,6 +284,22 @@ class TestSourceConfigSchemaValidation(object):
                 'pkg_managers': ['gomod'],
             }}
         ), (
+            """\
+            remote_source:
+              repo: https://git.example.com/team/repo.git
+              ref: b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a
+              packages:
+                npm:
+                  - path: client
+                  - path: proxy
+            """,
+            {'remote_source': {
+                'repo': 'https://git.example.com/team/repo.git',
+                'ref': 'b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a',
+                'packages': {'npm': [{'path': 'client'},
+                                     {'path': 'proxy'}]},
+            }}
+        ), (
           """\
           operator_manifests:
             manifests_dir: path/to/manifests
