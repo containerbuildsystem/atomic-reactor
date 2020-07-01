@@ -83,7 +83,7 @@ class ODCSClient(object):
                 'source': source
             }
         }
-        if source_type == "tag":
+        if source_type == "tag" and not modular_koji_tags:
             body['source']['packages'] = packages or []
 
         if sigkeys is not None:
@@ -99,7 +99,7 @@ class ODCSClient(object):
             body['multilib_arches'] = multilib_arches
             body['multilib_method'] = multilib_method or MULTILIB_METHOD_DEFAULT
 
-        if source_type == "module" and modular_koji_tags:
+        if modular_koji_tags:
             body['modular_koji_tags'] = modular_koji_tags
 
         logger.info("Starting compose: %s", body)
