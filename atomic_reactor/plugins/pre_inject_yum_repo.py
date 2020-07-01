@@ -55,17 +55,6 @@ class InjectYumRepoPlugin(PreBuildPlugin):
     key = "inject_yum_repo"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow):
-        """
-        constructor
-
-        :param tasker: ContainerTasker instance
-        :param workflow: DockerBuildWorkflow instance
-        """
-        # call parent constructor
-        super(InjectYumRepoPlugin, self).__init__(tasker, workflow)
-        self.host_repos_path = os.path.join(self.workflow.builder.df_dir, RELATIVE_REPOS_PATH)
-
     def run(self):
         """
         run the plugin
