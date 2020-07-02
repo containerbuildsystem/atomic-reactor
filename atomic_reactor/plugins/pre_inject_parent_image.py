@@ -10,7 +10,8 @@ from __future__ import print_function, unicode_literals, absolute_import
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_reactor_config import (get_koji_session,
-                                                       get_registries_organization)
+                                                       get_registries_organization,
+                                                       get_source_registry)
 from osbs.utils import graceful_chain_get, ImageName
 from atomic_reactor.constants import PLUGIN_INJECT_PARENT_IMAGE_KEY
 
@@ -72,7 +73,6 @@ class InjectParentImage(PreBuildPlugin):
         self.find_repositories()
         self.select_new_parent_image()
         self.adjust_new_parent_image()
-        self.validate_new_parent_image()
         self.set_new_parent_image()
         return self._koji_parent_build_info['id']
 
@@ -118,11 +118,12 @@ class InjectParentImage(PreBuildPlugin):
         self.log.info('New parent image is %s', self._new_parent_image)
 
     def adjust_new_parent_image(self):
-        organization = get_registries_organization(self.workflow)
         new_parent_image = ImageName.parse(self._new_parent_image)
+        organization = get_registries_organization(self.workflow)
+        source_registry_docker_uri = get_source_registry(self.workflow)['uri'].docker_uri
 
-        if new_parent_image.registry != self.workflow.builder.base_image.registry:
-            new_parent_image.registry = self.workflow.builder.base_image.registry
+        if new_parent_image.registry != source_registry_docker_uri:
+            new_parent_image.registry = source_registry_docker_uri
 
         if organization:
             self.workflow.builder.base_image.enclose(organization)
@@ -130,15 +131,6 @@ class InjectParentImage(PreBuildPlugin):
             new_parent_image.enclose(organization)
 
         self._new_parent_image = new_parent_image.to_str()
-
-    def validate_new_parent_image(self):
-        current_repo = self.workflow.builder.base_image.to_str(registry=False, tag=False)
-        new_repo = ImageName.parse(self._new_parent_image).to_str(registry=False, tag=False)
-
-        if current_repo != new_repo:
-            raise RuntimeError(
-                'Repository for new parent image, {}, differs from '
-                'repository for existing parent image, {}'.format(new_repo, current_repo))
 
     def set_new_parent_image(self):
         self.workflow.builder.set_base_image(self._new_parent_image)
