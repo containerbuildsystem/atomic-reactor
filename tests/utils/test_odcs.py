@@ -127,10 +127,10 @@ def test_create_compose(odcs_client, source, source_type, packages, expected_pac
         assert body_json['source']['source'] == source
         assert body_json['source'].get('packages') == expected_packages
         assert body_json['source'].get('sigkeys') == sigkeys
+        assert body_json['source'].get('modular_koji_tags') == expected_koji_tags
         assert body_json.get('flags') == flags
         assert body_json.get('arches') == arches
         assert body_json.get('multilib_arches') == multilib_arches
-        assert body_json.get('modular_koji_tags') == expected_koji_tags
         if expected_method is not None:
             assert sorted(body_json.get('multilib_method')) == sorted(expected_method)
         else:
