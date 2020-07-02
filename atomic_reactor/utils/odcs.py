@@ -100,7 +100,7 @@ class ODCSClient(object):
             body['multilib_method'] = multilib_method or MULTILIB_METHOD_DEFAULT
 
         if modular_koji_tags:
-            body['modular_koji_tags'] = modular_koji_tags
+            body['source']['modular_koji_tags'] = modular_koji_tags
 
         logger.info("Starting compose: %s", body)
         response = self.session.post('{}composes/'.format(self.url),
