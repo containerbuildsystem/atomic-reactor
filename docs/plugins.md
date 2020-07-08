@@ -179,10 +179,6 @@ containing the Dockerfile.
   - Status: Enabled
   - Markdown help page is converted to a man page and ADD'ed into the built
     image in order to show a correct page when `atomic help` is called.
-- **add_content_sets**
-  - Status: Enabled
-  - creates metadata_{current_layer_index}.json with content sets, and ADDs
-    it to the built image
 - **add_image_content_manifest**
   - Status: Enabled
   - creates metadata_{current_layer_index}.json with Cachito ICM, content_sets,

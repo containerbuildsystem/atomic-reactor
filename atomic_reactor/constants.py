@@ -110,7 +110,6 @@ PLUGIN_SOURCE_CONTAINER_KEY = 'source_container'
 PLUGIN_FETCH_SOURCES_KEY = 'fetch_sources'
 PLUGIN_KOJI_DELEGATE_KEY = 'koji_delegate'
 PLUGIN_PUSH_FLOATING_TAGS_KEY = 'push_floating_tags'
-PLUGIN_ADD_CONTENT_SETS = 'add_content_sets'
 PLUGIN_ADD_IMAGE_CONTENT_MANIFEST = 'add_image_content_manifest'
 
 # some shared dict keys for build metadata that gets recorded with koji.
