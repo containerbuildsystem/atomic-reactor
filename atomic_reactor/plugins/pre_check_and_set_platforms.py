@@ -87,4 +87,9 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
         final_platforms = get_platforms_in_limits(self.workflow, enabled_platforms)
 
         self.log.info("platforms in limits : %s", final_platforms)
+
+        if not final_platforms:
+            self.log.error("platforms in limits are empty")
+            raise RuntimeError("No platforms to build for")
+
         return final_platforms
