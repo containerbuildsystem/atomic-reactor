@@ -275,8 +275,39 @@ def test_check_and_set_platforms_no_koji(tmpdir, caplog, platforms, platform_onl
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] == set(result)
     else:
         with pytest.raises(Exception) as e:
-            plugin_result = runner.run()
+            runner.run()
             assert "no koji target or platform list" in str(e.value)
+
+
+@pytest.mark.parametrize(('platforms', 'platform_only'), [
+    ('x86_64', 'ppc64le'),
+    ('x86_64 ppc64le', 's390x'),
+    ('s390x ppc64le', 'x86_64'),
+])
+def test_check_and_set_platforms_no_platforms_in_limits(tmpdir, caplog, platforms, platform_only):
+    write_container_yaml(tmpdir, platform_only=platform_only)
+
+    tasker, workflow = prepare(tmpdir)
+
+    if platforms:
+        set_orchestrator_platforms(workflow, platforms.split())
+
+    build_json = {'metadata': {'labels': {}}}
+    flexmock(util).should_receive('get_build_json').and_return(build_json)
+
+    mock_config = MockConfig(platforms)
+    flexmock(reactor_config).should_receive('get_config').and_return(mock_config)
+
+    runner = PreBuildPluginsRunner(tasker, workflow, [{
+        'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
+    }])
+
+    with pytest.raises(Exception) as e:
+        runner.run()
+
+    assert "platforms in limits : %s" % set() in caplog.text
+    assert "platforms in limits are empty" in caplog.text
+    assert "No platforms to build for" in str(e.value)
 
 
 @pytest.mark.parametrize(('platforms', 'platform_only', 'cluster_platforms', 'result'), [
