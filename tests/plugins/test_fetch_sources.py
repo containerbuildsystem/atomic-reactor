@@ -13,12 +13,16 @@ import os
 import yaml
 from textwrap import dedent
 from copy import deepcopy
+import json
+import time
+import tarfile
+import shutil
+import six
 
 import koji
 import pytest
 import requests
 from flexmock import flexmock
-import time
 
 from atomic_reactor import constants
 from atomic_reactor import util
@@ -43,6 +47,7 @@ KOJI_PARENT_BUILD = {'build_id': 10, 'nvr': 'parent-1-1', 'name': 'parent', 'ver
                      'extra': {'image': {''}, 'operator-manifests': {}}}
 constants.HTTP_BACKOFF_FACTOR = 0
 REMOTE_SOURCES_FILE = 'remote-source.tar.gz'
+REMOTE_SOURCES_JSON = 'remote-source.json'
 
 DEFAULT_SIGNING_INTENT = 'empty'
 
@@ -138,7 +143,8 @@ def koji_session():
     (flexmock(session)
      .should_receive('listArchives')
      .with_args(object, type='remote-sources')
-     .and_return([{'id': 1, 'type_name': 'tar', 'filename': REMOTE_SOURCES_FILE}]))
+     .and_return([{'id': 1, 'type_name': 'tar', 'filename': REMOTE_SOURCES_FILE},
+                  {'id': 20, 'type_name': 'json', 'filename': REMOTE_SOURCES_JSON}]))
     flexmock(session).should_receive('listRPMs').with_args(imageID=1).and_return([
         {'id': 1,
          'build_id': 1,
@@ -183,13 +189,14 @@ def get_srpm_url(sign_key=None, srpm_filename_override=None):
         return '{}/data/signed/{}/src/{}'.format(base, sign_key, filename)
 
 
-def get_remote_url(koji_build):
+def get_remote_url(koji_build, file_name=REMOTE_SOURCES_FILE):
     base = '{}/packages/{}/{}/{}'.format(KOJI_ROOT, koji_build['name'], koji_build['version'],
                                          koji_build['release'])
-    return '{}/files/remote-sources/{}'.format(base, REMOTE_SOURCES_FILE)
+    return '{}/files/remote-sources/{}'.format(base, file_name)
 
 
-def mock_koji_manifest_download(requests_mock, retries=0):
+def mock_koji_manifest_download(tmpdir, requests_mock, retries=0, dirs_in_remote=('app', 'deps'),
+                                files_in_remote=(), cachito_package_names=None):
     class MockBytesIO(io.BytesIO):
         reads = 0
 
@@ -217,10 +224,52 @@ def mock_koji_manifest_download(requests_mock, retries=0):
             requests_mock.register_uri('GET', url, body=body_callback)
 
     def body_remote_callback(request, context):
-        f = MockBytesIO(b"remote sources content")
+        f = MockBytesIO(targz_bytes)
         return f
+
+    if 'app' not in dirs_in_remote:
+        os.mkdir(os.path.join(str(tmpdir), 'app'))
+    if 'deps' not in dirs_in_remote:
+        os.mkdir(os.path.join(str(tmpdir), 'deps'))
+
+    for dir_name in dirs_in_remote:
+        os.mkdir(os.path.join(str(tmpdir), dir_name))
+
+    for file_name in files_in_remote:
+        open(os.path.join(str(tmpdir), file_name), 'w').close()
+
+    with tarfile.open(os.path.join(str(tmpdir), 'test.tar.gz'), "w:gz") as tar:
+        tar.add(os.path.join(str(tmpdir), 'app'), arcname='app')
+        tar.add(os.path.join(str(tmpdir), 'deps'), arcname='deps')
+
+    shutil.rmtree(os.path.join(str(tmpdir), 'app'))
+    shutil.rmtree(os.path.join(str(tmpdir), 'deps'))
+
+    targz_bytes = open(os.path.join(str(tmpdir), 'test.tar.gz'), 'rb').read()
+    os.unlink(os.path.join(str(tmpdir), 'test.tar.gz'))
+
+    def body_remote_json_callback(request, context):
+        remote_json = {'packages': []}
+        if cachito_package_names:
+            for pkg in cachito_package_names:
+                remote_json['packages'].append({'name': os.path.join('github.com', pkg)})
+        remote_cont = json.dumps(remote_json)
+
+        if six.PY2:
+            f = MockBytesIO(b"{}".format(remote_cont))
+        else:
+            remote_bytes = bytes(remote_cont, 'ascii')
+            f = io.BytesIO(remote_bytes)
+        return f
+
     requests_mock.register_uri('GET', get_remote_url(KOJI_BUILD), body=body_remote_callback)
     requests_mock.register_uri('GET', get_remote_url(KOJI_PARENT_BUILD), body=body_remote_callback)
+
+    requests_mock.register_uri('GET', get_remote_url(KOJI_BUILD, file_name=REMOTE_SOURCES_JSON),
+                               body=body_remote_json_callback)
+    requests_mock.register_uri('GET', get_remote_url(KOJI_PARENT_BUILD,
+                                                     file_name=REMOTE_SOURCES_JSON),
+                               body=body_remote_json_callback)
 
 
 class TestFetchSources(object):
@@ -229,7 +278,7 @@ class TestFetchSources(object):
     @pytest.mark.parametrize('signing_intent', ('unsigned', 'empty', 'one', 'multiple', 'invalid'))
     def test_fetch_sources(self, requests_mock, docker_tasker, koji_session, tmpdir, signing_intent,
                            caplog, retries, custom_rcm):
-        mock_koji_manifest_download(requests_mock, retries)
+        mock_koji_manifest_download(tmpdir, requests_mock, retries)
         runner = mock_env(tmpdir, docker_tasker, koji_build_id=1, config_map=custom_rcm,
                           default_si=signing_intent)
         if signing_intent == 'invalid' and not custom_rcm:
@@ -281,7 +330,7 @@ class TestFetchSources(object):
         koji_build['extra'].update({'image': extra_image})
         flexmock(koji_session).should_receive('getBuild').and_return(koji_build)
 
-        mock_koji_manifest_download(requests_mock)
+        mock_koji_manifest_download(tmpdir, requests_mock)
         runner = mock_env(tmpdir, docker_tasker, koji_build_id=1, default_si=signing_intent)
         result = runner.run()
         sources_dir = result[constants.PLUGIN_FETCH_SOURCES_KEY]['image_sources_dir']
@@ -299,7 +348,7 @@ class TestFetchSources(object):
         assert result[constants.PLUGIN_FETCH_SOURCES_KEY]['signing_intent'] == image_signing_intent
 
     def test_no_build_info(self, requests_mock, docker_tasker, koji_session, tmpdir):
-        mock_koji_manifest_download(requests_mock)
+        mock_koji_manifest_download(tmpdir, requests_mock)
         runner = mock_env(tmpdir, docker_tasker)
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
@@ -309,7 +358,7 @@ class TestFetchSources(object):
     @pytest.mark.parametrize('build_id, build_nvr', (('1', None), (None, 1), ('1', 1)))
     def test_build_info_with_wrong_type(self, requests_mock, docker_tasker, koji_session, tmpdir,
                                         build_id, build_nvr):
-        mock_koji_manifest_download(requests_mock)
+        mock_koji_manifest_download(tmpdir, requests_mock)
         runner = mock_env(tmpdir, docker_tasker, koji_build_id=build_id, koji_build_nvr=build_nvr)
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
@@ -323,14 +372,14 @@ class TestFetchSources(object):
     @pytest.mark.parametrize('build_nvr', ('foobar-1-1', u'foobar-1-1'))
     def test_build_info_with_unicode(self, requests_mock, docker_tasker, koji_session, tmpdir,
                                      caplog, build_nvr):
-        mock_koji_manifest_download(requests_mock)
+        mock_koji_manifest_download(tmpdir, requests_mock)
         runner = mock_env(tmpdir, docker_tasker, koji_build_nvr=build_nvr)
         runner.run()
         nvr_msg = 'koji_build_nvr must be a str'
         assert nvr_msg not in caplog.text
 
     def test_build_with_nvr(self, requests_mock, docker_tasker, koji_session, tmpdir):
-        mock_koji_manifest_download(requests_mock)
+        mock_koji_manifest_download(tmpdir, requests_mock)
         runner = mock_env(tmpdir, docker_tasker, koji_build_nvr='foobar-1-1')
         result = runner.run()
         sources_dir = result[constants.PLUGIN_FETCH_SOURCES_KEY]['image_sources_dir']
@@ -339,7 +388,7 @@ class TestFetchSources(object):
         assert os.path.basename(sources_list[0]) == '.'.join([KOJI_BUILD['nvr'], 'src', 'rpm'])
 
     def test_id_and_nvr(self, requests_mock, docker_tasker, koji_session, tmpdir):
-        mock_koji_manifest_download(requests_mock)
+        mock_koji_manifest_download(tmpdir, requests_mock)
         runner = mock_env(tmpdir, docker_tasker, koji_build_nvr='foobar-1-1', koji_build_id=1)
         result = runner.run()
         sources_dir = result[constants.PLUGIN_FETCH_SOURCES_KEY]['image_sources_dir']
@@ -348,7 +397,7 @@ class TestFetchSources(object):
         assert os.path.basename(sources_list[0]) == '.'.join([KOJI_BUILD['nvr'], 'src', 'rpm'])
 
     def test_id_and_nvr_mismatch(self, requests_mock, docker_tasker, koji_session, tmpdir):
-        mock_koji_manifest_download(requests_mock)
+        mock_koji_manifest_download(tmpdir, requests_mock)
         runner = mock_env(tmpdir, docker_tasker, koji_build_nvr='foobar-1-1', koji_build_id=2)
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
@@ -362,7 +411,7 @@ class TestFetchSources(object):
     ])
     def test_invalid_source_build(self, requests_mock, docker_tasker, koji_session, tmpdir,
                                   build_type, koji_build_nvr, source_build):
-        mock_koji_manifest_download(requests_mock)
+        mock_koji_manifest_download(tmpdir, requests_mock)
         runner = mock_env(tmpdir, docker_tasker, koji_build_nvr=koji_build_nvr, koji_build_id=1)
 
         typeinfo_dict = {b_type: {} for b_type in build_type}
@@ -458,7 +507,7 @@ class TestFetchSources(object):
             requests_mock.register_uri('GET', deny_list['denylist_url'],
                                        json=denylist_json, status_code=200)
 
-        mock_koji_manifest_download(requests_mock)
+        mock_koji_manifest_download(tmpdir, requests_mock)
         koji_build_nvr = 'foobar-1-1'
         runner = mock_env(tmpdir, docker_tasker, koji_build_nvr=koji_build_nvr,
                           config_map=yaml.safe_dump(rcm_json))
@@ -483,7 +532,7 @@ class TestFetchSources(object):
 
     @pytest.mark.parametrize('use_cache', [True, False, None])
     def test_lookaside_cache(self, requests_mock, docker_tasker, koji_session, tmpdir, use_cache):
-        mock_koji_manifest_download(requests_mock)
+        mock_koji_manifest_download(tmpdir, requests_mock)
         koji_build_nvr = 'foobar-1-1'
         runner = mock_env(tmpdir, docker_tasker, koji_build_nvr=koji_build_nvr)
 
@@ -551,3 +600,163 @@ class TestFetchSources(object):
             runner.run()
 
         assert 'No srpms or remote sources found' in str(exc_info.value)
+
+    @pytest.mark.parametrize(('excludelist', 'excludelist_json', 'cachito_pkg_names',
+                              'exclude_messages', 'exc_str'), [
+        # test exclude list doesn't exist
+        (None, None, None, [], None),
+        ({'denylist_sources': 'http://excludelist_url'},
+         None,
+         None,
+         [],
+         'Not Found: http://excludelist_url'),
+
+        # test exclude list doesn't match anything
+        ({'denylist_sources': 'http://excludelist_url'},
+         {'dir1': ['none1', 'none2']},
+         None,
+         [],
+         None),
+
+        # test removing file
+        ({'denylist_sources': 'http://excludelist_url'},
+         {'dir1': ['toremovefile']},
+         None,
+         ['Removing excluded file'],
+         None),
+
+        ({'denylist_sources': 'http://excludelist_url'},
+         {'dir2': ['toremovefile']},
+         None,
+         [],
+         None),
+
+        # test removing directory
+        ({'denylist_sources': 'http://excludelist_url'},
+         {'dir1': ['toremovedir']},
+         None,
+         ['Removing excluded directory'],
+         None),
+
+        ({'denylist_sources': 'http://excludelist_url'},
+         {'dir2': ['toremovedir']},
+         None,
+         [],
+         None),
+
+        # test removing app
+        ({'denylist_sources': 'http://excludelist_url'},
+         {'dir1': ['appname']},
+         [os.path.join('dir1', 'appname')],
+         ['Removing app', 'Keeping vendor in app'],
+         None),
+
+        ({'denylist_sources': 'http://excludelist_url'},
+         {'dir1': ['appname', 'toremovefile']},
+         [os.path.join('dir1', 'appname')],
+         ['Removing app', 'Removing excluded file', 'Keeping vendor in app'],
+         None),
+
+        ({'denylist_sources': 'http://excludelist_url'},
+         {'dir1': ['appname', 'toremovefile', 'toremovedir']},
+         [os.path.join('dir1', 'appname')],
+         ['Removing app', 'Removing excluded file', 'Removing excluded directory',
+          'Keeping vendor in app'],
+         None),
+
+        ({'denylist_sources': 'http://excludelist_url'},
+         {'dir1': ['appname']},
+         [os.path.join('dir1', 'appnamepost')],
+         [],
+         None),
+
+        ({'denylist_sources': 'http://excludelist_url'},
+         {'dir1': ['appname']},
+         [os.path.join('dir1', 'preappname')],
+         [],
+         None),
+
+        ({'denylist_sources': 'http://excludelist_url'},
+         {'dir1': ['appname']},
+         [os.path.join('dir1', 'preappnamepost')],
+         [],
+         None),
+    ])
+    @pytest.mark.parametrize('vendor_exists', [True, False])
+    def test_exclude_closed_sources(self, requests_mock, docker_tasker, koji_session, tmpdir,
+                                    caplog, excludelist, excludelist_json, cachito_pkg_names,
+                                    exclude_messages, exc_str, vendor_exists):
+        rcm_json = yaml.safe_load(BASE_CONFIG_MAP)
+        rcm_json['source_container'] = {}
+
+        dirs_to_create = ['app', 'deps',
+                          os.path.join('app', 'dir1'),
+                          os.path.join('app', 'dir1', 'sub1'),
+                          os.path.join('app', 'dir2'),
+                          os.path.join('app', 'dir2', 'sub2'),
+                          os.path.join('deps', 'dir1'),
+                          os.path.join('deps', 'dir2'),
+                          os.path.join('deps', 'dir1', 'toremovedir'),
+                          os.path.join('deps', 'dir1', 'toremovedir', 'subdir'),
+                          os.path.join('deps', 'dir2', 'toremovedirpost'),
+                          os.path.join('deps', 'dir2', 'toremovedirpost', 'subdir'),
+                          os.path.join('deps', 'dir2', 'pretoremovedir'),
+                          os.path.join('deps', 'dir2', 'pretoremovedir', 'subdir'),
+                          os.path.join('deps', 'dir2', 'pretoremovedirpost'),
+                          os.path.join('deps', 'dir2', 'pretoremovedirpost', 'subdir')]
+
+        files_to_create = [os.path.join('app', 'file1'),
+                           os.path.join('app', 'file2'),
+                           os.path.join('app', 'dir1', 'file1'),
+                           os.path.join('app', 'dir2', 'file2'),
+                           os.path.join('deps', 'dir1', 'toremovefile'),
+                           os.path.join('deps', 'dir2', 'toremovefilepost'),
+                           os.path.join('deps', 'dir2', 'pretoremovefile'),
+                           os.path.join('deps', 'dir2', 'pretoremovefilepost')]
+
+        if vendor_exists:
+            dirs_to_create.append(os.path.join('app', 'vendor'))
+            files_to_create.append(os.path.join('app', 'vendor', 'vendor_file'))
+
+        if excludelist:
+            rcm_json['source_container'] = excludelist
+
+        if excludelist and not excludelist_json:
+            requests_mock.register_uri('GET', excludelist['denylist_sources'],
+                                       reason='Not Found: {}'.format(
+                                           excludelist['denylist_sources']),
+                                       status_code=404)
+
+        elif excludelist and excludelist_json:
+            requests_mock.register_uri('GET', excludelist['denylist_sources'],
+                                       json=excludelist_json, status_code=200)
+
+        mock_koji_manifest_download(tmpdir, requests_mock, dirs_in_remote=dirs_to_create,
+                                    files_in_remote=files_to_create,
+                                    cachito_package_names=cachito_pkg_names)
+        runner = mock_env(tmpdir, docker_tasker, koji_build_id=1,
+                          config_map=yaml.safe_dump(rcm_json))
+
+        if exc_str:
+            with pytest.raises(PluginFailedException) as exc:
+                runner.run()
+            assert exc_str in str(exc.value)
+        else:
+            result = runner.run()
+            results = result[constants.PLUGIN_FETCH_SOURCES_KEY]
+            remote_sources_dir = results['remote_sources_dir']
+            remote_list = set(os.listdir(remote_sources_dir))
+            expected_remotes = set()
+            expected_remotes.add('-'.join([KOJI_BUILD['nvr'], REMOTE_SOURCES_FILE]))
+            expected_remotes.add('-'.join([KOJI_PARENT_BUILD['nvr'], REMOTE_SOURCES_FILE]))
+            assert remote_list == expected_remotes
+
+            if not excludelist or not exclude_messages:
+                assert "Removing excluded" not in caplog.text
+                assert "Package excluded:" not in caplog.text
+                assert "Removing app" not in caplog.text
+            else:
+                for check_msg in exclude_messages:
+                    if 'Keeping vendor in app' == check_msg and not vendor_exists:
+                        continue
+                    assert check_msg in caplog.text
