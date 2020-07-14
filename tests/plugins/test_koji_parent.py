@@ -331,6 +331,10 @@ class TestKojiParent(object):
             self.run_plugin_with_args(workflow)
         assert 'Unexpected parent image digest data' in str(exc_info.value)
 
+    @pytest.mark.parametrize(('source_registry', 'pull_registries'), [
+        (True, False),
+        (False, True),
+    ])
     @pytest.mark.parametrize('feature_flag', [True, False])
     @pytest.mark.parametrize('parent_tag', ['stubDigest', 'wrongDigest'])
     @pytest.mark.parametrize('has_registry', [True, False])
@@ -346,12 +350,13 @@ class TestKojiParent(object):
             [{'digest': 'stubDigest', 'mediaType': 'unexpected', 'platform': {
                 'architecture': 'amd64'}}]},
         {}])
-    def test_deep_digest_inspection(self, workflow, koji_session, parent_tag,
-                                    caplog, has_registry, manifest_list, feature_flag,
+    def test_deep_digest_inspection(self, workflow, koji_session, source_registry, pull_registries,
+                                    feature_flag, parent_tag, caplog, has_registry, manifest_list,
                                     mismatch_failure):  # noqa
         image_str = 'base'
+        registry = 'examples.com'
         if has_registry:
-            image_str = '/'.join(['example.com', image_str])
+            image_str = '/'.join([registry, image_str])
         extra = {'image': {'index': {'digests': {V2_LIST: 'stubDigest'}}}}
 
         workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = ['x86_64']
@@ -407,17 +412,23 @@ class TestKojiParent(object):
                         or manifest_list.get('manifests', [{}])[0].get('digest') != 'stubDigest'
                         or manifest_list['manifests'][0]['mediaType'] != V2)
 
+        pull_r = [{'url': registry}] if pull_registries else None
+        source_r = {'url': registry} if source_registry else None
         if (mismatch_failure and parent_tag != 'stubDigest' and
            (not feature_flag or defective_v2)):
             with pytest.raises(PluginFailedException) as exc_info:
                 self.run_plugin_with_args(workflow,
                                           expect_result=expected_result,
                                           deep_inspection=feature_flag,
-                                          mismatch_failure=mismatch_failure)
+                                          mismatch_failure=mismatch_failure,
+                                          pull_registries=pull_r,
+                                          source_registry=source_r)
             assert rebuild_str in str(exc_info.value)
         else:
             self.run_plugin_with_args(workflow, expect_result=expected_result,
-                                      deep_inspection=feature_flag)
+                                      deep_inspection=feature_flag,
+                                      pull_registries=pull_r,
+                                      source_registry=source_r)
 
         if parent_tag == 'stubDigest':
             assert rebuild_str not in caplog.text
@@ -480,7 +491,8 @@ class TestKojiParent(object):
 
     def run_plugin_with_args(self, workflow, plugin_args=None, expect_result=True,  # noqa
                              external_base=False, deep_inspection=True, mismatch_failure=False,
-                             user_params=None, is_isolated=None):
+                             user_params=None, is_isolated=None,
+                             pull_registries=None, source_registry=None):
         plugin_args = plugin_args or {}
         user_params = user_params or {}
         plugin_args.setdefault('poll_interval', 0.01)
@@ -488,14 +500,20 @@ class TestKojiParent(object):
         workflow.user_params = user_params
 
         workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+
+        config_dict = {'version': 1,
+                       'deep_manifest_list_inspection': deep_inspection,
+                       'fail_on_digest_mismatch': mismatch_failure,
+                       'skip_koji_check_for_base_image': external_base,
+                       'platform_descriptors': [{'architecture': 'amd64', 'platform': 'x86_64'}]}
+
+        if pull_registries:
+            config_dict['pull_registries'] = pull_registries
+        if source_registry:
+            config_dict['source_registry'] = source_registry
+
         workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1,
-                           'deep_manifest_list_inspection': deep_inspection,
-                           'fail_on_digest_mismatch': mismatch_failure,
-                           'skip_koji_check_for_base_image': external_base,
-                           'platform_descriptors': [{'architecture': 'amd64',
-                                                     'platform': 'x86_64'}]
-                           })
+            ReactorConfig(config_dict)
         add_koji_map_in_workflow(workflow, hub_url=KOJI_HUB, root_url='',
                                  ssl_certs_dir=plugin_args.get('koji_ssl_certs_dir'))
 
@@ -576,7 +594,8 @@ class TestKojiParent(object):
     def test_deep_digests_with_requested_arches(self, workflow, koji_session, caplog,
                                                 manifest_list, requested_platforms, expected_logs,
                                                 not_expected_logs):  # noqa
-        image_str = 'example.com/base'
+        registry = 'example.com'
+        image_str = '{}/base'.format(registry)
         extra = {'image': {'index': {'digests': {V2_LIST: 'stubDigest'}}}}
         parent_tag = 'notExpectedDigest'
         workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = requested_platforms
@@ -622,7 +641,8 @@ class TestKojiParent(object):
             ImageName.parse(image_str): ImageName.parse('{}:{}'.format(image_str, parent_tag)),
         }
         workflow.builder.parent_images = parent_images
-        self.run_plugin_with_args(workflow, expect_result=expected_result, deep_inspection=True)
+        self.run_plugin_with_args(workflow, expect_result=expected_result, deep_inspection=True,
+                                  pull_registries=[{'url': registry}])
 
         for log in expected_logs:
             assert log in caplog.text

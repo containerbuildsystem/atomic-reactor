@@ -13,14 +13,14 @@ from atomic_reactor.constants import (
     KOJI_BTYPE_IMAGE
 )
 from atomic_reactor.plugins.pre_reactor_config import (
-    get_deep_manifest_list_inspection, get_koji_session, get_source_registry,
+    get_deep_manifest_list_inspection, get_koji_session,
     get_skip_koji_check_for_base_image, get_fail_on_digest_mismatch,
     get_platform_to_goarch_mapping
 )
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import (
-    base_image_is_custom, get_manifest_list, get_manifest_media_type, is_scratch_build,
-    get_platforms
+    base_image_is_custom, get_manifest_media_type, is_scratch_build,
+    get_platforms, RegistrySession, RegistryClient
 )
 from copy import copy
 from osbs.utils import Labels
@@ -76,8 +76,9 @@ class KojiParentPlugin(PreBuildPlugin):
         self._base_image_build = None
         self._parent_builds = {}
         self._poll_start = None
-        self._source_registry = get_source_registry(workflow, {})
         self.platforms = get_platforms(self.workflow)
+        # RegistryClient instances cached by registry name
+        self.registry_clients = {}
         self._deep_manifest_list_inspection = get_deep_manifest_list_inspection(self.workflow,
                                                                                 fallback=True)
 
@@ -212,11 +213,9 @@ class KojiParentPlugin(PreBuildPlugin):
             return False
 
         v2_type = get_manifest_media_type('v2')
+        reg_client = self._get_registry_client(image.registry)
+        manifest_list_response = reg_client.get_manifest_list(image)
 
-        insecure = self._source_registry.get('insecure', False)
-        dockercfg_path = self._source_registry.get('secret')
-        manifest_list_response = get_manifest_list(image, image.registry, insecure=insecure,
-                                                   dockercfg_path=dockercfg_path)
         if not manifest_list_response:
             self.log.warning('Could not fetch manifest list for %s', image)
             return False
@@ -324,3 +323,14 @@ class KojiParentPlugin(PreBuildPlugin):
         if self._parent_builds:
             result[PARENT_IMAGES_KOJI_BUILDS] = self._parent_builds
         return result if result else None
+
+    def _get_registry_client(self, registry):
+        """
+        Get registry client for specified registry, cached by registry name
+        """
+        client = self.registry_clients.get(registry)
+        if client is None:
+            session = RegistrySession.create_from_config(self.workflow, registry=registry)
+            client = RegistryClient(session)
+            self.registry_clients[registry] = client
+        return client
