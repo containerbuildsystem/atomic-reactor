@@ -8,10 +8,13 @@ of the BSD license. See the LICENSE file for details.
 from __future__ import absolute_import
 
 import os
+import shutil
 import tempfile
 
 import koji
 from six import string_types
+import tarfile
+import yaml
 
 from atomic_reactor.constants import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import PreBuildPlugin
@@ -78,7 +81,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
         koji_config = get_koji(self.workflow)
         insecure = koji_config.get('insecure_download', False)
         urls = self.get_srpm_urls(signing_intent['keys'], insecure=insecure)
-        urls_remote = self.get_remote_urls()
+        urls_remote, remote_sources_map = self.get_remote_urls()
 
         if not urls and not urls_remote:
             msg = "No srpms or remote sources found for source container," \
@@ -93,6 +96,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
         if urls_remote:
             remote_sources_dir = self.download_sources(urls_remote, insecure=insecure,
                                                        download_dir=self.REMOTE_SOUCES_DOWNLOAD_DIR)
+            self.exclude_files_from_remote_sources(remote_sources_map, remote_sources_dir)
         return {
                 'sources_for_koji_build_id': self.koji_build_id,
                 'sources_for_nvr': self.koji_build_nvr,
@@ -195,14 +199,21 @@ class FetchSourcesPlugin(PreBuildPlugin):
         self.log.debug('archives: %s', archives)
         remote_sources_path = self.pathinfo.typedir(koji_build, btype='remote-sources')
         remote_sources_urls = []
+        dest_name = None
+        cachito_json_url = None
 
         for archive in archives:
             if archive['type_name'] == 'tar':
                 remote_source = {}
                 remote_source['url'] = os.path.join(remote_sources_path, archive['filename'])
                 remote_source['dest'] = '-'.join([koji_build['nvr'], archive['filename']])
+                dest_name = remote_source['dest']
                 remote_sources_urls.append(remote_source)
-        return remote_sources_urls
+
+            elif archive['type_name'] == 'json' and archive['filename'] == 'remote-source.json':
+                cachito_json_url = os.path.join(remote_sources_path, archive['filename'])
+
+        return remote_sources_urls, {dest_name: cachito_json_url}
 
     def get_remote_urls(self):
         """Fetch remote source urls from all builds
@@ -210,19 +221,24 @@ class FetchSourcesPlugin(PreBuildPlugin):
         :return: list, dicts with URL pointing to remote sources
         """
         remote_sources_urls = []
+        remote_sources_map = {}
 
-        remote_sources_urls.extend(self._get_remote_urls_helper(self.koji_build))
+        remote_source, remote_json = self._get_remote_urls_helper(self.koji_build)
+        remote_sources_urls.extend(remote_source)
+        remote_sources_map.update(remote_json)
 
         koji_build = self.koji_build
 
         while 'parent_build_id' in koji_build['extra']['image']:
             koji_build = self.session.getBuild(koji_build['extra']['image']['parent_build_id'],
                                                strict=True)
-            remote_sources_urls.extend(self._get_remote_urls_helper(koji_build))
+            remote_source, remote_json = self._get_remote_urls_helper(koji_build)
+            remote_sources_urls.extend(remote_source)
+            remote_sources_map.update(remote_json)
 
-        return remote_sources_urls
+        return remote_sources_urls, remote_sources_map
 
-    def get_denylisted_sources(self):
+    def get_denylisted_srpms(self):
         src_config = get_source_container(self.workflow, fallback={})
         denylist_srpms = src_config.get('denylist_srpms')
         if not denylist_srpms:
@@ -275,7 +291,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
         rpms = [rpm for archive in archives
                 for rpm in self.session.listRPMs(imageID=archive['id'])]
 
-        denylist_srpms = self.get_denylisted_sources()
+        denylist_srpms = self.get_denylisted_srpms()
 
         srpm_build_paths = {}
         for rpm in rpms:
@@ -348,3 +364,127 @@ class FetchSourcesPlugin(PreBuildPlugin):
 
         signing_intent = odcs_config.get_signing_intent_by_name(self.signing_intent)
         return signing_intent
+
+    def _get_denylist_sources(self, request_session, denylist_sources_url):
+        response = request_session.get(denylist_sources_url)
+        response.raise_for_status()
+        denylist_sources_yaml = yaml.safe_load(response.text)
+        # prepend os.sep for 2 reasons:
+        # - so fnmatch will match exact dir/file when using * + exclude
+        #   glob.glob doesn't need it
+        # - so endswith for package will match also full name
+        return [os.path.join(os.sep, k, item)
+                for k, v in denylist_sources_yaml.items() for item in v]
+
+    def _create_full_remote_sources_map(self, request_session, remote_sources_map,
+                                        remote_sources_dir):
+        full_remote_sources_map = {}
+
+        for remote_source, remote_source_json in remote_sources_map.items():
+            remote_source_archive = os.path.join(remote_sources_dir, remote_source)
+
+            response = request_session.get(remote_source_json)
+            response.raise_for_status()
+            response_json = response.json()
+            full_remote_sources_map[remote_source_archive] = response_json
+        return full_remote_sources_map
+
+    def _check_if_package_excluded(self, packages, denylist_sources, remote_archive):
+        # check if any package in cachito json matches excluded entry
+        for package in packages:
+            for exclude_path in denylist_sources:
+                if package.get('name').endswith(exclude_path):
+                    self.log.debug('Package excluded: "%s" from "%s"', package.get('name'),
+                                   remote_archive)
+                    return True
+        return False
+
+    def _delete_app_directory(self, remote_source_dir, unpack_dir, remote_archive):
+        vendor_dir = os.path.join(unpack_dir, 'app', 'vendor')
+
+        if os.path.exists(vendor_dir):
+            shutil.move(vendor_dir, remote_source_dir)
+            self.log.debug('Removing app from "%s"', remote_archive)
+            shutil.rmtree(os.path.join(unpack_dir, 'app'))
+            # shutil.move will create missing parent directory
+            shutil.move(os.path.join(remote_source_dir, 'vendor'), vendor_dir)
+            self.log.debug('Keeping vendor in app from "%s"', remote_archive)
+        else:
+            self.log.debug('Removing app from "%s"', remote_archive)
+            shutil.rmtree(os.path.join(unpack_dir, 'app'))
+
+    def _get_excluded_matches(self, unpack_dir, denylist_sources):
+        matches = []
+        # py2 glob.glob doesn't support recursive, hence os.walk & fnmatch
+        # py3 can use: glob.glob(os.path.join(unpack_dir, '**', exclude), recursive=True)
+        for root, dirnames, filenames in os.walk(unpack_dir):
+            for entry in dirnames + filenames:
+                full_path = os.path.join(root, entry)
+
+                for exclude in denylist_sources:
+                    if full_path.endswith(exclude):
+                        matches.append(full_path)
+                        break
+        return matches
+
+    def _remove_excluded_matches(self, matches):
+        for entry in matches:
+            if os.path.exists(entry):
+                if os.path.isdir(entry):
+                    self.log.debug("Removing excluded directory %s", entry)
+                    shutil.rmtree(entry)
+                else:
+                    self.log.debug("Removing excluded file %s", entry)
+                    os.unlink(entry)
+
+    def exclude_files_from_remote_sources(self, remote_sources_map, remote_sources_dir):
+        """
+        :param remote_sources_map: dict, keys are filenames of sources from cachito,
+                                         values are url with json from cachito
+        :param remote_sources_dir: str, dir with downloaded sources from cachito
+        """
+        src_config = get_source_container(self.workflow, fallback={})
+        denylist_sources_url = src_config.get('denylist_sources')
+
+        if not denylist_sources_url:
+            self.log.debug('no "denylist_sources" defined, not excluding any '
+                           'files from remote sources')
+            return
+
+        request_session = get_retrying_requests_session()
+
+        denylist_sources = self._get_denylist_sources(request_session, denylist_sources_url)
+
+        # key: full path to source archive, value: cachito json
+        full_remote_sources_map = self._create_full_remote_sources_map(request_session,
+                                                                       remote_sources_map,
+                                                                       remote_sources_dir)
+        for remote_archive, remote_json in full_remote_sources_map.items():
+            unpack_dir = remote_archive + '_unpacked'
+
+            with tarfile.open(remote_archive) as tf:
+                tf.extractall(unpack_dir)
+
+            delete_app = self._check_if_package_excluded(remote_json['packages'], denylist_sources,
+                                                         remote_archive)
+
+            # if any package in cachito json matched excluded entry,
+            # remove 'app' from sources, except 'app/vendor' when exists
+            if delete_app and os.path.exists(os.path.join(unpack_dir, 'app')):
+                self._delete_app_directory(remote_sources_dir, unpack_dir, remote_archive)
+
+            # search for excluded matches
+            matches = self._get_excluded_matches(unpack_dir, denylist_sources)
+
+            self._remove_excluded_matches(matches)
+
+            # delete former archive
+            os.unlink(remote_archive)
+
+            # re-create new archive without excluded content
+            with tarfile.open(remote_archive, "w:gz") as tar:
+                for add_file in os.listdir(unpack_dir):
+                    tar.add(os.path.join(unpack_dir, add_file), arcname=add_file)
+
+            # cleanup unpacked dir
+            shutil.rmtree(unpack_dir)

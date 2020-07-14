@@ -665,6 +665,10 @@
                   }
               },
               "required": ["denylist_url", "denylist_key"]
+          },
+          "denylist_sources": {
+              "description": "Url with denylist yaml file, which will be used to exclude sources from cachito ",
+              "type": "string"
           }
         },
         "additionalProperties": false
