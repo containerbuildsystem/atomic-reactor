@@ -14,6 +14,8 @@ import pytest
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_check_user_settings import CheckUserSettingsPlugin
 from atomic_reactor.util import df_parser
+from atomic_reactor.constants import (CONTAINER_IMAGEBUILDER_BUILD_METHOD,
+                                      CONTAINER_DOCKERPY_BUILD_METHOD)
 
 from tests.mock_env import MockEnv
 
@@ -110,6 +112,7 @@ class TestDockerfileChecks(object):
 
         dockerfile_f = partial(dockerfile_f, from_scratch=from_scratch)
 
+        docker_tasker.build_method = CONTAINER_IMAGEBUILDER_BUILD_METHOD
         runner = mock_env(
             tmpdir, docker_tasker,
             dockerfile_f=dockerfile_f, labels=labels
@@ -128,3 +131,30 @@ class TestDockerfileChecks(object):
         runner.run()
 
         assert 'Skipping Dockerfile checks' in caplog.text
+
+    @pytest.mark.parametrize(('build_method', 'multistage', 'expected_fail'), [
+        (CONTAINER_IMAGEBUILDER_BUILD_METHOD, True, False),
+        (CONTAINER_IMAGEBUILDER_BUILD_METHOD, False, False),
+        (CONTAINER_DOCKERPY_BUILD_METHOD, True, True),
+        (CONTAINER_DOCKERPY_BUILD_METHOD, False, False),
+    ])
+    def test_multistage_docker_api(self, tmpdir, docker_tasker, build_method, multistage,
+                                   expected_fail):
+        """Multistage build should fail with docker_api"""
+        if multistage:
+            dockerfile_f = mock_dockerfile_multistage
+        else:
+            dockerfile_f = mock_dockerfile
+
+        docker_tasker.build_method = build_method
+        runner = mock_env(tmpdir, docker_tasker, dockerfile_f=dockerfile_f)
+        if expected_fail:
+            with pytest.raises(PluginFailedException) as e:
+                runner.run()
+            msg = "Multistage builds can't be built with docker_api," \
+                  "use 'image_build_method' in container.yaml " \
+                  "with '{}'".format(CONTAINER_IMAGEBUILDER_BUILD_METHOD)
+            assert msg in str(e.value)
+
+        else:
+            runner.run()
