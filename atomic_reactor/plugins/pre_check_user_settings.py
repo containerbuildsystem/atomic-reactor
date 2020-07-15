@@ -8,7 +8,8 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals, absolute_import
 
-from atomic_reactor.constants import PLUGIN_CHECK_USER_SETTINGS
+from atomic_reactor.constants import (PLUGIN_CHECK_USER_SETTINGS, CONTAINER_DOCKERPY_BUILD_METHOD,
+                                      CONTAINER_IMAGEBUILDER_BUILD_METHOD)
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (
     has_operator_appregistry_manifest,
@@ -50,6 +51,7 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
 
         self.appregistry_bundle_label_mutually_exclusive()
         self.operator_bundle_from_scratch()
+        self.multistage_docker_api_check()
 
     def appregistry_bundle_label_mutually_exclusive(self):
         """Labels com.redhat.com.delivery.appregistry and
@@ -80,6 +82,17 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
             len(self.workflow.builder.dockerfile_images.original_parents) > 1
         ):
             raise ValueError(msg)
+
+    def multistage_docker_api_check(self):
+        """Check if multistage build isn't tried with docker_api"""
+        if self.workflow.builder.tasker.build_method != CONTAINER_DOCKERPY_BUILD_METHOD:
+            return
+
+        if len(self.workflow.builder.dockerfile_images.original_parents) > 1:
+            msg = "Multistage builds can't be built with docker_api," \
+                  "use 'image_build_method' in container.yaml " \
+                  "with '{}'".format(CONTAINER_IMAGEBUILDER_BUILD_METHOD)
+            raise RuntimeError(msg)
 
     def run(self):
         """

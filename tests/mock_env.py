@@ -82,6 +82,7 @@ class MockEnv(object):
             raise ValueError('No plugin configured (use for_plugin() to configure one)')
         runner_cls = self._runner_for_phase[self._phase]
         plugins_conf = getattr(self.workflow, self._plugins_for_phase[self._phase])
+        self.workflow.builder.tasker = docker_tasker
         return runner_cls(docker_tasker, self.workflow, plugins_conf)
 
     def for_plugin(self, phase, plugin_key, args=None):
