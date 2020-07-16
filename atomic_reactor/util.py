@@ -945,13 +945,11 @@ class RegistryClient(object):
         """
         response = query_registry(
             self._session, image, digest=digest, version=version)
-        response.raise_for_status()
         manifest_config = response.json()
         config_digest = manifest_config['config']['digest']
 
         config_response = query_registry(
             self._session, image, digest=config_digest, version=version, is_blob=True)
-        config_response.raise_for_status()
 
         blob_config = config_response.json()
 
