@@ -44,26 +44,19 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
         self.buildargs = remote_source_build_args or {}
         self.remote_source_conf_url = remote_source_configs
 
-    def get_remote_source_config(self, url, insecure=False):
+    def get_remote_source_config(self, session, url, insecure=False):
         """Get the configuration files associated with the remote sources
 
+        :param session: the requests HTTP session object.
         :param url: str, URL to cachito remote source configurations
         :param insecure: bool, whether to verify SSL certificates
-
-        :return: list<dict>, configuration data for the given request.
-                 entries include path, type, and content
+        :return: list[dict], configuration data for the given request.
+                 Entries include path, type, and content.
         """
-        if not url:
-            return []
-
         self.log.info('Checking for additional configurations at %s', url)
-        session = get_retrying_requests_session()
-        session.verify = not insecure
-
-        response = session.get(url)
-        response_json = response.json()
+        response = session.get(url, verify=not insecure)
         response.raise_for_status()
-        return response_json
+        return response.json()
 
     def run(self):
         """
@@ -73,10 +66,14 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
             self.log.info('No remote source url to download, skipping plugin')
             return
 
+        session = get_retrying_requests_session()
+
         # Download the source code archive
         cachito_config = get_cachito(self.workflow)
         insecure_ssl_conn = cachito_config.get('insecure', False)
-        archive = download_url(self.url, self.workflow.source.workdir, insecure=insecure_ssl_conn)
+        archive = download_url(
+            self.url, self.workflow.source.workdir, session=session, insecure=insecure_ssl_conn
+        )
 
         # Unpack the source code archive into a dedicated dir in container build workdir
         dest_dir = os.path.join(self.workflow.builder.df_dir, self.REMOTE_SOURCE)
@@ -89,9 +86,10 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
         with tarfile.open(archive) as tf:
             tf.extractall(dest_dir)
 
-        # Get the remote source configurations
-        config_files = self.get_remote_source_config(
-            self.remote_source_conf_url, insecure_ssl_conn) or []
+        config_files = (
+            self.get_remote_source_config(session, self.remote_source_conf_url, insecure_ssl_conn)
+            if self.remote_source_conf_url else []
+        )
 
         # Inject cachito provided configuration files
         for config in config_files:
