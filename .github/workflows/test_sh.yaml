@@ -1,4 +1,4 @@
-name: Run tests using test.sh
+name: Pytests via test.sh
 
 on: [pull_request]
 
@@ -30,7 +30,7 @@ jobs:
       - name: Check out repo
         uses: actions/checkout@v2
 
-      - name: test.sh
+      - name: pytests via test.sh
         env:
           OS: ${{ matrix.os.name }}
           OS_VERSION: ${{ matrix.os.version }}
@@ -38,19 +38,28 @@ jobs:
           ENGINE: ${{ matrix.os.engine }}
         run: ./test.sh
 
-      - name: Coveralls Python parallel
-        uses: AndreMiras/coveralls-python-action@master
-        with:
-          parallel: true
+      - name: Run coveralls-python
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COVERALLS_FLAG_NAME: ${{ matrix.os.name }}-${{ matrix.os.version }}-python${{ matrix.os.python }}
+          COVERALLS_PARALLEL: true
+        run: |
+          pip3 install --upgrade pip
+          pip3 install --upgrade setuptools
+          pip3 install --upgrade coveralls
+          /home/runner/.local/bin/coveralls
 
-  coveralls_finish:
+  coveralls-finish:
+    name: Finish coveralls-python
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - name: Coveralls Python finish
-        uses: AndreMiras/coveralls-python-action@master
-        with:
-          parallel-finished: true
+    - name: Finished
+      run: |
+        pip3 install --upgrade coveralls
+        /home/runner/.local/bin/coveralls --finish
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   pylint:
     name: Pylint analyzer for Python ${{ matrix.os.python }}
