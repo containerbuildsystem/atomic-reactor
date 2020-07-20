@@ -1,4 +1,4 @@
-name: markdownlint
+name: Markdownlint
 
 on: [pull_request]
 

@@ -1,4 +1,4 @@
-name: Lint with flake8
+name: Flake8 linting
 
 on: [pull_request]
 

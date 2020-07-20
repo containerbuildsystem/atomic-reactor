@@ -1,4 +1,4 @@
-name: Run bandit using test.sh
+name: Bandit via test.sh
 
 on: [pull_request]
 

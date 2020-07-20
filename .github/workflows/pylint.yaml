@@ -1,4 +1,4 @@
-name: Run pylint using test.sh
+name: Pylint via test.sh
 
 on: [pull_request]
 
