@@ -1,10 +1,16 @@
 # Atomic Reactor
 
-[![build status]][build status link]
-[![code health]][code health link]
-[![coverage status]][coverage status link]
-[![code quality: python]][code quality: python link]
-[![total alerts]][total alerts link]
+[![pytest status badge]][pytest status link]
+[![coveralls status badge]][coveralls status link]
+[![lgtm python badge]][lgtm python link]
+[![lgtm alerts badge]][lgtm alerts link]
+
+[![bandit status badge]][bandit status link]
+[![flake8 status badge]][flake8 status link]
+[![markdownlint status badge]][markdownlint status link]
+
+[![pylint status badge]][pylint status link]
+[![shellcheck status badge]][shellcheck status link]
 
 Python library with command line interface for building docker images.
 
@@ -187,16 +193,24 @@ method with build image for **privileged** method, then it won't work.
 - [Build JSON](https://github.com/containerbuildsystem/atomic-reactor/blob/master/docs/build_json.md)
 - [Building Atomic Reactor](https://github.com/containerbuildsystem/atomic-reactor/blob/master/docs/releasing.md)
 
-[build status]: https://travis-ci.org/containerbuildsystem/atomic-reactor.svg?branch=master
-[build status link]: https://travis-ci.org/containerbuildsystem/atomic-reactor
-[code health]: https://landscape.io/github/containerbuildsystem/atomic-reactor/master/landscape.svg?style=flat
-[code health link]: https://landscape.io/github/containerbuildsystem/atomic-reactor/master
-[coverage status]: https://coveralls.io/repos/containerbuildsystem/atomic-reactor/badge.svg?branch=master
-[coverage status link]: https://coveralls.io/r/containerbuildsystem/atomic-reactor?branch=master
-[code quality: python]: https://img.shields.io/lgtm/grade/python/g/containerbuildsystem/atomic-reactor.svg?logo=lgtm&logoWidth=18
-[code quality: python link]: https://lgtm.com/projects/g/containerbuildsystem/atomic-reactor/context:python
-[total alerts]: https://img.shields.io/lgtm/alerts/g/containerbuildsystem/atomic-reactor.svg?logo=lgtm&logoWidth=18
-[total alerts link]: https://lgtm.com/projects/g/containerbuildsystem/atomic-reactor/alerts
+[pytest status badge]: https://github.com/containerbuildsystem/atomic-reactor/workflows/Pytests%20via%20test.sh/badge.svg?branch=master&event=push
+[pytest status link]: https://github.com/containerbuildsystem/atomic-reactor/actions?query=event%3Apush+branch%3Amaster+workflow%3A%22Pytests+via+test.sh%22
+[coveralls status badge]: https://coveralls.io/repos/containerbuildsystem/atomic-reactor/badge.svg?branch=master
+[coveralls status link]: https://coveralls.io/r/containerbuildsystem/atomic-reactor?branch=master
+[lgtm python badge]: https://img.shields.io/lgtm/grade/python/g/containerbuildsystem/atomic-reactor.svg?logo=lgtm&logoWidth=18
+[lgtm python link]: https://lgtm.com/projects/g/containerbuildsystem/atomic-reactor/context:python
+[lgtm alerts badge]: https://img.shields.io/lgtm/alerts/g/containerbuildsystem/atomic-reactor.svg?logo=lgtm&logoWidth=18
+[lgtm alerts link]: https://lgtm.com/projects/g/containerbuildsystem/atomic-reactor/alerts
+[bandit status badge]: https://github.com/containerbuildsystem/atomic-reactor/workflows/Bandit%20via%20test.sh/badge.svg?branch=master&event=push
+[bandit status link]: https://github.com/containerbuildsystem/atomic-reactor/actions?query=event%3Apush+branch%3Amaster+workflow%3A%22Bandit+via+test.sh%22
+[flake8 status badge]: https://github.com/containerbuildsystem/atomic-reactor/workflows/Flake8%20linting/badge.svg?branch=master&event=push
+[flake8 status link]: https://github.com/containerbuildsystem/atomic-reactor/actions?query=event%3Apush+branch%3Amaster+workflow%3A%22Flake8+linting%22
+[markdownlint status badge]: https://github.com/containerbuildsystem/atomic-reactor/workflows/Markdownlint/badge.svg?branch=master&event=push
+[markdownlint status link]: https://github.com/containerbuildsystem/atomic-reactor/actions?query=event%3Apush+branch%3Amaster+workflow%3A%22Markdownlint%22
+[pylint status badge]: https://github.com/containerbuildsystem/atomic-reactor/workflows/Pylint%20via%20test.sh/badge.svg?branch=master&event=push
+[pylint status link]: https://github.com/containerbuildsystem/atomic-reactor/actions?query=event%3Apush+branch%3Amaster+workflow%3A%22Pylint+via+test.sh%22%22%22
+[shellcheck status badge]: https://github.com/containerbuildsystem/atomic-reactor/workflows/Shellcheck/badge.svg?branch=master&event=push
+[shellcheck status link]: https://github.com/containerbuildsystem/atomic-reactor/actions?query=event%3Apush+branch%3Amaster+workflow%3A%22Shellcheck%22
 [koji]: https://github.com/containerbuildsystem/atomic-reactor/blob/master/docs/koji.md
 [fedora packaging system]: http://fedoraproject.org/wiki/Package_maintenance_guide
 [docker-py]: https://github.com/docker/docker-py
