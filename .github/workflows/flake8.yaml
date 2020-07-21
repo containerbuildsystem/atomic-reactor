@@ -1,6 +1,13 @@
 name: Flake8 linting
 
-on: [pull_request]
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+      - release_*
 
 jobs:
   flake8:
