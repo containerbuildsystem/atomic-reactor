@@ -19,6 +19,7 @@ import json
 import os.path
 import re
 import time
+from datetime import datetime
 from textwrap import dedent
 
 
@@ -118,12 +119,13 @@ def test_request_sources_error(status_code, error, error_body, caplog):
 ))
 def test_wait_for_request(burst_params, cachito_request, caplog):
     states = ['in_progress', 'in_progress', 'complete']
+    updated = datetime.utcnow().isoformat()
     expected_total_responses_calls = len(states)
     expected_final_state = states[-1]
 
     def handle_wait_for_request(http_request):
         state = states.pop(0)
-        return (200, {}, json.dumps({'id': CACHITO_REQUEST_ID, 'state': state}))
+        return (200, {}, json.dumps({'id': CACHITO_REQUEST_ID, 'state': state, 'updated': updated}))
 
     responses.add_callback(
         responses.GET,
@@ -137,7 +139,7 @@ def test_wait_for_request(burst_params, cachito_request, caplog):
     assert len(responses.calls) == expected_total_responses_calls
 
     finished_response_json = json.dumps(
-        {'id': CACHITO_REQUEST_ID, 'state': expected_final_state},
+        {'id': CACHITO_REQUEST_ID, 'state': expected_final_state, 'updated': updated},
         indent=4
     )
     expect_in_logs = dedent(
@@ -154,7 +156,8 @@ def test_wait_for_request(burst_params, cachito_request, caplog):
 @pytest.mark.parametrize('timeout', (0, 60))
 def test_wait_for_request_timeout(timeout, caplog):
     request_url = '{}/api/v1/requests/{}'.format(CACHITO_URL, CACHITO_REQUEST_ID)
-    response_data = {'id': CACHITO_REQUEST_ID, 'state': 'in_progress'}
+    updated = datetime.utcnow().isoformat()
+    response_data = {'id': CACHITO_REQUEST_ID, 'state': 'in_progress', 'updated': updated}
 
     responses.add(
         responses.GET,
@@ -175,7 +178,7 @@ def test_wait_for_request_timeout(timeout, caplog):
     in_progress_response_json = json.dumps(response_data, indent=4)
     expect_in_logs = dedent(
         """\
-        Request {} not completed after {} seconds
+        Request {} not completed after {} seconds of not being updated
         Details: {}
         """
     ).format(request_url, timeout, in_progress_response_json)
@@ -189,6 +192,7 @@ def test_wait_for_request_timeout(timeout, caplog):
                           ('stale', 'The request has expired')])
 def test_wait_for_unsuccessful_request(error_state, error_reason, caplog):
     states = ['in_progress', 'in_progress', error_state]
+    updated = datetime.utcnow().isoformat()
     expected_total_responses_calls = len(states)
 
     def handle_wait_for_request(http_request):
@@ -197,7 +201,8 @@ def test_wait_for_unsuccessful_request(error_state, error_reason, caplog):
                                      'repo': CACHITO_REQUEST_REPO,
                                      'state': state,
                                      'ref': CACHITO_REQUEST_REF,
-                                     'id': CACHITO_REQUEST_ID
+                                     'id': CACHITO_REQUEST_ID,
+                                     'updated': updated,
                                      }))
 
     responses.add_callback(
@@ -216,7 +221,8 @@ def test_wait_for_unsuccessful_request(error_state, error_reason, caplog):
          'repo': CACHITO_REQUEST_REPO,
          'state': error_state,
          'ref': CACHITO_REQUEST_REF,
-         'id': CACHITO_REQUEST_ID
+         'id': CACHITO_REQUEST_ID,
+         'updated': updated,
          },
         indent=4
     )
@@ -236,6 +242,7 @@ def test_wait_for_unsuccessful_request(error_state, error_reason, caplog):
                           ('stale', 'The request has expired')])
 def test_check_CachitoAPIUnsuccessfulRequest_text(error_state, error_reason, caplog):
     states = ['in_progress', 'in_progress', error_state]
+    updated = datetime.utcnow().isoformat()
     expected_total_responses_calls = len(states)
 
     cachito_request_url = '{}/api/v1/requests/{}'.format(CACHITO_URL, CACHITO_REQUEST_ID)
@@ -246,7 +253,8 @@ def test_check_CachitoAPIUnsuccessfulRequest_text(error_state, error_reason, cap
                                      'repo': CACHITO_REQUEST_REPO,
                                      'state': state,
                                      'ref': CACHITO_REQUEST_REF,
-                                     'id': CACHITO_REQUEST_ID
+                                     'id': CACHITO_REQUEST_ID,
+                                     'updated': updated,
                                      }))
 
     responses.add_callback(
