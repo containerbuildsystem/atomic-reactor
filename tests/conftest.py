@@ -71,3 +71,9 @@ def inspect_only(request):
 @pytest.fixture
 def workflow():
     return DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+
+
+@pytest.mark.optionalhook
+def pytest_html_results_table_row(report, cells):
+    if report.passed or report.skipped:
+        del cells[:]
