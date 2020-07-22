@@ -45,6 +45,13 @@ jobs:
           ENGINE: ${{ matrix.os.engine }}
         run: ./test.sh
 
+      - name: Upload pytest html report
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          path: __pytest_reports/atomic-reactor-unit-tests.html
+          name: atomic-reactor-unit-tests_${{ matrix.os.name }}_${{ matrix.os.version }}.python${{ matrix.os.python }}.html
+
       - name: Run coveralls-python
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
