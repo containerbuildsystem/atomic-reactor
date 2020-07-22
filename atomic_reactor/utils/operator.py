@@ -308,8 +308,11 @@ class OperatorCSV(object):
             implementation will be used. For more information, see the
             default_pullspec_heuristic() function in this module.
         """
-        if data.get("kind") != OPERATOR_CSV_KIND:
-            raise NotOperatorCSV("Not a ClusterServiceVersion")
+        try:
+            if data.get("kind") != OPERATOR_CSV_KIND:
+                raise NotOperatorCSV("Not a ClusterServiceVersion")
+        except AttributeError:
+            raise NotOperatorCSV("File does not contain a YAML object")
         self.path = path
         self.data = data
         self._pullspec_heuristic = pullspec_heuristic
