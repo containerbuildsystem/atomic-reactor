@@ -470,13 +470,13 @@ def write_docker_file(config, tmpdir):
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,  # noqa - docker_tasker fixture
                     reason="libmodulemd not available")
 @pytest.mark.parametrize('config_name, flatpak_metadata, breakage', [
-    ('app', 'annotations', None),
-    ('app', 'annotations', 'copy_error'),
-    ('app', 'annotations', 'no_runtime'),
-    ('app', 'labels', None),
     ('app', 'both', None),
-    ('runtime', 'annotations', None),
-    ('sdk', 'annotations', None),
+    ('app', 'both', 'copy_error'),
+    ('app', 'both', 'no_runtime'),
+    ('app', 'annotations', None),
+    ('app', 'labels', None),
+    ('runtime', 'both', None),
+    ('sdk', 'both', None),
 ])
 def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, flatpak_metadata, breakage):
     # Check that we actually have flatpak available
@@ -660,9 +660,10 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, flatpak_metadata
 
         # Check that the expected files ended up in the flatpak
 
-        # Flatpak versions before 1.6 require annotations to be present, since we don't
-        # require such a new Flatpak, skip remaining checks in the label-only case
-        if flatpak_metadata == 'labels':
+        # Flatpak versions before 1.6 require annotations to be present, and Flatpak
+        # versions 1.6 and later require labels to be present. Skip the remaining
+        # checks unless we have both annotations and labels.
+        if flatpak_metadata != 'both':
             return
 
         inspector = DefaultInspector(tmpdir, dir_metadata)
