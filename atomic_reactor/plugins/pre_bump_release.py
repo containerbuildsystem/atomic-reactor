@@ -147,7 +147,7 @@ class BumpReleasePlugin(PreBuildPlugin):
         return next_release
 
     def reserve_build_in_koji(self, component, version, release, release_label,
-                              dockerfile_labels, source_build=False):
+                              dockerfile_labels, source_build=False, user_provided_release=False):
         """
         reserve build in koji, and set reserved build id an token in workflow
         for koji_import
@@ -157,7 +157,7 @@ class BumpReleasePlugin(PreBuildPlugin):
                 'name': component,
                 'version': version,
             }
-            if source_build:
+            if source_build or user_provided_release:
                 nvr_data['release'] = release
             else:
                 nvr_data['release'] = dockerfile_labels[release_label]
@@ -167,9 +167,14 @@ class BumpReleasePlugin(PreBuildPlugin):
                 reserve = self.xmlrpc.CGInitBuild(PROG, nvr_data)
                 break
             except GenericError as exc:
+                if release and user_provided_release:
+                    self.log.error("CGInitBuild failed, not retrying because"
+                                   " release was explicitly provided by user")
+                    raise RuntimeError(exc)
+
                 if release and not source_build:
                     self.log.error("CGInitBuild failed, not retrying because"
-                                   " release was explicitly specified in Dockerfile ")
+                                   " release was explicitly specified in Dockerfile")
                     raise RuntimeError(exc)
 
                 if counter < KOJI_RESERVE_MAX_RETRIES:
@@ -230,10 +235,6 @@ class BumpReleasePlugin(PreBuildPlugin):
         """
         run the plugin
         """
-        if self.workflow.user_params.get('release'):
-            self.log.info('release value supplied as user parameter, skipping plugin')
-            return
-
         # source container build
         if PLUGIN_FETCH_SOURCES_KEY in self.workflow.prebuild_results:
             source_nvr = self.get_source_build_nvr(scratch=is_scratch_build(self.workflow))
@@ -290,6 +291,21 @@ class BumpReleasePlugin(PreBuildPlugin):
         # Always set preferred release label - other will be set if old-style
         # label is present
         release_label = labels.LABEL_NAMES[Labels.LABEL_TYPE_RELEASE][0]
+
+        # Reserve build for isolated builds as well (or any build with supplied release)
+        user_provided_release = self.workflow.user_params.get('release')
+        if user_provided_release:
+            if is_scratch_build(self.workflow):
+                return
+
+            self.check_build_existence_for_explicit_release(component, version,
+                                                            user_provided_release)
+
+            if self.reserve_build:
+                self.reserve_build_in_koji(component, version, user_provided_release,
+                                           release_label, dockerfile_labels,
+                                           user_provided_release=True)
+            return
 
         if release:
             if not self.append:
