@@ -118,13 +118,16 @@ class TestBumpRelease(object):
         with pytest.raises(RuntimeError):
             plugin.run()
 
-    @pytest.mark.parametrize(('reserve_build', 'koji_build_status'), [
-        (True, 'COMPLETE'),
-        (True, 'FAILED'),
-        (True, 'CANCELED'),
-        (False, 'COMPLETE'),
-        (False, 'FAILED'),
-        (False, 'CANCELED'),
+    @pytest.mark.parametrize(('reserve_build', 'koji_build_status', 'init_fails'), [
+        (True, 'COMPLETE', True),
+        (True, 'FAILED', True),
+        (True, 'CANCELED', True),
+        (True, 'COMPLETE', False),
+        (True, 'FAILED', False),
+        (True, 'CANCELED', False),
+        (False, 'COMPLETE', False),
+        (False, 'FAILED', False),
+        (False, 'CANCELED', False),
     ])
     @pytest.mark.parametrize('add_timestamp', [True, False])
     @pytest.mark.parametrize('is_auto', [True, False])
@@ -134,9 +137,10 @@ class TestBumpRelease(object):
          'release',
          'Release',
     ])
-    def test_release_label_already_set(self, tmpdir, caplog, reserve_build,
-                                       koji_build_status, add_timestamp, is_auto,
-                                       scratch, build_exists, release_label):
+    @pytest.mark.parametrize('user_provided_relese', [True, False])
+    def test_release_label_already_set(self, tmpdir, caplog, reserve_build, koji_build_status,
+                                       init_fails, add_timestamp, is_auto, scratch,
+                                       build_exists, release_label, user_provided_relese):
         class MockedClientSession(object):
             def __init__(self, hub, opts=None):
                 pass
@@ -150,6 +154,9 @@ class TestBumpRelease(object):
                 return True
 
             def CGInitBuild(self, cg_name, nvr_data):
+                if init_fails:
+                    raise koji.GenericError('unable to pre-declare build {}'.format(nvr_data))
+
                 return {'build_id': 'reserved_build', 'token': 'reserved_token'}
 
         session = MockedClientSession('')
@@ -162,21 +169,33 @@ class TestBumpRelease(object):
                               reserve_build=reserve_build,
                               scratch=scratch)
 
+        if user_provided_relese:
+            plugin.workflow.user_params['release'] = 'release_provided'
+
         refund_build = (reserve_build and koji_build_status != 'COMPLETE')
         if build_exists and not scratch and not refund_build:
             with pytest.raises(RuntimeError) as exc:
                 plugin.run()
             assert 'build already exists in Koji: ' in str(exc.value)
-        else:
-            plugin.run()
+            return
 
-        timestamp_msg = 'autorebuild with add_timestamp_to_release and release ' \
-                        'set explicitly, appending timestamp:'
+        if reserve_build and init_fails and not scratch:
+            with pytest.raises(RuntimeError) as exc:
+                plugin.run()
 
-        if is_auto and add_timestamp:
-            assert timestamp_msg in caplog.text
-        else:
-            assert 'not incrementing' in caplog.text
+            assert 'unable to pre-declare build ' in str(exc.value)
+            return
+
+        plugin.run()
+
+        if not user_provided_relese:
+            timestamp_msg = 'autorebuild with add_timestamp_to_release and release ' \
+                            'set explicitly, appending timestamp:'
+
+            if is_auto and add_timestamp:
+                assert timestamp_msg in caplog.text
+            else:
+                assert 'not incrementing' in caplog.text
 
     @pytest.mark.parametrize(('labels', 'all_wrong_labels'), [
         ({'com.redhat.component': 'component'},
@@ -619,12 +638,3 @@ class TestBumpRelease(object):
                         'version': koji_version,
                         'release': next_release['expected']}
         plugin.workflow.koji_source_nvr = expected_nvr
-
-    def test_skip_plugin(self, tmpdir, caplog):
-        session = MockedClientSessionGeneral('')
-        flexmock(koji, ClientSession=session)
-        plugin = self.prepare(tmpdir)
-        plugin.workflow.user_params['release'] = 'release_provided'
-        plugin.run()
-
-        assert 'release value supplied as user parameter, skipping plugin' in caplog.text
