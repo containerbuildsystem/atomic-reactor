@@ -335,13 +335,12 @@ class DockerBuildWorkflow(object):
     6. push it to registries
     """
 
-    def __init__(self, image, source=None, prebuild_plugins=None, prepublish_plugins=None,
+    def __init__(self, source=None, prebuild_plugins=None, prepublish_plugins=None,
                  postbuild_plugins=None, exit_plugins=None, plugin_files=None,
                  openshift_build_selflink=None, client_version=None,
                  buildstep_plugins=None, **kwargs):
         """
         :param source: dict, where/how to get source code to put in image
-        :param image: str, tag for built image ([registry/]image_name[:tag])
         :param prebuild_plugins: list of dicts, arguments for pre-build plugins
         :param prepublish_plugins: list of dicts, arguments for test-build plugins
         :param postbuild_plugins: list of dicts, arguments for post-build plugins
@@ -357,7 +356,6 @@ class DockerBuildWorkflow(object):
             self.source = DummySource(None, None, tmpdir=tmp_dir)
         else:
             self.source = get_source_instance_for(source, tmpdir=tmp_dir)
-        self.image = image
 
         self.prebuild_plugins_conf = prebuild_plugins
         self.buildstep_plugins_conf = buildstep_plugins
@@ -424,8 +422,8 @@ class DockerBuildWorkflow(object):
         self.koji_source_nvr = {}
         self.koji_source_source_url = None
         self.koji_source_manifest = None
-        # user params from env
-        self.user_params = {}
+
+        self.user_params = json.loads(os.environ['USER_PARAMS'])
 
         # Plugins can store info here using the @annotation, @annotation_map,
         # @label and @label_map decorators from atomic_reactor.metadata
@@ -464,6 +462,10 @@ class DockerBuildWorkflow(object):
             return True
         except ValueError:
             return False
+
+    @property
+    def image(self):
+        return self.user_params['image_tag']
 
     @property
     def build_process_failed(self):

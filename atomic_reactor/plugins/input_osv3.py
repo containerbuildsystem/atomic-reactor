@@ -136,7 +136,6 @@ class OSv3InputPlugin(InputPlugin):
         build_json = get_build_json()
         git_url = os.environ['SOURCE_URI']
         git_ref = os.environ.get('SOURCE_REF', None)
-        image = os.environ['OUTPUT_IMAGE']
         self.target_registry = os.environ.get('OUTPUT_REGISTRY', None)
 
         try:
@@ -169,7 +168,6 @@ class OSv3InputPlugin(InputPlugin):
                     'git_branch': git_branch,
                 },
             },
-            'image': image,
             'openshift_build_selflink': build_json.get('metadata', {}).get('selfLink', None)
         }
         input_json.update(self.plugins_json)
@@ -184,7 +182,7 @@ class OSv3InputPlugin(InputPlugin):
 
     @classmethod
     def is_autousable(cls):
-        return 'BUILD' in os.environ and 'SOURCE_URI' in os.environ and 'OUTPUT_IMAGE' in os.environ
+        return 'BUILD' in os.environ and 'SOURCE_URI' in os.environ
 
 
 class OSv3SourceContainerInputPlugin(InputPlugin):
@@ -213,7 +211,6 @@ class OSv3SourceContainerInputPlugin(InputPlugin):
 
     def run(self):
         build_json = get_build_json()
-        image = os.environ['OUTPUT_IMAGE']
         self.target_registry = os.environ.get('OUTPUT_REGISTRY', None)
 
         user_params = os.environ['USER_PARAMS']
@@ -232,7 +229,6 @@ class OSv3SourceContainerInputPlugin(InputPlugin):
         self.plugins_json = json.loads(plugins_json_serialized)
 
         input_json = {
-            'image': image,
             'openshift_build_selflink': build_json.get('metadata', {}).get('selfLink', None)
         }
         input_json.update(self.plugins_json)
@@ -249,7 +245,6 @@ class OSv3SourceContainerInputPlugin(InputPlugin):
     @classmethod
     def is_autousable(cls):
         return (
-            'OUTPUT_IMAGE' in os.environ and
             'USER_PARAMS' in os.environ and
             json.loads(os.environ['USER_PARAMS'])
                 .get('kind') == USER_PARAMS_KIND_SOURCE_CONTAINER_BUILDS
