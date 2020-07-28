@@ -30,11 +30,6 @@ function setup_osbs() {
   OSBS_CLIENT_REPO=${OSBS_CLIENT_REPO:-https://github.com/containerbuildsystem/osbs-client}
   OSBS_CLIENT_BRANCH=${OSBS_CLIENT_BRANCH:-master}
 
-  # Pull fedora images from registry.fedoraproject.org
-  if [[ $OS == "fedora" ]]; then
-    IMAGE="registry.fedoraproject.org/$IMAGE"
-  fi
-
   # PIP_PREFIX: osbs-client provides input templates that must be copied into /usr/share/...
   ENVS='-e PIP_PREFIX=/usr'
   RUN="$ENGINE exec -i ${ENVS} $CONTAINER_NAME"
@@ -139,9 +134,6 @@ function setup_osbs() {
 
   # Pip install packages for unit tests
   $RUN "${PIP_INST[@]}" -r tests/requirements.txt
-
-  # CentOS needs to have setuptools updates to make pytest-cov work
-  if [[ $OS != "fedora" ]]; then $RUN "${PIP_INST[@]}" -U setuptools; fi
 }
 
 case ${ACTION} in
