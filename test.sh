@@ -34,15 +34,7 @@ function setup_osbs() {
   ENVS='-e PIP_PREFIX=/usr'
   RUN="$ENGINE exec -i ${ENVS} $CONTAINER_NAME"
   PYTHON="python$PYTHON_VERSION"
-  if [[ $OS == "fedora" ]]; then
-    PIP_PKG="python$PYTHON_VERSION-pip"
-    PIP="pip$PYTHON_VERSION"
-    PKG="dnf"
-    ENABLE_REPO="--enablerepo=updates-testing"
-    PKG_EXTRA="dnf-plugins-core desktop-file-utils flatpak ostree skopeo python$PYTHON_VERSION-libmodulemd glibc-langpack-en"
-    BUILDDEP="dnf builddep"
-    PYTHON="python$PYTHON_VERSION"
-  else
+  if [[ $OS == "centos" ]]; then
     PIP_PKG="python-pip"
     PIP="pip"
     PKG="yum"
@@ -50,6 +42,14 @@ function setup_osbs() {
     PKG_EXTRA="yum-utils epel-release git-core desktop-file-utils flatpak ostree skopeo python2-libmodulemd2"
     BUILDDEP="yum-builddep"
     PYTHON="python"
+  else
+    PIP_PKG="python$PYTHON_VERSION-pip"
+    PIP="pip$PYTHON_VERSION"
+    PKG="dnf"
+    ENABLE_REPO="--enablerepo=updates-testing"
+    PKG_EXTRA="dnf-plugins-core desktop-file-utils flatpak ostree skopeo python$PYTHON_VERSION-libmodulemd glibc-langpack-en"
+    BUILDDEP="dnf builddep"
+    PYTHON="python$PYTHON_VERSION"
   fi
 
   PIP_INST=("$PIP" install --index-url "${PYPI_INDEX:-https://pypi.org/simple}")
@@ -68,8 +68,17 @@ function setup_osbs() {
   $RUN $PKG $ENABLE_REPO install -y $PKG_EXTRA
   [[ ${PYTHON_VERSION} == '3' ]] && WITH_PY3=1 || WITH_PY3=0
   # RPM install build dependencies for atomic-reactor
+  # shellcheck disable=SC2086
   $RUN $BUILDDEP --define "with_python3 ${WITH_PY3}" -y atomic-reactor.spec
-  if [[ $OS == "fedora" ]]; then
+  if [[ $OS == "centos" ]]; then
+    # RPM install dependencies for unit tests, as check is disabled for rhel
+    $RUN yum install -y python-flexmock python-six \
+                        python-backports-lzma \
+                        python-backports-ssl_match_hostname \
+                        python-responses \
+                        PyYAML \
+                        python-requests python-requests-kerberos # OSBS dependencies
+  else
     # RPM remove python-docker-py because docker-squash will pull
     # in the latest version from PyPI. Don't remove the dependencies
     # that it pulled in, to avoid having to rebuild them.
@@ -79,14 +88,6 @@ function setup_osbs() {
       # RPM install python-backports-lzma for Py2
       $RUN $PKG $ENABLE_REPO install -y python-backports-lzma
     fi
-  else
-    # RPM install dependencies for unit tests, as check is disabled for rhel
-    $RUN yum install -y python-flexmock python-six \
-                        python-backports-lzma \
-                        python-backports-ssl_match_hostname \
-                        python-responses \
-                        PyYAML \
-                        python-requests python-requests-kerberos # OSBS dependencies
   fi
 
   # Install package
@@ -111,6 +112,7 @@ function setup_osbs() {
   $RUN git clone --depth 1 --single-branch \
       "${OSBS_CLIENT_REPO}" --branch "${OSBS_CLIENT_BRANCH}" /tmp/osbs-client
   # RPM install build dependencies for osbs-client
+  # shellcheck disable=SC2086
   $RUN $BUILDDEP --define "with_python3 ${WITH_PY3}" -y /tmp/osbs-client/osbs-client.spec
   # Run pip install with '--no-deps' to avoid compilation
   # This would also ensure all the deps are specified in the spec
