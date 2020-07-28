@@ -307,12 +307,13 @@ class KojiParentPlugin(PreBuildPlugin):
         while time.time() - poll_start < self.poll_timeout:
             build = self.koji_session.getBuild(nvr)
             if build:
+                build_state = koji.BUILD_STATES[build['state']]
                 self.log.info('Parent image Koji build found with id %s', build.get('id'))
-                if build['state'] == koji.BUILD_STATES['COMPLETE']:
+                if build_state == 'COMPLETE':
                     return build
-                elif build['state'] != koji.BUILD_STATES['BUILDING']:
-                    exc_msg = ('Parent image Koji build for {} with id {} state is not COMPLETE.')
-                    raise KojiParentBuildMissing(exc_msg.format(nvr, build.get('id')))
+                elif build_state != 'BUILDING':
+                    exc_msg = ('Parent image Koji build {} state is {}, not COMPLETE.')
+                    raise KojiParentBuildMissing(exc_msg.format(nvr, build_state))
             time.sleep(self.poll_interval)
         raise KojiParentBuildMissing('Parent image Koji build NOT found for {}!'.format(nvr))
 

@@ -176,7 +176,7 @@ class TestKojiParent(object):
         with pytest.raises(PluginFailedException) as exc_info:
             self.run_plugin_with_args(workflow)
         assert 'KojiParentBuildMissing' in str(exc_info.value)
-        assert 'state is not COMPLETE' in str(exc_info.value)
+        assert 'state is DELETED, not COMPLETE' in str(exc_info.value)
 
     def test_base_image_not_inspected(self, workflow, koji_session):  # noqa
         del workflow.builder.base_image_inspect[INSPECT_CONFIG]
