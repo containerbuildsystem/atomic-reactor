@@ -64,24 +64,28 @@ function setup_osbs() {
     $RUN rm -f /etc/yum.repos.d/CentOS-Sources.repo
   fi
 
-  # Install dependencies
+  # Common install dependencies
   PKG_COMMON_EXTRA="git gcc krb5-devel python-devel popt-devel"
   PKG_EXTRA="$PKG_EXTRA $PKG_COMMON_EXTRA"
+
+  # RPM install basic dependencies
   # shellcheck disable=SC2086
   $RUN $PKG $ENABLE_REPO install -y $PKG_EXTRA
   [[ ${PYTHON_VERSION} == '3' ]] && WITH_PY3=1 || WITH_PY3=0
+  # RPM install build dependencies for atomic-reactor
   $RUN $BUILDDEP --define "with_python3 ${WITH_PY3}" -y atomic-reactor.spec
   if [[ $OS == "fedora" ]]; then
-    # Remove python-docker-py because docker-squash will pull
+    # RPM remove python-docker-py because docker-squash will pull
     # in the latest version from PyPI. Don't remove the dependencies
     # that it pulled in, to avoid having to rebuild them.
     $RUN $PKG remove -y --noautoremove python{,3}-docker{,-py}
 
     if [[ $PYTHON_VERSION == 2* ]]; then
+      # RPM install python-backports-lzma for Py2
       $RUN $PKG $ENABLE_REPO install -y python-backports-lzma
     fi
   else
-    # Install dependecies for test, as check is disabled for rhel
+    # RPM install dependencies for unit tests, as check is disabled for rhel
     $RUN yum install -y python-flexmock python-six \
                         python-backports-lzma \
                         python-backports-ssl_match_hostname \
@@ -98,8 +102,9 @@ function setup_osbs() {
     $RUN "${PIP_INST[@]}" "pip>=9.0.0,<10.0.0"
     # ...but ancient enough to allow uninstalling packages installed by distutils
 
-    # Older versions of setuptools don't understand the environment
-    # markers used by docker-squash's requirements
+    # Pip install/upgrade setuptools. Older versions of setuptools don't understand the
+    # environment markers used by docker-squash's requirements, also
+    # CentOS needs to have setuptools updates to make pytest-cov work
     $RUN "${PIP_INST[@]}" -U setuptools
   fi
 
@@ -110,25 +115,29 @@ function setup_osbs() {
   $RUN rm -rf /tmp/osbs-client
   $RUN git clone --depth 1 --single-branch \
       "${OSBS_CLIENT_REPO}" --branch "${OSBS_CLIENT_BRANCH}" /tmp/osbs-client
+  # RPM install build dependencies for osbs-client
   $RUN $BUILDDEP --define "with_python3 ${WITH_PY3}" -y /tmp/osbs-client/osbs-client.spec
   # Run pip install with '--no-deps' to avoid compilation
   # This would also ensure all the deps are specified in the spec
   $RUN "${PIP_INST[@]}" --upgrade --no-deps --force-reinstall \
       "git+${OSBS_CLIENT_REPO}@${OSBS_CLIENT_BRANCH}"
-
+  # Pip install dockerfile-parse
   $RUN "${PIP_INST[@]}" --upgrade --no-deps --force-reinstall git+https://github.com/DBuildService/dockerfile-parse
   if [[ $PYTHON_VERSION == 2* ]]; then
+    # Pip install dockpulp for Py2
     $RUN "${PIP_INST[@]}" git+https://github.com/release-engineering/dockpulp
+    # Pip install further Py2 reqs
     $RUN "${PIP_INST[@]}" -r requirements-py2.txt
   fi
 
   # install with RPM_PY_SYS=true to avoid error caused by installing on system python
   $RUN sh -c "RPM_PY_SYS=true ${PIP_INST[*]} rpm-py-installer"
-
+  # Pip install docker-squash
   $RUN "${PIP_INST[@]}" docker-squash
+  # Setuptools install atomic-reactor from source
   $RUN $PYTHON setup.py install
 
-  # Install packages for tests
+  # Pip install packages for unit tests
   $RUN "${PIP_INST[@]}" -r tests/requirements.txt
 
   # CentOS needs to have setuptools updates to make pytest-cov work
