@@ -33,35 +33,36 @@ function setup_osbs() {
   # PIP_PREFIX: osbs-client provides input templates that must be copied into /usr/share/...
   ENVS='-e PIP_PREFIX=/usr'
   RUN="$ENGINE exec -i ${ENVS} $CONTAINER_NAME"
-  PYTHON="python$PYTHON_VERSION"
   if [[ $OS == "centos" ]]; then
-    PIP_PKG="python-pip"
+    PYTHON="python"
+    PIP_PKG="$PYTHON-pip"
     PIP="pip"
     PKG="yum"
     ENABLE_REPO=
-    PKG_EXTRA="yum-utils epel-release git-core desktop-file-utils flatpak ostree skopeo python2-libmodulemd2"
+    PKG_EXTRA="yum-utils git-core desktop-file-utils flatpak ostree skopeo python2-libmodulemd2"
     BUILDDEP="yum-builddep"
-    PYTHON="python"
   else
-    PIP_PKG="python$PYTHON_VERSION-pip"
+    PYTHON="python$PYTHON_VERSION"
+    PIP_PKG="$PYTHON-pip"
     PIP="pip$PYTHON_VERSION"
     PKG="dnf"
     ENABLE_REPO="--enablerepo=updates-testing"
-    PKG_EXTRA="dnf-plugins-core desktop-file-utils flatpak ostree skopeo python$PYTHON_VERSION-libmodulemd glibc-langpack-en"
+    PKG_EXTRA="dnf-plugins-core desktop-file-utils flatpak ostree skopeo python$PYTHON_VERSION-libmodulemd glibc-langpack-en $PYTHON-pylint"
     BUILDDEP="dnf builddep"
-    PYTHON="python$PYTHON_VERSION"
   fi
+
+  # List common install dependencies
+  PKG_COMMON_EXTRA="git gcc krb5-devel python-devel popt-devel"
+  PKG_EXTRA="$PKG_EXTRA $PKG_COMMON_EXTRA"
 
   PIP_INST=("$PIP" install --index-url "${PYPI_INDEX:-https://pypi.org/simple}")
 
   if [[ $OS == "centos" ]]; then
     # Don't let builddep enable *-source repos since they give 404 errors
     $RUN rm -f /etc/yum.repos.d/CentOS-Sources.repo
+    # This has to run *before* we try installing anything from EPEL
+    $RUN $PKG $ENABLE_REPO install -y epel-release
   fi
-
-  # Common install dependencies
-  PKG_COMMON_EXTRA="git gcc krb5-devel python-devel popt-devel"
-  PKG_EXTRA="$PKG_EXTRA $PKG_COMMON_EXTRA"
 
   # RPM install basic dependencies
   # shellcheck disable=SC2086
@@ -101,7 +102,7 @@ function setup_osbs() {
     # Pip install/upgrade setuptools. Older versions of setuptools don't understand the
     # environment markers used by docker-squash's requirements, also
     # CentOS needs to have setuptools updates to make pytest-cov work
-    $RUN "${PIP_INST[@]}" -U setuptools
+    $RUN "${PIP_INST[@]}" --upgrade setuptools
   fi
 
   # Install other dependencies for tests
@@ -145,9 +146,6 @@ case ${ACTION} in
   ;;
 "pylint")
   setup_osbs
-  # This can run only at fedora because pylint is not packaged in centos
-  # use distro pylint to not get too new pylint version
-  $RUN $PKG install -y "${PYTHON}-pylint"
   PACKAGES='atomic_reactor tests'
   TEST_CMD="${PYTHON} -m pylint ${PACKAGES}"
   ;;
