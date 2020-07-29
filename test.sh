@@ -39,7 +39,7 @@ function setup_osbs() {
     PIP="pip"
     PKG="yum"
     ENABLE_REPO=
-    PKG_EXTRA="yum-utils git-core desktop-file-utils flatpak ostree skopeo python2-libmodulemd2"
+    PKG_EXTRA=(yum-utils git-core desktop-file-utils flatpak ostree skopeo python2-libmodulemd2)
     BUILDDEP="yum-builddep"
   else
     PYTHON="python$PYTHON_VERSION"
@@ -47,13 +47,13 @@ function setup_osbs() {
     PIP="pip$PYTHON_VERSION"
     PKG="dnf"
     ENABLE_REPO="--enablerepo=updates-testing"
-    PKG_EXTRA="dnf-plugins-core desktop-file-utils flatpak ostree skopeo python$PYTHON_VERSION-libmodulemd glibc-langpack-en $PYTHON-pylint"
-    BUILDDEP="dnf builddep"
+    PKG_EXTRA=(dnf-plugins-core desktop-file-utils flatpak ostree skopeo "$PYTHON"-libmodulemd glibc-langpack-en "$PYTHON"-pylint)
+    BUILDDEP=(dnf builddep)
   fi
 
   # List common install dependencies
-  PKG_COMMON_EXTRA="git gcc krb5-devel python-devel popt-devel"
-  PKG_EXTRA="$PKG_EXTRA $PKG_COMMON_EXTRA"
+  PKG_COMMON_EXTRA=(git gcc krb5-devel python-devel popt-devel)
+  PKG_EXTRA+=("${PKG_COMMON_EXTRA[@]}")
 
   PIP_INST=("$PIP" install --index-url "${PYPI_INDEX:-https://pypi.org/simple}")
 
@@ -65,12 +65,10 @@ function setup_osbs() {
   fi
 
   # RPM install basic dependencies
-  # shellcheck disable=SC2086
-  $RUN $PKG $ENABLE_REPO install -y $PKG_EXTRA
+  $RUN $PKG $ENABLE_REPO install -y "${PKG_EXTRA[@]}"
   [[ ${PYTHON_VERSION} == '3' ]] && WITH_PY3=1 || WITH_PY3=0
   # RPM install build dependencies for atomic-reactor
-  # shellcheck disable=SC2086
-  $RUN $BUILDDEP --define "with_python3 ${WITH_PY3}" -y atomic-reactor.spec
+  $RUN "${BUILDDEP[@]}" --define "with_python3 ${WITH_PY3}" -y atomic-reactor.spec
   if [[ $OS == "centos" ]]; then
     # RPM install dependencies for unit tests, as check is disabled for rhel
     $RUN yum install -y python-flexmock python-six \
@@ -113,8 +111,7 @@ function setup_osbs() {
   $RUN git clone --depth 1 --single-branch \
       "${OSBS_CLIENT_REPO}" --branch "${OSBS_CLIENT_BRANCH}" /tmp/osbs-client
   # RPM install build dependencies for osbs-client
-  # shellcheck disable=SC2086
-  $RUN $BUILDDEP --define "with_python3 ${WITH_PY3}" -y /tmp/osbs-client/osbs-client.spec
+  $RUN "${BUILDDEP[@]}" --define "with_python3 ${WITH_PY3}" -y /tmp/osbs-client/osbs-client.spec
   # Run pip install with '--no-deps' to avoid compilation
   # This would also ensure all the deps are specified in the spec
   $RUN "${PIP_INST[@]}" --upgrade --no-deps --force-reinstall \
