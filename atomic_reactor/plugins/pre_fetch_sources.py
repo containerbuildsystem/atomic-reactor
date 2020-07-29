@@ -201,6 +201,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
         remote_sources_urls = []
         dest_name = None
         cachito_json_url = None
+        remote_json_map = {}
 
         for archive in archives:
             if archive['type_name'] == 'tar':
@@ -213,7 +214,23 @@ class FetchSourcesPlugin(PreBuildPlugin):
             elif archive['type_name'] == 'json' and archive['filename'] == 'remote-source.json':
                 cachito_json_url = os.path.join(remote_sources_path, archive['filename'])
 
-        return remote_sources_urls, {dest_name: cachito_json_url}
+        # we will add entry to remote_json_map only when
+        # build has remote sources archive and json
+        # it will be used later to get correspondent remote-source.json for each remote sources
+        # archive from all parents
+        if cachito_json_url and dest_name:
+            remote_json_map = {dest_name: cachito_json_url}
+
+            if len(remote_sources_urls) > 1:
+                raise RuntimeError('There can be just one remote sources archive, got : {}'.
+                                   format(remote_sources_urls))
+
+        elif bool(cachito_json_url) != bool(dest_name):
+            raise RuntimeError('Remote sources archive or remote source json missing, '
+                               'remote source archive: {}, remote source json: {}'.
+                               format(dest_name, cachito_json_url))
+
+        return remote_sources_urls, remote_json_map
 
     def get_remote_urls(self):
         """Fetch remote source urls from all builds
