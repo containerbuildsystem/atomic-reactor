@@ -683,9 +683,28 @@ class TestFetchSources(object):
          None),
     ])
     @pytest.mark.parametrize('vendor_exists', [True, False])
+    @pytest.mark.parametrize(('source_archives', 'source_json', 'raise_early'), [
+        (0, 0, None),
+        (1, 1, None),
+        (0, 1, 'Remote sources archive or remote source json missing'),
+        (1, 0, 'Remote sources archive or remote source json missing'),
+        (2, 1, 'There can be just one remote sources archive'),
+    ])
     def test_exclude_closed_sources(self, requests_mock, docker_tasker, koji_session, tmpdir,
                                     caplog, excludelist, excludelist_json, cachito_pkg_names,
-                                    exclude_messages, exc_str, vendor_exists):
+                                    exclude_messages, exc_str, vendor_exists, source_archives,
+                                    source_json, raise_early):
+        list_archives = []
+        for n in range(source_archives):
+            list_archives.append({'id': n, 'type_name': 'tar', 'filename': REMOTE_SOURCES_FILE})
+        for n in range(source_json):
+            list_archives.append({'id': n, 'type_name': 'json', 'filename': REMOTE_SOURCES_JSON})
+
+        (flexmock(koji_session)
+         .should_receive('listArchives')
+         .with_args(object, type='remote-sources')
+         .and_return(list_archives))
+
         rcm_json = yaml.safe_load(BASE_CONFIG_MAP)
         rcm_json['source_container'] = {}
 
@@ -737,7 +756,13 @@ class TestFetchSources(object):
         runner = mock_env(tmpdir, docker_tasker, koji_build_id=1,
                           config_map=yaml.safe_dump(rcm_json))
 
-        if exc_str:
+        if raise_early:
+            with pytest.raises(PluginFailedException) as exc:
+                runner.run()
+            assert raise_early in str(exc.value)
+            return
+
+        if exc_str and source_archives and source_json:
             with pytest.raises(PluginFailedException) as exc:
                 runner.run()
             assert exc_str in str(exc.value)
@@ -745,6 +770,11 @@ class TestFetchSources(object):
             result = runner.run()
             results = result[constants.PLUGIN_FETCH_SOURCES_KEY]
             remote_sources_dir = results['remote_sources_dir']
+
+            if source_archives != 1 or source_json != 1:
+                assert remote_sources_dir is None
+                return
+
             remote_list = set(os.listdir(remote_sources_dir))
             expected_remotes = set()
             expected_remotes.add('-'.join([KOJI_BUILD['nvr'], REMOTE_SOURCES_FILE]))
