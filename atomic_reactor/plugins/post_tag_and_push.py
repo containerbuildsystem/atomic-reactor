@@ -15,8 +15,7 @@ import platform
 import random
 
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,
-                                      MEDIA_TYPE_DOCKER_V2_SCHEMA2, DOCKER_PUSH_MAX_RETRIES,
-                                      DOCKER_PUSH_BACKOFF_FACTOR)
+                                      DOCKER_PUSH_MAX_RETRIES, DOCKER_PUSH_BACKOFF_FACTOR)
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_reactor_config import (get_registries, get_group_manifests,
@@ -186,15 +185,6 @@ class TagAndPushPlugin(PostBuildPlugin):
                 registry_image = image.copy()
                 registry_image.registry = registry
                 max_retries = DOCKER_PUSH_MAX_RETRIES
-
-                expect_v2s2 = False
-                for registry in self.registries:
-                    media_types = self.registries[registry].get('expected_media_types', [])
-                    if MEDIA_TYPE_DOCKER_V2_SCHEMA2 in media_types:
-                        expect_v2s2 = True
-
-                if not (self.group or expect_v2s2):
-                    max_retries = 0
 
                 for retry in range(max_retries + 1):
                     if self.need_skopeo_push() or source_oci_image_path:
