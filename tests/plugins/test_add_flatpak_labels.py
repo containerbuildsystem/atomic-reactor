@@ -49,7 +49,7 @@ class MockBuilder(object):
 
 
 def mock_workflow(tmpdir, container_yaml, user_params=None):
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
     if user_params is None:
         user_params = USER_PARAMS
 
@@ -78,7 +78,7 @@ def mock_workflow(tmpdir, container_yaml, user_params=None):
     ({'a': 'b'}, 'LABEL "a"="b"'),
     ({'a': 'b', 'c': 'd"'}, 'LABEL "a"="b" "c"="d\\""'),
 ]) # noqa - docker_tasker fixture
-def test_add_flatpak_labels(tmpdir, docker_tasker,
+def test_add_flatpak_labels(tmpdir, docker_tasker, user_params,
                             labels, expected):
 
     if labels is not None:
@@ -112,7 +112,7 @@ def test_add_flatpak_labels(tmpdir, docker_tasker,
         assert last_line == "CMD sleep 1000"
 
 
-def test_skip_plugin(tmpdir, caplog, docker_tasker):
+def test_skip_plugin(tmpdir, caplog, docker_tasker, user_params):
     workflow = mock_workflow(tmpdir, '', user_params={})
 
     runner = PreBuildPluginsRunner(

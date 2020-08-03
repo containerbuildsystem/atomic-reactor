@@ -62,32 +62,41 @@ class MockInsideBuilder(object):
         return self.tasker.inspect_image(self.dockerfile_images.base_image)
 
 
+def mock_workflow():
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow.builder = MockInsideBuilder()
+    return workflow
+
+
+@pytest.mark.usefixtures('user_params')
 class TestSquashPlugin(object):
-    workflow = None
-    tasker = None
+    # workflow = None
+    # tasker = None
     output_path = None
 
     def setup_method(self, method):
         if MOCK:
             mock_docker()
-        self.workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
-        self.workflow.builder = MockInsideBuilder()
-        self.tasker = self.workflow.builder.tasker
+        # self.workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+        # self.workflow.builder = MockInsideBuilder()
+        # self.tasker = self.workflow.builder.tasker
 
         # Expected path for exported squashed image.
         self.output_path = None
 
     def test_skip_squash(self):
         flexmock(Squash).should_receive('__init__').never()
-        self.workflow.build_result = BuildResult(image_id="spam", skip_layer_squash=True)
-        self.run_plugin_with_args({})
+        workflow = mock_workflow()
+        workflow.build_result = BuildResult(image_id="spam", skip_layer_squash=True)
+        self.run_plugin_with_args(workflow, {})
 
     @pytest.mark.parametrize('base_from_scratch', (True, False))
     def test_default_parameters(self, base_from_scratch):
-        self.should_squash_with_kwargs(base_from_scratch=base_from_scratch)
+        workflow = mock_workflow()
+        self.should_squash_with_kwargs(workflow, base_from_scratch=base_from_scratch)
         if base_from_scratch:
-            self.workflow.builder.dockerfile_images = DockerfileImages(['scratch'])
-        self.run_plugin_with_args({})
+            workflow.builder.dockerfile_images = DockerfileImages(['scratch'])
+        self.run_plugin_with_args(workflow, {})
 
     @pytest.mark.parametrize(('plugin_tag', 'squash_tag'), (
         ('spam', 'spam'),
@@ -95,13 +104,15 @@ class TestSquashPlugin(object):
         ('', 'image'),
     ))
     def test_tag_value_is_used(self, plugin_tag, squash_tag):
-        self.should_squash_with_kwargs(tag=squash_tag)
-        self.run_plugin_with_args({'tag': plugin_tag})
+        workflow = mock_workflow()
+        self.should_squash_with_kwargs(workflow, tag=squash_tag)
+        self.run_plugin_with_args(workflow, {'tag': plugin_tag})
 
     @pytest.mark.parametrize('dont_load', (True, False))
     def test_dont_load_is_honored(self, dont_load):
-        self.should_squash_with_kwargs(load_image=not dont_load)
-        self.run_plugin_with_args({'dont_load': dont_load})
+        workflow = mock_workflow()
+        self.should_squash_with_kwargs(workflow, load_image=not dont_load)
+        self.run_plugin_with_args(workflow, {'dont_load': dont_load})
 
     @pytest.mark.parametrize(('from_base', 'from_layer', 'squash_from_layer'), (
         (False, 'from-layer', 'from-layer'),
@@ -110,15 +121,17 @@ class TestSquashPlugin(object):
         (True, None, SET_DEFAULT_LAYER_ID),
     ))
     def test_from_specified(self, from_base, from_layer, squash_from_layer):
-        self.should_squash_with_kwargs(from_layer=squash_from_layer)
-        self.run_plugin_with_args({'from_base': from_base, 'from_layer': from_layer})
+        workflow = mock_workflow()
+        self.should_squash_with_kwargs(workflow, from_layer=squash_from_layer)
+        self.run_plugin_with_args(workflow, {'from_base': from_base, 'from_layer': from_layer})
 
     def test_missing_base_image_id(self):
         if MOCK:
             mock_docker(inspect_should_fail=True)
-        self.should_squash_with_kwargs(from_layer=None)
+        workflow = mock_workflow()
+        self.should_squash_with_kwargs(workflow, from_layer=None)
         with pytest.raises(PluginFailedException):
-            self.run_plugin_with_args({'from_layer': None})
+            self.run_plugin_with_args(workflow, {'from_layer': None})
 
     @pytest.mark.parametrize('new_id,expected_id', [
         ('abcdef', 'sha256:abcdef'),
@@ -127,36 +140,39 @@ class TestSquashPlugin(object):
     def test_sha256_prefix(self, new_id, expected_id):
         if MOCK:
             mock_docker()
-        self.should_squash_with_kwargs(new_id=new_id)
-        self.run_plugin_with_args({})
-        assert self.workflow.builder.image_id == expected_id
+        workflow = mock_workflow()
+        self.should_squash_with_kwargs(workflow, new_id=new_id)
+        self.run_plugin_with_args(workflow, {})
+        assert workflow.builder.image_id == expected_id
 
     def test_skip_saving_archive(self):
-        self.should_squash_with_kwargs(output_path=None)
-        self.run_plugin_with_args({'save_archive': False})
+        workflow = mock_workflow()
+        self.should_squash_with_kwargs(workflow, output_path=None)
+        self.run_plugin_with_args(workflow, {'save_archive': False})
 
     def test_skip_plugin(self, caplog):
-        self.should_squash_with_kwargs(output_path=None)
-        self.workflow.user_params = {'flatpak': True}
-        self.run_plugin_with_args({'save_archive': False})
+        workflow = mock_workflow()
+        self.should_squash_with_kwargs(workflow, output_path=None)
+        workflow.user_params = {'flatpak': True}
+        self.run_plugin_with_args(workflow, {'save_archive': False})
         assert 'flatpak build, skipping plugin' in caplog.text
 
-    def should_squash_with_kwargs(self, new_id='abc', base_from_scratch=False, **kwargs):
-        kwargs.setdefault('image', self.workflow.builder.image_id)
+    def should_squash_with_kwargs(self, workflow, new_id='abc', base_from_scratch=False, **kwargs):
+        kwargs.setdefault('image', workflow.builder.image_id)
         kwargs.setdefault('load_image', True)
         kwargs.setdefault('log', logging.Logger)
-        kwargs.setdefault('output_path', os.path.join(self.workflow.source.workdir,
+        kwargs.setdefault('output_path', os.path.join(workflow.source.workdir,
                                                       EXPORTED_SQUASHED_IMAGE_NAME))
-        kwargs.setdefault('tag', self.workflow.builder.image)
+        kwargs.setdefault('tag', workflow.builder.image)
 
         # Avoid inspect errors at this point
         if 'from_layer' not in kwargs:
-            kwargs['from_layer'] = self.workflow.builder.base_image_inspect['Id']
+            kwargs['from_layer'] = workflow.builder.base_image_inspect['Id']
 
         self.output_path = kwargs['output_path']
 
         if kwargs.get('from_layer') == SET_DEFAULT_LAYER_ID:
-            kwargs['from_layer'] = self.workflow.builder.base_image_inspect['Id']
+            kwargs['from_layer'] = workflow.builder.base_image_inspect['Id']
 
         if base_from_scratch:
             kwargs['from_layer'] = None
@@ -174,10 +190,10 @@ class TestSquashPlugin(object):
 
         flexmock(exit_remove_built_image).should_receive('defer_removal')
 
-    def run_plugin_with_args(self, plugin_args):
+    def run_plugin_with_args(self, workflow, plugin_args):
         runner = PrePublishPluginsRunner(
-            self.tasker,
-            self.workflow,
+            workflow.builder.tasker,
+            workflow,
             [{'name': PrePublishSquashPlugin.key, 'args': plugin_args}]
         )
 
@@ -185,7 +201,7 @@ class TestSquashPlugin(object):
         assert result[PrePublishSquashPlugin.key] is None
 
         if self.output_path:
-            assert self.workflow.exported_image_sequence == [{
+            assert workflow.exported_image_sequence == [{
                 'md5sum': DUMMY_TARBALL['md5sum'],
                 'sha256sum': DUMMY_TARBALL['sha256sum'],
                 'size': DUMMY_TARBALL['size'],
@@ -193,4 +209,4 @@ class TestSquashPlugin(object):
                 'path': self.output_path,
             }]
         else:
-            assert self.workflow.exported_image_sequence == []
+            assert workflow.exported_image_sequence == []

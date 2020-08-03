@@ -53,7 +53,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ODCSConfig,
                                                        CONTAINER_DEFAULT_BUILD_METHOD,
                                                        get_build_image_override,
                                                        NO_FALLBACK)
-from tests.constants import TEST_IMAGE, REACTOR_CONFIG_MAP
+from tests.constants import REACTOR_CONFIG_MAP, MOCK_SOURCE
 from tests.docker_mock import mock_docker
 from tests.stubs import StubInsideBuilder
 from flexmock import flexmock
@@ -62,18 +62,19 @@ from flexmock import flexmock
 USER_PARAMS = {'git_uri': 'test_uri', 'git_ref': 'test_ref', 'git_breanch': 'test_branch'}
 
 
+@pytest.mark.usefixtures('user_params')
 class TestReactorConfigPlugin(object):
     def prepare(self):
+        env_user_params = json.loads(os.environ['USER_PARAMS'])
+        env_user_params.update(USER_PARAMS)
+        os.environ['USER_PARAMS'] = json.dumps(env_user_params)
+
         mock_docker()
         tasker = ContainerTasker()
-        workflow = DockerBuildWorkflow(
-            TEST_IMAGE,
-            source={'provider': 'git', 'uri': 'asd'},
-        )
+        workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
         workflow.builder = StubInsideBuilder()
         workflow.builder.tasker = tasker
 
-        os.environ['USER_PARAMS'] = json.dumps(USER_PARAMS)
         return tasker, workflow
 
     @pytest.mark.parametrize(('fallback'), [
@@ -2037,7 +2038,9 @@ class TestReactorConfigPlugin(object):
                                      config_path=str(tmpdir),
                                      basename=filename)
         plugin.run()
-        assert plugin.workflow.user_params == USER_PARAMS
+
+        for k, v in USER_PARAMS.items():
+            assert plugin.workflow.user_params[k] == v
 
     @pytest.mark.parametrize('config, valid', [
         ("""\

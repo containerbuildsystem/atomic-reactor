@@ -27,7 +27,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        ReactorConfig)
 from atomic_reactor.util import ManifestDigest, get_exported_image_metadata
 from tests.constants import (LOCALHOST_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME, INPUT_IMAGE, MOCK,
-                             DOCKER0_REGISTRY)
+                             DOCKER0_REGISTRY, MOCK_SOURCE)
 from tests.stubs import StubInsideBuilder
 from tests.util import add_koji_map_in_workflow
 
@@ -120,7 +120,8 @@ PUSH_ERROR_LOGS = [
                                                           "password": "mypassword"}}}),
 ])
 def test_tag_and_push_plugin(
-        tmpdir, monkeypatch, caplog, image_name, logs, should_raise, has_config, missing_v2,
+        tmpdir, monkeypatch, caplog, user_params,
+        image_name, logs, should_raise, has_config, missing_v2,
         use_secret, file_name, dockerconfig_contents):
 
     if MOCK:
@@ -129,10 +130,8 @@ def test_tag_and_push_plugin(
                  login=lambda username, registry, dockercfg_path: {'Status': 'Login Succeeded'})
 
     tasker = DockerTasker(retry_times=0)
-    workflow = DockerBuildWorkflow(
-        TEST_IMAGE,
-        source={"provider": "git", "uri": "asd"},
-    )
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow.user_params['image_tag'] = TEST_IMAGE
     workflow.tag_conf.add_primary_image(image_name)
     workflow.builder = StubInsideBuilder()
     workflow.builder.image_id = INPUT_IMAGE
@@ -353,7 +352,8 @@ def test_tag_and_push_plugin(
     False,
     True,
 ])
-def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, v2s2, use_secret,
+def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, user_params,
+                                 source_oci_image_path, v2s2, use_secret,
                                  fail_push, caplog):
     # For now, we don't want to require having a skopeo and an OCI-supporting
     # registry in the test environment
@@ -375,10 +375,8 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, source_oci_image_path, v2s
                                            current_platform)
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(
-        TEST_IMAGE,
-        source={"provider": "git", "uri": "asd"},
-    )
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow.user_params['image_tag'] = TEST_IMAGE
     workflow.builder = StubInsideBuilder()
     workflow.builder.image_id = INPUT_IMAGE
     if source_oci_image_path:
@@ -645,6 +643,7 @@ def test_exceed_binary_image_size(image_size_limit, workflow):
     if image_size_limit is not None:
         config['image_size_limit'] = image_size_limit
 
+    # workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
     workflow.plugin_workspace[ReactorConfigPlugin.key] = {
         WORKSPACE_CONF_KEY: ReactorConfig(config)
     }

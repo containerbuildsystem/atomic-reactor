@@ -23,7 +23,7 @@ from osbs.exceptions import OsbsResponseException
 from atomic_reactor.plugins.build_orchestrate_build import (WorkerBuildInfo, ClusterInfo,
                                                             OrchestrateBuildPlugin)
 
-from tests.constants import MOCK_SOURCE, TEST_IMAGE, INPUT_IMAGE
+from tests.constants import MOCK_SOURCE, INPUT_IMAGE
 from tests.docker_mock import mock_docker
 import pytest
 
@@ -78,7 +78,7 @@ class MockInsideBuilder(object):
 
 
 def mock_workflow(tmpdir):
-    workflow = DockerBuildWorkflow(TEST_IMAGE, source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
     setattr(workflow, 'builder', MockInsideBuilder())
     setattr(workflow, 'source', MockSource(tmpdir))
     setattr(workflow.builder, 'source', MockSource(tmpdir))
@@ -93,8 +93,8 @@ def mock_workflow(tmpdir):
 @pytest.mark.parametrize('fragment_annotation', [True, False])
 @pytest.mark.parametrize('fragment_key', ['metadata.json', None])
 @pytest.mark.parametrize('cm_not_found', [True, False])
-def test_remove_worker_plugin(tmpdir, caplog, platforms, fragment_annotation, fragment_key,
-                              cm_not_found):
+def test_remove_worker_plugin(tmpdir, caplog, user_params,
+                              platforms, fragment_annotation, fragment_key, cm_not_found):
     workflow = mock_workflow(tmpdir)
 
     annotations = {'worker-builds': {}}

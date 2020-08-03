@@ -19,6 +19,8 @@ from atomic_reactor.constants import (CONTAINER_IMAGEBUILDER_BUILD_METHOD,
 
 from tests.mock_env import MockEnv
 
+pytestmark = pytest.mark.usefixtures('user_params')
+
 
 def mock_dockerfile(tmpdir, labels, from_scratch=True):
     base = 'FROM scratch' if from_scratch else 'FROM fedora:30'

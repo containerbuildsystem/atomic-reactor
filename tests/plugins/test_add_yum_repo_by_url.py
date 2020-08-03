@@ -29,6 +29,7 @@ if MOCK:
     from tests.retry_mock import mock_get_retry_session
     from tests.docker_mock import mock_docker
 
+pytestmark = pytest.mark.usefixtures('user_params')
 
 repocontent = b'''[repo]\n'''
 
@@ -37,8 +38,7 @@ def prepare(scratch=False):
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(
-        "test-image", source={"provider": "git", "uri": DOCKERFILE_GIT})
+    workflow = DockerBuildWorkflow(source={"provider": "git", "uri": DOCKERFILE_GIT})
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
     workflow.builder.set_dockerfile_images([])
@@ -90,8 +90,9 @@ def test_single_repourl(inject_proxy):
     (['http://example.com/spam/myrepo.repo', 'http://example.com/bacon/myrepo.repo'],
      ['myrepo-608de.repo', 'myrepo-a1f78.repo']),
 ))
-def test_multiple_repourls(caplog, base_from_scratch, parent_images, inject_proxy, repos,
-                           filenames):
+def test_multiple_repourls(caplog,
+                           base_from_scratch, parent_images, inject_proxy,
+                           repos, filenames):
     tasker, workflow = prepare()
 
     dockerfile_images = []

@@ -98,7 +98,7 @@ class MockInsideBuilder(object):
 
 
 @pytest.fixture()
-def workflow(tmpdir):
+def workflow(tmpdir, user_params):
     if MOCK:
         mock_docker()
 
@@ -109,7 +109,6 @@ def workflow(tmpdir):
         },
     }]
     workflow = DockerBuildWorkflow(
-        'test-image',
         source=MOCK_SOURCE,
         buildstep_plugins=buildstep_plugin,
     )

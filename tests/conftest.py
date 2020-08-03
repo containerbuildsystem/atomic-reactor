@@ -8,10 +8,11 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import print_function, unicode_literals, absolute_import
 
+import json
 import pytest
 import requests
 import requests.exceptions
-from tests.constants import LOCALHOST_REGISTRY_HTTP, DOCKER0_REGISTRY_HTTP, MOCK
+from tests.constants import LOCALHOST_REGISTRY_HTTP, DOCKER0_REGISTRY_HTTP, MOCK, TEST_IMAGE
 from tests.util import uuid_value
 
 from osbs.utils import ImageName
@@ -69,8 +70,17 @@ def inspect_only(request):
 
 
 @pytest.fixture
-def workflow():
-    return DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+def user_params(monkeypatch):
+    """
+    Setting default image_tag in the env var USER_PARAMS. Any tests requiring
+    to create an instance of :class:`DockerBuildWorkflow` requires this fixture.
+    """
+    monkeypatch.setenv('USER_PARAMS', json.dumps({'image_tag': TEST_IMAGE}))
+
+
+@pytest.fixture
+def workflow(user_params):
+    return DockerBuildWorkflow(source=MOCK_SOURCE)
 
 
 @pytest.mark.optionalhook

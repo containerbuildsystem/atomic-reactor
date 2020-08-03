@@ -23,6 +23,7 @@ from platform import machine
 from tests.mock_env import MockEnv
 from requests import Response
 
+pytestmark = pytest.mark.usefixtures('user_params')
 
 CONTAINER_ID = 'mocked'
 

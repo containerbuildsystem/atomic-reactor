@@ -33,12 +33,14 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
 from atomic_reactor.util import LazyGit, ManifestDigest, df_parser, DockerfileImages
 import pytest
 from tests.constants import (LOCALHOST_REGISTRY, DOCKER0_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME,
-                             INPUT_IMAGE)
+                             INPUT_IMAGE, MOCK_SOURCE)
 from tests.util import add_koji_map_in_workflow, is_string_type
 
 DIGEST1 = "sha256:1da9b9e1c6bf6ab40f1627d76e2ad58e9b2be14351ef4ff1ed3eb4a156138189"
 DIGEST2 = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 DIGEST_NOT_USED = "not-used"
+
+pytestmark = pytest.mark.usefixtures('user_params')
 
 
 class Y(object):
@@ -115,10 +117,7 @@ def prepare(docker_registries=None, before_dockerfile=False):
     flexmock(os)
     os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
 
-    workflow = DockerBuildWorkflow(
-        "test-image",
-        source={"provider": "git", "uri": "asd"},
-    )
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
 
     openshift_map = {
         'url': 'http://example.com/',

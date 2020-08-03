@@ -86,7 +86,7 @@ def mock_environment(tmpdir, session=None, build_process_failed=False,
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow('test-image', source=SOURCE)
+    workflow = DockerBuildWorkflow(source=SOURCE)
     setattr(workflow, 'builder', X())
     setattr(workflow.builder, 'image_id', '123456imageid')
     setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='22'))
@@ -144,6 +144,7 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
     return runner
 
 
+@pytest.mark.usefixtures('user_params')
 class TestKojiPromote(object):
     def test_koji_tag_build_failed_build_process(self, tmpdir):  # noqa
         session = MockedClientSession('')

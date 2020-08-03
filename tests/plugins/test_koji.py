@@ -94,7 +94,7 @@ def prepare():
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
+    workflow = DockerBuildWorkflow(source=SOURCE)
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
 
@@ -107,6 +107,7 @@ def prepare():
     return tasker, workflow
 
 
+@pytest.mark.usefixtures('user_params')
 class TestKoji(object):
     @pytest.mark.parametrize('parent_images', [True, False])
     @pytest.mark.parametrize('base_from_scratch', [True, False])

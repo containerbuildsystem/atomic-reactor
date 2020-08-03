@@ -310,7 +310,7 @@ def mock_environment(tmpdir, primary_images=None,
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
+    workflow = DockerBuildWorkflow(source=SOURCE)
     base_image_id = '123456parent-id'
     setattr(workflow, '_base_image_inspect', {'Id': base_image_id})
     setattr(workflow, 'builder', StubInsideBuilder())
@@ -434,7 +434,7 @@ OTHER_V2 = 'registry.example.com:5001'
 ])
 @responses.activate  # noqa
 def test_group_manifests(tmpdir, schema_version, test_name, group, foreign_layers,
-                         registries, workers, expected_exception, reactor_config_map):
+                         registries, workers, expected_exception, reactor_config_map, user_params):
     if MOCK:
         mock_docker()
 

@@ -27,7 +27,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        ReactorConfig)
 from osbs.utils import ImageName
 
-from tests.constants import TEST_IMAGE
+from tests.constants import MOCK_SOURCE
 from tests.flatpak import (MODULEMD_AVAILABLE,
                            setup_flatpak_source_info, build_flatpak_test_configs)
 
@@ -478,7 +478,8 @@ def write_docker_file(config, tmpdir):
     ('runtime', 'both', None),
     ('sdk', 'both', None),
 ])
-def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, flatpak_metadata, breakage):
+def test_flatpak_create_oci(tmpdir, docker_tasker, user_params,
+                            config_name, flatpak_metadata, breakage):
     # Check that we actually have flatpak available
     have_flatpak = False
     try:
@@ -502,11 +503,8 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, flatpak_metadata
 
     config = CONFIGS[config_name]
 
-    workflow = DockerBuildWorkflow(
-        TEST_IMAGE,
-        source={"provider": "git", "uri": "asd"}
-    )
-    workflow.user_params = USER_PARAMS
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow.user_params.update(USER_PARAMS)
     setattr(workflow, 'builder', MockBuilder())
     workflow.builder.df_path = write_docker_file(config, str(tmpdir))
     setattr(workflow.builder, 'tasker', docker_tasker)
@@ -704,11 +702,8 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, config_name, flatpak_metadata
 
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,  # noqa - docker_tasker fixture
                     reason="libmodulemd not available")
-def test_skip_plugin(caplog, docker_tasker):
-    workflow = DockerBuildWorkflow(
-        TEST_IMAGE,
-        source={"provider": "git", "uri": "asd"}
-    )
+def test_skip_plugin(caplog, docker_tasker, user_params):
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
     workflow.user_params = {}
     setattr(workflow, 'builder', MockBuilder())
 

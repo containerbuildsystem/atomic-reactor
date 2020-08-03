@@ -52,6 +52,8 @@ CONFIGS = build_flatpak_test_configs()
 
 USER_PARAMS = {'flatpak': True}
 
+pytestmark = pytest.mark.usefixtures('user_params')
+
 
 class MockSource(object):
     def __init__(self, tmpdir):
@@ -85,7 +87,7 @@ class MockBuilder(object):
 def mock_workflow(tmpdir, container_yaml, user_params=None):
     if user_params is None:
         user_params = USER_PARAMS
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', MockBuilder())
     workflow.builder.source = mock_source

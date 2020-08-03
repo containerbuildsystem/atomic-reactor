@@ -66,7 +66,7 @@ def prepare(tmpdir, insecure_registry=None, namespace=None,
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
+    workflow = DockerBuildWorkflow(source=SOURCE)
     setattr(workflow, 'builder', X())
     flexmock(workflow, build_process_failed=build_process_failed)
     setattr(workflow.builder, 'image_id', 'asd123')
@@ -143,7 +143,7 @@ def prepare(tmpdir, insecure_registry=None, namespace=None,
     return runner
 
 
-def test_bad_setup(tmpdir, caplog, monkeypatch, reactor_config_map):  # noqa
+def test_bad_setup(tmpdir, caplog, monkeypatch, reactor_config_map, user_params):  # noqa
     """
     Try all the early-fail paths.
     """
@@ -171,7 +171,7 @@ def test_bad_setup(tmpdir, caplog, monkeypatch, reactor_config_map):  # noqa
 @pytest.mark.parametrize(('namespace'), [None, 'my_namespace'])
 @pytest.mark.parametrize(('organization'), [None, 'my_organization'])
 def test_create_image(tmpdir, insecure_registry, namespace, organization,
-                      monkeypatch, reactor_config_map):
+                      monkeypatch, reactor_config_map, user_params):
     """
     Test that an ImageStream is created if not found
     """
@@ -211,7 +211,7 @@ def test_create_image(tmpdir, insecure_registry, namespace, organization,
 
 
 @pytest.mark.parametrize(('osbs_error'), [True, False])
-def test_ensure_primary(tmpdir, monkeypatch, osbs_error, reactor_config_map):
+def test_ensure_primary(tmpdir, monkeypatch, osbs_error, reactor_config_map, user_params):
     """
     Test that primary image tags are ensured
     """
@@ -259,7 +259,7 @@ def test_ensure_primary(tmpdir, monkeypatch, osbs_error, reactor_config_map):
     ({'namespace': 'my_namespace'})
 ])
 def test_import_image(tmpdir, build_process_failed, namespace,
-                      monkeypatch, reactor_config_map):
+                      monkeypatch, reactor_config_map, user_params):
     """
     Test importing tags for an existing ImageStream
     """
@@ -307,7 +307,7 @@ def test_import_image(tmpdir, build_process_failed, namespace,
     runner.run()
 
 
-def test_exception_during_create(tmpdir, monkeypatch, reactor_config_map):  # noqa
+def test_exception_during_create(tmpdir, monkeypatch, reactor_config_map, user_params):  # noqa
     """
     The plugin should fail if the ImageStream creation fails.
     """
@@ -333,7 +333,7 @@ def test_exception_during_create(tmpdir, monkeypatch, reactor_config_map):  # no
         runner.run()
 
 
-def test_exception_during_import(tmpdir, monkeypatch, reactor_config_map):  # noqa
+def test_exception_during_import(tmpdir, monkeypatch, reactor_config_map, user_params):  # noqa
     """
     The plugin should fail if image import fails.
     """
@@ -366,7 +366,7 @@ def test_exception_during_import(tmpdir, monkeypatch, reactor_config_map):  # no
     ('', True),
     (None, True),
 ])
-def test_skip_plugin(tmpdir, caplog, monkeypatch, reactor_config_map,
+def test_skip_plugin(tmpdir, caplog, monkeypatch, reactor_config_map, user_params,
                      imagestream, scratch):  # noqa
     runner = prepare(tmpdir, reactor_config_map=reactor_config_map, imagestream_name=imagestream)
     runner.workflow.user_params['scratch'] = scratch

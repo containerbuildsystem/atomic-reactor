@@ -279,7 +279,7 @@ def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
 
 
 def mock_workflow(tmpdir):
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', X)
     workflow.builder.source = mock_source
@@ -363,7 +363,7 @@ def make_and_store_reactor_config_map(workflow, additional=None):
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts(tmpdir, docker_tasker):
+def test_fetch_maven_artifacts(tmpdir, docker_tasker, user_params):
     workflow = mock_workflow(tmpdir)
     mock_koji_session()
     mock_fetch_artifacts_by_nvr(str(tmpdir))
@@ -419,7 +419,8 @@ def test_fetch_maven_artifacts(tmpdir, docker_tasker):
     ], [ARCHIVE_JAXB_GLASSFISH_JAR, ARCHIVE_JAXB_JAVADOC_GLASSFIX_JAR, ARCHIVE_JAXB_GLASSFISH_POM]),
 ))
 @responses.activate
-def test_fetch_maven_artifacts_nvr_filtering(tmpdir, docker_tasker, nvr_requests, expected):
+def test_fetch_maven_artifacts_nvr_filtering(tmpdir, docker_tasker, user_params,
+                                             nvr_requests, expected):
     """Test filtering of archives in a Koji build."""
     workflow = mock_workflow(tmpdir)
     mock_koji_session()
@@ -471,7 +472,8 @@ def test_fetch_maven_artifacts_nvr_filtering(tmpdir, docker_tasker, nvr_requests
     ], 'glassfish.org'),
 ))
 @responses.activate
-def test_fetch_maven_artifacts_nvr_no_match(tmpdir, docker_tasker, nvr_requests, error_msg):
+def test_fetch_maven_artifacts_nvr_no_match(tmpdir, docker_tasker, user_params,
+                                            nvr_requests, error_msg):
     """Err when a requested archive is not found in Koji build."""
     workflow = mock_workflow(tmpdir)
     mock_koji_session()
@@ -497,7 +499,7 @@ def test_fetch_maven_artifacts_nvr_no_match(tmpdir, docker_tasker, nvr_requests,
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts_nvr_bad_checksum(tmpdir, docker_tasker):
+def test_fetch_maven_artifacts_nvr_bad_checksum(tmpdir, docker_tasker, user_params):
     """Err when downloaded archive from Koji build has unexpected checksum."""
     workflow = mock_workflow(tmpdir)
     mock_koji_session()
@@ -522,7 +524,7 @@ def test_fetch_maven_artifacts_nvr_bad_checksum(tmpdir, docker_tasker):
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts_nvr_bad_url(tmpdir, docker_tasker):
+def test_fetch_maven_artifacts_nvr_bad_url(tmpdir, docker_tasker, user_params):
     """Err on download errors for artifact from Koji build."""
     workflow = mock_workflow(tmpdir)
     mock_koji_session()
@@ -547,7 +549,7 @@ def test_fetch_maven_artifacts_nvr_bad_url(tmpdir, docker_tasker):
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts_nvr_bad_nvr(tmpdir, docker_tasker):
+def test_fetch_maven_artifacts_nvr_bad_nvr(tmpdir, docker_tasker, user_params):
     """Err when given nvr is not a valid build in Koji."""
     workflow = mock_workflow(tmpdir)
     mock_koji_session()
@@ -596,7 +598,7 @@ def test_fetch_maven_artifacts_nvr_bad_nvr(tmpdir, docker_tasker):
 
 ))
 @responses.activate
-def test_fetch_maven_artifacts_nvr_schema_error(tmpdir, docker_tasker, contents):
+def test_fetch_maven_artifacts_nvr_schema_error(tmpdir, docker_tasker, user_params, contents):
     """Err on invalid format for fetch-artifacts-koji.yaml"""
     workflow = mock_workflow(tmpdir)
     mock_koji_session()
@@ -625,7 +627,8 @@ def test_fetch_maven_artifacts_nvr_schema_error(tmpdir, docker_tasker, contents)
     ([REMOTE_FILE_WITH_TARGET], [REMOTE_FILE_WITH_TARGET]),
 ))
 @responses.activate
-def test_fetch_maven_artifacts_url_with_target(tmpdir, docker_tasker, contents, expected):
+def test_fetch_maven_artifacts_url_with_target(tmpdir, docker_tasker, user_params,
+                                               contents, expected):
     """Remote file is downloaded into specified filename."""
     workflow = mock_workflow(tmpdir)
     mock_koji_session()
@@ -660,7 +663,7 @@ def test_fetch_maven_artifacts_url_with_target(tmpdir, docker_tasker, contents, 
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts_url_bad_checksum(tmpdir, docker_tasker):
+def test_fetch_maven_artifacts_url_bad_checksum(tmpdir, docker_tasker, user_params):
     """Err when downloaded remote file has unexpected checksum."""
     workflow = mock_workflow(tmpdir)
     mock_koji_session()
@@ -685,7 +688,7 @@ def test_fetch_maven_artifacts_url_bad_checksum(tmpdir, docker_tasker):
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts_url_bad_url(tmpdir, docker_tasker):
+def test_fetch_maven_artifacts_url_bad_url(tmpdir, docker_tasker, user_params):
     """Err on download errors for remote file."""
     workflow = mock_workflow(tmpdir)
     mock_koji_session()
@@ -738,7 +741,7 @@ def test_fetch_maven_artifacts_url_bad_url(tmpdir, docker_tasker):
         """),
 ))
 @responses.activate
-def test_fetch_maven_artifacts_url_schema_error(tmpdir, docker_tasker, contents):
+def test_fetch_maven_artifacts_url_schema_error(tmpdir, docker_tasker, user_params, contents):
     """Err on invalid format for fetch-artifacts-url.yaml"""
     workflow = mock_workflow(tmpdir)
     mock_koji_session()
@@ -779,7 +782,8 @@ def test_fetch_maven_artifacts_url_schema_error(tmpdir, docker_tasker, contents)
     (['spam.com', 'bacon.bz'], True),
 ))
 @responses.activate
-def test_fetch_maven_artifacts_url_allowed_domains(tmpdir, docker_tasker, domains, raises):
+def test_fetch_maven_artifacts_url_allowed_domains(tmpdir, docker_tasker, user_params,
+                                                   domains, raises):
     """Validate URL domain is allowed when fetching remote file."""
     workflow = mock_workflow(tmpdir)
     mock_koji_session()
@@ -813,7 +817,7 @@ def test_fetch_maven_artifacts_url_allowed_domains(tmpdir, docker_tasker, domain
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts_commented_out_files(tmpdir, docker_tasker):
+def test_fetch_maven_artifacts_commented_out_files(tmpdir, docker_tasker, user_params):
     workflow = mock_workflow(tmpdir)
     mock_koji_session()
     contents = dedent("""\

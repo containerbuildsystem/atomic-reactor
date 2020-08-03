@@ -36,11 +36,14 @@ if MOCK:
     from tests.docker_mock import mock_docker
 
 
+pytestmark = pytest.mark.usefixtures('user_params')
+
+
 def prepare(df_path, inherited_user=''):
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
+    workflow = DockerBuildWorkflow(source=SOURCE)
     workflow.source = StubSource()
     workflow.builder = (StubInsideBuilder()
                         .for_workflow(workflow)

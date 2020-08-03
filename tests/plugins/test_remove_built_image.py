@@ -22,7 +22,7 @@ from tests.constants import (LOCALHOST_REGISTRY,
                              TEST_IMAGE,
                              IMPORTED_IMAGE_ID,
                              INPUT_IMAGE,
-                             MOCK)
+                             MOCK, MOCK_SOURCE)
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -37,10 +37,7 @@ def mock_environment(base_image=None):
         mock_docker()
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(
-        TEST_IMAGE,
-        source={"provider": "git", "uri": "asd"},
-    )
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
     workflow.postbuild_results[TagAndPushPlugin.key] = True
     workflow.tag_conf.add_primary_image(TEST_IMAGE)
     workflow.push_conf.add_docker_registry(LOCALHOST_REGISTRY, insecure=True)
@@ -55,6 +52,7 @@ def mock_environment(base_image=None):
     return tasker, workflow
 
 
+@pytest.mark.usefixtures('user_params')
 class TestGarbageCollectionPlugin(object):
     @pytest.mark.parametrize(('remove_base', 'deferred', 'expected'), [
         (False, [], {INPUT_IMAGE}),

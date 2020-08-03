@@ -21,7 +21,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
                                                        ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY)
 
-from tests.constants import TEST_IMAGE, MOCK_SOURCE
+from tests.constants import MOCK_SOURCE
 from tests.stubs import StubSource, StubInsideBuilder
 
 
@@ -62,7 +62,7 @@ class MockEnv(object):
     _plugins_for_phase = {phase: phase + '_plugins_conf' for phase in _plugin_phases}
 
     def __init__(self):
-        self.workflow = DockerBuildWorkflow(TEST_IMAGE, source=MOCK_SOURCE)
+        self.workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
         self.workflow.source = StubSource()
         self.workflow.builder = StubInsideBuilder().for_workflow(self.workflow)
         self.workflow.builder.tasker = flexmock()
