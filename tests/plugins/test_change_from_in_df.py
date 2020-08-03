@@ -23,6 +23,8 @@ from tests.constants import SOURCE
 from tests.stubs import StubInsideBuilder, StubSource
 from textwrap import dedent
 
+pytestmark = pytest.mark.usefixtures('user_params')
+
 
 def mock_workflow():
     """
@@ -31,7 +33,7 @@ def mock_workflow():
     matter should provide their own.
     """
 
-    workflow = DockerBuildWorkflow("mock:default_built", source=SOURCE)
+    workflow = DockerBuildWorkflow(source=SOURCE)
     workflow.source = StubSource()
     builder = StubInsideBuilder().for_workflow(workflow)
     builder.set_df_path('/mock-path')
@@ -229,8 +231,7 @@ def test_update_base_image_inspect_broken(tmpdir, caplog, docker_tasker):
         """),
     ),
 ])
-def test_update_parent_images(df_content, expected_df_content, tmpdir,
-                              docker_tasker):
+def test_update_parent_images(df_content, expected_df_content, tmpdir, docker_tasker):
     """test the happy path for updating multiple parents"""
     dfp = df_parser(str(tmpdir))
     dfp.content = df_content

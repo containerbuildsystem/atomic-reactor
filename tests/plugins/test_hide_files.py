@@ -30,6 +30,7 @@ if MOCK:
     from tests.docker_mock import mock_docker
 
 
+@pytest.mark.usefixtures('user_params')
 class TestHideFilesPlugin(object):
 
     def test_missing_config(self, tmpdir):
@@ -252,7 +253,7 @@ class TestHideFilesPlugin(object):
         if MOCK:
             mock_docker()
         tasker = DockerTasker()
-        workflow = DockerBuildWorkflow("test-image", source=SOURCE)
+        workflow = DockerBuildWorkflow(source=SOURCE)
         workflow.source = MockSource(df_path)
         workflow.builder = (StubInsideBuilder()
                             .for_workflow(workflow)

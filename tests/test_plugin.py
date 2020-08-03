@@ -37,6 +37,8 @@ TEST_IMAGE = "fedora:latest"
 SOURCE = {"provider": "git", "uri": DOCKERFILE_GIT}
 DUMMY_BUILD_RESULT = BuildResult(image_id="image_id")
 
+pytestmark = pytest.mark.usefixtures('user_params')
+
 
 class MyBsPlugin1(BuildStepPlugin):
     key = 'MyBsPlugin1'
@@ -63,7 +65,7 @@ def mock_workflow(tmpdir):
     if MOCK:
         mock_docker()
 
-    workflow = DockerBuildWorkflow('test-image', source=SOURCE)
+    workflow = DockerBuildWorkflow(source=SOURCE)
     setattr(workflow, 'builder', X())
     flexmock(DockerfileParser, content='df_content')
     setattr(workflow.builder, 'get_built_image_info', flexmock())
@@ -104,7 +106,7 @@ class X(object):
 
 
 def test_prebuild_plugin_failure(docker_tasker):  # noqa
-    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
+    workflow = DockerBuildWorkflow(source=SOURCE)
     setattr(workflow, 'builder', X())
     setattr(workflow.builder, 'image_id', "asd123")
     setattr(workflow.builder, 'base_image', ImageName(repo='fedora', tag='21'))
@@ -166,8 +168,8 @@ def test_required_plugin_failure(tmpdir, docker_tasker, runner_type, required):
     True,
     False,
 ])
-def test_verify_required_plugins_before_first_run(caplog, tmpdir, docker_tasker, runner_type,
-                                                  plugin_type, required):
+def test_verify_required_plugins_before_first_run(caplog, tmpdir, docker_tasker,
+                                                  runner_type, plugin_type, required):
     """
     test plugin availability checks before running any plugins
     """
@@ -218,7 +220,8 @@ def test_check_no_reload(caplog, tmpdir, docker_tasker):
 
 @pytest.mark.parametrize('success1', [True, False])  # noqa
 @pytest.mark.parametrize('success2', [True, False])
-def test_buildstep_phase_build_plugin(caplog, tmpdir, docker_tasker, success1, success2):
+def test_buildstep_phase_build_plugin(caplog, tmpdir, docker_tasker,
+                                      success1, success2):
     """
     plugin runner should stop after first successful plugin
     InappropriateBuildStepError exception isn't critical,

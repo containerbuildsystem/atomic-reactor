@@ -26,6 +26,8 @@ from atomic_reactor.constants import INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_add_image_content_manifest import AddImageContentManifestPlugin
 
+pytestmark = pytest.mark.usefixtures('user_params')
+
 CONTENT_SETS = {
     'x86_64': ['pulp-spamx86-rpms', 'pulp-baconx86-rpms'],
     'ppc64': ['pulp-spamppc64-rpms', 'pulp-baconppc64-rpms'],

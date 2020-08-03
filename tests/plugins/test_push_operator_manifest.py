@@ -35,6 +35,8 @@ TEST_OMPS_APPREGISTRY = 'https://quay.io./cnr'
 TEST_OMPS_REPO = 'test_repo'
 TEST_OMPS_VERSION = '0.0.1'
 
+pytestmark = pytest.mark.usefixtures('user_params')
+
 
 class MockSource(StubSource):
 

@@ -47,6 +47,8 @@ SOURCE_REGISTRY = {
     'url': 'https://{}'.format(SOURCE_REGISTRY_URI),
 }
 
+pytestmark = pytest.mark.usefixtures('user_params')
+
 
 def mock_dockerfile(tmpdir, base='scratch', operator_bundle_label=True):
     dockerfile = (

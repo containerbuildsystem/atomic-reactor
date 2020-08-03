@@ -27,7 +27,7 @@ from atomic_reactor.plugins.pre_reactor_config import (
     ReactorConfigPlugin,
 )
 from tests.docker_mock import mock_docker
-from tests.constants import TEST_IMAGE, MOCK_SOURCE
+from tests.constants import MOCK_SOURCE
 
 
 class MockSource(object):
@@ -59,7 +59,7 @@ class MockInsideBuilder(object):
 
 
 def mock_workflow(tmpdir, sources_dir='', remote_dir=''):
-    workflow = DockerBuildWorkflow(TEST_IMAGE, source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
     builder = MockInsideBuilder()
     source = MockSource(tmpdir)
     setattr(builder, 'source', source)
@@ -84,8 +84,10 @@ def mock_workflow(tmpdir, sources_dir='', remote_dir=''):
     ('remote_sources_dir', True, True),
     ('remote_sources_dir', True, False)])
 @pytest.mark.parametrize('export_failed', (True, False))
-def test_running_build(tmpdir, caplog, sources_dir, sources_dir_exists, sources_dir_empty,
-                       remote_dir, remote_dir_exists, remote_dir_empty, export_failed):
+def test_running_build(tmpdir, caplog, user_params,
+                       sources_dir, sources_dir_exists, sources_dir_empty,
+                       remote_dir, remote_dir_exists, remote_dir_empty,
+                       export_failed):
     """
     Test if proper result is returned and if plugin works
     """
@@ -212,7 +214,7 @@ def test_running_build(tmpdir, caplog, sources_dir, sources_dir_exists, sources_
             assert empty_remote_msg not in caplog.text
 
 
-def test_failed_build(tmpdir, caplog):
+def test_failed_build(tmpdir, caplog, user_params):
     """
     Test if proper error state is returned when build inside build
     container failed

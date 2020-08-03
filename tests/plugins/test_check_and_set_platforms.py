@@ -118,7 +118,7 @@ def prepare(tmpdir, labels=None):
         mock_docker()
     labels = labels or {}
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
+    workflow = DockerBuildWorkflow(source=SOURCE)
     workflow.user_params['scratch'] = labels.get('scratch', False)
     workflow.user_params['isolated'] = labels.get('isolated', False)
     setattr(workflow, 'builder', X())
@@ -149,8 +149,8 @@ def teardown_function(function):
      ['x86_64']),
     ('x86_64 ppc64le', '', '', ['x86_64', 'ppc64le'])
 ])
-def test_check_and_set_platforms(tmpdir, caplog, platforms, platform_exclude, platform_only,
-                                 result):
+def test_check_and_set_platforms(tmpdir, caplog, user_params,
+                                 platforms, platform_exclude, platform_only, result):
     write_container_yaml(tmpdir, platform_exclude, platform_only)
 
     tasker, workflow = prepare(tmpdir)
@@ -198,8 +198,9 @@ def test_check_and_set_platforms(tmpdir, caplog, platforms, platform_exclude, pl
     ({'scratch': True}, 'x86_64 arm64', ['x86_64', 'arm64'], 'x86_64', ['x86_64']),
     ({'scratch': True}, 'x86_64 arm64 s390x', ['x86_64', 'arm64'], 'x86_64', ['x86_64', 'arm64']),
 ])
-def test_check_isolated_or_scratch(tmpdir, caplog, labels, platforms,
-                                   orchestrator_platforms, platform_only, result):
+def test_check_isolated_or_scratch(tmpdir, caplog, user_params,
+                                   labels, platforms, orchestrator_platforms, platform_only,
+                                   result):
     write_container_yaml(tmpdir, platform_only=platform_only)
 
     tasker, workflow = prepare(tmpdir, labels=labels)
@@ -246,7 +247,8 @@ def test_check_isolated_or_scratch(tmpdir, caplog, labels, platforms,
     ('x86_64 ppc64le', '', ['x86_64', 'ppc64le']),
     ('x86_64 ppc64le', 'ppc64le', ['ppc64le']),
 ])
-def test_check_and_set_platforms_no_koji(tmpdir, caplog, platforms, platform_only, result):
+def test_check_and_set_platforms_no_koji(tmpdir, caplog, user_params,
+                                         platforms, platform_only, result):
     write_container_yaml(tmpdir, platform_only=platform_only)
 
     tasker, workflow = prepare(tmpdir)
@@ -284,7 +286,8 @@ def test_check_and_set_platforms_no_koji(tmpdir, caplog, platforms, platform_onl
     ('x86_64 ppc64le', 's390x'),
     ('s390x ppc64le', 'x86_64'),
 ])
-def test_check_and_set_platforms_no_platforms_in_limits(tmpdir, caplog, platforms, platform_only):
+def test_check_and_set_platforms_no_platforms_in_limits(tmpdir, caplog, user_params,
+                                                        platforms, platform_only):
     write_container_yaml(tmpdir, platform_only=platform_only)
 
     tasker, workflow = prepare(tmpdir)
@@ -314,8 +317,8 @@ def test_check_and_set_platforms_no_platforms_in_limits(tmpdir, caplog, platform
     ('x86_64 ppc64le', '', 'x86_64', ['x86_64']),
     ('x86_64 ppc64le arm64', ['x86_64', 'arm64'], 'x86_64', ['x86_64']),
 ])
-def test_platforms_from_cluster_config(tmpdir, platforms, platform_only,
-                                       cluster_platforms, result):
+def test_platforms_from_cluster_config(tmpdir, user_params,
+                                       platforms, platform_only, cluster_platforms, result):
     write_container_yaml(tmpdir, platform_only=platform_only)
 
     tasker, workflow = prepare(tmpdir)

@@ -254,7 +254,7 @@ def mock_environment(tmpdir, session=None, name=None,
     tasker = ContainerTasker()
     tasker._tasker = DockerTasker()
     tasker.build_method = build_method
-    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
+    workflow = DockerBuildWorkflow(source=SOURCE)
     workflow.user_params['scratch'] = scratch
     base_image_id = '123456parent-id'
 
@@ -586,6 +586,7 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
     return runner
 
 
+@pytest.mark.usefixtures('user_params')
 class TestKojiImport(object):
     def test_koji_import_get_buildroot(self, tmpdir, os_env):
         metadatas = {

@@ -33,7 +33,7 @@ from osbs.build.build_response import BuildResponse
 from osbs.exceptions import OsbsException
 from osbs.core import Openshift
 from osbs.utils import ImageName
-from tests.constants import MOCK_SOURCE, TEST_IMAGE, INPUT_IMAGE, SOURCE
+from tests.constants import MOCK_SOURCE, INPUT_IMAGE, SOURCE
 from tests.docker_mock import mock_docker
 from tests.util import add_koji_map_in_workflow
 from textwrap import dedent
@@ -125,8 +125,11 @@ class fake_manifest_list(object):
         return self.content
 
 
+pytestmark = pytest.mark.usefixtures('user_params')
+
+
 def mock_workflow(tmpdir, platforms=None):
-    workflow = DockerBuildWorkflow(TEST_IMAGE, source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
     builder = MockInsideBuilder()
     source = MockSource(tmpdir)
     setattr(builder, 'source', source)
@@ -293,7 +296,8 @@ def teardown_function(function):
     True,
     False
 ])
-def test_orchestrate_build(tmpdir, caplog, config_kwargs, worker_build_image, logs_return_bytes):
+def test_orchestrate_build(tmpdir, caplog,
+                           config_kwargs, worker_build_image, logs_return_bytes):
     workflow = mock_workflow(tmpdir, platforms=['x86_64'])
     mock_osbs(logs_return_bytes=logs_return_bytes)
     plugin_args = {
@@ -691,8 +695,7 @@ def test_orchestrate_build_cancelation(tmpdir):
 @pytest.mark.parametrize(('clusters_ppc64le'), (
     ([('chosen_ppc64le', 7), ('eggs', 6)]),
 ))
-def test_orchestrate_build_choose_clusters(tmpdir, clusters_x86_64,
-                                           clusters_ppc64le):
+def test_orchestrate_build_choose_clusters(tmpdir, clusters_x86_64, clusters_ppc64le):
     workflow = mock_workflow(tmpdir)
     mock_osbs()  # Current builds is a constant 2
     mock_manifest_list()

@@ -86,10 +86,10 @@ class MockSource(object):
 
 
 @pytest.fixture()
-def workflow(tmpdir):
+def workflow(tmpdir, user_params):
     if MOCK:
         mock_docker()
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
     workflow.source = MockSource(tmpdir)
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
     workflow.builder.set_dockerfile_images(['base:latest'])

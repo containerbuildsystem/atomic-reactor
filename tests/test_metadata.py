@@ -19,6 +19,8 @@ from atomic_reactor.metadata import (
     label_map,
 )
 
+pytestmark = pytest.mark.usefixtures('user_params')
+
 
 @pytest.mark.parametrize('metadata_decorator, metadata_attr', [
     (annotation, 'annotations'),
@@ -40,7 +42,7 @@ def test_store_metadata(metadata_decorator, metadata_attr):
             return None
 
     tasker = object()
-    workflow = DockerBuildWorkflow('test-image')
+    workflow = DockerBuildWorkflow()
     p1 = BP1(tasker, workflow)
     p2 = BP2(tasker, workflow)
 
@@ -72,7 +74,7 @@ def test_store_metadata_map(metadata_map_decorator, metadata_attr):
             return None
 
     tasker = object()
-    workflow = DockerBuildWorkflow('test-image')
+    workflow = DockerBuildWorkflow()
     p1 = BP1(tasker, workflow)
     p2 = BP2(tasker, workflow)
 
@@ -111,7 +113,7 @@ def test_store_metadata_wrong_return_type(metadata_decorator, expected_err_msg):
             return 1
 
     tasker = object()
-    workflow = DockerBuildWorkflow('test-image')
+    workflow = DockerBuildWorkflow()
     p = BP(tasker, workflow)
 
     with pytest.raises(TypeError) as exc_info:
@@ -133,7 +135,7 @@ def test_store_metadata_missing_key(metadata_decorator, expected_err_msg):
             return {'foo': 1}
 
     tasker = object()
-    workflow = DockerBuildWorkflow('test-image')
+    workflow = DockerBuildWorkflow()
     p = BP(tasker, workflow)
 
     with pytest.raises(RuntimeError) as exc_info:
@@ -156,7 +158,7 @@ def test_store_metadata_conflict(metadata_decorator, expected_err_msg):
             return {'foo': 1}
 
     tasker = object()
-    workflow = DockerBuildWorkflow('test-image')
+    workflow = DockerBuildWorkflow()
     p = BP(tasker, workflow)
 
     p.run()
@@ -177,7 +179,7 @@ def test_store_metadata_combined():
             return {'bar': 1, 'eggs': 2}
 
     tasker = object()
-    workflow = DockerBuildWorkflow('test-image')
+    workflow = DockerBuildWorkflow()
     p = BP(tasker, workflow)
 
     p.run()

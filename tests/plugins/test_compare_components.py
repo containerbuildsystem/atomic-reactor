@@ -27,7 +27,7 @@ from atomic_reactor.plugins.post_compare_components import (
 )
 from atomic_reactor.util import DockerfileImages
 
-from tests.constants import MOCK_SOURCE, TEST_IMAGE, INPUT_IMAGE, FILES
+from tests.constants import MOCK_SOURCE, INPUT_IMAGE, FILES
 from tests.docker_mock import mock_docker
 
 import pytest
@@ -70,7 +70,7 @@ class MockInsideBuilder(object):
 
 
 def mock_workflow(tmpdir):
-    workflow = DockerBuildWorkflow(TEST_IMAGE, source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
     setattr(workflow, 'builder', MockInsideBuilder())
     setattr(workflow, 'source', MockSource(tmpdir))
     setattr(workflow.builder, 'source', MockSource(tmpdir))
@@ -123,7 +123,8 @@ def test_filter_components_by_name():
     (False, True, False),
     (True, True, False),
 ))
-def test_compare_components_plugin(tmpdir, caplog, base_from_scratch, mismatch, exception, fail):
+def test_compare_components_plugin(tmpdir, caplog, user_params,
+                                   base_from_scratch, mismatch, exception, fail):
     workflow = mock_workflow(tmpdir)
     worker_metadatas = mock_metadatas()
 
@@ -161,7 +162,7 @@ def test_compare_components_plugin(tmpdir, caplog, base_from_scratch, mismatch, 
             assert log_msg in caplog.text
 
 
-def test_no_components(tmpdir):
+def test_no_components(tmpdir, user_params):
     workflow = mock_workflow(tmpdir)
     worker_metadatas = mock_metadatas()
 
@@ -184,7 +185,7 @@ def test_no_components(tmpdir):
         runner.run()
 
 
-def test_bad_component_type(tmpdir):
+def test_bad_component_type(tmpdir, user_params):
     workflow = mock_workflow(tmpdir)
     worker_metadatas = mock_metadatas()
 
@@ -207,7 +208,7 @@ def test_bad_component_type(tmpdir):
 
 
 @pytest.mark.parametrize('mismatch', (True, False))
-def test_mismatch_reporting(tmpdir, caplog, mismatch):
+def test_mismatch_reporting(tmpdir, caplog, user_params, mismatch):
     """Test if expected log entries are reported when components mismatch"""
     workflow = mock_workflow(tmpdir)
     worker_metadatas = mock_metadatas()
@@ -264,7 +265,7 @@ def test_mismatch_reporting(tmpdir, caplog, mismatch):
             assert entry not in caplog.text
 
 
-def test_skip_plugin(tmpdir, caplog):
+def test_skip_plugin(tmpdir, caplog, user_params):
     workflow = mock_workflow(tmpdir)
     workflow.user_params['scratch'] = True
 

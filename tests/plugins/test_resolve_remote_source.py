@@ -28,7 +28,7 @@ from atomic_reactor.plugins.pre_reactor_config import (
 from atomic_reactor.plugins.pre_resolve_remote_source import ResolveRemoteSourcePlugin
 from atomic_reactor.source import SourceConfig
 
-from tests.constants import TEST_IMAGE
+from tests.constants import MOCK_SOURCE
 from tests.stubs import StubInsideBuilder, StubSource
 
 
@@ -111,11 +111,8 @@ REMOTE_SOURCE_JSON = {
 
 
 @pytest.fixture
-def workflow(tmpdir):
-    workflow = DockerBuildWorkflow(
-        TEST_IMAGE,
-        source={"provider": "git", "uri": "asd"}
-    )
+def workflow(tmpdir, user_params):
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
 
     # Stash the tmpdir in workflow so it can be used later
     workflow._tmpdir = tmpdir

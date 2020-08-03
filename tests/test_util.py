@@ -966,14 +966,14 @@ def test_get_build_json(environ, expected):
             get_build_json()
 
 
-@pytest.mark.parametrize('user_params,scratch', [
+@pytest.mark.parametrize('extra_user_params,scratch', [
     ({'scratch': True}, True),
     ({'scratch': False}, False),
     ({}, False),
 ])
-def test_is_scratch_build(user_params, scratch):
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
-    workflow.user_params = user_params
+def test_is_scratch_build(extra_user_params, scratch, user_params):
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow.user_params.update(extra_user_params)
     assert is_scratch_build(workflow) == scratch
 
 
@@ -989,25 +989,25 @@ def test_is_custom_base_build(base_image, is_custom):
     assert base_image_is_custom(base_image) == is_custom
 
 
-@pytest.mark.parametrize(('user_params', 'isolated'), [
+@pytest.mark.parametrize(('extra_user_params', 'isolated'), [
     ({'isolated': True}, True),
     ({'isolated': False}, False),
     ({}, False),
 ])
-def test_is_isolated_build(user_params, isolated):
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
-    workflow.user_params = user_params
+def test_is_isolated_build(extra_user_params, isolated, user_params):
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow.user_params.update(extra_user_params)
     assert is_isolated_build(workflow) == isolated
 
 
-@pytest.mark.parametrize(('user_params', 'flatpak'), [
+@pytest.mark.parametrize(('extra_user_params', 'flatpak'), [
     ({'flatpak': True}, True),
     ({'flatpak': False}, False),
     ({}, False),
 ])
-def test_is_flatpak_build(user_params, flatpak):
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
-    workflow.user_params = user_params
+def test_is_flatpak_build(extra_user_params, flatpak, user_params):
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow.user_params.update(extra_user_params)
     assert is_flatpak_build(workflow) == flatpak
 
 
@@ -1019,8 +1019,8 @@ def test_is_flatpak_build(user_params, flatpak):
       {'name': PLUGIN_BUILD_ORCHESTRATE_KEY, 'args': {'platforms': ['ppce64le', 'arm64']}}],
      ['arm64', 'ppce64le'])
 ])
-def test_get_orchestrator_platforms(inputs, results):
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE,
+def test_get_orchestrator_platforms(inputs, results, user_params):
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE,
                                    buildstep_plugins=inputs)
     if results:
         assert sorted(get_orchestrator_platforms(workflow)) == sorted(results)

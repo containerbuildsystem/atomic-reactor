@@ -32,7 +32,6 @@ from atomic_reactor.plugins.pre_fetch_sources import FetchSourcesPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY, ReactorConfig)
 import atomic_reactor
-from tests.constants import TEST_IMAGE
 from tests.stubs import StubInsideBuilder
 
 
@@ -100,9 +99,7 @@ def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_
 
 def mock_workflow(tmpdir, for_orchestrator=False, config_map=None,
                   default_si=DEFAULT_SIGNING_INTENT):
-    workflow = DockerBuildWorkflow(
-        TEST_IMAGE
-    )
+    workflow = DockerBuildWorkflow()
     builder = StubInsideBuilder().for_workflow(workflow)
     builder.set_df_path(str(tmpdir))
     builder.tasker = flexmock()
@@ -272,6 +269,7 @@ def mock_koji_manifest_download(tmpdir, requests_mock, retries=0, dirs_in_remote
                                body=body_remote_json_callback)
 
 
+@pytest.mark.usefixtures('user_params')
 class TestFetchSources(object):
     @pytest.mark.parametrize('retries', (0, 1, constants.HTTP_MAX_RETRIES + 1))
     @pytest.mark.parametrize('custom_rcm', (None, BASE_CONFIG_MAP))

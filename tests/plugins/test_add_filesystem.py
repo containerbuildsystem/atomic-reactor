@@ -53,6 +53,8 @@ DOCKERFILE_WITH_LABELS = dedent("""\
           "version"="8.0"
     """)
 
+pytestmark = pytest.mark.usefixtures('user_params')
+
 
 class MockSource(object):
     def __init__(self, tmpdir):
@@ -176,7 +178,7 @@ def mock_image_build_file(tmpdir, contents=None):
 
 def mock_workflow(tmpdir, dockerfile=DEFAULT_DOCKERFILE,
                   scratch=False, for_orchestrator=False):
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
     workflow.user_params['scratch'] = scratch
     mock_source = MockSource(tmpdir)
     df = df_parser(str(tmpdir))

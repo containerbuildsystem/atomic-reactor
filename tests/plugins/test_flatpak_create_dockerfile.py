@@ -71,7 +71,7 @@ class MockBuilder(object):
 def mock_workflow(tmpdir, container_yaml, user_params=None):
     if user_params is None:
         user_params = USER_PARAMS
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', MockBuilder())
     workflow.builder.source = mock_source
@@ -100,7 +100,7 @@ CONFIGS = build_flatpak_test_configs()
     ('app', None, 'no_modules'),
     ('app', None, 'multiple_modules'),
 ])
-def test_flatpak_create_dockerfile(tmpdir, docker_tasker,
+def test_flatpak_create_dockerfile(tmpdir, docker_tasker, user_params,
                                    config_name, override_base_image, breakage):
     config = CONFIGS[config_name]
 
@@ -170,7 +170,7 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker,
         assert source_spec == config['source_spec']
 
 
-def test_skip_plugin(tmpdir, caplog, docker_tasker, reactor_config_map):
+def test_skip_plugin(tmpdir, caplog, docker_tasker, reactor_config_map, user_params):
     workflow = mock_workflow(tmpdir, "", user_params={})
 
     base_image = "registry.fedoraproject.org/fedora:latest"

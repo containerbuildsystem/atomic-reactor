@@ -27,7 +27,7 @@ def prepare(df_path):
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
+    workflow = DockerBuildWorkflow(source=SOURCE)
     workflow.source = StubSource()
     workflow.builder = (StubInsideBuilder()
                         .for_workflow(workflow)
@@ -144,7 +144,7 @@ def prepare(df_path):
         """)
     ),
 ])
-def test_add_buildargs_plugin(tmpdir, caplog, buildargs, df_content, df_expected):
+def test_add_buildargs_plugin(tmpdir, caplog, user_params, buildargs, df_content, df_expected):
     df = df_parser(str(tmpdir))
     df.content = df_content
 

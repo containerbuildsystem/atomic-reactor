@@ -249,7 +249,7 @@ def mock_environment(tmpdir, session=None, name=None,
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow("test-image", source=SOURCE)
+    workflow = DockerBuildWorkflow(source=SOURCE)
     base_image_id = '123456parent-id'
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
@@ -438,6 +438,7 @@ class TestKojiUploadLogger(object):
             upload_logger.callback(offset, totalsize, step, 1.0, 1.0)
 
 
+@pytest.mark.usefixtures('user_params')
 class TestKojiUpload(object):
     def test_koji_upload_failed_build(self, tmpdir, os_env):
         session = MockedClientSession('')

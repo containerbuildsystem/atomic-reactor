@@ -34,6 +34,8 @@ LABEL "version"="version_value"
 LABEL "release"="$parentrelease"
 '''
 
+pytestmark = pytest.mark.usefixtures('user_params')
+
 
 class MockSource(object):
     def __init__(self, tmpdir):
@@ -64,7 +66,7 @@ def mock_workflow(tmpdir):
     if MOCK:
         mock_docker()
 
-    workflow = DockerBuildWorkflow('test-image', source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', X)
     workflow.builder.source = mock_source
@@ -87,8 +89,7 @@ def mock_workflow(tmpdir):
     (['has_under', 'ends.dot.'], 'bar', ['bar:has_under', 'bar:ends.dot.']),
     (None, 'fedora', []),
 ])
-def test_tag_from_config_plugin_generated(tmpdir, docker_tasker, tags, name,
-                                          expected):
+def test_tag_from_config_plugin_generated(tmpdir, docker_tasker, tags, name, expected):
     workflow = mock_workflow(tmpdir)
     workflow.built_image_inspect = {
         INSPECT_CONFIG: {'Labels': {'Name': name}}

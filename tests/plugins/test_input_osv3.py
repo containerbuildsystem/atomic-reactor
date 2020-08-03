@@ -375,24 +375,10 @@ class TestOSv3SourceContainerInputPlugin(object):
                 plugin.run()
 
     @pytest.mark.parametrize('mock_env,expected', [
-        (
-            {'OUTPUT_IMAGE': 'something:latest'},
-            False
-        ),
-        (
-            {'OUTPUT_IMAGE': 'something',  'USER_PARAMS': '{}'},
-            False
-        ),
-        (
-            {'OUTPUT_IMAGE': 'something',
-             'USER_PARAMS': '{"kind":"random_something"}'},
-            False,
-        ),
-        (
-            {'OUTPUT_IMAGE': 'something',
-             'USER_PARAMS': '{"kind":"source_containers_user_params"}'},
-            True
-        )
+        ({}, False),
+        ({'USER_PARAMS': '{}'}, False),
+        ({'USER_PARAMS': '{"kind":"random_something"}'}, False),
+        ({'USER_PARAMS': '{"kind":"source_containers_user_params"}'}, True)
     ])
     def test_is_autousable(self, mock_env, expected):
         flexmock(os, environ=mock_env)
