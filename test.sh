@@ -5,10 +5,14 @@ set -eux
 ENGINE=${ENGINE:="podman"}
 OS=${OS:="centos"}
 OS_VERSION=${OS_VERSION:="7"}
-PYTHON_VERSION=${PYTHON_VERSION:="2"}
-ACTION=${ACTION:="test"}
 IMAGE="$OS:$OS_VERSION"
+if [[ "$OS" == "fedora" ]]; then
+    PYTHON_VERSION=3
+else
+    PYTHON_VERSION=2
+fi
 CONTAINER_NAME="atomic-reactor-$OS-$OS_VERSION-py$PYTHON_VERSION"
+ACTION=${ACTION:="test"}
 
 # Use arrays to prevent globbing and word splitting
 engine_mounts=(-v "$PWD":"$PWD":z)
