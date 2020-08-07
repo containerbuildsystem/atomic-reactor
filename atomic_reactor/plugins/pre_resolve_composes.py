@@ -436,6 +436,11 @@ class ComposeConfig(object):
             if data.get(IGNORE_ABSENT_REPOS):
                 self.flags.append(IGNORE_ABSENT_REPOS)
 
+            build_only_content_sets = data.get('build_only_content_sets', {})
+            if build_only_content_sets:
+                for arch, cont_sets in build_only_content_sets.items():
+                    self.pulp[arch] = set(cont_sets).union(self.pulp.get(arch, []))
+
         for arch in data.get('multilib_arches', []):
             if arch in arches:
                 self.multilib_arches.append(arch)
