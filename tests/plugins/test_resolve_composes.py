@@ -1118,6 +1118,55 @@ class TestResolveComposes(object):
             .and_return(ODCS_COMPOSE))
         self.run_plugin_with_args(workflow)
 
+    @pytest.mark.parametrize(('content_sets', 'build_only_content_sets'), (
+        (True, True),
+        (True, False),
+        (False, True),
+        (False, False),
+    ))
+    def test_only_content_sets(self, workflow, content_sets, build_only_content_sets):
+        main_cs_list = ['pulp-spam-rpms', 'pulp-bacon-rpms', 'pulp-eggs-rpms']
+        build_only_cs_list = ['dev-spam-rpms', 'dev-bacon-rpms', 'dev-eggs-rpms', 'pulp-spam-rpms']
+
+        if content_sets:
+            cs_json = {'x86_64': main_cs_list}
+            workflow._tmpdir.join('content_sets.yml').write(yaml.safe_dump(cs_json))
+
+        container_json = {'compose': {'pulp_repos': True}}
+        if build_only_content_sets:
+            container_json['compose']['build_only_content_sets'] = {'x86_64': build_only_cs_list}
+        else:
+            container_json['compose']['build_only_content_sets'] = None
+
+        workflow._tmpdir.join('container.yaml').write(yaml.safe_dump(container_json))
+
+        all_cs = []
+        if content_sets:
+            all_cs = main_cs_list
+        if build_only_content_sets:
+            all_cs = set(build_only_cs_list).union(all_cs)
+        all_sources = ' '.join(all_cs)
+
+        if content_sets or build_only_content_sets:
+            (flexmock(ODCSClient)
+                .should_receive('start_compose')
+                .with_args(
+                    source_type='pulp',
+                    source=all_sources,
+                    sigkeys=[],
+                    flags=[],
+                    arches=['x86_64'])
+                .once()
+                .and_return(ODCS_COMPOSE))
+
+            self.run_plugin_with_args(workflow)
+        else:
+            (flexmock(ODCSClient)
+                .should_receive('start_compose')
+                .never())
+
+            self.run_plugin_with_args(workflow, expect_error='Nothing to compose')
+
     @pytest.mark.parametrize(('state_name', 'time_to_expire_delta', 'expect_renew'), (
         ('removed', timedelta(), True),
         ('removed', timedelta(hours=-2), True),
