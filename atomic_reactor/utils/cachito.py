@@ -142,8 +142,8 @@ class CachitoAPI(object):
             if state == 'complete':
                 logger.debug(dedent("""\
                     Request %s is complete
-                    Details: %s
-                    """), request_id, json.dumps(response_json, indent=4))
+                    Request url: %s
+                    """), request_id, url)
                 return response_json
 
             # All other states are expected to be transient and are not checked.

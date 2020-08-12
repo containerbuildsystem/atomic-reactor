@@ -145,7 +145,6 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
             response = session.get(self.icm_url)
             response.raise_for_status()
             self._icm = response.json()  # Returns dict
-            self.log.debug('Cachito ICM request response:\n%s', self._icm)
 
             # Validate; `json.dumps()` converts `icm` to str. Confusingly, `read_yaml`
             #     *will* validate JSON
@@ -179,7 +178,8 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
         # Validate the updated ICM with the ICM JSON Schema
         read_yaml(icm_json, 'schemas/content_manifest.json')
 
-        self.log.debug('Output ICM: %s', icm_json)
+        self.log.debug('Output ICM content_sets: %s', self.icm['content_sets'])
+        self.log.debug('Output ICM metadata: %s', self.icm['metadata'])
 
     def _write_json_file(self):
         out_file_path = os.path.join(self.workflow.builder.df_dir,
