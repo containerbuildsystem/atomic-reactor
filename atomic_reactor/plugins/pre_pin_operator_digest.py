@@ -150,6 +150,12 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
 
         if operator_manifest.files:
             path_lines = "\n".join(f.path for f in operator_manifest.files)
+
+            if len(operator_manifest.files) > 1:
+                msg = "Operator bundle may contain only 1 CSV file, but contains more: {}".\
+                    format(path_lines)
+                raise RuntimeError(msg)
+
             self.log.info("Found operator CSV files:\n%s", path_lines)
         else:
             self.log.info("No operator CSV files found")
