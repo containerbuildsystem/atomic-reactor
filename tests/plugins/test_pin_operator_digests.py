@@ -319,6 +319,8 @@ class TestPinOperatorDigest(object):
 
     @pytest.mark.parametrize('filepaths', [
         [],
+        ['csv1.yaml'],
+        ['csv2.yaml'],
         ['csv1.yaml', 'csv2.yaml']
     ])
     def test_orchestrator_no_pullspecs(self, filepaths, docker_tasker, tmpdir, caplog):
@@ -329,6 +331,14 @@ class TestPinOperatorDigest(object):
 
         runner = mock_env(docker_tasker, tmpdir, orchestrator=True,
                           user_config=user_config, site_config=site_config)
+
+        if len(filepaths) > 1:
+            with pytest.raises(PluginFailedException) as exc_info:
+                runner.run()
+            msg = "Operator bundle may contain only 1 CSV file, but contains more:"
+            assert msg in str(exc_info.value)
+            return
+
         runner.run()
 
         caplog_text = "\n".join(rec.message for rec in caplog.records)
