@@ -127,9 +127,10 @@ def test_wait_for_request(burst_params, cachito_request, caplog):
         state = states.pop(0)
         return (200, {}, json.dumps({'id': CACHITO_REQUEST_ID, 'state': state, 'updated': updated}))
 
+    request_url = '{}/api/v1/requests/{}'.format(CACHITO_URL, CACHITO_REQUEST_ID)
     responses.add_callback(
         responses.GET,
-        '{}/api/v1/requests/{}'.format(CACHITO_URL, CACHITO_REQUEST_ID),
+        request_url,
         content_type='application/json',
         callback=handle_wait_for_request)
 
@@ -138,16 +139,12 @@ def test_wait_for_request(burst_params, cachito_request, caplog):
     assert response['state'] == expected_final_state
     assert len(responses.calls) == expected_total_responses_calls
 
-    finished_response_json = json.dumps(
-        {'id': CACHITO_REQUEST_ID, 'state': expected_final_state, 'updated': updated},
-        indent=4
-    )
     expect_in_logs = dedent(
         """\
         Request {} is complete
-        Details: {}
+        Request url: {}
         """
-    ).format(CACHITO_REQUEST_ID, finished_response_json)
+    ).format(CACHITO_REQUEST_ID, request_url)
     # Since Python 3.7 logger adds additional whitespaces by default -> checking without them
     assert re.sub(r'\s+', " ", expect_in_logs) in re.sub(r'\s+', r" ", caplog.text)
 
