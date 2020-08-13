@@ -50,6 +50,13 @@ CACHITO_ICM_URL = '{}/api/v1/requests/{}/content-manifest'.format(
 
 REMOTE_SOURCE_REPO = 'https://git.example.com/team/repo.git'
 REMOTE_SOURCE_REF = 'b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a'
+REMOTE_SOURCE_PACKAGES = [
+        {
+            'name': 'test-package',
+            'type': 'npm',
+            'version': '0.0.1'
+        }
+    ]
 
 CACHITO_SOURCE_REQUEST = {
     'id': CACHITO_REQUEST_ID,
@@ -292,12 +299,13 @@ def test_no_koji_user(workflow, build_json, caplog):
     assert log_msg in caplog.text
 
 
-@pytest.mark.parametrize('pop_key', ('repo', 'ref'))
+@pytest.mark.parametrize('pop_key', ('repo', 'ref', 'packages'))
 def test_invalid_remote_source_structure(workflow, pop_key):
     source_request = {
         'id': CACHITO_REQUEST_ID,
         'repo': REMOTE_SOURCE_REPO,
         'ref': REMOTE_SOURCE_REF,
+        'packages': REMOTE_SOURCE_PACKAGES,
     }
     source_request.pop(pop_key)
     mock_cachito_api(workflow, source_request=source_request)
