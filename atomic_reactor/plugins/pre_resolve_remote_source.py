@@ -136,8 +136,8 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
 
     def source_request_to_json(self, source_request):
         """Create a relevant representation of the source request"""
-        required = ('ref', 'repo')
-        optional = ('dependencies', 'flags', 'packages', 'pkg_managers', 'environment_variables',
+        required = ('packages', 'ref', 'repo')
+        optional = ('dependencies', 'flags', 'pkg_managers', 'environment_variables',
                     'configuration_files', 'content_manifest')
 
         data = {}
