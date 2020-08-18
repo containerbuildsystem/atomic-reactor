@@ -97,13 +97,35 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         compute their replacements and set build arg for worker.
 
         Exclude CSVs which already have a relatedImages section.
+
+        Returns operator metadata in format
+        related_images:
+          pullspecs:  # list of all related_images_pullspecs
+            - original: <original-pullspec1>  # original pullspec in CSV file
+              new: <new pullspec>   # new pullspec computed by this plugin
+              pinned: <bool>  # plugin pinned tag to digest
+              replaced: <bool>  # plugin modified pullspec (repo/registry/tag changed)
+            - original: ........
+          created_by_osbs: <bool>
         """
+        related_images_metadata = {
+            'pullspecs': [],
+            'created_by_osbs': True,
+        }
+        operator_manifests_metadata = {
+            'related_images': related_images_metadata
+        }
+
         operator_manifest = self._get_operator_manifest()
         pullspecs = self._get_pullspecs(operator_manifest)
 
         if pullspecs:
             replacement_pullspecs = self._get_replacement_pullspecs(pullspecs)
             self._set_worker_arg(replacement_pullspecs)
+
+            related_images_metadata['pullspecs'] = replacement_pullspecs
+
+        return operator_manifests_metadata
 
     def run_in_worker(self):
         """
@@ -204,15 +226,18 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
             if not replacer.registry_is_allowed(p):
                 raise RuntimeError("Registry not allowed: {} (in {})".format(p.registry, p))
 
-        replacements = {}
+        replacements = []
 
         for original in pullspecs:
             self.log.info("Computing replacement for %s", original)
             replaced = original
+            pinned = False
 
             if pin_digest:
                 self.log.debug("Making sure tag is manifest list digest")
                 replaced = replacer.pin_digest(original)
+                if replaced != original:
+                    pinned = True
 
             if replace_repo:
                 self.log.debug("Replacing namespace/repo")
@@ -224,13 +249,17 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
 
             self.log.info("Final pullspec: %s", replaced)
 
-            if replaced != original:
-                replacements[original] = replaced
+            replacements.append({
+                'original': original,
+                'new': replaced,
+                'pinned': pinned,
+                'replaced': replaced != original
+            })
 
         replacement_lines = "\n".join(
-            "{} -> {}".format(p, replacements[p]) if p in replacements
-            else "{} - no change".format(p)
-            for p in pullspecs
+            "{original} -> {new}".format(**r) if r['replaced']
+            else "{original} - no change".format(**r)
+            for r in replacements
         )
         self.log.info("To be replaced:\n%s", replacement_lines)
 
@@ -251,7 +280,11 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         return pin_digest, replace_repo, replace_registry
 
     def _set_worker_arg(self, replacement_pullspecs):
-        arg = {str(old): str(new) for old, new in replacement_pullspecs.items()}
+        arg = {
+            str(repl['original']): str(repl['new'])
+            for repl in replacement_pullspecs
+            if repl['replaced']
+        }
         override_build_kwarg(self.workflow, "operator_bundle_replacement_pullspecs", arg)
 
 

@@ -87,6 +87,15 @@ Data which is placed here includes
   which this image is available, where "application/json" is for a Docker
   Registry HTTP API V1 image; currently this key is only set when Pulp
   integration is enabled
+- `build.extra.image.operator_manifests` (map): Operator bundle images metadata
+- `build.extra.image.operator_manifests.related_images` (map): Metadata about
+  related_images in operator bundle
+- `build.extra.image.operator_manifests.related_images.pullspecs` (map list):
+  list of used pullspecs. Map keys: `original` - original pullspec value in
+  CSV; `new` - new pullspec replaces by OSBS; `pinned` - boolean if pullspec
+  digest was pinned by OSBS
+- `build.extra.image.operator_manifests.related_images.created_by_osbs`
+  (boolean): True if `relatedImages` section in CSV file was created by OSBS
 - `build.extra.image.parent_build_id` (int): Koji build id of the parent image,
   if found
 - `build.extra.image.parent_image_builds` (map of maps): Keys are parent images

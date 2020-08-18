@@ -37,6 +37,7 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_
                                       PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY, BASE_IMAGE_KOJI_BUILD,
                                       PARENT_IMAGES_KOJI_BUILDS, BASE_IMAGE_BUILD_ID_KEY,
+                                      PLUGIN_PIN_OPERATOR_DIGESTS_KEY,
                                       PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY,
                                       PLUGIN_RESOLVE_REMOTE_SOURCE,
                                       PLUGIN_VERIFY_MEDIA_KEY, PARENT_IMAGE_BUILDS_KEY,
@@ -2132,6 +2133,84 @@ class TestKojiImport(object):
                 (has_bundle_manifests, KOJI_SUBTYPE_OP_BUNDLE)
             ] if yes
         ]
+
+    @pytest.mark.usefixtures('os_env')
+    @pytest.mark.parametrize('has_bundle_manifests', [True, False])
+    def test_operators_bundle_metadata(
+            self, tmpdir, has_bundle_manifests):
+        """Test if metadata (extra.image.operator_manifests) about operator
+        bundles are properly exported"""
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(
+            tmpdir,
+            name='ns/name',
+            version='1.0',
+            release='1',
+            session=session,
+            has_op_bundle_manifests=has_bundle_manifests)
+
+        if has_bundle_manifests:
+            workflow.prebuild_results[PLUGIN_PIN_OPERATOR_DIGESTS_KEY] = {
+                'related_images': {
+                    'pullspecs': [
+                        {
+                            'original': ImageName.parse('old-registry/ns/spam:1'),
+                            'new': ImageName.parse('new-registry/new-ns/new-spam@sha256:4'),
+                            'pinned': True,
+                            'replaced': True
+                        }, {
+                            'original': ImageName.parse('old-registry/ns/spam@sha256:4'),
+                            'new': ImageName.parse('new-registry/new-ns/new-spam@sha256:4'),
+                            'pinned': False,
+                            'replaced': True
+                        }, {
+                            'original': ImageName.parse(
+                                'registry.private.example.com/ns/foo@sha256:1'),
+                            'new': ImageName.parse('registry.private.example.com/ns/foo@sha256:1'),
+                            'pinned': False,
+                            'replaced': False
+                        },
+                    ],
+                    'created_by_osbs': True,
+                }
+            }
+
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+
+        assert isinstance(extra, dict)
+        if has_bundle_manifests:
+            assert 'operator_manifests' in extra['image']
+            expected = {
+                'related_images': {
+                    'pullspecs': [
+                        {
+                            'original': 'old-registry/ns/spam:1',
+                            'new': 'new-registry/new-ns/new-spam@sha256:4',
+                            'pinned': True,
+                        }, {
+                            'original': 'old-registry/ns/spam@sha256:4',
+                            'new': 'new-registry/new-ns/new-spam@sha256:4',
+                            'pinned': False,
+                        }, {
+                            'original': 'registry.private.example.com/ns/foo@sha256:1',
+                            'new': 'registry.private.example.com/ns/foo@sha256:1',
+                            'pinned': False,
+                        },
+                    ],
+                    'created_by_osbs': True,
+                }
+            }
+            assert extra['image']['operator_manifests'] == expected
+        else:
+            assert 'operator_manifests' not in extra['image']
 
     @pytest.mark.parametrize('has_remote_source', [True, False])
     def test_remote_sources(self, tmpdir, os_env, has_remote_source):
