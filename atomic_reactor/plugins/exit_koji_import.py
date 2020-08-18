@@ -46,6 +46,7 @@ from atomic_reactor.constants import (
     PLUGIN_KOJI_IMPORT_PLUGIN_KEY, PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY,
     PLUGIN_FETCH_WORKER_METADATA_KEY, PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
     PLUGIN_VERIFY_MEDIA_KEY,
+    PLUGIN_PIN_OPERATOR_DIGESTS_KEY,
     PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY,
     PLUGIN_RESOLVE_REMOTE_SOURCE,
     METADATA_TAG, OPERATOR_MANIFESTS_ARCHIVE,
@@ -171,6 +172,25 @@ class KojiImportBase(ExitPlugin):
             extra['image']['go'] = go
 
     def set_operators_metadata(self, extra, worker_metadatas):
+        # upload metadata from bundle (part of image)
+        op_bundle_metadata = self.workflow.prebuild_results.get(PLUGIN_PIN_OPERATOR_DIGESTS_KEY)
+        if op_bundle_metadata:
+            op_related_images = op_bundle_metadata['related_images']
+            pullspecs = [
+                {
+                    'original': str(p['original']),
+                    'new': str(p['new']),
+                    'pinned': p['pinned'],
+                }
+                for p in op_related_images['pullspecs']
+            ]
+            extra['image']['operator_manifests'] = {
+                'related_images': {
+                    'pullspecs': pullspecs,
+                    'created_by_osbs': op_related_images['created_by_osbs'],
+                }
+            }
+
         # update push plugin and uploaded manifests file independently as push plugin may fail
         op_push_res = self.workflow.postbuild_results.get(PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY)
         if op_push_res:

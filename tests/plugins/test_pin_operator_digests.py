@@ -339,7 +339,7 @@ class TestPinOperatorDigest(object):
             assert msg in str(exc_info.value)
             return
 
-        runner.run()
+        result = runner.run()
 
         caplog_text = "\n".join(rec.message for rec in caplog.records)
 
@@ -352,6 +352,14 @@ class TestPinOperatorDigest(object):
             assert "No operator CSV files found" in caplog_text
         assert "No pullspecs found" in caplog_text
         assert self._get_worker_arg(runner.workflow) is None
+
+        expected = {
+            'related_images': {
+                'pullspecs': [],
+                'created_by_osbs': True,
+            }
+        }
+        assert result['pin_operator_digest'] == expected
 
     def test_orchestrator_disallowed_registry(self, docker_tasker, tmpdir):
         # TODO: ImageName parses x/y as namespace/repo and not registry/repo - does it matter?
@@ -461,7 +469,7 @@ class TestPinOperatorDigest(object):
                           user_config=user_config, site_config=site_config,
                           add_to_config=pull_registries)
 
-        runner.run()
+        result = runner.run()
 
         post_content = f.read()
         assert pre_content == post_content  # worker does the replacement, not orchestrator
@@ -510,6 +518,59 @@ class TestPinOperatorDigest(object):
             'old-registry/ns/spam:1': 'new-registry/new-ns/new-spam@sha256:4',
         }
         assert self._get_worker_arg(runner.workflow) == replacement_pullspecs
+
+        expected_result = {
+            'related_images': {
+                'pullspecs': [
+                    {
+                        'original': ImageName.parse('old-registry/ns/spam:1'),
+                        'new': ImageName.parse('new-registry/new-ns/new-spam@sha256:4'),
+                        'pinned': True,
+                        'replaced': True
+                    }, {
+                        'original': ImageName.parse('old-registry/ns/spam@sha256:4'),
+                        'new': ImageName.parse('new-registry/new-ns/new-spam@sha256:4'),
+                        'pinned': False,
+                        'replaced': True
+                    }, {
+                        'original': ImageName.parse('private-registry/ns/baz:1'),
+                        'new': ImageName.parse('public-registry/ns/baz@sha256:3'),
+                        'pinned': True,
+                        'replaced': True
+                    }, {
+                        'original': ImageName.parse('private-registry/ns/baz@sha256:3'),
+                        'new': ImageName.parse('public-registry/ns/baz@sha256:3'),
+                        'pinned': False,
+                        'replaced': True
+                    }, {
+                        'original': ImageName.parse('registry.private.example.com/ns/foo:1'),
+                        'new': ImageName.parse('registry.private.example.com/ns/foo@sha256:1'),
+                        'pinned': True,
+                        'replaced': True
+                    }, {
+                        'original': ImageName.parse('registry.private.example.com/ns/foo@sha256:1'),
+                        'new': ImageName.parse('registry.private.example.com/ns/foo@sha256:1'),
+                        'pinned': False,
+                        'replaced': False
+                    }, {
+                        'original': ImageName.parse('weird-registry/ns/bar:1'),
+                        'new': ImageName(
+                            registry='weird-registry', repo='new-bar', tag='sha256:2'),
+                        'pinned': True,
+                        'replaced': True
+                    }, {
+                        'original': ImageName.parse('weird-registry/ns/bar@sha256:2'),
+                        'new': ImageName(
+                            registry='weird-registry', repo='new-bar', tag='sha256:2'),
+                        'pinned': False,
+                        'replaced': True
+                    },
+                ],
+                'created_by_osbs': True,
+            }
+        }
+
+        assert result['pin_operator_digest'] == expected_result
 
     @pytest.mark.parametrize('pin_digest', [True, False])
     @pytest.mark.parametrize('replace_repo', [True, False])
