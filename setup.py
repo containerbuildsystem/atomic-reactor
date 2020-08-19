@@ -36,9 +36,10 @@ def _get_requirements(path):
 
 
 def _install_requirements():
-    requirements = _get_requirements('requirements.txt')
-    if sys.version_info[0] < 3:
-        requirements += _get_requirements('requirements-py2.txt')
+    if sys.version_info[0] >= 3:
+        requirements = _get_requirements('requirements.txt')
+    else:
+        requirements = _get_requirements('requirements-py2.txt')
     return requirements
 
 

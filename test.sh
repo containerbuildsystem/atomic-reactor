@@ -118,10 +118,6 @@ function setup_osbs() {
       "git+${OSBS_CLIENT_REPO}@${OSBS_CLIENT_BRANCH}"
   # Pip install dockerfile-parse
   $RUN "${PIP_INST[@]}" --upgrade --no-deps --force-reinstall git+https://github.com/DBuildService/dockerfile-parse
-  if [[ $PYTHON_VERSION == 2* ]]; then
-    # Pip install further Py2 reqs
-    $RUN "${PIP_INST[@]}" -r requirements-py2.txt
-  fi
 
   # install with RPM_PY_SYS=true to avoid error caused by installing on system python
   $RUN sh -c "RPM_PY_SYS=true ${PIP_INST[*]} rpm-py-installer"
