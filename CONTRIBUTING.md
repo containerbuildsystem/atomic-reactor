@@ -27,12 +27,6 @@ python setup.py develop
 pip install -r requirements-devel.txt
 ```
 
-For python 2 environments, you should activate tests related to dockpulp
-
-```bash
-pip install git+https://github.com/release-engineering/dockpulp
-```
-
 If all tests pass (`pytest tests`), your environment is set.
 
 ## General Rules
