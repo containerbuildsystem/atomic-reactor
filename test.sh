@@ -119,8 +119,6 @@ function setup_osbs() {
   # Pip install dockerfile-parse
   $RUN "${PIP_INST[@]}" --upgrade --no-deps --force-reinstall git+https://github.com/DBuildService/dockerfile-parse
   if [[ $PYTHON_VERSION == 2* ]]; then
-    # Pip install dockpulp for Py2
-    $RUN "${PIP_INST[@]}" git+https://github.com/release-engineering/dockpulp
     # Pip install further Py2 reqs
     $RUN "${PIP_INST[@]}" -r requirements-py2.txt
   fi
