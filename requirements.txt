@@ -1,0 +1,11 @@
+backports.lzma;python_version<'3'
+docker-py>=1.3.0;python_version<'3'
+docker;python_version>='3'
+docker-squash>=1.0.7
+dockerfile-parse>=0.0.13
+flatpak-module-tools >= 0.11
+jsonschema==2.3.0;python_version<'3'  # to match available in RHEL/CentOS 7
+jsonschema;python_version>='3'  # RHEL/CENTOS 8
+PyYAML
+ruamel.yaml
+six
