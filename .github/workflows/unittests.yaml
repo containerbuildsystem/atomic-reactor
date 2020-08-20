@@ -1,4 +1,4 @@
-name: Pytests via test.sh
+name: Unittests
 
 on:
   pull_request:
