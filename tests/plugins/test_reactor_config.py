@@ -416,9 +416,10 @@ class TestReactorConfigPlugin(object):
             "validating 'type' has failed "
             "(1 is not of type %r)" % u'array',
 
-            "validation error: .clusters: "
-            "validating 'additionalProperties' has failed "
-            "(Additional properties are not allowed ('plat/form' was unexpected))",
+            re.compile(
+                "validation error: .clusters: "
+                "validating 'additionalProperties' has failed"
+            ),
         ]),
 
         ("""\

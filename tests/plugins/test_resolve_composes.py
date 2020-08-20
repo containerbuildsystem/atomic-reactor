@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import unicode_literals, absolute_import
 
+import re
 import koji
 import os
 import sys
@@ -1363,7 +1364,10 @@ class TestResolveComposes(object):
         if expect_error:
             with pytest.raises(PluginFailedException) as exc_info:
                 runner.run()
-            assert expect_error in str(exc_info.value)
+            if hasattr(expect_error, 'search'):  # py2/3 compat way of detecting compiled regexp
+                assert expect_error.search(str(exc_info.value))
+            else:
+                assert expect_error in str(exc_info.value)
             return
 
         results = runner.run()[ResolveComposesPlugin.key]
@@ -1405,7 +1409,11 @@ class TestResolveComposes(object):
         ('x86_64: ["spam-rpms-spam"]', 'does not match'),
 
         # Does not start with lowercase letter
-        ('"86_64": []', 'Additional properties are not allowed'),
+        ('"86_64": []', re.compile(
+            # newer versions of jsonchema reports this differently
+            r"((Additional properties are not allowed)|"
+            r"(validating 'additionalProperties' has failed))")
+         ),
     ])
     def test_content_sets_validation(self, workflow,
                                      content_sets_content, expect_error):
