@@ -1006,6 +1006,21 @@ class TestOperatorCSV(object):
         csv = OperatorCSV('original.yaml', data)
         assert csv.has_related_image_envs() == does_have
 
+    def test_related_images_no_pullspecs(self, caplog):
+        """If no pullspecs are detected, skip creation of relatedImages"""
+        data = {
+            'kind': 'ClusterServiceVersion',
+            'metadata': {
+                'annotations': {
+                    'foo': 'test'
+                }
+            }
+        }
+        csv = OperatorCSV("original.yaml", data)
+        csv.set_related_images()
+        assert "" in caplog.text
+        assert 'relatedImages' not in csv.data.get("spec", {})
+
     @pytest.mark.parametrize('pullspecs, replacements, expected', [
         # 1st is a substring of 2nd
         (['a.b/c:1', 'a.b/c:1.1'],

@@ -120,6 +120,10 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         if not operator_manifest.csv:
             raise RuntimeError("Missing ClusterServiceVersion in operator manifests")
 
+        if operator_manifest.csv.has_related_images():
+            # related images already exists
+            related_images_metadata['created_by_osbs'] = False
+
         pullspecs = self._get_pullspecs(operator_manifest.csv)
 
         if pullspecs:
@@ -127,6 +131,9 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
             self._set_worker_arg(replacement_pullspecs)
 
             related_images_metadata['pullspecs'] = replacement_pullspecs
+        else:
+            # no pullspecs don't create relatedImages section
+            related_images_metadata['created_by_osbs'] = False
 
         return operator_manifests_metadata
 
