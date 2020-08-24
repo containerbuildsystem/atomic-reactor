@@ -117,14 +117,16 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         }
 
         operator_manifest = self._get_operator_manifest()
-        if operator_manifest.csv:
-            pullspecs = self._get_pullspecs(operator_manifest.csv)
+        if not operator_manifest.csv:
+            raise RuntimeError("Missing ClusterServiceVersion in operator manifests")
 
-            if pullspecs:
-                replacement_pullspecs = self._get_replacement_pullspecs(pullspecs)
-                self._set_worker_arg(replacement_pullspecs)
+        pullspecs = self._get_pullspecs(operator_manifest.csv)
 
-                related_images_metadata['pullspecs'] = replacement_pullspecs
+        if pullspecs:
+            replacement_pullspecs = self._get_replacement_pullspecs(pullspecs)
+            self._set_worker_arg(replacement_pullspecs)
+
+            related_images_metadata['pullspecs'] = replacement_pullspecs
 
         return operator_manifests_metadata
 
@@ -142,20 +144,22 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         }
 
         operator_csv = operator_manifest.csv
-        if operator_csv:
-            self.log.info("Updating operator CSV file")
-            if not operator_csv.has_related_images():
-                self.log.info("Replacing pullspecs in %s", operator_csv.path)
-                # Replace pullspecs everywhere, not just in locations in which they
-                # are expected to be found - OCP 4.4 workaround
-                operator_csv.replace_pullspecs_everywhere(replacement_pullspecs)
+        if not operator_csv:
+            raise RuntimeError("Missing ClusterServiceVersion in operator manifests")
 
-                self.log.info("Creating relatedImages section in %s", operator_csv.path)
-                operator_csv.set_related_images()
+        self.log.info("Updating operator CSV file")
+        if not operator_csv.has_related_images():
+            self.log.info("Replacing pullspecs in %s", operator_csv.path)
+            # Replace pullspecs everywhere, not just in locations in which they
+            # are expected to be found - OCP 4.4 workaround
+            operator_csv.replace_pullspecs_everywhere(replacement_pullspecs)
 
-                operator_csv.dump()
-            else:
-                self.log.warning("%s has a relatedImages section, skipping", operator_csv.path)
+            self.log.info("Creating relatedImages section in %s", operator_csv.path)
+            operator_csv.set_related_images()
+
+            operator_csv.dump()
+        else:
+            self.log.warning("%s has a relatedImages section, skipping", operator_csv.path)
 
     def _get_operator_manifest(self):
         if self.user_config is None:
