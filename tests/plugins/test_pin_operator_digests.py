@@ -318,7 +318,6 @@ class TestPinOperatorDigest(object):
         assert "manifests_dir points outside of cloned repo" in str(exc_info.value)
 
     @pytest.mark.parametrize('filepaths', [
-        [],
         ['csv1.yaml'],
         ['csv2.yaml'],
         ['csv1.yaml', 'csv2.yaml']
@@ -344,13 +343,10 @@ class TestPinOperatorDigest(object):
         caplog_text = "\n".join(rec.message for rec in caplog.records)
 
         assert "Looking for operator CSV files in {}".format(tmpdir) in caplog_text
-        if files:
-            assert "Found operator CSV file:" in caplog_text
-            for f in files:
-                assert str(f) in caplog_text
-            assert "No pullspecs found" in caplog_text
-        else:
-            assert "No operator CSV files found" in caplog_text
+        assert "Found operator CSV file:" in caplog_text
+        for f in files:
+            assert str(f) in caplog_text
+        assert "No pullspecs found" in caplog_text
         assert self._get_worker_arg(runner.workflow) is None
 
         expected = {
@@ -360,6 +356,20 @@ class TestPinOperatorDigest(object):
             }
         }
         assert result['pin_operator_digest'] == expected
+
+    @pytest.mark.parametrize('orchestrator', [True, False])
+    def test_fail_without_csv(self, docker_tasker, tmpdir, orchestrator):
+        """CSV file is mandatory part of operator, fail if it's not present"""
+        user_config = get_user_config(manifests_dir=str(tmpdir))
+        site_config = get_site_config()
+
+        runner = mock_env(docker_tasker, tmpdir, orchestrator=orchestrator,
+                          user_config=user_config, site_config=site_config)
+
+        with pytest.raises(PluginFailedException) as exc_info:
+            runner.run()
+
+        assert "Missing ClusterServiceVersion in operator manifests" in str(exc_info.value)
 
     def test_orchestrator_disallowed_registry(self, docker_tasker, tmpdir):
         # TODO: ImageName parses x/y as namespace/repo and not registry/repo - does it matter?
