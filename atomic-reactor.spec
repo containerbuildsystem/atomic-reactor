@@ -62,7 +62,7 @@ infrastructure.
 Summary:        Python 3 Atomic Reactor library
 Group:          Development/Tools
 License:        BSD
-Requires:       python3-docker >= 1.3.0
+Requires:       python3-docker >= 1.3.0, python3-docker < 4.3.0
 Requires:       python3-requests
 Requires:       python3-setuptools
 Requires:       python3-dockerfile-parse >= 0.0.11
@@ -96,9 +96,9 @@ Summary:        Python 2 Atomic Reactor library
 Group:          Development/Tools
 License:        BSD
 %if 0%{?fedora}
-Requires:       python2-docker >= 1.3.0
+Requires:       python2-docker >= 1.3.0, python2-docker < 4.3.0
 %else
-Requires:       python-docker-py >= 1.3.0
+Requires:       python-docker-py >= 1.3.0, python-docker-py < 4.3.0
 %endif # fedora
 Requires:       python-requests
 Requires:       python-setuptools
