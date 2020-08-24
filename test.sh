@@ -101,6 +101,9 @@ function setup_osbs() {
     # environment markers used by docker-squash's requirements, also
     # CentOS needs to have setuptools updates to make pytest-cov work
     $RUN "${PIP_INST[@]}" --upgrade setuptools
+    # newer versions of docker package doesn't support docker API older than 1.21
+    # install in advance to prevent deps to downlaod latest versions
+    $RUN "${PIP_INST[@]}" "docker<4.3.0"
   fi
 
   # Install other dependencies for tests
