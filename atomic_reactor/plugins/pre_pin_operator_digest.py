@@ -117,13 +117,14 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         }
 
         operator_manifest = self._get_operator_manifest()
-        pullspecs = self._get_pullspecs(operator_manifest)
+        if operator_manifest.csv:
+            pullspecs = self._get_pullspecs(operator_manifest.csv)
 
-        if pullspecs:
-            replacement_pullspecs = self._get_replacement_pullspecs(pullspecs)
-            self._set_worker_arg(replacement_pullspecs)
+            if pullspecs:
+                replacement_pullspecs = self._get_replacement_pullspecs(pullspecs)
+                self._set_worker_arg(replacement_pullspecs)
 
-            related_images_metadata['pullspecs'] = replacement_pullspecs
+                related_images_metadata['pullspecs'] = replacement_pullspecs
 
         return operator_manifests_metadata
 
@@ -140,9 +141,9 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
             for old, new in self.replacement_pullspecs.items()
         }
 
-        self.log.info("Updating operator CSV files")
-
-        for operator_csv in operator_manifest.files:
+        operator_csv = operator_manifest.csv
+        if operator_csv:
+            self.log.info("Updating operator CSV file")
             if not operator_csv.has_related_images():
                 self.log.info("Replacing pullspecs in %s", operator_csv.path)
                 # Replace pullspecs everywhere, not just in locations in which they
@@ -178,27 +179,26 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
                     format(path_lines)
                 raise RuntimeError(msg)
 
-            self.log.info("Found operator CSV files:\n%s", path_lines)
+            self.log.info("Found operator CSV file: %s", path_lines)
         else:
             self.log.info("No operator CSV files found")
 
         return operator_manifest
 
-    def _get_pullspecs(self, operator_manifest):
-        self.log.info("Looking for pullspecs in operator CSV files")
+    def _get_pullspecs(self, operator_csv):
+        self.log.info("Looking for pullspecs in operator CSV file")
         pullspec_set = set()
 
-        for operator_csv in operator_manifest.files:
-            if not operator_csv.has_related_images():
-                self.log.info("Getting pullspecs from %s", operator_csv.path)
-                pullspec_set.update(operator_csv.get_pullspecs())
-            elif operator_csv.has_related_image_envs():
-                msg = ("Both relatedImages and RELATED_IMAGE_* env vars present in {}. "
-                       "Please remove the relatedImages section, it will be reconstructed "
-                       "automatically.".format(operator_csv.path))
-                raise RuntimeError(msg)
-            else:
-                self.log.warning("%s has a relatedImages section, skipping", operator_csv.path)
+        if not operator_csv.has_related_images():
+            self.log.info("Getting pullspecs from %s", operator_csv.path)
+            pullspec_set.update(operator_csv.get_pullspecs())
+        elif operator_csv.has_related_image_envs():
+            msg = ("Both relatedImages and RELATED_IMAGE_* env vars present in {}. "
+                   "Please remove the relatedImages section, it will be reconstructed "
+                   "automatically.".format(operator_csv.path))
+            raise RuntimeError(msg)
+        else:
+            self.log.warning("%s has a relatedImages section, skipping", operator_csv.path)
 
         # Make sure pullspecs are handled in a deterministic order
         # ImageName does not implement ordering, use str() as key for sorting

@@ -552,6 +552,16 @@ class OperatorManifest(object):
         """
         self.files = files
 
+    @property
+    def csv(self):
+        """
+        :return: ClusteredServiceVersion object of the operator manifests
+        :rtype: OperatorCSV
+        """
+        if len(self.files) > 1:
+            raise ValueError("Multiple CSV files found, only one CSV file is allowed")
+        return self.files[0] if self.files else None
+
     @classmethod
     def from_directory(cls, path, **kwargs):
         """
