@@ -1110,7 +1110,7 @@ class TestOperatorCSV(object):
 
 
 class TestOperatorManifest(object):
-    def test_from_directory(self, tmpdir):
+    def test_from_directory_multiple_csvs(self, tmpdir):
         subdir = tmpdir.mkdir("nested")
 
         original = tmpdir.join("original.yaml")
@@ -1128,6 +1128,25 @@ class TestOperatorManifest(object):
 
         assert original_csv.data == ORIGINAL.data
         assert replaced_csv.data == REPLACED.data
+
+        with pytest.raises(ValueError):
+            # only one manifest file can exist
+            assert not manifest.csv
+
+    def test_from_directory_single_csv(self, tmpdir):
+
+        original = tmpdir.join("original.yaml")
+        original.write(ORIGINAL.content)
+
+        manifest = OperatorManifest.from_directory(str(tmpdir))
+
+        original_csv = manifest.files[0]
+
+        assert original_csv.path == str(original)
+        assert original_csv.data == ORIGINAL.data
+
+        assert manifest.csv.path == str(original)
+        assert manifest.csv.data == ORIGINAL.data
 
     def test_from_directory_no_csvs(self, tmpdir):
         subdir = tmpdir.mkdir("nested")
@@ -1147,6 +1166,7 @@ class TestOperatorManifest(object):
 
         manifest = OperatorManifest.from_directory(str(tmpdir))
         assert manifest.files == []
+        assert manifest.csv is None
 
     def test_from_directory_yaml_list(self, tmpdir):
         yaml_list = tmpdir.join("list.yaml")
@@ -1157,6 +1177,7 @@ class TestOperatorManifest(object):
 
         manifest = OperatorManifest.from_directory(str(tmpdir))
         assert manifest.files == []
+        assert manifest.csv is None
 
     def test_directory_does_not_exist(self, tmpdir):
         nonexistent = tmpdir.join("nonexistent")

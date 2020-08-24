@@ -345,12 +345,12 @@ class TestPinOperatorDigest(object):
 
         assert "Looking for operator CSV files in {}".format(tmpdir) in caplog_text
         if files:
-            assert "Found operator CSV files:" in caplog_text
+            assert "Found operator CSV file:" in caplog_text
             for f in files:
                 assert str(f) in caplog_text
+            assert "No pullspecs found" in caplog_text
         else:
             assert "No operator CSV files found" in caplog_text
-        assert "No pullspecs found" in caplog_text
         assert self._get_worker_arg(runner.workflow) is None
 
         expected = {
@@ -689,7 +689,7 @@ class TestPinOperatorDigest(object):
 
         caplog_text = "\n".join(rec.message for rec in caplog.records)
 
-        assert 'Found operator CSV files:\n{}'.format(gets_replaced) in caplog_text
+        assert 'Found operator CSV file: {}'.format(gets_replaced) in caplog_text
         assert str(reference) not in caplog_text
 
         assert 'Replacing pullspecs in {}'.format(gets_replaced) in caplog_text
