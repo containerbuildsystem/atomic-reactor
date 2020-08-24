@@ -352,7 +352,7 @@ class TestPinOperatorDigest(object):
         expected = {
             'related_images': {
                 'pullspecs': [],
-                'created_by_osbs': True,
+                'created_by_osbs': False,
             }
         }
         assert result['pin_operator_digest'] == expected
@@ -409,8 +409,9 @@ class TestPinOperatorDigest(object):
                         "automatically.".format(csv))
             assert expected in str(exc_info.value)
         else:
-            runner.run()
+            result = runner.run()
             assert "{} has a relatedImages section, skipping".format(csv) in caplog.text
+            assert not result['pin_operator_digest']['related_images']['created_by_osbs']
 
     @responses.activate
     def test_orchestrator(self, docker_tasker, tmpdir, caplog):
