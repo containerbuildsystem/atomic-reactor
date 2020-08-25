@@ -548,13 +548,15 @@ class OperatorManifest(object):
     Currently, only ClusterServiceVersion files are considered relevant.
     """
 
-    def __init__(self, files):
+    def __init__(self, csv_file):
         """
         Initialize an OperatorManifest
 
-        :param files: list of OperatorCSVs
+        :param csv_file: OperatorCSV
         """
-        self.files = files
+        assert isinstance(csv_file, OperatorCSV)
+        self._csv_file = csv_file
+        self.files = [self._csv_file]  # BW compat
 
     @property
     def csv(self):
@@ -562,9 +564,7 @@ class OperatorManifest(object):
         :return: ClusteredServiceVersion object of the operator manifests
         :rtype: OperatorCSV
         """
-        if len(self.files) > 1:
-            raise ValueError("Multiple CSV files found, only one CSV file is allowed")
-        return self.files[0] if self.files else None
+        return self._csv_file
 
     @classmethod
     def from_directory(cls, path, **kwargs):
@@ -579,7 +579,16 @@ class OperatorManifest(object):
             raise RuntimeError("Path does not exist or is not a directory: {}".format(path))
         yaml_files = cls._get_yaml_files(path)
         operator_csvs = list(cls._get_csvs(yaml_files, **kwargs))
-        return cls(operator_csvs)
+        if not operator_csvs:
+            raise ValueError("Missing ClusterServiceVersion in operator manifests")
+        if len(operator_csvs) > 1:
+            raise ValueError(
+                "Operator bundle may contain only 1 CSV file, but contains more: {}".format(
+                    ", ".join(csv.path for csv in operator_csvs)
+                )
+            )
+
+        return cls(operator_csvs[0])
 
     @classmethod
     def _get_yaml_files(cls, dirpath):
