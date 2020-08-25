@@ -98,7 +98,8 @@ License:        BSD
 %if 0%{?fedora}
 Requires:       python2-docker >= 1.3.0, python2-docker < 4.3.0
 %else
-Requires:       python-docker-py >= 1.3.0, python-docker-py < 4.3.0
+# python-docker-py >= 1.3.0, python-docker-py < 4.3.0  # yum on RHEL7 cannot resolve this properly
+Requires:       python-docker-py >= 1.3.0
 %endif # fedora
 Requires:       python-requests
 Requires:       python-setuptools
