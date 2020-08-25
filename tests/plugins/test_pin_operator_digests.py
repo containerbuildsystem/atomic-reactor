@@ -628,7 +628,7 @@ class TestPinOperatorDigest(object):
 
         runner = mock_env(docker_tasker, tmpdir, orchestrator=True,
                           user_config=user_config, site_config=site_config)
-        runner.run()
+        result = runner.run()
 
         if not pin_digest:
             assert "User disabled digest pinning" in caplog.text
@@ -641,10 +641,13 @@ class TestPinOperatorDigest(object):
             assert "Replacing registry" not in caplog.text
 
         if not any([pin_digest, replace_repo, replace_registry]):
-            assert "All replacement features disabled, skipping" in caplog.text
+            assert "All replacement features disabled" in caplog.text
             assert self._get_worker_arg(runner.workflow) == {}
         else:
             assert self._get_worker_arg(runner.workflow) == {original: replaced.to_str()}
+
+        # plugin must always retun pullspecs
+        assert result['pin_operator_digest']['related_images']['pullspecs']
 
     @pytest.mark.parametrize('has_envs', [True, False])
     def test_worker_exclude_csvs(self, docker_tasker, tmpdir, caplog, has_envs):

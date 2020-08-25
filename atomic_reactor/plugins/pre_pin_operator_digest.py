@@ -226,18 +226,17 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
     def _get_replacement_pullspecs(self, pullspecs):
         self.log.info("Computing replacement pullspecs")
 
+        replacements = []
+
         pin_digest, replace_repo, replace_registry = self._are_features_enabled()
         if not any([pin_digest, replace_repo, replace_registry]):
-            self.log.warning("All replacement features disabled, skipping")
-            return {}
+            self.log.warning("All replacement features disabled")
 
         replacer = PullspecReplacer(user_config=self.user_config, workflow=self.workflow)
 
         for p in pullspecs:
             if not replacer.registry_is_allowed(p):
                 raise RuntimeError("Registry not allowed: {} (in {})".format(p.registry, p))
-
-        replacements = []
 
         for original in pullspecs:
             self.log.info("Computing replacement for %s", original)
