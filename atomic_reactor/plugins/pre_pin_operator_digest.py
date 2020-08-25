@@ -117,8 +117,6 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         }
 
         operator_manifest = self._get_operator_manifest()
-        if not operator_manifest.csv:
-            raise RuntimeError("Missing ClusterServiceVersion in operator manifests")
 
         if operator_manifest.csv.has_related_images():
             # related images already exists
@@ -181,18 +179,7 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
 
         self.log.info("Looking for operator CSV files in %s", manifests_dir)
         operator_manifest = OperatorManifest.from_directory(manifests_dir)
-
-        if operator_manifest.files:
-            path_lines = "\n".join(f.path for f in operator_manifest.files)
-
-            if len(operator_manifest.files) > 1:
-                msg = "Operator bundle may contain only 1 CSV file, but contains more: {}".\
-                    format(path_lines)
-                raise RuntimeError(msg)
-
-            self.log.info("Found operator CSV file: %s", path_lines)
-        else:
-            self.log.info("No operator CSV files found")
+        self.log.info("Found operator CSV file: %s", operator_manifest.csv.path)
 
         return operator_manifest
 

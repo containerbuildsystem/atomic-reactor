@@ -1126,6 +1126,7 @@ class TestOperatorCSV(object):
 
 class TestOperatorManifest(object):
     def test_from_directory_multiple_csvs(self, tmpdir):
+        """Exactly one CSV file must be in manifests"""
         subdir = tmpdir.mkdir("nested")
 
         original = tmpdir.join("original.yaml")
@@ -1133,20 +1134,9 @@ class TestOperatorManifest(object):
         replaced = subdir.join("replaced.yaml")
         replaced.write(REPLACED.content)
 
-        manifest = OperatorManifest.from_directory(str(tmpdir))
-
-        original_csv = manifest.files[0]
-        replaced_csv = manifest.files[1]
-
-        assert original_csv.path == str(original)
-        assert replaced_csv.path == str(replaced)
-
-        assert original_csv.data == ORIGINAL.data
-        assert replaced_csv.data == REPLACED.data
-
-        with pytest.raises(ValueError):
-            # only one manifest file can exist
-            assert not manifest.csv
+        with pytest.raises(ValueError) as exc_info:
+            OperatorManifest.from_directory(str(tmpdir))
+        assert "Operator bundle may contain only 1 CSV file" in str(exc_info.value)
 
     def test_from_directory_single_csv(self, tmpdir):
 
@@ -1179,20 +1169,22 @@ class TestOperatorManifest(object):
         with open(str(replaced), "w") as f:
             yaml.dump(replaced_data, f)
 
-        manifest = OperatorManifest.from_directory(str(tmpdir))
-        assert manifest.files == []
-        assert manifest.csv is None
+        with pytest.raises(ValueError) as exc_info:
+            OperatorManifest.from_directory(str(tmpdir))
+        assert "Missing ClusterServiceVersion in operator manifests" in str(exc_info.value)
 
     def test_from_directory_yaml_list(self, tmpdir):
         yaml_list = tmpdir.join("list.yaml")
+        original = tmpdir.join("original.yaml")
 
         yaml_list_data = YAML_LIST.data
         with open(str(yaml_list), "w") as f:
             yaml.dump(yaml_list_data, f)
+        with open(str(original), "w") as f:
+            yaml.dump(ORIGINAL.data, f)
 
         manifest = OperatorManifest.from_directory(str(tmpdir))
-        assert manifest.files == []
-        assert manifest.csv is None
+        assert manifest.csv
 
     def test_directory_does_not_exist(self, tmpdir):
         nonexistent = tmpdir.join("nonexistent")
