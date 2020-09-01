@@ -1123,6 +1123,35 @@ class TestOperatorCSV(object):
         csv = OperatorCSV("original.yaml", data)
         assert csv.get_pullspecs() == set()
 
+    @pytest.mark.parametrize('csv_content, expected_pullspecs', [
+        [
+            {
+                'kind': 'ClusterServiceVersion',
+                'spec': {
+                    'relatedImages': [
+                        {'name': 'foo', 'image': 'repo/ns/foo@0.1'},
+                        {'name': 'bar', 'image': 'repo/ns/bar:sha256:123456'},
+                    ]
+                }
+            },
+            [
+                ImageName.parse('repo/ns/foo@0.1'),
+                ImageName.parse('repo/ns/bar:sha256:123456')
+            ]
+        ],
+        [
+            {'kind': 'ClusterServiceVersion', 'spec': {}},
+            []
+        ],
+        [
+            {'kind': 'ClusterServiceVersion', 'spec': {'relatedImages': []}},
+            []
+        ]
+    ])
+    def test_get_related_image_pullsepcs(self, csv_content, expected_pullspecs):
+        csv = OperatorCSV('csv.yaml', csv_content)
+        assert expected_pullspecs == csv.get_related_image_pullspecs()
+
 
 class TestOperatorManifest(object):
     def test_from_directory_multiple_csvs(self, tmpdir):

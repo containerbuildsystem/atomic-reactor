@@ -20,7 +20,7 @@ import responses
 from flexmock import flexmock
 
 import atomic_reactor.util
-from atomic_reactor.constants import INSPECT_CONFIG
+from atomic_reactor.constants import INSPECT_CONFIG, PLUGIN_PIN_OPERATOR_DIGESTS_KEY
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
                                                             WORKSPACE_KEY_OVERRIDE_KWARGS)
@@ -387,13 +387,12 @@ class TestPinOperatorDigest(object):
         msg = "Registry not allowed: disallowed-registry (in disallowed-registry/ns/bar:2)"
         assert msg in str(exc_info.value)
 
-    @pytest.mark.parametrize('has_envs, raises', [
-        (False, False),
-        (True, True)
-    ])
-    def test_orchestrator_exclude_csvs(self, docker_tasker, tmpdir, caplog, has_envs, raises):
-        csv = mock_operator_csv(tmpdir, 'csv.yaml', ['foo'], with_related_images=True,
-                                with_related_image_envs=has_envs)
+    def test_orchestrator_raise_error_if_csv_has_both_related_images_and_related_env_vars(
+        self, docker_tasker, tmpdir, caplog
+    ):
+        csv = mock_operator_csv(tmpdir, 'csv.yaml', ['foo'],
+                                with_related_images=True,
+                                with_related_image_envs=True)
 
         user_config = get_user_config(str(tmpdir))
         site_config = get_site_config()
@@ -401,17 +400,13 @@ class TestPinOperatorDigest(object):
         runner = mock_env(docker_tasker, tmpdir, orchestrator=True,
                           user_config=user_config, site_config=site_config)
 
-        if raises:
-            with pytest.raises(PluginFailedException) as exc_info:
-                runner.run()
-            expected = ("Both relatedImages and RELATED_IMAGE_* env vars present in {}. "
-                        "Please remove the relatedImages section, it will be reconstructed "
-                        "automatically.".format(csv))
-            assert expected in str(exc_info.value)
-        else:
-            result = runner.run()
-            assert "{} has a relatedImages section, skipping".format(csv) in caplog.text
-            assert not result['pin_operator_digest']['related_images']['created_by_osbs']
+        with pytest.raises(PluginFailedException) as exc_info:
+            runner.run()
+
+        expected = ("Both relatedImages and RELATED_IMAGE_* env vars present in {}. "
+                    "Please remove the relatedImages section, it will be reconstructed "
+                    "automatically.".format(csv))
+        assert expected in str(exc_info.value)
 
     @responses.activate
     def test_orchestrator(self, docker_tasker, tmpdir, caplog):
@@ -711,6 +706,46 @@ class TestPinOperatorDigest(object):
 
         assert 'Replacing pullspecs in {}'.format(reference) not in caplog_text
         assert 'Creating relatedImages section in {}'.format(reference) not in caplog_text
+
+    def test_return_pullspecs_in_related_images(self, docker_tasker, tmpdir):
+        """
+        Ensure the pullspecs listed in spec.relatedImages are returned if a CSV
+        file has such a section
+        """
+        pullspecs = [
+            'registry.r.c/project/foo@sha256:123456',
+            # Whatever the pullspec includes digest or tag, the pullspec inside spec.relatedImages
+            # should be returned directly without any change.
+            'registry.r.c/project/bar:20200901',
+        ]
+        mock_operator_csv(tmpdir, 'csv1.yaml', pullspecs, with_related_images=True)
+
+        runner = mock_env(docker_tasker, tmpdir,
+                          orchestrator=True,
+                          user_config=get_user_config(manifests_dir=str(tmpdir)),
+                          site_config=get_site_config())
+        result = runner.run()
+
+        expected_result = [
+            {
+                'original': ImageName.parse(item),
+                'new': ImageName.parse(item),
+                'pinned': False,
+                'replaced': False
+            }
+            for item in pullspecs
+        ]
+
+        got_pullspecs_metadata = result[PLUGIN_PIN_OPERATOR_DIGESTS_KEY]['related_images']
+
+        assert not got_pullspecs_metadata['created_by_osbs'], \
+            'Returning pullspecs inlcuded in spec.relatedImages directly. ' \
+            'Expected created_by_osbs is False.'
+
+        assert (
+            sorted(expected_result, key=str) ==
+            sorted(got_pullspecs_metadata['pullspecs'], key=str)
+        )
 
 
 class TestPullspecReplacer(object):
