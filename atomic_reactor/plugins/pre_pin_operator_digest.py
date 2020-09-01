@@ -118,20 +118,25 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
 
         operator_manifest = self._get_operator_manifest()
 
+        pullspecs = self._get_pullspecs(operator_manifest.csv)
+
         if operator_manifest.csv.has_related_images():
             # related images already exists
             related_images_metadata['created_by_osbs'] = False
-
-        pullspecs = self._get_pullspecs(operator_manifest.csv)
-
-        if pullspecs:
-            replacement_pullspecs = self._get_replacement_pullspecs(pullspecs)
-            self._set_worker_arg(replacement_pullspecs)
-
-            related_images_metadata['pullspecs'] = replacement_pullspecs
+            related_images_metadata['pullspecs'] = [{
+                'original': item,
+                'new': item,
+                'pinned': False,
+                'replaced': False,
+            } for item in pullspecs]
         else:
-            # no pullspecs don't create relatedImages section
-            related_images_metadata['created_by_osbs'] = False
+            if pullspecs:
+                replacement_pullspecs = self._get_replacement_pullspecs(pullspecs)
+                self._set_worker_arg(replacement_pullspecs)
+                related_images_metadata['pullspecs'] = replacement_pullspecs
+            else:
+                # no pullspecs don't create relatedImages section
+                related_images_metadata['created_by_osbs'] = False
 
         return operator_manifests_metadata
 
@@ -184,6 +189,19 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         return operator_manifest
 
     def _get_pullspecs(self, operator_csv):
+        """Get pullspecs from CSV file
+
+        :param OperatorCSV operator_csv: a cluster service version (CSV) file
+            from where to find out pullspecs.
+        :return: a list of pullspecs sorted by each one's string representation.
+            If CSV does not have spec.relatedImages, all pullspecs will be
+            found out from all possible locations. If CSV has spec.relatedImages,
+            return the pullspecs contained.
+        :rtype: list[ImageName]
+        :raises RuntimeError: if the CSV has both spec.relatedImages and
+            pullspecs referenced by environment variables prefixed with
+            RELATED_IMAGE_.
+        """
         self.log.info("Looking for pullspecs in operator CSV file")
         pullspec_set = set()
 
@@ -196,7 +214,7 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
                    "automatically.".format(operator_csv.path))
             raise RuntimeError(msg)
         else:
-            self.log.warning("%s has a relatedImages section, skipping", operator_csv.path)
+            pullspec_set.update(operator_csv.get_related_image_pullspecs())
 
         # Make sure pullspecs are handled in a deterministic order
         # ImageName does not implement ordering, use str() as key for sorting
@@ -211,6 +229,27 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         return pullspecs
 
     def _get_replacement_pullspecs(self, pullspecs):
+        """
+        Replace components of pullspecs according to operator manifest
+        replacement config
+
+        :param pullspecs: a list of pullspecs.
+        :type pullspecs: list[ImageName]
+        :return: a list of replacement result. Each of the replacement result
+            is a mapping containing key/value pairs:
+
+            * ``original``: ImageName, the original pullspec.
+            * ``new``: ImageName, the replaced/non-replaced pullspec.
+            * ``pinned``: bool, indicate whether the tag is replaced with a
+                          specific digest.
+            * ``replaced``: bool, indicate whether the new pullspec has change
+                            of repository or registry.
+
+        :rtype: list[dict[str, ImageName or bool]]
+        :raises RuntimeError: if the registry of a pullspec is not allowed.
+            Refer to the ``operator_manifest.allowed_registries`` in atomic
+            reactor config.
+        """
         self.log.info("Computing replacement pullspecs")
 
         replacements = []

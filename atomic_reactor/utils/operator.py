@@ -431,11 +431,26 @@ class OperatorCSV(object):
         return pullspecs
 
     def _related_image_pullspecs(self):
+        """Get the pullspecs from spec.relatedImages section
+
+        :return: a list of pullspecs. It could be an empty if no spec.RelatedImage section.
+        :rtype: list[RelatedImage]
+        """
         related_images_path = ("spec", "relatedImages")
         return [
             RelatedImage(r)
             for r in chain_get(self.data, related_images_path, default=[])
         ]
+
+    def get_related_image_pullspecs(self):
+        """Get the related image pullspecs
+
+        :return: a list of related images pullspecs. It could be an empty list
+            if this CSV file does not have spec.relatedImages section.
+        :rtype: list[ImageName]
+        """
+        return [ImageName.parse(related_image.image)
+                for related_image in self._related_image_pullspecs()]
 
     def _deployments(self):
         deployments_path = ("spec", "install", "spec", "deployments")
