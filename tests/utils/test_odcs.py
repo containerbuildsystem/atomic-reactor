@@ -8,7 +8,8 @@ of the BSD license. See the LICENSE file for details.
 
 from __future__ import absolute_import
 
-from atomic_reactor.utils.odcs import ODCSClient, MULTILIB_METHOD_DEFAULT
+from atomic_reactor.utils.odcs import (ODCSClient, MULTILIB_METHOD_DEFAULT,
+                                       WaitComposeToFinishTimeout)
 from tests.retry_mock import mock_get_retry_session
 
 import flexmock
@@ -219,6 +220,6 @@ def test_wait_for_compose_timeout(timeout):
         .one_by_one())
 
     odcs_client = ODCSClient(ODCS_URL, timeout=timeout)
-    expected_error = 'Retrieving {} timed out after {} seconds'.format(compose_url, timeout)
-    with pytest.raises(RuntimeError, match=expected_error):
+    expected_error = r'Timeout of waiting for compose \d+'
+    with pytest.raises(WaitComposeToFinishTimeout, match=expected_error):
         odcs_client.wait_for_compose(COMPOSE_ID)

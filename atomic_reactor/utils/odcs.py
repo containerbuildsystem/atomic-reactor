@@ -20,17 +20,40 @@ logger = logging.getLogger(__name__)
 MULTILIB_METHOD_DEFAULT = ['devel', 'runtime']
 
 
+class WaitComposeToFinishTimeout(Exception):
+    """Thrown when timeout of waiting a compose"""
+
+    def __init__(self, compose_id, timeout):
+        self.compose_id = compose_id
+        self.timeout = timeout
+
+    def __str__(self):
+        return ('Timeout of waiting for compose {} to finish after {} seconds.'
+                .format(self.compose_id, self.timeout))
+
+
+def construct_compose_url(url, compose_id):
+    """Construct an ODCS compose URL
+
+    :param str url: the ODCS server API URL, for example
+        https://odcs.example.com/odcs/1/. Note that the trailing slash
+        character is optional.
+    :param int compose_id: the compose id.
+    :return: the compose URL.
+    :rtype: str
+    """
+    return '{}/composes/{}'.format(url.rstrip('/'), compose_id)
+
+
 class ODCSClient(object):
 
+    DEFAULT_WAIT_TIMEOUT = 3600
     OIDC_TOKEN_HEADER = 'Authorization'
     OIDC_TOKEN_TYPE = 'Bearer'
 
     def __init__(self, url, insecure=False, token=None, cert=None, timeout=None):
-        if url.endswith('/'):
-            self.url = url
-        else:
-            self.url = url + '/'
-        self.timeout = 3600 if timeout is None else timeout
+        self.url = url
+        self.timeout = self.DEFAULT_WAIT_TIMEOUT if timeout is None else timeout
         self._setup_session(insecure=insecure, token=token, cert=cert)
 
     def _setup_session(self, insecure, token, cert):
@@ -46,6 +69,9 @@ class ODCSClient(object):
             session.cert = cert
 
         self.session = session
+
+    def _get_compose_url(self, compose_id):
+        return construct_compose_url(self.url, compose_id)
 
     def start_compose(self, source_type, source, packages=None, sigkeys=None, arches=None,
                       flags=None, multilib_arches=None, multilib_method=None,
@@ -103,7 +129,7 @@ class ODCSClient(object):
             body['source']['modular_koji_tags'] = modular_koji_tags
 
         logger.info("Starting compose: %s", body)
-        response = self.session.post('{}composes/'.format(self.url),
+        response = self.session.post('{}/composes/'.format(self.url.rstrip('/')),
                                      json=body)
         response.raise_for_status()
 
@@ -126,8 +152,7 @@ class ODCSClient(object):
             params['sigkeys'] = sigkeys
 
         logger.info("Renewing compose %d", compose_id)
-        response = self.session.patch('{}composes/{}'.format(self.url, compose_id),
-                                      json=params)
+        response = self.session.patch(self._get_compose_url(compose_id), json=params)
         response.raise_for_status()
         response_json = response.json()
         compose_id = response_json['id']
@@ -152,10 +177,9 @@ class ODCSClient(object):
         """
         logger.debug("Getting compose information for information for compose_id=%s",
                      compose_id)
-        url = '{}composes/{}'.format(self.url, compose_id)
         start_time = time.time()
         while True:
-            response = self.session.get(url)
+            response = self.session.get(self._get_compose_url(compose_id))
             response.raise_for_status()
             response_json = response.json()
 
@@ -175,8 +199,7 @@ class ODCSClient(object):
 
             elapsed = time.time() - start_time
             if elapsed > self.timeout:
-                raise RuntimeError("Retrieving %s timed out after %s seconds" %
-                                   (url, self.timeout))
+                raise WaitComposeToFinishTimeout(compose_id, self.timeout)
             else:
                 logger.debug("Retrying request compose_id=%s, elapsed_time=%s",
                              compose_id, elapsed)
@@ -185,3 +208,12 @@ class ODCSClient(object):
                     time.sleep(slow_retry)
                 else:
                     time.sleep(burst_retry)
+
+    def cancel_compose(self, compose_id):
+        """Cancel a compose by sending a DELETE request with compose id"""
+        try:
+            response = self.session.delete(self._get_compose_url(compose_id))
+            response.raise_for_status()
+        except Exception as e:
+            logger.warning('Failed to cancel compose %s. ODCS responses: %s',
+                           compose_id, str(e))
