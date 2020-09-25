@@ -92,27 +92,30 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self.all_compose_ids = list(self.compose_ids)
 
     def run(self):
+        self.adjust_for_autorebuild()
+        if self.allow_inheritance():
+            self.adjust_for_inherit()
+        self.workflow.all_yum_repourls = self.repourls
+
         try:
-            self.adjust_for_autorebuild()
-            if self.allow_inheritance():
-                self.adjust_for_inherit()
-            self.workflow.all_yum_repourls = self.repourls
             self.read_configs()
-            self.adjust_compose_config()
-            self.request_compose_if_needed()
-            try:
-                self.wait_for_composes()
-            except WaitComposeToFinishTimeout as e:
-                self.log.info(str(e))
-                self.log.info('Canceling the compose %s', e.compose_id)
-                self.odcs_client.cancel_compose(e.compose_id)
-                raise
-            self.resolve_signing_intent()
-            self.forward_composes()
-            return self.make_result()
         except SkipResolveComposesPlugin as abort_exc:
             override_build_kwarg(self.workflow, 'yum_repourls', self.repourls, None)
             self.log.info('Aborting plugin execution: %s', abort_exc)
+            return
+
+        self.adjust_compose_config()
+        self.request_compose_if_needed()
+        try:
+            self.wait_for_composes()
+        except WaitComposeToFinishTimeout as e:
+            self.log.info(str(e))
+            self.log.info('Canceling the compose %s', e.compose_id)
+            self.odcs_client.cancel_compose(e.compose_id)
+            raise
+        self.resolve_signing_intent()
+        self.forward_composes()
+        return self.make_result()
 
     def allow_inheritance(self):
         """Returns boolean if composes can be inherited"""
