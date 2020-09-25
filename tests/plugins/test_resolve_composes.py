@@ -11,7 +11,9 @@ from __future__ import unicode_literals, absolute_import
 import re
 import koji
 import os
+import responses
 import sys
+import time
 from copy import deepcopy
 
 from atomic_reactor.constants import (
@@ -22,7 +24,7 @@ from atomic_reactor.constants import (
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.source import SourceConfig
-from atomic_reactor.utils.odcs import ODCSClient
+from atomic_reactor.utils.odcs import ODCSClient, construct_compose_url
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins import pre_check_and_set_rebuild
 from atomic_reactor.plugins.build_orchestrate_build import (WORKSPACE_KEY_OVERRIDE_KWARGS,
@@ -122,7 +124,6 @@ def workflow(tmpdir, user_params):
 
     mock_reactor_config(workflow, tmpdir)
     mock_repo_config(tmpdir)
-    mock_odcs_request()
     workflow._koji_session = mock_koji_session()
     return workflow
 
@@ -201,7 +202,13 @@ def mock_content_sets_config(tmpdir, data=None):
     tmpdir.join('content_sets.yml').write(data)
 
 
-def mock_odcs_request():
+def mock_odcs_client_start_compose():
+    """
+    Common mock for tests requiring basic compose operation. Typically, this
+    should be used with mock_odcs_client_wait_for_compose. However, if the
+    fake data set in this mock cannot fulfill the requirement of a test, please
+    write a custom one specifically.
+    """
     (flexmock(ODCSClient)
         .should_receive('start_compose')
         .with_args(
@@ -212,6 +219,9 @@ def mock_odcs_request():
             sigkeys=['R123'])
         .and_return(ODCS_COMPOSE))
 
+
+def mock_odcs_client_wait_for_compose():
+    """Refer to the doc of mock_odcs_client_start_compose"""
     (flexmock(ODCSClient)
         .should_receive('wait_for_compose')
         .with_args(ODCS_COMPOSE_ID)
@@ -270,6 +280,8 @@ class TestResolveComposes(object):
         sys.modules.pop('pre_resolve_composes', None)
 
     def test_request_compose(self, workflow):
+        mock_odcs_client_start_compose()
+        mock_odcs_client_wait_for_compose()
         self.run_plugin_with_args(workflow)
 
     @pytest.mark.parametrize('arches', (
@@ -287,6 +299,7 @@ class TestResolveComposes(object):
                 arches=arches)
             .once()
             .and_return(ODCS_COMPOSE))
+        mock_odcs_client_wait_for_compose()
         workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = arches
         self.run_plugin_with_args(workflow)
 
@@ -473,6 +486,9 @@ class TestResolveComposes(object):
                 arches=arches)
             .once()
             .and_return(ODCS_COMPOSE))
+
+        mock_odcs_client_wait_for_compose()
+
         workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = arches
         self.run_plugin_with_args(workflow)
 
@@ -511,6 +527,8 @@ class TestResolveComposes(object):
             .with_args(**use_kwargs)
             .once()
             .and_return(ODCS_COMPOSE))
+
+        mock_odcs_client_wait_for_compose()
 
         workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = arches
         self.run_plugin_with_args(workflow)
@@ -571,6 +589,8 @@ class TestResolveComposes(object):
                        arches=['x86_64'])
             .and_return(ODCS_COMPOSE))
 
+        mock_odcs_client_wait_for_compose()
+
         self.run_plugin_with_args(workflow)
 
     @pytest.mark.parametrize(('with_modules'), (True, False))
@@ -605,6 +625,8 @@ class TestResolveComposes(object):
                        sigkeys=['R123'],
                        arches=['x86_64'])
             .and_return(ODCS_COMPOSE))
+
+        mock_odcs_client_wait_for_compose()
 
         self.run_plugin_with_args(workflow)
 
@@ -830,19 +852,6 @@ class TestResolveComposes(object):
         assert expect_error in str(exc.value)
 
     def test_request_compose_for_pulp_no_content_sets(self, workflow):
-        (flexmock(ODCSClient)
-            .should_receive('start_compose')
-            .with_args(
-                source_type='pulp',
-                source='pulp is no good here',
-                arches=['x86_64'],
-                sigkeys=[])
-            .never())
-        (flexmock(ODCSClient)
-            .should_receive('wait_for_compose')
-            .with_args(85)
-            .never())
-
         mock_content_sets_config(workflow._tmpdir, '')
 
         repo_config = dedent("""\
@@ -854,7 +863,9 @@ class TestResolveComposes(object):
                 - eggs
             """)
         mock_repo_config(workflow._tmpdir, repo_config)
-        mock_odcs_request()
+
+        mock_odcs_client_start_compose()
+        mock_odcs_client_wait_for_compose()
 
         self.run_plugin_with_args(workflow)
 
@@ -908,6 +919,9 @@ class TestResolveComposes(object):
         else:
             exp_kwargs['cert'] = os.path.join(reac_conf['odcs']['auth']['ssl_certs_dir'], 'cert')
 
+        mock_odcs_client_start_compose()
+        mock_odcs_client_wait_for_compose()
+
         (flexmock(ODCSClient)
             .should_receive('__init__')
             .with_args(ODCS_URL, **exp_kwargs))
@@ -938,6 +952,9 @@ class TestResolveComposes(object):
             .once()
             .with_args(plugin_args['koji_target'], strict=True)
             .and_return(KOJI_TARGET))
+
+        mock_odcs_client_start_compose()
+        mock_odcs_client_wait_for_compose()
 
         self.run_plugin_with_args(workflow, plugin_args)
 
@@ -1107,6 +1124,7 @@ class TestResolveComposes(object):
                                  pulp_repos: true
                              """))
         mock_content_sets_config(workflow._tmpdir)
+
         (flexmock(ODCSClient)
             .should_receive('start_compose')
             .with_args(
@@ -1116,6 +1134,9 @@ class TestResolveComposes(object):
                 flags=[],
                 arches=['x86_64'])
             .and_return(ODCS_COMPOSE))
+
+        mock_odcs_client_wait_for_compose()
+
         self.run_plugin_with_args(workflow)
 
     @pytest.mark.parametrize(('content_sets', 'build_only_content_sets'), (
@@ -1158,7 +1179,7 @@ class TestResolveComposes(object):
                     arches=['x86_64'])
                 .once()
                 .and_return(ODCS_COMPOSE))
-
+            mock_odcs_client_wait_for_compose()
             self.run_plugin_with_args(workflow)
         else:
             (flexmock(ODCSClient)
@@ -1260,6 +1281,8 @@ class TestResolveComposes(object):
             assert 'Updating signing keys' not in caplog.text
 
     def test_inject_yum_repos_from_new_compose(self, workflow):
+        mock_odcs_client_start_compose()
+        mock_odcs_client_wait_for_compose()
         self.run_plugin_with_args(workflow)
         assert self.get_override_yum_repourls(workflow) == [ODCS_COMPOSE_REPOFILE]
 
@@ -1325,6 +1348,8 @@ class TestResolveComposes(object):
          'Autorebuild detected: Ignoring compose_ids plugin parameter'),
     ))
     def test_parameters_ignored_for_autorebuild(self, caplog, workflow, plugin_args, msg):
+        mock_odcs_client_start_compose()
+        mock_odcs_client_wait_for_compose()
         flexmock(pre_check_and_set_rebuild).should_receive('is_rebuild').and_return(True)
         with caplog.at_level(logging.INFO):
             self.run_plugin_with_args(workflow, plugin_args)
@@ -1417,6 +1442,8 @@ class TestResolveComposes(object):
     ])
     def test_content_sets_validation(self, workflow,
                                      content_sets_content, expect_error):
+        mock_odcs_client_start_compose()
+        mock_odcs_client_wait_for_compose()
         mock_content_sets_config(workflow._tmpdir, content_sets_content)
         self.run_plugin_with_args(workflow, expect_error=expect_error)
 
@@ -1523,3 +1550,33 @@ class TestResolveComposes(object):
         plugin.adjust_signing_intent_from_parent()
         assert ('This is a base image based on scratch. '
                 'Signing intent will not be adjusted for it.' in caplog.text)
+
+    @responses.activate
+    def test_canceling_compose_when_timeout_of_waiting_for_the_compose(
+        self, workflow, tmpdir
+    ):
+        # Fake data for an existing compose requested from ODCS.
+        # No need to start a new one.
+        plugin_args = {'compose_ids': [ODCS_COMPOSE_ID]}
+
+        # Ensure ODCSClient.wait_for_compose raises timeout error
+        (flexmock(time)
+         .should_receive('time')
+         .and_return(2 + ODCSClient.DEFAULT_WAIT_TIMEOUT, 1)
+         .one_by_one())
+
+        # Ensure ODCS responses the compose is still waiting for process before
+        # checking the timeout.
+        compose_url = construct_compose_url(ODCS_URL, ODCS_COMPOSE_ID)
+        responses.add(responses.GET, url=compose_url, json={
+            'id': ODCS_COMPOSE_ID,
+            'state_name': 'wait'
+        })
+        # Ensure to cancel the compose
+        responses.add(responses.DELETE, url=compose_url)
+
+        with pytest.raises(PluginFailedException) as exc:
+            self.run_plugin_with_args(workflow, plugin_args=plugin_args)
+
+        msg = 'Timeout of waiting for compose {}'.format(ODCS_COMPOSE_ID)
+        assert msg in str(exc.value)

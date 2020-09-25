@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 import os
 from collections import defaultdict
 
+from atomic_reactor.utils.odcs import WaitComposeToFinishTimeout
 from osbs.repo_utils import ModuleSpec
 
 from atomic_reactor.constants import (PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
@@ -99,7 +100,13 @@ class ResolveComposesPlugin(PreBuildPlugin):
             self.read_configs()
             self.adjust_compose_config()
             self.request_compose_if_needed()
-            self.wait_for_composes()
+            try:
+                self.wait_for_composes()
+            except WaitComposeToFinishTimeout as e:
+                self.log.info(str(e))
+                self.log.info('Canceling the compose %s', e.compose_id)
+                self.odcs_client.cancel_compose(e.compose_id)
+                raise
             self.resolve_signing_intent()
             self.forward_composes()
             return self.make_result()
