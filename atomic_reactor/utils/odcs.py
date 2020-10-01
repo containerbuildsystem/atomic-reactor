@@ -217,3 +217,9 @@ class ODCSClient(object):
         except Exception as e:
             logger.warning('Failed to cancel compose %s. ODCS responses: %s',
                            compose_id, str(e))
+
+    def get_compose_status(self, compose_id):
+        """Retrieve compose status by sending a GET request with compose id"""
+        response = self.session.get(self._get_compose_url(compose_id))
+        response.raise_for_status()
+        return response.json()['state_name']
