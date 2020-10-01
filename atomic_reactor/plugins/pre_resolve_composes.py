@@ -90,6 +90,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self.has_complete_repos = len(self.repourls) > 0
         self.plugin_result = self.workflow.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY)
         self.all_compose_ids = list(self.compose_ids)
+        self.parent_compose_ids = []
 
     def run(self):
         self.adjust_for_autorebuild()
@@ -110,8 +111,18 @@ class ResolveComposesPlugin(PreBuildPlugin):
             self.wait_for_composes()
         except WaitComposeToFinishTimeout as e:
             self.log.info(str(e))
-            self.log.info('Canceling the compose %s', e.compose_id)
-            self.odcs_client.cancel_compose(e.compose_id)
+            preserve_composes = set(self.compose_ids).union(self.parent_compose_ids)
+            cancel_composes = set(self.all_compose_ids) - preserve_composes
+            if cancel_composes:
+                self.log.info('Canceling unfinished composes which were created by the build: %s',
+                              cancel_composes)
+
+            for compose_id in cancel_composes:
+                if self.odcs_client.get_compose_status(compose_id) in ['wait', 'generating']:
+                    self.log.info('Canceling the compose %s', compose_id)
+                    self.odcs_client.cancel_compose(compose_id)
+                else:
+                    self.log.info('The compose %s is not in progress, skip canceling', compose_id)
             raise
         self.resolve_signing_intent()
         self.forward_composes()
@@ -160,11 +171,10 @@ class ResolveComposesPlugin(PreBuildPlugin):
             return
 
         build_info = self.plugin_result[BASE_IMAGE_KOJI_BUILD]
-        parent_compose_ids = []
         parent_repourls = []
 
         try:
-            parent_compose_ids = build_info['extra']['image']['odcs']['compose_ids']
+            self.parent_compose_ids = build_info['extra']['image']['odcs']['compose_ids']
         except (KeyError, TypeError):
             self.log.debug('Parent koji build, %s(%s), does not define compose_ids.'
                            'Cannot add compose_ids for inheritance from parent.',
@@ -178,7 +188,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
 
         all_compose_ids = set(self.compose_ids)
         original_compose_ids = deepcopy(all_compose_ids)
-        all_compose_ids.update(parent_compose_ids)
+        all_compose_ids.update(self.parent_compose_ids)
         self.all_compose_ids = list(all_compose_ids)
         for compose_id in all_compose_ids:
             if compose_id not in original_compose_ids:
