@@ -22,7 +22,7 @@ from atomic_reactor.constants import (
 from atomic_reactor.util import (RegistrySession,
                                  RegistryClient,
                                  has_operator_bundle_manifest,
-                                 read_yaml_from_url)
+                                 read_yaml_from_url, df_parser)
 from atomic_reactor.plugins.pre_reactor_config import get_operator_manifests
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.utils.operator import OperatorManifest
@@ -117,10 +117,13 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         }
 
         operator_manifest = self._get_operator_manifest()
+        should_skip = self._skip_all()
+        if should_skip:
+            self.log.warning("skip_all defined for operator manifests")
 
-        pullspecs = self._get_pullspecs(operator_manifest.csv)
+        pullspecs = self._get_pullspecs(operator_manifest.csv, should_skip)
 
-        if operator_manifest.csv.has_related_images():
+        if operator_manifest.csv.has_related_images() or should_skip:
             # related images already exists
             related_images_metadata['created_by_osbs'] = False
             related_images_metadata['pullspecs'] = [{
@@ -148,6 +151,11 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         Exclude CSVs which already have a relatedImages section.
         """
         operator_manifest = self._get_operator_manifest()
+
+        if self._skip_all():
+            self.log.warning("skip_all defined, not running on worker")
+            return
+
         replacement_pullspecs = {
             ImageName.parse(old): ImageName.parse(new)
             for old, new in self.replacement_pullspecs.items()
@@ -171,6 +179,28 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         else:
             self.log.warning("%s has a relatedImages section, skipping", operator_csv.path)
 
+    def _skip_all(self):
+        skip_all = self.user_config.get("skip_all", False)
+
+        if not skip_all:
+            return False
+
+        site_config = get_operator_manifests(self.workflow)
+        allowed_packages = site_config.get("skip_all_allow_list", [])
+
+        parser = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
+        dockerfile_labels = parser.labels
+        labels = Labels(dockerfile_labels)
+
+        component_label = labels.get_name(Labels.LABEL_TYPE_COMPONENT)
+        component = dockerfile_labels[component_label]
+
+        if component in allowed_packages:
+            return True
+        else:
+            raise RuntimeError("Koji package: {} isn't allowed to use skip_all for operator "
+                               "bundles".format(component))
+
     def _get_operator_manifest(self):
         if self.user_config is None:
             raise RuntimeError("operator_manifests configuration missing in container.yaml")
@@ -188,7 +218,7 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
 
         return operator_manifest
 
-    def _get_pullspecs(self, operator_csv):
+    def _get_pullspecs(self, operator_csv, skip_all):
         """Get pullspecs from CSV file
 
         :param OperatorCSV operator_csv: a cluster service version (CSV) file
@@ -206,13 +236,18 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         pullspec_set = set()
 
         if not operator_csv.has_related_images():
+            if skip_all and operator_csv.get_pullspecs():
+                raise RuntimeError("skip_all defined but relatedImages section doesn't exist")
+
             self.log.info("Getting pullspecs from %s", operator_csv.path)
             pullspec_set.update(operator_csv.get_pullspecs())
         elif operator_csv.has_related_image_envs():
             msg = ("Both relatedImages and RELATED_IMAGE_* env vars present in {}. "
                    "Please remove the relatedImages section, it will be reconstructed "
                    "automatically.".format(operator_csv.path))
-            raise RuntimeError(msg)
+
+            if not skip_all:
+                raise RuntimeError(msg)
         else:
             pullspec_set.update(operator_csv.get_related_image_pullspecs())
 
