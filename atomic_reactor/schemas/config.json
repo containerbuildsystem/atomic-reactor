@@ -723,6 +723,14 @@
               "required": ["old", "new"],
               "additionalProperties": false
             }
+          },
+          "skip_all_allow_list": {
+            "description": "Koji packages allowed to use skip_all option in container.yaml, add also comment for each package about the Vault Exception ID",
+            "type": ["array", "null"],
+            "items": {
+              "type": "string"
+            },
+            "examples": [null, ["centos-container", "rsyslog-container"]]
           }
         },
         "required": ["allowed_registries"],

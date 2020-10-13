@@ -35,6 +35,7 @@ from tests.mock_env import MockEnv
 
 
 PKG_LABEL = 'com.redhat.component'
+PKG_NAME = 'test-package'
 
 
 yaml = YAML()
@@ -53,8 +54,10 @@ pytestmark = pytest.mark.usefixtures('user_params')
 def mock_dockerfile(tmpdir, base='scratch', operator_bundle_label=True):
     dockerfile = (
         'FROM {base}\n'
+        'LABEL {component_label}={component_value}\n'
         'LABEL com.redhat.delivery.operator.bundle={label_value}\n'
-    ).format(base=base, label_value=operator_bundle_label)
+    ).format(base=base, component_label=PKG_LABEL, component_value=PKG_NAME,
+             label_value=operator_bundle_label)
 
     tmpdir.join('Dockerfile').write(dockerfile)
 
@@ -226,9 +229,11 @@ def get_build_kwarg(workflow, k, platform=None):
     return override_kwargs.get(platform, {}).get(k)
 
 
-def get_site_config(allowed_registries=None, registry_post_replace=None, repo_replacements=None):
+def get_site_config(allowed_registries=None, registry_post_replace=None, repo_replacements=None,
+                    skip_all_allow_list=None):
     registry_post_replace = registry_post_replace or {}
     repo_replacements = repo_replacements or {}
+    skip_allow_list = skip_all_allow_list or []
     return {
         'allowed_registries': allowed_registries,
         'registry_post_replace': [
@@ -237,12 +242,14 @@ def get_site_config(allowed_registries=None, registry_post_replace=None, repo_re
         'repo_replacements': [
             {'registry': registry, 'package_mappings_url': path}
             for registry, path in repo_replacements.items()
-        ]
+        ],
+        'skip_all_allow_list': [package for package in skip_allow_list]
     }
 
 
 def get_user_config(manifests_dir, repo_replacements=None, enable_digest_pinning=True,
-                    enable_repo_replacements=True, enable_registry_replacements=True):
+                    enable_repo_replacements=True, enable_registry_replacements=True,
+                    skip_all=False):
     repo_replacements = repo_replacements or {}
     return {
         'manifests_dir': manifests_dir,
@@ -253,6 +260,7 @@ def get_user_config(manifests_dir, repo_replacements=None, enable_digest_pinning
         'enable_digest_pinning': enable_digest_pinning,
         'enable_repo_replacements': enable_repo_replacements,
         'enable_registry_replacements': enable_registry_replacements,
+        'skip_all': skip_all,
     }
 
 
@@ -322,11 +330,12 @@ class TestPinOperatorDigest(object):
         ['csv2.yaml'],
         ['csv1.yaml', 'csv2.yaml']
     ])
-    def test_orchestrator_no_pullspecs(self, filepaths, docker_tasker, tmpdir, caplog):
+    @pytest.mark.parametrize('skip_all', [True, False])
+    def test_orchestrator_no_pullspecs(self, docker_tasker, tmpdir, caplog, filepaths, skip_all):
         files = [mock_operator_csv(tmpdir, path, []) for path in filepaths]
 
-        user_config = get_user_config(manifests_dir=str(tmpdir))
-        site_config = get_site_config()
+        user_config = get_user_config(manifests_dir=str(tmpdir), skip_all=skip_all)
+        site_config = get_site_config(skip_all_allow_list=[PKG_NAME])
 
         runner = mock_env(docker_tasker, tmpdir, orchestrator=True,
                           user_config=user_config, site_config=site_config)
@@ -746,6 +755,48 @@ class TestPinOperatorDigest(object):
             sorted(expected_result, key=str) ==
             sorted(got_pullspecs_metadata['pullspecs'], key=str)
         )
+
+    @pytest.mark.parametrize('orchestrator', [True, False])
+    @pytest.mark.parametrize('has_related_images', [True, False])
+    @pytest.mark.parametrize('pull_specs, has_related_image_envs', [
+        ([], False),
+        (['foo'], True),
+        (['foo'], False),
+    ])
+    @pytest.mark.parametrize('skip_all_allow_list', [None, [PKG_NAME]])
+    def test_skip_all(self, docker_tasker, tmpdir, caplog, orchestrator, has_related_images,
+                      pull_specs, has_related_image_envs, skip_all_allow_list):
+        mock_operator_csv(tmpdir, 'csv.yaml', pull_specs, with_related_images=has_related_images,
+                          with_related_image_envs=has_related_image_envs)
+
+        user_config = get_user_config(str(tmpdir), skip_all=True)
+
+        runner = mock_env(docker_tasker, tmpdir, orchestrator=orchestrator,
+                          site_config=get_site_config(skip_all_allow_list=skip_all_allow_list),
+                          user_config=user_config)
+
+        has_skip_log_entry = True
+
+        if not skip_all_allow_list or (not has_related_images and pull_specs and orchestrator):
+
+            with pytest.raises(PluginFailedException) as exc_info:
+                runner.run()
+
+            if not skip_all_allow_list:
+                exc_msg = "Koji package: {} isn't allowed to use skip_all for " \
+                          "operator bundles".format(PKG_NAME)
+                has_skip_log_entry = False
+            else:
+                exc_msg = "skip_all defined but relatedImages section doesn't exist"
+            assert exc_msg in str(exc_info.value)
+        else:
+            runner.run()
+
+        if has_skip_log_entry:
+            if orchestrator:
+                assert "skip_all defined for operator manifests" in caplog.text
+            else:
+                assert "skip_all defined, not running on worker" in caplog.text
 
 
 class TestPullspecReplacer(object):
