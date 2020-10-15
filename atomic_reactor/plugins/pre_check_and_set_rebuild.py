@@ -78,10 +78,10 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
         """
         if is_scratch_build(self.workflow):
             self.log.info('scratch build, skipping plugin')
-            return
+            return False
         if is_isolated_build(self.workflow):
             self.log.info('isolated build, skipping plugin')
-            return
+            return False
 
         if (self.workflow.builder.dockerfile_images is not None and
                 self.workflow.builder.dockerfile_images.base_from_scratch):
