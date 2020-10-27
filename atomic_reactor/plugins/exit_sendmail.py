@@ -163,7 +163,7 @@ class SendMailPlugin(ExitPlugin):
             metadata = get_build_json().get("metadata", {})
             self.original_koji_task_id = int(metadata['labels']['original-koji-task-id'])
         except Exception:
-            self.log.exception("Failed to fetch original koji task ID")
+            self.log.info("Failed to fetch original koji task ID")
             self.original_koji_task_id = None
         else:
             self.log.info("original Koji task ID: %s", self.original_koji_task_id)
