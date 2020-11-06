@@ -410,10 +410,11 @@ def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotation
         workflow.koji_source_manifest = {'config': {'digest': image_id}}
 
     sources_for_nvr = 'image_build'
-    workflow.labels['sources_for_nvr'] = sources_for_nvr
+    sources_for_koji_build_id = '12345'
+    workflow.labels['sources_for_koji_build_id'] = sources_for_koji_build_id
     workflow.prebuild_results = {
         PLUGIN_FETCH_SOURCES_KEY: {
-            'sources_for_koji_build_id': '12345',
+            'sources_for_koji_build_id': sources_for_koji_build_id,
             'sources_for_nvr': sources_for_nvr,
             'image_sources_dir': 'source_dir',
         }
@@ -532,8 +533,8 @@ def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotation
         assert labels['br_labels'] == expected_br_labels
     else:
         assert 'br_labels' not in labels
-    assert 'sources_for_nvr' in labels
-    assert labels['sources_for_nvr'] == sources_for_nvr
+    assert 'sources_for_koji_build_id' in labels
+    assert labels['sources_for_koji_build_id'] == sources_for_koji_build_id
 
     if expected_media_results:
         media_types = expected_media_results
