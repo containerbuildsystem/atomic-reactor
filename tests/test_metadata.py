@@ -82,7 +82,7 @@ def test_store_metadata_map(metadata_map_decorator, metadata_attr):
     assert p2.run() is None
 
     other_attr = 'labels' if metadata_attr == 'annotations' else 'annotations'
-    assert getattr(workflow, metadata_attr) == {'foo': '1', 'bar': '2'}
+    assert getattr(workflow, metadata_attr) == {'foo': 1, 'bar': 2}
     assert getattr(workflow, other_attr) == {}
 
 
@@ -185,9 +185,9 @@ def test_store_metadata_combined():
     p.run()
     assert workflow.annotations == {
         'foo': {'bar': 1, 'eggs': 2},
-        'bar': '1'
+        'bar': 1
     }
     assert workflow.labels == {
         'spam': {'bar': 1, 'eggs': 2},
-        'eggs': '2'
+        'eggs': 2
     }

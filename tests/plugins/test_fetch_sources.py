@@ -315,7 +315,7 @@ class TestFetchSources(object):
             if custom_rcm:
                 assert get_srpm_url() in caplog.text
                 assert get_srpm_url('usedKey') not in caplog.text
-            assert runner.workflow.labels['sources_for_koji_build_id'] == '1'
+            assert runner.workflow.labels['sources_for_koji_build_id'] == 1
 
     @pytest.mark.parametrize('signing_intent', ('unsigned', 'empty', 'one', 'multiple', 'invalid'))
     def test_koji_signing_intent(self, requests_mock, docker_tasker, koji_session, tmpdir,
