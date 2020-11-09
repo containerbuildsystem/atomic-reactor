@@ -105,7 +105,7 @@ def _decorate_metadata(metadata_type, keys, match_keys):
                     raise RuntimeError('[{}] Already set: {!r}'.format(metadata_type, key))
 
                 if match_keys:
-                    metadata[key] = str(result[key])
+                    metadata[key] = result[key]
                 else:
                     metadata[key] = result
 

@@ -167,6 +167,9 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         self._update_labels(labels, self.workflow.labels)
         self._update_labels(labels, self.workflow.build_result.labels)
 
+        if 'sources_for_koji_build_id' in labels:
+            labels['sources_for_koji_build_id'] = str(labels['sources_for_koji_build_id'])
+
         return labels
 
     def set_koji_task_annotations_whitelist(self, annotations):
