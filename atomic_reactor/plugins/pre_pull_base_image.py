@@ -148,8 +148,10 @@ class PullBaseImagePlugin(PreBuildPlugin):
             try:
                 manifest_digest_response = digests_dict['v2']
             except KeyError:
-                raise RuntimeError('Unable to fetch manifest list or '
-                                   'v2 schema 2 digest for {}'.format(image_str))
+                raise RuntimeError(
+                    'Unable to fetch manifest list or '
+                    'v2 schema 2 digest for {} (Does image exist?)'.format(image_str)
+                )
 
             digest_dict = get_checksums(BytesIO(manifest_digest_response.content), ['sha256'])
 
