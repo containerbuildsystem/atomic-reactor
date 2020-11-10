@@ -17,6 +17,7 @@ from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
+from atomic_reactor.utils.koji import get_koji_task_owner
 from tests.util import add_koji_map_in_workflow
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
@@ -30,6 +31,7 @@ MC, AC = SendMailPlugin.MANUAL_CANCELED, SendMailPlugin.AUTO_CANCELED
 MOCK_EMAIL_DOMAIN = "domain.com"
 MOCK_KOJI_TASK_ID = 12345
 MOCK_KOJI_ORIGINAL_TASK_ID = 54321
+MOCK_KOJI_MISSING_TASK_ID = -12345
 MOCK_KOJI_BUILD_ID = 98765
 MOCK_KOJI_PACKAGE_ID = 123
 MOCK_KOJI_TAG_ID = 456
@@ -39,6 +41,7 @@ MOCK_KOJI_OWNER_EMAIL = "foo@bar.com"
 MOCK_KOJI_OWNER_GENERATED = "@".join([MOCK_KOJI_OWNER_NAME, MOCK_EMAIL_DOMAIN])
 MOCK_KOJI_SUBMITTER_ID = 123456
 MOCK_KOJI_ORIGINAL_SUBMITTER_ID = 654321
+MOCK_KOJI_MISSING_SUBMITTER_ID = -123456
 MOCK_KOJI_SUBMITTER_NAME = "baz"
 MOCK_KOJI_ORIGINAL_SUBMITTER_NAME = "original"
 MOCK_KOJI_SUBMITTER_EMAIL = "baz@bar.com"
@@ -106,15 +109,21 @@ class MockedClientSession(object):
             else:
                 return {"krb_principal": "",
                         "name": MOCK_KOJI_ORIGINAL_SUBMITTER_NAME}
+        elif user_id == MOCK_KOJI_MISSING_SUBMITTER_ID:
+            return {}
         else:
             assert False, "Don't know user with id %s" % user_id
 
     def getTaskInfo(self, task_id):
-        assert task_id == MOCK_KOJI_TASK_ID or task_id == MOCK_KOJI_ORIGINAL_TASK_ID
+        assert (task_id == MOCK_KOJI_TASK_ID
+                or task_id == MOCK_KOJI_ORIGINAL_TASK_ID
+                or task_id == MOCK_KOJI_MISSING_TASK_ID)
         if task_id == MOCK_KOJI_TASK_ID:
             return {"owner": MOCK_KOJI_SUBMITTER_ID}
         elif task_id == MOCK_KOJI_ORIGINAL_TASK_ID:
             return {"owner": MOCK_KOJI_ORIGINAL_SUBMITTER_ID}
+        elif task_id == MOCK_KOJI_MISSING_TASK_ID:
+            return {"owner": MOCK_KOJI_MISSING_SUBMITTER_ID}
 
     def listTaskOutput(self, task_id):
         assert task_id == MOCK_KOJI_TASK_ID
@@ -252,6 +261,52 @@ class TestSendMailPlugin(object):
 
         p = SendMailPlugin(None, workflow, **kwargs)
         assert p._should_send(rebuild, success, auto_canceled, manual_canceled) == expected
+
+    @pytest.mark.parametrize(('has_kerberos', 'koji_task_id',
+                              'email_domain', 'expected_email'), [
+        (True, MOCK_KOJI_TASK_ID, None, "baz@bar.com"),
+        (False, MOCK_KOJI_TASK_ID, 'example.com', "baz@example.com"),
+        (False, MOCK_KOJI_TASK_ID, None, ""),
+        (False, MOCK_KOJI_MISSING_TASK_ID, 'example.com', ""),
+    ])
+    def test_get_email_from_koji_obj(self, monkeypatch, has_kerberos,
+                                     koji_task_id, email_domain, expected_email):
+        class WF(object):
+            exit_results = {
+                KojiImportPlugin.key: MOCK_KOJI_BUILD_ID
+            }
+            plugin_workspace = {}
+
+        monkeypatch.setenv("BUILD", json.dumps({
+            'metadata': {
+                'labels': {
+                    'koji-task-id': koji_task_id,
+                },
+                'name': {},
+            }
+        }))
+
+        session = MockedClientSession('', has_kerberos=has_kerberos)
+        flexmock(koji, ClientSession=lambda hub, opts: session)
+        workflow = WF()
+
+        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+            ReactorConfig({'version': 1})
+        add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
+                                 ssl_certs_dir='/certs')
+
+        p = SendMailPlugin(None, workflow, email_domain=email_domain)
+        koji_task_owner = get_koji_task_owner(p.session, p.koji_task_id)
+
+        try:
+            found_email = p._get_email_from_koji_obj(koji_task_owner)
+            assert expected_email == found_email
+        except RuntimeError as exc:
+            if not email_domain:
+                assert str(exc) == "Empty email_domain specified"
+            else:
+                assert str(exc) == "Koji task owner name is missing"
 
     @pytest.mark.parametrize(('additional_addresses', 'expected_receivers'), [
         ('', None),
