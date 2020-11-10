@@ -397,7 +397,7 @@ class SendMailPlugin(ExitPlugin):
                 try:
                     koji_task_owner_emails = self._get_koji_owners()
                 except Exception:
-                    self.log.exception("Failed to include a package owner")
+                    self.log.info("Failed to include a package owner")
                 else:
                     receivers_list += koji_task_owner_emails
 
