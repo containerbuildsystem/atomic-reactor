@@ -330,7 +330,10 @@ class SendMailPlugin(ExitPlugin):
         else:
             if not self.email_domain:
                 raise RuntimeError("Empty email_domain specified")
-            return '@'.join([obj['name'], self.email_domain])
+            elif not obj.get('name'):
+                raise RuntimeError("Koji task owner name is missing")
+            else:
+                return '@'.join([obj['name'], self.email_domain])
 
     def _get_koji_submitter(self):
         koji_task_owner = get_koji_task_owner(self.session,
@@ -386,7 +389,7 @@ class SendMailPlugin(ExitPlugin):
                 try:
                     koji_task_owner_email = self._get_koji_submitter()
                 except Exception:
-                    self.log.exception("Failed to include a task submitter")
+                    self.log.info("Failed to include a task submitter")
                 else:
                     receivers_list.append(koji_task_owner_email)
 
