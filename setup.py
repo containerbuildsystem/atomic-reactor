@@ -8,7 +8,6 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import re
-import sys
 
 from setuptools import setup, find_packages
 from atomic_reactor.constants import DESCRIPTION, HOMEPAGE
@@ -35,14 +34,6 @@ def _get_requirements(path):
     return packages
 
 
-def _install_requirements():
-    if sys.version_info[0] >= 3:
-        requirements = _get_requirements('requirements.txt')
-    else:
-        requirements = _get_requirements('requirements-py2.txt')
-    return requirements
-
-
 setup(
     name='atomic-reactor',
     version='2.4.1',
@@ -55,7 +46,8 @@ setup(
         'console_scripts': ['atomic-reactor=atomic_reactor.cli.main:run'],
     },
     packages=find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests"]),
-    install_requires=_install_requirements(),
+    install_requires=_get_requirements('requirements.txt'),
+    python_requires='>=3.6, <4',
     package_data={'atomic_reactor': ['schemas/*.json']},
     data_files=data_files.items(),
 )
