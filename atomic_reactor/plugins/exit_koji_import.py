@@ -127,8 +127,11 @@ class KojiImportBase(ExitPlugin):
 
         self.osbs = get_openshift_session(self.workflow, self.openshift_fallback)
         self.build_id = None
+        self.koji_task_id = None
         self.session = None
         self.reserve_build = get_koji(self.workflow).get('reserve_build', False)
+        self.delegate_enabled = get_koji(self.workflow).get('delegate_task', True)
+        self.rebuild = is_rebuild(self.workflow)
 
     def get_output(self, *args):
         # Must be implemented by subclasses
@@ -331,6 +334,7 @@ class KojiImportBase(ExitPlugin):
                           koji_task_id)
             try:
                 extra['container_koji_task_id'] = int(koji_task_id)
+                self.koji_task_id = int(koji_task_id)
             except ValueError:
                 self.log.error("invalid task ID %r", koji_task_id, exc_info=1)
 
@@ -473,6 +477,20 @@ class KojiImportBase(ExitPlugin):
             self.upload_scratch_metadata(koji_metadata, server_dir, self.session)
             return
 
+        # for all builds which have koji task, except for rebuild without delegate enabled,
+        # because such rebuild is reusing original task which won't be anymore OPEN
+        if self.koji_task_id and (not self.rebuild or (self.rebuild and self.delegate_enabled)):
+            task_info = self.session.getTaskInfo(self.koji_task_id)
+            task_state = koji.TASK_STATES[task_info['state']]
+            if task_state != 'OPEN':
+                self.log.error("Koji task is not in Open state, but in %s, not importing build",
+                               task_state)
+
+                if self.reserve_build and build_token is not None:
+                    state = koji.BUILD_STATES['FAILED']
+                    self.session.CGRefundBuild(PROG, build_id, build_token, state)
+                return
+
         try:
             for output in output_files:
                 if output.file:
@@ -568,7 +586,7 @@ class KojiImportPlugin(KojiImportBase):
         return buildroots
 
     def _update_extra(self, extra, metadata, worker_metadatas):
-        extra['image']['autorebuild'] = is_rebuild(self.workflow)
+        extra['image']['autorebuild'] = self.rebuild
 
         if not isinstance(self.workflow.source, GitSource):
             raise RuntimeError('git source required')

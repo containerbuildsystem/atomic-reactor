@@ -22,7 +22,6 @@ from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlug
                                                             WORKSPACE_KEY_BUILD_INFO)
 from atomic_reactor.plugins.exit_koji_import import (KojiImportPlugin,
                                                      KojiImportSourceContainerPlugin)
-from atomic_reactor.plugins.exit_koji_tag_build import KojiTagBuildPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
@@ -97,7 +96,7 @@ class MockedClientSession(object):
     def __init__(self, hub, opts=None, task_states=None):
         self.uploaded_files = {}
         self.build_tags = {}
-        self.task_states = task_states or ['FREE', 'ASSIGNED', 'CLOSED']
+        self.task_states = task_states or ['OPEN']
 
         self.task_states = list(self.task_states)
         self.task_states.reverse()
@@ -138,10 +137,6 @@ class MockedClientSession(object):
     def getBuildTarget(self, target):
         return {'dest_tag_name': self.DEST_TAG}
 
-    def tagBuild(self, tag, build, force=False, fromtag=None):
-        self.build_tags[build] = tag
-        return self.TAG_TASK_ID
-
     def getTaskInfo(self, task_id, request=False):
         assert task_id == self.TAG_TASK_ID
 
@@ -150,7 +145,10 @@ class MockedClientSession(object):
         if self.tag_task_state is None:
             return None
 
-        return {'state': koji.TASK_STATES[self.tag_task_state]}
+        return {'state': koji.TASK_STATES[self.tag_task_state], 'owner': 1234}
+
+    def getUser(self, user_id):
+        return {'name': 'osbs'}
 
     def taskFinished(self, task_id):
         try:
@@ -236,9 +234,7 @@ class BuildInfo(object):
 def mock_environment(tmpdir, session=None, name=None,
                      component=None, version=None, release=None,
                      source=None, build_process_failed=False, build_process_canceled=False,
-                     is_rebuild=True, docker_registry=True,
-                     blocksize=None,
-                     task_states=None, additional_tags=None,
+                     is_rebuild=True, docker_registry=True, additional_tags=None,
                      has_config=None, add_tag_conf_primaries=True,
                      container_first=False, yum_repourls=None,
                      has_op_appregistry_manifests=False,
@@ -246,7 +242,7 @@ def mock_environment(tmpdir, session=None, name=None,
                      push_operator_manifests_enabled=False, source_build=False,
                      has_remote_source=False, build_method='docker', scratch=False):
     if session is None:
-        session = MockedClientSession('', task_states=None)
+        session = MockedClientSession('')
     if source is None:
         source = GitSource('git', 'git://hostname/path')
 
@@ -546,15 +542,14 @@ def os_env(monkeypatch):
             "creationTimestamp": "2015-07-27T09:24:00Z",
             "namespace": NAMESPACE,
             "name": BUILD_ID,
-            "labels": {},
+            "labels": {'koji-task-id': MockedClientSession.TAG_TASK_ID},
         }
     }))
     monkeypatch.setenv('OPENSHIFT_CUSTOM_BUILD_BASE_IMAGE', 'buildroot:latest')
 
 
 def create_runner(tasker, workflow, ssl_certs=False, principal=None,
-                  keytab=None, target=None, tag_later=False,
-                  blocksize=None, reserve_build=False,
+                  keytab=None, target=None, blocksize=None, reserve_build=False,
                   upload_plugin_name=KojiImportPlugin.key):
     args = {
         'url': '/',
@@ -577,11 +572,6 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
                              krb_principal=principal,
                              krb_keytab=keytab)
 
-    if target and tag_later:
-        plugins_conf.append({'name': KojiTagBuildPlugin.key,
-                             'args': {
-                                 'target': target,
-                                 'poll_interval': 0.01}})
     workflow.exit_plugins_conf = plugins_conf
     runner = ExitPluginsRunner(tasker, workflow, plugins_conf)
     return runner
@@ -755,7 +745,7 @@ class TestKojiImport(object):
     def test_koji_import_log_task_id(self, tmpdir, monkeypatch, os_env,
                                      caplog, koji_task_id, expect_success):
         session = MockedClientSession('')
-        session.getTaskInfo = lambda x: {'owner': 1234}
+        session.getTaskInfo = lambda x: {'owner': 1234, 'state': 1}
         setattr(session, 'getUser', lambda x: {'name': 'dev1'})
 
         tasker, workflow = mock_environment(tmpdir,
@@ -1249,14 +1239,11 @@ class TestKojiImport(object):
 
     @pytest.mark.parametrize('blocksize', (None, 1048576))
     @pytest.mark.parametrize(('has_config', 'is_autorebuild', 'triggered_task'), [
-        # (True,
-        #  True),
         (False,
          False, None),
         (False,
          True, 12345),
     ])
-    @pytest.mark.parametrize('tag_later', (True, False))
     @pytest.mark.parametrize(('verify_media', 'expect_id'), (
         (['v1', 'v2', 'v2_list'], 'ab12'),
         (['v1'], 'ab12'),
@@ -1266,17 +1253,14 @@ class TestKojiImport(object):
         (True, 'docker'),
         (False, 'imagebuilder')
     ])
-    def test_koji_import_success(self, tmpdir, blocksize, os_env, has_config, is_autorebuild,
-                                 triggered_task, tag_later, verify_media, expect_id,
-                                 reserved_build, build_method):
-        session = MockedClientSession('')
-        # When target is provided koji build will always be tagged,
-        # either by koji_import or koji_tag_build.
-        (flexmock(session)
-            .should_call('tagBuild')
-            .with_args('images-candidate', '123')
-         )  # .times(1 if target else 0))
-
+    @pytest.mark.parametrize(('task_states', 'skip_import'), [
+        (['OPEN'], False),
+        (['FAILED'], True),
+    ])
+    def test_koji_import_success(self, tmpdir, caplog, blocksize, os_env, has_config,
+                                 is_autorebuild, triggered_task, verify_media, expect_id,
+                                 reserved_build, build_method, task_states, skip_import):
+        session = MockedClientSession('', task_states=task_states)
         component = 'component'
         name = 'ns/name'
         version = '1.0'
@@ -1317,9 +1301,19 @@ class TestKojiImport(object):
              )
 
         target = 'images-docker-candidate'
-        runner = create_runner(tasker, workflow, target=target, tag_later=tag_later,
-                               blocksize=blocksize)
+        runner = create_runner(tasker, workflow, target=target, blocksize=blocksize,
+                               reserve_build=reserved_build)
         runner.run()
+
+        if skip_import:
+            log_msg = "Koji task is not in Open state, but in {}, not importing build".\
+                format(task_states[0])
+
+            assert log_msg in caplog.text
+
+            if reserved_build:
+                assert session.refunded_build
+            return
 
         data = session.metadata
 
@@ -1432,7 +1426,7 @@ class TestKojiImport(object):
 
     def test_koji_import_owner_submitter(self, tmpdir, monkeypatch):  # noqa
         session = MockedClientSession('')
-        session.getTaskInfo = lambda x: {'owner': 1234}
+        session.getTaskInfo = lambda x: {'owner': 1234, 'state': 1}
         setattr(session, 'getUser', lambda x: {'name': 'dev1'})
 
         tasker, workflow = mock_environment(tmpdir,
@@ -2252,16 +2246,20 @@ class TestKojiImport(object):
 
     @pytest.mark.parametrize('blocksize', (None, 1048576))
     @pytest.mark.parametrize('has_config', (True, False))
-    @pytest.mark.parametrize('tag_later', (True, False))
     @pytest.mark.parametrize(('verify_media', 'expect_id'), (
         (['v1', 'v2', 'v2_list'], 'ab12'),
         (['v1'], 'ab12'),
         (False, 'ab12')
     ))
     @pytest.mark.parametrize('reserved_build', (True, False))
-    def test_koji_import_success_source(self, tmpdir, blocksize, os_env, has_config,
-                                        tag_later, verify_media, expect_id, reserved_build):
-        session = MockedClientSession('')
+    @pytest.mark.parametrize(('task_states', 'skip_import'), [
+        (['OPEN'], False),
+        (['FAILED'], True),
+    ])
+    def test_koji_import_success_source(self, tmpdir, caplog, blocksize, os_env, has_config,
+                                        verify_media, expect_id, reserved_build, task_states,
+                                        skip_import):
+        session = MockedClientSession('', task_states=task_states)
         # When target is provided koji build will always be tagged,
         # either by koji_import or koji_tag_build.
         component = 'component'
@@ -2319,10 +2317,20 @@ class TestKojiImport(object):
         }
         workflow.koji_source_manifest = source_manifest
 
-        runner = create_runner(tasker, workflow, target=target, tag_later=tag_later,
-                               blocksize=blocksize,
+        runner = create_runner(tasker, workflow, target=target, blocksize=blocksize,
+                               reserve_build=reserved_build,
                                upload_plugin_name=KojiImportSourceContainerPlugin.key)
         runner.run()
+
+        if skip_import:
+            log_msg = "Koji task is not in Open state, but in {}, not importing build".\
+                format(task_states[0])
+
+            assert log_msg in caplog.text
+
+            if reserved_build:
+                assert session.refunded_build
+            return
 
         data = session.metadata
 
