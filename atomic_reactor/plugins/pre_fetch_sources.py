@@ -405,8 +405,12 @@ class FetchSourcesPlugin(PreBuildPlugin):
 
     def _check_if_package_excluded(self, packages, denylist_sources, remote_archive):
         # check if any package in cachito json matches excluded entry
+        # strip leading os.sep as package names can include git path with '/' before package name
+        # or just package name, or package name with leading '@' depending on package type
+        denylist_packages = {k.lstrip(os.sep) for k in denylist_sources}
+
         for package in packages:
-            for exclude_path in denylist_sources:
+            for exclude_path in denylist_packages:
                 if package.get('name').endswith(exclude_path):
                     self.log.debug('Package excluded: "%s" from "%s"', package.get('name'),
                                    remote_archive)

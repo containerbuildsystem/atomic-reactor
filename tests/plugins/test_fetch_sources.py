@@ -190,7 +190,8 @@ def get_remote_url(koji_build, file_name=REMOTE_SOURCES_FILE):
 
 
 def mock_koji_manifest_download(tmpdir, requests_mock, retries=0, dirs_in_remote=('app', 'deps'),
-                                files_in_remote=(), cachito_package_names=None):
+                                files_in_remote=(), cachito_package_names=None,
+                                change_package_names=True):
     class MockBytesIO(io.BytesIO):
         reads = 0
 
@@ -246,7 +247,10 @@ def mock_koji_manifest_download(tmpdir, requests_mock, retries=0, dirs_in_remote
         remote_json = {'packages': []}
         if cachito_package_names:
             for pkg in cachito_package_names:
-                remote_json['packages'].append({'name': os.path.join('github.com', pkg)})
+                if change_package_names:
+                    remote_json['packages'].append({'name': os.path.join('github.com', pkg)})
+                else:
+                    remote_json['packages'].append({'name': pkg})
         remote_cont = json.dumps(remote_json)
 
         remote_bytes = bytes(remote_cont, 'ascii')
@@ -640,20 +644,37 @@ class TestFetchSources(object):
         ({'denylist_sources': 'http://excludelist_url'},
          {'dir1': ['appname']},
          [os.path.join('dir1', 'appname')],
-         ['Removing app', 'Keeping vendor in app'],
+         ['Removing app', 'Keeping vendor in app',
+          'Package excluded: "{}"'.format(os.path.join('dir1', 'appname'))],
+         None),
+
+        ({'denylist_sources': 'http://excludelist_url'},
+         {'dir1': ['appname']},
+         [os.path.join('github.com', 'dir1', 'appname')],
+         ['Removing app', 'Keeping vendor in app',
+          'Package excluded: "{}"'.format(os.path.join('github.com', 'dir1', 'appname'))],
+         None),
+
+        ({'denylist_sources': 'http://excludelist_url'},
+         {'dir1': ['appname']},
+         [os.path.join('@dir1', 'appname')],
+         ['Removing app', 'Keeping vendor in app',
+          'Package excluded: "{}"'.format(os.path.join('@dir1', 'appname'))],
          None),
 
         ({'denylist_sources': 'http://excludelist_url'},
          {'dir1': ['appname', 'toremovefile']},
          [os.path.join('dir1', 'appname')],
-         ['Removing app', 'Removing excluded file', 'Keeping vendor in app'],
+         ['Removing app', 'Removing excluded file', 'Keeping vendor in app',
+          'Package excluded: "{}"'.format(os.path.join('dir1', 'appname'))],
          None),
 
         ({'denylist_sources': 'http://excludelist_url'},
          {'dir1': ['appname', 'toremovefile', 'toremovedir']},
          [os.path.join('dir1', 'appname')],
          ['Removing app', 'Removing excluded file', 'Removing excluded directory',
-          'Keeping vendor in app'],
+          'Keeping vendor in app',
+          'Package excluded: "{}"'.format(os.path.join('dir1', 'appname'))],
          None),
 
         ({'denylist_sources': 'http://excludelist_url'},
@@ -744,7 +765,8 @@ class TestFetchSources(object):
 
         mock_koji_manifest_download(tmpdir, requests_mock, dirs_in_remote=dirs_to_create,
                                     files_in_remote=files_to_create,
-                                    cachito_package_names=cachito_pkg_names)
+                                    cachito_package_names=cachito_pkg_names,
+                                    change_package_names=False)
         runner = mock_env(tmpdir, docker_tasker, koji_build_id=1,
                           config_map=yaml.safe_dump(rcm_json))
 
