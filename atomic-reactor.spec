@@ -1,22 +1,4 @@
-%if 0%{?rhel} && 0%{?rhel} <= 6
-%{!?__python2: %global __python2 /usr/bin/python2}
-%{!?python2_sitelib: %global python2_sitelib %(%{__python2} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
-%{!?python2_sitearch: %global python2_sitearch %(%{__python2} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(1))")}
-%{!?python2_version: %global python2_version %(%{__python2} -c "import sys; sys.stdout.write(sys.version[:3])")}
-%endif
-
-%if 0%{?rhel} && 0%{?rhel} <= 7
-%{!?py2_build: %global py2_build %{__python2} setup.py build}
-%{!?py2_install: %global py2_install %{__python2} setup.py install --skip-build --root %{buildroot}}
-%endif
-
-%if (0%{?fedora} >= 22 || 0%{?rhel} >= 8)
-%{!?with_python3:%global with_python3 1}
 %global binaries_py_version %{python3_version}
-%else
-%global binaries_py_version %{python2_version}
-%endif
-
 %global owner containerbuildsystem
 %global project atomic-reactor
 
@@ -35,20 +17,11 @@ Source0:        https://github.com/containerbuildsystem/%{name}/archive/%{versio
 
 BuildArch:      noarch
 
-%if 0%{?with_python3}
 Requires:       python3-atomic-reactor = %{version}-%{release}
-%else
-Requires:       python-atomic-reactor = %{version}-%{release}
-%endif # with_python3
 Requires:       git >= 1.7.10
 
-%if 0%{?with_python3}
 BuildRequires:  python3-devel
 BuildRequires:  python3-setuptools
-%else
-BuildRequires:  python2-devel
-BuildRequires:  python-setuptools
-%endif # with_python3
 
 %description
 Simple Python tool with command line interface for building Docker
@@ -57,7 +30,6 @@ probably implement if you started hooking Docker into your
 infrastructure.
 
 
-%if 0%{?with_python3}
 %package -n python3-atomic-reactor
 Summary:        Python 3 Atomic Reactor library
 Group:          Development/Tools
@@ -89,73 +61,17 @@ a lot of helpful functions which you would probably implement if
 you started hooking Docker into your infrastructure.
 
 
-%else # with_python3
-
-%package -n python-atomic-reactor
-Summary:        Python 2 Atomic Reactor library
-Group:          Development/Tools
-License:        BSD
-%if 0%{?fedora}
-Requires:       python2-docker >= 1.3.0, python2-docker < 4.3.0
-%else
-# python-docker-py >= 1.3.0, python-docker-py < 4.3.0  # yum on RHEL7 cannot resolve this properly
-Requires:       python-docker-py >= 1.3.0
-%endif # fedora
-Requires:       python-requests
-Requires:       python-setuptools
-Requires:       python-dockerfile-parse >= 0.0.11
-Requires:       python-docker-squash >= 1.0.7
-Requires:       python-backports-lzma
-Requires:       python-jsonschema
-Requires:       python-six
-Requires:       PyYAML
-Requires:       python2-ruamel-yaml
-Requires:       koji
-Requires:       osbs >= 0.65
-Requires:       skopeo
-%if 0%{?fedora}
-Requires:       python2-rpm
-%else
-Requires:       rpm-python
-%endif
-Provides:       python-atomic-reactor-koji = %{version}-%{release}
-Obsoletes:      python-atomic-reactor-koji <= %{ar_subpackages_obsolete}
-Provides:       python-atomic-reactor-metadata = %{version}-%{release}
-Obsoletes:      python-atomic-reactor-metadata <= %{ar_subpackages_obsolete}
-Provides:       python-atomic-reactor-rebuilds = %{version}-%{release}
-Obsoletes:      python-atomic-reactor-rebuilds <= %{ar_subpackages_obsolete}
-%{?python_provide:%python_provide python-atomic-reactor}
-
-%description -n python-atomic-reactor
-Simple Python 2 library for building Docker images. It contains
-a lot of helpful functions which you would probably implement if
-you started hooking Docker into your infrastructure.
-
-%endif # with_python3
-
-
 %prep
 %setup -q
 
 
-%build
-%if 0%{?with_python3}
 %py3_build
-%else
-%py2_build
-%endif # with_python3
 
 
 %install
-%if 0%{?with_python3}
 %py3_install
 mv %{buildroot}%{_bindir}/atomic-reactor %{buildroot}%{_bindir}/atomic-reactor-%{python3_version}
 ln -s %{_bindir}/atomic-reactor-%{python3_version} %{buildroot}%{_bindir}/atomic-reactor-3
-%else
-%py2_install
-mv %{buildroot}%{_bindir}/atomic-reactor %{buildroot}%{_bindir}/atomic-reactor-%{python2_version}
-ln -s %{_bindir}/atomic-reactor-%{python2_version} %{buildroot}%{_bindir}/atomic-reactor-2
-%endif # with_python3
 
 ln -s %{_bindir}/atomic-reactor-%{binaries_py_version} %{buildroot}%{_bindir}/atomic-reactor
 
@@ -173,7 +89,6 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %license LICENSE
 %{_bindir}/atomic-reactor
 
-%if 0%{?with_python3}
 %files -n python3-atomic-reactor
 %doc README.md
 %doc docs/*.md
@@ -198,28 +113,6 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 # there is also a script which starts docker in privileged container
 # (is not executable, because it's meant to be used within provileged containers, not on a host system)
 %{_datadir}/%{name}/images
-
-%else
-
-%files -n python-atomic-reactor
-%doc README.md
-%doc docs/*.md
-%{!?_licensedir:%global license %doc}
-%license LICENSE
-%{_bindir}/atomic-reactor-%{python2_version}
-%{_bindir}/atomic-reactor-2
-%dir %{python2_sitelib}/atomic_reactor
-%{python2_sitelib}/atomic_reactor/*.*
-%{python2_sitelib}/atomic_reactor/cli
-%{python2_sitelib}/atomic_reactor/plugins
-%{python2_sitelib}/atomic_reactor/schemas
-%{python2_sitelib}/atomic_reactor/utils
-%{python2_sitelib}/atomic_reactor-*.egg-info
-%dir %{_datadir}/%{name}
-%{_datadir}/%{name}/atomic-reactor.tar.gz
-%{_datadir}/%{name}/images
-
-%endif  # with_python3
 
 
 %changelog
