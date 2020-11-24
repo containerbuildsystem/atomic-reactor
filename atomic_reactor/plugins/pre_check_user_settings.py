@@ -6,8 +6,6 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from __future__ import unicode_literals, absolute_import
-
 from atomic_reactor.constants import (PLUGIN_CHECK_USER_SETTINGS, CONTAINER_DOCKERPY_BUILD_METHOD,
                                       CONTAINER_IMAGEBUILDER_BUILD_METHOD)
 from atomic_reactor.plugin import PreBuildPlugin

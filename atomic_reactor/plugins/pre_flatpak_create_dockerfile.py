@@ -12,8 +12,6 @@ results in an image with the actual filesystem tree we care about at
 flatpak_update_dockerfile plugin to have specifics from the composed module.
 """
 
-from __future__ import absolute_import
-
 import os
 
 from osbs.repo_utils import ModuleSpec

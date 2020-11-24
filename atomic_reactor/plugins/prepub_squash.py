@@ -8,7 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 It returns the dockerfile itself and therefore displays it in results.
 """
-from __future__ import unicode_literals, absolute_import
 import os
 
 from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME, IMAGE_TYPE_DOCKER_ARCHIVE

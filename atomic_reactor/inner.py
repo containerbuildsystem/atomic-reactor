@@ -9,8 +9,6 @@ of the BSD license. See the LICENSE file for details.
 Script for building docker image. This is expected to run inside container.
 """
 
-from __future__ import absolute_import, division
-
 import json
 import logging
 import tempfile

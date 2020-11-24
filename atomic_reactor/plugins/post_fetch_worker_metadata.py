@@ -5,8 +5,6 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-from __future__ import absolute_import
-
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import get_worker_build_info
 from atomic_reactor.constants import PLUGIN_FETCH_WORKER_METADATA_KEY

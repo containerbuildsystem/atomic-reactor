@@ -10,8 +10,6 @@ pre_flatpak_create/update_dockerfile, extracts the tree at /var/tmp/flatpak-buil
 and turns it into a Flatpak application or runtime.
 """
 
-from __future__ import absolute_import
-
 import json
 import subprocess
 

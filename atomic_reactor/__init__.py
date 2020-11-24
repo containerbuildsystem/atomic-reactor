@@ -9,8 +9,6 @@ of the BSD license. See the LICENSE file for details.
 constants
 """
 
-from __future__ import absolute_import
-
 from locale import nl_langinfo, CODESET
 import logging
 from os import fdopen, dup

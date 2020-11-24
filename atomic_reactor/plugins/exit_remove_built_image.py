@@ -8,8 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 Remove built image (this only makes sense if you store the image in some registry first)
 """
-from __future__ import absolute_import
-
 from atomic_reactor.plugin import ExitPlugin
 
 from docker.errors import APIError

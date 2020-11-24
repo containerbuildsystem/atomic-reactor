@@ -8,8 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 Pre build plugin for koji build system
 """
-from __future__ import absolute_import
-
 import os
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import YUM_REPOS_DIR

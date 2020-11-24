@@ -10,8 +10,6 @@ Pre build plugin which adds additional labels to the Dockerfile automatically
 created for a flatpak, based on the flatpak: labels key in container.yaml.
 """
 
-from __future__ import unicode_literals, absolute_import
-
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser, label_to_string, is_flatpak_build
 

@@ -44,10 +44,12 @@ disable=I,
         missing-docstring,
         misplaced-comparison-constant,
         multiple-statements,  # nice to have
+        no-absolute-import,  # it was required for py2
         no-init,
         no-self-argument,  # nice to have
         not-callable,  # disabled due to flexmock module
         not-context-manager,  # causes false positives
+        old-division,  # it was required for py2
         protected-access,
         redefined-outer-name,  # nice to have
         relative-import,  # nice to have

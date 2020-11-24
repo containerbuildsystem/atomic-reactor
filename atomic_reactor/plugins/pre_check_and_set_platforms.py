@@ -14,8 +14,6 @@ USER_PARAMS, which is necessary to allow autobuilds to build on the correct arch
 when koji build tags change.
 """
 
-from __future__ import absolute_import
-
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (get_platforms_in_limits, is_scratch_build, is_isolated_build,
                                  get_orchestrator_platforms)

@@ -1,4 +1,3 @@
-from __future__ import unicode_literals, absolute_import
 import os
 import smtplib
 from collections import namedtuple

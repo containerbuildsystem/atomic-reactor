@@ -5,8 +5,6 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-from __future__ import absolute_import
-
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.constants import PLUGIN_REMOVE_WORKER_METADATA_KEY
 from osbs.exceptions import OsbsResponseException

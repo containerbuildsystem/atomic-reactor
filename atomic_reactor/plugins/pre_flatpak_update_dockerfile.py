@@ -13,8 +13,6 @@ When this plugin runs in a worker build, the composes from pre_resolve_composes
 are passed in via the compose_ids parameter, and looked up again in ODCS.
 """
 
-from __future__ import absolute_import
-
 import os
 
 from flatpak_module_tools.flatpak_builder import FlatpakSourceInfo, FlatpakBuilder, ModuleInfo

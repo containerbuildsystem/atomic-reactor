@@ -9,8 +9,6 @@ of the BSD license. See the LICENSE file for details.
 Code for getting source code to put inside container.
 """
 
-from __future__ import absolute_import
-
 import logging
 import copy
 import os

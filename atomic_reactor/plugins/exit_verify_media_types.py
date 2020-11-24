@@ -8,8 +8,6 @@ After squashing our image, verify that it has the media types that
 the registry expects
 """
 
-from __future__ import unicode_literals, absolute_import
-
 from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_VERIFY_MEDIA_KEY,
                                       PLUGIN_FETCH_SOURCES_KEY,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1,
