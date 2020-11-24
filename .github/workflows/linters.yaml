@@ -18,8 +18,8 @@ jobs:
       matrix:
         os:
           - name: centos
-            version: 7
-            python: 2
+            version: 8
+            python: 3
             engine: docker
 
           - name: fedora
@@ -67,11 +67,6 @@ jobs:
     strategy:
       matrix:
         os:
-          - name: fedora
-            version: 29
-            python: 2
-            engine: docker
-
           - name: fedora
             version: 32
             python: 3

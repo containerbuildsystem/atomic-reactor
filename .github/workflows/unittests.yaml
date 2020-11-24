@@ -18,8 +18,8 @@ jobs:
       matrix:
         os:
           - name: centos
-            version: 7
-            python: 2
+            version: 8
+            python: 3
             engine: docker
 
           - name: fedora
