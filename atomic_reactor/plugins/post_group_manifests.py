@@ -11,8 +11,6 @@ tags.
 """
 
 
-from __future__ import unicode_literals, absolute_import
-
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_platform_descriptors, get_group_manifests
 from atomic_reactor.util import (ManifestDigest, get_manifest_media_type,

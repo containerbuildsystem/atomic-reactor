@@ -31,8 +31,6 @@ third optional argument of run function is logger (if not specified, all logs ar
 stdout)
 """
 
-from __future__ import absolute_import
-
 import os
 import imp
 import shutil

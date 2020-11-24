@@ -12,8 +12,6 @@ supported use cases:
  * build image from local git repo
  * build image using provided tarball (made with sdist)
 """
-from __future__ import absolute_import
-
 import os
 import shutil
 import subprocess

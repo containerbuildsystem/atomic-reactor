@@ -23,8 +23,6 @@ Example configuration to add content of repo file at URL:
 }
 
 """
-from __future__ import absolute_import
-
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import is_scratch_build
 from atomic_reactor.utils.yum import YumRepo

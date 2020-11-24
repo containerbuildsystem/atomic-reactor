@@ -8,8 +8,6 @@ of the BSD license. See the LICENSE file for details.
 Adds all provided buildargs as ARG after each FROM in Dockerfile
 """
 
-from __future__ import absolute_import
-
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
 

@@ -8,8 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 Python API for atomic-reactor. This is the official way of interacting with atomic-reactor.
 """
-from __future__ import absolute_import
-
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.outer import PrivilegedBuildManager, DockerhostBuildManager
 from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin

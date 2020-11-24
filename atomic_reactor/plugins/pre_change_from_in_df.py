@@ -9,8 +9,6 @@ of the BSD license. See the LICENSE file for details.
 Pre-build plugin that changes the parent images used in FROM instructions
 to the more specific names given by the builder.
 """
-from __future__ import absolute_import
-
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser, base_image_is_scratch
 

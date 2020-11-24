@@ -22,8 +22,6 @@ I've tried to be as much consistent (man pages were source) with docker as possi
 
 
 """
-from __future__ import absolute_import
-
 import os
 import shutil
 import logging

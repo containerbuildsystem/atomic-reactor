@@ -36,8 +36,6 @@ or
 
 """
 
-from __future__ import absolute_import
-
 import os
 import shutil
 from atomic_reactor.constants import DOCKERFILE_FILENAME, IMAGE_BUILD_INFO_DIR

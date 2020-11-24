@@ -8,8 +8,6 @@ of the BSD license. See the LICENSE file for details.
 Downloads and unpacks the source code archive from Cachito and sets appropriate build args.
 """
 
-from __future__ import absolute_import
-
 import base64
 import os
 import tarfile

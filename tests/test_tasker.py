@@ -6,8 +6,6 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from __future__ import print_function, unicode_literals, absolute_import
-
 
 from atomic_reactor.core import DockerTasker, retry, RetryGeneratorException, ContainerTasker
 from atomic_reactor.util import clone_git_repo, CommandResult
