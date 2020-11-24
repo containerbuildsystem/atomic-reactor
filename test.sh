@@ -4,8 +4,8 @@ set -eux
 # Prepare env vars
 ENGINE=${ENGINE:="podman"}
 OS=${OS:="centos"}
-OS_VERSION=${OS_VERSION:="7"}
-PYTHON_VERSION=${PYTHON_VERSION:="2"}
+OS_VERSION=${OS_VERSION:="8"}
+PYTHON_VERSION=${PYTHON_VERSION:="3"}
 ACTION=${ACTION:="test"}
 IMAGE="$OS:$OS_VERSION"
 CONTAINER_NAME="atomic-reactor-$OS-$OS_VERSION-py$PYTHON_VERSION"
@@ -33,26 +33,21 @@ function setup_osbs() {
   # PIP_PREFIX: osbs-client provides input templates that must be copied into /usr/share/...
   ENVS='-e PIP_PREFIX=/usr'
   RUN="$ENGINE exec -i ${ENVS} $CONTAINER_NAME"
+  PYTHON="python$PYTHON_VERSION"
+  PIP_PKG="$PYTHON-pip"
+  PIP="pip$PYTHON_VERSION"
+  PKG="dnf"
+  PKG_EXTRA=(dnf-plugins-core desktop-file-utils flatpak ostree libmodulemd skopeo glibc-langpack-en "$PYTHON"-pylint)
+  BUILDDEP=(dnf builddep)
   if [[ $OS == "centos" ]]; then
-    PYTHON="python"
-    PIP_PKG="$PYTHON-pip"
-    PIP="pip"
-    PKG="yum"
     ENABLE_REPO=
-    PKG_EXTRA=(yum-utils git-core desktop-file-utils flatpak ostree skopeo python2-libmodulemd2)
-    BUILDDEP="yum-builddep"
   else
-    PYTHON="python$PYTHON_VERSION"
-    PIP_PKG="$PYTHON-pip"
-    PIP="pip$PYTHON_VERSION"
-    PKG="dnf"
+    PKG_EXTRA+=("$PYTHON-libmodulemd")
     ENABLE_REPO="--enablerepo=updates-testing"
-    PKG_EXTRA=(dnf-plugins-core desktop-file-utils flatpak ostree skopeo "$PYTHON"-libmodulemd glibc-langpack-en "$PYTHON"-pylint)
-    BUILDDEP=(dnf builddep)
   fi
 
   # List common install dependencies
-  PKG_COMMON_EXTRA=(git gcc krb5-devel python-devel popt-devel)
+  PKG_COMMON_EXTRA=(git gcc krb5-devel python3-devel popt-devel)
   PKG_EXTRA+=("${PKG_COMMON_EXTRA[@]}")
 
   PIP_INST=("$PIP" install --index-url "${PYPI_INDEX:-https://pypi.org/simple}")
@@ -66,44 +61,23 @@ function setup_osbs() {
 
   # RPM install basic dependencies
   $RUN $PKG $ENABLE_REPO install -y "${PKG_EXTRA[@]}"
-  [[ ${PYTHON_VERSION} == '3' ]] && WITH_PY3=1 || WITH_PY3=0
   # RPM install build dependencies for atomic-reactor
-  $RUN "${BUILDDEP[@]}" --define "with_python3 ${WITH_PY3}" -y atomic-reactor.spec
-  if [[ $OS == "centos" ]]; then
-    # RPM install dependencies for unit tests, as check is disabled for rhel
-    $RUN yum install -y python-flexmock python-six \
-                        python-backports-lzma \
-                        python-backports-ssl_match_hostname \
-                        python-responses \
-                        PyYAML \
-                        python-requests python-requests-kerberos # OSBS dependencies
-  else
+  $RUN "${BUILDDEP[@]}" -y atomic-reactor.spec
+  if [[ $OS != "centos" ]]; then
     # RPM remove python-docker-py because docker-squash will pull
     # in the latest version from PyPI. Don't remove the dependencies
     # that it pulled in, to avoid having to rebuild them.
     $RUN $PKG remove -y --noautoremove python{,3}-docker{,-py}
-
-    if [[ $PYTHON_VERSION == 2* ]]; then
-      # RPM install python-backports-lzma for Py2
-      $RUN $PKG $ENABLE_REPO install -y python-backports-lzma
-    fi
   fi
 
   # Install package
   $RUN $PKG install -y $PIP_PKG
 
-  if [[ $OS == centos && $OS_VERSION == 7 ]]; then
-    # Get a less ancient version of pip to avoid installing py3-only packages
-    $RUN "${PIP_INST[@]}" "pip>=9.0.0,<10.0.0"
-    # ...but ancient enough to allow uninstalling packages installed by distutils
-
+  if [[ $OS == centos ]]; then
     # Pip install/upgrade setuptools. Older versions of setuptools don't understand the
     # environment markers used by docker-squash's requirements, also
     # CentOS needs to have setuptools updates to make pytest-cov work
     $RUN "${PIP_INST[@]}" --upgrade setuptools
-    # newer versions of docker package doesn't support docker API older than 1.21
-    # install in advance to prevent deps to downlaod latest versions
-    $RUN "${PIP_INST[@]}" "docker<4.3.0"
   fi
 
   # Install other dependencies for tests
@@ -114,7 +88,7 @@ function setup_osbs() {
   $RUN git clone --depth 1 --single-branch \
       "${OSBS_CLIENT_REPO}" --branch "${OSBS_CLIENT_BRANCH}" /tmp/osbs-client
   # RPM install build dependencies for osbs-client
-  $RUN "${BUILDDEP[@]}" --define "with_python3 ${WITH_PY3}" -y /tmp/osbs-client/osbs-client.spec
+  $RUN "${BUILDDEP[@]}" -y /tmp/osbs-client/osbs-client.spec
   # Run pip install with '--no-deps' to avoid compilation
   # This would also ensure all the deps are specified in the spec
   $RUN "${PIP_INST[@]}" --upgrade --no-deps --force-reinstall \
