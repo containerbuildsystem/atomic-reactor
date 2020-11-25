@@ -19,7 +19,6 @@ import imp
 import datetime
 import inspect
 import time
-from six import PY2
 from collections import namedtuple
 
 from atomic_reactor.build import BuildResult
@@ -391,12 +390,8 @@ class BuildPluginsRunner(PluginsRunner):
             return translation_dict.get(obj_to_translate, obj_to_translate)
 
     def _remove_unknown_args(self, plugin_class, plugin_conf):
-        if PY2:
-            sig = inspect.getargspec(plugin_class.__init__)  # pylint: disable=deprecated-method
-            kwargs = sig.keywords
-        else:
-            sig = inspect.getfullargspec(plugin_class.__init__)  # pylint: disable=no-member
-            kwargs = sig.varkw
+        sig = inspect.getfullargspec(plugin_class.__init__)  # pylint: disable=no-member
+        kwargs = sig.varkw
 
         # Constructor defines **kwargs, it'll take any parameter
         if kwargs:

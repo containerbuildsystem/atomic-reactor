@@ -8,7 +8,7 @@ of the BSD license. See the LICENSE file for details.
 from requests.auth import AuthBase, HTTPBasicAuth
 from requests.cookies import extract_cookies_to_jar
 from requests.utils import parse_dict_header
-from six.moves.urllib.parse import urlparse
+from urllib.parse import urlparse
 import requests
 import re
 

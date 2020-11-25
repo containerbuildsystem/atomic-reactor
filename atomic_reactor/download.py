@@ -9,7 +9,7 @@ import logging
 import os
 import time
 import requests
-from six.moves.urllib.parse import urlparse
+from urllib.parse import urlparse
 
 from atomic_reactor.util import get_retrying_requests_session
 from atomic_reactor.constants import (

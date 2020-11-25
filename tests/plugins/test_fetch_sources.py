@@ -15,7 +15,6 @@ import json
 import time
 import tarfile
 import shutil
-import six
 
 import koji
 import pytest
@@ -250,11 +249,8 @@ def mock_koji_manifest_download(tmpdir, requests_mock, retries=0, dirs_in_remote
                 remote_json['packages'].append({'name': os.path.join('github.com', pkg)})
         remote_cont = json.dumps(remote_json)
 
-        if six.PY2:
-            f = MockBytesIO(b"{}".format(remote_cont))
-        else:
-            remote_bytes = bytes(remote_cont, 'ascii')
-            f = io.BytesIO(remote_bytes)
+        remote_bytes = bytes(remote_cont, 'ascii')
+        f = io.BytesIO(remote_bytes)
         return f
 
     requests_mock.register_uri('GET', get_remote_url(KOJI_BUILD), body=body_remote_callback)

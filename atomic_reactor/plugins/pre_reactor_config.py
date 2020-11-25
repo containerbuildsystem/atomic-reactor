@@ -17,7 +17,6 @@ from osbs.utils import RegistryURI
 
 import logging
 import os
-import six
 
 # Key used to store the config object in the plugin workspace
 WORKSPACE_CONF_KEY = 'reactor_config'
@@ -555,7 +554,7 @@ class ODCSConfig(object):
                          .format(name, ', '.join(valid)))
 
     def get_signing_intent_by_keys(self, keys):
-        if isinstance(keys, six.text_type):
+        if isinstance(keys, str):
             keys = keys.split()
         keys = set(keys)
         intents_matching_deprecated_keys = []

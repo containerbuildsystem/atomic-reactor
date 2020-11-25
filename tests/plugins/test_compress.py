@@ -13,8 +13,6 @@ from atomic_reactor.build import BuildResult
 
 from tests.constants import INPUT_IMAGE, MOCK
 
-from six import integer_types
-
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -91,7 +89,7 @@ class TestCompress(object):
             assert metadata['path'] == compressed_img
             assert metadata['type'] == IMAGE_TYPE_DOCKER_ARCHIVE
             assert 'uncompressed_size' in metadata
-            assert isinstance(metadata['uncompressed_size'], integer_types)
+            assert isinstance(metadata['uncompressed_size'], int)
             assert ", ratio: " in caplog.text
 
     def test_skip_plugin(self, caplog, workflow):

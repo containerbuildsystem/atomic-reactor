@@ -15,8 +15,6 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
 
-from six import string_types
-
 
 def add_koji_map_in_workflow(workflow, hub_url, root_url=None, reserve_build=None,
                              delegate_task=None, delegated_priority=None,
@@ -74,8 +72,7 @@ def is_string_type(obj):
     :return: bool, whether obj is a string type
     """
 
-    return any(isinstance(obj, strtype)
-               for strtype in string_types)
+    return isinstance(obj, str)
 
 
 def has_connection():

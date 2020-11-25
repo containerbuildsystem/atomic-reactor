@@ -15,7 +15,6 @@ from tempfile import mkdtemp
 import os
 import requests
 from collections import OrderedDict
-from six import binary_type, text_type
 
 from tests.constants import SOURCE, MOCK, DOCKER0_REGISTRY
 from tests.stubs import StubInsideBuilder
@@ -37,17 +36,17 @@ if MOCK:
 
 
 def to_bytes(value):
-    if isinstance(value, binary_type):
+    if isinstance(value, bytes):
         return value
     else:
         return value.encode('utf-8')
 
 
 def to_text(value):
-    if isinstance(value, text_type):
+    if isinstance(value, str):
         return value
     else:
-        return text_type(value, 'utf-8')
+        return str(value, 'utf-8')
 
 
 def make_digest(blob):

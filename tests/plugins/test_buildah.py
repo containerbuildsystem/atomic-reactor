@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import subprocess
+from io import StringIO
 from dockerfile_parse import DockerfileParser
 
 from atomic_reactor.plugin import PluginFailedException
@@ -17,7 +18,6 @@ from atomic_reactor.constants import INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS
 from osbs.utils import ImageName
 
 from flexmock import flexmock
-from six import StringIO
 import pytest
 
 
