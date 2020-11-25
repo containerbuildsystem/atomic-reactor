@@ -6,7 +6,6 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 import subprocess
-from six import PY2
 import os
 
 from atomic_reactor.util import get_exported_image_metadata, allow_repo_dir_in_dockerignore
@@ -38,8 +37,7 @@ class ImagebuilderPlugin(BuildStepPlugin):
         # TODO: directly invoke go imagebuilder library in shared object via python module
         kwargs = dict(stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
         encoding_params = dict(encoding='utf-8', errors='replace')
-        if not PY2:
-            kwargs.update(encoding_params)
+        kwargs.update(encoding_params)
 
         allow_repo_dir_in_dockerignore(builder.df_dir)
 
@@ -57,7 +55,6 @@ class ImagebuilderPlugin(BuildStepPlugin):
         while True:
             poll = ib_process.poll()
             out = ib_process.stdout.readline()
-            out = out.decode(**encoding_params) if PY2 else out
             if out:
                 self.log.info('%s', out.rstrip())
                 output.append(out)

@@ -279,7 +279,6 @@ python3-packaging;16.8;4.module_7e01f122;noarch;0;42;sigmd5;1491914281;sigpgp;si
 python3-pip;9.0.1;7.module_7e01f122;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
 python3-pyparsing;2.1.10;3.module_7e01f122;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
 python3-setuptools;36.0.1;1.module_e15740c0;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
-python3-six;1.10.0;8.module_e15740c0;noarch;0;42;sigmd5;1491914281;sigpgp;siggpg
 qrencode-libs;3.4.2;7.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
 readline;7.0;5.module_7e01f122;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg
 rest;0.8.0;2.module_e15740c0;x86_64;0;42;sigmd5;1491914281;sigpgp;siggpg

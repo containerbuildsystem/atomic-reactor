@@ -5,7 +5,6 @@ from collections import namedtuple
 from flexmock import flexmock
 import koji
 import pytest
-import six
 import json
 
 from atomic_reactor.plugin import PluginFailedException
@@ -993,7 +992,7 @@ class TestSendMailPlugin(object):
         flexmock(p).should_receive('_get_receivers_list').and_return(receivers)
         flexmock(p).should_receive('_fetch_log_files').and_return(None)
         flexmock(p).should_receive('_send_mail').with_args(receivers,
-                                                           six.text_type, six.text_type, None)
+                                                           str, str, None)
 
         p.run()
 
@@ -1102,8 +1101,7 @@ class TestSendMailPlugin(object):
         flexmock(p).should_receive('_get_image_name_and_repos').and_return(('foobar',
                                                                            ['foo/bar:baz',
                                                                             'foo/bar:spam']))
-        flexmock(p).should_receive('_send_mail').with_args(error_addresses,
-                                                           six.text_type, six.text_type, None)
+        flexmock(p).should_receive('_send_mail').with_args(error_addresses, str, str, None)
 
         p.run()
 

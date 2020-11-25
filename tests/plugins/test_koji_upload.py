@@ -42,7 +42,6 @@ import subprocess
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from osbs.utils import ImageName
-from six import string_types
 
 NAMESPACE = 'mynamespace'
 BUILD_ID = 'build-1'
@@ -230,8 +229,7 @@ def fake_digest(image):
 
 
 def is_string_type(obj):
-    return any(isinstance(obj, strtype)
-               for strtype in string_types)
+    return isinstance(obj, str)
 
 
 def mock_environment(tmpdir, session=None, name=None,

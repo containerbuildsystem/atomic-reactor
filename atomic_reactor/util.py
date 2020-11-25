@@ -12,7 +12,6 @@ import json
 import io
 import os
 import re
-import sys
 import requests
 from requests.exceptions import SSLError, HTTPError, RetryError
 import shutil
@@ -22,13 +21,11 @@ import uuid
 import yaml
 import string
 import signal
-import traceback
 from collections import namedtuple
 from copy import deepcopy
 from base64 import b64decode
 
-from six.moves.urllib.parse import urlparse
-from six import PY2
+from urllib.parse import urlparse
 
 import atomic_reactor.utils.retries
 from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG, TOOLS_USED,
@@ -55,28 +52,7 @@ from osbs.utils import clone_git_repo, reset_git_repo, Labels, ImageName
 from osbs.utils.yaml import read_yaml as osbs_read_yaml
 
 from tempfile import NamedTemporaryFile
-try:
-    # py3
-    from faulthandler import dump_traceback
-except ImportError:
-    # py2
-    import thread
-
-    def dump_traceback():
-        frames = sys._current_frames()
-        th_traces = []
-        for th_ident, frame in frames.items():
-            trace_entries = traceback.format_stack(frame)
-            # Comply with faulthandler output
-            context_str = 'Thread'
-            if th_ident == thread.get_ident():
-                context_str = 'Current thread'
-            trace_header = '%s 0x%x (most recent call first):' % (context_str, th_ident)
-            trace_entries.append(trace_header)
-            trace_entries.reverse()
-            pretty_trace_entries = [s.split('\n')[0] for s in trace_entries]
-            th_traces.append('\n'.join(pretty_trace_entries))
-        print('\n\n'.join(th_traces), file=sys.stderr)
+from faulthandler import dump_traceback
 
 Output = namedtuple('Output', ['file', 'metadata'])
 
@@ -898,10 +874,7 @@ class RegistryClient(object):
         # read config from v1
         elif 'v1' in all_man_digests:
             v1_json = all_man_digests['v1'].json()
-            if PY2:
-                blob_config = json.loads(v1_json['history'][0]['v1Compatibility'].decode('utf-8'))
-            else:
-                blob_config = json.loads(v1_json['history'][0]['v1Compatibility'])
+            blob_config = json.loads(v1_json['history'][0]['v1Compatibility'])
         else:
             raise RuntimeError("Image {image_name} not found: No v2 schema 1 image, "
                                "or v2 schema 2 image or list, found".format(image_name=image))
@@ -1372,13 +1345,8 @@ class LabelFormatter(string.Formatter):
 
 
 # Make sure to escape '\' and '"' characters.
-try:
-    # py3
-    _label_env_trans = str.maketrans({'\\': '\\\\',
-                                      '"': '\\"'})
-except AttributeError:
-    # py2
-    _label_env_trans = None
+_label_env_trans = str.maketrans({'\\': '\\\\',
+                                  '"': '\\"'})
 
 
 def _label_escape(s):

@@ -10,7 +10,6 @@ import shutil
 import tempfile
 
 import koji
-from six import string_types
 import tarfile
 import yaml
 
@@ -54,7 +53,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
         type_errors = []
         if koji_build_id is not None and not isinstance(koji_build_id, int):
             type_errors.append('koji_build_id must be an int. Got {}'.format(type(koji_build_id)))
-        if koji_build_nvr is not None and not isinstance(koji_build_nvr, string_types):
+        if koji_build_nvr is not None and not isinstance(koji_build_nvr, str):
             type_errors.append('koji_build_nvr must be a str. Got {}'
                                .format(type(koji_build_nvr)))
         if type_errors:
@@ -280,7 +279,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
             raise RuntimeError('Denylist value in key: {} is not list: {}'.
                                format(denylist_key, type(deny_list)))
 
-        wrong_types = [pkg for pkg in deny_list if not isinstance(pkg, string_types)]
+        wrong_types = [pkg for pkg in deny_list if not isinstance(pkg, str)]
         if wrong_types:
             self.log.error('Wrong types in denylist, should be str: %s', repr(deny_list))
             raise RuntimeError('Values in denylist has to be all strings')

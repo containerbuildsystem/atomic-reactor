@@ -6,7 +6,6 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 import subprocess
-from six import PY2
 import os
 
 from atomic_reactor.util import get_exported_image_metadata
@@ -37,8 +36,7 @@ class BuildahPlugin(BuildStepPlugin):
         image = builder.image.to_str()
         kwargs = dict(stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
         encoding_params = dict(encoding='utf-8', errors='replace')
-        if not PY2:
-            kwargs.update(encoding_params)
+        kwargs.update(encoding_params)
         ib_process = subprocess.Popen(['buildah', 'bud', '-t', image, builder.df_dir], **kwargs)
 
         self.log.debug('buildah build has begun; waiting for it to finish')
@@ -46,7 +44,6 @@ class BuildahPlugin(BuildStepPlugin):
         while True:
             poll = ib_process.poll()
             out = ib_process.stdout.readline()
-            out = out.decode(**encoding_params) if PY2 else out
             if out:
                 self.log.info('%s', out.rstrip())
                 output.append(out)

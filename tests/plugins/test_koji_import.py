@@ -61,7 +61,6 @@ import subprocess
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from osbs.utils import ImageName
-from six import string_types, text_type
 
 LogEntry = namedtuple('LogEntry', ['platform', 'line'])
 
@@ -205,8 +204,7 @@ def fake_digest(image):
 
 
 def is_string_type(obj):
-    return any(isinstance(obj, strtype)
-               for strtype in string_types)
+    return isinstance(obj, str)
 
 
 class BuildInfo(object):
@@ -1290,12 +1288,12 @@ class TestKojiImport(object):
         if reserved_build:
             (flexmock(session)
                 .should_call('CGImport')
-                .with_args(dict, text_type, token=build_token)
+                .with_args(dict, str, token=build_token)
              )
         else:
             (flexmock(session)
                 .should_call('CGImport')
-                .with_args(dict, text_type)
+                .with_args(dict, str)
              )
 
         target = 'images-docker-candidate'

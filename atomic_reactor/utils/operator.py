@@ -11,7 +11,6 @@ import re
 import logging
 from collections import OrderedDict
 
-import six
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
@@ -45,7 +44,7 @@ def is_str(obj):
     Check if object is a string or bytes. On python 3, checking for string
     would be sufficient, but on python 2, it may not be.
     """
-    return isinstance(obj, (bytes, six.text_type))
+    return isinstance(obj, (bytes, str))
 
 
 class PullspecRegex(object):

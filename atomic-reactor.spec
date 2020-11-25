@@ -43,7 +43,6 @@ Requires:       python3-jsonschema
 Requires:       python3-PyYAML
 Requires:       python3-ruamel-yaml
 Requires:       python3-rpm
-Requires:       python3-six
 Requires:       koji
 Requires:       osbs >= 0.65
 Requires:       skopeo

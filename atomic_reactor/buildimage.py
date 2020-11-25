@@ -19,7 +19,6 @@ import tempfile
 import logging
 from glob import glob
 import uuid
-import six
 
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.util import LazyGit, wait_for_command
@@ -114,7 +113,7 @@ class BuildImageBuilder(object):
         os.chdir(local_reactor_git_path)
         try:
             logger.debug("executing sdist command in directory '%s'", os.getcwd())
-            python_bin = "python3" if six.PY3 else "python"
+            python_bin = "python3"
             subprocess.check_call([python_bin, "setup.py", "sdist", "--dist-dir", tmpdir])
         finally:
             os.chdir(cwd)

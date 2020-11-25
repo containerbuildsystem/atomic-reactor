@@ -13,7 +13,6 @@ from tests.retry_mock import mock_get_retry_session
 import flexmock
 import pytest
 import responses
-import six
 import json
 import time
 
@@ -116,7 +115,7 @@ def test_create_compose(odcs_client, source, source_type, packages, expected_pac
     def handle_composes_post(request):
         assert_request_token(request, odcs_client.session)
 
-        if isinstance(request.body, six.text_type):
+        if isinstance(request.body, str):
             body = request.body
         else:
             body = request.body.decode()
