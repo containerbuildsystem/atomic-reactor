@@ -1146,7 +1146,8 @@ class TestResolveComposes(object):
         (False, False),
     ))
     def test_only_content_sets(self, workflow, content_sets, build_only_content_sets):
-        main_cs_list = ['pulp-spam-rpms', 'pulp-bacon-rpms', 'pulp-eggs-rpms']
+        main_cs_list = ['pulp-spam-rpms', 'pulp-bacon-rpms', 'pulp-eggs-rpms',
+                        'pulp-bar-rpms__Server__x86_64']
         build_only_cs_list = ['dev-spam-rpms', 'dev-bacon-rpms', 'dev-eggs-rpms', 'pulp-spam-rpms']
 
         if content_sets:

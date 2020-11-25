@@ -11,7 +11,7 @@
       "minItems": 1,
       "items": {
         "type": "string",
-        "pattern": "^.*-rpms$"
+        "pattern": "^.*-rpms(__[0-9a-zA-Z_]+)?$"
       }
     }
   },
