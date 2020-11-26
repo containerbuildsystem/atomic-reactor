@@ -15,7 +15,7 @@ import responses
 import tarfile
 
 from atomic_reactor import util
-from atomic_reactor.constants import REMOTE_SOURCE_DIR
+from atomic_reactor.constants import REMOTE_SOURCE_DIR, CACHITO_ENV_FILENAME
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugins.pre_reactor_config import (
     ReactorConfigPlugin, WORKSPACE_CONF_KEY, ReactorConfig)
@@ -28,6 +28,11 @@ import pytest
 
 
 CFG_CONTENT = b'configContent'
+CACHITO_ENV_FILE_CONTENT = (
+    "#!/bin/bash\n"
+    "export spam=maps\n"
+    "export foo='somefile; rm -rf ~'\n"
+)
 
 
 def mock_reactor_config(workflow, insecure=False):
@@ -107,7 +112,7 @@ class TestDownloadRemoteSource(object):
                 body=json.dumps(config_data)
                 )
 
-        buildargs = {'spam': 'maps'}
+        buildargs = {'spam': 'maps', 'foo': 'somefile; rm -rf ~'}
         plugin = DownloadRemoteSourcePlugin(docker_tasker, workflow,
                                             remote_source_url=url,
                                             remote_source_build_args=buildargs,
@@ -130,6 +135,13 @@ class TestDownloadRemoteSource(object):
         if not source_url:
             assert result is None
             return
+
+        # Test content of cachito.env file
+        cachito_env_path = os.path.join(plugin.workflow.builder.df_dir,
+                                        plugin.REMOTE_SOURCE,
+                                        CACHITO_ENV_FILENAME)
+        with open(cachito_env_path, 'r') as f:
+            assert f.read() == CACHITO_ENV_FILE_CONTENT
 
         # The return value should be the path to the downloaded archive itself
         with open(result, 'rb') as f:
