@@ -11,8 +11,9 @@ Downloads and unpacks the source code archive from Cachito and sets appropriate 
 import base64
 import os
 import tarfile
+from shlex import quote
 
-from atomic_reactor.constants import REMOTE_SOURCE_DIR
+from atomic_reactor.constants import REMOTE_SOURCE_DIR, CACHITO_ENV_FILENAME
 from atomic_reactor.download import download_url
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_cachito
@@ -55,6 +56,24 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
         response = session.get(url, verify=not insecure)
         response.raise_for_status()
         return response.json()
+
+    def generate_cachito_env_file(self):
+        """
+        Generate cachito.env file with exported environment variables received from
+        cachito request.
+        """
+
+        if self.buildargs:
+            self.log.info('Creating %s file with environment variables '
+                          'received from cachito request', CACHITO_ENV_FILENAME)
+
+            # Use dedicated dir in container build workdir for cachito.env
+            abs_path = os.path.join(self.workflow.builder.df_dir,
+                                    self.REMOTE_SOURCE, CACHITO_ENV_FILENAME)
+            with open(abs_path, 'w') as f:
+                f.write('#!/bin/bash\n')
+                for env_var, value in self.buildargs.items():
+                    f.write('export {}={}\n'.format(env_var, quote(value)))
 
     def run(self):
         """
@@ -104,6 +123,9 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
 
         # Set build args
         self.workflow.builder.buildargs.update(self.buildargs)
+
+        # Create cachito.env file with environment variables received from cachito request
+        self.generate_cachito_env_file()
 
         # To copy the sources into the build image, Dockerfile should contain
         # COPY $REMOTE_SOURCE $REMOTE_SOURCE_DIR
