@@ -5,18 +5,8 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-try:
-    # py2
-    from ConfigParser import ConfigParser
-    # Although io.StringIO is available in python2, it
-    # always expects unicode during write. Since
-    # ConfigParser.ConfigParser does not support
-    # writing unicode, io cannot be used.
-    from StringIO import StringIO
-except ImportError:
-    # py3
-    from configparser import ConfigParser
-    from io import StringIO
+from configparser import ConfigParser
+from io import StringIO
 
 from textwrap import dedent
 
@@ -158,7 +148,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         config_fp = StringIO(self.DEFAULT_IMAGE_BUILD_CONF.format(**kwargs))
 
         config = ConfigParser()
-        config.readfp(config_fp)     # pylint: disable=deprecated-method; py2 compatibility
+        config.read_file(config_fp)
 
         self.update_config_from_dockerfile(config)
 

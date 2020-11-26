@@ -16,17 +16,9 @@ import os
 import os.path
 import logging
 
-try:
-    # py2
-    from urlparse import unquote, urlsplit
-    import ConfigParser as configparser
-    # We import BytesIO as StringIO as configparser can't properly write
-    from io import BytesIO, BytesIO as StringIO  # pylint: disable=reimported
-except ImportError:
-    # py3
-    from urllib.parse import unquote, urlsplit
-    import configparser
-    from io import BytesIO, StringIO
+from urllib.parse import unquote, urlsplit
+import configparser
+from io import BytesIO, StringIO
 
 
 logger = logging.getLogger(__name__)
