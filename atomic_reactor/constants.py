@@ -11,6 +11,7 @@ import os
 DOCKER_SOCKET_PATH = '/var/run/docker.sock'
 DOCKERFILE_FILENAME = 'Dockerfile'
 CACHITO_ENV_FILENAME = 'cachito.env'
+CACHITO_ENV_ARG_ALIAS = 'CACHITO_ENV_FILE'
 BUILD_JSON = 'build.json'
 BUILD_JSON_ENV = 'BUILD_JSON'
 RESULTS_JSON = 'results.json'

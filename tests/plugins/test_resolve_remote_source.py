@@ -396,6 +396,7 @@ def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=No
             'GO111MODULE': 'on',
             'GOPATH': '/remote-source/deps/gomod',
             'GOCACHE': '/remote-source/deps/gomod',
+            'CACHITO_ENV_FILE': '/remote-source/cachito.env',
         }
         assert worker_params['remote_source_icm_url'] == CACHITO_ICM_URL
 

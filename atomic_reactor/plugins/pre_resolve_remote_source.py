@@ -8,7 +8,8 @@ of the BSD license. See the LICENSE file for details.
 import os.path
 import re
 
-from atomic_reactor.constants import PLUGIN_RESOLVE_REMOTE_SOURCE, REMOTE_SOURCE_DIR
+from atomic_reactor.constants import (
+    PLUGIN_RESOLVE_REMOTE_SOURCE, REMOTE_SOURCE_DIR, CACHITO_ENV_ARG_ALIAS, CACHITO_ENV_FILENAME)
 from atomic_reactor.utils.koji import get_koji_task_owner
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
@@ -126,6 +127,9 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
                 build_args[env_var] = abs_path
             else:
                 build_args[env_var] = value
+
+        # Alias for absolute path to cachito.env script added into buildargs
+        build_args[CACHITO_ENV_ARG_ALIAS] = os.path.join(REMOTE_SOURCE_DIR, CACHITO_ENV_FILENAME)
 
         override_build_kwarg(self.workflow, 'remote_source_url', remote_source_url)
         override_build_kwarg(self.workflow, 'remote_source_build_args', build_args)
