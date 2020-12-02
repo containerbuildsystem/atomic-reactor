@@ -63,17 +63,16 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
         cachito request.
         """
 
-        if self.buildargs:
-            self.log.info('Creating %s file with environment variables '
-                          'received from cachito request', CACHITO_ENV_FILENAME)
+        self.log.info('Creating %s file with environment variables '
+                      'received from cachito request', CACHITO_ENV_FILENAME)
 
-            # Use dedicated dir in container build workdir for cachito.env
-            abs_path = os.path.join(self.workflow.builder.df_dir,
-                                    self.REMOTE_SOURCE, CACHITO_ENV_FILENAME)
-            with open(abs_path, 'w') as f:
-                f.write('#!/bin/bash\n')
-                for env_var, value in self.buildargs.items():
-                    f.write('export {}={}\n'.format(env_var, quote(value)))
+        # Use dedicated dir in container build workdir for cachito.env
+        abs_path = os.path.join(self.workflow.builder.df_dir,
+                                self.REMOTE_SOURCE, CACHITO_ENV_FILENAME)
+        with open(abs_path, 'w') as f:
+            f.write('#!/bin/bash\n')
+            for env_var, value in self.buildargs.items():
+                f.write('export {}={}\n'.format(env_var, quote(value)))
 
     def run(self):
         """

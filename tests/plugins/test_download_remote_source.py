@@ -28,8 +28,8 @@ import pytest
 
 
 CFG_CONTENT = b'configContent'
-CACHITO_ENV_FILE_CONTENT = (
-    "#!/bin/bash\n"
+CACHITO_ENV_SHEBANG = "#!/bin/bash\n"
+CACHITO_ENV_VARIABLES = (
     "export spam=maps\n"
     "export foo='somefile; rm -rf ~'\n"
 )
@@ -58,6 +58,10 @@ class TestDownloadRemoteSource(object):
     @responses.activate
     @pytest.mark.parametrize('source_url', [True, False])
     @pytest.mark.parametrize('insecure', [True, False])
+    @pytest.mark.parametrize('buildargs', [
+        {'spam': 'maps', 'foo': 'somefile; rm -rf ~'},
+        {}
+    ])
     @pytest.mark.parametrize('archive_dir_exists', [True, False])
     @pytest.mark.parametrize('has_configuration', [True, False])
     @pytest.mark.parametrize('configuration_type, configuration_content', (
@@ -66,7 +70,7 @@ class TestDownloadRemoteSource(object):
         ))
     def test_download_remote_source(
         self, tmpdir, docker_tasker, user_params, source_url, archive_dir_exists,
-        has_configuration, configuration_type, configuration_content, insecure
+        has_configuration, configuration_type, configuration_content, insecure, buildargs
     ):
         workflow = DockerBuildWorkflow(
             source={"provider": "git", "uri": "asd"},
@@ -112,7 +116,6 @@ class TestDownloadRemoteSource(object):
                 body=json.dumps(config_data)
                 )
 
-        buildargs = {'spam': 'maps', 'foo': 'somefile; rm -rf ~'}
         plugin = DownloadRemoteSourcePlugin(docker_tasker, workflow,
                                             remote_source_url=url,
                                             remote_source_build_args=buildargs,
@@ -140,8 +143,12 @@ class TestDownloadRemoteSource(object):
         cachito_env_path = os.path.join(plugin.workflow.builder.df_dir,
                                         plugin.REMOTE_SOURCE,
                                         CACHITO_ENV_FILENAME)
+
+        cachito_env_expected_content = CACHITO_ENV_SHEBANG
+        if buildargs:
+            cachito_env_expected_content += CACHITO_ENV_VARIABLES
         with open(cachito_env_path, 'r') as f:
-            assert f.read() == CACHITO_ENV_FILE_CONTENT
+            assert f.read() == cachito_env_expected_content
 
         # The return value should be the path to the downloaded archive itself
         with open(result, 'rb') as f:
