@@ -5,7 +5,6 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-
 import os
 import re
 import logging
@@ -14,7 +13,7 @@ from collections import OrderedDict
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
-from atomic_reactor.util import chain_get
+from atomic_reactor.util import chain_get, sha256sum
 from osbs.utils import ImageName
 
 
@@ -313,6 +312,11 @@ class OperatorCSV(object):
         self.path = path
         self.data = data
         self._pullspec_heuristic = pullspec_heuristic
+
+    @property
+    def checksum(self):
+        with open(self.path, 'r') as f:
+            return sha256sum(f.read())
 
     @classmethod
     def from_file(cls, path, **kwargs):

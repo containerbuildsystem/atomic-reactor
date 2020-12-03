@@ -8,7 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 import pytest
 import json
-import hashlib
 import re
 import responses
 from tempfile import mkdtemp
@@ -20,7 +19,7 @@ from tests.stubs import StubInsideBuilder
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import ExitPluginsRunner
-from atomic_reactor.util import registry_hostname, ManifestDigest
+from atomic_reactor.util import registry_hostname, ManifestDigest, sha256sum
 from osbs.utils import ImageName
 from atomic_reactor.plugins.exit_push_floating_tags import PushFloatingTagsPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin, WORKSPACE_CONF_KEY,
@@ -46,11 +45,6 @@ def to_text(value):
         return str(value, 'utf-8')
 
 
-def make_digest(blob):
-    # Abbreviate the hexdigest for readability of debugging output if things fail
-    return 'sha256:' + hashlib.sha256(to_bytes(blob)).hexdigest()[0:10]
-
-
 class MockRegistry(object):
     """
     This class mocks a subset of the v2 Docker Registry protocol
@@ -70,7 +64,7 @@ class MockRegistry(object):
 
     def add_manifest(self, name, ref, manifest):
         repo = self.get_repo(name)
-        digest = make_digest(manifest)
+        digest = sha256sum(manifest, abbrev_len=10, prefix=True)
         repo['manifests'][digest] = manifest
         if ref.startswith('sha256:'):
             assert ref == digest

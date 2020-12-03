@@ -5,7 +5,6 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-
 import os
 import shutil
 import tarfile
@@ -20,6 +19,7 @@ from atomic_reactor.util import (
     has_operator_appregistry_manifest,
     has_operator_bundle_manifest,
 )
+from atomic_reactor.utils.operator import OperatorManifest
 from docker.errors import APIError
 from platform import machine
 
@@ -117,6 +117,9 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
         tar_archive.extractall(manifests_archive_dir)
         manifests_path = os.path.join(manifests_archive_dir, MANIFESTS_DIR_NAME)
 
+        if has_operator_bundle_manifest(self.workflow):
+            self._verify_csv(manifests_path)
+
         manifests_zipfile_path = os.path.join(manifests_archive_dir, OPERATOR_MANIFESTS_ARCHIVE)
         with zipfile.ZipFile(manifests_zipfile_path, 'w') as archive:
             for root, _, files in os.walk(manifests_path):
@@ -133,3 +136,26 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
         shutil.rmtree(manifests_path)
 
         return manifests_zipfile_path
+
+    def _verify_csv(self, manifests_path):
+        """Verify the CSV file from the built image
+
+        :param str manifests_path:
+        :raises: ValueError if more than one CSV files are found, or the single
+            CSV is different from the one in the repo (compared by hash digest).
+        """
+        try:
+            image_csv = OperatorManifest.from_directory(manifests_path).csv
+        except ValueError as e:
+            raise ValueError(f'Operator manifests check in built image failed: {e}')
+
+        repo_csv = OperatorManifest.from_directory(self.workflow.source.manifests_dir).csv
+
+        if image_csv.checksum != repo_csv.checksum:
+            image_csv_filename = os.path.basename(image_csv.path)
+            repo_csv_filename = os.path.basename(repo_csv.path)
+            raise ValueError(
+                f'The CSV file {image_csv_filename} included in the built image '
+                f'and the original pinned CSV {repo_csv_filename} in dist-git '
+                f'repo have different content.'
+            )

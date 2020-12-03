@@ -85,3 +85,29 @@ def has_connection():
 
 # In case we run tests in an environment without internet connection.
 requires_internet = pytest.mark.skipif(not has_connection(), reason="requires internet connection")
+
+FAKE_CSV = '''\
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+'''
+
+OPERATOR_MANIFESTS_DIR = 'operator-manifests'
+
+
+def mock_manifests_dir(repo_dir, dirname=None):
+    """Create fake manifests_dir for testing the CSV verification
+
+    :param repo_dir: the repository directory inside which to create the
+        manifests directory and CSV file.
+    :type: py.path.LocalPath
+    :param str dirname: the manifests directory name. Defaults to operator-manifests.
+    :return: the manifests directory
+    :rtype: py.path.LocalPath
+    """
+    manifests_dir = repo_dir.join(dirname or OPERATOR_MANIFESTS_DIR).mkdir()
+    fake_csv = (manifests_dir
+                .join('1.0.0').mkdir()
+                .join('operator.clusterserviceversion.yaml'))
+    fake_csv.write(FAKE_CSV)
+    return manifests_dir
