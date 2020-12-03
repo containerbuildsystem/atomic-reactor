@@ -1819,3 +1819,12 @@ class DockerfileImages(object):
 
             if self._should_enclose(image):
                 image.enclose(self._organization)
+
+
+def sha256sum(s, abbrev_len=0, prefix=False):
+    prefix_ = 'sha256:' if prefix else ''
+    data = s.encode() if isinstance(s, str) else s
+    digest = hashlib.sha256(data).hexdigest()
+    if abbrev_len > 0:
+        digest = digest[0:abbrev_len]
+    return prefix_ + digest

@@ -5,10 +5,10 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+from functools import partial
 
 import pytest
 import json
-import hashlib
 import re
 import responses
 from tempfile import mkdtemp
@@ -24,7 +24,7 @@ from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf
 from atomic_reactor.util import (registry_hostname, ManifestDigest, get_floating_images,
-                                 get_primary_images)
+                                 get_primary_images, sha256sum)
 from atomic_reactor.plugins.post_group_manifests import GroupManifestsPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
@@ -49,9 +49,7 @@ def to_text(value):
         return str(value, 'utf-8')
 
 
-def make_digest(blob):
-    # Abbreviate the hexdigest for readability of debugging output if things fail
-    return 'sha256:' + hashlib.sha256(to_bytes(blob)).hexdigest()[0:10]
+make_digest = partial(sha256sum, abbrev_len=10, prefix=True)
 
 
 class MockRegistry(object):
