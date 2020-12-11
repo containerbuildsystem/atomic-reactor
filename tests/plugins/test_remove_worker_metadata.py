@@ -161,3 +161,24 @@ def test_remove_worker_plugin(tmpdir, caplog, user_params,
             else:
                 msg = "ConfigMap {} on platform {} deleted". format(cm_name, platform)
                 assert msg in caplog.text
+
+
+def test_remove_worker_metadata_no_worker_build(tmpdir, caplog, user_params):
+    """Don't traceback with missing worker builds, without worker
+    builds plugin should just skip"""
+    workflow = mock_workflow(tmpdir)
+    annotations = None
+    workflow.build_result = BuildResult(annotations=annotations, image_id="id1234")
+
+    runner = ExitPluginsRunner(
+        None,
+        workflow,
+        [{
+            'name': PLUGIN_REMOVE_WORKER_METADATA_KEY,
+            "args": {}
+        }]
+    )
+    runner.run()
+
+    assert "No build annotations found, skipping plugin" in caplog.text
+    assert "Traceback" not in caplog.text
