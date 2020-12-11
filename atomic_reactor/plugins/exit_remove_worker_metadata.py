@@ -25,7 +25,11 @@ class RemoveWorkerMetadataPlugin(ExitPlugin):
         """
         build_result = self.workflow.build_result
 
-        worker_builds = build_result.annotations['worker-builds']
+        if not build_result.annotations:
+            self.log.info("No build annotations found, skipping plugin")
+            return
+
+        worker_builds = build_result.annotations.get('worker-builds', {})
 
         for platform, build_annotations in worker_builds.items():
             try:
