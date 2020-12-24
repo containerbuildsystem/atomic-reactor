@@ -12,6 +12,9 @@ from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (
     has_operator_appregistry_manifest,
     has_operator_bundle_manifest,
+    read_content_sets,
+    read_fetch_artifacts_koji,
+    read_fetch_artifacts_url
 )
 
 
@@ -92,8 +95,15 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
                   "with '{}'".format(CONTAINER_IMAGEBUILDER_BUILD_METHOD)
             raise RuntimeError(msg)
 
+    def validate_user_config_files(self):
+        """Validate some user config files"""
+        read_fetch_artifacts_koji(self.workflow)
+        read_fetch_artifacts_url(self.workflow)
+        read_content_sets(self.workflow)
+
     def run(self):
         """
         run the plugin
         """
         self.dockerfile_checks()
+        self.validate_user_config_files()

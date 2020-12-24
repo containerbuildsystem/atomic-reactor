@@ -7,14 +7,15 @@ of the BSD license. See the LICENSE file for details.
 """
 from copy import deepcopy
 from datetime import datetime, timedelta
-import os
 from collections import defaultdict
 
+from atomic_reactor import util
 from atomic_reactor.utils.odcs import WaitComposeToFinishTimeout
 from osbs.repo_utils import ModuleSpec
 
-from atomic_reactor.constants import (PLUGIN_KOJI_PARENT_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
-                                      REPO_CONTENT_SETS_CONFIG, BASE_IMAGE_KOJI_BUILD)
+from atomic_reactor.constants import (PLUGIN_KOJI_PARENT_KEY,
+                                      PLUGIN_RESOLVE_COMPOSES_KEY,
+                                      BASE_IMAGE_KOJI_BUILD)
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
@@ -22,10 +23,7 @@ from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.pre_reactor_config import (get_config,
                                                        get_odcs_session,
                                                        get_koji_session, get_koji)
-from atomic_reactor.util import (get_platforms,
-                                 is_isolated_build,
-                                 is_scratch_build,
-                                 read_yaml_from_file_path)
+from atomic_reactor.util import get_platforms, is_isolated_build, is_scratch_build
 
 ODCS_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 MINIMUM_TIME_TO_EXPIRE = timedelta(hours=2).total_seconds()
@@ -211,11 +209,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
         if not data and not self.all_compose_ids:
             raise SkipResolveComposesPlugin('"compose" config not set and compose_ids not given')
 
-        workdir = self.workflow.source.get_build_file_path()[1]
-        file_path = os.path.join(workdir, REPO_CONTENT_SETS_CONFIG)
-        pulp_data = None
-        if os.path.exists(file_path):
-            pulp_data = read_yaml_from_file_path(file_path, 'schemas/content_sets.json') or {}
+        pulp_data = util.read_content_sets(self.workflow) or {}
 
         platforms = get_platforms(self.workflow)
         if platforms:

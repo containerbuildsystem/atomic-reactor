@@ -1561,7 +1561,7 @@ class TestResolveComposes(object):
         # Ensure ODCSClient.wait_for_compose raises timeout error
         (flexmock(time)
          .should_receive('time')
-         .and_return(2 + ODCSClient.DEFAULT_WAIT_TIMEOUT, 1)
+         .and_return(1, 2 + ODCSClient.DEFAULT_WAIT_TIMEOUT)
          .one_by_one())
 
         # Ensure ODCS responses the compose is still waiting for process before

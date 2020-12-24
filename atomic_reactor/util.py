@@ -39,7 +39,11 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG
                                       PARENT_IMAGE_BUILDS_KEY, PARENT_IMAGES_KOJI_BUILDS,
                                       BASE_IMAGE_KOJI_BUILD, BASE_IMAGE_BUILD_ID_KEY,
                                       PARENT_IMAGES_KEY, SCRATCH_FROM, RELATIVE_REPOS_PATH,
-                                      DOCKERIGNORE, DEFAULT_DOWNLOAD_BLOCK_SIZE)
+                                      DOCKERIGNORE, DEFAULT_DOWNLOAD_BLOCK_SIZE,
+                                      REPO_CONTENT_SETS_CONFIG,
+                                      REPO_FETCH_ARTIFACTS_URL,
+                                      USER_CONFIG_FILES, REPO_FETCH_ARTIFACTS_KOJI)
+
 from atomic_reactor.auth import HTTPRegistryAuth
 
 from dockerfile_parse import DockerfileParser
@@ -1828,3 +1832,39 @@ def sha256sum(s, abbrev_len=0, prefix=False):
     if abbrev_len > 0:
         digest = digest[0:abbrev_len]
     return prefix_ + digest
+
+
+def read_user_config_file(workflow, filename):
+    """Read the config from a specific config file inside the distgit repo
+
+    :param workflow: the docker build workflow object.
+    :type workflow: DockerBuildWorkflow
+    :param str filename: the user config filename. Only the basename, not
+        including the path, e.g. ``content_sets.yml``.
+    :return: a mapping containing the config in the specified config file. If
+        the corresponding config file does not exist or the original content
+        cannot be loaded properly, None will be returned.
+    :rtype: None or dict
+    :raises jsonschema.SchemaError: if the schema is loaded incorrectly.
+    :raises OsbsValidationException: if the validation fails.
+    :raises: any other errors raised from ``osbs.utils.yaml.read_yaml``.
+    """
+    _, work_dir = workflow.source.get_build_file_path()
+    schema_file = USER_CONFIG_FILES[filename]
+    file_path = os.path.join(work_dir, filename)
+    if os.path.exists(file_path):
+        return read_yaml_from_file_path(file_path, schema_file)
+    else:
+        logger.debug('%s not found', file_path)
+
+
+def read_fetch_artifacts_url(workflow):
+    return read_user_config_file(workflow, REPO_FETCH_ARTIFACTS_URL)
+
+
+def read_fetch_artifacts_koji(workflow):
+    return read_user_config_file(workflow, REPO_FETCH_ARTIFACTS_KOJI)
+
+
+def read_content_sets(workflow):
+    return read_user_config_file(workflow, REPO_CONTENT_SETS_CONFIG)

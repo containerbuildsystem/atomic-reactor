@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 from functools import partial
+from textwrap import dedent
 
 import pytest
 
@@ -13,9 +14,11 @@ from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_check_user_settings import CheckUserSettingsPlugin
 from atomic_reactor.util import df_parser
 from atomic_reactor.constants import (CONTAINER_IMAGEBUILDER_BUILD_METHOD,
-                                      CONTAINER_DOCKERPY_BUILD_METHOD)
+                                      CONTAINER_DOCKERPY_BUILD_METHOD, REPO_CONTENT_SETS_CONFIG,
+                                      REPO_FETCH_ARTIFACTS_URL, REPO_FETCH_ARTIFACTS_KOJI)
 
 from tests.mock_env import MockEnv
+from tests.stubs import StubSource
 
 pytestmark = pytest.mark.usefixtures('user_params')
 
@@ -51,15 +54,48 @@ def mock_dockerfile_multistage(tmpdir, labels, from_scratch=False):
     )
 
 
-def mock_env(tmpdir, docker_tasker, labels=(), flatpak=False, dockerfile_f=mock_dockerfile):
+class FakeSource(StubSource):
+    """Fake source for config files validation"""
+
+    def __init__(self, dockerfile_path):
+        """Initialize this fake source
+
+        :param dockerfile_path: the path to the dockerfile, not including the dockerfile filename.
+        :type dockerfile_path: py.path.LocalPath
+        """
+        super().__init__()
+        self.path = str(dockerfile_path)
+        self.dockerfile_path = str(dockerfile_path.join('Dockerfile'))
+
+    def get_build_file_path(self):
+        """Ensure the validations run against distgit config files"""
+        return self.dockerfile_path, self.path
+
+
+def mock_env(dockerfile_path, docker_tasker,
+             labels=(), flatpak=False, dockerfile_f=mock_dockerfile):
+    """Mock test environment
+
+    :param dockerfile_path: the path to the fake dockerfile to be created, not including the
+        dockerfile filename.
+    :type dockerfile_path: py.path.LocalPath
+    :param docker_tasker: docker_tasker fixture from conftest. Passed to ``MockEnv.create_runner``
+        directly to create a corresponding plugin runner instance.
+    :param labels: an iterable labels set for testing operator bundle or appregistry build.
+    :type labels: iterable[str]
+    :param bool flatpak: a flag to indicate whether the test is for a flatpak build.
+    :param callable dockerfile_f: a function to create fake dockerfile. Different test could pass a
+        specific function for itself.
+    """
     if not flatpak:
         # flatpak build has no Dockefile
-        dockerfile_f(tmpdir, labels)
+        dockerfile_f(dockerfile_path, labels)
 
     env = MockEnv().for_plugin('prebuild', CheckUserSettingsPlugin.key, {'flatpak': flatpak})
+    env.workflow.source = FakeSource(dockerfile_path)
 
-    dfp = df_parser(str(tmpdir))
-    env.workflow.builder.set_df_path(str(tmpdir))
+    dfp = df_parser(str(dockerfile_path))
+    env.workflow.builder.set_df_path(str(dockerfile_path))
     if not flatpak:
         env.workflow.builder.set_dockerfile_images(dfp.parent_images)
 
@@ -157,4 +193,87 @@ class TestDockerfileChecks(object):
             assert msg in str(e.value)
 
         else:
+            runner.run()
+
+
+def write_fetch_artifacts_url(repo_dir, make_mistake=False):
+    if make_mistake:
+        content = dedent('''
+            - sha4096: 305aa706018b1089e5b82528b601541f
+              target: foo.jar
+              url: url
+        ''')
+    else:
+        content = dedent('''
+            - md5: 305aa706018b1089e5b82528b601541f
+              target: foo.jar
+              url: http://somewhere/foo.jar
+        ''')
+    repo_dir.join(REPO_FETCH_ARTIFACTS_URL).write(content)
+
+
+def write_fetch_artifacts_koji(repo_dir, make_mistake=False):
+    if make_mistake:
+        content = dedent('''
+            - archives:
+              - filename: jmx_prometheus_javaagent-0.3.1.redhat-00006.jar
+                group_id: io.prometheus.jmx
+        ''')
+    else:
+        content = dedent('''
+            - nvr: io.prometheus.jmx-parent-0.3.1.redhat_00006-1
+              archives:
+              - filename: jmx_prometheus_javaagent-0.3.1.redhat-00006.jar
+                group_id: io.prometheus.jmx
+        ''')
+    repo_dir.join(REPO_FETCH_ARTIFACTS_KOJI).write(content)
+
+
+def write_content_sets_yml(repo_dir, make_mistake=False):
+    if make_mistake:
+        content = dedent('''
+            x86_64:
+            - rhel-7-server-optional-rpms
+            - rhel-7-server-DOT
+        ''')
+    else:
+        content = dedent('''
+            ---
+            x86_64:
+            - rhel-7-server-optional-rpms
+            - rhel-7-server-rpms
+        ''')
+    repo_dir.join(REPO_CONTENT_SETS_CONFIG).write(content)
+
+
+class TestValidateUserConfigFiles(object):
+    """Test the validate_user_config_files"""
+
+    def test_validate_the_config_files(self, docker_tasker, tmpdir):
+        write_fetch_artifacts_koji(tmpdir)
+        write_fetch_artifacts_url(tmpdir)
+        write_content_sets_yml(tmpdir)
+
+        runner = mock_env(tmpdir, docker_tasker)
+        runner.run()
+
+    def test_catch_invalid_fetch_artifacts_url(self, docker_tasker, tmpdir):
+        write_fetch_artifacts_url(tmpdir, make_mistake=True)
+
+        runner = mock_env(tmpdir, docker_tasker)
+        with pytest.raises(PluginFailedException, match="'sha4096' was unexpected"):
+            runner.run()
+
+    def test_catch_invalid_fetch_artifacts_koji(self, docker_tasker, tmpdir):
+        write_fetch_artifacts_koji(tmpdir, make_mistake=True)
+
+        runner = mock_env(tmpdir, docker_tasker)
+        with pytest.raises(PluginFailedException, match="'nvr' is a required property"):
+            runner.run()
+
+    def test_catch_invalid_content_sets(self, docker_tasker, tmpdir):
+        write_content_sets_yml(tmpdir, make_mistake=True)
+
+        runner = mock_env(tmpdir, docker_tasker)
+        with pytest.raises(PluginFailedException, match="validating 'pattern' has failed"):
             runner.run()
