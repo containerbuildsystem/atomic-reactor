@@ -14,6 +14,7 @@ import os
 import responses
 import yaml
 
+from atomic_reactor.constants import REPO_FETCH_ARTIFACTS_KOJI, REPO_FETCH_ARTIFACTS_URL
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_fetch_maven_artifacts import FetchMavenArtifactsPlugin
@@ -294,7 +295,7 @@ def mock_fetch_artifacts_by_nvr(tmpdir, contents=None):
             - nvr: com.sun.xml.bind.mvn-jaxb-parent-2.2.11.4-1
             """)
 
-    with open(os.path.join(tmpdir, FetchMavenArtifactsPlugin.NVR_REQUESTS_FILENAME), 'w') as f:
+    with open(os.path.join(tmpdir, REPO_FETCH_ARTIFACTS_KOJI), 'w') as f:
         f.write(contents)
         f.flush()
 
@@ -303,7 +304,7 @@ def mock_fetch_artifacts_by_url(tmpdir, contents=None):
     if contents is None:
         contents = yaml.safe_dump(DEFAULT_REMOTE_FILES)
 
-    with open(os.path.join(tmpdir, FetchMavenArtifactsPlugin.URL_REQUESTS_FILENAME), 'w') as f:
+    with open(os.path.join(tmpdir, REPO_FETCH_ARTIFACTS_URL), 'w') as f:
         f.write(contents)
         f.flush()
 

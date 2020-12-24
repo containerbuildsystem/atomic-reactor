@@ -11,7 +11,10 @@ import koji
 import os
 
 from atomic_reactor import util
-from atomic_reactor.constants import DEFAULT_DOWNLOAD_BLOCK_SIZE, PLUGIN_FETCH_MAVEN_KEY
+from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE,
+                                      PLUGIN_FETCH_MAVEN_KEY,
+                                      REPO_FETCH_ARTIFACTS_URL,
+                                      REPO_FETCH_ARTIFACTS_KOJI)
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import (get_koji_session,
                                                        get_koji_path_info,
@@ -68,9 +71,6 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
     key = PLUGIN_FETCH_MAVEN_KEY
     is_allowed_to_fail = False
 
-    NVR_REQUESTS_FILENAME = 'fetch-artifacts-koji.yaml'
-    URL_REQUESTS_FILENAME = 'fetch-artifacts-url.yaml'
-
     DOWNLOAD_DIR = 'artifacts'
 
     def __init__(self, tasker, workflow, allowed_domains=None):
@@ -88,24 +88,6 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
         self.allowed_domains = set(domain.lower() for domain in all_allowed_domains or [])
         self.workdir = self.workflow.source.get_build_file_path()[1]
         self.session = None
-
-    def read_nvr_requests(self):
-        file_path = os.path.join(self.workdir, self.NVR_REQUESTS_FILENAME)
-        if not os.path.exists(file_path):
-            self.log.debug('%s not found', self.NVR_REQUESTS_FILENAME)
-            return []
-
-        nvr_requests = util.read_yaml_from_file_path(file_path,
-                                                     'schemas/fetch-artifacts-nvr.json') or []
-        return [NvrRequest(**nvr_request) for nvr_request in nvr_requests]
-
-    def read_url_requests(self):
-        file_path = os.path.join(self.workdir, self.URL_REQUESTS_FILENAME)
-        if not os.path.exists(file_path):
-            self.log.debug('%s not found', self.URL_REQUESTS_FILENAME)
-            return []
-
-        return util.read_yaml_from_file_path(file_path, 'schemas/fetch-artifacts-url.json') or []
 
     def process_by_nvr(self, nvr_requests):
         download_queue = []
@@ -140,7 +122,7 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
 
         if errors:
             raise ValueError('Errors found while processing {}: {}'
-                             .format(self.NVR_REQUESTS_FILENAME, ', '.join(errors)))
+                             .format(REPO_FETCH_ARTIFACTS_KOJI, ', '.join(errors)))
         return download_queue
 
     def process_by_url(self, url_requests):
@@ -166,7 +148,7 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
 
         if errors:
             raise ValueError('Errors found while processing {}: {}'
-                             .format(self.URL_REQUESTS_FILENAME, ', '.join(errors)))
+                             .format(REPO_FETCH_ARTIFACTS_URL, ', '.join(errors)))
 
         return download_queue
 
@@ -204,8 +186,11 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
     def run(self):
         self.session = get_koji_session(self.workflow)
 
-        nvr_requests = self.read_nvr_requests()
-        url_requests = self.read_url_requests()
+        nvr_requests = [
+            NvrRequest(**nvr_request) for nvr_request in
+            util.read_fetch_artifacts_koji(self.workflow) or []
+        ]
+        url_requests = util.read_fetch_artifacts_url(self.workflow) or []
 
         download_queue = (self.process_by_nvr(nvr_requests) +
                           self.process_by_url(url_requests))
