@@ -35,9 +35,6 @@ class ImagebuilderPlugin(BuildStepPlugin):
 
         image = builder.image.to_str()
         # TODO: directly invoke go imagebuilder library in shared object via python module
-        kwargs = dict(stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-        encoding_params = dict(encoding='utf-8', errors='replace')
-        kwargs.update(encoding_params)
 
         allow_repo_dir_in_dockerignore(builder.df_dir)
 
@@ -47,7 +44,12 @@ class ImagebuilderPlugin(BuildStepPlugin):
             process_args.append('%s=%s' % (buildarg, buildargval))
         process_args.append(builder.df_dir)
 
-        ib_process = subprocess.Popen(process_args, **kwargs)
+        ib_process = subprocess.Popen(process_args,
+                                      stdout=subprocess.PIPE,
+                                      stderr=subprocess.STDOUT,
+                                      universal_newlines=True,
+                                      encoding='utf-8',
+                                      errors='replace')
 
         self.log.debug('imagebuilder build has begun; waiting for it to finish')
         self.log.debug(process_args)
