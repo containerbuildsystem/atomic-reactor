@@ -15,6 +15,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from atomic_reactor.util import chain_get, sha256sum
 from osbs.utils import ImageName
+from osbs.utils.yaml import validate_with_schema
 
 
 yaml = YAML()
@@ -22,6 +23,181 @@ log = logging.getLogger(__name__)
 
 
 OPERATOR_CSV_KIND = "ClusterServiceVersion"
+
+# Schema derived from https://github.com/operator-framework/api/blob/e29d40c2eb3eab6a2789a671886b8966ce8e3c0a/crds/operators.coreos.com_clusterserviceversions.yaml#L40  # noqa E501
+_mini_csv_schema = {
+    'type': 'object',
+    'required': ['metadata', 'spec'],
+    'properties': {
+        'metadata': {
+            'type': 'object',
+            'properties': {
+                'annotations': {
+                    'type': 'object',
+                    'properties': {
+                        'containerImage': {
+                            'type': 'string'
+                        }
+                    }
+                }
+            }
+        },
+        'spec': {
+            'type': 'object',
+            'required': ['install'],
+            'properties': {
+                'install': {
+                    'type': 'object',
+                    'properties': {
+                        'spec': {
+                            'type': 'object',
+                            'required': ['deployments'],
+                            'properties': {
+                                'deployments': {
+                                    'type': 'array',
+                                    'items': {
+                                        'type': 'object',
+                                        'required': ['spec'],
+                                        'properties': {
+                                            'spec': {
+                                                'type': 'object',
+                                                'required': ['template'],
+                                                'properties': {
+                                                    'template': {
+                                                        'type': 'object',
+                                                        'properties': {
+                                                            'metadata': {
+                                                                'type':
+                                                                'object'
+                                                            },
+                                                            'spec': {
+                                                                'type':
+                                                                'object',
+                                                                'required':
+                                                                ['containers'],
+                                                                'properties': {
+                                                                    'containers':
+                                                                    {
+                                                                        'type':
+                                                                        'array',
+                                                                        'items':
+                                                                        {
+                                                                            'type':
+                                                                            'object',
+                                                                            'required':
+                                                                            [
+                                                                                'name'
+                                                                            ],
+                                                                            'properties':
+                                                                            {
+                                                                                'env':
+                                                                                {
+                                                                                    'type':
+                                                                                    'array',
+                                                                                    'items':
+                                                                                    {
+                                                                                        'type':
+                                                                                        'object',
+                                                                                        'required':
+                                                                                        [
+                                                                                            'name'
+                                                                                        ],
+                                                                                        'properties':
+                                                                                        {
+                                                                                            'name':
+                                                                                            {
+                                                                                                'type':
+                                                                                                'string'
+                                                                                            },
+                                                                                            'value':
+                                                                                            {
+                                                                                                'type':
+                                                                                                'string'
+                                                                                            }
+                                                                                        }
+                                                                                    }
+                                                                                },
+                                                                                'image':
+                                                                                {
+                                                                                    'type':
+                                                                                    'string'
+                                                                                },
+                                                                                'name':
+                                                                                {
+                                                                                    'type':
+                                                                                    'string'
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    },
+                                                                    'initContainers':
+                                                                    {
+                                                                        'type':
+                                                                        'array',
+                                                                        'items':
+                                                                        {
+                                                                            'type':
+                                                                            'object',
+                                                                            'required':
+                                                                            [
+                                                                                'name'
+                                                                            ],
+                                                                            'properties':
+                                                                            {
+                                                                                'name':
+                                                                                {
+                                                                                    'type':
+                                                                                    'string'
+                                                                                },
+                                                                                'image':
+                                                                                {
+                                                                                    'type':
+                                                                                    'string'
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                'relatedImages': {
+                    'type': 'array',
+                    'items': {
+                        'type': 'object',
+                        'required': ['name', 'image'],
+                        'properties': {
+                            'name': {
+                                'type': 'string'
+                            },
+                            'image': {
+                                'type': 'string'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+def check_csv(data, schema):
+    try:
+        if data.get("kind") != OPERATOR_CSV_KIND:
+            raise NotOperatorCSV("Not a ClusterServiceVersion")
+    except AttributeError as exc:
+        raise NotOperatorCSV("File does not contain a YAML object") from exc
+    validate_with_schema(data, schema)
 
 
 def is_dict(obj):
@@ -159,6 +335,12 @@ def _adjust_for_arbitrary_text(text, i, j):
 class NotOperatorCSV(Exception):
     """
     Data is not from a valid ClusterServiceVersion document
+    """
+
+
+class CSVValidationError(Exception):
+    """
+    CSV validation against schema failed
     """
 
 
@@ -304,11 +486,7 @@ class OperatorCSV(object):
             implementation will be used. For more information, see the
             default_pullspec_heuristic() function in this module.
         """
-        try:
-            if data.get("kind") != OPERATOR_CSV_KIND:
-                raise NotOperatorCSV("Not a ClusterServiceVersion")
-        except AttributeError as exc:
-            raise NotOperatorCSV("File does not contain a YAML object") from exc
+        check_csv(data, _mini_csv_schema)
         self.path = path
         self.data = data
         self._pullspec_heuristic = pullspec_heuristic
@@ -618,5 +796,5 @@ class OperatorManifest(object):
         for f in yaml_files:
             try:
                 yield OperatorCSV.from_file(f, **kwargs)
-            except NotOperatorCSV:
+            except (NotOperatorCSV, CSVValidationError):
                 pass
