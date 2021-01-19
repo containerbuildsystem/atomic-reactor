@@ -6,10 +6,12 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+import json
 import requests
 from urllib3 import Retry
 
 import pytest
+import responses
 from flexmock import flexmock
 
 from atomic_reactor.constants import (HTTP_MAX_RETRIES,
@@ -69,3 +71,21 @@ def test_get_retrying_requests_session(times, connect):
     expected_connect = connect if connect is not None else HTTP_CONNECTION_ERROR_RETRIES
     assert http.max_retries.connect == expected_connect
     assert https.max_retries.connect == expected_connect
+
+
+@responses.activate
+@pytest.mark.parametrize('http_code', [399, 400, 401, 500, 599])
+def test_log_error_response(http_code, caplog):
+    api_url = 'https://localhost/api/v1/foo'
+    json_data = {'message': 'value error'}
+    responses.add(responses.GET, api_url, json=json_data, status=http_code)
+
+    session = get_retrying_requests_session()
+    session.get(api_url)
+
+    content = json.dumps(json_data).encode()
+    expected = f"Error response from {api_url}: {content}"
+    if 400 <= http_code <= 599:
+        assert expected in caplog.text
+    else:
+        assert expected not in caplog.text

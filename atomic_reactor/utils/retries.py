@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+import logging
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
@@ -15,6 +16,8 @@ from atomic_reactor.constants import (HTTP_CLIENT_STATUS_RETRY,
                                       HTTP_BACKOFF_FACTOR,
                                       HTTP_REQUEST_TIMEOUT,
                                       HTTP_CONNECTION_ERROR_RETRIES)
+
+logger = logging.getLogger(__name__)
 
 
 class SessionWithTimeout(requests.Session):
@@ -32,6 +35,16 @@ class SessionWithTimeout(requests.Session):
 # This is a hook to mock during tests to temporarily disable retries
 def _http_retries_disabled():
     return False
+
+
+def hook_log_error_response_content(response, *args, **kwargs):
+    """Hook function to log response content when not 200
+
+    :param response: the requests Response object
+    :type response: requests.Response
+    """
+    if 400 <= response.status_code <= 599:
+        logger.error('Error response from %s: %s', response.url, response.content)
 
 
 def get_retrying_requests_session(client_statuses=HTTP_CLIENT_STATUS_RETRY,
@@ -57,5 +70,6 @@ def get_retrying_requests_session(client_statuses=HTTP_CLIENT_STATUS_RETRY,
     session = SessionWithTimeout()
     session.mount('http://', HTTPAdapter(max_retries=retry))
     session.mount('https://', HTTPAdapter(max_retries=retry))
+    session.hooks['response'] = [hook_log_error_response_content]
 
     return session
