@@ -488,7 +488,7 @@ class TestReactorConfigPlugin(object):
         tasker, workflow = self.prepare()
         plugin = ReactorConfigPlugin(tasker, workflow, config_path=str(tmpdir))
 
-        with caplog.at_level(logging.ERROR), pytest.raises(OsbsValidationException):
+        with caplog.at_level(logging.DEBUG, logger='osbs'), pytest.raises(OsbsValidationException):
             plugin.run()
 
         os.environ.pop('REACTOR_CONFIG', None)
