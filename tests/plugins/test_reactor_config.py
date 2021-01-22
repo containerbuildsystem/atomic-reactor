@@ -50,6 +50,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ODCSConfig,
                                                        get_operator_manifests,
                                                        CONTAINER_DEFAULT_BUILD_METHOD,
                                                        get_build_image_override,
+                                                       get_list_rpms_from_scratch,
                                                        NO_FALLBACK)
 from tests.constants import REACTOR_CONFIG_MAP, MOCK_SOURCE
 from tests.docker_mock import mock_docker
@@ -2138,6 +2139,43 @@ source_registry:
             assert workflow.builder.dockerfile_images.keys() == expect_images
         else:
             assert workflow.builder.dockerfile_images is None
+
+    @pytest.mark.parametrize(('config', 'expect'), [
+        ("""\
+          version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
+          list_rpms_from_scratch: True
+         """,
+         True),
+        ("""\
+          version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
+          list_rpms_from_scratch: False
+         """,
+         False),
+        ("""\
+          version: 1
+          koji:
+            hub_url: /
+            root_url: ''
+            auth: {}
+         """,
+         True),
+    ])
+    def test_get_list_rpms_from_scratch(self, config, expect):
+        config_json = read_yaml(config, 'schemas/config.json')
+        _, workflow = self.prepare()
+        workspace = workflow.plugin_workspace.setdefault(ReactorConfigPlugin.key, {})
+        workspace[WORKSPACE_CONF_KEY] = ReactorConfig(config_json)
+
+        method = get_list_rpms_from_scratch(workflow)
+        assert method == expect
 
 
 def test_ensure_odcsconfig_does_not_modify_original_signing_intents():

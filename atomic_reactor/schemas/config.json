@@ -586,6 +586,11 @@
         "description": "Command to retrieve artifacts in lookaside cache",
         "type": "string"
     },
+    "list_rpms_from_scratch": {
+        "description": "List rpms in FROM scratch base image",
+        "type": "boolean",
+        "default": true
+    },
     "required_secrets": {
         "description": "List of OpenShift secrets required by this configuration",
         "type": "array",
