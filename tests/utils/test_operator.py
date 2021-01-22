@@ -9,11 +9,13 @@ of the BSD license. See the LICENSE file for details.
 import copy
 
 from collections import Counter
+from flexmock import flexmock
 
 import pytest
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
+import atomic_reactor.utils.operator as operator_module
 from atomic_reactor.util import chain_get
 from atomic_reactor.utils.operator import (
     OperatorCSV,
@@ -566,6 +568,18 @@ class TestOperatorCSV(object):
     _original_pullspecs = {p.value for p in PULLSPECS.values()}
     _replacement_pullspecs = {p.value: p.replace for p in PULLSPECS.values()}
 
+    @classmethod
+    def _mock_check_csv(cls):
+        """
+        Stub out validating the CSV against schema.
+        This should ONLY be invoked in test scenarios where
+        partial/incomplete/broken CSV YAML is required/most convenient.
+        """
+        (flexmock(operator_module)
+            .should_receive('check_csv')
+            # `check_csv` takes 2 args and returns `None`
+            .replace_with(lambda x, y: None))
+
     def test_wrong_kind(self):
         data = ORIGINAL.data
 
@@ -749,7 +763,7 @@ class TestOperatorCSV(object):
             expected -= {IC1.value}
             for d in deployments:
                 d["spec"]["template"]["spec"].pop("initContainers", None)
-
+        self._mock_check_csv()
         csv = OperatorCSV("x.yaml", data)
         assert csv.get_pullspecs() == expected
 
@@ -835,6 +849,7 @@ class TestOperatorCSV(object):
                 }
             }
         }
+        self._mock_check_csv()
         csv = OperatorCSV("original.yaml", data)
         csv.set_related_images()
         generated_name = csv.data["spec"]["relatedImages"][0]["name"]
@@ -859,6 +874,7 @@ class TestOperatorCSV(object):
                 }
             }
         }
+        self._mock_check_csv()
         csv = OperatorCSV("original.yaml", data)
         if should_fail:
             with pytest.raises(RuntimeError) as exc_info:
@@ -942,6 +958,7 @@ class TestOperatorCSV(object):
                 }
             }
         }
+        self._mock_check_csv()
         csv = OperatorCSV("original.yaml", data)
 
         if err_msg is not None:
@@ -967,6 +984,7 @@ class TestOperatorCSV(object):
         }
         if pullspecs is not None:
             data['spec']['relatedImages'] = pullspecs
+        self._mock_check_csv()
         csv = OperatorCSV('original.yaml', data)
         assert csv.has_related_images() == does_have
 
@@ -1001,6 +1019,7 @@ class TestOperatorCSV(object):
         if var is not None:
             deployment = data['spec']['install']['spec']['deployments'][0]
             deployment['spec']['template']['spec']['containers'][0]['env'].append(var)
+        self._mock_check_csv()
         csv = OperatorCSV('original.yaml', data)
         assert csv.has_related_image_envs() == does_have
 
@@ -1014,6 +1033,7 @@ class TestOperatorCSV(object):
                 }
             }
         }
+        self._mock_check_csv()
         csv = OperatorCSV("original.yaml", data)
         csv.set_related_images()
         assert "" in caplog.text
@@ -1054,6 +1074,7 @@ class TestOperatorCSV(object):
                 }
             }
         }
+        self._mock_check_csv()
         csv = OperatorCSV("original.yaml", data)
         csv.replace_pullspecs(replacements)
         assert csv.data['metadata']['annotations']['foo'] == ", ".join(expected)
@@ -1084,6 +1105,7 @@ class TestOperatorCSV(object):
                 ('d.e/f:1', 'g.h/i:1'),
             ]
         }
+        self._mock_check_csv()
         csv = OperatorCSV("original.yaml", data)
         csv.replace_pullspecs(replacements)
 
@@ -1118,6 +1140,7 @@ class TestOperatorCSV(object):
                 }
             }
         }
+        self._mock_check_csv()
         csv = OperatorCSV("original.yaml", data)
         assert csv.get_pullspecs() == set()
 
@@ -1147,6 +1170,7 @@ class TestOperatorCSV(object):
         ]
     ])
     def test_get_related_image_pullsepcs(self, csv_content, expected_pullspecs):
+        self._mock_check_csv()
         csv = OperatorCSV('csv.yaml', csv_content)
         assert expected_pullspecs == csv.get_related_image_pullspecs()
 
