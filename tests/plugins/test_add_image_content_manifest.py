@@ -152,6 +152,9 @@ def mock_env(tmpdir, docker_tasker, platform='x86_64', base_layers=0,
     env.workflow.builder.set_inspection_data(inspection_data)
     env.workflow.user_params['platform'] = platform
 
+    # Ensure to succeed in reading the content_sets.yml
+    env.workflow.source.get_build_file_path = lambda: (str(tmpdir), str(tmpdir))
+
     return env.create_runner(docker_tasker)
 
 

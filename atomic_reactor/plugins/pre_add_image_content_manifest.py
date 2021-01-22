@@ -15,12 +15,12 @@ from osbs.utils import Labels
 
 from atomic_reactor.constants import (IMAGE_BUILD_INFO_DIR, INSPECT_ROOTFS,
                                       INSPECT_ROOTFS_LAYERS,
-                                      PLUGIN_ADD_IMAGE_CONTENT_MANIFEST,
-                                      REPO_CONTENT_SETS_CONFIG)
+                                      PLUGIN_ADD_IMAGE_CONTENT_MANIFEST)
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_cachito
 from atomic_reactor.util import (base_image_is_scratch, df_parser, read_yaml,
-                                 read_yaml_from_file_path, get_retrying_requests_session,
+                                 get_retrying_requests_session,
+                                 read_content_sets
                                  )
 
 
@@ -155,12 +155,8 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
         'content_sets.yml' in dist-git, and set `self.content_sets` to same.
         """
         current_platform = self.workflow.user_params['platform']
-        workdir = self.workflow.builder.df_dir
-        fpath = os.path.join(workdir, REPO_CONTENT_SETS_CONFIG)
-        if os.path.exists(fpath):
-            content_sets_yml = read_yaml_from_file_path(fpath, 'schemas/content_sets.json') or {}
-            if current_platform in content_sets_yml:
-                self.content_sets = content_sets_yml[current_platform]
+        content_sets = read_content_sets(self.workflow) or {}
+        self.content_sets = content_sets.get(current_platform, [])
         self.log.debug('Output content_sets: %s', self.content_sets)
 
     def _update_icm_data(self):
