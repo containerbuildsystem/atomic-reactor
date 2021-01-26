@@ -73,9 +73,10 @@ class AddDockerfilePlugin(PreBuildPlugin):
                 _, name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)
                 _, version = labels.get_name_and_value(Labels.LABEL_TYPE_VERSION)
                 _, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
-            except KeyError:
-                raise ValueError("You have to specify either nvr arg or name/version/release "
-                                 "labels.")
+            except KeyError as exc:
+                raise ValueError(
+                    "You have to specify either nvr arg or name/version/release labels."
+                ) from exc
             nvr = "{0}-{1}-{2}".format(name, version, release)
             nvr = nvr.replace("/", "-")
         self.df_name = '{0}-{1}'.format(DOCKERFILE_FILENAME, nvr)

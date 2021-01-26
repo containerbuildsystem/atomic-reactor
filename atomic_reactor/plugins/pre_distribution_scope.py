@@ -68,16 +68,16 @@ class DistributionScopePlugin(PreBuildPlugin):
 
         try:
             scope_choice = labels[self.SCOPE_LABEL]
-        except (KeyError, TypeError):
+        except (KeyError, TypeError) as exc:
             self.log.debug("no distribution scope set for %s image", which)
-            raise NothingToCheck
+            raise NothingToCheck from exc
 
         try:
             scope = self.SCOPE_NAME.index(scope_choice)
-        except ValueError:
+        except ValueError as exc:
             self.log.warning("invalid label %s=%s for %s image",
                              self.SCOPE_LABEL, scope_choice, which)
-            raise NothingToCheck
+            raise NothingToCheck from exc
 
         return scope
 

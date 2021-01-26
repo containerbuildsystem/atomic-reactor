@@ -27,6 +27,7 @@ class SessionWithTimeout(requests.Session):
     def __init__(self, *args, **kwargs):
         super(SessionWithTimeout, self).__init__(*args, **kwargs)
 
+    # pylint: disable=signature-differs
     def request(self, *args, **kwargs):
         kwargs.setdefault('timeout', HTTP_REQUEST_TIMEOUT)
         return super(SessionWithTimeout, self).request(*args, **kwargs)

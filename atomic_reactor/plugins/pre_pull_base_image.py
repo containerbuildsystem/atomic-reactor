@@ -145,11 +145,11 @@ class PullBaseImagePlugin(PreBuildPlugin):
             media_type = get_manifest_media_type('v2')
             try:
                 manifest_digest_response = digests_dict['v2']
-            except KeyError:
+            except KeyError as exc:
                 raise RuntimeError(
                     'Unable to fetch manifest list or '
                     'v2 schema 2 digest for {} (Does image exist?)'.format(image_str)
-                )
+                ) from exc
 
             digest_dict = get_checksums(BytesIO(manifest_digest_response.content), ['sha256'])
 
@@ -253,7 +253,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
             except (HTTPError, RetryError, Timeout) as ex:
                 self.log.warning('Unable to fetch config for %s, got error %s',
                                  image, ex.response.status_code)
-                raise RuntimeError('Unable to fetch config for base image')
+                raise RuntimeError('Unable to fetch config for base image') from ex
 
             release = config_blob['config']['Labels']['release']
             version = config_blob['config']['Labels']['version']

@@ -150,7 +150,7 @@ class PushOperatorManifestsPlugin(PostBuildPlugin):
         except OMPSError as e:
             msg = "Failed to push operator manifests: {}".format(e)
             self.log.error(msg)
-            raise RuntimeError(msg)
+            raise RuntimeError(msg) from e
 
         try:
             os.remove(operator_manifests_path)

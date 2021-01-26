@@ -124,5 +124,5 @@ class BuildImageBuilder(object):
             logger.warning("len(atomic-reactor-*.tar.gz) != 1: '%s'", candidates_list)
             try:
                 return candidates_list[0]
-            except IndexError:
-                raise RuntimeError("No atomic-reactor tarball built.")
+            except IndexError as exc:
+                raise RuntimeError("No atomic-reactor tarball built.") from exc

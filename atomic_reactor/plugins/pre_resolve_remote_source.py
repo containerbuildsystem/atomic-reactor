@@ -145,10 +145,10 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
         data = {}
         try:
             data.update({k: source_request[k] for k in required})
-        except KeyError:
+        except KeyError as exc:
             msg = 'Received invalid source request from Cachito: {}'.format(source_request)
             self.log.exception(msg)
-            raise ValueError(msg)
+            raise ValueError(msg) from exc
 
         data.update({k: source_request.get(k, []) for k in optional})
 

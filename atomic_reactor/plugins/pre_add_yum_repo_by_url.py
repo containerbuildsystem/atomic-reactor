@@ -84,7 +84,7 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
             except Exception as e:
                 msg = "Failed to fetch yum repo {repo}: {exc}".format(
                     repo=yumrepo.repourl, exc=e)
-                raise RuntimeError(msg)
+                raise RuntimeError(msg) from e
             else:
                 self.log.info("fetched yum repo from '%s'", yumrepo.repourl)
 

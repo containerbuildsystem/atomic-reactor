@@ -92,7 +92,7 @@ class BuildContainerFactory(object):
                 logger.debug("build input: image = '%s', args = '%s'", image, json_args.read())
         except (IOError, OSError) as ex:
             logger.error("unable to open json arguments: %s", ex)
-            raise RuntimeError("Unable to open json arguments: %s" % ex)
+            raise RuntimeError("Unable to open json arguments: %s" % ex) from ex
 
         if not self.tasker.image_exists(image):
             logger.error("provided build image doesn't exist: '%s'", image)
@@ -587,9 +587,9 @@ class DockerTasker(CommonTasker):
         logger.debug("response = '%s'", response)
         try:
             return response['Id']
-        except KeyError:
+        except KeyError as exc:
             logger.error("ID missing from commit response")
-            raise RuntimeError("ID missing from commit response")
+            raise RuntimeError("ID missing from commit response") from exc
 
     def get_image_info_by_image_id(self, image_id):
         """

@@ -1494,8 +1494,8 @@ class TestKojiImport(object):
 
         class LegacyCGImport(MockedClientSession):
 
-            def CGImport(self, *args, **kwargs):
-                super(LegacyCGImport, self).CGImport(*args, **kwargs)
+            def CGImport(self, metadata, server_dir, token=None):
+                super(LegacyCGImport, self).CGImport(metadata, server_dir, token)
                 return
 
         session = LegacyCGImport('')

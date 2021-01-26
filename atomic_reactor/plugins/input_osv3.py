@@ -146,8 +146,8 @@ class OSv3InputPlugin(InputPlugin):
             # if we get the USER_PARAMS, we'd better get the REACTOR_CONFIG too
             reactor_config_map = os.environ['REACTOR_CONFIG']
             self.reactor_env = read_yaml(reactor_config_map, 'schemas/config.json')
-        except KeyError:
-            raise RuntimeError("No plugin configuration found!")
+        except KeyError as exc:
+            raise RuntimeError("No plugin configuration found!") from exc
 
         if arrangement_version and arrangement_version <= 5:
             raise ValueError('arrangement_version <= 5 is no longer supported')

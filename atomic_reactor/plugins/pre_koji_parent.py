@@ -170,12 +170,12 @@ class KojiParentPlugin(PreBuildPlugin):
 
         try:
             koji_digest = build_info['extra']['image']['index']['digests'][media_type]
-        except KeyError:
+        except KeyError as exc:
             err_msg = ("Koji build ({}) for parent image '{}' does not have manifest digest data "
                        "for the expected media type '{}'. This parent image MUST be rebuilt"
                        .format(build_info['id'], image_str, media_type))
             self.log.error(err_msg)
-            raise ValueError(err_msg)
+            raise ValueError(err_msg) from exc
 
         expected_digest = koji_digest
         self.log.info('Verifying manifest digest (%s) for parent %s against its '

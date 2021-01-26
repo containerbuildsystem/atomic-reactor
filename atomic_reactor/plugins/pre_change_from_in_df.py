@@ -99,11 +99,11 @@ class ChangeFromPlugin(PreBuildPlugin):
             try:
                 parent_image_ids[df_img] = inspection['Id']
                 new_parents.append(inspection['Id'])
-            except KeyError:  # unexpected code bugs or maybe docker weirdness
+            except KeyError as exc:  # unexpected code bugs or maybe docker weirdness
                 self.log.error(
                     "Id for image %s is missing in inspection: '%s'",
                     df_img, inspection)
-                raise NoIdInspection("Could not inspect Id for image " + df_img)
+                raise NoIdInspection("Could not inspect Id for image " + df_img) from exc
 
         # update builder's representation of what will be built
         for df_img in dfp.parent_images:
