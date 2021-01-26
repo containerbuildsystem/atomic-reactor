@@ -100,12 +100,16 @@ class AddHelpPlugin(PreBuildPlugin):
         except OSError as e:
             if e.errno == errno.ENOENT:
                 raise RuntimeError(
-                    "Help file is available, but go-md2man is not present in a buildroot")
+                    "Help file is available, but go-md2man is not present in a buildroot"
+                ) from e
 
             raise
         except CalledProcessError as e:
-            raise RuntimeError("Error running %s: %s, exit code: %s, output: '%s'" % (
-                e.cmd, e, e.returncode, e.output))
+            raise RuntimeError(
+                "Error running %s: %s, exit code: %s, output: '%s'" % (
+                    e.cmd, e, e.returncode, e.output
+                )
+            ) from e
 
         if not os.path.exists(man_path):
             raise RuntimeError("go-md2man run complete, but man file is not found")

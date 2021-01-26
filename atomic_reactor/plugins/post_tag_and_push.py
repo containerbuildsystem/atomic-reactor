@@ -198,9 +198,10 @@ class TagAndPushPlugin(PostBuildPlugin):
                                                            docker_push_secret, versions=('v2',))
                         try:
                             koji_source_manifest_response = manifests_dict['v2']
-                        except KeyError:
-                            raise RuntimeError('Unable to fetch v2 schema 2 digest for {}'.
-                                               format(registry_image.to_str()))
+                        except KeyError as exc:
+                            raise RuntimeError(
+                                f'Unable to fetch v2 schema 2 digest for {registry_image.to_str()}'
+                            ) from exc
 
                         self.workflow.koji_source_manifest = koji_source_manifest_response.json()
 

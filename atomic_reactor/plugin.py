@@ -212,14 +212,14 @@ class PluginsRunner(object):
             plugin_name = plugin_request['name']
             try:
                 plugin_class = self.plugin_classes[plugin_name]
-            except KeyError:
+            except KeyError as e:
                 if plugin_request.get('required', True):
                     msg = ("no such plugin: '%s', did you set "
                            "the correct plugin type?") % plugin_name
                     exc = PluginFailedException(msg)
                     self.on_plugin_failed(plugin_name, exc)
                     logger.error(msg)
-                    raise exc
+                    raise exc from e
                 else:
                     # This plugin is marked as not being required
                     logger.warning("plugin '%s' requested but not available",
@@ -303,7 +303,7 @@ class PluginsRunner(object):
                         failed_msgs.append(msg)
                 else:
                     logger.error(msg)
-                    raise PluginFailedException(msg)
+                    raise PluginFailedException(msg) from ex
 
                 plugin_response = ex
 
@@ -455,7 +455,7 @@ class BuildStepPluginsRunner(BuildPluginsRunner):
         super(BuildStepPluginsRunner, self).__init__(
             dt, workflow, 'BuildStepPlugin', plugin_conf, *args, **kwargs)
 
-    def run(self, *args, **kwargs):
+    def run(self, keep_going=False, buildstep_phase=True):
         builder = self.workflow.builder
 
         logger.info('building image %r inside current environment',
@@ -467,9 +467,9 @@ class BuildStepPluginsRunner(BuildPluginsRunner):
         else:
             logger.debug("No Dockerfile path has been specified")
 
-        kwargs['buildstep_phase'] = True
-
-        plugins_results = super(BuildStepPluginsRunner, self).run(*args, **kwargs)
+        plugins_results = super(BuildStepPluginsRunner, self).run(
+            keep_going=keep_going, buildstep_phase=buildstep_phase
+        )
         return list(plugins_results.values())[0]
 
 
@@ -596,8 +596,10 @@ class InputPluginsRunner(PluginsRunner):
         super(InputPluginsRunner, self).__init__(plugin_class_name, plugins_conf, *args, **kwargs)
         self.plugins_results = {}
 
-    def run(self, *args, **kwargs):
-        result = super(InputPluginsRunner, self).run(*args, **kwargs)
+    def run(self, keep_going=False, buildstep_phase=False):
+        result = super(InputPluginsRunner, self).run(
+            keep_going=keep_going, buildstep_phase=buildstep_phase
+        )
 
         if self.autoinput:
             autousable = self.plugins_conf[0]['name']

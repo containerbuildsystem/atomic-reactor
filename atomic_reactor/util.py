@@ -309,12 +309,14 @@ def process_substitutions(mapping, substitutions):
 def _process_plugin_substitution(mapping, key_parts, value):
     try:
         plugin_type, plugin_name, arg_name = key_parts
-    except ValueError:
+    except ValueError as exc:
         logger.error("invalid absolute path '%s': it requires exactly three parts: "
                      "plugin type, plugin name, argument name (dot separated)",
                      key_parts)
-        raise ValueError("invalid absolute path to plugin, it should be "
-                         "plugin_type.plugin_name.argument_name")
+        raise ValueError(
+            "invalid absolute path to plugin, "
+            "it should be plugin_type.plugin_name.argument_name"
+        ) from exc
 
     logger.debug("getting plugin conf for '%s' with type '%s'",
                  plugin_name, plugin_type)
@@ -549,10 +551,10 @@ class Dockercfg(object):
             if 'auths' in self.json_secret:
                 self.json_secret = self.json_secret.get('auths')
 
-        except Exception:
+        except Exception as exc:
             msg = "failed to read registry secret"
             logger.error(msg, exc_info=True)
-            raise RuntimeError(msg)
+            raise RuntimeError(msg) from exc
 
     def get_credentials(self, docker_registry):
         # For maximal robustness we check the host:port of the passed in
@@ -984,8 +986,8 @@ def is_manifest_list(version):
 def get_manifest_media_type(version):
     try:
         return ManifestDigest.content_type[version]
-    except KeyError:
-        raise RuntimeError("Unknown manifest schema type")
+    except KeyError as exc:
+        raise RuntimeError("Unknown manifest schema type") from exc
 
 
 def get_manifest_media_version(digest):
@@ -1729,8 +1731,8 @@ class DockerfileImages(object):
 
         try:
             kindex = self._pullable_parents.index(key)
-        except ValueError:
-            raise KeyError(key)
+        except ValueError as exc:
+            raise KeyError(key) from exc
 
         self._local_parents[kindex] = ImageName.parse(item)
         logger.info("set parent image '%s' to '%s'", key.to_str(), item)
@@ -1757,8 +1759,8 @@ class DockerfileImages(object):
 
         try:
             kindex = self._pullable_parents.index(key)
-        except ValueError:
-            raise KeyError(key)
+        except ValueError as exc:
+            raise KeyError(key) from exc
         return deepcopy(self._local_parents[kindex])
 
     def __iter__(self):

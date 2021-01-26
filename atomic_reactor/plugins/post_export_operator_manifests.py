@@ -97,10 +97,10 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
             self.log.debug('Error while trying to extract %s from image: %s',
                            IMG_MANIFESTS_PATH, ex)
             self.log.error(msg)
-            raise RuntimeError('%s %s' % (msg, ex))
+            raise RuntimeError('%s %s' % (msg, ex)) from ex
 
         except Exception as ex:
-            raise RuntimeError('%s' % ex)
+            raise RuntimeError('%s' % ex) from ex
 
         finally:
             try:
@@ -147,7 +147,7 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
         try:
             image_csv = OperatorManifest.from_directory(manifests_path).csv
         except ValueError as e:
-            raise ValueError(f'Operator manifests check in built image failed: {e}')
+            raise ValueError(f'Operator manifests check in built image failed: {e}') from e
 
         repo_csv = OperatorManifest.from_directory(self.workflow.source.manifests_dir).csv
 

@@ -493,8 +493,8 @@ class PullspecReplacer(object):
         try:
             _, package = labels.get_name_and_value(Labels.LABEL_TYPE_COMPONENT)
             self.log.debug("Resolved package name: %s", package)
-        except KeyError:
-            raise RuntimeError("Image has no component label: {}".format(image))
+        except KeyError as exc:
+            raise RuntimeError("Image has no component label: {}".format(image)) from exc
 
         return package
 

@@ -131,10 +131,10 @@ def wait_for_any_cluster(contexts):
     try:
         earliest_retry_at = min(ctx.retry_at for ctx in contexts.values()
                                 if not ctx.failed)
-    except ValueError:  # can't take min() of empty sequence
+    except ValueError as exc:  # can't take min() of empty sequence
         raise AllClustersFailedException(
             "Could not find appropriate cluster for worker build."
-        )
+        ) from exc
 
     time_until_next = earliest_retry_at - dt.datetime.now()
     time.sleep(max(timedelta(seconds=0), time_until_next).seconds)
@@ -647,8 +647,10 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         try:
             build_name = spec['strategy']['customStrategy']['from']['name']
             build_kind = spec['strategy']['customStrategy']['from']['kind']
-        except KeyError:
-            raise RuntimeError("Build object is malformed, failed to fetch buildroot image")
+        except KeyError as exc:
+            raise RuntimeError(
+                "Build object is malformed, failed to fetch buildroot image"
+            ) from exc
 
         if build_kind == 'DockerImage':
             return build_name
@@ -716,18 +718,20 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         try:
             build_config = self.openshift_session.os.get_build_config(build_config_name)
-        except OsbsException:
-            raise RuntimeError("Build config not found : %s" % build_config_name)
+        except OsbsException as exc:
+            raise RuntimeError("Build config not found : %s" % build_config_name) from exc
 
         try:
             build_from = build_config['spec']['strategy']['customStrategy']['from']
-        except KeyError:
-            raise RuntimeError("BuildConfig object is malformed")
+        except KeyError as exc:
+            raise RuntimeError("BuildConfig object is malformed") from exc
 
         try:
             return self.process_image_from(build_from)
-        except UnknownKindException:
-            raise RuntimeError("BuildConfig object has unknown 'kind' %s" % build_from['kind'])
+        except UnknownKindException as exc:
+            raise RuntimeError(
+                "BuildConfig object has unknown 'kind' %s" % build_from['kind']
+            ) from exc
 
     def get_image_info_from_annotations(self):
         annotations = get_build_json().get("metadata", {}).get('annotations', {})
@@ -736,9 +740,10 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
             try:
                 return self.process_image_from(scratch_from)
-            except UnknownKindException:
-                raise RuntimeError("Build annotation has unknown 'kind' %s" %
-                                   scratch_from['kind'])
+            except UnknownKindException as exc:
+                raise RuntimeError(
+                    "Build annotation has unknown 'kind' %s" % scratch_from['kind']
+                ) from exc
         else:
             raise RuntimeError("Build wasn't created from BuildConfig and neither"
                                " has 'from' annotation, which is needed for specified arch")
@@ -746,20 +751,21 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     def get_build_image_from_imagestream(self, imagestream):
         try:
             tag = self.openshift_session.get_image_stream_tag(imagestream).json()
-        except OsbsException:
-            raise RuntimeError("ImageStreamTag not found %s" % imagestream)
+        except OsbsException as exc:
+            raise RuntimeError("ImageStreamTag not found %s" % imagestream) from exc
 
         try:
             tag_image = tag['image']['dockerImageReference']
-        except KeyError:
-            raise RuntimeError("ImageStreamTag is malformed %s" % imagestream)
+        except KeyError as exc:
+            raise RuntimeError("ImageStreamTag is malformed %s" % imagestream) from exc
 
         if '@sha256:' in tag_image:
             try:
                 labels = tag['image']['dockerImageMetadata']['Config']['Labels']
-            except KeyError:
-                raise RuntimeError("Image in imageStreamTag '%s' is missing Labels" %
-                                   imagestream)
+            except KeyError as exc:
+                raise RuntimeError(
+                    "Image in imageStreamTag '%s' is missing Labels" % imagestream
+                ) from exc
 
             release = labels['release']
             version = labels['version']

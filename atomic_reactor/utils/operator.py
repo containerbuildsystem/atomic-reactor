@@ -307,8 +307,8 @@ class OperatorCSV(object):
         try:
             if data.get("kind") != OPERATOR_CSV_KIND:
                 raise NotOperatorCSV("Not a ClusterServiceVersion")
-        except AttributeError:
-            raise NotOperatorCSV("File does not contain a YAML object")
+        except AttributeError as exc:
+            raise NotOperatorCSV("File does not contain a YAML object") from exc
         self.path = path
         self.data = data
         self._pullspec_heuristic = pullspec_heuristic

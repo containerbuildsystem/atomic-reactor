@@ -250,10 +250,10 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
                     self._base_image_inspect = \
                         self.tasker.inspect_image(base_image)
 
-                except docker.errors.NotFound:
+                except docker.errors.NotFound as exc:
                     # If the base image cannot be found throw KeyError -
                     # as this property should behave like a dict
-                    raise KeyError("Unprocessed base image Dockerfile cannot be inspected")
+                    raise KeyError("Unprocessed base image Dockerfile cannot be inspected") from exc
             else:
                 insecure = self.pull_registries[base_image.registry]['insecure']
                 dockercfg_path = self.pull_registries[base_image.registry]['dockercfg_path']

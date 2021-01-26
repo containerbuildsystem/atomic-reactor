@@ -168,12 +168,12 @@ class BumpReleasePlugin(PreBuildPlugin):
                 if release and user_provided_release:
                     self.log.error("CGInitBuild failed, not retrying because"
                                    " release was explicitly provided by user")
-                    raise RuntimeError(exc)
+                    raise RuntimeError(exc) from exc
 
                 if release and not source_build:
                     self.log.error("CGInitBuild failed, not retrying because"
                                    " release was explicitly specified in Dockerfile")
-                    raise RuntimeError(exc)
+                    raise RuntimeError(exc) from exc
 
                 if counter < KOJI_RESERVE_MAX_RETRIES:
                     self.log.info("retrying CGInitBuild")
@@ -188,7 +188,7 @@ class BumpReleasePlugin(PreBuildPlugin):
                 else:
                     self.log.error("CGInitBuild failed, reached maximum number of retries %s",
                                    KOJI_RESERVE_MAX_RETRIES)
-                    raise RuntimeError(exc)
+                    raise RuntimeError(exc) from exc
             except Exception:
                 self.log.error("CGInitBuild failed")
                 raise

@@ -279,10 +279,10 @@ class AddLabelsPlugin(PreBuildPlugin):
         else:
             try:
                 config = self.workflow.builder.base_image_inspect[INSPECT_CONFIG]
-            except KeyError:
+            except KeyError as exc:
                 message = "base image was not inspected"
                 self.log.error(message)
-                raise RuntimeError(message)
+                raise RuntimeError(message) from exc
             else:
                 base_image_labels = config["Labels"] or {}
 

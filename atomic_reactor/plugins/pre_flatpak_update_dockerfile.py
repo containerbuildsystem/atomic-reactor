@@ -22,7 +22,7 @@ try:
     gi.require_version('Modulemd', '2.0')
 except ValueError as e:
     # Normalize to ImportError to simplify handling
-    raise ImportError(str(e))
+    raise ImportError(str(e)) from e
 from gi.repository import Modulemd
 
 from osbs.repo_utils import ModuleSpec
