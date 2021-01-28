@@ -674,6 +674,16 @@
           "denylist_sources": {
               "description": "Url with denylist yaml file, which will be used to exclude sources from cachito ",
               "type": "string"
+          },
+          "cpu_request": {
+              "description": "Openshift cpu request for build",
+              "type": "string",
+              "examples": ["1001m", "3000m"]
+          },
+          "memory_request": {
+              "description": "Openshift memory request for build",
+              "type": "string",
+              "examples": ["1Gi", "3Gi"]
           }
         },
         "additionalProperties": false
