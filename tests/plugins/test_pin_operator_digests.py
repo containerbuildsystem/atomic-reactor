@@ -140,6 +140,7 @@ def mock_operator_csv(tmpdir, filename, pullspecs, for_ocp_44=False,
         containers[0]['env'] = [{'name': 'RELATED_IMAGE_XYZ', 'value': 'xyz'}]
     data = {
         'kind': 'ClusterServiceVersion',
+        'metadata': {},
         'spec': {
             'relatedImages': [],
             # It does not really matter where in the CSV these pullspecs go

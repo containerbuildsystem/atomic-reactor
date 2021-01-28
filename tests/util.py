@@ -89,7 +89,9 @@ requires_internet = pytest.mark.skipif(not has_connection(), reason="requires in
 FAKE_CSV = '''\
 apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
-metadata:
+metadata: {}
+spec:
+    install: {}
 '''
 
 OPERATOR_MANIFESTS_DIR = 'operator-manifests'

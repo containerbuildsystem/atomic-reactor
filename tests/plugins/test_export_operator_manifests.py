@@ -75,7 +75,6 @@ def generate_archive(tmpdir, empty=False, change_csv_content=False, multiple_csv
         csv = FAKE_CSV
         if change_csv_content:
             csv += dedent('''\
-                spec:
                   customresourcedefinitions:
             ''')
         manifests_dir.join('operator.clusterserviceversion.yaml').write(csv)
@@ -84,7 +83,9 @@ def generate_archive(tmpdir, empty=False, change_csv_content=False, multiple_csv
             manifests_dir.join('extra.csv.yaml').write(dedent('''\
                 apiVersion: operators.coreos.com/v1alpha1
                 kind: ClusterServiceVersion
+                metadata: {}
                 spec:
+                    install: {}
             '''))
 
     archive_path = tmpdir.join('temp.tar')
