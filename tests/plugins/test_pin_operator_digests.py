@@ -82,7 +82,9 @@ def mock_env(docker_tasker, repo_dir, orchestrator,
              user_config=None, site_config=None,
              df_base='scratch', df_operator_label=True,
              replacement_pullspecs=None, add_to_config=None,
-             write_container_yaml=True):
+             write_container_yaml=True,
+             operator_csv_modifications_url=None
+             ):
     """
     Mock environment for test
 
@@ -101,10 +103,12 @@ def mock_env(docker_tasker, repo_dir, orchestrator,
     reactor_config = make_reactor_config(site_config)
     if add_to_config:
         reactor_config.update(add_to_config)
+    plugin_args = {
+        'replacement_pullspecs': replacement_pullspecs,
+        'operator_csv_modifications_url': operator_csv_modifications_url,
+    }
     env = (MockEnv()
-           .for_plugin('prebuild',
-                       PinOperatorDigestsPlugin.key,
-                       {'replacement_pullspecs': replacement_pullspecs})
+           .for_plugin('prebuild', PinOperatorDigestsPlugin.key, plugin_args)
            .set_reactor_config(reactor_config))
 
     if orchestrator:
@@ -442,7 +446,8 @@ class TestPinOperatorDigest(object):
         assert expected in str(exc_info.value)
 
     @responses.activate
-    def test_orchestrator(self, docker_tasker, tmpdir, caplog):
+    @pytest.mark.parametrize('csv_modification', [True, False])
+    def test_orchestrator(self, csv_modification, docker_tasker, tmpdir, caplog):
         pullspecs = [
             # registry.private.example.com: do not replace registry or repos
             'registry.private.example.com/ns/foo@sha256:1',  # -> no change
@@ -504,9 +509,32 @@ class TestPinOperatorDigest(object):
             {'url': 'https://weird-registry'},
         ]}
 
+        operator_csv_modifications_url = None
+        if csv_modification:
+            operator_csv_modifications_url = 'https://somewhere.com/url'
+            responses.add(responses.GET, operator_csv_modifications_url, json={
+                'pullspec_replacements': [
+                    # This one should be respected and be in the replacement result
+                    {
+                        'original': 'old-registry/ns/spam:1',
+                        # The spam has a new digest 123456 since last rebuilt
+                        'new': 'new-registry/new-ns/new-spam@sha256:123456',
+                        'pinned': True
+                    },
+                    # This one should be ignored since the pinned is False
+                    {
+                        'original': 'old-registry/ns/spam@sha256:4',
+                        'new': 'new-registry/new-ns/new-spam@sha256:4',
+                        'pinned': False,
+
+                    }
+                ]
+            })
+
         runner = mock_env(docker_tasker, tmpdir, orchestrator=True,
                           user_config=user_config, site_config=site_config,
-                          add_to_config=pull_registries)
+                          add_to_config=pull_registries,
+                          operator_csv_modifications_url=operator_csv_modifications_url)
 
         result = runner.run()
 
@@ -554,7 +582,8 @@ class TestPinOperatorDigest(object):
             'private-registry/ns/baz@sha256:3': 'public-registry/ns/baz@sha256:3',
             'private-registry/ns/baz:1': 'public-registry/ns/baz@sha256:3',
             'old-registry/ns/spam@sha256:4': 'new-registry/new-ns/new-spam@sha256:4',
-            'old-registry/ns/spam:1': 'new-registry/new-ns/new-spam@sha256:4',
+            'old-registry/ns/spam:1':
+                f'new-registry/new-ns/new-spam@sha256:{"123456" if csv_modification else "4"}',
         }
         assert self._get_worker_arg(runner.workflow) == replacement_pullspecs
 
@@ -563,7 +592,10 @@ class TestPinOperatorDigest(object):
                 'pullspecs': [
                     {
                         'original': ImageName.parse('old-registry/ns/spam:1'),
-                        'new': ImageName.parse('new-registry/new-ns/new-spam@sha256:4'),
+                        'new': ImageName.parse(
+                            f'new-registry/new-ns/new-spam@sha256:'
+                            f'{"123456" if csv_modification else "4"}'
+                        ),
                         'pinned': True,
                         'replaced': True
                     }, {

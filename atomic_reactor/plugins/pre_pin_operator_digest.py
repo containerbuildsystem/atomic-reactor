@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 import logging
 
+from atomic_reactor.utils.retries import get_retrying_requests_session
 from osbs.utils import Labels, ImageName
 
 from atomic_reactor.plugin import PreBuildPlugin
@@ -50,7 +51,10 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
     key = PLUGIN_PIN_OPERATOR_DIGESTS_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, replacement_pullspecs=None):
+    def __init__(self, tasker, workflow,
+                 replacement_pullspecs=None,
+                 operator_csv_modifications_url=None
+                 ):
         """
         Initialize pin_operator_digests plugin
 
@@ -58,10 +62,15 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         :param workflow: DockerBuildWorkflow instance
         :param replacement_pullspecs: Dict[str, str], computed in orchestrator,
                                       provided to workers by osbs-client
+        :param operator_csv_modifications_url: str, URL to JSON file with
+            operator CSV modifications.
         """
         super(PinOperatorDigestsPlugin, self).__init__(tasker, workflow)
         self.user_config = workflow.source.config.operator_manifests
         self.replacement_pullspecs = replacement_pullspecs or {}
+        self.operator_csv_modifications_url = operator_csv_modifications_url
+        self.log.info('Operator CSV modification URL specified: %s',
+                      self.operator_csv_modifications_url)
 
     def run(self):
         """
@@ -132,6 +141,22 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         else:
             if pullspecs:
                 replacement_pullspecs = self._get_replacement_pullspecs(pullspecs)
+
+                if self.operator_csv_modifications_url is not None:
+                    session = get_retrying_requests_session()
+                    resp = session.get(self.operator_csv_modifications_url)
+                    resp.raise_for_status()
+                    modification_data = resp.json()
+
+                    for modification_item in modification_data['pullspec_replacements']:
+                        if not modification_item['pinned']:
+                            continue
+                        original = ImageName.parse(modification_item['original'])
+                        for replacement in replacement_pullspecs:
+                            if replacement['original'] == original:
+                                replacement['new'] = ImageName.parse(modification_item['new'])
+                                break
+
                 self._set_worker_arg(replacement_pullspecs)
                 related_images_metadata['pullspecs'] = replacement_pullspecs
             else:
