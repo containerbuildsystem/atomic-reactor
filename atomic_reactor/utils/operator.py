@@ -102,17 +102,17 @@ _mini_csv_schema = {
                                                                                         [
                                                                                             'name'
                                                                                         ],
-                                                                                        'properties':
+                                                                                        'properties':  # noqa E501
                                                                                         {
                                                                                             'name':
                                                                                             {
-                                                                                                'type':
-                                                                                                'string'
+                                                                                                'type':  # noqa E501
+                                                                                                'string'  # noqa E501
                                                                                             },
                                                                                             'value':
                                                                                             {
-                                                                                                'type':
-                                                                                                'string'
+                                                                                                'type':  # noqa E501
+                                                                                                'string'  # noqa E501
                                                                                             }
                                                                                         }
                                                                                     }
