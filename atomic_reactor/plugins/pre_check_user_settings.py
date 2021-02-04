@@ -12,6 +12,7 @@ from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (
     has_operator_appregistry_manifest,
     has_operator_bundle_manifest,
+    is_isolated_build,
     read_content_sets,
     read_fetch_artifacts_koji,
     read_fetch_artifacts_url
@@ -101,9 +102,27 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
         read_fetch_artifacts_url(self.workflow)
         read_content_sets(self.workflow)
 
+    def isolated_from_scratch_build(self):
+        """Isolated builds for FROM scratch builds are prohibited
+         except operator bundle images"""
+        if (
+            self.workflow.builder.dockerfile_images.base_from_scratch and
+            is_isolated_build(self.workflow) and
+            not has_operator_bundle_manifest(self.workflow)
+        ):
+            raise RuntimeError(
+                '"FROM scratch" image build cannot be isolated '
+                '(except operator bundle images)'
+            )
+
+    def isolated_builds_checks(self):
+        """Validate if isolated build was used correctly"""
+        self.isolated_from_scratch_build()
+
     def run(self):
         """
         run the plugin
         """
         self.dockerfile_checks()
         self.validate_user_config_files()
+        self.isolated_builds_checks()

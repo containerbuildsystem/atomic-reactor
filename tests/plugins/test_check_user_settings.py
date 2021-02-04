@@ -73,7 +73,8 @@ class FakeSource(StubSource):
 
 
 def mock_env(dockerfile_path, docker_tasker,
-             labels=(), flatpak=False, dockerfile_f=mock_dockerfile):
+             labels=(), flatpak=False, dockerfile_f=mock_dockerfile,
+             isolated=None):
     """Mock test environment
 
     :param dockerfile_path: the path to the fake dockerfile to be created, not including the
@@ -86,6 +87,7 @@ def mock_env(dockerfile_path, docker_tasker,
     :param bool flatpak: a flag to indicate whether the test is for a flatpak build.
     :param callable dockerfile_f: a function to create fake dockerfile. Different test could pass a
         specific function for itself.
+    :param bool isolated: a flag to indicated if build is isolated
     """
     if not flatpak:
         # flatpak build has no Dockefile
@@ -94,10 +96,12 @@ def mock_env(dockerfile_path, docker_tasker,
     env = MockEnv().for_plugin('prebuild', CheckUserSettingsPlugin.key, {'flatpak': flatpak})
     env.workflow.source = FakeSource(dockerfile_path)
 
+    if isolated is not None:
+        env.set_isolated(isolated)
+
     dfp = df_parser(str(dockerfile_path))
     env.workflow.builder.set_df_path(str(dockerfile_path))
-    if not flatpak:
-        env.workflow.builder.set_dockerfile_images(dfp.parent_images)
+    env.workflow.builder.set_dockerfile_images([] if flatpak else dfp.parent_images)
 
     return env.create_runner(docker_tasker)
 
@@ -276,4 +280,43 @@ class TestValidateUserConfigFiles(object):
 
         runner = mock_env(tmpdir, docker_tasker)
         with pytest.raises(PluginFailedException, match="validating 'pattern' has failed"):
+            runner.run()
+
+
+class TestIsolatedBuildChecks(object):
+    """Test isolated_build_checks"""
+
+    @pytest.mark.parametrize(
+        'isolated,bundle,from_scratch,expected_fail',
+        [
+            (True, True, True, False),
+            # (True, True, False, True),  # invalid, bundle must be FROM scratch
+            (True, False, True, True),
+            (True, False, False, False),
+            (False, True, True, False),
+            # (False, True, False, False), # invalid, bundle must be FROM scratch
+            (False, False, True, False),
+            (False, False, False, False),
+        ]
+    )
+    def test_isolated_from_scratch_build(
+        self, docker_tasker, tmpdir,
+        isolated, bundle, from_scratch, expected_fail,
+    ):
+        """Test if isolated FROM scratch builds are prohibited except
+        operator bundle builds"""
+        labels = ['com.redhat.delivery.operator.bundle=true'] if bundle else []
+
+        dockerfile_f = partial(mock_dockerfile, from_scratch=from_scratch)
+
+        runner = mock_env(
+            tmpdir, docker_tasker,
+            dockerfile_f=dockerfile_f, labels=labels, isolated=isolated
+        )
+        if expected_fail:
+            with pytest.raises(PluginFailedException) as exc_info:
+                runner.run()
+
+            assert '"FROM scratch" image build cannot be isolated ' in str(exc_info.value)
+        else:
             runner.run()
