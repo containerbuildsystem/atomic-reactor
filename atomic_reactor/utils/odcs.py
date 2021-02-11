@@ -73,7 +73,7 @@ class ODCSClient(object):
 
     def start_compose(self, source_type, source, packages=None, sigkeys=None, arches=None,
                       flags=None, multilib_arches=None, multilib_method=None,
-                      modular_koji_tags=None):
+                      modular_koji_tags=None, base_module_br_name=None, base_module_br_stream=None):
         """Start a new ODCS compose
 
         :param source_type: str, the type of compose to request (tag, module, pulp)
@@ -98,6 +98,8 @@ class ODCSClient(object):
         :param modular_koji_tags: list<str>, the koji tags which are tagged to builds from the
                         modular Koji Content Generator.  Builds with matching tags will be
                         included in the compose.
+        :param base_module_br_name: str, the name of a base module
+        :param base_module_br_stream: str, the stream of a base module
 
         :return: dict, status of compose being created by request.
         """
@@ -112,6 +114,12 @@ class ODCSClient(object):
 
         if sigkeys is not None:
             body['source']['sigkeys'] = sigkeys
+
+        if base_module_br_name is not None:
+            body['source']['base_module_br_name'] = base_module_br_name
+
+        if base_module_br_stream is not None:
+            body['source']['base_module_br_stream'] = base_module_br_stream
 
         if flags is not None:
             body['flags'] = flags

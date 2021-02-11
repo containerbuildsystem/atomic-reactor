@@ -490,6 +490,61 @@ class TestResolveComposes(object):
         workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = arches
         self.run_plugin_with_args(workflow)
 
+    @pytest.mark.parametrize(('base_module', 'base_name', 'base_stream', 'raise_exc'), [
+        ("", None, None, None),
+        ("wrong", None, None, PluginFailedException),
+        (":", None, None, PluginFailedException),
+        ("::", None, None, PluginFailedException),
+        ("name:stream:wrong", None, None, PluginFailedException),
+        ("name:stream", 'name', 'stream', None),
+        ("name:", 'name', None, None),
+        (":stream", None, 'stream', None),
+    ])
+    def test_request_compose_for_modules_with_base_module(self, workflow, base_module, base_name,
+                                                          base_stream, raise_exc):
+        arches = ['ppc64le', 'x86_64']
+        repo_config = dedent("""\
+            compose:
+                modules:
+                - spam:stable
+                - bacon:stable
+                - eggs:stable/profile
+                base_module: "{}"
+            """.format(base_module))
+        mock_repo_config(workflow._tmpdir, repo_config)
+
+        kwargs = {
+            'source_type': 'module',
+            'source': 'spam:stable bacon:stable eggs:stable',
+            'sigkeys': ['R123'],
+            'arches': arches
+        }
+        if base_name:
+            kwargs['base_module_br_name'] = base_name
+        if base_stream:
+            kwargs['base_module_br_stream'] = base_stream
+
+        if raise_exc:
+            (flexmock(ODCSClient)
+                .should_receive('start_compose')
+                .never())
+        else:
+            (flexmock(ODCSClient)
+                .should_receive('start_compose')
+                .with_args(**kwargs)
+                .once()
+                .and_return(ODCS_COMPOSE))
+
+        mock_odcs_client_wait_for_compose()
+
+        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = arches
+
+        if raise_exc:
+            with pytest.raises(raise_exc):
+                self.run_plugin_with_args(workflow)
+        else:
+            self.run_plugin_with_args(workflow)
+
     @pytest.mark.parametrize('multilib', (True, False))
     @pytest.mark.parametrize('is_true', (True, False))
     @pytest.mark.parametrize('arches', (

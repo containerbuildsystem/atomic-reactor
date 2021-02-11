@@ -108,9 +108,18 @@ def compose_json(state, state_name, source_type='module', source=MODULE_NSV,
     (['breakfast', 'lunch'], ['some', 'random'], ['some', 'random']),
     (['breakfast', 'lunch'], [], MULTILIB_METHOD_DEFAULT)
 ))
+@pytest.mark.parametrize(('base_module_br_name', 'base_module_br_stream',
+                          'expected_br_name', 'expected_br_stream'), (
+    (None, None, None, None),
+    ('base_name', None, 'base_name', None),
+    (None, 'base_stream', None, 'base_stream'),
+    ('base_name', 'base_stream', 'base_name', 'base_stream'),
+))
 def test_create_compose(odcs_client, source, source_type, packages, expected_packages, sigkeys,
                         modular_koji_tags, expected_koji_tags,
-                        arches, flags, multilib_arches, multilib_method, expected_method):
+                        arches, flags, multilib_arches, multilib_method, expected_method,
+                        base_module_br_name, base_module_br_stream,
+                        expected_br_name, expected_br_stream):
 
     def handle_composes_post(request):
         assert_request_token(request, odcs_client.session)
@@ -126,6 +135,8 @@ def test_create_compose(odcs_client, source, source_type, packages, expected_pac
         assert body_json['source'].get('packages') == expected_packages
         assert body_json['source'].get('sigkeys') == sigkeys
         assert body_json['source'].get('modular_koji_tags') == expected_koji_tags
+        assert body_json['source'].get('base_module_br_name') == expected_br_name
+        assert body_json['source'].get('base_module_br_stream') == expected_br_stream
         assert body_json.get('flags') == flags
         assert body_json.get('arches') == arches
         assert body_json.get('multilib_arches') == multilib_arches
@@ -142,7 +153,9 @@ def test_create_compose(odcs_client, source, source_type, packages, expected_pac
     odcs_client.start_compose(source_type=source_type, source=source, packages=packages,
                               sigkeys=sigkeys, arches=arches, flags=flags,
                               multilib_arches=multilib_arches, multilib_method=multilib_method,
-                              modular_koji_tags=modular_koji_tags)
+                              modular_koji_tags=modular_koji_tags,
+                              base_module_br_name=base_module_br_name,
+                              base_module_br_stream=base_module_br_stream)
 
 
 @responses.activate

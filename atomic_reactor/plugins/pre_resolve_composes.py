@@ -426,6 +426,7 @@ class ComposeConfig(object):
         self.use_packages = 'packages' in data
         self.packages = data.get('packages', [])
         self.modules = data.get('modules', [])
+        self.base_module = data.get('base_module')
         self.pulp = {}
         self.arches = arches or []
         self.multilib_arches = []
@@ -515,6 +516,20 @@ class ComposeConfig(object):
             request['multilib_method'] = self.multilib_method
         return request
 
+    def get_and_verify_base_module(self):
+        """Gets and verifies provided base_module"""
+        base_pieces = self.base_module.split(':')
+        msg = 'Base module specification "{}" should be in [NAME]:[STREAM] format, ' \
+              'but at least one specified'.format(self.base_module)
+
+        if len(base_pieces) != 2:
+            raise ValueError(msg)
+
+        if not (base_pieces[0] or base_pieces[1]):
+            raise ValueError(msg)
+
+        return base_pieces[0], base_pieces[1]
+
     def render_modules_request(self):
         # In the Flatpak case, the profile is used to determine which packages
         # are installed into the Flatpak. But ODCS doesn't understand profiles,
@@ -528,6 +543,15 @@ class ComposeConfig(object):
         }
         if self.arches:
             request['arches'] = self.arches
+
+        if self.base_module:
+            base_name, base_stream = self.get_and_verify_base_module()
+
+            if base_name:
+                request['base_module_br_name'] = base_name
+            if base_stream:
+                request['base_module_br_stream'] = base_stream
+
         return request
 
     def render_pulp_request(self, arch):
