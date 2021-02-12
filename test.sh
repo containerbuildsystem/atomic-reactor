@@ -73,6 +73,9 @@ function setup_osbs() {
   # Install package
   $RUN $PKG install -y $PIP_PKG
 
+  # Upgrade pip to provide latest features for successful installation
+  $RUN "${PIP_INST[@]}" --upgrade pip
+
   if [[ $OS == centos ]]; then
     # Pip install/upgrade setuptools. Older versions of setuptools don't understand the
     # environment markers used by docker-squash's requirements, also
