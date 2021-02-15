@@ -15,8 +15,7 @@ import responses
 from flexmock import flexmock
 
 from atomic_reactor.constants import (HTTP_MAX_RETRIES,
-                                      HTTP_REQUEST_TIMEOUT,
-                                      HTTP_CONNECTION_ERROR_RETRIES)
+                                      HTTP_REQUEST_TIMEOUT)
 from atomic_reactor.utils.retries import SessionWithTimeout, get_retrying_requests_session
 
 
@@ -46,17 +45,17 @@ def test_session_with_timeout(timeout):
         session.get(test_url)
 
 
-@pytest.mark.parametrize('times,connect', [(None, None), (0, 5), (5, 0)])
-def test_get_retrying_requests_session(times, connect):
+@pytest.mark.parametrize('times', [None, 0, 5])
+def test_get_retrying_requests_session(times):
     """
     Test that retries are set properly for http(s):// adapters
 
     Most arguments are simply passed to Retry.__init__, test only basic functionality
     """
-    if times is None and connect is None:
-        session = get_retrying_requests_session()
+    if times is not None:
+        session = get_retrying_requests_session(times=times)
     else:
-        session = get_retrying_requests_session(times=times, connect=connect)
+        session = get_retrying_requests_session()
 
     http = session.adapters['http://']
     https = session.adapters['https://']
@@ -67,10 +66,6 @@ def test_get_retrying_requests_session(times, connect):
     expected_total = times if times is not None else HTTP_MAX_RETRIES
     assert http.max_retries.total == expected_total
     assert https.max_retries.total == expected_total
-
-    expected_connect = connect if connect is not None else HTTP_CONNECTION_ERROR_RETRIES
-    assert http.max_retries.connect == expected_connect
-    assert https.max_retries.connect == expected_connect
 
 
 @responses.activate

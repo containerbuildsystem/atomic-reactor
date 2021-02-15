@@ -14,8 +14,7 @@ from urllib3.util import Retry
 from atomic_reactor.constants import (HTTP_CLIENT_STATUS_RETRY,
                                       HTTP_MAX_RETRIES,
                                       HTTP_BACKOFF_FACTOR,
-                                      HTTP_REQUEST_TIMEOUT,
-                                      HTTP_CONNECTION_ERROR_RETRIES)
+                                      HTTP_REQUEST_TIMEOUT)
 
 logger = logging.getLogger(__name__)
 
@@ -49,15 +48,13 @@ def hook_log_error_response_content(response, *args, **kwargs):
 
 
 def get_retrying_requests_session(client_statuses=HTTP_CLIENT_STATUS_RETRY,
-                                  times=HTTP_MAX_RETRIES, connect=HTTP_CONNECTION_ERROR_RETRIES,
-                                  delay=HTTP_BACKOFF_FACTOR, method_whitelist=None,
-                                  raise_on_status=True):
+                                  times=HTTP_MAX_RETRIES, delay=HTTP_BACKOFF_FACTOR,
+                                  method_whitelist=None, raise_on_status=True):
     if _http_retries_disabled():
         times = 0
 
     retry = Retry(
         total=int(times),
-        connect=connect,
         backoff_factor=delay,
         status_forcelist=client_statuses,
         method_whitelist=method_whitelist

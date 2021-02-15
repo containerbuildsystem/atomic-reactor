@@ -134,8 +134,6 @@ DOCKER_PUSH_MAX_RETRIES = 6
 DOCKER_PUSH_BACKOFF_FACTOR = 5
 # max retries for http requests
 HTTP_MAX_RETRIES = 3
-# max retries for connection-related errors
-HTTP_CONNECTION_ERROR_RETRIES = 3
 # how many seconds should wait before another try of http request
 HTTP_BACKOFF_FACTOR = 5
 # http retries statuses
