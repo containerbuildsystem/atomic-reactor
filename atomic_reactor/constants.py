@@ -133,7 +133,7 @@ DOCKER_PUSH_MAX_RETRIES = 6
 # how many seconds should wait before another try of docker push
 DOCKER_PUSH_BACKOFF_FACTOR = 5
 # max retries for http requests
-HTTP_MAX_RETRIES = 3
+HTTP_MAX_RETRIES = 10
 # how many seconds should wait before another try of http request
 HTTP_BACKOFF_FACTOR = 5
 # http retries statuses
