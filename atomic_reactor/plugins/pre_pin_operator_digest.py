@@ -23,6 +23,7 @@ from atomic_reactor.util import (RegistrySession,
 from atomic_reactor.plugins.pre_reactor_config import get_operator_manifests
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.utils.operator import OperatorManifest
+from atomic_reactor.utils.retries import get_retrying_requests_session
 
 
 class PinOperatorDigestsPlugin(PreBuildPlugin):
@@ -66,6 +67,41 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         self.user_config = workflow.source.config.operator_manifests
         self.replacement_pullspecs = replacement_pullspecs or {}
         self.operator_csv_modifications_url = operator_csv_modifications_url
+
+    def _fetch_operator_csv_modifications(self):
+        """Fetch operator CSV modifications"""
+
+        if not self.operator_csv_modifications_url:
+            return None
+
+        session = get_retrying_requests_session()
+
+        self.log.info(
+            "Fetching operator CSV modifications data from %s",
+            self.operator_csv_modifications_url
+        )
+        resp = session.get(self.operator_csv_modifications_url)
+        try:
+            resp.raise_for_status()
+        except Exception as exc:
+            raise RuntimeError(
+                f"Failed to fetch the operator CSV modification JSON "
+                f"from {self.operator_csv_modifications_url}: {exc}"
+            ) from exc
+
+        try:
+            csv_modifications = resp.json()
+        except Exception as exc:
+            # catching raw Exception because requests uses various json decoders
+            # in different versions
+            raise RuntimeError(
+                f"Failed to parse operator CSV modification JSON "
+                f"from {self.operator_csv_modifications_url}: {exc}"
+            ) from exc
+
+        self.log.info("Operator CSV modifications: %s", csv_modifications)
+
+        return csv_modifications
 
     def run(self):
         """
@@ -131,6 +167,13 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         pullspecs = self._get_pullspecs(operator_manifest.csv, should_skip)
 
         if operator_manifest.csv.has_related_images() or should_skip:
+            if self.operator_csv_modifications_url:
+                raise RuntimeError(
+                    "OSBS cannot modify operator CSV file because this operator bundle "
+                    "is managed by owner (digest pinning explicitly disabled or "
+                    "RelatedImages section in CSV exists)"
+                )
+
             # related images already exists
             related_images_metadata['created_by_osbs'] = False
             related_images_metadata['pullspecs'] = [{
@@ -262,6 +305,91 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         return pullspecs
 
     def _get_replacement_pullspecs(self, pullspecs):
+        """Replace components of pullspecs
+
+        :param pullspecs: a list of pullspecs.
+        :type pullspecs: list[ImageName]
+        :return: a list of replacement result. Each of the replacement result
+            is a mapping containing key/value pairs:
+
+            * ``original``: ImageName, the original pullspec.
+            * ``new``: ImageName, the replaced/non-replaced pullspec.
+            * ``pinned``: bool, indicate whether the tag is replaced with a
+                          specific digest.
+            * ``replaced``: bool, indicate whether the new pullspec has change
+                            of repository or registry.
+
+        :rtype: list[dict[str, ImageName or bool]]
+        :raises RuntimeError: if pullspecs cannot be properly replaced
+        """
+        if self.operator_csv_modifications_url:
+            replacements = self._get_replacement_pullspecs_from_csv_modifications(pullspecs)
+        else:
+            replacements = self._get_replacement_pullspecs_OSBS_resolution(pullspecs)
+
+        replacement_lines = "\n".join(
+            "{original} -> {new}".format(**r) if r['replaced']
+            else "{original} - no change".format(**r)
+            for r in replacements
+        )
+        self.log.info("To be replaced:\n%s", replacement_lines)
+
+        return replacements
+
+    def _get_replacement_pullspecs_from_csv_modifications(self, pullspecs):
+        """Replace components of pullspecs based on externally provided CSV modifications
+
+        :param pullspecs: a list of pullspecs.
+        :type pullspecs: list[ImageName]
+        :return: a list of replacement result. Each of the replacement result
+            is a mapping containing key/value pairs:
+
+            * ``original``: ImageName, the original pullspec.
+            * ``new``: ImageName, the replaced/non-replaced pullspec.
+            * ``pinned``: bool, indicate whether the tag is replaced with a
+                          specific digest.
+            * ``replaced``: bool, indicate whether the new pullspec has change
+                            of repository or registry.
+
+        :rtype: list[dict[str, ImageName or bool]]
+        :raises RuntimeError: if provided CSV modification doesn't contain all
+                              required pullspecs or contain different ones
+        """
+        operator_csv_modifications = self._fetch_operator_csv_modifications()
+        mod_pullspec_repl = operator_csv_modifications.get('pullspec_replacements', [])
+
+        # check if modification data contains all required pullspecs
+        pullspecs_set = set(pullspecs)
+        mod_pullspecs_set = set((ImageName.parse(p['original']) for p in mod_pullspec_repl))
+
+        missing = pullspecs_set - mod_pullspecs_set
+        if missing:
+            raise RuntimeError(
+                f"Provided operator CSV modifications misses following pullspecs: "
+                f"{', '.join(sorted(str(p) for p in missing))}"
+            )
+
+        extra = mod_pullspecs_set - pullspecs_set
+        if extra:
+            raise RuntimeError(
+                f"Provided operator CSV modifications defines extra pullspecs: "
+                f"{','.join(sorted(str(p) for p in extra))}"
+            )
+
+        # Copy replacements from provided CSV modifications file, fill missing 'replaced' filed
+        replacements = [
+            {
+                'original': ImageName.parse(repl['original']),
+                'new': ImageName.parse(repl['new']),
+                'pinned': repl['pinned'],
+                'replaced': repl['original'] != repl['new']
+            }
+            for repl in mod_pullspec_repl
+        ]
+
+        return replacements
+
+    def _get_replacement_pullspecs_OSBS_resolution(self, pullspecs):
         """
         Replace components of pullspecs according to operator manifest
         replacement config
@@ -324,13 +452,6 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
                 'pinned': pinned,
                 'replaced': replaced != original
             })
-
-        replacement_lines = "\n".join(
-            "{original} -> {new}".format(**r) if r['replaced']
-            else "{original} - no change".format(**r)
-            for r in replacements
-        )
-        self.log.info("To be replaced:\n%s", replacement_lines)
 
         return replacements
 
