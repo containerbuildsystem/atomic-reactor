@@ -82,7 +82,7 @@ def mock_env(docker_tasker, repo_dir, orchestrator,
              user_config=None, site_config=None,
              df_base='scratch', df_operator_label=True,
              replacement_pullspecs=None, add_to_config=None,
-             write_container_yaml=True):
+             write_container_yaml=True, operator_csv_modifications_url=None):
     """
     Mock environment for test
 
@@ -95,17 +95,23 @@ def mock_env(docker_tasker, repo_dir, orchestrator,
     :param df_base: base image in Dockerfile, non-scratch should fail
     :param df_operator_label: presence of operator manifest bundle label
     :param replacement_pullspecs: plugin argument from osbs-client
+    :param operator_csv_modifications_url: plugin argument from osbs-client
 
     :return: configured plugin runner
     """
     reactor_config = make_reactor_config(site_config)
     if add_to_config:
         reactor_config.update(add_to_config)
-    env = (MockEnv()
-           .for_plugin('prebuild',
-                       PinOperatorDigestsPlugin.key,
-                       {'replacement_pullspecs': replacement_pullspecs})
-           .set_reactor_config(reactor_config))
+    env = (
+        MockEnv()
+        .for_plugin(
+            'prebuild',
+            PinOperatorDigestsPlugin.key,
+            {
+                'replacement_pullspecs': replacement_pullspecs,
+                'operator_csv_modifications_url': operator_csv_modifications_url,
+            })
+        .set_reactor_config(reactor_config))
 
     if orchestrator:
         env.make_orchestrator()
@@ -1034,3 +1040,169 @@ class TestPullspecReplacer(object):
             replacer.replace_repo(image)
 
         assert exc_msg in str(exc_info.value)
+
+
+PULLSPEC_REPLACEMENTS = [
+    {
+      "original": "myimage:v1.2.2",
+      "new": "myimage:v1.2.700",
+      "pinned": False,
+    },
+]
+
+
+class TestOperatorCSVModifications:
+    """Test suite for user modifications for Operator CSV file"""
+
+    def _test_assert_error(self, *, tmpdir, docker_tasker, test_url, pull_specs, exc_msg):
+        manifests_dir = tmpdir.join(OPERATOR_MANIFESTS_DIR).mkdir()
+        mock_operator_csv(manifests_dir, 'csv.yaml', pull_specs)
+
+        user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
+        site_config = get_site_config()
+
+        runner = mock_env(
+            docker_tasker, tmpdir, orchestrator=True,
+            user_config=user_config,
+            site_config=site_config,
+            operator_csv_modifications_url=test_url
+        )
+
+        with pytest.raises(PluginFailedException) as exc_info:
+            runner.run()
+
+        assert exc_msg in str(exc_info.value)
+
+    @pytest.mark.parametrize('pull_specs,exc_msg', [
+        # case: missing definitions
+        (
+            ["missing:v5.6"],
+            "Provided operator CSV modifications misses following pullspecs: missing:v5.6"
+        ),
+        # case: extra definitions
+        (
+            ["myimage:v1.2.2", "yet-another-image:123"],
+            ("Provided operator CSV modifications misses following pullspecs: "
+             "yet-another-image:123")
+        ),
+    ])
+    @responses.activate
+    def test_pullspecs_replacements_errors(self, tmpdir, docker_tasker, pull_specs, exc_msg):
+        """Plugin should fail when CSV modifications doesn't meet expectations"""
+        test_url = "https://example.com/modifications.json"
+        modification_data = {
+            "pullspec_replacements": PULLSPEC_REPLACEMENTS
+        }
+        responses.add(responses.GET, test_url, json=modification_data)
+
+        self._test_assert_error(
+            tmpdir=tmpdir,
+            docker_tasker=docker_tasker,
+            test_url=test_url,
+            pull_specs=pull_specs,
+            exc_msg=exc_msg,
+        )
+
+    @responses.activate
+    def test_fetch_modifications_http_error(self, tmpdir, docker_tasker):
+        """Test if HTTP error during fetching is properly described to user"""
+        test_url = "https://example.com/modifications.json"
+        exc_msg = f"Failed to fetch the operator CSV modification JSON from {test_url}"
+        responses.add(responses.GET, test_url, status=404)
+
+        self._test_assert_error(
+            tmpdir=tmpdir,
+            docker_tasker=docker_tasker,
+            test_url=test_url,
+            pull_specs=['mytestimage:v5'],
+            exc_msg=exc_msg)
+
+    @responses.activate
+    def test_fetch_modifications_json_error(self, tmpdir, docker_tasker):
+        """Test if JSON decoding failure properly described to user"""
+        test_url = "https://example.com/modifications.json"
+        exc_msg = f"Failed to parse operator CSV modification JSON from {test_url}"
+        responses.add(responses.GET, test_url, body="invalid json")
+
+        self._test_assert_error(
+            tmpdir=tmpdir,
+            docker_tasker=docker_tasker,
+            test_url=test_url,
+            pull_specs=['mytestimage:v5'],
+            exc_msg=exc_msg
+        )
+
+    @responses.activate
+    def test_csv_has_related_images(self, tmpdir, docker_tasker):
+        """Modifications must fail if RelatedImages section exists"""
+        test_url = "https://example.com/modifications.json"
+        modification_data = {
+            "pullspec_replacements": PULLSPEC_REPLACEMENTS
+        }
+        responses.add(responses.GET, test_url, json=modification_data)
+        manifests_dir = tmpdir.join(OPERATOR_MANIFESTS_DIR).mkdir()
+        mock_operator_csv(
+            manifests_dir, 'csv.yaml', ['mytestimage:v6'],
+            with_related_images=True
+        )
+
+        user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
+        site_config = get_site_config()
+
+        runner = mock_env(
+            docker_tasker, tmpdir, orchestrator=True,
+            user_config=user_config,
+            site_config=site_config,
+            operator_csv_modifications_url=test_url,
+        )
+
+        with pytest.raises(PluginFailedException) as exc_info:
+            runner.run()
+
+        exc_msg = (
+            "OSBS cannot modify operator CSV file because this operator bundle "
+            "is managed by owner (digest pinning explicitly disabled or "
+            "RelatedImages section in CSV exists)"
+        )
+        assert exc_msg in str(exc_info.value)
+
+    @responses.activate
+    def test_pullspecs_replacements(self, tmpdir, docker_tasker):
+        """Test if pullspecs are properly replaced"""
+        test_url = "https://example.com/modifications.json"
+        modification_data = {
+            "pullspec_replacements": PULLSPEC_REPLACEMENTS
+        }
+        responses.add(responses.GET, test_url, json=modification_data)
+
+        manifests_dir = tmpdir.join(OPERATOR_MANIFESTS_DIR).mkdir()
+        mock_operator_csv(manifests_dir, 'csv.yaml', ['myimage:v1.2.2'])
+
+        user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
+        site_config = get_site_config()
+
+        runner = mock_env(
+            docker_tasker, tmpdir, orchestrator=True,
+            user_config=user_config,
+            site_config=site_config,
+            operator_csv_modifications_url=test_url
+        )
+
+        result = runner.run()
+
+        expected = {
+            'related_images': {
+                'created_by_osbs': True,
+                'pullspecs': [
+                    {
+                        'new': ImageName.parse(p['new']),
+                        'original': ImageName.parse(p['original']),
+                        'pinned': p['pinned'],
+                        'replaced': ImageName.parse(p['new']) != ImageName.parse(p['original']),
+                    }
+                    for p in PULLSPEC_REPLACEMENTS
+                ]
+            }
+        }
+
+        assert result['pin_operator_digest'] == expected
