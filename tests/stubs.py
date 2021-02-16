@@ -52,7 +52,7 @@ class StubInsideBuilder(object):
     """
 
     def __init__(self):
-        self.dockerfile_images = None
+        self.dockerfile_images = DockerfileImages([])
         self.parent_images_digests = {}
         self.df_path = None
         self.df_dir = None
