@@ -69,7 +69,7 @@ class XBeforeDockerfile(object):
         self.source = Y()
         self.source.dockerfile_path = None
         self.source.path = None
-        self.dockerfile_images = None
+        self.dockerfile_images = DockerfileImages([])
         self.df_dir = None
 
     def parent_images_to_str(self):

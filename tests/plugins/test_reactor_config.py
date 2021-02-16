@@ -2138,7 +2138,7 @@ source_registry:
             assert len(workflow.builder.dockerfile_images) == 2
             assert workflow.builder.dockerfile_images.keys() == expect_images
         else:
-            assert workflow.builder.dockerfile_images is None
+            assert not workflow.builder.dockerfile_images
 
     @pytest.mark.parametrize(('config', 'expect'), [
         ("""\

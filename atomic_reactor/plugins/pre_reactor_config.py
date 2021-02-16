@@ -649,7 +649,7 @@ class ReactorConfigPlugin(PreBuildPlugin):
                                                      default_image_build_method)
 
         # set source registry and organization
-        if self.workflow.builder.dockerfile_images is not None:
+        if self.workflow.builder.dockerfile_images:
             source_registry_docker_uri = get_source_registry(self.workflow)['uri'].docker_uri
             organization = get_registries_organization(self.workflow)
             self.workflow.builder.dockerfile_images.set_source_registry(source_registry_docker_uri,

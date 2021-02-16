@@ -367,8 +367,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
             self.repos.append(compose_info['result_repofile'])
 
     def run(self):
-        if (self.workflow.builder.dockerfile_images is None or
-                not self.workflow.builder.dockerfile_images.custom_parent_image):
+        if not self.workflow.builder.dockerfile_images.custom_parent_image:
             self.log.info('Nothing to do for non-custom base images')
             return
 

@@ -156,7 +156,7 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         # configuration of source_registy and pull_registries with insecure and
         # dockercfg_path, by registry key
         self.pull_registries = {}
-        self.dockerfile_images = None
+        self.dockerfile_images = DockerfileImages([])
         self._base_image_inspect = None
         self.parents_pulled = False
         self._parent_images_inspect = {}  # locally available image => inspect
