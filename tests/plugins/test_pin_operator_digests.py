@@ -27,6 +27,9 @@ from atomic_reactor.plugins.pre_pin_operator_digest import (
     PinOperatorDigestsPlugin,
     PullspecReplacer,
     terminal_key_paths)
+
+from atomic_reactor.source import PathSource
+
 from tests.util import OPERATOR_MANIFESTS_DIR
 
 from osbs.exceptions import OsbsValidationException
@@ -128,7 +131,6 @@ def mock_env(docker_tasker, repo_dir, orchestrator,
 
     mock_dockerfile(repo_dir, df_base, df_operator_label)
 
-    from atomic_reactor.source import PathSource
     env.workflow.source = PathSource('path', str(repo_dir))
 
     # NOTE: is this path correct?
@@ -1351,6 +1353,351 @@ class TestOperatorCSVModifications:
                 ['spec', 'version'],
             ]
         )
+
+    @pytest.mark.parametrize(
+        'mods,allowed_attrs,expected_final_csv',
+        [
+            pytest.param(
+                {
+                    'append': {'spec': {'skips': ['1.2.3']}},
+                    'update': {
+                        'metadata': {
+                            'name': 'app.v1.2.700-patched',
+                            'substitutes-for': '1.2.2',
+                            'annotations': {
+                                'description': 'Some new description'
+                            }
+                        },
+                        'spec': {
+                            'version': 'v1.2.700-patched'
+                        }
+                    }
+                },
+                [
+                    ['metadata', 'annotations', 'description'],
+                    ['metadata', 'substitutes-for'],
+                    ['metadata', 'name'],
+                    ['spec', 'skips'],
+                    ['spec', 'version'],
+                ],
+                {
+                    'kind': 'ClusterServiceVersion',
+                    'metadata': {
+                        'annotations': {
+                            'description': 'Some new description',
+                        },
+                        'name': 'app.v1.2.700-patched',
+                        'substitutes-for': '1.2.2'
+                    },
+                    'spec': {
+                        'install': {
+                            'spec': {
+                                'deployments': [{
+                                    'spec': {
+                                        'template': {
+                                            'spec': {
+                                                'containers': [{
+                                                    'name': 'foo-1',
+                                                    'image': 'myimage:v1.2.2'
+                                                }]
+                                            }
+                                        }
+                                    }
+                                }]
+                            }
+                        },
+                        'relatedImages': [{'name': 'foo-1', 'image': 'myimage:v1.2.2'}],
+                        'skips': ['1.2.3'],
+                        'version': 'v1.2.700-patched'
+                    }
+                },
+                id='kitchen_sink'
+            ),
+            pytest.param(
+                {
+                    'append': {'spec': {'skips': ['1.2.3']}}
+                },
+                [
+                    ['spec', 'skips'],
+                ],
+                {
+                    'kind': 'ClusterServiceVersion',
+                    'metadata': {},
+                    'spec': {
+                        'install': {
+                            'spec': {
+                                'deployments': [{
+                                    'spec': {
+                                        'template': {
+                                            'spec': {
+                                                'containers': [{
+                                                    'name': 'foo-1',
+                                                    'image': 'myimage:v1.2.2'
+                                                }]
+                                            }
+                                        }
+                                    }
+                                }]
+                            }
+                        },
+                        'relatedImages': [{'name': 'foo-1', 'image': 'myimage:v1.2.2'}],
+                        'skips': ['1.2.3'],
+                    }
+                },
+                id='append_only'
+            ),
+            pytest.param(
+                {
+                    'update': {'metadata': {'name': 'app.v1.2.700-patched'}}
+                },
+                [
+                    ['metadata', 'name'],
+                ],
+                {
+                    'kind': 'ClusterServiceVersion',
+                    'metadata': {
+                        'name': 'app.v1.2.700-patched'
+                    },
+                    'spec': {
+                        'install': {
+                            'spec': {
+                                'deployments': [{
+                                    'spec': {
+                                        'template': {
+                                            'spec': {
+                                                'containers': [{
+                                                    'name': 'foo-1',
+                                                    'image': 'myimage:v1.2.2'
+                                                }]
+                                            }
+                                        }
+                                    }
+                                }]
+                            }
+                        },
+                        'relatedImages': [{'name': 'foo-1', 'image': 'myimage:v1.2.2'}],
+                    }
+                },
+                id='update_only'
+            ),
+            pytest.param(
+                {
+                    'update': {
+                        'metadata': {
+                            'annotations': {
+                                'description': 'Some new description',
+                                'other_dict': {
+                                    'some_key': 'some_value'
+                                }
+                            }
+                        }
+                    }
+                },
+                [
+                    ['metadata', 'annotations', 'description'],
+                    ['metadata', 'annotations', 'other_dict', 'some_key'],
+                ],
+                {
+                    'kind': 'ClusterServiceVersion',
+                    'metadata': {
+                        'annotations': {
+                            'description': 'Some new description',
+                            'other_dict': {
+                                    'some_key': 'some_value'
+                            }
+                        },
+                    },
+                    'spec': {
+                        'install': {
+                            'spec': {
+                                'deployments': [{
+                                    'spec': {
+                                        'template': {
+                                            'spec': {
+                                                'containers': [{
+                                                    'name': 'foo-1',
+                                                    'image': 'myimage:v1.2.2'
+                                                }]
+                                            }
+                                        }
+                                    }
+                                }]
+                            }
+                        },
+                        'relatedImages': [{'name': 'foo-1', 'image': 'myimage:v1.2.2'}],
+                    }
+                },
+                id='update_only_deep'
+            ),
+            pytest.param(
+                {
+                    'append': {
+                        'spec': {
+                            'install': {
+                                'spec': {
+                                    'fake_object': {
+                                        'spec': {
+                                            'fake_list': [
+                                                'fake_item'
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                [
+                    ['spec', 'install', 'spec', 'fake_object', 'spec', 'fake_list'],
+                ],
+                {
+                    'kind': 'ClusterServiceVersion',
+                    'metadata': {},
+                    'spec': {
+                        'install': {
+                            'spec': {
+                                'deployments': [{
+                                    'spec': {
+                                        'template': {
+                                            'spec': {
+                                                'containers': [{
+                                                    'name': 'foo-1',
+                                                    'image': 'myimage:v1.2.2'
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }],
+                                'fake_object': {
+                                    'spec': {
+                                        'fake_list': ['fake_item']
+                                    }
+                                }
+                            }
+                        },
+                        'relatedImages': [{'name': 'foo-1', 'image': 'myimage:v1.2.2'}]
+                    }
+                },
+                id='append_only_deep'
+            )
+        ]
+    )
+    @responses.activate
+    def test_other_metadata_replacements_pass(self, tmpdir, docker_tasker,
+                                              mods,
+                                              allowed_attrs,
+                                              expected_final_csv):
+        csv_yaml = 'csv.yaml'
+        pullspecs = ['myimage:v1.2.2']
+        test_url = 'https://example.com/modifications.json'
+        modification_data = {
+            'pullspec_replacements': PULLSPEC_REPLACEMENTS
+        }
+        modification_data.update(mods)
+
+        responses.add(responses.GET, test_url, json=modification_data)
+
+        manifests_dir = tmpdir.join(OPERATOR_MANIFESTS_DIR).mkdir()
+        mock_operator_csv(manifests_dir, csv_yaml, pullspecs)
+
+        user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
+        site_config = get_site_config(
+            operator_csv_modifications_allowed_attributes=allowed_attrs,
+        )
+
+        runner = mock_env(
+            docker_tasker, tmpdir, orchestrator=False,
+            user_config=user_config,
+            site_config=site_config,
+            operator_csv_modifications_url=test_url
+        )
+
+        pytest_tmp_dir = runner.workflow.source.source_path
+
+        runner.run()
+
+        with open(os.path.join(pytest_tmp_dir, OPERATOR_MANIFESTS_DIR, csv_yaml), 'r') as csv:
+            final_csv = yaml.load(csv.read())
+
+        assert final_csv == expected_final_csv
+
+    @pytest.mark.parametrize(
+        'csv,mods,allowed_attrs,exc_msg',
+        [
+            pytest.param(
+                {
+                    'kind': 'ClusterServiceVersion',
+                    'metadata': {},
+                    'spec': {
+                        'install': {
+                            'spec': {
+                                'deployments': [
+                                    {
+                                        'spec': {
+                                            'template': {
+                                                'spec': {
+                                                    'containers':  [{
+                                                        'name': 'foo-1',
+                                                        'image': 'myimage:v1.2.2'
+                                                    }]
+                                                }
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        'relatedImages': [],
+                        'skips': 'foo'
+                    }
+                },
+                {
+                    'append': {'spec': {'skips': ['1.2.3']}}
+                },
+                [
+                    ['spec', 'skips']
+                ],
+                (
+                    "CSV value to append to is not a list"
+                ),
+                id='append_not_list')
+        ]
+    )
+    @responses.activate
+    def test_other_metadata_replacements_custom_csv(self, tmpdir, docker_tasker,
+                                                    csv, mods,
+                                                    allowed_attrs,
+                                                    exc_msg):
+        csv_yaml = 'csv.yaml'
+        test_url = 'https://example.com/modifications.json'
+        modification_data = {
+            'pullspec_replacements': PULLSPEC_REPLACEMENTS
+        }
+        modification_data.update(mods)
+
+        responses.add(responses.GET, test_url, json=modification_data)
+        path = tmpdir.join(OPERATOR_MANIFESTS_DIR).mkdir().join(csv_yaml)
+
+        with open(str(path), 'w') as yamlfile:
+            yaml.dump(csv, yamlfile)
+
+        user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
+        site_config = get_site_config(
+            operator_csv_modifications_allowed_attributes=allowed_attrs,
+        )
+
+        runner = mock_env(
+            docker_tasker, tmpdir, orchestrator=False,
+            user_config=user_config,
+            site_config=site_config,
+            operator_csv_modifications_url=test_url
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            runner.run()
+
+        assert exc_msg in str(exc_info.value)
 
 
 @pytest.mark.parametrize('data,expected', [
