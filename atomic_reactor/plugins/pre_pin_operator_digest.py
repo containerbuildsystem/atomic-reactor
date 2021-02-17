@@ -302,6 +302,13 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
             self.log.info("Creating relatedImages section in %s", operator_csv.path)
             operator_csv.set_related_images()
 
+            operator_csv_modifications = self._fetch_operator_csv_modifications()
+            if operator_csv_modifications:
+                operator_csv.modifications_append(
+                    operator_csv_modifications.get('append', {}))
+                operator_csv.modifications_update(
+                    operator_csv_modifications.get('update', {}))
+
             operator_csv.dump()
         else:
             self.log.warning("%s has a relatedImages section, skipping", operator_csv.path)
