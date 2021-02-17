@@ -200,6 +200,37 @@ def check_csv(data, schema):
     validate_with_schema(data, schema)
 
 
+def modify_dict_recursively(target, mods, append=False):
+    """Apply 'mods' dictionary to 'target' dictionary for map entry values,
+
+    creating map entries if missing. If `append` flag is set, update/create
+    leaf lists (also creating any missing mapping entries).
+
+    Properly handles the case where either or both dicts are nested.
+
+    :param target: a dict
+    :param mods: a dict
+    :param append: boolean
+    :return: target, modified
+    """
+    for key, value in mods.items():
+        if isinstance(value, dict):
+            # recursive call
+            target[key] = modify_dict_recursively(target.get(key, {}), value, append=append)
+        else:
+            if append:
+                field = target.setdefault(key, [])
+                if not isinstance(field, list):
+                    # There's a type mismatch in the original CSV - we only *ever* allow
+                    # a list for appending.
+                    raise CSVModifyError('CSV value to append to is not a list'
+                                         f' (found {target[key]})')
+                field.extend(value)
+            else:
+                target[key] = value
+    return target
+
+
 def is_dict(obj):
     """
     Check if object is a dict or the ruamel.yaml equivalent of a dict
@@ -341,6 +372,12 @@ class NotOperatorCSV(Exception):
 class CSVValidationError(Exception):
     """
     CSV validation against schema failed
+    """
+
+
+class CSVModifyError(Exception):
+    """
+    Problem modifying the CSV, i.e. via `modifications_append` or `modifications_update`
     """
 
 
@@ -733,6 +770,28 @@ class OperatorCSV(object):
             # Doesn't matter if string was not a pullspec, it will simply not match anything
             # in replacement_pullspecs and no replacement will be done
             self._replace_unnamed_pullspec(obj, k_or_i, replacements)
+
+    def modifications_append(self, append_mods):
+        """Append to a list entry in `self.data` (or add a list, if one does not exist)
+
+        Also checks the result against schema.
+
+        :param append_mods: a dict
+        :return: None; this modifies 'self.data' in-place
+        """
+        modify_dict_recursively(self.data, append_mods, append=True)
+        check_csv(self.data, _mini_csv_schema)
+
+    def modifications_update(self, update_mods):
+        """Update a dict entry in `self.data` (or add a dict entry, if one does not exist)
+
+        Also checks the result against schema.
+
+        :param update_mods: a dict
+        :return: None; this modifies 'self.data' in-place
+        """
+        modify_dict_recursively(self.data, update_mods)
+        check_csv(self.data, _mini_csv_schema)
 
 
 class OperatorManifest(object):
