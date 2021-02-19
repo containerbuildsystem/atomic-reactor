@@ -400,6 +400,10 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         if self.platforms:
             self.build_kwargs['operator_manifests_extract_platform'] = list(self.platforms)[0]
 
+        op_csv_mods_url = self.workflow.user_params.get('operator_csv_modifications_url')
+        if op_csv_mods_url:
+            self.build_kwargs['operator_csv_modifications_url'] = op_csv_mods_url
+
     def validate_arrangement_version(self):
         """Validate if the arrangement_version is supported
 
